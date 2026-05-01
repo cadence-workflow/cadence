@@ -26,8 +26,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Shopify/sarama"
-	"github.com/Shopify/sarama/mocks"
+	"github.com/IBM/sarama"
+	"github.com/IBM/sarama/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 
@@ -66,7 +66,7 @@ func TestNewConsumer(t *testing.T) {
 	}
 	topic := "test-topic"
 	consumerName := "test-consumer"
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	logger := testlogger.New(t)
 	kafkaProducer := NewKafkaProducer(topic, mockProducer, logger)
 	clusterName := kafkaConfig.GetKafkaClusterForTopic(topic)
@@ -84,7 +84,7 @@ func TestNewConsumer(t *testing.T) {
 
 func TestNewConsumerHandlerImpl(t *testing.T) {
 	topic := "test-topic"
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	logger := testlogger.New(t)
 	mockProducer := mocks.NewSyncProducer(t, nil)
 	kafkaProducer := NewKafkaProducer(topic, mockProducer, logger)
@@ -101,7 +101,7 @@ func TestNewConsumerHandlerImpl(t *testing.T) {
 // test multiple methods related to messageImpl since setup is repeated
 func TestMessageImpl(t *testing.T) {
 	topic := "test-topic"
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	logger := testlogger.New(t)
 	mockProducer := mocks.NewSyncProducer(t, nil)
 	kafkaProducer := NewKafkaProducer(topic, mockProducer, logger)

@@ -102,6 +102,18 @@ func TestThriftDecodeHelper(t *testing.T) {
 			encoding:  "hex",
 			wantObjFn: generateTestTimerInfo,
 		},
+		{
+			desc:      "Active clusters config",
+			input:     "0x590d000b0b0c00000001000000086c6f636174696f6e0d000a0b0c00000001000000066c6f6e646f6e0b000a00000008636c7573746572320a00140000000000000002000000",
+			encoding:  "hex",
+			wantObjFn: generateTestActiveClustersConfig,
+		},
+		{
+			desc:      "Active cluster selection policy",
+			input:     "5908000a000000000b001400000007726567696f6e300b001e000000000b00280000000000",
+			encoding:  "hex",
+			wantObjFn: generateTestActiveClusterSelectionPolicy,
+		},
 	}
 
 	for _, tc := range tests {
@@ -243,5 +255,31 @@ func generateTestTimerInfo(t *testing.T) codec.ThriftObject {
 		StartedID:       common.Int64Ptr(1),
 		ExpiryTimeNanos: common.Int64Ptr(1000),
 		TaskID:          common.Int64Ptr(5),
+	}
+}
+
+func generateTestActiveClusterSelectionPolicy(t *testing.T) codec.ThriftObject {
+	t.Helper()
+	return &shared.ActiveClusterSelectionPolicy{
+		Strategy:           shared.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:       common.StringPtr("region0"),
+		ExternalEntityType: common.StringPtr(""),
+		ExternalEntityKey:  common.StringPtr(""),
+	}
+}
+
+func generateTestActiveClustersConfig(t *testing.T) codec.ThriftObject {
+	t.Helper()
+	return &shared.ActiveClusters{
+		ActiveClustersByClusterAttribute: map[string]*shared.ClusterAttributeScope{
+			"location": &shared.ClusterAttributeScope{
+				ClusterAttributes: map[string]*shared.ActiveClusterInfo{
+					"london": {
+						ActiveClusterName: common.Ptr("cluster2"),
+						FailoverVersion:   common.Int64Ptr(2),
+					},
+				},
+			},
+		},
 	}
 }

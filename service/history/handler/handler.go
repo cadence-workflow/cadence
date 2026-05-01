@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,8 +35,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -54,6 +56,7 @@ import (
 	"github.com/uber/cadence/service/history/failover"
 	"github.com/uber/cadence/service/history/lookup"
 	"github.com/uber/cadence/service/history/queue"
+	"github.com/uber/cadence/service/history/queuev2"
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
@@ -70,20 +73,20 @@ type (
 	handlerImpl struct {
 		resource.Resource
 
-		shuttingDown                   int32
-		controller                     shard.Controller
-		tokenSerializer                common.TaskTokenSerializer
-		startWG                        sync.WaitGroup
-		config                         *config.Config
-		historyEventNotifier           events.Notifier
-		rateLimiter                    quotas.Limiter
-		replicationTaskFetchers        replication.TaskFetchers
-		queueTaskProcessor             task.Processor
-		failoverCoordinator            failover.Coordinator
-		workflowIDCache                workflowcache.WFCache
-		ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter
-		queueProcessorFactory          queue.ProcessorFactory
-		ratelimitAggregator            algorithm.RequestWeighted
+		shuttingDown             int32
+		controller               shard.Controller
+		tokenSerializer          common.TaskTokenSerializer
+		startWG                  sync.WaitGroup
+		config                   *config.Config
+		historyEventNotifier     events.Notifier
+		rateLimiter              quotas.Limiter
+		replicationTaskFetchers  replication.TaskFetchers
+		queueTaskProcessor       task.Processor
+		failoverCoordinator      failover.Coordinator
+		workflowIDCache          workflowcache.WFCache
+		ratelimitAggregator      algorithm.RequestWeighted
+		queueFactories           []queue.Factory
+		replicationBudgetManager cache.Manager
 	}
 )
 
@@ -95,16 +98,14 @@ func NewHandler(
 	resource resource.Resource,
 	config *config.Config,
 	wfCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
 ) Handler {
 	handler := &handlerImpl{
-		Resource:                       resource,
-		config:                         config,
-		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
-		rateLimiter:                    quotas.NewDynamicRateLimiter(config.RPS.AsFloat64()),
-		workflowIDCache:                wfCache,
-		ratelimitInternalPerWorkflowID: ratelimitInternalPerWorkflowID,
-		ratelimitAggregator:            resource.GetRatelimiterAlgorithm(),
+		Resource:            resource,
+		config:              config,
+		tokenSerializer:     common.NewJSONTaskTokenSerializer(),
+		rateLimiter:         quotas.NewDynamicRateLimiter(config.RPS.AsFloat64()),
+		workflowIDCache:     wfCache,
+		ratelimitAggregator: resource.GetRatelimiterAlgorithm(),
 	}
 
 	// prevent us from trying to serve requests before shard controller is started and ready
@@ -114,40 +115,81 @@ func NewHandler(
 
 // Start starts the handler
 func (h *handlerImpl) Start() {
-	h.replicationTaskFetchers = replication.NewTaskFetchers(
+	var err error
+	h.replicationTaskFetchers, err = replication.NewTaskFetchers(
 		h.GetLogger(),
 		h.config,
 		h.GetClusterMetadata(),
 		h.GetClientBean(),
-	)
-
-	h.replicationTaskFetchers.Start()
-
-	var err error
-	taskPriorityAssigner := task.NewPriorityAssigner(
-		h.GetClusterMetadata().GetCurrentClusterName(),
-		h.GetDomainCache(),
-		h.GetLogger(),
-		h.GetMetricsClient(),
-		h.config,
-	)
-
-	h.queueTaskProcessor, err = task.NewProcessor(
-		taskPriorityAssigner,
-		h.config,
-		h.GetLogger(),
 		h.GetMetricsClient(),
 	)
 	if err != nil {
-		h.GetLogger().Fatal("Creating priority task processor failed", tag.Error(err))
+		h.GetLogger().Fatal("Creating replication task fetchers failed", tag.Error(err))
 	}
-	h.queueTaskProcessor.Start()
+
+	h.replicationTaskFetchers.Start()
+
+	taskPriorityAssigner := task.NewPriorityAssigner(
+		h.GetClusterMetadata().GetCurrentClusterName(),
+		h.GetDomainCache(),
+		h.GetActiveClusterManager(),
+		h.GetLogger(),
+		h.GetMetricsClient(),
+		h.config,
+	)
+
+	h.replicationBudgetManager = cache.NewBudgetManager(
+		"replication-budget-manager",
+		h.config.ReplicationBudgetManagerMaxSizeBytes,
+		h.config.ReplicationBudgetManagerMaxSizeCount,
+		cache.AdmissionOptimistic,
+		0,
+		h.GetMetricsClient().Scope(metrics.ReplicatorCacheManagerScope, metrics.HostTag(h.config.HostName)),
+		h.GetLogger(),
+		h.config.ReplicationBudgetManagerSoftCapThreshold,
+	)
 
 	h.controller = shard.NewShardController(
 		h.Resource,
 		h,
 		h.config,
+		h.replicationBudgetManager,
 	)
+
+	var taskProcessor task.Processor
+	taskProcessor, err = task.NewProcessor(
+		taskPriorityAssigner,
+		h.config,
+		h.GetLogger(),
+		h.GetMetricsClient(),
+		h.GetTimeSource(),
+		h.GetDomainCache(),
+	)
+	if err != nil {
+		h.GetLogger().Fatal("Creating priority task processor failed", tag.Error(err))
+	}
+	taskRateLimiter := task.NewRateLimiter(
+		h.GetLogger(),
+		h.GetMetricsClient(),
+		h.GetDomainCache(),
+		h.config,
+		h.controller,
+	)
+	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
+	h.queueTaskProcessor.Start()
+
+	h.queueFactories = []queue.Factory{
+		queuev2.NewTransferQueueFactory(
+			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+			h.workflowIDCache,
+		),
+		queuev2.NewTimerQueueFactory(
+			h.queueTaskProcessor,
+			h.GetArchiverClient(),
+		),
+	}
+
 	h.historyEventNotifier = events.NewNotifier(h.GetTimeSource(), h.GetMetricsClient(), h.config.GetShardID)
 	// events notifier must starts before controller
 	h.historyEventNotifier.Start()
@@ -173,6 +215,9 @@ func (h *handlerImpl) Start() {
 // Stop stops the handler
 func (h *handlerImpl) Stop() {
 	h.prepareToShutDown()
+	if h.replicationBudgetManager != nil {
+		h.replicationBudgetManager.Stop()
+	}
 	h.replicationTaskFetchers.Stop()
 	h.controller.Stop()
 	h.queueTaskProcessor.Stop()
@@ -207,16 +252,12 @@ func (h *handlerImpl) CreateEngine(
 		shardContext,
 		h.GetVisibilityManager(),
 		h.GetMatchingClient(),
-		h.GetSDKClient(),
 		h.historyEventNotifier,
 		h.config,
 		h.replicationTaskFetchers,
 		h.GetMatchingRawClient(),
-		h.queueTaskProcessor,
 		h.failoverCoordinator,
-		h.workflowIDCache,
-		h.ratelimitInternalPerWorkflowID,
-		queue.NewProcessorFactory(),
+		h.queueFactories,
 	)
 }
 
@@ -365,6 +406,7 @@ func (h *handlerImpl) RecordDecisionTaskStarted(
 			tag.Error(err1),
 			tag.WorkflowID(recordRequest.WorkflowExecution.GetWorkflowID()),
 			tag.WorkflowRunID(runID),
+			tag.WorkflowDomainName(domainID),
 			tag.WorkflowRunID(recordRequest.WorkflowExecution.GetRunID()),
 			tag.WorkflowScheduleID(recordRequest.GetScheduleID()),
 		)
@@ -728,19 +770,24 @@ func (h *handlerImpl) RemoveTask(
 		return err
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
-		return executionMgr.CompleteTransferTask(ctx, &persistence.CompleteTransferTaskRequest{
-			TaskID: request.GetTaskID(),
+	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
+	case commonconstants.TaskTypeTransfer:
+		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
-	case common.TaskTypeTimer:
-		return executionMgr.CompleteTimerTask(ctx, &persistence.CompleteTimerTaskRequest{
-			VisibilityTimestamp: time.Unix(0, request.GetVisibilityTimestamp()),
-			TaskID:              request.GetTaskID(),
+	case commonconstants.TaskTypeTimer:
+		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryTimer,
+			TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID()),
+			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
-	case common.TaskTypeReplication:
-		return executionMgr.CompleteReplicationTask(ctx, &persistence.CompleteReplicationTaskRequest{
-			TaskID: request.GetTaskID(),
+	case commonconstants.TaskTypeReplication:
+		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+			TaskCategory: persistence.HistoryTaskCategoryReplication,
+			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	default:
 		return constants.ErrInvalidTaskType
@@ -773,10 +820,10 @@ func (h *handlerImpl) ResetQueue(
 		return h.error(err, scope, "", "", "")
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
+	case commonconstants.TaskTypeTransfer:
 		err = engine.ResetTransferQueue(ctx, request.GetClusterName())
-	case common.TaskTypeTimer:
+	case commonconstants.TaskTypeTimer:
 		err = engine.ResetTimerQueue(ctx, request.GetClusterName())
 	default:
 		err = constants.ErrInvalidTaskType
@@ -805,10 +852,10 @@ func (h *handlerImpl) DescribeQueue(
 		return nil, h.error(err, scope, "", "", "")
 	}
 
-	switch taskType := common.TaskType(request.GetType()); taskType {
-	case common.TaskTypeTransfer:
+	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
+	case commonconstants.TaskTypeTransfer:
 		resp, err = engine.DescribeTransferQueue(ctx, request.GetClusterName())
-	case common.TaskTypeTimer:
+	case commonconstants.TaskTypeTimer:
 		resp, err = engine.DescribeTimerQueue(ctx, request.GetClusterName())
 	default:
 		err = constants.ErrInvalidTaskType
@@ -1555,17 +1602,33 @@ func (h *handlerImpl) GetReplicationMessages(
 
 	h.GetLogger().Debug("Received GetReplicationMessages call.")
 
-	_, sw := h.startRequestProfile(ctx, metrics.HistoryGetReplicationMessagesScope)
+	metricsScope, sw := h.startRequestProfile(ctx, metrics.HistoryGetReplicationMessagesScope)
 	defer sw.Stop()
 
 	if h.isShuttingDown() {
 		return nil, constants.ErrShuttingDown
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(request.Tokens))
-	result := new(sync.Map)
+	msgs := h.getReplicationShardMessages(ctx, request)
+	response := h.buildGetReplicationMessagesResponse(metricsScope, msgs)
 
+	h.GetLogger().Debug("GetReplicationMessages succeeded.")
+	return response, nil
+}
+
+// getReplicationShardMessages gets replication messages from all the shards of the request
+// it queries the replication tasks from each shard in parallel
+func (h *handlerImpl) getReplicationShardMessages(
+	ctx context.Context,
+	request *types.GetReplicationMessagesRequest,
+) []replicationShardMessages {
+	var (
+		wg      sync.WaitGroup
+		mx      sync.Mutex
+		results = make([]replicationShardMessages, 0, len(request.Tokens))
+	)
+
+	wg.Add(len(request.Tokens))
 	for _, token := range request.Tokens {
 		go func(token *types.ReplicationToken) {
 			defer wg.Done()
@@ -1575,7 +1638,7 @@ func (h *handlerImpl) GetReplicationMessages(
 				h.GetLogger().Warn("History engine not found for shard", tag.Error(err))
 				return
 			}
-			tasks, err := engine.GetReplicationMessages(
+			msgs, err := engine.GetReplicationMessages(
 				ctx,
 				request.GetClusterName(),
 				token.GetLastRetrievedMessageID(),
@@ -1585,40 +1648,112 @@ func (h *handlerImpl) GetReplicationMessages(
 				return
 			}
 
-			result.Store(token.GetShardID(), tasks)
+			mx.Lock()
+			defer mx.Unlock()
+
+			results = append(results, replicationShardMessages{
+				ReplicationMessages:  msgs,
+				shardID:              token.GetShardID(),
+				size:                 proto.FromReplicationMessages(msgs).Size(),
+				earliestCreationTime: msgs.GetEarliestCreationTime(),
+			})
 		}(token)
 	}
 
 	wg.Wait()
+	return results
+}
 
-	responseSize := 0
-	maxResponseSize := h.config.MaxResponseSize
+// buildGetReplicationMessagesResponse builds a new GetReplicationMessagesResponse from shard results
+// The response can be partial if the total size of the response exceeds the max size.
+// In this case, responses with oldest replication tasks will be returned
+func (h *handlerImpl) buildGetReplicationMessagesResponse(metricsScope metrics.Scope, msgs []replicationShardMessages) *types.GetReplicationMessagesResponse {
+	// Shards with large messages can cause the response to exceed the max size.
+	// In this case, we need to skip some shard messages to make sure the result response size is within the limit.
+	// To prevent a replication lag in the future, we should return the messages with the oldest replication task.
+	// So we sort the shard messages by the earliest creation time of the replication task.
+	// If the earliest creation time is the same, we compare the size of the message.
+	// This will sure that shards with the oldest replication tasks will be processed first.
+	sortReplicationShardMessages(msgs)
 
-	messagesByShard := make(map[int32]*types.ReplicationMessages)
-	result.Range(func(key, value interface{}) bool {
-		shardID := key.(int32)
-		tasks := value.(*types.ReplicationMessages)
+	var (
+		responseSize    = 0
+		maxResponseSize = h.config.MaxResponseSize
+		messagesByShard = make(map[int32]*types.ReplicationMessages, len(msgs))
+	)
 
-		size := proto.FromReplicationMessages(tasks).Size()
-		if (responseSize + size) >= maxResponseSize {
+	for _, m := range msgs {
+		if (responseSize + m.size) >= maxResponseSize {
+			metricsScope.Tagged(metrics.ShardIDTag(int(m.shardID))).IncCounter(metrics.ReplicationMessageTooLargePerShard)
+
 			// Log shards that did not fit for debugging purposes
 			h.GetLogger().Warn("Replication messages did not fit in the response (history host)",
-				tag.ShardID(int(shardID)),
-				tag.ResponseSize(size),
+				tag.ShardID(int(m.shardID)),
+				tag.ResponseSize(m.size),
 				tag.ResponseTotalSize(responseSize),
 				tag.ResponseMaxSize(maxResponseSize),
 			)
-		} else {
-			responseSize += size
-			messagesByShard[shardID] = tasks
+
+			continue
 		}
+		responseSize += m.size
+		messagesByShard[m.shardID] = m.ReplicationMessages
+	}
+	return &types.GetReplicationMessagesResponse{MessagesByShard: messagesByShard}
+}
 
-		return true
-	})
+// replicationShardMessages wraps types.ReplicationMessages
+// and contains some metadata of the ReplicationMessages
+type replicationShardMessages struct {
+	*types.ReplicationMessages
+	// shardID of the ReplicationMessages
+	shardID int32
+	// size of proto payload of ReplicationMessages
+	size int
+	// earliestCreationTime of ReplicationMessages
+	earliestCreationTime *int64
+}
 
-	h.GetLogger().Debug("GetReplicationMessages succeeded.")
+// sortReplicationShardMessages sorts the peer responses by the earliest creation time of the replication tasks
+func sortReplicationShardMessages(msgs []replicationShardMessages) {
+	slices.SortStableFunc(msgs, cmpReplicationShardMessages)
+}
 
-	return &types.GetReplicationMessagesResponse{MessagesByShard: messagesByShard}, nil
+// cmpReplicationShardMessages compares
+// two replicationShardMessages objects by earliest creation time
+// it can be used as a comparison func for slices.SortStableFunc
+// if a's or b's earliestCreationTime is nil, slices.SortStableFunc will put them to the end of a slice
+// otherwise it will compare the earliestCreationTime of the replication tasks
+// if earliestCreationTime is equal, it will compare the size of the response
+func cmpReplicationShardMessages(a, b replicationShardMessages) int {
+	// a > b
+	if a.earliestCreationTime == nil {
+		return 1
+	}
+	// a < b
+	if b.earliestCreationTime == nil {
+		return -1
+	}
+
+	// if both are not nil, compare the creation time
+	if *a.earliestCreationTime < *b.earliestCreationTime {
+		return -1
+	}
+
+	if *a.earliestCreationTime > *b.earliestCreationTime {
+		return 1
+	}
+
+	// if both equal, compare the size
+	if a.size < b.size {
+		return -1
+	}
+
+	if a.size > b.size {
+		return 1
+	}
+
+	return 0
 }
 
 // GetDLQReplicationMessages is called by remote peers to get replicated messages for DLQ merging
@@ -1721,7 +1856,7 @@ func (h *handlerImpl) ReapplyEvents(
 	}
 	// deserialize history event object
 	historyEvents, err := h.GetPayloadSerializer().DeserializeBatchEvents(&persistence.DataBlob{
-		Encoding: common.EncodingTypeThriftRW,
+		Encoding: commonconstants.EncodingTypeThriftRW,
 		Data:     request.GetRequest().GetEvents().GetData(),
 	})
 	if err != nil {
@@ -2026,6 +2161,7 @@ func (h *handlerImpl) updateErrorMetric(
 	runID string,
 	err error,
 ) {
+	logger := h.GetLogger().Helper()
 
 	var yarpcE *yarpcerrors.Status
 
@@ -2092,7 +2228,7 @@ func (h *handlerImpl) updateErrorMetric(
 
 	} else if errors.As(err, &internalServiceError) {
 		scope.IncCounter(metrics.CadenceFailures)
-		h.GetLogger().Error("Internal service error",
+		logger.Error("Internal service error",
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
@@ -2101,7 +2237,7 @@ func (h *handlerImpl) updateErrorMetric(
 	} else {
 		// Default / unknown error fallback
 		scope.IncCounter(metrics.CadenceFailures)
-		h.GetLogger().Error("Uncategorized error",
+		logger.Error("Uncategorized error",
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
@@ -2134,7 +2270,7 @@ func (h *handlerImpl) emitInfoOrDebugLog(
 	}
 }
 
-func (h *handlerImpl) startRequestProfile(ctx context.Context, scope int) (metrics.Scope, metrics.Stopwatch) {
+func (h *handlerImpl) startRequestProfile(ctx context.Context, scope metrics.ScopeIdx) (metrics.Scope, metrics.Stopwatch) {
 	metricsScope := h.GetMetricsClient().Scope(scope, metrics.GetContextTags(ctx)...)
 	metricsScope.IncCounter(metrics.CadenceRequests)
 	sw := metricsScope.StartTimer(metrics.CadenceLatency)

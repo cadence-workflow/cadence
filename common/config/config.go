@@ -34,8 +34,12 @@ import (
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
-	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/metrics"
+	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -84,6 +88,25 @@ type (
 		// To use Async APIs for a domain first specify the queue using Admin API.
 		// Either refer to one of the predefined queues in this config or alternatively specify the queue details inline in the API call.
 		AsyncWorkflowQueues map[string]AsyncWorkflowQueueProvider `yaml:"asyncWorkflowQueues"`
+		// ShardDistributorClient is the config for shard distributor client
+		// Shard distributor is used to distribute shards across multiple cadence service instances
+		// Note: This is not recommended for use, it's still experimental
+		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
+
+		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
+		ShardDistribution sdconfig.ShardDistribution `yaml:"shardDistribution"`
+
+		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
+		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
+
+		// Histograms controls timer vs histogram metric emission while they are being migrated.
+		//
+		// Timers will eventually be dropped, and this config will be validation-only (e.g. to error if any explicitly request timers).
+		Histograms metrics.HistogramMigration `yaml:"histograms"`
+		// Gauges controls gauge metric emission during migration.
+		Gauges metrics.GaugeMigration `yaml:"gauge-migration"`
+		// Counters controls counter metric emission during migration.
+		Counters metrics.CounterMigration `yaml:"counter-migration"`
 	}
 
 	// Membership holds peer provider configuration.
@@ -182,6 +205,7 @@ type (
 		AdvancedVisibilityStore string `yaml:"advancedVisibilityStore"`
 		// HistoryMaxConns is the desired number of conns to history store. Value specified
 		// here overrides the MaxConns config specified as part of datastore
+		// Deprecated: This value is not used
 		HistoryMaxConns int `yaml:"historyMaxConns"`
 		// EnablePersistenceLatencyHistogramMetrics is to enable latency histogram metrics for persistence layer
 		EnablePersistenceLatencyHistogramMetrics bool `yaml:"enablePersistenceLatencyHistogramMetrics"`
@@ -193,10 +217,12 @@ type (
 		DataStores map[string]DataStore `yaml:"datastores"`
 		// TODO: move dynamic config out of static config
 		// TransactionSizeLimit is the largest allowed transaction size
-		TransactionSizeLimit dynamicconfig.IntPropertyFn `yaml:"-" json:"-"`
+		TransactionSizeLimit dynamicproperties.IntPropertyFn `yaml:"-" json:"-"`
 		// TODO: move dynamic config out of static config
 		// ErrorInjectionRate is the the rate for injecting random error
-		ErrorInjectionRate dynamicconfig.FloatPropertyFn `yaml:"-" json:"-"`
+		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
+		// HostName for emitting per-host metrics
+		HostName string `yaml:"-" json:"-"`
 	}
 
 	// DataStore is the configuration for a single datastore
@@ -259,6 +285,9 @@ type (
 		// Otherwise please add new fields to the struct for better documentation
 		// If being used in any database, update this comment here to make it clear
 		ConnectAttributes map[string]string `yaml:"connectAttributes"`
+		// HostSelectionPolicy sets gocql policy for selecting host for a query
+		// Available selections are: "tokenaware,roundrobin", "hostpool-epsilon-greedy", "roundrobin"
+		HostSelectionPolicy string `yaml:"hostSelectionPolicy"`
 	}
 
 	// ShardedNoSQL contains configuration to connect to a set of NoSQL Database clusters in a sharded manner
@@ -321,7 +350,7 @@ type (
 		// Required if not useMultipleDatabases
 		ConnectAddr string `yaml:"connectAddr"`
 		// ConnectProtocol is the protocol that goes with the ConnectAddr ex - tcp, unix
-		ConnectProtocol string `yaml:"connectProtocol" validate:"nonzero"`
+		ConnectProtocol string `yaml:"connectProtocol"`
 		// ConnectAttributes is a set of key-value attributes to be sent as part of connect data_source_name url
 		ConnectAttributes map[string]string `yaml:"connectAttributes"`
 		// MaxConns the max number of connections to this datastore
@@ -588,6 +617,12 @@ type (
 		URI string `yaml:"URI"`
 	}
 
+	// ShardDistributorClient contains the config items for shard distributor
+	ShardDistributorClient struct {
+		// The host and port of the shard distributor server
+		HostPort string `yaml:"hostPort"`
+	}
+
 	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,
 	// and go.uber.org/config currently uses only v2.
 	YamlNode struct {
@@ -621,6 +656,9 @@ func (y *YamlNode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (y *YamlNode) Decode(out any) error {
+	if y == nil {
+		return nil
+	}
 	return y.unmarshal(out)
 }
 

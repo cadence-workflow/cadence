@@ -34,6 +34,7 @@ var (
 		EmitMetric:                             common.BoolPtr(DomainEmitMetric),
 		Clusters:                               ClusterReplicationConfigurationArray,
 		ActiveClusterName:                      ClusterName1,
+		ActiveClusters:                         &ActiveClusters,
 		Data:                                   DomainData,
 		SecurityToken:                          SecurityToken,
 		IsGlobalDomain:                         true,
@@ -75,10 +76,38 @@ var (
 		VisibilityArchivalStatus:               &ArchivalStatus,
 		VisibilityArchivalURI:                  common.StringPtr(VisibilityArchivalURI),
 		ActiveClusterName:                      common.StringPtr(ClusterName1),
+		ActiveClusters:                         &ActiveClusters,
 		Clusters:                               ClusterReplicationConfigurationArray,
 		SecurityToken:                          SecurityToken,
 		DeleteBadBinary:                        common.StringPtr(DeleteBadBinary),
 		FailoverTimeoutInSeconds:               &Duration1,
+	}
+	FailoverDomainRequest = types.FailoverDomainRequest{
+		DomainName:              DomainName,
+		DomainActiveClusterName: common.StringPtr(ClusterName1),
+		ActiveClusters:          &ActiveClusters,
+	}
+	FailoverDomainRequest_OnlyActiveClusters = types.FailoverDomainRequest{
+		DomainName: DomainName,
+		// Explicitly set to nil to test ActiveActive failovers
+		DomainActiveClusterName: nil,
+		ActiveClusters:          &ActiveClusters,
+	}
+	ActiveClusters = types.ActiveClusters{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					Region1: {
+						ActiveClusterName: ClusterName1,
+						FailoverVersion:   FailoverVersion1,
+					},
+					Region2: {
+						ActiveClusterName: ClusterName2,
+						FailoverVersion:   FailoverVersion2,
+					},
+				},
+			},
+		},
 	}
 	UpdateDomainResponse = types.UpdateDomainResponse{
 		DomainInfo:               &DomainInfo,
@@ -86,6 +115,10 @@ var (
 		ReplicationConfiguration: &DomainReplicationConfiguration,
 		FailoverVersion:          FailoverVersion1,
 		IsGlobalDomain:           true,
+	}
+	DeleteDomainRequest = types.DeleteDomainRequest{
+		Name:          DomainName,
+		SecurityToken: SecurityToken,
 	}
 	DeprecateDomainRequest = types.DeprecateDomainRequest{
 		Name:          DomainName,
@@ -186,6 +219,7 @@ var (
 		StartedTimestamp:          &Timestamp2,
 		Queries:                   WorkflowQueryMap,
 		NextEventID:               EventID3,
+		AutoConfigHint:            &AutoConfigHint,
 	}
 	RespondDecisionTaskCompletedRequest = types.RespondDecisionTaskCompletedRequest{
 		TaskToken:                  TaskToken,
@@ -232,6 +266,7 @@ var (
 		WorkflowType:                    &WorkflowType,
 		WorkflowDomain:                  DomainName,
 		Header:                          &Header,
+		AutoConfigHint:                  &AutoConfigHint,
 	}
 	RespondActivityTaskCompletedRequest = types.RespondActivityTaskCompletedRequest{
 		TaskToken: TaskToken,
@@ -317,10 +352,12 @@ var (
 		WorkflowIDReusePolicy:               &WorkflowIDReusePolicy,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimeStamp:                 &Timestamp1,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
 	}
 	StartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,
@@ -354,10 +391,12 @@ var (
 		Control:                             Control,
 		RetryPolicy:                         &RetryPolicy,
 		CronSchedule:                        CronSchedule,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimestamp:                 &Timestamp1,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyRegionSticky,
 	}
 	SignalWithStartWorkflowExecutionAsyncRequest = types.SignalWithStartWorkflowExecutionAsyncRequest{
 		SignalWithStartWorkflowExecutionRequest: &SignalWithStartWorkflowExecutionRequest,
@@ -383,8 +422,9 @@ var (
 		FirstExecutionRunID: RunID,
 	}
 	DescribeWorkflowExecutionRequest = types.DescribeWorkflowExecutionRequest{
-		Domain:    DomainName,
-		Execution: &WorkflowExecution,
+		Domain:                DomainName,
+		Execution:             &WorkflowExecution,
+		QueryConsistencyLevel: &QueryConsistencyLevel,
 	}
 	DescribeWorkflowExecutionResponse = types.DescribeWorkflowExecutionResponse{
 		ExecutionConfiguration: &WorkflowExecutionConfiguration,
@@ -396,6 +436,7 @@ var (
 	DiagnoseWorkflowExecutionRequest = types.DiagnoseWorkflowExecutionRequest{
 		Domain:            DomainName,
 		WorkflowExecution: &WorkflowExecution,
+		Identity:          Identity,
 	}
 	DiagnoseWorkflowExecutionResponse = types.DiagnoseWorkflowExecutionResponse{
 		Domain:                      DomainName,
@@ -419,8 +460,10 @@ var (
 		IncludeTaskListStatus: true,
 	}
 	DescribeTaskListResponse = types.DescribeTaskListResponse{
-		Pollers:        PollerInfoArray,
-		TaskListStatus: &TaskListStatus,
+		Pollers:         PollerInfoArray,
+		TaskListStatus:  &TaskListStatus,
+		PartitionConfig: &TaskListPartitionConfig,
+		TaskList:        &TaskList,
 	}
 	ListTaskListPartitionsRequest = types.ListTaskListPartitionsRequest{
 		Domain:   DomainName,
@@ -443,6 +486,7 @@ var (
 		WaitForNewEvent:        true,
 		HistoryEventFilterType: &HistoryEventFilterType,
 		SkipArchival:           true,
+		QueryConsistencyLevel:  &QueryConsistencyLevel,
 	}
 	GetWorkflowExecutionHistoryResponse = types.GetWorkflowExecutionHistoryResponse{
 		History:       &History,

@@ -40,7 +40,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 )
 
 type canaryRunner struct {
@@ -56,7 +56,7 @@ func NewCanaryRunner(cfg *Config) (Runnable, error) {
 		return nil, fmt.Errorf("failed to create logger: %v", err)
 	}
 
-	metricsScope := cfg.Metrics.NewScope(loggerimpl.NewLogger(logger), "cadence-canary")
+	metricsScope := cfg.Metrics.NewScope(log.NewLogger(logger), "cadence-canary")
 
 	if cfg.Cadence.ServiceName == "" {
 		cfg.Cadence.ServiceName = CadenceServiceName

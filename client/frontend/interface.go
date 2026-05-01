@@ -39,6 +39,7 @@ import (
 // Client is the interface exposed by frontend service client
 type Client interface {
 	CountWorkflowExecutions(context.Context, *types.CountWorkflowExecutionsRequest, ...yarpc.CallOption) (*types.CountWorkflowExecutionsResponse, error)
+	DeleteDomain(context.Context, *types.DeleteDomainRequest, ...yarpc.CallOption) error
 	DeprecateDomain(context.Context, *types.DeprecateDomainRequest, ...yarpc.CallOption) error
 	DescribeDomain(context.Context, *types.DescribeDomainRequest, ...yarpc.CallOption) (*types.DescribeDomainResponse, error)
 	DescribeTaskList(context.Context, *types.DescribeTaskListRequest, ...yarpc.CallOption) (*types.DescribeTaskListResponse, error)
@@ -82,4 +83,15 @@ type Client interface {
 	StartWorkflowExecutionAsync(context.Context, *types.StartWorkflowExecutionAsyncRequest, ...yarpc.CallOption) (*types.StartWorkflowExecutionAsyncResponse, error)
 	TerminateWorkflowExecution(context.Context, *types.TerminateWorkflowExecutionRequest, ...yarpc.CallOption) error
 	UpdateDomain(context.Context, *types.UpdateDomainRequest, ...yarpc.CallOption) (*types.UpdateDomainResponse, error)
+	FailoverDomain(context.Context, *types.FailoverDomainRequest, ...yarpc.CallOption) (*types.FailoverDomainResponse, error)
+	ListFailoverHistory(context.Context, *types.ListFailoverHistoryRequest, ...yarpc.CallOption) (*types.ListFailoverHistoryResponse, error)
+
+	CreateSchedule(context.Context, *types.CreateScheduleRequest, ...yarpc.CallOption) (*types.CreateScheduleResponse, error)
+	DescribeSchedule(context.Context, *types.DescribeScheduleRequest, ...yarpc.CallOption) (*types.DescribeScheduleResponse, error)
+	UpdateSchedule(context.Context, *types.UpdateScheduleRequest, ...yarpc.CallOption) (*types.UpdateScheduleResponse, error)
+	DeleteSchedule(context.Context, *types.DeleteScheduleRequest, ...yarpc.CallOption) (*types.DeleteScheduleResponse, error)
+	PauseSchedule(context.Context, *types.PauseScheduleRequest, ...yarpc.CallOption) (*types.PauseScheduleResponse, error)
+	UnpauseSchedule(context.Context, *types.UnpauseScheduleRequest, ...yarpc.CallOption) (*types.UnpauseScheduleResponse, error)
+	BackfillSchedule(context.Context, *types.BackfillScheduleRequest, ...yarpc.CallOption) (*types.BackfillScheduleResponse, error)
+	ListSchedules(context.Context, *types.ListSchedulesRequest, ...yarpc.CallOption) (*types.ListSchedulesResponse, error)
 }

@@ -23,18 +23,17 @@
 package matching
 
 import (
+	"math"
 	"math/rand"
 	"path"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -50,8 +49,7 @@ type (
 
 	weightedLoadBalancer struct {
 		fallbackLoadBalancer LoadBalancer
-		nReadPartitions      dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		domainIDToName       func(string) (string, error)
+		provider             PartitionConfigProvider
 		weightCache          cache.Cache
 		logger               log.Logger
 	}
@@ -65,13 +63,45 @@ func newWeightSelector(n int, threshold int64) *weightSelector {
 	return pw
 }
 
-func (pw *weightSelector) pick() int {
-	cumulativeWeights := make([]int64, len(pw.weights))
+func (pw *weightSelector) pickBetween(partitions []int) int {
+	totalWeight := int64(0)
+	cumulativeWeights := make([]int64, len(partitions))
+	pw.RLock()
+	defer pw.RUnlock()
+
+	if !pw.initialized {
+		return -1
+	}
+	shouldEnable := false
+	for i, partitionID := range partitions {
+		// Invalid partition specified, bail out
+		if partitionID >= len(pw.weights) {
+			return -1
+		}
+		weight := pw.weights[partitionID]
+		totalWeight += weight
+		cumulativeWeights[i] = totalWeight
+		if weight > pw.threshold {
+			shouldEnable = true // only enable weight selection if backlog size is larger than the threshold
+		}
+	}
+	if totalWeight <= 0 || !shouldEnable {
+		return -1
+	}
+	r := rand.Int63n(totalWeight)
+	index := sort.Search(len(cumulativeWeights), func(i int) bool {
+		return cumulativeWeights[i] > r
+	})
+	return partitions[index]
+}
+
+func (pw *weightSelector) pick() (int, []int64) {
 	totalWeight := int64(0)
 	pw.RLock()
 	defer pw.RUnlock()
+	cumulativeWeights := make([]int64, len(pw.weights))
 	if !pw.initialized {
-		return -1
+		return -1, cumulativeWeights
 	}
 	shouldDrain := false
 	for i, w := range pw.weights {
@@ -82,13 +112,13 @@ func (pw *weightSelector) pick() int {
 		}
 	}
 	if totalWeight <= 0 || !shouldDrain {
-		return -1
+		return -1, cumulativeWeights
 	}
 	r := rand.Int63n(totalWeight)
 	index := sort.Search(len(cumulativeWeights), func(i int) bool {
 		return cumulativeWeights[i] > r
 	})
-	return index
+	return index, cumulativeWeights
 }
 
 func (pw *weightSelector) update(n, p int, weight int64) {
@@ -105,7 +135,9 @@ func (pw *weightSelector) update(n, p int, weight int64) {
 	} else if n < len(pw.weights) {
 		pw.weights = pw.weights[:n]
 	}
-	pw.weights[p] = weight
+	if p < n { // the opposite condition can happen when the task list is scaled down and we get an update from a drained partition
+		pw.weights[p] = weight
+	}
 	for _, w := range pw.weights {
 		if w == -1 {
 			return
@@ -116,79 +148,66 @@ func (pw *weightSelector) update(n, p int, weight int64) {
 
 func NewWeightedLoadBalancer(
 	lb LoadBalancer,
-	domainIDToName func(string) (string, error),
-	dc *dynamicconfig.Collection,
+	provider PartitionConfigProvider,
 	logger log.Logger,
-) LoadBalancer {
+) WeightedLoadBalancer {
 	return &weightedLoadBalancer{
 		fallbackLoadBalancer: lb,
-		domainIDToName:       domainIDToName,
-		nReadPartitions:      dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingNumTasklistReadPartitions),
+		provider:             provider,
 		weightCache: cache.New(&cache.Options{
 			TTL:             0,
 			InitialCapacity: 100,
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
+			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope),
+			Logger:          logger,
 		}),
 		logger: logger,
 	}
 }
 
 func (lb *weightedLoadBalancer) PickWritePartition(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req WriteRequest,
 ) string {
-	return lb.fallbackLoadBalancer.PickWritePartition(domainID, taskList, taskListType, forwardedFrom)
+	return lb.fallbackLoadBalancer.PickWritePartition(taskListType, req)
 }
 
 func (lb *weightedLoadBalancer) PickReadPartition(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req ReadRequest,
+	isolationGroup string,
 ) string {
-	if forwardedFrom != "" || taskList.GetKind() == types.TaskListKindSticky {
-		return taskList.GetName()
-	}
-	if strings.HasPrefix(taskList.GetName(), common.ReservedTaskListPrefix) {
-		return taskList.GetName()
-	}
 	taskListKey := key{
-		domainID:     domainID,
-		taskListName: taskList.GetName(),
+		domainID:     req.GetDomainUUID(),
+		taskListName: req.GetTaskList().GetName(),
 		taskListType: taskListType,
 	}
 	wI := lb.weightCache.Get(taskListKey)
 	if wI == nil {
-		return lb.fallbackLoadBalancer.PickReadPartition(domainID, taskList, taskListType, forwardedFrom)
+		return lb.fallbackLoadBalancer.PickReadPartition(taskListType, req, isolationGroup)
 	}
 	w, ok := wI.(*weightSelector)
 	if !ok {
-		return lb.fallbackLoadBalancer.PickReadPartition(domainID, taskList, taskListType, forwardedFrom)
+		return lb.fallbackLoadBalancer.PickReadPartition(taskListType, req, isolationGroup)
 	}
-	p := w.pick()
-	lb.logger.Debug("pick read partition", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("weights", w.weights), tag.Dynamic("tasklist-partition", p))
+	p, cumulativeWeights := w.pick()
+	lb.logger.Debug("pick read partition", tag.WorkflowDomainID(req.GetDomainUUID()), tag.WorkflowTaskListName(req.GetTaskList().Name), tag.WorkflowTaskListType(taskListType), tag.Dynamic("cumulative-weights", cumulativeWeights), tag.Dynamic("task-list-partition", p))
 	if p < 0 {
-		return lb.fallbackLoadBalancer.PickReadPartition(domainID, taskList, taskListType, forwardedFrom)
+		return lb.fallbackLoadBalancer.PickReadPartition(taskListType, req, isolationGroup)
 	}
-	return getPartitionTaskListName(taskList.GetName(), p)
+	return getPartitionTaskListName(req.GetTaskList().GetName(), p)
 }
 
 func (lb *weightedLoadBalancer) UpdateWeight(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req ReadRequest,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
-	if forwardedFrom != "" || taskList.GetKind() == types.TaskListKindSticky {
-		return
-	}
-	if strings.HasPrefix(taskList.GetName(), common.ReservedTaskListPrefix) {
+	taskList := *req.GetTaskList()
+	if info == nil {
 		return
 	}
 	p := 0
@@ -199,22 +218,19 @@ func (lb *weightedLoadBalancer) UpdateWeight(
 			return
 		}
 	}
-	domainName, err := lb.domainIDToName(domainID)
-	if err != nil {
-		return
-	}
 	taskListKey := key{
-		domainID:     domainID,
+		domainID:     req.GetDomainUUID(),
 		taskListName: taskList.GetName(),
 		taskListType: taskListType,
 	}
-	n := lb.nReadPartitions(domainName, taskList.GetName(), taskListType)
+	n := lb.provider.GetNumberOfReadPartitions(req.GetDomainUUID(), taskList, taskListType)
 	if n <= 1 {
 		lb.weightCache.Delete(taskListKey)
 		return
 	}
 	wI := lb.weightCache.Get(taskListKey)
 	if wI == nil {
+		var err error
 		w := newWeightSelector(n, _backlogThreshold)
 		wI, err = lb.weightCache.PutIfNotExist(taskListKey, w)
 		if err != nil {
@@ -225,6 +241,43 @@ func (lb *weightedLoadBalancer) UpdateWeight(
 	if !ok {
 		return
 	}
-	lb.logger.Debug("update tasklist partition weight", tag.WorkflowDomainID(domainID), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("weights", w.weights), tag.Dynamic("tasklist-partition", p), tag.Dynamic("weight", weight))
+	weight := calcWeightFromLoadBalancerHints(info)
+	lb.logger.Debug("update task list partition weight", tag.WorkflowDomainID(req.GetDomainUUID()), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskListType), tag.Dynamic("task-list-partition", p), tag.Dynamic("weight", weight), tag.Dynamic("load-balancer-hints", info))
 	w.update(n, p, weight)
+}
+
+func (lb *weightedLoadBalancer) PickBetween(domainID, taskListName string, taskListType int, partitions []int) int {
+	if len(partitions) == 0 {
+		return -1
+	}
+	if len(partitions) == 1 {
+		return partitions[0]
+	}
+	taskListKey := key{
+		domainID:     domainID,
+		taskListName: taskListName,
+		taskListType: taskListType,
+	}
+	wI := lb.weightCache.Get(taskListKey)
+	if wI == nil {
+		return -1
+	}
+	w, ok := wI.(*weightSelector)
+	if !ok {
+		return -1
+	}
+	return w.pickBetween(partitions)
+}
+
+func calcWeightFromLoadBalancerHints(info *types.LoadBalancerHints) int64 {
+	// according to Little's Law, the average number of tasks in the queue L = λW
+	// where λ is the average arrival rate and W is the average wait time a task spends in the queue
+	// here λ is the QPS and W is the average match latency which is 10ms
+	// so the backlog hint should be backlog count + L.
+	smoothingNumber := int64(0)
+	qps := info.RatePerSecond
+	if qps > 0.01 {
+		smoothingNumber = int64(math.Ceil(qps * 0.01))
+	}
+	return info.BacklogCount + smoothingNumber
 }

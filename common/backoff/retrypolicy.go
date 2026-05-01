@@ -24,6 +24,8 @@ import (
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/uber/cadence/common/clock"
 )
 
 const (
@@ -42,17 +44,15 @@ type (
 	// RetryPolicy is the API which needs to be implemented by various retry policy implementations
 	RetryPolicy interface {
 		ComputeNextDelay(elapsedTime time.Duration, numAttempts int) time.Duration
+		// Expiration returns the maximum time allowed by the RetryPolicy. A value of NoInterval (0) indicates that the
+		// RetryPolicy may take an unbounded amount of time.
+		Expiration() time.Duration
 	}
 
 	// Retrier manages the state of retry operation
 	Retrier interface {
 		NextBackOff() time.Duration
 		Reset()
-	}
-
-	// Clock used by ExponentialRetryPolicy implementation to get the current time.  Mainly used for unit testing
-	Clock interface {
-		Now() time.Time
 	}
 
 	// ExponentialRetryPolicy provides the implementation for retry policy using a coefficient to compute the next delay.
@@ -74,18 +74,13 @@ type (
 		policies []*ExponentialRetryPolicy
 	}
 
-	systemClock struct{}
-
 	retrierImpl struct {
 		policy         RetryPolicy
-		clock          Clock
+		clock          clock.TimeSource
 		currentAttempt int
 		startTime      time.Time
 	}
 )
-
-// SystemClock implements Clock interface that uses time.Now().
-var SystemClock = systemClock{}
 
 // NewExponentialRetryPolicy returns an instance of ExponentialRetryPolicy using the provided initialInterval
 func NewExponentialRetryPolicy(initialInterval time.Duration) *ExponentialRetryPolicy {
@@ -114,7 +109,7 @@ func NewMultiPhasesRetryPolicy(policies ...*ExponentialRetryPolicy) *MultiPhases
 }
 
 // NewRetrier is used for creating a new instance of Retrier
-func NewRetrier(policy RetryPolicy, clock Clock) Retrier {
+func NewRetrier(policy RetryPolicy, clock clock.TimeSource) Retrier {
 	if policy == nil {
 		panic("Retry policy cannot be nil.")
 	}
@@ -202,6 +197,10 @@ func (p *ExponentialRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, num
 	return time.Duration(nextInterval)
 }
 
+func (p *ExponentialRetryPolicy) Expiration() time.Duration {
+	return p.expirationInterval
+}
+
 // ComputeNextDelay returns the next delay interval.
 func (tp MultiPhasesRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, numAttempts int) time.Duration {
 	previousStageRetryCount := 0
@@ -215,9 +214,16 @@ func (tp MultiPhasesRetryPolicy) ComputeNextDelay(elapsedTime time.Duration, num
 	return done
 }
 
-// Now returns the current time using the system clock
-func (t systemClock) Now() time.Time {
-	return time.Now()
+func (tp MultiPhasesRetryPolicy) Expiration() time.Duration {
+	var sum time.Duration
+	for _, policy := range tp.policies {
+		exp := policy.Expiration()
+		if exp == NoInterval {
+			return NoInterval
+		}
+		sum += exp
+	}
+	return sum
 }
 
 // Reset will set the Retrier into initial state

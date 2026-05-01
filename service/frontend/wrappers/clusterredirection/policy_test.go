@@ -22,17 +22,21 @@ package clusterredirection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
@@ -51,14 +55,15 @@ type (
 		suite.Suite
 		*require.Assertions
 
-		controller      *gomock.Controller
-		mockDomainCache *cache.MockDomainCache
+		controller           *gomock.Controller
+		activeClusterManager *activecluster.MockManager
 
 		domainName             string
 		domainID               string
 		currentClusterName     string
 		alternativeClusterName string
 		mockConfig             *frontendcfg.Config
+		mockMetricsClient      metrics.Client
 
 		policy *selectedOrAllAPIsForwardingRedirectionPolicy
 	}
@@ -83,6 +88,12 @@ func (s *noopDCRedirectionPolicySuite) TearDownTest() {
 func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirect() {
 	domainName := "some random domain name"
 	domainID := "some random domain ID"
+	domainEntry := cache.NewLocalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID, Name: domainName},
+		&persistence.DomainConfig{},
+		cluster.TestCurrentClusterName,
+	)
+
 	apiName := "any random API name"
 	callCount := 0
 	callFn := func(targetCluster string) error {
@@ -91,13 +102,49 @@ func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirect() {
 		return nil
 	}
 
-	err := s.policy.WithDomainIDRedirect(context.Background(), domainID, apiName, callFn)
+	err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
-	err = s.policy.WithDomainNameRedirect(context.Background(), domainName, apiName, callFn)
+	err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
 	s.Equal(2, callCount)
+}
+
+func (s *noopDCRedirectionPolicySuite) TestWithDomainRedirectForAllowedAPIs() {
+	domainName := "some random domain name"
+	domainID := "some random domain ID"
+	domainEntry := cache.NewLocalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: domainID, Name: domainName},
+		&persistence.DomainConfig{},
+		cluster.TestCurrentClusterName,
+	)
+
+	callCount := 0
+	callFn := func(targetCluster string) error {
+		callCount++
+		s.Equal(s.currentClusterName, targetCluster)
+		return nil
+	}
+
+	// Test all allowed APIs for deprecated domains
+	allowedAPIs := []string{
+		"ListWorkflowExecutions",
+		"CountWorkflowExecutions",
+		"ScanWorkflowExecutions",
+		"TerminateWorkflowExecution",
+	}
+
+	for _, apiName := range allowedAPIs {
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		s.Nil(err)
+
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		s.Nil(err)
+	}
+
+	// Verify that each API was tested for both domain ID and domain name redirects
+	s.Equal(2*len(allowedAPIs), callCount)
 }
 
 func TestSelectedAPIsForwardingRedirectionPolicySuite(t *testing.T) {
@@ -116,13 +163,11 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
 	s.controller = gomock.NewController(s.T())
-	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
 
 	s.domainName = "some random domain name"
 	s.domainID = "some random domain ID"
 	s.currentClusterName = cluster.TestCurrentClusterName
 	s.alternativeClusterName = cluster.TestAlternativeClusterName
-
 	logger := testlogger.New(s.T())
 
 	s.mockConfig = frontendcfg.NewConfig(dynamicconfig.NewCollection(
@@ -132,14 +177,22 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) SetupTest() {
 		0,
 		false,
 		"hostname",
+		logger,
 	)
+
+	s.mockMetricsClient = metrics.NewNoopMetricsClient()
+
+	s.activeClusterManager = activecluster.NewMockManager(s.controller)
+
 	s.policy = newSelectedOrAllAPIsForwardingPolicy(
 		s.currentClusterName,
 		s.mockConfig,
-		s.mockDomainCache,
 		false,
 		selectedAPIsForwardingRedirectionPolicyAPIAllowlist,
 		"",
+		logger,
+		s.activeClusterManager,
+		s.mockMetricsClient,
 	)
 }
 
@@ -148,7 +201,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TearDownTest() {
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_LocalDomain() {
-	s.setupLocalDomain()
+	domainEntry := s.setupLocalDomain()
 
 	apiName := "any random API name"
 	callCount := 0
@@ -158,25 +211,25 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Lo
 		return nil
 	}
 
-	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+	err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
-	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+	err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.Nil(err)
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
 	s.Equal(2*(len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist)+1), callCount)
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_NoForwarding_DomainNotWhiltelisted() {
-	s.setupGlobalDomainWithTwoReplicationCluster(false, true)
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_NoForwarding_DomainNotWhitelisted() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(false, true)
 
 	domainNotActiveErr := &types.DomainNotActiveError{
 		CurrentCluster: s.currentClusterName,
@@ -190,20 +243,24 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Gl
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.NotNil(err)
 		s.Equal(err.Error(), domainNotActiveErr.Error())
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		s.NotNil(err)
+		s.Equal(err.Error(), domainNotActiveErr.Error())
+
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelStrong, callFn)
 		s.NotNil(err)
 		s.Equal(err.Error(), domainNotActiveErr.Error())
 	}
 
-	s.Equal(2*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), callCount)
+	s.Equal(3*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), callCount)
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_NoForwarding_APINotWhiltelisted() {
-	s.setupGlobalDomainWithTwoReplicationCluster(true, true)
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_GlobalDomain_Forwarding_APINotWhitelisted() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, true)
 
 	apiName := "any random API name"
 	domainNotActiveErr := &types.DomainNotActiveError{
@@ -217,11 +274,11 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Gl
 		return domainNotActiveErr
 	}
 
-	err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+	err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.NotNil(err)
 	s.Equal(err.Error(), domainNotActiveErr.Error())
 
-	err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+	err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 	s.NotNil(err)
 	s.Equal(err.Error(), domainNotActiveErr.Error())
 
@@ -229,7 +286,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestWithDomainRedirect_Gl
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_CurrentCluster() {
-	s.setupGlobalDomainWithTwoReplicationCluster(true, true)
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, true)
 
 	callCount := 0
 	callFn := func(targetCluster string) error {
@@ -239,10 +296,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -250,7 +307,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_AlternativeCluster() {
-	s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
 
 	callCount := 0
 	callFn := func(targetCluster string) error {
@@ -260,18 +317,38 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
 	s.Equal(2*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), callCount)
 }
 
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_AlternativeCluster_StrongConsistency() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+
+	callCount := 0
+	callFn := func(targetCluster string) error {
+		callCount++
+		s.Equal(s.alternativeClusterName, targetCluster)
+		return nil
+	}
+
+	apiName := "any random API name"
+	err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelStrong, callFn)
+	s.Nil(err)
+
+	err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelStrong, callFn)
+	s.Nil(err)
+
+	s.Equal(2, callCount)
+}
+
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_CurrentClusterToAlternativeCluster() {
-	s.setupGlobalDomainWithTwoReplicationCluster(true, true)
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, true)
 
 	currentClustercallCount := 0
 	alternativeClustercallCount := 0
@@ -292,10 +369,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -304,7 +381,7 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_AlternativeClusterToCurrentCluster() {
-	s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
 
 	currentClustercallCount := 0
 	alternativeClustercallCount := 0
@@ -325,10 +402,10 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	}
 
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Nil(err)
 	}
 
@@ -336,46 +413,54 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 	s.Equal(2*len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist), alternativeClustercallCount)
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_NoDomainInCache() {
-	currentClustercallCount := 0
-	alternativeClustercallCount := 0
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_ToSameCluster_Skipped() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+
 	callFn := func(targetCluster string) error {
 		switch targetCluster {
-		case s.currentClusterName:
-			currentClustercallCount++
-			return nil
 		case s.alternativeClusterName:
-			alternativeClustercallCount++
-			return &types.DomainNotActiveError{
+			return &types.DomainNotActiveError{ // this shouldn't happen but if it does, we should skip the redirect
 				CurrentCluster: s.alternativeClusterName,
-				ActiveCluster:  s.currentClusterName,
+				ActiveCluster:  s.alternativeClusterName,
 			}
 		default:
 			panic(fmt.Sprintf("unknown cluster name %v", targetCluster))
 		}
 	}
 
-	expectedErr := fmt.Errorf("some random error")
-	s.mockDomainCache.EXPECT().GetDomainByID(s.domainID).Return(nil, expectedErr).Times(len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist))
-	s.mockDomainCache.EXPECT().GetDomain(s.domainName).Return(nil, expectedErr).Times(len(selectedAPIsForwardingRedirectionPolicyAPIAllowlist))
-
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
-		s.Error(err)
-		s.Equal(expectedErr.Error(), err.Error())
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		var domainNotActiveErr *types.DomainNotActiveError
+		s.ErrorAs(err, &domainNotActiveErr)
+		s.Equal(s.alternativeClusterName, domainNotActiveErr.ActiveCluster)
+	}
+}
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
-		s.Error(err)
-		s.Equal(expectedErr.Error(), err.Error())
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_EmptyClusster_Skipped() {
+	domainEntry := s.setupGlobalDomainWithTwoReplicationCluster(true, false)
+
+	callFn := func(targetCluster string) error {
+		switch targetCluster {
+		case s.alternativeClusterName:
+			return &types.DomainNotActiveError{ // this shouldn't happen but if it does, we should skip the redirect
+				CurrentCluster: s.alternativeClusterName,
+				ActiveCluster:  "",
+			}
+		default:
+			panic(fmt.Sprintf("unknown cluster name %v", targetCluster))
+		}
 	}
 
-	// Ensure there were no calls to the target clusters
-	s.Equal(0, currentClustercallCount)
-	s.Equal(0, alternativeClustercallCount)
+	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		var domainNotActiveErr *types.DomainNotActiveError
+		s.ErrorAs(err, &domainNotActiveErr)
+		s.Equal("", domainNotActiveErr.ActiveCluster)
+	}
 }
 
 func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_GlobalDomain_Forwarding_DeprecatedDomain() {
-	s.setupGlobalDeprecatedDomainWithTwoReplicationCluster(true, false)
+	domainEntry := s.setupGlobalDeprecatedDomainWithTwoReplicationCluster(true, false)
 
 	currentClustercallCount := 0
 	alternativeClustercallCount := 0
@@ -395,32 +480,48 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) TestGetTargetDataCenter_G
 		}
 	}
 
+	// Test non-allowed APIs
 	for apiName := range selectedAPIsForwardingRedirectionPolicyAPIAllowlist {
-		err := s.policy.WithDomainIDRedirect(context.Background(), s.domainID, apiName, callFn)
-		s.Error(err)
-		s.Equal("domain is deprecated.", err.Error())
+		if _, ok := allowedAPIsForDeprecatedDomains[apiName]; ok {
+			continue // Skip allowed APIs
+		}
 
-		err = s.policy.WithDomainNameRedirect(context.Background(), s.domainName, apiName, callFn)
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
 		s.Error(err)
-		s.Equal("domain is deprecated or deleted", err.Error())
+		s.Equal("domain is deprecated or deleted.", err.Error())
+
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		s.Error(err)
+		s.Equal("domain is deprecated or deleted.", err.Error())
 	}
-
 	s.Equal(0, currentClustercallCount)
 	s.Equal(0, alternativeClustercallCount)
+
+	// Test allowed APIs
+	for apiName := range allowedAPIsForDeprecatedDomains {
+		err := s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		s.NoError(err)
+
+		err = s.policy.Redirect(context.Background(), domainEntry, nil, nil, apiName, types.QueryConsistencyLevelEventual, callFn)
+		s.NoError(err)
+	}
+
+	// Verify that allowed APIs were called on the current cluster
+	s.Equal(2*len(allowedAPIsForDeprecatedDomains), currentClustercallCount)
+	s.Equal(2, alternativeClustercallCount)
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) setupLocalDomain() {
+func (s *selectedAPIsForwardingRedirectionPolicySuite) setupLocalDomain() *cache.DomainCacheEntry {
 	domainEntry := cache.NewLocalDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: s.domainID, Name: s.domainName},
 		&persistence.DomainConfig{Retention: 1},
 		cluster.TestCurrentClusterName,
 	)
 
-	s.mockDomainCache.EXPECT().GetDomainByID(s.domainID).Return(domainEntry, nil).AnyTimes()
-	s.mockDomainCache.EXPECT().GetDomain(s.domainName).Return(domainEntry, nil).AnyTimes()
+	return domainEntry
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDomainWithTwoReplicationCluster(forwardingEnabled bool, isRecordActive bool) {
+func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDomainWithTwoReplicationCluster(forwardingEnabled bool, isRecordActive bool) *cache.DomainCacheEntry {
 	activeCluster := s.alternativeClusterName
 	if isRecordActive {
 		activeCluster = s.currentClusterName
@@ -438,12 +539,11 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDomainWithTwoR
 		1234, // not used
 	)
 
-	s.mockDomainCache.EXPECT().GetDomainByID(s.domainID).Return(domainEntry, nil).AnyTimes()
-	s.mockDomainCache.EXPECT().GetDomain(s.domainName).Return(domainEntry, nil).AnyTimes()
-	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicconfig.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
+	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicproperties.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
+	return domainEntry
 }
 
-func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDeprecatedDomainWithTwoReplicationCluster(forwardingEnabled bool, isRecordActive bool) {
+func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDeprecatedDomainWithTwoReplicationCluster(forwardingEnabled bool, isRecordActive bool) *cache.DomainCacheEntry {
 	activeCluster := s.alternativeClusterName
 	if isRecordActive {
 		activeCluster = s.currentClusterName
@@ -461,7 +561,210 @@ func (s *selectedAPIsForwardingRedirectionPolicySuite) setupGlobalDeprecatedDoma
 		1234, // not used
 	)
 
-	s.mockDomainCache.EXPECT().GetDomainByID(s.domainID).Return(domainEntry, nil).AnyTimes()
-	s.mockDomainCache.EXPECT().GetDomain(s.domainName).Return(domainEntry, nil).AnyTimes()
-	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicconfig.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
+	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicproperties.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
+	return domainEntry
+}
+
+func (s *selectedAPIsForwardingRedirectionPolicySuite) setupActiveActiveDomainWithTwoReplicationCluster(forwardingEnabled bool) *cache.DomainCacheEntry {
+	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: s.domainID, Name: s.domainName},
+		&persistence.DomainConfig{Retention: 1},
+		&persistence.DomainReplicationConfig{
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {
+								ActiveClusterName: s.currentClusterName,
+								FailoverVersion:   1,
+							},
+							"us-west": {
+								ActiveClusterName: s.alternativeClusterName,
+								FailoverVersion:   2,
+							},
+						},
+					},
+				},
+			},
+		},
+		1234, // not used
+	)
+
+	s.mockConfig.EnableDomainNotActiveAutoForwarding = dynamicproperties.GetBoolPropertyFnFilteredByDomain(forwardingEnabled)
+	return domainEntry
+}
+
+func (s *selectedAPIsForwardingRedirectionPolicySuite) TestActiveClusterForActiveActiveDomainRequest() {
+	domainEntry := s.setupActiveActiveDomainWithTwoReplicationCluster(true)
+
+	usEastStickyPlcy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-east",
+		},
+	}
+
+	usWestStickyPlcy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
+
+	tests := []struct {
+		name                   string
+		apiName                string
+		domainEntry            *cache.DomainCacheEntry
+		workflowExecution      *types.WorkflowExecution
+		actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+		mockFn                 func(activeClusterManager *activecluster.MockManager)
+		want                   string
+	}{
+		{
+			name:                   "new workflow with policy",
+			apiName:                "StartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "new workflow with policy - lookup failed",
+			apiName:                "StartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usEastStickyPlcy,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usEastStickyPlcy.GetClusterAttribute()).Return(nil, errors.New("lookup failed"))
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - missing workflow execution",
+			apiName:     "SignalWorkflowExecution",
+			domainEntry: domainEntry,
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - missing workflow id",
+			apiName:     "SignalWorkflowExecution",
+			domainEntry: domainEntry,
+			workflowExecution: &types.WorkflowExecution{
+				RunID: "run1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - lookup failed",
+			apiName:     "SignalWorkflowExecution",
+			domainEntry: domainEntry,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+				RunID:      "run1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(nil, errors.New("lookup failed"))
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecution - workflow running, use current workflow policy",
+			apiName:                "SignalWithStartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usEastStickyPlcy, // This should be ignored when workflow is running
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Returns the current workflow's policy and running=true
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(usWestStickyPlcy, true, nil)
+				// Should use the west policy (from current workflow), not the east policy (from new workflow param)
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecution - workflow not running, use new workflow policy",
+			apiName:                "SignalWithStartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Returns policy but running=false
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(usEastStickyPlcy, false, nil)
+				// Should use the west policy (from new workflow param), not the east policy (from current workflow)
+				activeClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(gomock.Any(), domainEntry.GetInfo().ID, usWestStickyPlcy.GetClusterAttribute()).Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+		{
+			name:                   "SignalWithStartWorkflowExecution - lookup failed, use current cluster",
+			apiName:                "SignalWithStartWorkflowExecution",
+			domainEntry:            domainEntry,
+			actClSelPolicyForNewWF: usWestStickyPlcy,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				// Lookup fails
+				activeClusterManager.EXPECT().GetActiveClusterSelectionPolicyForCurrentWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1").Return(nil, false, errors.New("lookup failed"))
+			},
+			want: s.currentClusterName,
+		},
+		{
+			name:        "existing workflow - success",
+			apiName:     "SignalWorkflowExecution",
+			domainEntry: domainEntry,
+			workflowExecution: &types.WorkflowExecution{
+				WorkflowID: "wf1",
+				RunID:      "run1",
+			},
+			mockFn: func(activeClusterManager *activecluster.MockManager) {
+				activeClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainEntry.GetInfo().ID, "wf1", "run1").Return(&types.ActiveClusterInfo{
+					ActiveClusterName: s.alternativeClusterName,
+					FailoverVersion:   2,
+				}, nil)
+			},
+			want: s.alternativeClusterName,
+		},
+	}
+
+	for _, test := range tests {
+		s.Run(test.name, func() {
+			activeClusterManager := activecluster.NewMockManager(s.controller)
+			test.mockFn(activeClusterManager)
+			s.policy.activeClusterManager = activeClusterManager
+			apiName := test.apiName
+			if apiName == "" {
+				apiName = "any random API name"
+			}
+			s.Equal(test.want, s.policy.activeClusterForActiveActiveDomainRequest(
+				context.Background(),
+				test.domainEntry,
+				test.workflowExecution,
+				test.actClSelPolicyForNewWF,
+				apiName,
+			))
+		})
+	}
 }

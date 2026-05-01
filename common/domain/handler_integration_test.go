@@ -27,11 +27,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
@@ -39,15 +39,16 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/testflags"
 )
 
 type (
@@ -57,11 +58,13 @@ type (
 		minRetentionDays       int
 		maxBadBinaryCount      int
 		failoverHistoryMaxSize int
+
 		domainManager          persistence.DomainManager
 		mockProducer           *mocks.KafkaProducer
 		mockDomainReplicator   Replicator
 		archivalMetadata       archiver.ArchivalMetadata
 		mockArchiverProvider   *provider.MockArchiverProvider
+		mockDomainAuditManager persistence.DomainAuditManager
 
 		handler *handlerImpl
 	}
@@ -70,19 +73,20 @@ type (
 var nowInt64 = time.Now().UnixNano()
 
 func TestDomainHandlerCommonSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
-
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
 
 	s := new(domainHandlerCommonSuite)
-
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{
-		ClusterMetadata: cluster.GetTestClusterMetadata(true),
-	})
-
+	s.setupTestBase(t)
 	suite.Run(t, s)
+}
+
+func (s *domainHandlerCommonSuite) setupTestBase(t *testing.T) {
+	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
+	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	s.Setup()
 }
 
 func (s *domainHandlerCommonSuite) TearDownSuite() {
@@ -90,7 +94,7 @@ func (s *domainHandlerCommonSuite) TearDownSuite() {
 }
 
 func (s *domainHandlerCommonSuite) SetupTest() {
-	s.Setup()
+	s.setupTestBase(s.T())
 
 	logger := s.Logger
 	dcCollection := dc.NewCollection(dc.NewNopClient(), logger)
@@ -100,6 +104,7 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 	s.domainManager = s.TestBase.DomainManager
 	s.mockProducer = &mocks.KafkaProducer{}
 	s.mockDomainReplicator = NewDomainReplicator(s.mockProducer, logger)
+	s.mockDomainAuditManager = persistence.NewMockDomainAuditManager(s.Controller)
 	s.archivalMetadata = archiver.NewArchivalMetadata(
 		dcCollection,
 		"",
@@ -108,17 +113,19 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 		false,
 		&config.ArchivalDomainDefaults{},
 	)
-	s.mockArchiverProvider = &provider.MockArchiverProvider{}
+	s.mockArchiverProvider = provider.NewMockArchiverProvider(s.Controller)
 	domainConfig := Config{
-		MinRetentionDays:       dc.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dc.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dc.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dc.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,
@@ -129,7 +136,6 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 
 func (s *domainHandlerCommonSuite) TearDownTest() {
 	s.mockProducer.AssertExpectations(s.T())
-	s.mockArchiverProvider.AssertExpectations(s.T())
 }
 
 func (s *domainHandlerCommonSuite) TestMergeDomainData_Overriding() {
@@ -342,7 +348,7 @@ func (s *domainHandlerCommonSuite) TestListDomain() {
 			domains[resp.Domains[0].DomainInfo.GetName()] = resp.Domains[0]
 		}
 	}
-	delete(domains, common.SystemLocalDomainName)
+	delete(domains, constants.SystemLocalDomainName)
 
 	s.Equal(map[string]*types.DescribeDomainResponse{
 		domainName1: {
@@ -369,7 +375,7 @@ func (s *domainHandlerCommonSuite) TestListDomain() {
 				ActiveClusterName: activeClusterName1,
 				Clusters:          cluster1,
 			},
-			FailoverVersion: common.EmptyVersion,
+			FailoverVersion: constants.EmptyVersion,
 			IsGlobalDomain:  isGlobalDomain1,
 		},
 		domainName2: {
@@ -634,14 +640,14 @@ func TestHandlerImpl_UpdateIsolationGroups(t *testing.T) {
 
 	t0 := int64(1565914445 * time.Second)
 	t1 := int64(1685914445 * time.Second)
-	clock := clock.NewMockedTimeSourceAt(time.Unix(0, t1))
+	mockedTimeSourceAt := clock.NewMockedTimeSourceAt(time.Unix(0, t1))
 
 	info := persistence.DomainInfo{
 		ID:   "10CF5859-C5CC-4CCC-888E-631F84D53F57",
 		Name: "test",
 	}
 
-	config := persistence.DomainConfig{
+	domainConfig := persistence.DomainConfig{
 		Retention:       10,
 		IsolationGroups: nil,
 	}
@@ -674,7 +680,7 @@ func TestHandlerImpl_UpdateIsolationGroups(t *testing.T) {
 
 				m.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: "test"}).Return(&persistence.GetDomainResponse{
 					Info:                        &info,
-					Config:                      &config,
+					Config:                      &domainConfig,
 					ReplicationConfig:           &replicationConfig,
 					IsGlobalDomain:              false,
 					ConfigVersion:               1,
@@ -723,9 +729,9 @@ func TestHandlerImpl_UpdateIsolationGroups(t *testing.T) {
 				domainAttrValidator: nil,
 				archivalMetadata:    nil,
 				archiverProvider:    nil,
-				timeSource:          clock,
+				timeSource:          mockedTimeSourceAt,
 				config: Config{
-					MinRetentionDays:  func(opts ...dc.FilterOption) int { return 0 },
+					MinRetentionDays:  func(opts ...dynamicproperties.FilterOption) int { return 0 },
 					MaxBadBinaryCount: func(string) int { return 3 },
 					FailoverCoolDown:  func(string) time.Duration { return time.Second },
 				},
@@ -741,14 +747,14 @@ func TestHandlerImpl_UpdateIsolationGroups(t *testing.T) {
 func TestHandlerImpl_UpdateAsyncWorkflowConfiguraton(t *testing.T) {
 	t0 := int64(1565914445 * time.Second)
 	t1 := int64(1685914445 * time.Second)
-	clock := clock.NewMockedTimeSourceAt(time.Unix(0, t1))
+	mockedTimeSourceAt := clock.NewMockedTimeSourceAt(time.Unix(0, t1))
 
 	info := persistence.DomainInfo{
 		ID:   "10CF5859-C5CC-4CCC-888E-631F84D53F57",
 		Name: "test",
 	}
 
-	config := persistence.DomainConfig{
+	domainConfig := persistence.DomainConfig{
 		Retention: 10,
 	}
 	replicationConfig := persistence.DomainReplicationConfig{
@@ -785,7 +791,7 @@ func TestHandlerImpl_UpdateAsyncWorkflowConfiguraton(t *testing.T) {
 
 				m.EXPECT().GetDomain(gomock.Any(), &persistence.GetDomainRequest{Name: "test"}).Return(&persistence.GetDomainResponse{
 					Info:                        &info,
-					Config:                      &config,
+					Config:                      &domainConfig,
 					ReplicationConfig:           &replicationConfig,
 					IsGlobalDomain:              false,
 					ConfigVersion:               1,
@@ -831,9 +837,9 @@ func TestHandlerImpl_UpdateAsyncWorkflowConfiguraton(t *testing.T) {
 				domainManager:    domainMgrMock,
 				clusterMetadata:  cluster.Metadata{},
 				domainReplicator: replicator,
-				timeSource:       clock,
+				timeSource:       mockedTimeSourceAt,
 				config: Config{
-					MinRetentionDays:  func(opts ...dc.FilterOption) int { return 0 },
+					MinRetentionDays:  func(opts ...dynamicproperties.FilterOption) int { return 0 },
 					MaxBadBinaryCount: func(string) int { return 3 },
 					FailoverCoolDown:  func(string) time.Duration { return time.Second },
 				},

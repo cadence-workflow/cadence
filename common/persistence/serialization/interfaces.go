@@ -31,7 +31,7 @@ import (
 	"go.uber.org/thriftrw/wire"
 
 	"github.com/uber/cadence/.gen/go/sqlblobs"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -58,38 +58,41 @@ type (
 		CrossClusterProcessingQueueStatesEncoding string
 		TimerProcessingQueueStates                []byte
 		TimerProcessingQueueStatesEncoding        string
+		QueueStates                               map[int32]*types.QueueState
 	}
 
 	// DomainInfo blob in a serialization agnostic format
 	DomainInfo struct {
-		Name                        string // TODO: This field seems not to be required. We already store domain name in another column.
-		Description                 string
-		Owner                       string
-		Status                      int32
-		Retention                   time.Duration
-		EmitMetric                  bool
-		ArchivalBucket              string
-		ArchivalStatus              int16
-		ConfigVersion               int64
-		NotificationVersion         int64
-		FailoverNotificationVersion int64
-		FailoverVersion             int64
-		ActiveClusterName           string
-		Clusters                    []string
-		Data                        map[string]string
-		BadBinaries                 []byte
-		BadBinariesEncoding         string
-		HistoryArchivalStatus       int16
-		HistoryArchivalURI          string
-		VisibilityArchivalStatus    int16
-		VisibilityArchivalURI       string
-		FailoverEndTimestamp        *time.Time // TODO: There is logic checking if it's nil, should revisit this
-		PreviousFailoverVersion     int64
-		LastUpdatedTimestamp        time.Time
-		IsolationGroups             []byte
-		IsolationGroupsEncoding     string
-		AsyncWorkflowConfig         []byte
-		AsyncWorkflowConfigEncoding string
+		Name                         string // TODO: This field seems not to be required. We already store domain name in another column.
+		Description                  string
+		Owner                        string
+		Status                       int32
+		Retention                    time.Duration
+		EmitMetric                   bool
+		ArchivalBucket               string
+		ArchivalStatus               int16
+		ConfigVersion                int64
+		NotificationVersion          int64
+		FailoverNotificationVersion  int64
+		FailoverVersion              int64
+		ActiveClusterName            string
+		ActiveClustersConfig         []byte
+		ActiveClustersConfigEncoding string
+		Clusters                     []string
+		Data                         map[string]string
+		BadBinaries                  []byte
+		BadBinariesEncoding          string
+		HistoryArchivalStatus        int16
+		HistoryArchivalURI           string
+		VisibilityArchivalStatus     int16
+		VisibilityArchivalURI        string
+		FailoverEndTimestamp         *time.Time // TODO: There is logic checking if it's nil, should revisit this
+		PreviousFailoverVersion      int64
+		LastUpdatedTimestamp         time.Time
+		IsolationGroups              []byte
+		IsolationGroupsEncoding      string
+		AsyncWorkflowConfig          []byte
+		AsyncWorkflowConfigEncoding  string
 	}
 
 	// HistoryBranchRange blob in a serialization agnostic format
@@ -108,69 +111,73 @@ type (
 
 	// WorkflowExecutionInfo blob in a serialization agnostic format
 	WorkflowExecutionInfo struct {
-		ParentDomainID                     UUID
-		ParentWorkflowID                   string
-		ParentRunID                        UUID
-		InitiatedID                        int64
-		CompletionEventBatchID             *int64 // TODO: This is not updated because of backward compatibility issue. Should revisit it later.
-		CompletionEvent                    []byte
-		CompletionEventEncoding            string
-		TaskList                           string
-		IsCron                             bool
-		WorkflowTypeName                   string
-		WorkflowTimeout                    time.Duration
-		DecisionTaskTimeout                time.Duration
-		ExecutionContext                   []byte
-		State                              int32
-		CloseStatus                        int32
-		StartVersion                       int64
-		LastWriteEventID                   *int64 // TODO: We have logic checking if LastWriteEventID != nil. The field seems to be deprecated. Should revisit it later.
-		LastEventTaskID                    int64
-		LastFirstEventID                   int64
-		LastProcessedEvent                 int64
-		StartTimestamp                     time.Time
-		LastUpdatedTimestamp               time.Time
-		DecisionVersion                    int64
-		DecisionScheduleID                 int64
-		DecisionStartedID                  int64
-		DecisionTimeout                    time.Duration
-		DecisionAttempt                    int64
-		DecisionStartedTimestamp           time.Time
-		DecisionScheduledTimestamp         time.Time
-		CancelRequested                    bool
-		DecisionOriginalScheduledTimestamp time.Time
-		CreateRequestID                    string
-		DecisionRequestID                  string
-		CancelRequestID                    string
-		StickyTaskList                     string
-		StickyScheduleToStartTimeout       time.Duration
-		RetryAttempt                       int64
-		RetryInitialInterval               time.Duration
-		RetryMaximumInterval               time.Duration
-		RetryMaximumAttempts               int32
-		RetryExpiration                    time.Duration
-		RetryBackoffCoefficient            float64
-		RetryExpirationTimestamp           time.Time
-		RetryNonRetryableErrors            []string
-		HasRetryPolicy                     bool
-		CronSchedule                       string
-		EventStoreVersion                  int32
-		EventBranchToken                   []byte
-		SignalCount                        int64
-		HistorySize                        int64
-		ClientLibraryVersion               string
-		ClientFeatureVersion               string
-		ClientImpl                         string
-		AutoResetPoints                    []byte
-		AutoResetPointsEncoding            string
-		SearchAttributes                   map[string][]byte
-		Memo                               map[string][]byte
-		VersionHistories                   []byte
-		VersionHistoriesEncoding           string
-		FirstExecutionRunID                UUID
-		PartitionConfig                    map[string]string
-		Checksum                           []byte
-		ChecksumEncoding                   string
+		ParentDomainID                       UUID
+		ParentWorkflowID                     string
+		ParentRunID                          UUID
+		InitiatedID                          int64
+		CompletionEventBatchID               *int64 // TODO: This is not updated because of backward compatibility issue. Should revisit it later.
+		CompletionEvent                      []byte
+		CompletionEventEncoding              string
+		TaskList                             string
+		TaskListKind                         types.TaskListKind
+		IsCron                               bool
+		WorkflowTypeName                     string
+		WorkflowTimeout                      time.Duration
+		DecisionTaskTimeout                  time.Duration
+		ExecutionContext                     []byte
+		State                                int32
+		CloseStatus                          int32
+		StartVersion                         int64
+		LastWriteEventID                     *int64 // TODO: We have logic checking if LastWriteEventID != nil. The field seems to be deprecated. Should revisit it later.
+		LastEventTaskID                      int64
+		LastFirstEventID                     int64
+		LastProcessedEvent                   int64
+		StartTimestamp                       time.Time
+		LastUpdatedTimestamp                 time.Time
+		DecisionVersion                      int64
+		DecisionScheduleID                   int64
+		DecisionStartedID                    int64
+		DecisionTimeout                      time.Duration
+		DecisionAttempt                      int64
+		DecisionStartedTimestamp             time.Time
+		DecisionScheduledTimestamp           time.Time
+		CancelRequested                      bool
+		DecisionOriginalScheduledTimestamp   time.Time
+		CreateRequestID                      string
+		DecisionRequestID                    string
+		CancelRequestID                      string
+		StickyTaskList                       string
+		StickyScheduleToStartTimeout         time.Duration
+		RetryAttempt                         int64
+		RetryInitialInterval                 time.Duration
+		RetryMaximumInterval                 time.Duration
+		RetryMaximumAttempts                 int32
+		RetryExpiration                      time.Duration
+		RetryBackoffCoefficient              float64
+		RetryExpirationTimestamp             time.Time
+		RetryNonRetryableErrors              []string
+		HasRetryPolicy                       bool
+		CronSchedule                         string
+		CronOverlapPolicy                    types.CronOverlapPolicy
+		EventStoreVersion                    int32
+		EventBranchToken                     []byte
+		SignalCount                          int64
+		HistorySize                          int64
+		ClientLibraryVersion                 string
+		ClientFeatureVersion                 string
+		ClientImpl                           string
+		AutoResetPoints                      []byte
+		AutoResetPointsEncoding              string
+		SearchAttributes                     map[string][]byte
+		Memo                                 map[string][]byte
+		VersionHistories                     []byte
+		VersionHistoriesEncoding             string
+		FirstExecutionRunID                  UUID
+		PartitionConfig                      map[string]string
+		Checksum                             []byte
+		ChecksumEncoding                     string
+		ActiveClusterSelectionPolicy         []byte
+		ActiveClusterSelectionPolicyEncoding string
 	}
 
 	// ActivityInfo blob in a serialization agnostic format
@@ -195,6 +202,7 @@ type (
 		TimerTaskStatus          int32
 		Attempt                  int32
 		TaskList                 string
+		TaskListKind             types.TaskListKind
 		StartedIdentity          string
 		HasRetryPolicy           bool
 		RetryInitialInterval     time.Duration
@@ -261,10 +269,16 @@ type (
 		PartitionConfig  map[string]string
 	}
 
+	TaskListPartition struct {
+		IsolationGroups []string
+	}
+
 	TaskListPartitionConfig struct {
 		Version            int64
 		NumReadPartitions  int32
 		NumWritePartitions int32
+		ReadPartitions     map[int32]*TaskListPartition
+		WritePartitions    map[int32]*TaskListPartition
 	}
 	// TaskListInfo blob in a serialization agnostic format
 	TaskListInfo struct {
@@ -290,6 +304,8 @@ type (
 		ScheduleID              int64
 		Version                 int64
 		VisibilityTimestamp     time.Time
+		OriginalTaskList        string
+		OriginalTaskListKind    types.TaskListKind
 	}
 
 	// CrossClusterTaskInfo blob in a serialization agnostic format
@@ -309,6 +325,7 @@ type (
 		Version         int64
 		ScheduleAttempt int64
 		EventID         int64
+		TaskList        string
 	}
 
 	// ReplicationTaskInfo blob in a serialization agnostic format
@@ -384,7 +401,7 @@ type (
 		crossClusterTaskInfoToBlob(*CrossClusterTaskInfo) ([]byte, error)
 		timerTaskInfoToBlob(*TimerTaskInfo) ([]byte, error)
 		replicationTaskInfoToBlob(*ReplicationTaskInfo) ([]byte, error)
-		encodingType() common.EncodingType
+		encodingType() constants.EncodingType
 	}
 
 	// decoder is used to deserialize structs. Each decoder implementation uses one serialization format.

@@ -34,6 +34,7 @@ import (
 	"go.uber.org/cadence/activity"
 
 	c "github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -157,7 +158,7 @@ func scanShard(
 	scope := ctx.Scope.Tagged(
 		metrics.ActivityTypeTag(ActivityScanShard),
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
-		metrics.DomainTag(c.SystemLocalDomainName),
+		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
 	sw := scope.StartTimer(metrics.CadenceLatency)
 	defer sw.Stop()
@@ -208,7 +209,7 @@ func fixerCorruptedKeysActivity(
 	client := ctx.Resource.GetSDKClient()
 	if params.ScannerWorkflowRunID == "" {
 		listResp, err := client.ListClosedWorkflowExecutions(activityCtx, &shared.ListClosedWorkflowExecutionsRequest{
-			Domain:          c.StringPtr(c.SystemLocalDomainName),
+			Domain:          c.StringPtr(constants.SystemLocalDomainName),
 			MaximumPageSize: c.Int32Ptr(10),
 			NextPageToken:   nil,
 			StartTimeFilter: &shared.StartTimeFilter{
@@ -239,7 +240,7 @@ func fixerCorruptedKeysActivity(
 	}
 
 	descResp, err := client.DescribeWorkflowExecution(activityCtx, &shared.DescribeWorkflowExecutionRequest{
-		Domain: c.StringPtr(c.SystemLocalDomainName),
+		Domain: c.StringPtr(constants.SystemLocalDomainName),
 		Execution: &shared.WorkflowExecution{
 			WorkflowId: c.StringPtr(params.ScannerWorkflowWorkflowID),
 			RunId:      c.StringPtr(params.ScannerWorkflowRunID),
@@ -259,7 +260,7 @@ func fixerCorruptedKeysActivity(
 		return nil, cadence.NewCustomError(ErrSerialization)
 	}
 	queryResp, err := client.QueryWorkflow(activityCtx, &shared.QueryWorkflowRequest{
-		Domain: c.StringPtr(c.SystemLocalDomainName),
+		Domain: c.StringPtr(constants.SystemLocalDomainName),
 		Execution: &shared.WorkflowExecution{
 			WorkflowId: c.StringPtr(params.ScannerWorkflowWorkflowID),
 			RunId:      c.StringPtr(params.ScannerWorkflowRunID),
@@ -381,7 +382,7 @@ func fixShard(
 	scope := ctx.Scope.Tagged(
 		metrics.ActivityTypeTag(ActivityFixShard),
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
-		metrics.DomainTag(c.SystemLocalDomainName),
+		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
 	sw := scope.StartTimer(metrics.CadenceLatency)
 	defer sw.Stop()
@@ -430,7 +431,7 @@ func scannerEmitMetricsActivity(
 	scope := ctx.Scope.Tagged(
 		metrics.ActivityTypeTag(ActivityScannerEmitMetrics),
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
-		metrics.DomainTag(c.SystemLocalDomainName),
+		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
 	scope.UpdateGauge(metrics.CadenceShardSuccessGauge, float64(params.ShardSuccessCount))
 	scope.UpdateGauge(metrics.CadenceShardFailureGauge, float64(params.ShardControlFlowFailureCount))

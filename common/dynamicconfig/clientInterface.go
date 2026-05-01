@@ -25,6 +25,7 @@ package dynamicconfig
 import (
 	"time"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -38,20 +39,20 @@ const (
 // Client allows fetching values from a dynamic configuration system NOTE: This does not have async
 // options right now. In the interest of keeping it minimal, we can add when requirement arises.
 type Client interface {
-	GetValue(name Key) (interface{}, error)
-	GetValueWithFilters(name Key, filters map[Filter]interface{}) (interface{}, error)
+	GetValue(name dynamicproperties.Key) (interface{}, error)
+	GetValueWithFilters(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) (interface{}, error)
 
-	GetIntValue(name IntKey, filters map[Filter]interface{}) (int, error)
-	GetFloatValue(name FloatKey, filters map[Filter]interface{}) (float64, error)
-	GetBoolValue(name BoolKey, filters map[Filter]interface{}) (bool, error)
-	GetStringValue(name StringKey, filters map[Filter]interface{}) (string, error)
-	GetMapValue(name MapKey, filters map[Filter]interface{}) (map[string]interface{}, error)
-	GetDurationValue(name DurationKey, filters map[Filter]interface{}) (time.Duration, error)
-	GetListValue(name ListKey, filters map[Filter]interface{}) ([]interface{}, error)
+	GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]interface{}) (int, error)
+	GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]interface{}) (float64, error)
+	GetBoolValue(name dynamicproperties.BoolKey, filters map[dynamicproperties.Filter]interface{}) (bool, error)
+	GetStringValue(name dynamicproperties.StringKey, filters map[dynamicproperties.Filter]interface{}) (string, error)
+	GetMapValue(name dynamicproperties.MapKey, filters map[dynamicproperties.Filter]interface{}) (map[string]interface{}, error)
+	GetDurationValue(name dynamicproperties.DurationKey, filters map[dynamicproperties.Filter]interface{}) (time.Duration, error)
+	GetListValue(name dynamicproperties.ListKey, filters map[dynamicproperties.Filter]interface{}) ([]interface{}, error)
 	// UpdateValue takes value as map and updates by overriding. It doesn't support update with filters.
-	UpdateValue(name Key, value interface{}) error
-	RestoreValue(name Key, filters map[Filter]interface{}) error
-	ListValue(name Key) ([]*types.DynamicConfigEntry, error)
+	UpdateValue(name dynamicproperties.Key, value interface{}) error
+	RestoreValue(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) error
+	ListValue(name dynamicproperties.Key) ([]*types.DynamicConfigEntry, error)
 }
 
 var NotFoundError = &types.EntityNotExistsError{

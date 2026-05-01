@@ -47,17 +47,23 @@ func NewHistoryBuilder(msBuilder MutableState) *HistoryBuilder {
 }
 
 // NewHistoryBuilderFromEvents creates a new history builder based on the given workflow history events
-func NewHistoryBuilderFromEvents(history []*types.HistoryEvent) *HistoryBuilder {
+func NewHistoryBuilderFromEvents(history []*types.HistoryEvent, msBuilder MutableState) *HistoryBuilder {
 	return &HistoryBuilder{
-		history: history,
+		history:   history,
+		msBuilder: msBuilder,
 	}
 }
 
 // AddWorkflowExecutionStartedEvent adds WorkflowExecutionStarted event to history
 // originalRunID is the runID when the WorkflowExecutionStarted event is written
 // firstRunID is the very first runID along the chain of ContinueAsNew and Reset
-func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(startRequest *types.HistoryStartWorkflowExecutionRequest,
-	previousExecution *persistence.WorkflowExecutionInfo, firstRunID string, originalRunID string, firstScheduledTime time.Time) *types.HistoryEvent {
+func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	previousExecution *persistence.WorkflowExecutionInfo,
+	firstRunID string,
+	originalRunID string,
+	firstScheduledTime time.Time,
+) *types.HistoryEvent {
 
 	var prevRunID string
 	var resetPoints *types.ResetPoints
@@ -88,6 +94,7 @@ func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(startRequest *types.Hi
 		Attempt:                             startRequest.GetAttempt(),
 		ExpirationTimestamp:                 startRequest.ExpirationTimestamp,
 		CronSchedule:                        request.CronSchedule,
+		CronOverlapPolicy:                   request.CronOverlapPolicy,
 		LastCompletionResult:                startRequest.LastCompletionResult,
 		ContinuedFailureReason:              startRequest.ContinuedFailureReason,
 		ContinuedFailureDetails:             startRequest.ContinuedFailureDetails,
@@ -101,6 +108,7 @@ func (b *HistoryBuilder) AddWorkflowExecutionStartedEvent(startRequest *types.Hi
 		JitterStartSeconds:                  request.JitterStartSeconds,
 		PartitionConfig:                     startRequest.PartitionConfig,
 		RequestID:                           request.RequestID,
+		ActiveClusterSelectionPolicy:        request.ActiveClusterSelectionPolicy,
 	}
 	if parentInfo := startRequest.ParentExecutionInfo; parentInfo != nil {
 		attributes.ParentWorkflowDomainID = &parentInfo.DomainUUID
@@ -382,6 +390,8 @@ func (b *HistoryBuilder) AddContinuedAsNewEvent(decisionCompletedEventID int64, 
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		JitterStartSeconds:                  attributes.JitterStartSeconds,
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
 	return b.addEventToHistory(event)
@@ -702,6 +712,8 @@ func (b *HistoryBuilder) AddStartChildWorkflowExecutionInitiatedEvent(
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		ParentClosePolicy:                   attributes.GetParentClosePolicy().Ptr(),
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
 	return b.addEventToHistory(event)

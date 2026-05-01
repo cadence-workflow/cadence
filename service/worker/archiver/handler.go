@@ -31,6 +31,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
+//go:generate mockgen -package=$GOPACKAGE -destination=handler_mock.go -self_package=github.com/uber/cadence/service/worker/archiver github.com/uber/cadence/service/worker/archiver Handler
+
 type (
 	// Handler is used to process archival requests
 	Handler interface {

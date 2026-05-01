@@ -48,6 +48,16 @@ func newAttrValidator(
 	}
 }
 
+func (d *AttrValidatorImpl) validateLocalDomainUpdateRequest(updateRequest *types.UpdateDomainRequest) error {
+	if updateRequest.ActiveClusterName != nil || updateRequest.ActiveClusters != nil || updateRequest.Clusters != nil {
+		return errLocalDomainsCannotFailover
+	}
+	if updateRequest.FailoverTimeoutInSeconds != nil {
+		return errLocalDomainsCannotFailover
+	}
+	return nil
+}
+
 func (d *AttrValidatorImpl) validateDomainConfig(config *persistence.DomainConfig) error {
 	if config.Retention < int32(d.minRetentionDays) {
 		return errInvalidRetentionPeriod
@@ -99,25 +109,47 @@ func (d *AttrValidatorImpl) validateDomainReplicationConfigForGlobalDomain(
 
 	activeCluster := replicationConfig.ActiveClusterName
 	clusters := replicationConfig.Clusters
+	activeClusters := replicationConfig.ActiveClusters
 
-	if err := d.validateClusterName(activeCluster); err != nil {
-		return err
+	if activeCluster == "" {
+		return errActiveClusterNameRequired
 	}
+
 	for _, clusterConfig := range clusters {
 		if err := d.validateClusterName(clusterConfig.ClusterName); err != nil {
 			return err
 		}
 	}
 
-	activeClusterInClusters := false
-	for _, clusterConfig := range clusters {
-		if clusterConfig.ClusterName == activeCluster {
-			activeClusterInClusters = true
-			break
+	isInClusters := func(clusterName string) bool {
+		for _, clusterConfig := range clusters {
+			if clusterConfig.ClusterName == clusterName {
+				return true
+			}
 		}
+		return false
 	}
-	if !activeClusterInClusters {
+
+	if err := d.validateClusterName(activeCluster); err != nil {
+		return err
+	}
+
+	if !isInClusters(activeCluster) {
 		return errActiveClusterNotInClusters
+	}
+	// For active-active domains, also validate that all clusters in AttributeScopes are valid
+	if activeClusters != nil && activeClusters.AttributeScopes != nil {
+		for _, scope := range activeClusters.AttributeScopes {
+			for _, cluster := range scope.ClusterAttributes {
+				if err := d.validateClusterName(cluster.ActiveClusterName); err != nil {
+					return err
+				}
+
+				if !isInClusters(cluster.ActiveClusterName) {
+					return errActiveClusterNotInClusters
+				}
+			}
+		}
 	}
 
 	return nil
@@ -158,6 +190,36 @@ func (d *AttrValidatorImpl) validateClusterName(
 			"Invalid cluster name: %v",
 			clusterName,
 		)}
+	}
+	return nil
+}
+
+func (d *AttrValidatorImpl) validateActiveActiveDomainReplicationConfig(
+	activeClusters *types.ActiveClusters,
+) error {
+
+	if activeClusters == nil || activeClusters.AttributeScopes == nil {
+		return nil
+	}
+
+	clusters := d.clusterMetadata.GetEnabledClusterInfo()
+
+	for _, scopeData := range activeClusters.AttributeScopes {
+		for _, activeCluster := range scopeData.ClusterAttributes {
+			_, ok := clusters[activeCluster.ActiveClusterName]
+			if !ok {
+				return &types.BadRequestError{Message: fmt.Sprintf(
+					"Invalid active cluster name: %v",
+					activeCluster.ActiveClusterName,
+				)}
+			}
+			if activeCluster.FailoverVersion < 0 {
+				return &types.BadRequestError{Message: fmt.Sprintf(
+					"invalid failover version: %d",
+					activeCluster.FailoverVersion,
+				)}
+			}
+		}
 	}
 	return nil
 }

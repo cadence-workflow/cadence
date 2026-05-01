@@ -22,6 +22,7 @@ package thrift
 
 import (
 	"github.com/uber/cadence/.gen/go/shared"
+	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
 )
@@ -913,6 +914,8 @@ func FromContinueAsNewWorkflowExecutionDecisionAttributes(t *types.ContinueAsNew
 		Memo:                                FromMemo(t.Memo),
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
 		JitterStartSeconds:                  t.JitterStartSeconds,
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -938,6 +941,8 @@ func ToContinueAsNewWorkflowExecutionDecisionAttributes(t *shared.ContinueAsNewW
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		JitterStartSeconds:                  t.JitterStartSeconds,
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -1513,6 +1518,28 @@ func ToDecisionType(t *shared.DecisionType) *types.DecisionType {
 	panic("unexpected enum value")
 }
 
+// FromDeleteDomainRequest converts internal DeleteDomainRequest type to thrift
+func FromDeleteDomainRequest(t *types.DeleteDomainRequest) *shared.DeleteDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.DeleteDomainRequest{
+		Name:          &t.Name,
+		SecurityToken: &t.SecurityToken,
+	}
+}
+
+// ToDeleteDomainRequest converts thrift DeleteDomainRequest type to internal
+func ToDeleteDomainRequest(t *shared.DeleteDomainRequest) *types.DeleteDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.DeleteDomainRequest{
+		Name:          t.GetName(),
+		SecurityToken: t.GetSecurityToken(),
+	}
+}
+
 // FromDeprecateDomainRequest converts internal DeprecateDomainRequest type to thrift
 func FromDeprecateDomainRequest(t *types.DeprecateDomainRequest) *shared.DeprecateDomainRequest {
 	if t == nil {
@@ -1584,6 +1611,58 @@ func ToDescribeDomainResponse(t *shared.DescribeDomainResponse) *types.DescribeD
 		FailoverVersion:          t.GetFailoverVersion(),
 		IsGlobalDomain:           t.GetIsGlobalDomain(),
 		FailoverInfo:             ToFailoverInfo(t.FailoverInfo),
+	}
+}
+
+// FromFailoverDomainRequest converts internal FailoverDomainRequest type to thrift
+func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *shared.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverDomainRequest{
+		DomainName:              &t.DomainName,
+		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
+	}
+}
+
+// ToFailoverDomainRequest converts thrift FailoverDomainRequest type to internal
+func ToFailoverDomainRequest(t *shared.FailoverDomainRequest) *types.FailoverDomainRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverDomainRequest{
+		DomainName:              t.GetDomainName(),
+		DomainActiveClusterName: t.DomainActiveClusterName,
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
+	}
+}
+
+// FromFailoverDomainResponse converts internal FailoverDomainResponse type to thrift
+func FromFailoverDomainResponse(t *types.FailoverDomainResponse) *shared.FailoverDomainResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverDomainResponse{
+		DomainInfo:               FromDomainInfo(t.DomainInfo),
+		Configuration:            FromDomainConfiguration(t.Configuration),
+		ReplicationConfiguration: FromDomainReplicationConfiguration(t.ReplicationConfiguration),
+		FailoverVersion:          &t.FailoverVersion,
+		IsGlobalDomain:           &t.IsGlobalDomain,
+	}
+}
+
+// ToFailoverDomainResponse converts thrift FailoverDomainResponse type to internal
+func ToFailoverDomainResponse(t *shared.FailoverDomainResponse) *types.FailoverDomainResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverDomainResponse{
+		DomainInfo:               ToDomainInfo(t.DomainInfo),
+		Configuration:            ToDomainConfiguration(t.Configuration),
+		ReplicationConfiguration: ToDomainReplicationConfiguration(t.ReplicationConfiguration),
+		FailoverVersion:          t.GetFailoverVersion(),
+		IsGlobalDomain:           t.GetIsGlobalDomain(),
 	}
 }
 
@@ -1761,6 +1840,7 @@ func FromDescribeTaskListResponse(t *types.DescribeTaskListResponse) *shared.Des
 	return &shared.DescribeTaskListResponse{
 		Pollers:        FromPollerInfoArray(t.Pollers),
 		TaskListStatus: FromTaskListStatus(t.TaskListStatus),
+		TaskList:       FromTaskList(t.TaskList),
 	}
 }
 
@@ -1772,6 +1852,7 @@ func ToDescribeTaskListResponse(t *shared.DescribeTaskListResponse) *types.Descr
 	return &types.DescribeTaskListResponse{
 		Pollers:        ToPollerInfoArray(t.Pollers),
 		TaskListStatus: ToTaskListStatus(t.TaskListStatus),
+		TaskList:       ToTaskList(t.TaskList),
 	}
 }
 
@@ -1781,8 +1862,9 @@ func FromDescribeWorkflowExecutionRequest(t *types.DescribeWorkflowExecutionRequ
 		return nil
 	}
 	return &shared.DescribeWorkflowExecutionRequest{
-		Domain:    &t.Domain,
-		Execution: FromWorkflowExecution(t.Execution),
+		Domain:                &t.Domain,
+		Execution:             FromWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1792,8 +1874,9 @@ func ToDescribeWorkflowExecutionRequest(t *shared.DescribeWorkflowExecutionReque
 		return nil
 	}
 	return &types.DescribeWorkflowExecutionRequest{
-		Domain:    t.GetDomain(),
-		Execution: ToWorkflowExecution(t.Execution),
+		Domain:                t.GetDomain(),
+		Execution:             ToWorkflowExecution(t.Execution),
+		QueryConsistencyLevel: ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -1833,6 +1916,7 @@ func FromDiagnoseWorkflowExecutionRequest(t *types.DiagnoseWorkflowExecutionRequ
 	return &shared.DiagnoseWorkflowExecutionRequest{
 		Domain:            &t.Domain,
 		WorkflowExecution: FromWorkflowExecution(t.GetWorkflowExecution()),
+		Identity:          &t.Identity,
 	}
 }
 
@@ -1844,6 +1928,7 @@ func ToDiagnoseWorkflowExecutionRequest(t *shared.DiagnoseWorkflowExecutionReque
 	return &types.DiagnoseWorkflowExecutionRequest{
 		Domain:            t.GetDomain(),
 		WorkflowExecution: ToWorkflowExecution(t.GetWorkflowExecution()),
+		Identity:          t.GetIdentity(),
 	}
 }
 
@@ -2015,6 +2100,7 @@ func FromDomainNotActiveError(t *types.DomainNotActiveError) *shared.DomainNotAc
 		DomainName:     t.DomainName,
 		CurrentCluster: t.CurrentCluster,
 		ActiveCluster:  t.ActiveCluster,
+		ActiveClusters: t.ActiveClusters,
 	}
 }
 
@@ -2028,6 +2114,7 @@ func ToDomainNotActiveError(t *shared.DomainNotActiveError) *types.DomainNotActi
 		DomainName:     t.DomainName,
 		CurrentCluster: t.CurrentCluster,
 		ActiveCluster:  t.ActiveCluster,
+		ActiveClusters: t.ActiveClusters,
 	}
 }
 
@@ -2039,6 +2126,7 @@ func FromDomainReplicationConfiguration(t *types.DomainReplicationConfiguration)
 	return &shared.DomainReplicationConfiguration{
 		ActiveClusterName: &t.ActiveClusterName,
 		Clusters:          FromClusterReplicationConfigurationArray(t.Clusters),
+		ActiveClusters:    FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -2050,6 +2138,93 @@ func ToDomainReplicationConfiguration(t *shared.DomainReplicationConfiguration) 
 	return &types.DomainReplicationConfiguration{
 		ActiveClusterName: t.GetActiveClusterName(),
 		Clusters:          ToClusterReplicationConfigurationArray(t.Clusters),
+		ActiveClusters:    ToActiveClusters(t.ActiveClusters),
+	}
+}
+
+// FromActiveClusters converts internal ActiveClusters type to thrift
+func FromActiveClusters(t *types.ActiveClusters) *shared.ActiveClusters {
+	if t == nil {
+		return nil
+	}
+
+	var activeClustersByClusterAttribute map[string]*shared.ClusterAttributeScope
+	if t.AttributeScopes != nil {
+		activeClustersByClusterAttribute = make(map[string]*shared.ClusterAttributeScope)
+		for scopeType, scope := range t.AttributeScopes {
+			activeClustersByClusterAttribute[scopeType] = FromClusterAttributeScope(&scope)
+		}
+	}
+
+	return &shared.ActiveClusters{
+		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
+	}
+}
+
+// ToActiveClusters converts thrift ActiveClusters type to internal
+func ToActiveClusters(t *shared.ActiveClusters) *types.ActiveClusters {
+	if t == nil {
+		return nil
+	}
+
+	var attributeScopes map[string]types.ClusterAttributeScope
+	if t.ActiveClustersByClusterAttribute != nil {
+		attributeScopes = make(map[string]types.ClusterAttributeScope)
+		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
+			if converted := ToClusterAttributeScope(scope); converted != nil {
+				attributeScopes[scopeType] = *converted
+			}
+		}
+	}
+
+	return &types.ActiveClusters{
+		AttributeScopes: attributeScopes,
+	}
+}
+
+// FromClusterAttributeScope converts internal ClusterAttributeScope type to thrift
+func FromClusterAttributeScope(t *types.ClusterAttributeScope) *shared.ClusterAttributeScope {
+	if t == nil {
+		return nil
+	}
+
+	var clusterAttributes map[string]*shared.ActiveClusterInfo
+	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]*shared.ActiveClusterInfo)
+		for name, clusterInfo := range t.ClusterAttributes {
+			clusterAttributes[name] = &shared.ActiveClusterInfo{
+				ActiveClusterName: &clusterInfo.ActiveClusterName,
+				FailoverVersion:   &clusterInfo.FailoverVersion,
+			}
+		}
+	}
+
+	return &shared.ClusterAttributeScope{
+		ClusterAttributes: clusterAttributes,
+	}
+}
+
+// ToClusterAttributeScope converts thrift ClusterAttributeScope type to internal
+func ToClusterAttributeScope(t *shared.ClusterAttributeScope) *types.ClusterAttributeScope {
+	if t == nil {
+		return nil
+	}
+
+	var clusterAttributes map[string]types.ActiveClusterInfo
+	if len(t.ClusterAttributes) > 0 {
+		clusterAttributes = make(map[string]types.ActiveClusterInfo)
+		for name, clusterInfo := range t.ClusterAttributes {
+			if clusterInfo != nil {
+				clusterAttributes[name] = types.ActiveClusterInfo{
+					ActiveClusterName: *clusterInfo.ActiveClusterName,
+					FailoverVersion:   *clusterInfo.FailoverVersion,
+				}
+			}
+		}
+	}
+
+	return &types.ClusterAttributeScope{
+		ClusterAttributes: clusterAttributes,
 	}
 }
 
@@ -2132,6 +2307,7 @@ func FromEntityNotExistsError(t *types.EntityNotExistsError) *shared.EntityNotEx
 		Message:        t.Message,
 		CurrentCluster: &t.CurrentCluster,
 		ActiveCluster:  &t.ActiveCluster,
+		ActiveClusters: t.ActiveClusters,
 	}
 }
 
@@ -2144,6 +2320,7 @@ func ToEntityNotExistsError(t *shared.EntityNotExistsError) *types.EntityNotExis
 		Message:        t.Message,
 		CurrentCluster: t.GetCurrentCluster(),
 		ActiveCluster:  t.GetActiveCluster(),
+		ActiveClusters: t.GetActiveClusters(),
 	}
 }
 
@@ -2544,6 +2721,7 @@ func FromGetWorkflowExecutionHistoryRequest(t *types.GetWorkflowExecutionHistory
 		WaitForNewEvent:        &t.WaitForNewEvent,
 		HistoryEventFilterType: FromHistoryEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           &t.SkipArchival,
+		QueryConsistencyLevel:  FromQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -2560,6 +2738,7 @@ func ToGetWorkflowExecutionHistoryRequest(t *shared.GetWorkflowExecutionHistoryR
 		WaitForNewEvent:        t.GetWaitForNewEvent(),
 		HistoryEventFilterType: ToHistoryEventFilterType(t.HistoryEventFilterType),
 		SkipArchival:           t.GetSkipArchival(),
+		QueryConsistencyLevel:  ToQueryConsistencyLevel(t.QueryConsistencyLevel),
 	}
 }
 
@@ -3067,6 +3246,232 @@ func ToListDomainsResponse(t *shared.ListDomainsResponse) *types.ListDomainsResp
 	}
 }
 
+// ToListFailoverHistoryRequest converts thrift ListFailoverHistoryRequest type to internal
+func ToListFailoverHistoryRequest(t *shared.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+// FromListFailoverHistoryRequest converts internal ListFailoverHistoryRequest type to thrift
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *shared.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+
+	return &shared.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+// FromListFailoverHistoryResponse converts internal ListFailoverHistoryResponse type to thrift
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *shared.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// ToListFailoverHistoryResponse converts thrift ListFailoverHistoryResponse type to internal
+func ToListFailoverHistoryResponse(t *shared.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+// ToListFailoverHistoryRequestFilters converts thrift ListFailoverHistoryRequestFilters type to internal
+func ToListFailoverHistoryRequestFilters(t *shared.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID: t.GetDomainID(),
+	}
+}
+
+// FromListFailoverHistoryRequestFilters converts internal ListFailoverHistoryRequestFilters type to thrift
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *shared.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &shared.ListFailoverHistoryRequestFilters{
+		DomainID: &t.DomainID,
+	}
+}
+
+// ToPaginationOptions converts thrift PaginationOptions type to internal
+func ToPaginationOptions(t *shared.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &types.PaginationOptions{
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// FromPaginationOptions converts internal PaginationOptions type to thrift
+func FromPaginationOptions(t *types.PaginationOptions) *shared.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	return &shared.PaginationOptions{
+		PageSize:      t.PageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+// ToFailoverEvent converts thrift FailoverEvent type to internal
+func ToFailoverEvent(t *shared.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &types.FailoverEvent{
+		ID:               t.ID,
+		CreatedTime:      t.CreatedTime,
+		FailoverType:     ToFailoverType(t.FailoverType),
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// FromFailoverEvent converts internal FailoverEvent type to thrift
+func FromFailoverEvent(t *types.FailoverEvent) *shared.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &shared.FailoverEvent{
+		ID:               t.ID,
+		CreatedTime:      t.CreatedTime,
+		FailoverType:     FromFailoverType(t.FailoverType),
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+// ToFailoverEventArray converts thrift FailoverEvent array type to internal
+func ToFailoverEventArray(t []*shared.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+// FromFailoverEventArray converts internal FailoverEvent array type to thrift
+func FromFailoverEventArray(t []*types.FailoverEvent) []*shared.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+// ToFailoverType converts thrift FailoverType type to internal
+func ToFailoverType(t *shared.FailoverType) *types.FailoverType {
+	if t == nil {
+		return nil
+	}
+	v := types.FailoverType(*t)
+	return &v
+}
+
+// FromFailoverType converts internal FailoverType type to thrift
+func FromFailoverType(t *types.FailoverType) *shared.FailoverType {
+	if t == nil {
+		return nil
+	}
+	v := shared.FailoverType(*t)
+	return &v
+}
+
+// ToClusterFailover converts thrift ClusterFailover type to internal
+func ToClusterFailover(t *shared.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+// FromClusterFailover converts internal ClusterFailover type to thrift
+func FromClusterFailover(t *types.ClusterFailover) *shared.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &shared.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+// ToClusterFailoverArray converts thrift ClusterFailover array type to internal
+func ToClusterFailoverArray(t []*shared.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+// FromClusterFailoverArray converts internal ClusterFailover array type to thrift
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*shared.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+// ToActiveClusterInfo converts thrift ActiveClusterInfo type to internal
+func ToActiveClusterInfo(t *shared.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.GetActiveClusterName(),
+		FailoverVersion:   t.GetFailoverVersion(),
+	}
+}
+
+// FromActiveClusterInfo converts internal ActiveClusterInfo type to thrift
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *shared.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &shared.ActiveClusterInfo{
+		ActiveClusterName: &t.ActiveClusterName,
+		FailoverVersion:   &t.FailoverVersion,
+	}
+}
+
 // FromListOpenWorkflowExecutionsRequest converts internal ListOpenWorkflowExecutionsRequest type to thrift
 func FromListOpenWorkflowExecutionsRequest(t *types.ListOpenWorkflowExecutionsRequest) *shared.ListOpenWorkflowExecutionsRequest {
 	if t == nil {
@@ -3383,6 +3788,7 @@ func FromPendingActivityInfo(t *types.PendingActivityInfo) *shared.PendingActivi
 		LastWorkerIdentity:     &t.LastWorkerIdentity,
 		LastFailureDetails:     t.LastFailureDetails,
 		StartedWorkerIdentity:  &t.StartedWorkerIdentity,
+		ScheduleID:             &t.ScheduleID,
 	}
 }
 
@@ -3406,6 +3812,7 @@ func ToPendingActivityInfo(t *shared.PendingActivityInfo) *types.PendingActivity
 		LastWorkerIdentity:     t.GetLastWorkerIdentity(),
 		LastFailureDetails:     t.LastFailureDetails,
 		StartedWorkerIdentity:  t.GetStartedWorkerIdentity(),
+		ScheduleID:             t.GetScheduleID(),
 	}
 }
 
@@ -3488,6 +3895,7 @@ func FromPendingDecisionInfo(t *types.PendingDecisionInfo) *shared.PendingDecisi
 		StartedTimestamp:           t.StartedTimestamp,
 		Attempt:                    &t.Attempt,
 		OriginalScheduledTimestamp: t.OriginalScheduledTimestamp,
+		ScheduleID:                 &t.ScheduleID,
 	}
 }
 
@@ -3502,6 +3910,7 @@ func ToPendingDecisionInfo(t *shared.PendingDecisionInfo) *types.PendingDecision
 		StartedTimestamp:           t.StartedTimestamp,
 		Attempt:                    t.GetAttempt(),
 		OriginalScheduledTimestamp: t.OriginalScheduledTimestamp,
+		ScheduleID:                 t.GetScheduleID(),
 	}
 }
 
@@ -3585,6 +3994,7 @@ func FromPollForActivityTaskResponse(t *types.PollForActivityTaskResponse) *shar
 		WorkflowType:                    FromWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  &t.WorkflowDomain,
 		Header:                          FromHeader(t.Header),
+		AutoConfigHint:                  FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -3610,6 +4020,7 @@ func ToPollForActivityTaskResponse(t *shared.PollForActivityTaskResponse) *types
 		WorkflowType:                    ToWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  t.GetWorkflowDomain(),
 		Header:                          ToHeader(t.Header),
+		AutoConfigHint:                  ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -3661,6 +4072,7 @@ func FromPollForDecisionTaskResponse(t *types.PollForDecisionTaskResponse) *shar
 		Queries:                   FromWorkflowQueryMap(t.Queries),
 		NextEventId:               &t.NextEventID,
 		TotalHistoryBytes:         &t.TotalHistoryBytes,
+		AutoConfigHint:            FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -3686,6 +4098,7 @@ func ToPollForDecisionTaskResponse(t *shared.PollForDecisionTaskResponse) *types
 		Queries:                   ToWorkflowQueryMap(t.Queries),
 		NextEventID:               t.GetNextEventId(),
 		TotalHistoryBytes:         t.GetTotalHistoryBytes(),
+		AutoConfigHint:            ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -4088,6 +4501,7 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *shared.RegisterD
 		EmitMetric:                             t.EmitMetric,
 		Clusters:                               FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      &t.ActiveClusterName,
+		ActiveClusters:                         FromActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          &t.SecurityToken,
 		IsGlobalDomain:                         &t.IsGlobalDomain,
@@ -4111,6 +4525,7 @@ func ToRegisterDomainRequest(t *shared.RegisterDomainRequest) *types.RegisterDom
 		EmitMetric:                             t.EmitMetric,
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.GetActiveClusterName(),
+		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.GetSecurityToken(),
 		IsGlobalDomain:                         t.GetIsGlobalDomain(),
@@ -5092,6 +5507,8 @@ func FromSignalWithStartWorkflowExecutionRequest(t *types.SignalWithStartWorkflo
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
 		Header:                              FromHeader(t.Header),
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5120,6 +5537,8 @@ func ToSignalWithStartWorkflowExecutionRequest(t *shared.SignalWithStartWorkflow
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		Header:                              ToHeader(t.Header),
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5176,6 +5595,8 @@ func FromStartChildWorkflowExecutionDecisionAttributes(t *types.StartChildWorkfl
 		Header:                              FromHeader(t.Header),
 		Memo:                                FromMemo(t.Memo),
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5200,6 +5621,8 @@ func ToStartChildWorkflowExecutionDecisionAttributes(t *shared.StartChildWorkflo
 		Header:                              ToHeader(t.Header),
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5260,6 +5683,8 @@ func FromStartChildWorkflowExecutionInitiatedEventAttributes(t *types.StartChild
 		DelayStartSeconds:                   t.DelayStartSeconds,
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5288,6 +5713,8 @@ func ToStartChildWorkflowExecutionInitiatedEventAttributes(t *shared.StartChildW
 		DelayStartSeconds:                   t.DelayStartSeconds,
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimestamp,
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5404,6 +5831,7 @@ func FromStartWorkflowExecutionRequest(t *types.StartWorkflowExecutionRequest) *
 	if t == nil {
 		return nil
 	}
+	thriftPolicy := FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy)
 	return &shared.StartWorkflowExecutionRequest{
 		Domain:                              &t.Domain,
 		WorkflowId:                          &t.WorkflowID,
@@ -5423,6 +5851,8 @@ func FromStartWorkflowExecutionRequest(t *types.StartWorkflowExecutionRequest) *
 		DelayStartSeconds:                   t.DelayStartSeconds,
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimestamp:                 t.FirstRunAtTimeStamp,
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        thriftPolicy,
 	}
 }
 
@@ -5450,6 +5880,8 @@ func ToStartWorkflowExecutionRequest(t *shared.StartWorkflowExecutionRequest) *t
 		DelayStartSeconds:                   t.DelayStartSeconds,
 		JitterStartSeconds:                  t.JitterStartSeconds,
 		FirstRunAtTimeStamp:                 t.FirstRunAtTimestamp,
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
 	}
 }
 
@@ -5554,10 +5986,21 @@ func FromTaskList(t *types.TaskList) *shared.TaskList {
 	if t == nil {
 		return nil
 	}
-	return &shared.TaskList{
+	result := &shared.TaskList{
 		Name: &t.Name,
 		Kind: FromTaskListKind(t.Kind),
 	}
+	if t.BaseName != "" {
+		result.BaseName = &t.BaseName
+	}
+	return result
+}
+
+func MigrateTaskList(name string, t *shared.TaskList) *types.TaskList {
+	if t == nil && name != "" {
+		return &types.TaskList{Name: name, Kind: types.TaskListKindNormal.Ptr()}
+	}
+	return ToTaskList(t)
 }
 
 // ToTaskList converts thrift TaskList type to internal
@@ -5566,8 +6009,9 @@ func ToTaskList(t *shared.TaskList) *types.TaskList {
 		return nil
 	}
 	return &types.TaskList{
-		Name: t.GetName(),
-		Kind: ToTaskListKind(t.Kind),
+		Name:     t.GetName(),
+		Kind:     ToTaskListKind(t.Kind),
+		BaseName: t.GetBaseName(),
 	}
 }
 
@@ -5578,11 +6022,11 @@ func FromTaskListKind(t *types.TaskListKind) *shared.TaskListKind {
 	}
 	switch *t {
 	case types.TaskListKindNormal:
-		v := shared.TaskListKindNormal
-		return &v
+		return shared.TaskListKindNormal.Ptr()
 	case types.TaskListKindSticky:
-		v := shared.TaskListKindSticky
-		return &v
+		return shared.TaskListKindSticky.Ptr()
+	case types.TaskListKindEphemeral:
+		return shared.TaskListKindEphemeral.Ptr()
 	}
 	panic("unexpected enum value")
 }
@@ -5594,11 +6038,11 @@ func ToTaskListKind(t *shared.TaskListKind) *types.TaskListKind {
 	}
 	switch *t {
 	case shared.TaskListKindNormal:
-		v := types.TaskListKindNormal
-		return &v
+		return types.TaskListKindNormal.Ptr()
 	case shared.TaskListKindSticky:
-		v := types.TaskListKindSticky
-		return &v
+		return types.TaskListKindSticky.Ptr()
+	case shared.TaskListKindEphemeral:
+		return types.TaskListKindEphemeral.Ptr()
 	}
 	panic("unexpected enum value")
 }
@@ -5651,11 +6095,14 @@ func FromTaskListStatus(t *types.TaskListStatus) *shared.TaskListStatus {
 		return nil
 	}
 	return &shared.TaskListStatus{
-		BacklogCountHint: &t.BacklogCountHint,
-		ReadLevel:        &t.ReadLevel,
-		AckLevel:         &t.AckLevel,
-		RatePerSecond:    &t.RatePerSecond,
-		TaskIDBlock:      FromTaskIDBlock(t.TaskIDBlock),
+		BacklogCountHint:      &t.BacklogCountHint,
+		ReadLevel:             &t.ReadLevel,
+		AckLevel:              &t.AckLevel,
+		RatePerSecond:         &t.RatePerSecond,
+		TaskIDBlock:           FromTaskIDBlock(t.TaskIDBlock),
+		IsolationGroupMetrics: FromIsolationGroupMetricsMap(t.IsolationGroupMetrics),
+		NewTasksPerSecond:     &t.NewTasksPerSecond,
+		Empty:                 &t.Empty,
 	}
 }
 
@@ -5665,11 +6112,31 @@ func ToTaskListStatus(t *shared.TaskListStatus) *types.TaskListStatus {
 		return nil
 	}
 	return &types.TaskListStatus{
-		BacklogCountHint: t.GetBacklogCountHint(),
-		ReadLevel:        t.GetReadLevel(),
-		AckLevel:         t.GetAckLevel(),
-		RatePerSecond:    t.GetRatePerSecond(),
-		TaskIDBlock:      ToTaskIDBlock(t.TaskIDBlock),
+		BacklogCountHint:      t.GetBacklogCountHint(),
+		ReadLevel:             t.GetReadLevel(),
+		AckLevel:              t.GetAckLevel(),
+		RatePerSecond:         t.GetRatePerSecond(),
+		TaskIDBlock:           ToTaskIDBlock(t.TaskIDBlock),
+		IsolationGroupMetrics: ToIsolationGroupMetricsMap(t.GetIsolationGroupMetrics()),
+		NewTasksPerSecond:     t.GetNewTasksPerSecond(),
+		Empty:                 t.GetEmpty(),
+	}
+}
+
+func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *shared.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
+	return &shared.IsolationGroupMetrics{
+		NewTasksPerSecond: &t.NewTasksPerSecond,
+		PollerCount:       &t.PollerCount,
+	}
+}
+
+func ToIsolationGroupMetrics(t *shared.IsolationGroupMetrics) *types.IsolationGroupMetrics {
+	return &types.IsolationGroupMetrics{
+		NewTasksPerSecond: t.GetNewTasksPerSecond(),
+		PollerCount:       t.GetPollerCount(),
 	}
 }
 
@@ -5918,10 +6385,11 @@ func FromUpdateDomainRequest(t *types.UpdateDomainRequest) *shared.UpdateDomainR
 			VisibilityArchivalURI:                  t.VisibilityArchivalURI,
 		}
 	}
-	if t.ActiveClusterName != nil || t.Clusters != nil {
+	if t.ActiveClusterName != nil || t.Clusters != nil || t.ActiveClusters != nil {
 		request.ReplicationConfiguration = &shared.DomainReplicationConfiguration{
 			ActiveClusterName: t.ActiveClusterName,
 			Clusters:          FromClusterReplicationConfigurationArray(t.Clusters),
+			ActiveClusters:    FromActiveClusters(t.ActiveClusters),
 		}
 	}
 	return &request
@@ -5955,6 +6423,7 @@ func ToUpdateDomainRequest(t *shared.UpdateDomainRequest) *types.UpdateDomainReq
 	if t.ReplicationConfiguration != nil {
 		request.ActiveClusterName = t.ReplicationConfiguration.ActiveClusterName
 		request.Clusters = ToClusterReplicationConfigurationArray(t.ReplicationConfiguration.Clusters)
+		request.ActiveClusters = ToActiveClusters(t.ReplicationConfiguration.ActiveClusters)
 	}
 	return &request
 }
@@ -6269,6 +6738,74 @@ func ToWorkflowExecutionCloseStatus(t *shared.WorkflowExecutionCloseStatus) *typ
 	panic("unexpected enum value")
 }
 
+// FromWorkflowExecutionStatus converts internal WorkflowExecutionStatus type to thrift
+func FromWorkflowExecutionStatus(t *types.WorkflowExecutionStatus) *shared.WorkflowExecutionStatus {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.WorkflowExecutionStatusPending:
+		v := shared.WorkflowExecutionStatusPending
+		return &v
+	case types.WorkflowExecutionStatusStarted:
+		v := shared.WorkflowExecutionStatusStarted
+		return &v
+	case types.WorkflowExecutionStatusCompleted:
+		v := shared.WorkflowExecutionStatusCompleted
+		return &v
+	case types.WorkflowExecutionStatusFailed:
+		v := shared.WorkflowExecutionStatusFailed
+		return &v
+	case types.WorkflowExecutionStatusCanceled:
+		v := shared.WorkflowExecutionStatusCanceled
+		return &v
+	case types.WorkflowExecutionStatusTerminated:
+		v := shared.WorkflowExecutionStatusTerminated
+		return &v
+	case types.WorkflowExecutionStatusContinuedAsNew:
+		v := shared.WorkflowExecutionStatusContinuedAsNew
+		return &v
+	case types.WorkflowExecutionStatusTimedOut:
+		v := shared.WorkflowExecutionStatusTimedOut
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// ToWorkflowExecutionStatus converts thrift WorkflowExecutionStatus type to internal
+func ToWorkflowExecutionStatus(t *shared.WorkflowExecutionStatus) *types.WorkflowExecutionStatus {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.WorkflowExecutionStatusPending:
+		v := types.WorkflowExecutionStatusPending
+		return &v
+	case shared.WorkflowExecutionStatusStarted:
+		v := types.WorkflowExecutionStatusStarted
+		return &v
+	case shared.WorkflowExecutionStatusCompleted:
+		v := types.WorkflowExecutionStatusCompleted
+		return &v
+	case shared.WorkflowExecutionStatusFailed:
+		v := types.WorkflowExecutionStatusFailed
+		return &v
+	case shared.WorkflowExecutionStatusCanceled:
+		v := types.WorkflowExecutionStatusCanceled
+		return &v
+	case shared.WorkflowExecutionStatusTerminated:
+		v := types.WorkflowExecutionStatusTerminated
+		return &v
+	case shared.WorkflowExecutionStatusContinuedAsNew:
+		v := types.WorkflowExecutionStatusContinuedAsNew
+		return &v
+	case shared.WorkflowExecutionStatusTimedOut:
+		v := types.WorkflowExecutionStatusTimedOut
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
 // FromWorkflowExecutionCompletedEventAttributes converts internal WorkflowExecutionCompletedEventAttributes type to thrift
 func FromWorkflowExecutionCompletedEventAttributes(t *types.WorkflowExecutionCompletedEventAttributes) *shared.WorkflowExecutionCompletedEventAttributes {
 	if t == nil {
@@ -6336,6 +6873,8 @@ func FromWorkflowExecutionContinuedAsNewEventAttributes(t *types.WorkflowExecuti
 		Header:                              FromHeader(t.Header),
 		Memo:                                FromMemo(t.Memo),
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -6360,6 +6899,8 @@ func ToWorkflowExecutionContinuedAsNewEventAttributes(t *shared.WorkflowExecutio
 		Header:                              ToHeader(t.Header),
 		Memo:                                ToMemo(t.Memo),
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -6414,25 +6955,35 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *shared.WorkflowE
 	if t == nil {
 		return nil
 	}
+	tlName := ""
+	if t.TaskList != nil {
+		tlName = t.TaskList.Name
+	}
 	return &shared.WorkflowExecutionInfo{
-		Execution:        FromWorkflowExecution(t.Execution),
-		Type:             FromWorkflowType(t.Type),
-		StartTime:        t.StartTime,
-		CloseTime:        t.CloseTime,
-		CloseStatus:      FromWorkflowExecutionCloseStatus(t.CloseStatus),
-		HistoryLength:    &t.HistoryLength,
-		ParentDomainId:   t.ParentDomainID,
-		ParentDomainName: t.ParentDomain,
-		ParentInitatedId: t.ParentInitiatedID,
-		ParentExecution:  FromWorkflowExecution(t.ParentExecution),
-		ExecutionTime:    t.ExecutionTime,
-		Memo:             FromMemo(t.Memo),
-		SearchAttributes: FromSearchAttributes(t.SearchAttributes),
-		AutoResetPoints:  FromResetPoints(t.AutoResetPoints),
-		TaskList:         &t.TaskList,
-		IsCron:           &t.IsCron,
-		UpdateTime:       t.UpdateTime,
-		PartitionConfig:  t.PartitionConfig,
+		Execution:                    FromWorkflowExecution(t.Execution),
+		Type:                         FromWorkflowType(t.Type),
+		StartTime:                    t.StartTime,
+		CloseTime:                    t.CloseTime,
+		CloseStatus:                  FromWorkflowExecutionCloseStatus(t.CloseStatus),
+		HistoryLength:                &t.HistoryLength,
+		ParentDomainId:               t.ParentDomainID,
+		ParentDomainName:             t.ParentDomain,
+		ParentInitatedId:             t.ParentInitiatedID,
+		ParentExecution:              FromWorkflowExecution(t.ParentExecution),
+		ExecutionTime:                t.ExecutionTime,
+		Memo:                         FromMemo(t.Memo),
+		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
+		AutoResetPoints:              FromResetPoints(t.AutoResetPoints),
+		TaskList:                     &tlName,
+		TaskListInfo:                 FromTaskList(t.TaskList),
+		IsCron:                       &t.IsCron,
+		UpdateTime:                   t.UpdateTime,
+		PartitionConfig:              t.PartitionConfig,
+		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 t.CronSchedule,
+		ExecutionStatus:              FromWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       t.ScheduledExecutionTime,
 	}
 }
 
@@ -6442,24 +6993,29 @@ func ToWorkflowExecutionInfo(t *shared.WorkflowExecutionInfo) *types.WorkflowExe
 		return nil
 	}
 	return &types.WorkflowExecutionInfo{
-		Execution:         ToWorkflowExecution(t.Execution),
-		Type:              ToWorkflowType(t.Type),
-		StartTime:         t.StartTime,
-		CloseTime:         t.CloseTime,
-		CloseStatus:       ToWorkflowExecutionCloseStatus(t.CloseStatus),
-		HistoryLength:     t.GetHistoryLength(),
-		ParentDomainID:    t.ParentDomainId,
-		ParentDomain:      t.ParentDomainName,
-		ParentInitiatedID: t.ParentInitatedId,
-		ParentExecution:   ToWorkflowExecution(t.ParentExecution),
-		ExecutionTime:     t.ExecutionTime,
-		Memo:              ToMemo(t.Memo),
-		SearchAttributes:  ToSearchAttributes(t.SearchAttributes),
-		AutoResetPoints:   ToResetPoints(t.AutoResetPoints),
-		TaskList:          t.GetTaskList(),
-		IsCron:            t.GetIsCron(),
-		UpdateTime:        t.UpdateTime,
-		PartitionConfig:   t.PartitionConfig,
+		Execution:                    ToWorkflowExecution(t.Execution),
+		Type:                         ToWorkflowType(t.Type),
+		StartTime:                    t.StartTime,
+		CloseTime:                    t.CloseTime,
+		CloseStatus:                  ToWorkflowExecutionCloseStatus(t.CloseStatus),
+		HistoryLength:                t.GetHistoryLength(),
+		ParentDomainID:               t.ParentDomainId,
+		ParentDomain:                 t.ParentDomainName,
+		ParentInitiatedID:            t.ParentInitatedId,
+		ParentExecution:              ToWorkflowExecution(t.ParentExecution),
+		ExecutionTime:                t.ExecutionTime,
+		Memo:                         ToMemo(t.Memo),
+		SearchAttributes:             ToSearchAttributes(t.SearchAttributes),
+		AutoResetPoints:              ToResetPoints(t.AutoResetPoints),
+		TaskList:                     MigrateTaskList(t.GetTaskList(), t.TaskListInfo),
+		IsCron:                       t.GetIsCron(),
+		UpdateTime:                   t.UpdateTime,
+		PartitionConfig:              t.PartitionConfig,
+		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),
+		ActiveClusterSelectionPolicy: ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 t.CronSchedule,
+		ExecutionStatus:              ToWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       t.ScheduledExecutionTime,
 	}
 }
 
@@ -6524,6 +7080,8 @@ func FromWorkflowExecutionStartedEventAttributes(t *types.WorkflowExecutionStart
 		Header:                              FromHeader(t.Header),
 		PartitionConfig:                     t.PartitionConfig,
 		RequestId:                           &t.RequestID,
+		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
 	}
 }
 
@@ -6562,7 +7120,81 @@ func ToWorkflowExecutionStartedEventAttributes(t *shared.WorkflowExecutionStarte
 		Header:                              ToHeader(t.Header),
 		PartitionConfig:                     t.PartitionConfig,
 		RequestID:                           t.GetRequestId(),
+		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 	}
+}
+
+func FromClusterAttribute(t *types.ClusterAttribute) *shared.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	return &shared.ClusterAttribute{
+		Scope: &t.Scope,
+		Name:  &t.Name,
+	}
+}
+
+func ToClusterAttribute(t *shared.ClusterAttribute) *types.ClusterAttribute {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterAttribute{
+		Scope: t.GetScope(),
+		Name:  t.GetName(),
+	}
+}
+
+func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *shared.ActiveClusterSelectionPolicy {
+	if t == nil {
+		return nil
+	}
+	return &shared.ActiveClusterSelectionPolicy{
+		Strategy:           FromActiveClusterSelectionStrategy(t.ActiveClusterSelectionStrategy),
+		ExternalEntityType: &t.ExternalEntityType,
+		ExternalEntityKey:  &t.ExternalEntityKey,
+		StickyRegion:       &t.StickyRegion,
+		ClusterAttribute:   FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: ToActiveClusterSelectionStrategy(t.Strategy),
+		ExternalEntityType:             t.GetExternalEntityType(),
+		ExternalEntityKey:              t.GetExternalEntityKey(),
+		StickyRegion:                   t.GetStickyRegion(),
+		ClusterAttribute:               ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func FromActiveClusterSelectionStrategy(t *types.ActiveClusterSelectionStrategy) *shared.ActiveClusterSelectionStrategy {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.ActiveClusterSelectionStrategyRegionSticky:
+		return shared.ActiveClusterSelectionStrategyRegionSticky.Ptr()
+	case types.ActiveClusterSelectionStrategyExternalEntity:
+		return shared.ActiveClusterSelectionStrategyExternalEntity.Ptr()
+	}
+	panic("unexpected enum value")
+}
+
+func ToActiveClusterSelectionStrategy(t *shared.ActiveClusterSelectionStrategy) *types.ActiveClusterSelectionStrategy {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.ActiveClusterSelectionStrategyRegionSticky:
+		return types.ActiveClusterSelectionStrategyRegionSticky.Ptr()
+	case shared.ActiveClusterSelectionStrategyExternalEntity:
+		return types.ActiveClusterSelectionStrategyExternalEntity.Ptr()
+	}
+	panic("unexpected enum value")
 }
 
 // FromWorkflowExecutionTerminatedEventAttributes converts internal WorkflowExecutionTerminatedEventAttributes type to thrift
@@ -7191,6 +7823,28 @@ func ToBadBinaryInfoMap(t map[string]*shared.BadBinaryInfo) map[string]*types.Ba
 	v := make(map[string]*types.BadBinaryInfo, len(t))
 	for key := range t {
 		v[key] = ToBadBinaryInfo(t[key])
+	}
+	return v
+}
+
+func FromIsolationGroupMetricsMap(t map[string]*types.IsolationGroupMetrics) map[string]*shared.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
+	v := make(map[string]*shared.IsolationGroupMetrics, len(t))
+	for key := range t {
+		v[key] = FromIsolationGroupMetrics(t[key])
+	}
+	return v
+}
+
+func ToIsolationGroupMetricsMap(t map[string]*shared.IsolationGroupMetrics) map[string]*types.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
+	v := make(map[string]*types.IsolationGroupMetrics, len(t))
+	for key := range t {
+		v[key] = ToIsolationGroupMetrics(t[key])
 	}
 	return v
 }
@@ -8150,4 +8804,194 @@ func FromAny(t *types.Any) *shared.Any {
 		ValueType: &dup,
 		Value:     t.Value,
 	}
+}
+
+// FromWorkflowQuery converts internal WorkflowQuery type to thrift
+func FromAutoConfigHint(t *types.AutoConfigHint) *shared.AutoConfigHint {
+	if t == nil {
+		return nil
+	}
+	return &shared.AutoConfigHint{
+		PollerWaitTimeInMs: &t.PollerWaitTimeInMs,
+		EnableAutoConfig:   &t.EnableAutoConfig,
+	}
+}
+
+// ToWorkflowQuery converts thrift WorkflowQuery type to internal
+func ToAutoConfigHint(t *shared.AutoConfigHint) *types.AutoConfigHint {
+	if t == nil {
+		return nil
+	}
+	return &types.AutoConfigHint{
+		PollerWaitTimeInMs: *t.PollerWaitTimeInMs,
+		EnableAutoConfig:   *t.EnableAutoConfig,
+	}
+}
+
+func FromTaskKey(t *types.TaskKey) *shared.TaskKey {
+	if t == nil {
+		return nil
+	}
+	return &shared.TaskKey{
+		TaskID:            common.Ptr(t.TaskID),
+		ScheduledTimeNano: common.Ptr(t.ScheduledTimeNano),
+	}
+}
+
+func ToTaskKey(t *shared.TaskKey) *types.TaskKey {
+	if t == nil {
+		return nil
+	}
+	return &types.TaskKey{
+		TaskID:            t.GetTaskID(),
+		ScheduledTimeNano: t.GetScheduledTimeNano(),
+	}
+}
+
+func FromTaskRange(t *types.TaskRange) *shared.TaskRange {
+	if t == nil {
+		return nil
+	}
+	return &shared.TaskRange{
+		InclusiveMin: FromTaskKey(t.InclusiveMin),
+		ExclusiveMax: FromTaskKey(t.ExclusiveMax),
+	}
+}
+
+func ToTaskRange(t *shared.TaskRange) *types.TaskRange {
+	if t == nil {
+		return nil
+	}
+	return &types.TaskRange{
+		InclusiveMin: ToTaskKey(t.InclusiveMin),
+		ExclusiveMax: ToTaskKey(t.ExclusiveMax),
+	}
+}
+
+func FromVirtualSliceState(t *types.VirtualSliceState) *shared.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	return &shared.VirtualSliceState{
+		TaskRange: FromTaskRange(t.TaskRange),
+		Predicate: FromPredicate(t.Predicate),
+	}
+}
+
+func ToVirtualSliceState(t *shared.VirtualSliceState) *types.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	return &types.VirtualSliceState{
+		TaskRange: ToTaskRange(t.TaskRange),
+		Predicate: ToPredicate(t.Predicate),
+	}
+}
+
+func FromVirtualSliceStateArray(t []*types.VirtualSliceState) []*shared.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	v := make([]*shared.VirtualSliceState, len(t))
+	for i := range t {
+		v[i] = FromVirtualSliceState(t[i])
+	}
+	return v
+}
+
+func ToVirtualSliceStateArray(t []*shared.VirtualSliceState) []*types.VirtualSliceState {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.VirtualSliceState, len(t))
+	for i := range t {
+		v[i] = ToVirtualSliceState(t[i])
+	}
+	return v
+}
+
+func FromVirtualQueueState(t *types.VirtualQueueState) *shared.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	return &shared.VirtualQueueState{
+		VirtualSliceStates: FromVirtualSliceStateArray(t.VirtualSliceStates),
+	}
+}
+
+func ToVirtualQueueState(t *shared.VirtualQueueState) *types.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	return &types.VirtualQueueState{
+		VirtualSliceStates: ToVirtualSliceStateArray(t.VirtualSliceStates),
+	}
+}
+
+func FromVirtualQueueStateMap(t map[int64]*types.VirtualQueueState) map[int64]*shared.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	v := make(map[int64]*shared.VirtualQueueState, len(t))
+	for key := range t {
+		v[key] = FromVirtualQueueState(t[key])
+	}
+	return v
+}
+
+func ToVirtualQueueStateMap(t map[int64]*shared.VirtualQueueState) map[int64]*types.VirtualQueueState {
+	if t == nil {
+		return nil
+	}
+	v := make(map[int64]*types.VirtualQueueState, len(t))
+	for key := range t {
+		v[key] = ToVirtualQueueState(t[key])
+	}
+	return v
+}
+
+func FromQueueState(t *types.QueueState) *shared.QueueState {
+	if t == nil {
+		return nil
+	}
+	return &shared.QueueState{
+		VirtualQueueStates:    FromVirtualQueueStateMap(t.VirtualQueueStates),
+		ExclusiveMaxReadLevel: FromTaskKey(t.ExclusiveMaxReadLevel),
+	}
+}
+
+func ToQueueState(t *shared.QueueState) *types.QueueState {
+	if t == nil {
+		return nil
+	}
+	return &types.QueueState{
+		VirtualQueueStates:    ToVirtualQueueStateMap(t.VirtualQueueStates),
+		ExclusiveMaxReadLevel: ToTaskKey(t.ExclusiveMaxReadLevel),
+	}
+}
+
+func FromCronOverlapPolicy(t *types.CronOverlapPolicy) *shared.CronOverlapPolicy {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.CronOverlapPolicyBufferOne:
+		return shared.CronOverlapPolicyBufferone.Ptr()
+	case types.CronOverlapPolicySkipped:
+		return shared.CronOverlapPolicySkipped.Ptr()
+	}
+	panic("unexpected enum value")
+}
+
+func ToCronOverlapPolicy(t *shared.CronOverlapPolicy) *types.CronOverlapPolicy {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.CronOverlapPolicyBufferone:
+		return types.CronOverlapPolicyBufferOne.Ptr()
+	case shared.CronOverlapPolicySkipped:
+		return types.CronOverlapPolicySkipped.Ptr()
+	}
+	panic("unexpected enum value")
 }

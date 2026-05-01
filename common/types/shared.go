@@ -21,14 +21,17 @@
 package types
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 // AccessDeniedError is an internal type (TBD...)
+// TODO(c-warren): Move to common/types/errors.go
 type AccessDeniedError struct {
 	Message string `json:"message,required"`
 }
@@ -64,6 +67,11 @@ func (v *ActivityTaskCancelRequestedEventAttributes) GetActivityID() (o string) 
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskCancelRequestedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ActivityTaskCanceledEventAttributes is an internal type (TBD...)
 type ActivityTaskCanceledEventAttributes struct {
 	Details                      []byte `json:"details,omitempty"`
@@ -79,6 +87,11 @@ func (v *ActivityTaskCanceledEventAttributes) GetScheduledEventID() (o int64) {
 		return v.ScheduledEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskCanceledEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // ActivityTaskCompletedEventAttributes is an internal type (TBD...)
@@ -105,6 +118,11 @@ func (v *ActivityTaskCompletedEventAttributes) GetStartedEventID() (o int64) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskCompletedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ActivityTaskFailedEventAttributes is an internal type (TBD...)
 type ActivityTaskFailedEventAttributes struct {
 	Reason           *string `json:"reason,omitempty"`
@@ -128,6 +146,11 @@ func (v *ActivityTaskFailedEventAttributes) GetStartedEventID() (o int64) {
 		return v.StartedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskFailedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // ActivityTaskScheduledEventAttributes is an internal type (TBD...)
@@ -210,6 +233,11 @@ func (v *ActivityTaskScheduledEventAttributes) GetHeartbeatTimeoutSeconds() (o i
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskScheduledEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ActivityTaskStartedEventAttributes is an internal type (TBD...)
 type ActivityTaskStartedEventAttributes struct {
 	ScheduledEventID   int64   `json:"scheduledEventId,omitempty"`
@@ -236,6 +264,11 @@ func (v *ActivityTaskStartedEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskStartedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ActivityTaskTimedOutEventAttributes is an internal type (TBD...)
 type ActivityTaskTimedOutEventAttributes struct {
 	Details            []byte       `json:"details,omitempty"`
@@ -260,6 +293,11 @@ func (v *ActivityTaskTimedOutEventAttributes) GetTimeoutType() (o TimeoutType) {
 		return *v.TimeoutType
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ActivityTaskTimedOutEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // ActivityType is an internal type (TBD...)
@@ -319,6 +357,14 @@ func (e ArchivalStatus) MarshalText() ([]byte, error) {
 	return []byte(e.String()), nil
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (e *ArchivalStatus) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
+}
+
 const (
 	// ArchivalStatusDisabled is an option for ArchivalStatus
 	ArchivalStatusDisabled ArchivalStatus = iota
@@ -329,6 +375,48 @@ const (
 // BadBinaries is an internal type (TBD...)
 type BadBinaries struct {
 	Binaries map[string]*BadBinaryInfo `json:"binaries,omitempty"`
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (b *BadBinaries) ByteSize() uint64 {
+	if b == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*b))
+	if b.Binaries != nil {
+		for k, v := range b.Binaries {
+			size += uint64(len(k)) + v.ByteSize()
+		}
+	}
+	return size
+}
+
+// DeepCopy returns a deep copy of BadBinaries
+func (b *BadBinaries) DeepCopy() BadBinaries {
+	if b == nil {
+		return BadBinaries{}
+	}
+	result := BadBinaries{}
+	if b.Binaries != nil {
+		result.Binaries = make(map[string]*BadBinaryInfo, len(b.Binaries))
+		for k, v := range b.Binaries {
+			if v != nil {
+				copyV := &BadBinaryInfo{
+					Reason:   v.Reason,
+					Operator: v.Operator,
+				}
+				if v.CreatedTimeNano != nil {
+					createdTime := *v.CreatedTimeNano
+					copyV.CreatedTimeNano = &createdTime
+				}
+				result.Binaries[k] = copyV
+			} else {
+				// Preserve nil entries in the map
+				result.Binaries[k] = nil
+			}
+		}
+	}
+	return result
 }
 
 // BadBinaryInfo is an internal type (TBD...)
@@ -362,7 +450,22 @@ func (v *BadBinaryInfo) GetCreatedTimeNano() (o int64) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *BadBinaryInfo) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.Reason))
+	size += uint64(len(v.Operator))
+	if v.CreatedTimeNano != nil {
+		size += uint64(unsafe.Sizeof(*v.CreatedTimeNano))
+	}
+	return size
+}
+
 // BadRequestError is an internal type (TBD...)
+// TODO(c-warren): Move to common/types/errors.go
 type BadRequestError struct {
 	Message string `json:"message,required"`
 }
@@ -438,6 +541,11 @@ type CancelTimerFailedEventAttributes struct {
 	Identity                     string `json:"identity,omitempty"`
 }
 
+// Size returns the approximate memory used in bytes
+func (v *CancelTimerFailedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // CancelWorkflowExecutionDecisionAttributes is an internal type (TBD...)
 type CancelWorkflowExecutionDecisionAttributes struct {
 	Details []byte `json:"details,omitempty"`
@@ -466,6 +574,11 @@ func (v *ChildWorkflowExecutionCanceledEventAttributes) GetInitiatedEventID() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionCanceledEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ChildWorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
 type ChildWorkflowExecutionCompletedEventAttributes struct {
 	Result            []byte             `json:"result,omitempty"`
@@ -482,6 +595,11 @@ func (v *ChildWorkflowExecutionCompletedEventAttributes) GetInitiatedEventID() (
 		return v.InitiatedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionCompletedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // ChildWorkflowExecutionFailedCause is an internal type (TBD...)
@@ -547,6 +665,11 @@ func (v *ChildWorkflowExecutionFailedEventAttributes) GetInitiatedEventID() (o i
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ChildWorkflowExecutionStartedEventAttributes is an internal type (TBD...)
 type ChildWorkflowExecutionStartedEventAttributes struct {
 	Domain            string             `json:"domain,omitempty"`
@@ -580,6 +703,11 @@ func (v *ChildWorkflowExecutionStartedEventAttributes) GetWorkflowExecution() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionStartedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ChildWorkflowExecutionTerminatedEventAttributes is an internal type (TBD...)
 type ChildWorkflowExecutionTerminatedEventAttributes struct {
 	Domain            string             `json:"domain,omitempty"`
@@ -595,6 +723,11 @@ func (v *ChildWorkflowExecutionTerminatedEventAttributes) GetInitiatedEventID() 
 		return v.InitiatedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionTerminatedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // ChildWorkflowExecutionTimedOutEventAttributes is an internal type (TBD...)
@@ -615,6 +748,11 @@ func (v *ChildWorkflowExecutionTimedOutEventAttributes) GetInitiatedEventID() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ChildWorkflowExecutionTimedOutEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ClientVersionNotSupportedError is an internal type (TBD...)
 type ClientVersionNotSupportedError struct {
 	FeatureVersion    string `json:"featureVersion,required"`
@@ -630,13 +768,6 @@ type FeatureNotEnabledError struct {
 // CloseShardRequest is an internal type (TBD...)
 type CloseShardRequest struct {
 	ShardID int32 `json:"shardID,omitempty"`
-}
-
-func (v *CloseShardRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetShardID is an internal getter (TBD...)
@@ -663,6 +794,16 @@ func (v *ClusterReplicationConfiguration) GetClusterName() (o string) {
 		return v.ClusterName
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *ClusterReplicationConfiguration) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.ClusterName))
+	return size
 }
 
 // CompleteWorkflowExecutionDecisionAttributes is an internal type (TBD...)
@@ -730,22 +871,24 @@ const (
 
 // ContinueAsNewWorkflowExecutionDecisionAttributes is an internal type (TBD...)
 type ContinueAsNewWorkflowExecutionDecisionAttributes struct {
-	WorkflowType                        *WorkflowType           `json:"workflowType,omitempty"`
-	TaskList                            *TaskList               `json:"taskList,omitempty"`
-	Input                               []byte                  `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                  `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                  `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	BackoffStartIntervalInSeconds       *int32                  `json:"backoffStartIntervalInSeconds,omitempty"`
-	RetryPolicy                         *RetryPolicy            `json:"retryPolicy,omitempty"`
-	Initiator                           *ContinueAsNewInitiator `json:"initiator,omitempty"`
-	FailureReason                       *string                 `json:"failureReason,omitempty"`
-	FailureDetails                      []byte                  `json:"failureDetails,omitempty"`
-	LastCompletionResult                []byte                  `json:"lastCompletionResult,omitempty"`
-	CronSchedule                        string                  `json:"cronSchedule,omitempty"`
-	Header                              *Header                 `json:"header,omitempty"`
-	Memo                                *Memo                   `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes       `json:"searchAttributes,omitempty"`
-	JitterStartSeconds                  *int32                  `json:"jitterStartSeconds,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	BackoffStartIntervalInSeconds       *int32                        `json:"backoffStartIntervalInSeconds,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	Initiator                           *ContinueAsNewInitiator       `json:"initiator,omitempty"`
+	FailureReason                       *string                       `json:"failureReason,omitempty"`
+	FailureDetails                      []byte                        `json:"failureDetails,omitempty"`
+	LastCompletionResult                []byte                        `json:"lastCompletionResult,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetExecutionStartToCloseTimeoutSeconds is an internal getter (TBD...)
@@ -800,13 +943,6 @@ func (v *ContinueAsNewWorkflowExecutionDecisionAttributes) GetSearchAttributes()
 type CountWorkflowExecutionsRequest struct {
 	Domain string `json:"domain,omitempty"`
 	Query  string `json:"query,omitempty"`
-}
-
-func (v *CountWorkflowExecutionsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -891,6 +1027,18 @@ func (v *DataBlob) DeepCopy() *DataBlob {
 	return res
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DataBlob) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.EncodingType.ByteSize()
+	size += uint64(len(v.Data))
+	return size
+}
+
 // Decision is an internal type (TBD...)
 type Decision struct {
 	DecisionType                                             *DecisionType                                             `json:"decisionType,omitempty"`
@@ -940,6 +1088,11 @@ func (v *DecisionTaskCompletedEventAttributes) GetBinaryChecksum() (o string) {
 		return v.BinaryChecksum
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskCompletedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // DecisionTaskFailedCause is an internal type (TBD...)
@@ -1203,6 +1356,11 @@ func (v *DecisionTaskFailedEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskFailedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // DecisionTaskScheduledEventAttributes is an internal type (TBD...)
 type DecisionTaskScheduledEventAttributes struct {
 	TaskList                   *TaskList `json:"taskList,omitempty"`
@@ -1234,6 +1392,11 @@ func (v *DecisionTaskScheduledEventAttributes) GetAttempt() (o int64) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskScheduledEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // DecisionTaskStartedEventAttributes is an internal type (TBD...)
 type DecisionTaskStartedEventAttributes struct {
 	ScheduledEventID int64  `json:"scheduledEventId,omitempty"`
@@ -1255,6 +1418,11 @@ func (v *DecisionTaskStartedEventAttributes) GetRequestID() (o string) {
 		return v.RequestID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskStartedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // DecisionTaskTimedOutCause is an internal type (TBD...)
@@ -1375,6 +1543,11 @@ func (v *DecisionTaskTimedOutEventAttributes) GetRequestID() (o string) {
 		return v.RequestID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *DecisionTaskTimedOutEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // DecisionType is an internal type (TBD...)
@@ -1505,17 +1678,24 @@ const (
 	DecisionTypeUpsertWorkflowSearchAttributes
 )
 
-// DeprecateDomainRequest is an internal type (TBD...)
-type DeprecateDomainRequest struct {
+// DeleteDomainRequest is an internal type (TBD...)
+type DeleteDomainRequest struct {
 	Name          string `json:"name,omitempty"`
 	SecurityToken string `json:"securityToken,omitempty"`
 }
 
-func (v *DeprecateDomainRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
+// GetName is an internal getter (TBD...)
+func (v *DeleteDomainRequest) GetName() (o string) {
+	if v != nil {
+		return v.Name
 	}
-	return SerializeRequest(v)
+	return
+}
+
+// DeprecateDomainRequest is an internal type (TBD...)
+type DeprecateDomainRequest struct {
+	Name          string `json:"name,omitempty"`
+	SecurityToken string `json:"securityToken,omitempty"`
 }
 
 // GetName is an internal getter (TBD...)
@@ -1530,13 +1710,6 @@ func (v *DeprecateDomainRequest) GetName() (o string) {
 type DescribeDomainRequest struct {
 	Name *string `json:"name,omitempty"`
 	UUID *string `json:"uuid,omitempty"`
-}
-
-func (v *DescribeDomainRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetName is an internal getter (TBD...)
@@ -1563,6 +1736,13 @@ type DescribeDomainResponse struct {
 	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
 	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
 	FailoverInfo             *FailoverInfo                   `json:"failoverInfo,omitempty"`
+}
+
+func (v *DomainReplicationConfiguration) GetActiveClusters() (o *ActiveClusters) {
+	if v != nil && v.ActiveClusters != nil {
+		return v.ActiveClusters
+	}
+	return
 }
 
 // GetDomainInfo is an internal getter (TBD...)
@@ -1597,6 +1777,266 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 	return
 }
 
+// FailoverDomainRequest is an internal type (TBD...)
+type FailoverDomainRequest struct {
+	DomainName              string          `json:"domainName,omitempty"`
+	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                  *string         `json:"reason,omitempty"`
+}
+
+func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
+	if v == nil {
+		return nil
+	}
+	return &UpdateDomainRequest{
+		Name:              v.DomainName,
+		ActiveClusterName: v.DomainActiveClusterName,
+		ActiveClusters:    v.ActiveClusters,
+		FailoverReason:    v.Reason,
+	}
+}
+
+// GetDomainName is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetDomainName() (o string) {
+	if v != nil {
+		return v.DomainName
+	}
+	return
+}
+
+// GetDomainActiveClusterName is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetDomainActiveClusterName() (o string) {
+	if v != nil && v.DomainActiveClusterName != nil {
+		return *v.DomainActiveClusterName
+	}
+	return
+}
+
+// GetDomain is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetDomain() (o string) {
+	if v != nil {
+		return v.DomainName
+	}
+	return
+}
+
+// FailoverDomainResponse is an internal type (TBD...)
+type FailoverDomainResponse struct {
+	DomainInfo               *DomainInfo                     `json:"domainInfo,omitempty"`
+	Configuration            *DomainConfiguration            `json:"configuration,omitempty"`
+	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
+	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
+	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+// GetDomainInfo is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetDomainInfo() (o *DomainInfo) {
+	if v != nil && v.DomainInfo != nil {
+		return v.DomainInfo
+	}
+	return
+}
+
+// GetConfiguration is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetConfiguration() (o *DomainConfiguration) {
+	if v != nil && v.Configuration != nil {
+		return v.Configuration
+	}
+	return
+}
+
+// GetReplicationConfiguration is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetReplicationConfiguration() (o *DomainReplicationConfiguration) {
+	if v != nil && v.ReplicationConfiguration != nil {
+		return v.ReplicationConfiguration
+	}
+	return
+}
+
+// GetFailoverVersion is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetFailoverVersion() (o int64) {
+	if v != nil {
+		return v.FailoverVersion
+	}
+	return
+}
+
+// GetIsGlobalDomain is an internal getter (TBD...)
+func (v *FailoverDomainResponse) GetIsGlobalDomain() (o bool) {
+	if v != nil {
+		return v.IsGlobalDomain
+	}
+	return
+}
+
+// ListFailoverHistoryRequest is an internal type (TBD...)
+type ListFailoverHistoryRequest struct {
+	Filters    *ListFailoverHistoryRequestFilters `json:"filters,omitempty"`
+	Pagination *PaginationOptions                 `json:"pagination,omitempty"`
+}
+
+// GetFilters is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetFilters() (o *ListFailoverHistoryRequestFilters) {
+	if v != nil && v.Filters != nil {
+		return v.Filters
+	}
+	return
+}
+
+// GetPagination is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetPagination() (o *PaginationOptions) {
+	if v != nil && v.Pagination != nil {
+		return v.Pagination
+	}
+	return
+}
+
+// ListFailoverHistoryRequestFilters is an internal type (TBD...)
+type ListFailoverHistoryRequestFilters struct {
+	DomainID string `json:"domainId,omitempty"`
+}
+
+// GetDomainID is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequestFilters) GetDomainID() (o string) {
+	if v != nil {
+		return v.DomainID
+	}
+	return
+}
+
+// ListFailoverHistoryResponse is an internal type (TBD...)
+type ListFailoverHistoryResponse struct {
+	FailoverEvents []*FailoverEvent `json:"failoverEvents,omitempty"`
+	NextPageToken  []byte           `json:"nextPageToken,omitempty"`
+}
+
+// GetFailoverEvents is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetFailoverEvents() (o []*FailoverEvent) {
+	if v != nil && v.FailoverEvents != nil {
+		return v.FailoverEvents
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// PaginationOptions is an internal type (TBD...)
+type PaginationOptions struct {
+	PageSize      *int32 `json:"pageSize,omitempty"`
+	NextPageToken []byte `json:"nextPageToken,omitempty"`
+}
+
+// GetPageSize is an internal getter (TBD...)
+func (v *PaginationOptions) GetPageSize() (o int32) {
+	if v != nil && v.PageSize != nil {
+		return *v.PageSize
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *PaginationOptions) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// FailoverEvent is an internal type (TBD...)
+type FailoverEvent struct {
+	ID               *string            `json:"id,omitempty"`
+	CreatedTime      *int64             `json:"createdTime,omitempty"`
+	FailoverType     *FailoverType      `json:"failoverType,omitempty"`
+	ClusterFailovers []*ClusterFailover `json:"clusterFailovers,omitempty"`
+}
+
+// GetID is an internal getter (TBD...)
+func (v *FailoverEvent) GetID() (o string) {
+	if v != nil && v.ID != nil {
+		return *v.ID
+	}
+	return
+}
+
+// GetCreatedTime is an internal getter (TBD...)
+func (v *FailoverEvent) GetCreatedTime() (o int64) {
+	if v != nil && v.CreatedTime != nil {
+		return *v.CreatedTime
+	}
+	return
+}
+
+// GetFailoverType is an internal getter (TBD...)
+func (v *FailoverEvent) GetFailoverType() (o FailoverType) {
+	if v != nil && v.FailoverType != nil {
+		return *v.FailoverType
+	}
+	return
+}
+
+// GetClusterFailovers is an internal getter (TBD...)
+func (v *FailoverEvent) GetClusterFailovers() (o []*ClusterFailover) {
+	if v != nil && v.ClusterFailovers != nil {
+		return v.ClusterFailovers
+	}
+	return
+}
+
+// FailoverType is an internal type (TBD...)
+type FailoverType int32
+
+// this should line up with the IDL values in common.proto
+// ie FailoverType_FAILOVER_TYPE_FORCE = 1
+// ie FailoverType_FAILOVER_TYPE_GRACEFUL = 2
+const (
+	FailoverTypeInvalid  = FailoverType(0)
+	FailoverTypeForce    = FailoverType(1)
+	FailoverTypeGraceful = FailoverType(2)
+)
+
+// Ptr is a helper routine that returns a pointer to given FailoverType value.
+func (e FailoverType) Ptr() *FailoverType {
+	return &e
+}
+
+// ClusterFailover is an internal type (TBD...)
+type ClusterFailover struct {
+	FromCluster      *ActiveClusterInfo `json:"fromCluster,omitempty"`
+	ToCluster        *ActiveClusterInfo `json:"toCluster,omitempty"`
+	ClusterAttribute *ClusterAttribute  `json:"clusterAttribute,omitempty"`
+}
+
+// GetFromCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetFromCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.FromCluster != nil {
+		return v.FromCluster
+	}
+	return
+}
+
+// GetToCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetToCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.ToCluster != nil {
+		return v.ToCluster
+	}
+	return
+}
+
+// GetClusterAttribute is an internal getter (TBD...)
+func (v *ClusterFailover) GetClusterAttribute() (o *ClusterAttribute) {
+	if v != nil && v.ClusterAttribute != nil {
+		return v.ClusterAttribute
+	}
+	return
+}
+
 // DescribeHistoryHostRequest is an internal type (TBD...)
 type DescribeHistoryHostRequest struct {
 	HostAddress      *string            `json:"hostAddress,omitempty"`
@@ -1604,24 +2044,10 @@ type DescribeHistoryHostRequest struct {
 	ExecutionForHost *WorkflowExecution `json:"executionForHost,omitempty"`
 }
 
-func (v *DescribeHistoryHostRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // DescribeShardDistributionRequest is an internal type (TBD...)
 type DescribeShardDistributionRequest struct {
 	PageSize int32 `json:"pageSize,omitempty"`
 	PageID   int32 `json:"pageID,omitempty"`
-}
-
-func (v *DescribeShardDistributionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetHostAddress is an internal getter (TBD...)
@@ -1662,13 +2088,6 @@ type DescribeQueueRequest struct {
 	Type        *int32 `json:"type,omitempty"`
 }
 
-func (v *DescribeQueueRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetShardID is an internal getter (TBD...)
 func (v *DescribeQueueRequest) GetShardID() (o int32) {
 	if v != nil {
@@ -1706,13 +2125,6 @@ type DescribeTaskListRequest struct {
 	IncludeTaskListStatus bool          `json:"includeTaskListStatus,omitempty"`
 }
 
-func (v *DescribeTaskListRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *DescribeTaskListRequest) GetDomain() (o string) {
 	if v != nil {
@@ -1747,8 +2159,10 @@ func (v *DescribeTaskListRequest) GetIncludeTaskListStatus() (o bool) {
 
 // DescribeTaskListResponse is an internal type (TBD...)
 type DescribeTaskListResponse struct {
-	Pollers        []*PollerInfo   `json:"pollers,omitempty"`
-	TaskListStatus *TaskListStatus `json:"taskListStatus,omitempty"`
+	Pollers         []*PollerInfo            `json:"pollers,omitempty"`
+	TaskListStatus  *TaskListStatus          `json:"taskListStatus,omitempty"`
+	PartitionConfig *TaskListPartitionConfig `json:"partitionConfig,omitempty"`
+	TaskList        *TaskList                `json:"taskList,omitempty"`
 }
 
 // GetPollers is an internal getter (TBD...)
@@ -1769,15 +2183,9 @@ func (v *DescribeTaskListResponse) GetTaskListStatus() (o *TaskListStatus) {
 
 // DescribeWorkflowExecutionRequest is an internal type (TBD...)
 type DescribeWorkflowExecutionRequest struct {
-	Domain    string             `json:"domain,omitempty"`
-	Execution *WorkflowExecution `json:"execution,omitempty"`
-}
-
-func (v *DescribeWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
+	Domain                string                 `json:"domain,omitempty"`
+	Execution             *WorkflowExecution     `json:"execution,omitempty"`
+	QueryConsistencyLevel *QueryConsistencyLevel `json:"queryConsistencyLevel,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -1792,6 +2200,14 @@ func (v *DescribeWorkflowExecutionRequest) GetDomain() (o string) {
 func (v *DescribeWorkflowExecutionRequest) GetExecution() (o *WorkflowExecution) {
 	if v != nil && v.Execution != nil {
 		return v.Execution
+	}
+	return
+}
+
+// GetQueryConsistencyLevel is an internal getter (TBD...)
+func (v *DescribeWorkflowExecutionRequest) GetQueryConsistencyLevel() (o QueryConsistencyLevel) {
+	if v != nil && v.QueryConsistencyLevel != nil {
+		return *v.QueryConsistencyLevel
 	}
 	return
 }
@@ -1916,6 +2332,23 @@ func (v *DomainConfiguration) GetAsyncWorkflowConfiguration() AsyncWorkflowConfi
 	return AsyncWorkflowConfiguration{}
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainConfiguration) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.BadBinaries.ByteSize()
+	size += v.HistoryArchivalStatus.ByteSize()
+	size += uint64(len(v.HistoryArchivalURI))
+	size += v.VisibilityArchivalStatus.ByteSize()
+	size += uint64(len(v.VisibilityArchivalURI))
+	size += v.IsolationGroups.ByteSize()
+	size += v.AsyncWorkflowConfig.ByteSize()
+	return size
+}
+
 // DomainInfo is an internal type (TBD...)
 type DomainInfo struct {
 	Name        string            `json:"name,omitempty"`
@@ -1974,14 +2407,35 @@ func (v *DomainInfo) GetUUID() (o string) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainInfo) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.Name))
+	size += v.Status.ByteSize()
+	size += uint64(len(v.Description))
+	size += uint64(len(v.OwnerEmail))
+	for k, val := range v.Data {
+		size += uint64(len(k))
+		size += uint64(len(val))
+	}
+	size += uint64(len(v.UUID))
+	return size
+}
+
 // DomainNotActiveError is an internal type.
 // this is a retriable error and *must* be retried under at least
 // some circumstances due to domain failover races.
+// TODO(c-warren): Move to common/types/errors.go
 type DomainNotActiveError struct {
-	Message        string `json:"message,required"`
-	DomainName     string `json:"domainName,required"`
-	CurrentCluster string `json:"currentCluster,required"`
-	ActiveCluster  string `json:"activeCluster,required"`
+	Message        string   `json:"message"`
+	DomainName     string   `json:"domainName"`
+	CurrentCluster string   `json:"currentCluster"`
+	ActiveCluster  string   `json:"activeCluster,omitempty"`
+	ActiveClusters []string `json:"activeClusters,omitempty"`
 }
 
 // GetCurrentCluster is an internal getter (TBD...)
@@ -2000,10 +2454,36 @@ func (v *DomainNotActiveError) GetActiveCluster() (o string) {
 	return
 }
 
+// GetActiveClusters is an internal getter (TBD...)
+func (v *DomainNotActiveError) GetActiveClusters() (o []string) {
+	if v != nil {
+		return v.ActiveClusters
+	}
+	return
+}
+
 // DomainReplicationConfiguration is an internal type (TBD...)
 type DomainReplicationConfiguration struct {
 	ActiveClusterName string                             `json:"activeClusterName,omitempty"`
 	Clusters          []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
+	ActiveClusters    *ActiveClusters                    `json:"activeClusters,omitempty"`
+}
+
+func (v *DomainReplicationConfiguration) IsActiveActive() bool {
+	if v == nil || v.ActiveClusters == nil {
+		return false
+	}
+
+	// Check to see if a ClusterAttribute has been configured for this domain.
+	if len(v.ActiveClusters.AttributeScopes) > 0 {
+		for _, scope := range v.ActiveClusters.AttributeScopes {
+			if len(scope.ClusterAttributes) > 0 {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // GetActiveClusterName is an internal getter (TBD...)
@@ -2020,6 +2500,373 @@ func (v *DomainReplicationConfiguration) GetClusters() (o []*ClusterReplicationC
 		return v.Clusters
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainReplicationConfiguration) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.ActiveClusterName))
+	size += uint64(len(v.Clusters)) * uint64(unsafe.Sizeof((*ClusterReplicationConfiguration)(nil)))
+	for _, e := range v.Clusters {
+		size += e.ByteSize()
+	}
+	size += v.ActiveClusters.ByteSize()
+	return size
+}
+
+// ActiveClusters defines the mapping of cluster attributes to their active cluster.
+// It contains a list of scopes, each of which contains a list of attribute to cluster mappings.
+// The following example uses 'cityID' as the attribute scope, and cities as the attributes names:
+// ClusterAttributes allow groups of workflows to be processed by different clusters within a domain.
+//
+//	ActiveClusters = {
+//	  "cityID": { // any attribute scope, e.g a region, datacenter, city, etc.
+//	    "seattle": {
+//	        "activeClusterName": "cluster1",
+//	        "failoverVersion": 100,
+//	    },
+//	    "san_francisco": {
+//	        "activeClusterName": "cluster2",
+//	        "failoverVersion": 200,
+//	    },
+//	  },
+//	}
+//
+// TODO(c-warren): Rename to ClusterAttributes
+type ActiveClusters struct {
+	// ClusterAttributes
+	// Keyed by a scope type (e.g region, datacenter, city, etc.).
+	// The value is a ClusterAttributeScope - a map of unique names (e.g seattle, san_francisco, etc.) to an ActiveClusterInfo.
+	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty" yaml:"attributeScopes,omitempty"`
+}
+
+type ClusterAttributeNotFoundError struct {
+	ScopeType     string
+	AttributeName string
+}
+
+func (e *ClusterAttributeNotFoundError) Error() string {
+	return fmt.Sprintf("cluster attribute %s not found in scope %s", e.AttributeName, e.ScopeType)
+}
+
+// UndefinedFailoverVersion is used to indicate that a failover version that is not defined.
+// Failover versions are valid for Int64 >= 0
+// and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
+// failover version, we use a negative value.
+// todo (david.porter) move this to constants package and give it a type
+const UndefinedFailoverVersion = int64(-1)
+
+// GetFailoverVersionForAttribute returns the failover version for a given attribute.
+// if a value is not found it returns -1 and an error
+func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName string) (int64, error) {
+	if v == nil {
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
+	}
+	scope, ok := v.AttributeScopes[scopeType]
+	if !ok {
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
+	}
+	info, ok := scope.ClusterAttributes[attributeName]
+	if !ok {
+		return UndefinedFailoverVersion, &ClusterAttributeNotFoundError{
+			ScopeType:     scopeType,
+			AttributeName: attributeName,
+		}
+	}
+	return info.FailoverVersion, nil
+}
+
+func (v *ActiveClusters) GetAttributeScopes() map[string]ClusterAttributeScope {
+	if v != nil && v.AttributeScopes != nil {
+		return v.AttributeScopes
+	}
+	return nil
+}
+
+// TODO(c-warren): Move to common/types/errors.go?
+var (
+	ErrActiveClusterInfoNotFound = errors.New("active cluster info not found")
+	ErrDomainNotActiveActive     = errors.New("domain is not configured for active-active")
+)
+
+// GetActiveClusterByClusterAttribute retrieves the ActiveClusterInfo for a given cluster attribute.
+// An attribute is a scope, name pair (e.g. region, dca or city, tokyo).
+// Returns ActiveCluster and FailoverVersion if found, otherwise returns an error.
+func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attributeName string) (ActiveClusterInfo, error) {
+	if v == nil {
+		return ActiveClusterInfo{}, ErrDomainNotActiveActive
+	}
+
+	if scopeType == "" || attributeName == "" {
+		return ActiveClusterInfo{}, fmt.Errorf("scopeType or attributeName is empty")
+	}
+
+	scope, ok := v.AttributeScopes[scopeType]
+	if !ok {
+		return ActiveClusterInfo{}, fmt.Errorf("scopeType not found %s: %w", scopeType, ErrActiveClusterInfoNotFound)
+	}
+
+	return scope.GetActiveClusterByClusterAttribute(attributeName)
+}
+
+// GetAllClusters returns a sorted, deduplicated list of all attribute names from both
+// For the "region" scope, these are region names; for other scopes, these are the attribute names.
+func (v *ActiveClusters) GetAllClusters() []string {
+	if v == nil {
+		return []string{}
+	}
+
+	// Set of attribute names (e.g., region names for "region" scope)
+	attributeNames := make(map[string]struct{})
+
+	// Collect attribute names from new format
+	if v.AttributeScopes != nil {
+		for _, scope := range v.AttributeScopes {
+			for attributeName := range scope.ClusterAttributes {
+				attributeNames[attributeName] = struct{}{}
+			}
+		}
+	}
+
+	// Convert to sorted slice
+	result := make([]string, 0, len(attributeNames))
+	for name := range attributeNames {
+		result = append(result, name)
+	}
+
+	// Sort for deterministic output
+	sort.Strings(result)
+
+	return result
+}
+
+// SetClusterForClusterAttribute sets the ActiveClusterInfo for a given cluster attribute.
+// If the receiver is nil, this method is a no-op.
+func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName string, info ActiveClusterInfo) error {
+	if v == nil {
+		return ErrDomainNotActiveActive
+	}
+
+	if scopeType == "" || attributeName == "" {
+		return fmt.Errorf("scopeType or attributeName is empty")
+	}
+
+	if v.AttributeScopes == nil {
+		v.AttributeScopes = make(map[string]ClusterAttributeScope)
+	}
+
+	scope, ok := v.AttributeScopes[scopeType]
+	if !ok {
+		scope = ClusterAttributeScope{
+			ClusterAttributes: make(map[string]ActiveClusterInfo),
+		}
+	}
+
+	scope.ClusterAttributes[attributeName] = info
+	v.AttributeScopes[scopeType] = scope
+
+	return nil
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *ActiveClusters) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+
+	for k, scope := range v.AttributeScopes {
+		size += uint64(len(k)) + scope.ByteSize() - uint64(unsafe.Sizeof(scope))
+	}
+
+	return size
+}
+
+// ClusterAttributeScope is a map of unique attribute names to the active cluster for that attribute.
+// It can be used to determine the current failover version for a workflow associated with that attribute.
+type ClusterAttributeScope struct {
+	ClusterAttributes map[string]ActiveClusterInfo `json:"clusterAttributes,omitempty" yaml:"clusterAttributes,omitempty"`
+}
+
+func (v *ClusterAttributeScope) GetActiveClusterByClusterAttribute(name string) (ActiveClusterInfo, error) {
+	if v == nil {
+		return ActiveClusterInfo{}, ErrActiveClusterInfoNotFound
+	}
+
+	clusterInfo, ok := v.ClusterAttributes[name]
+	if !ok {
+		return ActiveClusterInfo{}, fmt.Errorf("attribute not found %s: %w", name, ErrActiveClusterInfoNotFound)
+	}
+	return clusterInfo, nil
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *ClusterAttributeScope) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	for k, val := range v.ClusterAttributes {
+		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests from common/types/test_util.go.
+		// reflection-based calculator purposely ignores Go's internal map bucket/storage and treats each map element as
+		// key: dynamic payload only (e.g., len(string)), no string header
+		// value: dynamic payload only (e.g., for a struct, just its fields' dynamic payload), no struct header, no inline ints/bools
+		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
+	}
+	return size
+}
+
+// ActiveClusterInfo defines failover information for a ClusterAttribute.
+type ActiveClusterInfo struct {
+	ActiveClusterName string `json:"activeClusterName,omitempty" yaml:"activeClusterName,omitempty"`
+	FailoverVersion   int64  `json:"failoverVersion" yaml:"failoverVersion"`
+}
+
+func (v *ActiveClusterInfo) GetActiveClusterName() string {
+	if v == nil {
+		return ""
+	}
+	return v.ActiveClusterName
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v ActiveClusterInfo) ByteSize() uint64 {
+	return uint64(unsafe.Sizeof(v)) + uint64(len(v.ActiveClusterName))
+}
+
+func (v *ActiveClusters) DeepCopy() *ActiveClusters {
+	if v == nil {
+		return nil
+	}
+	result := &ActiveClusters{}
+	if v.AttributeScopes != nil {
+		result.AttributeScopes = make(map[string]ClusterAttributeScope, len(v.AttributeScopes))
+		for scopeType, scope := range v.AttributeScopes {
+			copiedScope := ClusterAttributeScope{}
+			if scope.ClusterAttributes != nil {
+				copiedScope.ClusterAttributes = make(map[string]ActiveClusterInfo, len(scope.ClusterAttributes))
+				for attrName, attrInfo := range scope.ClusterAttributes {
+					copiedScope.ClusterAttributes[attrName] = attrInfo
+				}
+			}
+			result.AttributeScopes[scopeType] = copiedScope
+		}
+	}
+	return result
+}
+
+type ClusterAttribute struct {
+	Scope string `json:"scope,omitempty" yaml:"scope,omitempty"`
+	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
+}
+
+func (c *ClusterAttribute) GetScope() string {
+	if c == nil {
+		return ""
+	}
+	return c.Scope
+}
+
+func (c *ClusterAttribute) GetName() string {
+	if c == nil {
+		return ""
+	}
+	return c.Name
+}
+
+func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
+	if c == nil && other == nil {
+		return true
+	}
+	if c == nil || other == nil {
+		return false
+	}
+	return c.Scope == other.Scope && c.Name == other.Name
+}
+
+type ActiveClusterSelectionStrategy int32
+
+const (
+	ActiveClusterSelectionStrategyRegionSticky ActiveClusterSelectionStrategy = iota
+	ActiveClusterSelectionStrategyExternalEntity
+)
+
+type ActiveClusterSelectionPolicy struct {
+	ActiveClusterSelectionStrategy *ActiveClusterSelectionStrategy `json:"activeClusterSelectionStrategy,omitempty"`
+
+	StickyRegion string `json:"stickyRegion,omitempty"`
+
+	ExternalEntityType string `json:"externalEntityType,omitempty"`
+	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
+
+	// TODO(active-active): Remove the fields above
+	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
+}
+
+func (p *ActiveClusterSelectionPolicy) GetClusterAttribute() *ClusterAttribute {
+	if p == nil {
+		return nil
+	}
+	return p.ClusterAttribute
+}
+
+func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolicy) bool {
+	if p == nil && other == nil {
+		return true
+	}
+	if p == nil || other == nil {
+		return false
+	}
+
+	return p.ClusterAttribute.Equals(other.ClusterAttribute)
+}
+
+func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
+	return &e
+}
+
+func (e ActiveClusterSelectionStrategy) String() string {
+	switch e {
+	case ActiveClusterSelectionStrategyRegionSticky:
+		return "REGION_STICKY"
+	case ActiveClusterSelectionStrategyExternalEntity:
+		return "EXTERNAL_ENTITY"
+	}
+
+	return fmt.Sprintf("ActiveClusterSelectionStrategy(%d)", e)
+}
+
+func (e ActiveClusterSelectionStrategy) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+func (e *ActiveClusterSelectionStrategy) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "REGION_STICKY":
+		*e = ActiveClusterSelectionStrategyRegionSticky
+		return nil
+	case "EXTERNAL_ENTITY":
+		*e = ActiveClusterSelectionStrategyExternalEntity
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "ActiveClusterSelectionStrategy", err)
+		}
+		*e = ActiveClusterSelectionStrategy(val)
+		return nil
+	}
 }
 
 // DomainStatus is an internal type (TBD...)
@@ -2069,6 +2916,15 @@ func (e *DomainStatus) UnmarshalText(value []byte) error {
 // MarshalText encodes DomainStatus to text.
 func (e DomainStatus) MarshalText() ([]byte, error) {
 	return []byte(e.String()), nil
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (e *DomainStatus) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+
+	return uint64(unsafe.Sizeof(*e))
 }
 
 const (
@@ -2131,11 +2987,21 @@ const (
 	EncodingTypeJSON
 )
 
+// ByteSize returns the approximate memory used in bytes
+func (e *EncodingType) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+
+	return uint64(unsafe.Sizeof(*e))
+}
+
 // EntityNotExistsError is an internal type (TBD...)
 type EntityNotExistsError struct {
-	Message        string `json:"message,required"`
-	CurrentCluster string `json:"currentCluster,omitempty"`
-	ActiveCluster  string `json:"activeCluster,omitempty"`
+	Message        string   `json:"message,required"`
+	CurrentCluster string   `json:"currentCluster,omitempty"`
+	ActiveCluster  string   `json:"activeCluster,omitempty"`
+	ActiveClusters []string `json:"activeClusters,omitempty"`
 }
 
 // WorkflowExecutionAlreadyCompletedError is an internal type (TBD...)
@@ -2497,6 +3363,11 @@ func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) GetDomain() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ExternalWorkflowExecutionCancelRequestedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // ExternalWorkflowExecutionSignaledEventAttributes is an internal type (TBD...)
 type ExternalWorkflowExecutionSignaledEventAttributes struct {
 	InitiatedEventID  int64              `json:"initiatedEventId,omitempty"`
@@ -2519,6 +3390,11 @@ func (v *ExternalWorkflowExecutionSignaledEventAttributes) GetDomain() (o string
 		return v.Domain
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ExternalWorkflowExecutionSignaledEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // FailWorkflowExecutionDecisionAttributes is an internal type (TBD...)
@@ -2557,13 +3433,7 @@ type GetWorkflowExecutionHistoryRequest struct {
 	WaitForNewEvent        bool                    `json:"waitForNewEvent,omitempty"`
 	HistoryEventFilterType *HistoryEventFilterType `json:"HistoryEventFilterType,omitempty"`
 	SkipArchival           bool                    `json:"skipArchival,omitempty"`
-}
-
-func (v *GetWorkflowExecutionHistoryRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
+	QueryConsistencyLevel  *QueryConsistencyLevel  `json:"queryConsistencyLevel,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -2575,7 +3445,7 @@ func (v *GetWorkflowExecutionHistoryRequest) GetDomain() (o string) {
 }
 
 // GetExecution is an internal getter (TBD...)
-func (v *GetWorkflowExecutionHistoryRequest) GetExecution() (o *WorkflowExecution) {
+func (v *GetWorkflowExecutionHistoryRequest) GetWorkflowExecution() (o *WorkflowExecution) {
 	if v != nil && v.Execution != nil {
 		return v.Execution
 	}
@@ -2618,6 +3488,14 @@ func (v *GetWorkflowExecutionHistoryRequest) GetHistoryEventFilterType() (o Hist
 func (v *GetWorkflowExecutionHistoryRequest) GetSkipArchival() (o bool) {
 	if v != nil {
 		return v.SkipArchival
+	}
+	return
+}
+
+// GetQueryConsistencyLevel is an internal getter (TBD...)
+func (v *GetWorkflowExecutionHistoryRequest) GetQueryConsistencyLevel() (o QueryConsistencyLevel) {
+	if v != nil && v.QueryConsistencyLevel != nil {
+		return *v.QueryConsistencyLevel
 	}
 	return
 }
@@ -3130,6 +4008,185 @@ func (v *HistoryEvent) GetUpsertWorkflowSearchAttributesEventAttributes() (o *Up
 	return
 }
 
+// Size is an internal method to get the estimated size of the event
+func (v *HistoryEvent) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(8 + 8 + 4 + 8 + 8) // size of ID, Timestamp, EventType, Version, TaskID
+
+	if v.WorkflowExecutionStartedEventAttributes != nil {
+		size += v.WorkflowExecutionStartedEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionCompletedEventAttributes != nil {
+		size += v.WorkflowExecutionCompletedEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionFailedEventAttributes != nil {
+		size += v.WorkflowExecutionFailedEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionTimedOutEventAttributes != nil {
+		size += v.WorkflowExecutionTimedOutEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionCancelRequestedEventAttributes != nil {
+		size += v.WorkflowExecutionCancelRequestedEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionCanceledEventAttributes != nil {
+		size += v.WorkflowExecutionCanceledEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionTerminatedEventAttributes != nil {
+		size += v.WorkflowExecutionTerminatedEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionContinuedAsNewEventAttributes != nil {
+		size += v.WorkflowExecutionContinuedAsNewEventAttributes.ByteSize()
+	}
+
+	if v.WorkflowExecutionSignaledEventAttributes != nil {
+		size += v.WorkflowExecutionSignaledEventAttributes.ByteSize()
+	}
+
+	if v.DecisionTaskScheduledEventAttributes != nil {
+		size += v.DecisionTaskScheduledEventAttributes.ByteSize()
+	}
+
+	if v.DecisionTaskStartedEventAttributes != nil {
+		size += v.DecisionTaskStartedEventAttributes.ByteSize()
+	}
+
+	if v.DecisionTaskCompletedEventAttributes != nil {
+		size += v.DecisionTaskCompletedEventAttributes.ByteSize()
+	}
+
+	if v.DecisionTaskTimedOutEventAttributes != nil {
+		size += v.DecisionTaskTimedOutEventAttributes.ByteSize()
+	}
+
+	if v.DecisionTaskFailedEventAttributes != nil {
+		size += v.DecisionTaskFailedEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskScheduledEventAttributes != nil {
+		size += v.ActivityTaskScheduledEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskStartedEventAttributes != nil {
+		size += v.ActivityTaskStartedEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskCompletedEventAttributes != nil {
+		size += v.ActivityTaskCompletedEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskFailedEventAttributes != nil {
+		size += v.ActivityTaskFailedEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskTimedOutEventAttributes != nil {
+		size += v.ActivityTaskTimedOutEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskCancelRequestedEventAttributes != nil {
+		size += v.ActivityTaskCancelRequestedEventAttributes.ByteSize()
+	}
+
+	if v.ActivityTaskCanceledEventAttributes != nil {
+		size += v.ActivityTaskCanceledEventAttributes.ByteSize()
+	}
+
+	if v.RequestCancelActivityTaskFailedEventAttributes != nil {
+		size += v.RequestCancelActivityTaskFailedEventAttributes.ByteSize()
+	}
+
+	if v.TimerStartedEventAttributes != nil {
+		size += v.TimerStartedEventAttributes.ByteSize()
+	}
+
+	if v.TimerFiredEventAttributes != nil {
+		size += v.TimerFiredEventAttributes.ByteSize()
+	}
+
+	if v.TimerCanceledEventAttributes != nil {
+		size += v.TimerCanceledEventAttributes.ByteSize()
+	}
+
+	if v.CancelTimerFailedEventAttributes != nil {
+		size += v.CancelTimerFailedEventAttributes.ByteSize()
+	}
+
+	if v.MarkerRecordedEventAttributes != nil {
+		size += v.MarkerRecordedEventAttributes.ByteSize()
+	}
+
+	if v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes != nil {
+		size += v.RequestCancelExternalWorkflowExecutionInitiatedEventAttributes.ByteSize()
+	}
+
+	if v.RequestCancelExternalWorkflowExecutionFailedEventAttributes != nil {
+		size += v.RequestCancelExternalWorkflowExecutionFailedEventAttributes.ByteSize()
+	}
+
+	if v.ExternalWorkflowExecutionCancelRequestedEventAttributes != nil {
+		size += v.ExternalWorkflowExecutionCancelRequestedEventAttributes.ByteSize()
+	}
+
+	if v.SignalExternalWorkflowExecutionInitiatedEventAttributes != nil {
+		size += v.SignalExternalWorkflowExecutionInitiatedEventAttributes.ByteSize()
+	}
+
+	if v.SignalExternalWorkflowExecutionFailedEventAttributes != nil {
+		size += v.SignalExternalWorkflowExecutionFailedEventAttributes.ByteSize()
+	}
+
+	if v.ExternalWorkflowExecutionSignaledEventAttributes != nil {
+		size += v.ExternalWorkflowExecutionSignaledEventAttributes.ByteSize()
+	}
+
+	if v.StartChildWorkflowExecutionInitiatedEventAttributes != nil {
+		size += v.StartChildWorkflowExecutionInitiatedEventAttributes.ByteSize()
+	}
+
+	if v.StartChildWorkflowExecutionFailedEventAttributes != nil {
+		size += v.StartChildWorkflowExecutionFailedEventAttributes.ByteSize()
+	}
+
+	if v.ChildWorkflowExecutionStartedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionStartedEventAttributes.ByteSize()
+	}
+
+	if v.ChildWorkflowExecutionCompletedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionCompletedEventAttributes.ByteSize()
+	}
+
+	if v.ChildWorkflowExecutionFailedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionFailedEventAttributes.ByteSize()
+	}
+
+	if v.ChildWorkflowExecutionCanceledEventAttributes != nil {
+		size += v.ChildWorkflowExecutionCanceledEventAttributes.ByteSize()
+	}
+
+	if v.ChildWorkflowExecutionTimedOutEventAttributes != nil {
+		size += v.ChildWorkflowExecutionTimedOutEventAttributes.ByteSize()
+	}
+
+	if v.ChildWorkflowExecutionTerminatedEventAttributes != nil {
+		size += v.ChildWorkflowExecutionTerminatedEventAttributes.ByteSize()
+	}
+
+	if v.UpsertWorkflowSearchAttributesEventAttributes != nil {
+		size += v.UpsertWorkflowSearchAttributesEventAttributes.ByteSize()
+	}
+
+	return size
+}
+
 // HistoryEventFilterType is an internal type (TBD...)
 type HistoryEventFilterType int32
 
@@ -3291,13 +4348,6 @@ type ListArchivedWorkflowExecutionsRequest struct {
 	Query         string `json:"query,omitempty"`
 }
 
-func (v *ListArchivedWorkflowExecutionsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *ListArchivedWorkflowExecutionsRequest) GetDomain() (o string) {
 	if v != nil {
@@ -3347,13 +4397,6 @@ type ListClosedWorkflowExecutionsRequest struct {
 	StatusFilter    *WorkflowExecutionCloseStatus `json:"statusFilter,omitempty"`
 }
 
-func (v *ListClosedWorkflowExecutionsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *ListClosedWorkflowExecutionsRequest) GetDomain() (o string) {
 	if v != nil {
@@ -3398,13 +4441,6 @@ type ListDomainsRequest struct {
 	NextPageToken []byte `json:"nextPageToken,omitempty"`
 }
 
-func (v *ListDomainsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetPageSize is an internal getter (TBD...)
 func (v *ListDomainsRequest) GetPageSize() (o int32) {
 	if v != nil {
@@ -3445,13 +4481,6 @@ type ListOpenWorkflowExecutionsRequest struct {
 	TypeFilter      *WorkflowTypeFilter      `json:"typeFilter,omitempty"`
 }
 
-func (v *ListOpenWorkflowExecutionsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *ListOpenWorkflowExecutionsRequest) GetDomain() (o string) {
 	if v != nil {
@@ -3488,13 +4517,6 @@ type ListTaskListPartitionsRequest struct {
 	TaskList *TaskList `json:"taskList,omitempty"`
 }
 
-func (v *ListTaskListPartitionsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *ListTaskListPartitionsRequest) GetDomain() (o string) {
 	if v != nil {
@@ -3520,13 +4542,6 @@ type ListTaskListPartitionsResponse struct {
 // GetTaskListsByDomainRequest is an internal type (TBD...)
 type GetTaskListsByDomainRequest struct {
 	Domain string `json:"domain,omitempty"`
-}
-
-func (v *GetTaskListsByDomainRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -3565,13 +4580,6 @@ type ListWorkflowExecutionsRequest struct {
 	PageSize      int32  `json:"pageSize,omitempty"`
 	NextPageToken []byte `json:"nextPageToken,omitempty"`
 	Query         string `json:"query,omitempty"`
-}
-
-func (v *ListWorkflowExecutionsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -3634,6 +4642,11 @@ func (v *MarkerRecordedEventAttributes) GetMarkerName() (o string) {
 		return v.MarkerName
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *MarkerRecordedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // Memo is an internal type (TBD...)
@@ -3723,6 +4736,7 @@ type PendingActivityInfo struct {
 	StartedWorkerIdentity  string                `json:"startedWorkerIdentity,omitempty"`
 	LastWorkerIdentity     string                `json:"lastWorkerIdentity,omitempty"`
 	LastFailureDetails     []byte                `json:"lastFailureDetails,omitempty"`
+	ScheduleID             int64                 `json:"scheduleID,omitempty"`
 }
 
 // GetActivityID is an internal getter (TBD...)
@@ -3801,6 +4815,14 @@ func (v *PendingActivityInfo) GetLastWorkerIdentity() (o string) {
 func (v *PendingActivityInfo) GetLastFailureDetails() (o []byte) {
 	if v != nil && v.LastFailureDetails != nil {
 		return v.LastFailureDetails
+	}
+	return
+}
+
+// GetScheduleID is an internal getter (TBD...)
+func (v *PendingActivityInfo) GetScheduleID() (o int64) {
+	if v != nil {
+		return v.ScheduleID
 	}
 	return
 }
@@ -3912,6 +4934,7 @@ type PendingDecisionInfo struct {
 	StartedTimestamp           *int64                `json:"startedTimestamp,omitempty"`
 	Attempt                    int64                 `json:"attempt,omitempty"`
 	OriginalScheduledTimestamp *int64                `json:"originalScheduledTimestamp,omitempty"`
+	ScheduleID                 int64                 `json:"scheduleID,omitempty"`
 }
 
 // PendingDecisionState is an internal type (TBD...)
@@ -3973,13 +4996,6 @@ type PollForActivityTaskRequest struct {
 	TaskListMetadata *TaskListMetadata `json:"taskListMetadata,omitempty"`
 }
 
-func (v *PollForActivityTaskRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *PollForActivityTaskRequest) GetDomain() (o string) {
 	if v != nil {
@@ -4022,6 +5038,7 @@ type PollForActivityTaskResponse struct {
 	WorkflowType                    *WorkflowType      `json:"workflowType,omitempty"`
 	WorkflowDomain                  string             `json:"workflowDomain,omitempty"`
 	Header                          *Header            `json:"header,omitempty"`
+	AutoConfigHint                  *AutoConfigHint    `json:"autoConfigHint,omitempty"`
 }
 
 // GetActivityID is an internal getter (TBD...)
@@ -4038,13 +5055,6 @@ type PollForDecisionTaskRequest struct {
 	TaskList       *TaskList `json:"taskList,omitempty"`
 	Identity       string    `json:"identity,omitempty"`
 	BinaryChecksum string    `json:"binaryChecksum,omitempty"`
-}
-
-func (v *PollForDecisionTaskRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -4097,6 +5107,7 @@ type PollForDecisionTaskResponse struct {
 	Queries                   map[string]*WorkflowQuery `json:"queries,omitempty"`
 	NextEventID               int64                     `json:"nextEventId,omitempty"`
 	TotalHistoryBytes         int64                     `json:"historySize,omitempty"`
+	AutoConfigHint            *AutoConfigHint           `json:"autoConfigHint,omitempty"`
 }
 
 // GetTaskToken is an internal getter (TBD...)
@@ -4408,13 +5419,6 @@ type QueryWorkflowRequest struct {
 	QueryConsistencyLevel *QueryConsistencyLevel `json:"queryConsistencyLevel,omitempty"`
 }
 
-func (v *QueryWorkflowRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *QueryWorkflowRequest) GetDomain() (o string) {
 	if v != nil {
@@ -4482,13 +5486,6 @@ type ReapplyEventsRequest struct {
 	DomainName        string             `json:"domainName,omitempty"`
 	WorkflowExecution *WorkflowExecution `json:"workflowExecution,omitempty"`
 	Events            *DataBlob          `json:"events,omitempty"`
-}
-
-func (v *ReapplyEventsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomainName is an internal getter (TBD...)
@@ -4564,13 +5561,6 @@ type RecordActivityTaskHeartbeatRequest struct {
 	Identity  string `json:"identity,omitempty"`
 }
 
-func (v *RecordActivityTaskHeartbeatRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // RecordActivityTaskHeartbeatResponse is an internal type (TBD...)
 type RecordActivityTaskHeartbeatResponse struct {
 	CancelRequested bool `json:"cancelRequested,omitempty"`
@@ -4595,13 +5585,6 @@ func (v *RecordMarkerDecisionAttributes) GetMarkerName() (o string) {
 type RefreshWorkflowTasksRequest struct {
 	Domain    string             `json:"domain,omitempty"`
 	Execution *WorkflowExecution `json:"execution,omitempty"`
-}
-
-func (v *RefreshWorkflowTasksRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -4629,6 +5612,7 @@ type RegisterDomainRequest struct {
 	EmitMetric                             *bool                              `json:"emitMetric,omitempty"`
 	Clusters                               []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
 	ActiveClusterName                      string                             `json:"activeClusterName,omitempty"`
+	ActiveClusters                         *ActiveClusters                    `json:"activeClusters,omitempty"`
 	Data                                   map[string]string                  `json:"data,omitempty"`
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
 	IsGlobalDomain                         bool                               `json:"isGlobalDomain,omitempty"`
@@ -4636,13 +5620,6 @@ type RegisterDomainRequest struct {
 	HistoryArchivalURI                     string                             `json:"historyArchivalURI,omitempty"`
 	VisibilityArchivalStatus               *ArchivalStatus                    `json:"visibilityArchivalStatus,omitempty"`
 	VisibilityArchivalURI                  string                             `json:"visibilityArchivalURI,omitempty"`
-}
-
-func (v *RegisterDomainRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetName is an internal getter (TBD...)
@@ -4726,9 +5703,19 @@ func (v *RegisterDomainRequest) GetVisibilityArchivalURI() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RegisterDomainRequest) ByteSize() uint64 {
+	return 0
+}
+
 // RemoteSyncMatchedError is an internal type (TBD...)
 type RemoteSyncMatchedError struct {
 	Message string `json:"message,required"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RemoteSyncMatchedError) ByteSize() uint64 {
+	return 0
 }
 
 // RemoveTaskRequest is an internal type (TBD...)
@@ -4738,13 +5725,6 @@ type RemoveTaskRequest struct {
 	TaskID              int64  `json:"taskID,omitempty"`
 	VisibilityTimestamp *int64 `json:"visibilityTimestamp,omitempty"`
 	ClusterName         string `json:"clusterName,omitempty"`
-}
-
-func (v *RemoveTaskRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetShardID is an internal getter (TBD...)
@@ -4787,6 +5767,11 @@ func (v *RemoveTaskRequest) GetClusterName() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RemoveTaskRequest) ByteSize() uint64 {
+	return 0
+}
+
 // RequestCancelActivityTaskDecisionAttributes is an internal type (TBD...)
 type RequestCancelActivityTaskDecisionAttributes struct {
 	ActivityID string `json:"activityId,omitempty"`
@@ -4800,11 +5785,21 @@ func (v *RequestCancelActivityTaskDecisionAttributes) GetActivityID() (o string)
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelActivityTaskDecisionAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // RequestCancelActivityTaskFailedEventAttributes is an internal type (TBD...)
 type RequestCancelActivityTaskFailedEventAttributes struct {
 	ActivityID                   string `json:"activityId,omitempty"`
 	Cause                        string `json:"cause,omitempty"`
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelActivityTaskFailedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // RequestCancelExternalWorkflowExecutionDecisionAttributes is an internal type (TBD...)
@@ -4838,6 +5833,11 @@ func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) GetRunID() (o
 		return v.RunID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelExternalWorkflowExecutionDecisionAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // RequestCancelExternalWorkflowExecutionFailedEventAttributes is an internal type (TBD...)
@@ -4874,6 +5874,11 @@ func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) GetInitiat
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelExternalWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // RequestCancelExternalWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type RequestCancelExternalWorkflowExecutionInitiatedEventAttributes struct {
 	DecisionTaskCompletedEventID int64              `json:"decisionTaskCompletedEventId,omitempty"`
@@ -4907,6 +5912,11 @@ func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) GetChil
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelExternalWorkflowExecutionInitiatedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // RequestCancelWorkflowExecutionRequest is an internal type (TBD...)
 type RequestCancelWorkflowExecutionRequest struct {
 	Domain              string             `json:"domain,omitempty"`
@@ -4915,13 +5925,6 @@ type RequestCancelWorkflowExecutionRequest struct {
 	RequestID           string             `json:"requestId,omitempty"`
 	Cause               string             `json:"cause,omitempty"`
 	FirstExecutionRunID string             `json:"first_execution_run_id,omitempty"`
-}
-
-func (v *RequestCancelWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -4954,6 +5957,11 @@ func (v *RequestCancelWorkflowExecutionRequest) GetFirstExecutionRunID() (o stri
 		return v.FirstExecutionRunID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RequestCancelWorkflowExecutionRequest) ByteSize() uint64 {
+	return 0
 }
 
 // ResetPointInfo is an internal type (TBD...)
@@ -5014,9 +6022,19 @@ func (v *ResetPointInfo) GetResettable() (o bool) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetPointInfo) ByteSize() uint64 {
+	return 0
+}
+
 // ResetPoints is an internal type (TBD...)
 type ResetPoints struct {
 	Points []*ResetPointInfo `json:"points,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ResetPoints) ByteSize() uint64 {
+	return 0
 }
 
 // ResetQueueRequest is an internal type (TBD...)
@@ -5024,13 +6042,6 @@ type ResetQueueRequest struct {
 	ShardID     int32  `json:"shardID,omitempty"`
 	ClusterName string `json:"clusterName,omitempty"`
 	Type        *int32 `json:"type,omitempty"`
-}
-
-func (v *ResetQueueRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetShardID is an internal getter (TBD...)
@@ -5057,17 +6068,15 @@ func (v *ResetQueueRequest) GetType() (o int32) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetQueueRequest) ByteSize() uint64 {
+	return 0
+}
+
 // ResetStickyTaskListRequest is an internal type (TBD...)
 type ResetStickyTaskListRequest struct {
 	Domain    string             `json:"domain,omitempty"`
 	Execution *WorkflowExecution `json:"execution,omitempty"`
-}
-
-func (v *ResetStickyTaskListRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -5086,8 +6095,18 @@ func (v *ResetStickyTaskListRequest) GetExecution() (o *WorkflowExecution) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetStickyTaskListRequest) ByteSize() uint64 {
+	return 0
+}
+
 // ResetStickyTaskListResponse is an internal type (TBD...)
 type ResetStickyTaskListResponse struct {
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ResetStickyTaskListResponse) ByteSize() uint64 {
+	return 0
 }
 
 // ResetWorkflowExecutionRequest is an internal type (TBD...)
@@ -5098,13 +6117,6 @@ type ResetWorkflowExecutionRequest struct {
 	DecisionFinishEventID int64              `json:"decisionFinishEventId,omitempty"`
 	RequestID             string             `json:"requestId,omitempty"`
 	SkipSignalReapply     bool               `json:"skipSignalReapply,omitempty"`
-}
-
-func (v *ResetWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -5155,6 +6167,11 @@ func (v *ResetWorkflowExecutionRequest) GetSkipSignalReapply() (o bool) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *ResetWorkflowExecutionRequest) ByteSize() uint64 {
+	return 0
+}
+
 // ResetWorkflowExecutionResponse is an internal type (TBD...)
 type ResetWorkflowExecutionResponse struct {
 	RunID string `json:"runId,omitempty"`
@@ -5166,6 +6183,11 @@ func (v *ResetWorkflowExecutionResponse) GetRunID() (o string) {
 		return v.RunID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *ResetWorkflowExecutionResponse) ByteSize() uint64 {
+	return 0
 }
 
 // RespondActivityTaskCanceledByIDRequest is an internal type (TBD...)
@@ -5218,6 +6240,11 @@ func (v *RespondActivityTaskCanceledByIDRequest) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCanceledByIDRequest) ByteSize() uint64 {
+	return 0
+}
+
 // RespondActivityTaskCanceledRequest is an internal type (TBD...)
 type RespondActivityTaskCanceledRequest struct {
 	TaskToken []byte `json:"taskToken,omitempty"`
@@ -5231,6 +6258,11 @@ func (v *RespondActivityTaskCanceledRequest) GetIdentity() (o string) {
 		return v.Identity
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCanceledRequest) ByteSize() uint64 {
+	return 0
 }
 
 // RespondActivityTaskCompletedByIDRequest is an internal type (TBD...)
@@ -5283,6 +6315,11 @@ func (v *RespondActivityTaskCompletedByIDRequest) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCompletedByIDRequest) ByteSize() uint64 {
+	return 0
+}
+
 // RespondActivityTaskCompletedRequest is an internal type (TBD...)
 type RespondActivityTaskCompletedRequest struct {
 	TaskToken []byte `json:"taskToken,omitempty"`
@@ -5296,6 +6333,11 @@ func (v *RespondActivityTaskCompletedRequest) GetIdentity() (o string) {
 		return v.Identity
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskCompletedRequest) ByteSize() uint64 {
+	return 0
 }
 
 // RespondActivityTaskFailedByIDRequest is an internal type (TBD...)
@@ -5349,6 +6391,11 @@ func (v *RespondActivityTaskFailedByIDRequest) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskFailedByIDRequest) ByteSize() uint64 {
+	return 0
+}
+
 // RespondActivityTaskFailedRequest is an internal type (TBD...)
 type RespondActivityTaskFailedRequest struct {
 	TaskToken []byte  `json:"taskToken,omitempty"`
@@ -5379,6 +6426,11 @@ func (v *RespondActivityTaskFailedRequest) GetIdentity() (o string) {
 		return v.Identity
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondActivityTaskFailedRequest) ByteSize() uint64 {
+	return 0
 }
 
 // RespondDecisionTaskCompletedRequest is an internal type (TBD...)
@@ -5434,6 +6486,11 @@ func (v *RespondDecisionTaskCompletedRequest) GetQueryResults() (o map[string]*W
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *RespondDecisionTaskCompletedRequest) ByteSize() uint64 {
+	return 0
+}
+
 // RespondDecisionTaskCompletedResponse is an internal type (TBD...)
 type RespondDecisionTaskCompletedResponse struct {
 	DecisionTask                *PollForDecisionTaskResponse          `json:"decisionTask,omitempty"`
@@ -5446,6 +6503,11 @@ func (v *RespondDecisionTaskCompletedResponse) GetDecisionTask() (o *PollForDeci
 		return v.DecisionTask
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *RespondDecisionTaskCompletedResponse) ByteSize() uint64 {
+	return 0
 }
 
 // RespondDecisionTaskFailedRequest is an internal type (TBD...)
@@ -5612,6 +6674,38 @@ func (v *RetryTaskV2Error) GetWorkflowID() (o string) {
 func (v *RetryTaskV2Error) GetRunID() (o string) {
 	if v != nil {
 		return v.RunID
+	}
+	return
+}
+
+// GetStartEventID is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetStartEventID() (o int64) {
+	if v != nil && v.StartEventID != nil {
+		return *v.StartEventID
+	}
+	return
+}
+
+// GetStartEventVersion is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetStartEventVersion() (o int64) {
+	if v != nil && v.StartEventVersion != nil {
+		return *v.StartEventVersion
+	}
+	return
+}
+
+// GetEndEventID is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetEndEventID() (o int64) {
+	if v != nil && v.EndEventID != nil {
+		return *v.EndEventID
+	}
+	return
+}
+
+// GetEndEventVersion is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetEndEventVersion() (o int64) {
+	if v != nil && v.EndEventVersion != nil {
+		return *v.EndEventVersion
 	}
 	return
 }
@@ -5809,6 +6903,11 @@ func (v *SignalExternalWorkflowExecutionFailedEventAttributes) GetInitiatedEvent
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *SignalExternalWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // SignalExternalWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type SignalExternalWorkflowExecutionInitiatedEventAttributes struct {
 	DecisionTaskCompletedEventID int64              `json:"decisionTaskCompletedEventId,omitempty"`
@@ -5852,36 +6951,36 @@ func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) GetChildWorkfl
 	return
 }
 
-// SignalWithStartWorkflowExecutionRequest is an internal type (TBD...)
-type SignalWithStartWorkflowExecutionRequest struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"-"` // Filtering PII
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	Identity                            string                 `json:"identity,omitempty"`
-	RequestID                           string                 `json:"requestId,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	SignalName                          string                 `json:"signalName,omitempty"`
-	SignalInput                         []byte                 `json:"-"` // Filtering PII
-	Control                             []byte                 `json:"control,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Memo                                *Memo                  `json:"-"` // Filtering PII
-	SearchAttributes                    *SearchAttributes      `json:"-"` // Filtering PII
-	Header                              *Header                `json:"header,omitempty"`
-	DelayStartSeconds                   *int32                 `json:"delayStartSeconds,omitempty"`
-	JitterStartSeconds                  *int32                 `json:"jitterStartSeconds,omitempty"`
-	FirstRunAtTimestamp                 *int64                 `json:"firstRunAtTimestamp,omitempty"`
+// Size returns the approximate memory used in bytes
+func (v *SignalExternalWorkflowExecutionInitiatedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
-func (v *SignalWithStartWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
+// SignalWithStartWorkflowExecutionRequest is an internal type (TBD...)
+type SignalWithStartWorkflowExecutionRequest struct {
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"-"` // Filtering PII
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	Identity                            string                        `json:"identity,omitempty"`
+	RequestID                           string                        `json:"requestId,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	SignalName                          string                        `json:"signalName,omitempty"`
+	SignalInput                         []byte                        `json:"-"` // Filtering PII
+	Control                             []byte                        `json:"control,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Memo                                *Memo                         `json:"-"` // Filtering PII
+	SearchAttributes                    *SearchAttributes             `json:"-"` // Filtering PII
+	Header                              *Header                       `json:"header,omitempty"`
+	DelayStartSeconds                   *int32                        `json:"delayStartSeconds,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	FirstRunAtTimestamp                 *int64                        `json:"firstRunAtTimestamp,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6000,13 +7099,6 @@ type SignalWorkflowExecutionRequest struct {
 	Control           []byte             `json:"control,omitempty"`
 }
 
-func (v *SignalWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *SignalWorkflowExecutionRequest) GetDomain() (o string) {
 	if v != nil {
@@ -6057,21 +7149,23 @@ func (v *SignalWorkflowExecutionRequest) GetRequestID() (o string) {
 
 // StartChildWorkflowExecutionDecisionAttributes is an internal type (TBD...)
 type StartChildWorkflowExecutionDecisionAttributes struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	ParentClosePolicy                   *ParentClosePolicy     `json:"parentClosePolicy,omitempty"`
-	Control                             []byte                 `json:"control,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Header                              *Header                `json:"header,omitempty"`
-	Memo                                *Memo                  `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes      `json:"searchAttributes,omitempty"`
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	ParentClosePolicy                   *ParentClosePolicy            `json:"parentClosePolicy,omitempty"`
+	Control                             []byte                        `json:"control,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6149,27 +7243,34 @@ func (v *StartChildWorkflowExecutionFailedEventAttributes) GetInitiatedEventID()
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *StartChildWorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // StartChildWorkflowExecutionInitiatedEventAttributes is an internal type (TBD...)
 type StartChildWorkflowExecutionInitiatedEventAttributes struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	ParentClosePolicy                   *ParentClosePolicy     `json:"parentClosePolicy,omitempty"`
-	Control                             []byte                 `json:"control,omitempty"`
-	DecisionTaskCompletedEventID        int64                  `json:"decisionTaskCompletedEventId,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Header                              *Header                `json:"header,omitempty"`
-	Memo                                *Memo                  `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes      `json:"searchAttributes,omitempty"`
-	DelayStartSeconds                   *int32                 `json:"delayStartSeconds,omitempty"`
-	JitterStartSeconds                  *int32                 `json:"jitterStartSeconds,omitempty"`
-	FirstRunAtTimestamp                 *int64                 `json:"firstRunAtTimestamp,omitempty"`
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	ParentClosePolicy                   *ParentClosePolicy            `json:"parentClosePolicy,omitempty"`
+	Control                             []byte                        `json:"control,omitempty"`
+	DecisionTaskCompletedEventID        int64                         `json:"decisionTaskCompletedEventId,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	DelayStartSeconds                   *int32                        `json:"delayStartSeconds,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	FirstRunAtTimestamp                 *int64                        `json:"firstRunAtTimestamp,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6210,6 +7311,11 @@ func (v *StartChildWorkflowExecutionInitiatedEventAttributes) GetExecutionStartT
 		return *v.ExecutionStartToCloseTimeoutSeconds
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *StartChildWorkflowExecutionInitiatedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // StartTimeFilter is an internal type (TBD...)
@@ -6262,13 +7368,6 @@ type RestartWorkflowExecutionRequest struct {
 	Identity          string             `json:"identity,omitempty"`
 }
 
-func (v *RestartWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain is an internal getter (TBD...)
 func (v *RestartWorkflowExecutionRequest) GetDomain() (o string) {
 	if v != nil {
@@ -6291,13 +7390,6 @@ type DiagnoseWorkflowExecutionRequest struct {
 	Identity          string             `json:"identity,omitempty"`
 }
 
-func (v *DiagnoseWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetDomain returns the domain
 func (v *DiagnoseWorkflowExecutionRequest) GetDomain() (o string) {
 	if v != nil {
@@ -6310,6 +7402,14 @@ func (v *DiagnoseWorkflowExecutionRequest) GetDomain() (o string) {
 func (v *DiagnoseWorkflowExecutionRequest) GetWorkflowExecution() (o *WorkflowExecution) {
 	if v != nil && v.WorkflowExecution != nil {
 		return v.WorkflowExecution
+	}
+	return
+}
+
+// GetIdentity returns the identity
+func (v *DiagnoseWorkflowExecutionRequest) GetIdentity() (o string) {
+	if v != nil {
+		return v.Identity
 	}
 	return
 }
@@ -6337,37 +7437,40 @@ func (v *DiagnoseWorkflowExecutionResponse) GetDiagnosticWorkflowExecution() (o 
 
 // StartWorkflowExecutionRequest is an internal type (TBD...)
 type StartWorkflowExecutionRequest struct {
-	Domain                              string                 `json:"domain,omitempty"`
-	WorkflowID                          string                 `json:"workflowId,omitempty"`
-	WorkflowType                        *WorkflowType          `json:"workflowType,omitempty"`
-	TaskList                            *TaskList              `json:"taskList,omitempty"`
-	Input                               []byte                 `json:"-"`
-	ExecutionStartToCloseTimeoutSeconds *int32                 `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                 `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	Identity                            string                 `json:"identity,omitempty"`
-	RequestID                           string                 `json:"requestId,omitempty"`
-	WorkflowIDReusePolicy               *WorkflowIDReusePolicy `json:"workflowIdReusePolicy,omitempty"`
-	RetryPolicy                         *RetryPolicy           `json:"retryPolicy,omitempty"`
-	CronSchedule                        string                 `json:"cronSchedule,omitempty"`
-	Memo                                *Memo                  `json:"-"`
-	SearchAttributes                    *SearchAttributes      `json:"-"`
-	Header                              *Header                `json:"header,omitempty"`
-	DelayStartSeconds                   *int32                 `json:"delayStartSeconds,omitempty"`
-	JitterStartSeconds                  *int32                 `json:"jitterStartSeconds,omitempty"`
-	FirstRunAtTimeStamp                 *int64                 `json:"firstRunAtTimeStamp,omitempty"`
-}
-
-func (v *StartWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
+	Domain                              string                        `json:"domain,omitempty"`
+	WorkflowID                          string                        `json:"workflowId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"-"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	Identity                            string                        `json:"identity,omitempty"`
+	RequestID                           string                        `json:"requestId,omitempty"`
+	WorkflowIDReusePolicy               *WorkflowIDReusePolicy        `json:"workflowIdReusePolicy,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	Memo                                *Memo                         `json:"-"`
+	SearchAttributes                    *SearchAttributes             `json:"-"`
+	Header                              *Header                       `json:"header,omitempty"`
+	DelayStartSeconds                   *int32                        `json:"delayStartSeconds,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	FirstRunAtTimeStamp                 *int64                        `json:"firstRunAtTimeStamp,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
 func (v *StartWorkflowExecutionRequest) GetDomain() (o string) {
 	if v != nil {
 		return v.Domain
+	}
+	return
+}
+
+// GetTaskList is an internal getter (TBD...)
+func (v *StartWorkflowExecutionRequest) GetTaskList() (o *TaskList) {
+	if v != nil && v.TaskList != nil {
+		return v.TaskList
 	}
 	return
 }
@@ -6440,6 +7543,14 @@ func (v *StartWorkflowExecutionRequest) GetWorkflowIDReusePolicy() (o WorkflowID
 func (v *StartWorkflowExecutionRequest) GetCronSchedule() (o string) {
 	if v != nil {
 		return v.CronSchedule
+	}
+	return
+}
+
+// GetCronOverlapPolicy is an internal getter (TBD...)
+func (v *StartWorkflowExecutionRequest) GetCronOverlapPolicy() (o CronOverlapPolicy) {
+	if v != nil && v.CronOverlapPolicy != nil {
+		return *v.CronOverlapPolicy
 	}
 	return
 }
@@ -6521,8 +7632,9 @@ func (v *TaskIDBlock) GetEndID() (o int64) {
 
 // TaskList is an internal type (TBD...)
 type TaskList struct {
-	Name string        `json:"name,omitempty"`
-	Kind *TaskListKind `json:"kind,omitempty"`
+	Name     string        `json:"name,omitempty"`
+	Kind     *TaskListKind `json:"kind,omitempty"`
+	BaseName string        `json:"baseName,omitempty"`
 }
 
 // GetName is an internal getter (TBD...)
@@ -6537,6 +7649,14 @@ func (v *TaskList) GetName() (o string) {
 func (v *TaskList) GetKind() (o TaskListKind) {
 	if v != nil && v.Kind != nil {
 		return *v.Kind
+	}
+	return
+}
+
+// GetBaseName is an internal getter (TBD...)
+func (v *TaskList) GetBaseName() (o string) {
+	if v != nil {
+		return v.BaseName
 	}
 	return
 }
@@ -6557,6 +7677,8 @@ func (e TaskListKind) String() string {
 		return "NORMAL"
 	case 1:
 		return "STICKY"
+	case 2:
+		return "EPHEMERAL"
 	}
 	return fmt.Sprintf("TaskListKind(%d)", w)
 }
@@ -6569,6 +7691,9 @@ func (e *TaskListKind) UnmarshalText(value []byte) error {
 		return nil
 	case "STICKY":
 		*e = TaskListKindSticky
+		return nil
+	case "EPHEMERAL":
+		*e = TaskListKindEphemeral
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -6590,6 +7715,8 @@ const (
 	TaskListKindNormal TaskListKind = iota
 	// TaskListKindSticky is an option for TaskListKind
 	TaskListKindSticky
+	// TaskListKindEphemeral is an option for TaskListKind
+	TaskListKindEphemeral
 )
 
 // TaskListMetadata is an internal type (TBD...)
@@ -6619,13 +7746,21 @@ func (v *TaskListPartitionMetadata) GetOwnerHostName() (o string) {
 	return
 }
 
+type IsolationGroupMetrics struct {
+	NewTasksPerSecond float64 `json:"newTasksPerSecond,omitempty"`
+	PollerCount       int64   `json:"pollerCount,omitempty"`
+}
+
 // TaskListStatus is an internal type (TBD...)
 type TaskListStatus struct {
-	BacklogCountHint int64        `json:"backlogCountHint,omitempty"`
-	ReadLevel        int64        `json:"readLevel,omitempty"`
-	AckLevel         int64        `json:"ackLevel,omitempty"`
-	RatePerSecond    float64      `json:"ratePerSecond,omitempty"`
-	TaskIDBlock      *TaskIDBlock `json:"taskIDBlock,omitempty"`
+	BacklogCountHint      int64                             `json:"backlogCountHint,omitempty"`
+	ReadLevel             int64                             `json:"readLevel,omitempty"`
+	AckLevel              int64                             `json:"ackLevel,omitempty"`
+	RatePerSecond         float64                           `json:"ratePerSecond,omitempty"`
+	TaskIDBlock           *TaskIDBlock                      `json:"taskIDBlock,omitempty"`
+	IsolationGroupMetrics map[string]*IsolationGroupMetrics `json:"isolationGroupMetrics,omitempty"`
+	NewTasksPerSecond     float64                           `json:"newTasksPerSecond,omitempty"`
+	Empty                 bool                              `json:"empty,omitempty"`
 }
 
 // GetBacklogCountHint is an internal getter (TBD...)
@@ -6727,13 +7862,6 @@ type TerminateWorkflowExecutionRequest struct {
 	Details             []byte             `json:"details,omitempty"`
 	Identity            string             `json:"identity,omitempty"`
 	FirstExecutionRunID string             `json:"first_execution_run_id,omitempty"`
-}
-
-func (v *TerminateWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6865,6 +7993,11 @@ func (v *TimerCanceledEventAttributes) GetTimerID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *TimerCanceledEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // TimerFiredEventAttributes is an internal type (TBD...)
 type TimerFiredEventAttributes struct {
 	TimerID        string `json:"timerId,omitempty"`
@@ -6885,6 +8018,11 @@ func (v *TimerFiredEventAttributes) GetStartedEventID() (o int64) {
 		return v.StartedEventID
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *TimerFiredEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // TimerStartedEventAttributes is an internal type (TBD...)
@@ -6910,6 +8048,11 @@ func (v *TimerStartedEventAttributes) GetStartToFireTimeoutSeconds() (o int64) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *TimerStartedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // TransientDecisionInfo is an internal type (TBD...)
 type TransientDecisionInfo struct {
 	ScheduledEvent *HistoryEvent `json:"scheduledEvent,omitempty"`
@@ -6930,17 +8073,28 @@ type UpdateDomainRequest struct {
 	VisibilityArchivalStatus               *ArchivalStatus                    `json:"visibilityArchivalStatus,omitempty"`
 	VisibilityArchivalURI                  *string                            `json:"visibilityArchivalURI,omitempty"`
 	ActiveClusterName                      *string                            `json:"activeClusterName,omitempty"`
+	ActiveClusters                         *ActiveClusters                    `json:"activeClusters,omitempty"`
 	Clusters                               []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
 	DeleteBadBinary                        *string                            `json:"deleteBadBinary,omitempty"`
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
+	FailoverReason                         *string                            `json:"failoverReason,omitempty"`
 }
 
-func (v *UpdateDomainRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
+// IsAFailoverRequest identifies if any part of the request is a failover request
+// and if so, will return true
+// this includes:
+//
+// - an active cluster change  (force failver)
+// - any failvoer timeout values (for graceful failover)
+// - or a change to one of the domain's cluster-attribute fields (active-active failover)
+//
+// this is not a validation function
+// and doesn't attempt to give valid or coherent combinations
+func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
+	return v.ActiveClusterName != nil ||
+		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
+		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
 }
 
 // GetName is an internal getter (TBD...)
@@ -6982,6 +8136,19 @@ type UpdateDomainResponse struct {
 	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
 	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
 	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+func (v *UpdateDomainResponse) ToFailoverDomainResponse() *FailoverDomainResponse {
+	if v == nil {
+		return nil
+	}
+	return &FailoverDomainResponse{
+		DomainInfo:               v.DomainInfo,
+		Configuration:            v.Configuration,
+		ReplicationConfiguration: v.ReplicationConfiguration,
+		FailoverVersion:          v.FailoverVersion,
+		IsGlobalDomain:           v.IsGlobalDomain,
+	}
 }
 
 // GetDomainInfo is an internal getter (TBD...)
@@ -7035,6 +8202,11 @@ func (v *UpsertWorkflowSearchAttributesEventAttributes) GetSearchAttributes() (o
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *UpsertWorkflowSearchAttributesEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // VersionHistories is an internal type (TBD...)
 type VersionHistories struct {
 	CurrentVersionHistoryIndex int32             `json:"currentVersionHistoryIndex,omitempty"`
@@ -7063,6 +8235,24 @@ func (v *VersionHistory) GetItems() (o []*VersionHistoryItem) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *VersionHistory) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.BranchToken))
+
+	// [] *VersionHistoryItem backing array: len * pointer size
+	size += uint64(len(v.Items)) * uint64(unsafe.Sizeof((*VersionHistoryItem)(nil)))
+	for _, e := range v.Items {
+		size += e.ByteSize()
+	}
+
+	return size
+}
+
 // VersionHistoryItem is an internal type (TBD...)
 type VersionHistoryItem struct {
 	EventID int64 `json:"eventID,omitempty"`
@@ -7075,6 +8265,15 @@ func (v *VersionHistoryItem) GetVersion() (o int64) {
 		return v.Version
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *VersionHistoryItem) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	return uint64(unsafe.Sizeof(*v))
 }
 
 // WorkerVersionInfo is an internal type (TBD...)
@@ -7145,10 +8344,20 @@ type WorkflowExecutionCancelRequestedEventAttributes struct {
 	RequestID                 string             `json:"requestId,omitempty"`
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionCancelRequestedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // WorkflowExecutionCanceledEventAttributes is an internal type (TBD...)
 type WorkflowExecutionCanceledEventAttributes struct {
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
 	Details                      []byte `json:"details,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionCanceledEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // WorkflowExecutionCloseStatus is an internal type (TBD...)
@@ -7177,6 +8386,79 @@ func (e WorkflowExecutionCloseStatus) String() string {
 		return "TIMED_OUT"
 	}
 	return fmt.Sprintf("WorkflowExecutionCloseStatus(%d)", w)
+}
+
+type WorkflowExecutionStatus int32
+
+// Ptr is a helper function for getting pointer value
+func (e WorkflowExecutionStatus) Ptr() *WorkflowExecutionStatus {
+	return &e
+}
+
+// String returns a readable string representation of WorkflowExecutionStatus.
+func (e WorkflowExecutionStatus) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "PENDING"
+	case 1:
+		return "STARTED"
+	case 2:
+		return "COMPLETED"
+	case 3:
+		return "FAILED"
+	case 4:
+		return "CANCELED"
+	case 5:
+		return "TERMINATED"
+	case 6:
+		return "CONTINUED_AS_NEW"
+	case 7:
+		return "TIMED_OUT"
+	}
+	return fmt.Sprintf("WorkflowExecutionStatus(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *WorkflowExecutionStatus) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "PENDING":
+		*e = WorkflowExecutionStatusPending
+		return nil
+	case "STARTED":
+		*e = WorkflowExecutionStatusStarted
+		return nil
+	case "COMPLETED":
+		*e = WorkflowExecutionStatusCompleted
+		return nil
+	case "FAILED":
+		*e = WorkflowExecutionStatusFailed
+		return nil
+	case "CANCELED":
+		*e = WorkflowExecutionStatusCanceled
+		return nil
+	case "TERMINATED":
+		*e = WorkflowExecutionStatusTerminated
+		return nil
+	case "CONTINUED_AS_NEW":
+		*e = WorkflowExecutionStatusContinuedAsNew
+		return nil
+	case "TIMED_OUT":
+		*e = WorkflowExecutionStatusTimedOut
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "WorkflowExecutionStatus", err)
+		}
+		*e = WorkflowExecutionStatus(val)
+		return nil
+	}
+}
+
+// MarshalText encodes WorkflowExecutionStatus to text.
+func (e WorkflowExecutionStatus) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
 }
 
 // UnmarshalText parses enum value from string representation
@@ -7230,10 +8512,34 @@ const (
 	WorkflowExecutionCloseStatusTimedOut
 )
 
+const (
+	// WorkflowExecutionStatusPending is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusPending WorkflowExecutionStatus = iota
+	// WorkflowExecutionStatusStarted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusStarted
+	// WorkflowExecutionStatusCompleted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCompleted
+	// WorkflowExecutionStatusFailed is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusFailed
+	// WorkflowExecutionStatusCanceled is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCanceled
+	// WorkflowExecutionStatusTerminated is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTerminated
+	// WorkflowExecutionStatusContinuedAsNew is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusContinuedAsNew
+	// WorkflowExecutionStatusTimedOut is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTimedOut
+)
+
 // WorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
 type WorkflowExecutionCompletedEventAttributes struct {
 	Result                       []byte `json:"result,omitempty"`
 	DecisionTaskCompletedEventID int64  `json:"decisionTaskCompletedEventId,omitempty"`
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionCompletedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // WorkflowExecutionConfiguration is an internal type (TBD...)
@@ -7245,22 +8551,24 @@ type WorkflowExecutionConfiguration struct {
 
 // WorkflowExecutionContinuedAsNewEventAttributes is an internal type (TBD...)
 type WorkflowExecutionContinuedAsNewEventAttributes struct {
-	NewExecutionRunID                   string                  `json:"newExecutionRunId,omitempty"`
-	WorkflowType                        *WorkflowType           `json:"workflowType,omitempty"`
-	TaskList                            *TaskList               `json:"taskList,omitempty"`
-	Input                               []byte                  `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                  `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                  `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	DecisionTaskCompletedEventID        int64                   `json:"decisionTaskCompletedEventId,omitempty"`
-	BackoffStartIntervalInSeconds       *int32                  `json:"backoffStartIntervalInSeconds,omitempty"`
-	Initiator                           *ContinueAsNewInitiator `json:"initiator,omitempty"`
-	FailureReason                       *string                 `json:"failureReason,omitempty"`
-	FailureDetails                      []byte                  `json:"failureDetails,omitempty"`
-	LastCompletionResult                []byte                  `json:"lastCompletionResult,omitempty"`
-	Header                              *Header                 `json:"header,omitempty"`
-	Memo                                *Memo                   `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes       `json:"searchAttributes,omitempty"`
-	JitterStartSeconds                  *int32                  `json:"jitterStartSeconds,omitempty"`
+	NewExecutionRunID                   string                        `json:"newExecutionRunId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	DecisionTaskCompletedEventID        int64                         `json:"decisionTaskCompletedEventId,omitempty"`
+	BackoffStartIntervalInSeconds       *int32                        `json:"backoffStartIntervalInSeconds,omitempty"`
+	Initiator                           *ContinueAsNewInitiator       `json:"initiator,omitempty"`
+	FailureReason                       *string                       `json:"failureReason,omitempty"`
+	FailureDetails                      []byte                        `json:"failureDetails,omitempty"`
+	LastCompletionResult                []byte                        `json:"lastCompletionResult,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetNewExecutionRunID is an internal getter (TBD...)
@@ -7295,6 +8603,11 @@ func (v *WorkflowExecutionContinuedAsNewEventAttributes) GetLastCompletionResult
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionContinuedAsNewEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // WorkflowExecutionFailedEventAttributes is an internal type (TBD...)
 type WorkflowExecutionFailedEventAttributes struct {
 	Reason                       *string `json:"reason,omitempty"`
@@ -7308,6 +8621,11 @@ func (v *WorkflowExecutionFailedEventAttributes) GetReason() (o string) {
 		return *v.Reason
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionFailedEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // WorkflowExecutionFilter is an internal type (TBD...)
@@ -7326,24 +8644,29 @@ func (v *WorkflowExecutionFilter) GetWorkflowID() (o string) {
 
 // WorkflowExecutionInfo is an internal type (TBD...)
 type WorkflowExecutionInfo struct {
-	Execution         *WorkflowExecution            `json:"execution,omitempty"`
-	Type              *WorkflowType                 `json:"type,omitempty"`
-	StartTime         *int64                        `json:"startTime,omitempty"`
-	CloseTime         *int64                        `json:"closeTime,omitempty"`
-	CloseStatus       *WorkflowExecutionCloseStatus `json:"closeStatus,omitempty"`
-	HistoryLength     int64                         `json:"historyLength,omitempty"` // should be history count
-	ParentDomainID    *string                       `json:"parentDomainId,omitempty"`
-	ParentDomain      *string                       `json:"parentDomain,omitempty"`
-	ParentExecution   *WorkflowExecution            `json:"parentExecution,omitempty"`
-	ParentInitiatedID *int64                        `json:"parentInitiatedId,omitempty"`
-	ExecutionTime     *int64                        `json:"executionTime,omitempty"`
-	Memo              *Memo                         `json:"memo,omitempty"`
-	SearchAttributes  *SearchAttributes             `json:"searchAttributes,omitempty"`
-	AutoResetPoints   *ResetPoints                  `json:"autoResetPoints,omitempty"`
-	TaskList          string                        `json:"taskList,omitempty"`
-	IsCron            bool                          `json:"isCron,omitempty"`
-	UpdateTime        *int64                        `json:"updateTime,omitempty"`
-	PartitionConfig   map[string]string
+	Execution                    *WorkflowExecution            `json:"execution,omitempty"`
+	Type                         *WorkflowType                 `json:"type,omitempty"`
+	StartTime                    *int64                        `json:"startTime,omitempty"`
+	CloseTime                    *int64                        `json:"closeTime,omitempty"`
+	CloseStatus                  *WorkflowExecutionCloseStatus `json:"closeStatus,omitempty"`
+	HistoryLength                int64                         `json:"historyLength,omitempty"` // should be history count
+	ParentDomainID               *string                       `json:"parentDomainId,omitempty"`
+	ParentDomain                 *string                       `json:"parentDomain,omitempty"`
+	ParentExecution              *WorkflowExecution            `json:"parentExecution,omitempty"`
+	ParentInitiatedID            *int64                        `json:"parentInitiatedId,omitempty"`
+	ExecutionTime                *int64                        `json:"executionTime,omitempty"`
+	Memo                         *Memo                         `json:"memo,omitempty"`
+	SearchAttributes             *SearchAttributes             `json:"searchAttributes,omitempty"`
+	AutoResetPoints              *ResetPoints                  `json:"autoResetPoints,omitempty"`
+	TaskList                     *TaskList                     `json:"taskList,omitempty"`
+	IsCron                       bool                          `json:"isCron,omitempty"`
+	UpdateTime                   *int64                        `json:"updateTime,omitempty"`
+	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`
+	CronOverlapPolicy            *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	CronSchedule                 *string                       `json:"cronSchedule,omitempty"`
+	ExecutionStatus              *WorkflowExecutionStatus      `json:"executionStatus,omitempty"`
+	ScheduledExecutionTime       *int64                        `json:"scheduledExecutionTime,omitempty"`
 }
 
 // GetExecution is an internal getter (TBD...)
@@ -7418,6 +8741,30 @@ func (v *WorkflowExecutionInfo) GetPartitionConfig() (o map[string]string) {
 	return
 }
 
+// GetCronSchedule is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetCronSchedule() (o string) {
+	if v != nil && v.CronSchedule != nil {
+		return *v.CronSchedule
+	}
+	return
+}
+
+// GetExecutionStatus is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetExecutionStatus() (o WorkflowExecutionStatus) {
+	if v != nil && v.ExecutionStatus != nil {
+		return *v.ExecutionStatus
+	}
+	return
+}
+
+// GetScheduledExecutionTime is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetScheduledExecutionTime() (o int64) {
+	if v != nil && v.ScheduledExecutionTime != nil {
+		return *v.ScheduledExecutionTime
+	}
+	return
+}
+
 // WorkflowExecutionSignaledEventAttributes is an internal type (TBD...)
 type WorkflowExecutionSignaledEventAttributes struct {
 	SignalName string `json:"signalName,omitempty"`
@@ -7458,38 +8805,45 @@ func (v *WorkflowExecutionSignaledEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionSignaledEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // WorkflowExecutionStartedEventAttributes is an internal type (TBD...)
 type WorkflowExecutionStartedEventAttributes struct {
-	WorkflowType                        *WorkflowType           `json:"workflowType,omitempty"`
-	ParentWorkflowDomainID              *string                 `json:"parentWorkflowDomainID,omitempty"`
-	ParentWorkflowDomain                *string                 `json:"parentWorkflowDomain,omitempty"`
-	ParentWorkflowExecution             *WorkflowExecution      `json:"parentWorkflowExecution,omitempty"`
-	ParentInitiatedEventID              *int64                  `json:"parentInitiatedEventId,omitempty"`
-	TaskList                            *TaskList               `json:"taskList,omitempty"`
-	Input                               []byte                  `json:"input,omitempty"`
-	ExecutionStartToCloseTimeoutSeconds *int32                  `json:"executionStartToCloseTimeoutSeconds,omitempty"`
-	TaskStartToCloseTimeoutSeconds      *int32                  `json:"taskStartToCloseTimeoutSeconds,omitempty"`
-	ContinuedExecutionRunID             string                  `json:"continuedExecutionRunId,omitempty"`
-	Initiator                           *ContinueAsNewInitiator `json:"initiator,omitempty"`
-	ContinuedFailureReason              *string                 `json:"continuedFailureReason,omitempty"`
-	ContinuedFailureDetails             []byte                  `json:"continuedFailureDetails,omitempty"`
-	LastCompletionResult                []byte                  `json:"lastCompletionResult,omitempty"`
-	OriginalExecutionRunID              string                  `json:"originalExecutionRunId,omitempty"`
-	Identity                            string                  `json:"identity,omitempty"`
-	FirstExecutionRunID                 string                  `json:"firstExecutionRunId,omitempty"`
-	FirstScheduleTime                   *time.Time              `json:"firstScheduleTimeNano,omitempty"`
-	RetryPolicy                         *RetryPolicy            `json:"retryPolicy,omitempty"`
-	Attempt                             int32                   `json:"attempt,omitempty"`
-	ExpirationTimestamp                 *int64                  `json:"expirationTimestamp,omitempty"`
-	CronSchedule                        string                  `json:"cronSchedule,omitempty"`
-	FirstDecisionTaskBackoffSeconds     *int32                  `json:"firstDecisionTaskBackoffSeconds,omitempty"`
-	Memo                                *Memo                   `json:"memo,omitempty"`
-	SearchAttributes                    *SearchAttributes       `json:"searchAttributes,omitempty"`
-	PrevAutoResetPoints                 *ResetPoints            `json:"prevAutoResetPoints,omitempty"`
-	Header                              *Header                 `json:"header,omitempty"`
-	JitterStartSeconds                  *int32                  `json:"jitterStartSeconds,omitempty"`
-	PartitionConfig                     map[string]string
-	RequestID                           string `json:"requestId,omitempty"`
+	WorkflowType                        *WorkflowType                 `json:"workflowType,omitempty"`
+	ParentWorkflowDomainID              *string                       `json:"parentWorkflowDomainID,omitempty"`
+	ParentWorkflowDomain                *string                       `json:"parentWorkflowDomain,omitempty"`
+	ParentWorkflowExecution             *WorkflowExecution            `json:"parentWorkflowExecution,omitempty"`
+	ParentInitiatedEventID              *int64                        `json:"parentInitiatedEventId,omitempty"`
+	TaskList                            *TaskList                     `json:"taskList,omitempty"`
+	Input                               []byte                        `json:"input,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32                        `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32                        `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	ContinuedExecutionRunID             string                        `json:"continuedExecutionRunId,omitempty"`
+	Initiator                           *ContinueAsNewInitiator       `json:"initiator,omitempty"`
+	ContinuedFailureReason              *string                       `json:"continuedFailureReason,omitempty"`
+	ContinuedFailureDetails             []byte                        `json:"continuedFailureDetails,omitempty"`
+	LastCompletionResult                []byte                        `json:"lastCompletionResult,omitempty"`
+	OriginalExecutionRunID              string                        `json:"originalExecutionRunId,omitempty"`
+	Identity                            string                        `json:"identity,omitempty"`
+	FirstExecutionRunID                 string                        `json:"firstExecutionRunId,omitempty"`
+	FirstScheduleTime                   *time.Time                    `json:"firstScheduleTimeNano,omitempty"`
+	RetryPolicy                         *RetryPolicy                  `json:"retryPolicy,omitempty"`
+	Attempt                             int32                         `json:"attempt,omitempty"`
+	ExpirationTimestamp                 *int64                        `json:"expirationTimestamp,omitempty"`
+	CronSchedule                        string                        `json:"cronSchedule,omitempty"`
+	FirstDecisionTaskBackoffSeconds     *int32                        `json:"firstDecisionTaskBackoffSeconds,omitempty"`
+	Memo                                *Memo                         `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
+	PrevAutoResetPoints                 *ResetPoints                  `json:"prevAutoResetPoints,omitempty"`
+	Header                              *Header                       `json:"header,omitempty"`
+	JitterStartSeconds                  *int32                        `json:"jitterStartSeconds,omitempty"`
+	PartitionConfig                     map[string]string             `json:"partitionConfig,omitempty"`
+	RequestID                           string                        `json:"requestId,omitempty"`
+	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
+	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
 }
 
 // GetParentWorkflowDomain is an internal getter (TBD...)
@@ -7548,7 +8902,7 @@ func (v *WorkflowExecutionStartedEventAttributes) GetFirstExecutionRunID() (o st
 	return
 }
 
-// Get
+// GetFirstScheduledTime is an internal getter (TBD...)
 func (v *WorkflowExecutionStartedEventAttributes) GetFirstScheduledTime() (o time.Time) {
 	if v != nil && v.FirstScheduleTime != nil {
 		return *v.FirstScheduleTime
@@ -7635,6 +8989,11 @@ func (v *WorkflowExecutionStartedEventAttributes) GetRequestID() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionStartedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // WorkflowExecutionTerminatedEventAttributes is an internal type (TBD...)
 type WorkflowExecutionTerminatedEventAttributes struct {
 	Reason   string `json:"reason,omitempty"`
@@ -7658,6 +9017,11 @@ func (v *WorkflowExecutionTerminatedEventAttributes) GetIdentity() (o string) {
 	return
 }
 
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionTerminatedEventAttributes) ByteSize() uint64 {
+	return 0
+}
+
 // WorkflowExecutionTimedOutEventAttributes is an internal type (TBD...)
 type WorkflowExecutionTimedOutEventAttributes struct {
 	TimeoutType *TimeoutType `json:"timeoutType,omitempty"`
@@ -7669,6 +9033,11 @@ func (v *WorkflowExecutionTimedOutEventAttributes) GetTimeoutType() (o TimeoutTy
 		return *v.TimeoutType
 	}
 	return
+}
+
+// Size returns the approximate memory used in bytes
+func (v *WorkflowExecutionTimedOutEventAttributes) ByteSize() uint64 {
+	return 0
 }
 
 // WorkflowIDReusePolicy is an internal type (TBD...)
@@ -8256,13 +9625,6 @@ type GetCrossClusterTasksRequest struct {
 	TargetCluster string  `json:"targetCluster,omitempty"`
 }
 
-func (v *GetCrossClusterTasksRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetShardIDs is an internal getter (TBD...)
 func (v *GetCrossClusterTasksRequest) GetShardIDs() (o []int32) {
 	if v != nil && v.ShardIDs != nil {
@@ -8301,13 +9663,6 @@ type RespondCrossClusterTasksCompletedRequest struct {
 	FetchNewTasks bool                        `json:"fetchNewTasks,omitempty"`
 }
 
-func (v *RespondCrossClusterTasksCompletedRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetShardID is an internal getter (TBD...)
 func (v *RespondCrossClusterTasksCompletedRequest) GetShardID() (o int32) {
 	if v != nil {
@@ -8334,15 +9689,9 @@ type StickyWorkerUnavailableError struct {
 	Message string `json:"message,required"`
 }
 
-// SerializeRequest Serialize an arbitrary request for logging
-// pass in a pointer as a parameter to save space
-func SerializeRequest(request interface{}) (string, error) {
-	res, err := json.Marshal(request)
-	if err != nil {
-		return "", err
-	}
-
-	return string(res), nil
+// ReadOnlyPartitionError is an internal type (TBD...)
+type ReadOnlyPartitionError struct {
+	Message string `json:"message,required"`
 }
 
 // Any is an internal mirror of google.protobuf.Any, serving the same purposes, but
@@ -8367,4 +9716,32 @@ type Any struct {
 	//
 	// To interpret, you MUST check ValueType.
 	Value []byte `json:"value"`
+}
+
+// AutoConfigHint is an internal type (TBD...)
+type AutoConfigHint struct {
+	EnableAutoConfig   bool  `json:"enableAutoConfig"`
+	PollerWaitTimeInMs int64 `json:"pollerWaitTimeInMs"`
+}
+
+type CronOverlapPolicy int32
+
+const (
+	CronOverlapPolicySkipped CronOverlapPolicy = iota
+	CronOverlapPolicyBufferOne
+)
+
+func (v CronOverlapPolicy) String() string {
+	switch v {
+	case CronOverlapPolicySkipped:
+		return "SKIP"
+	case CronOverlapPolicyBufferOne:
+		return "BUFFERONE"
+	}
+	return "UNKNOWN"
+}
+
+// Ptr is a helper function for getting pointer to CronOverlapPolicy
+func (v CronOverlapPolicy) Ptr() *CronOverlapPolicy {
+	return &v
 }

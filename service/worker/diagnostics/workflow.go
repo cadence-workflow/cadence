@@ -33,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
 )
 
@@ -40,9 +41,8 @@ const (
 	diagnosticsWorkflow = "diagnostics-workflow"
 	tasklist            = "diagnostics-wf-tasklist"
 
-	retrieveWfExecutionHistoryActivity = "retrieveWfExecutionHistory"
-	identifyIssuesActivity             = "identifyIssues"
-	rootCauseIssuesActivity            = "rootCauseIssues"
+	identifyIssuesActivity  = "identifyIssues"
+	rootCauseIssuesActivity = "rootCauseIssues"
 )
 
 type DiagnosticsWorkflowInput struct {
@@ -54,39 +54,57 @@ type DiagnosticsWorkflowInput struct {
 type DiagnosticsWorkflowResult struct {
 	Timeouts *timeoutDiagnostics
 	Failures *failureDiagnostics
+	Retries  *retryDiagnostics
 }
 
 type timeoutDiagnostics struct {
 	Issues    []*timeoutIssuesResult
 	RootCause []*timeoutRootCauseResult
-	Runbooks  []string
+	Runbook   string
 }
 
 type timeoutIssuesResult struct {
-	InvariantType    string
-	Reason           string
-	ExecutionTimeout *timeout.ExecutionTimeoutMetadata
-	ActivityTimeout  *timeout.ActivityTimeoutMetadata
-	ChildWfTimeout   *timeout.ChildWfTimeoutMetadata
-	DecisionTimeout  *timeout.DecisionTimeoutMetadata
+	IssueID       int
+	InvariantType string
+	Reason        string
+	Metadata      *timeout.TimeoutIssuesMetadata
 }
 
 type timeoutRootCauseResult struct {
-	RootCauseType        string
-	PollersMetadata      *timeout.PollersMetadata
-	HeartBeatingMetadata *timeout.HeartbeatingMetadata
+	IssueID       int
+	RootCauseType string
+	Metadata      *timeout.TimeoutRootcauseMetadata
 }
 
 type failureDiagnostics struct {
-	Issues    []*failuresIssuesResult
-	RootCause []string
-	Runbooks  []string
+	Issues    []*failureIssuesResult
+	RootCause []*failureRootCauseResult
+	Runbook   string
 }
 
-type failuresIssuesResult struct {
+type failureIssuesResult struct {
+	IssueID       int
 	InvariantType string
 	Reason        string
-	Metadata      failure.FailureMetadata
+	Metadata      *failure.FailureIssuesMetadata
+}
+
+type failureRootCauseResult struct {
+	IssueID       int
+	RootCauseType string
+	Metadata      *failure.FailureRootcauseMetadata
+}
+
+type retryDiagnostics struct {
+	Issues  []*retryIssuesResult
+	Runbook string
+}
+
+type retryIssuesResult struct {
+	IssueID       int
+	InvariantType string
+	Reason        string
+	Metadata      retry.RetryMetadata
 }
 
 func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflowInput) (*DiagnosticsWorkflowResult, error) {
@@ -95,8 +113,9 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	sw := scope.StartTimer(metrics.DiagnosticsWorkflowExecutionLatency)
 	defer sw.Stop()
 
-	var timeoutsResult timeoutDiagnostics
-	var failureResult failureDiagnostics
+	var timeoutsResult *timeoutDiagnostics
+	var failureResult *failureDiagnostics
+	var retryResult *retryDiagnostics
 	var checkResult []invariant.InvariantCheckResult
 	var rootCauseResult []invariant.InvariantRootCauseResult
 
@@ -107,31 +126,20 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	}
 	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
 
-	var wfExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	err := workflow.ExecuteActivity(activityCtx, w.retrieveExecutionHistory, retrieveExecutionHistoryInputParams{
-		Domain: params.Domain,
+	err := workflow.ExecuteActivity(activityCtx, identifyIssuesActivity, identifyIssuesParams{
 		Execution: &types.WorkflowExecution{
 			WorkflowID: params.WorkflowID,
 			RunID:      params.RunID,
-		}}).Get(ctx, &wfExecutionHistory)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveExecutionHistory: %w", err)
-	}
-
-	timeoutsResult.Runbooks = []string{linkToTimeoutsRunbook}
-
-	err = workflow.ExecuteActivity(activityCtx, w.identifyIssues, identifyIssuesParams{
-		History: wfExecutionHistory,
-		Domain:  params.Domain,
+		},
+		Domain: params.Domain,
 	}).Get(ctx, &checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("IdentifyIssues: %w", err)
 	}
 
-	err = workflow.ExecuteActivity(activityCtx, w.rootCauseIssues, rootCauseIssuesParams{
-		History: wfExecutionHistory,
-		Domain:  params.Domain,
-		Issues:  checkResult,
+	err = workflow.ExecuteActivity(activityCtx, rootCauseIssuesActivity, rootCauseIssuesParams{
+		Domain: params.Domain,
+		Issues: checkResult,
 	}).Get(ctx, &rootCauseResult)
 	if err != nil {
 		return nil, fmt.Errorf("RootCauseIssues: %w", err)
@@ -141,26 +149,53 @@ func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflo
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveTimeoutIssues: %w", err)
 	}
-	timeoutsResult.Issues = timeoutIssues
 
-	timeoutRootCause, err := retrieveTimeoutRootCause(rootCauseResult)
-	if err != nil {
-		return nil, fmt.Errorf("RetrieveTimeoutRootCause: %w", err)
+	if len(timeoutIssues) > 0 {
+		timeoutRootCause, err := retrieveTimeoutRootCause(rootCauseResult)
+		if err != nil {
+			return nil, fmt.Errorf("RetrieveTimeoutRootCause: %w", err)
+		}
+		timeoutsResult = &timeoutDiagnostics{
+			Issues:    timeoutIssues,
+			RootCause: timeoutRootCause,
+			Runbook:   linkToTimeoutsRunbook,
+		}
 	}
-	timeoutsResult.RootCause = timeoutRootCause
 
 	failureIssues, err := retrieveFailureIssues(checkResult)
 	if err != nil {
 		return nil, fmt.Errorf("RetrieveFailureIssues: %w", err)
 	}
-	failureResult.Issues = failureIssues
 
-	failureResult.RootCause = retrieveFailureRootCause(rootCauseResult)
+	if len(failureIssues) > 0 {
+		failureRootCause, err := retrieveFailureRootCause(rootCauseResult)
+		if err != nil {
+			return nil, fmt.Errorf("RetrieveFailureRootCause: %w", err)
+		}
+		failureResult = &failureDiagnostics{
+			Issues:    failureIssues,
+			RootCause: failureRootCause,
+			Runbook:   linkToFailuresRunbook,
+		}
+	}
+
+	retryIssues, err := retrieveRetryIssues(checkResult)
+	if err != nil {
+		return nil, fmt.Errorf("RetrieveRetryIssues: %w", err)
+	}
+
+	if len(retryIssues) > 0 {
+		retryResult = &retryDiagnostics{
+			Issues:  retryIssues,
+			Runbook: linkToRetriesRunbook,
+		}
+	}
 
 	scope.IncCounter(metrics.DiagnosticsWorkflowSuccess)
 	return &DiagnosticsWorkflowResult{
-		Timeouts: &timeoutsResult,
-		Failures: &failureResult,
+		Timeouts: timeoutsResult,
+		Failures: failureResult,
+		Retries:  retryResult,
 	}, nil
 }
 
@@ -175,9 +210,12 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
-				InvariantType:    issue.InvariantType,
-				Reason:           issue.Reason,
-				ExecutionTimeout: &metadata,
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeout.TimeoutIssuesMetadata{
+					ExecutionTimeout: &metadata,
+				},
 			})
 		case timeout.TimeoutTypeActivity.String():
 			var metadata timeout.ActivityTimeoutMetadata
@@ -186,9 +224,12 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
-				InvariantType:   issue.InvariantType,
-				Reason:          issue.Reason,
-				ActivityTimeout: &metadata,
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeout.TimeoutIssuesMetadata{
+					ActivityTimeout: &metadata,
+				},
 			})
 		case timeout.TimeoutTypeChildWorkflow.String():
 			var metadata timeout.ChildWfTimeoutMetadata
@@ -197,9 +238,12 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
-				InvariantType:  issue.InvariantType,
-				Reason:         issue.Reason,
-				ChildWfTimeout: &metadata,
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeout.TimeoutIssuesMetadata{
+					ChildWfTimeout: &metadata,
+				},
 			})
 		case timeout.TimeoutTypeDecision.String():
 			var metadata timeout.DecisionTimeoutMetadata
@@ -208,9 +252,12 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 				return nil, err
 			}
 			result = append(result, &timeoutIssuesResult{
-				InvariantType:   issue.InvariantType,
-				Reason:          issue.Reason,
-				DecisionTimeout: &metadata,
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata: &timeout.TimeoutIssuesMetadata{
+					DecisionTimeout: &metadata,
+				},
 			})
 		}
 	}
@@ -220,42 +267,96 @@ func retrieveTimeoutIssues(issues []invariant.InvariantCheckResult) ([]*timeoutI
 func retrieveTimeoutRootCause(rootCause []invariant.InvariantRootCauseResult) ([]*timeoutRootCauseResult, error) {
 	result := make([]*timeoutRootCauseResult, 0)
 	for _, rc := range rootCause {
-		switch rc.RootCause {
-		case invariant.RootCauseTypePollersStatus, invariant.RootCauseTypeMissingPollers:
+		if rootCausePollersRelated(rc.RootCause) {
 			var metadata timeout.PollersMetadata
 			err := json.Unmarshal(rc.Metadata, &metadata)
 			if err != nil {
 				return nil, err
 			}
 			result = append(result, &timeoutRootCauseResult{
-				RootCauseType:   rc.RootCause.String(),
-				PollersMetadata: &metadata,
+				IssueID:       rc.IssueID,
+				RootCauseType: rc.RootCause.String(),
+				Metadata: &timeout.TimeoutRootcauseMetadata{
+					PollersMetadata: &metadata,
+				},
 			})
-		case invariant.RootCauseTypeHeartBeatingNotEnabled, invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat:
+		} else if rootCauseHeartBeatRelated(rc.RootCause) {
 			var metadata timeout.HeartbeatingMetadata
 			err := json.Unmarshal(rc.Metadata, &metadata)
 			if err != nil {
 				return nil, err
 			}
 			result = append(result, &timeoutRootCauseResult{
-				RootCauseType:        rc.RootCause.String(),
-				HeartBeatingMetadata: &metadata,
+				IssueID:       rc.IssueID,
+				RootCauseType: rc.RootCause.String(),
+				Metadata: &timeout.TimeoutRootcauseMetadata{
+					HeartBeatingMetadata: &metadata,
+				},
+			})
+		}
+	}
+
+	return result, nil
+}
+
+func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failureIssuesResult, error) {
+	result := make([]*failureIssuesResult, 0)
+	for _, issue := range issues {
+		if issue.InvariantType == failure.ActivityFailed.String() || issue.InvariantType == failure.WorkflowFailed.String() || issue.InvariantType == failure.DecisionCausedFailure.String() {
+			var data failure.FailureIssuesMetadata
+			err := json.Unmarshal(issue.Metadata, &data)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &failureIssuesResult{
+				IssueID:       issue.IssueID,
+				InvariantType: issue.InvariantType,
+				Reason:        issue.Reason,
+				Metadata:      &data,
 			})
 		}
 	}
 	return result, nil
 }
 
-func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failuresIssuesResult, error) {
-	result := make([]*failuresIssuesResult, 0)
+func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) ([]*failureRootCauseResult, error) {
+	result := make([]*failureRootCauseResult, 0)
+	for _, rc := range rootCause {
+		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue || rc.RootCause == invariant.RootCauseTypeServiceSidePanic || rc.RootCause == invariant.RootCauseTypeServiceSideCustomError {
+			result = append(result, &failureRootCauseResult{
+				IssueID:       rc.IssueID,
+				RootCauseType: rc.RootCause.String(),
+			})
+		}
+		if rc.RootCause == invariant.RootCauseTypeBlobSizeLimit {
+			var metadata failure.FailureRootcauseMetadata
+			err := json.Unmarshal(rc.Metadata, &metadata)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &failureRootCauseResult{
+				IssueID:       rc.IssueID,
+				RootCauseType: rc.RootCause.String(),
+				Metadata: &failure.FailureRootcauseMetadata{
+					BlobSizeMetadata: metadata.BlobSizeMetadata,
+				},
+			})
+		}
+	}
+	return result, nil
+}
+
+func retrieveRetryIssues(issues []invariant.InvariantCheckResult) ([]*retryIssuesResult, error) {
+	result := make([]*retryIssuesResult, 0)
 	for _, issue := range issues {
-		if issue.InvariantType == failure.ActivityFailed.String() || issue.InvariantType == failure.WorkflowFailed.String() {
-			var data failure.FailureMetadata
+		if issueRetryRelated(issue) {
+			var data retry.RetryMetadata
 			err := json.Unmarshal(issue.Metadata, &data)
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, &failuresIssuesResult{
+			result = append(result, &retryIssuesResult{
+				IssueID:       issue.IssueID,
 				InvariantType: issue.InvariantType,
 				Reason:        issue.Reason,
 				Metadata:      data,
@@ -265,12 +366,32 @@ func retrieveFailureIssues(issues []invariant.InvariantCheckResult) ([]*failures
 	return result, nil
 }
 
-func retrieveFailureRootCause(rootCause []invariant.InvariantRootCauseResult) []string {
-	result := make([]string, 0)
-	for _, rc := range rootCause {
-		if rc.RootCause == invariant.RootCauseTypeServiceSideIssue {
-			result = append(result, rc.RootCause.String())
+func rootCauseHeartBeatRelated(rootCause invariant.RootCause) bool {
+	for _, rc := range []invariant.RootCause{invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
+		invariant.RootCauseTypeHeartBeatingNotEnabledWithRetryPolicy,
+		invariant.RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy,
+		invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat} {
+		if rc == rootCause {
+			return true
 		}
 	}
-	return result
+	return false
+}
+
+func rootCausePollersRelated(rootCause invariant.RootCause) bool {
+	for _, rc := range []invariant.RootCause{invariant.RootCauseTypePollersStatus, invariant.RootCauseTypeMissingPollers} {
+		if rc == rootCause {
+			return true
+		}
+	}
+	return false
+}
+
+func issueRetryRelated(issue invariant.InvariantCheckResult) bool {
+	for _, i := range []string{retry.WorkflowRetryIssue.String(), retry.ActivityRetryIssue.String(), retry.ActivityHeartbeatIssue.String()} {
+		if issue.InvariantType == i {
+			return true
+		}
+	}
+	return false
 }

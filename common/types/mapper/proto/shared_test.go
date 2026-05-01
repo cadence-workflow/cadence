@@ -441,3 +441,274 @@ func TestAny(t *testing.T) {
 		assert.Equal(t, orig, &outOrig, "final round-tripped Any-contained data should be identical to the original object")
 	})
 }
+
+func TestFromCrossClusterTaskResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterTaskResponse, ToCrossClusterTaskResponse,
+		testutils.WithCustomFuncs(
+			CrossClusterTaskResponseFuzzer,
+			testutils.CrossClusterTaskTypeFuzzer,
+			testutils.CrossClusterTaskFailedCauseFuzzer,
+		),
+	)
+}
+
+// CrossClusterTaskResponseFuzzer ensures only one attribute field is set based on TaskType (oneof constraint)
+func CrossClusterTaskResponseFuzzer(r *types.CrossClusterTaskResponse, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+
+	// Ensure TaskType is set to a valid value (0-4) using the enum fuzzer
+	if r.TaskType == nil {
+		var taskType types.CrossClusterTaskType
+		testutils.CrossClusterTaskTypeFuzzer(&taskType, c)
+		r.TaskType = &taskType
+	} else {
+		testutils.CrossClusterTaskTypeFuzzer(r.TaskType, c)
+	}
+
+	// Ensure FailedCause is valid if set (0-5) using the enum fuzzer
+	if r.FailedCause != nil {
+		testutils.CrossClusterTaskFailedCauseFuzzer(r.FailedCause, c)
+	}
+
+	// Based on TaskType, clear all attributes except the matching one
+	switch *r.TaskType {
+	case 0: // StartChildExecution
+		r.CancelExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 1: // CancelExecution
+		r.StartChildExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 2: // SignalExecution
+		r.StartChildExecutionAttributes = nil
+		r.CancelExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 3: // RecordChildWorkflowExecutionComplete
+		r.StartChildExecutionAttributes = nil
+		r.CancelExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.ApplyParentClosePolicyAttributes = nil
+	case 4: // ApplyParentClosePolicy
+		r.StartChildExecutionAttributes = nil
+		r.CancelExecutionAttributes = nil
+		r.SignalExecutionAttributes = nil
+		r.RecordChildWorkflowExecutionCompleteAttributes = nil
+	}
+}
+
+func TestHostInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHostInfo, ToHostInfo)
+}
+
+func TestMembershipInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMembershipInfo, ToMembershipInfo)
+}
+
+func TestDomainCacheInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromDomainCacheInfo, ToDomainCacheInfo)
+}
+
+func TestRingInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromRingInfo, ToRingInfo)
+}
+
+func TestVersionHistoriesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromVersionHistories, ToVersionHistories)
+}
+
+func TestVersionHistoryFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromVersionHistory, ToVersionHistory)
+}
+
+func TestVersionHistoryItemFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromVersionHistoryItem, ToVersionHistoryItem)
+}
+
+func TestPersistenceSettingFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPersistenceSetting, ToPersistenceSetting)
+}
+
+func TestPersistenceFeatureFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPersistenceFeature, ToPersistenceFeature)
+}
+
+func TestPersistenceInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromPersistenceInfo, ToPersistenceInfo)
+}
+
+func TestCrossClusterTaskTypeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterTaskType, ToCrossClusterTaskType,
+		testutils.WithCustomFuncs(testutils.CrossClusterTaskTypeFuzzer),
+	)
+}
+
+func TestGetTaskFailedCauseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromGetTaskFailedCause, ToGetTaskFailedCause,
+		testutils.WithCustomFuncs(testutils.GetTaskFailedCauseFuzzer),
+	)
+}
+
+func TestApplyParentClosePolicyStatusFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromApplyParentClosePolicyStatus, ToApplyParentClosePolicyStatus,
+		testutils.WithCustomFuncs(testutils.CrossClusterTaskFailedCauseFuzzer),
+	)
+}
+
+func TestDomainTaskAttributesFuzz(t *testing.T) {
+	// Info, Config, and ReplicationConfig are built into the 'Domain' field.
+	// This mapping is tested in TestDescribeDomainResponseDomainFuzz
+	testutils.RunMapperFuzzTest(t, FromDomainTaskAttributes, ToDomainTaskAttributes,
+		testutils.WithCustomFuncs(testutils.DomainOperationFuzzer, testutils.DomainStatusFuzzer),
+		testutils.WithExcludedFields("Info", "Config", "ReplicationConfig"),
+	)
+}
+
+func TestFailoverMarkerAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkerAttributes, ToFailoverMarkerAttributes)
+}
+
+func TestFailoverMarkerTokenFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverMarkerToken, ToFailoverMarkerToken)
+}
+
+func TestHistoryTaskV2AttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryTaskV2Attributes, ToHistoryTaskV2Attributes,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+	)
+}
+
+func TestSyncActivityTaskAttributesFuzz(t *testing.T) {
+	// [BUG] FailureDetails is not round-trip compatible
+	testutils.RunMapperFuzzTest(t, FromSyncActivityTaskAttributes, ToSyncActivityTaskAttributes,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithExcludedFields("LastFailureDetails"),
+	)
+}
+
+func TestSyncShardStatusFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromSyncShardStatus, ToSyncShardStatus)
+}
+
+func TestSyncShardStatusTaskAttributesFuzz(t *testing.T) {
+	// [BUG] ShardID gets truncated (int64 -> int32 issue)
+	testutils.RunMapperFuzzTest(t, FromSyncShardStatusTaskAttributes, ToSyncShardStatusTaskAttributes,
+		testutils.WithExcludedFields("ShardID"),
+	)
+}
+
+func TestReplicationMessagesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationMessages, ToReplicationMessages,
+		testutils.WithCustomFuncs(testutils.ReplicationTaskTypeFuzzer, testutils.DomainOperationFuzzer),
+		testutils.WithExcludedFields("ReplicationTasks"), // Tested separately in TestReplicationTaskFuzz
+	)
+}
+
+func TestReplicationTaskInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationTaskInfo, ToReplicationTaskInfo)
+}
+
+func TestReplicationTokenFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromReplicationToken, ToReplicationToken)
+}
+
+func TestCrossClusterTaskInfoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterTaskInfo, ToCrossClusterTaskInfo,
+		testutils.WithCustomFuncs(
+			testutils.CrossClusterTaskTypeFuzzer,
+			testutils.CrossClusterTaskFailedCauseFuzzer,
+		),
+	)
+}
+
+func TestCrossClusterStartChildExecutionRequestAttributesFuzz(t *testing.T) {
+	// [BUG] TargetRunID is not round-trip compatible, when it is set to an empty string, it becomes nil
+	testutils.RunMapperFuzzTest(t, FromCrossClusterStartChildExecutionRequestAttributes, ToCrossClusterStartChildExecutionRequestAttributes,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithExcludedFields("InitiatedEventAttributes", "TargetRunID"), // InitiatedEventAttributes is tested in FromStartChildWorkflowExecutionInitiatedEventAttributesFuzz
+	)
+}
+
+func TestCrossClusterStartChildExecutionResponseAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterStartChildExecutionResponseAttributes, ToCrossClusterStartChildExecutionResponseAttributes)
+}
+
+func TestCrossClusterCancelExecutionRequestAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterCancelExecutionRequestAttributes, ToCrossClusterCancelExecutionRequestAttributes)
+}
+
+func TestCrossClusterCancelExecutionResponseAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterCancelExecutionResponseAttributes, ToCrossClusterCancelExecutionResponseAttributes)
+}
+
+func TestCrossClusterSignalExecutionRequestAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterSignalExecutionRequestAttributes, ToCrossClusterSignalExecutionRequestAttributes)
+}
+
+func TestCrossClusterSignalExecutionResponseAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterSignalExecutionResponseAttributes, ToCrossClusterSignalExecutionResponseAttributes)
+}
+
+func TestCrossClusterRecordChildWorkflowExecutionCompleteRequestAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes, ToCrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithExcludedFields("CompletionEvent"), // CompletionEvent uses FromHistoryEvent which is tested in TestHistoryEventFuzz
+	)
+}
+
+func TestCrossClusterRecordChildWorkflowExecutionCompleteResponseAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes, ToCrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes)
+}
+
+func TestCrossClusterApplyParentClosePolicyResponseAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromCrossClusterApplyParentClosePolicyResponseAttributes, ToCrossClusterApplyParentClosePolicyResponseAttributes,
+		testutils.WithCustomFuncs(testutils.CrossClusterTaskFailedCauseFuzzer),
+	)
+}
+
+func TestApplyParentClosePolicyAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromApplyParentClosePolicyAttributes, ToApplyParentClosePolicyAttributes)
+}
+
+func TestApplyParentClosePolicyResultFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromApplyParentClosePolicyResult, ToApplyParentClosePolicyResult,
+		testutils.WithCustomFuncs(testutils.CrossClusterTaskFailedCauseFuzzer),
+	)
+}
+
+func TestCrossClusterTaskRequestFuzz(t *testing.T) {
+	// This type has a oneof constraint, which doesn't lend itself well to fuzzing
+	// All child attributes are tested separately, so we exclude them here and test only TaskInfo
+	testutils.RunMapperFuzzTest(t, FromCrossClusterTaskRequest, ToCrossClusterTaskRequest,
+		testutils.WithCustomFuncs(
+			testutils.CrossClusterTaskTypeFuzzer,
+		),
+		testutils.WithExcludedFields(
+			"StartChildExecutionAttributes",                  // Tested in TestCrossClusterStartChildExecutionRequestAttributesFuzz
+			"CancelExecutionAttributes",                      // Tested in TestCrossClusterCancelExecutionRequestAttributesFuzz
+			"SignalExecutionAttributes",                      // Tested in TestCrossClusterSignalExecutionRequestAttributesFuzz
+			"RecordChildWorkflowExecutionCompleteAttributes", // Tested in TestCrossClusterRecordChildWorkflowExecutionCompleteRequestAttributesFuzz
+			"ApplyParentClosePolicyAttributes",               // Tested in TestCrossClusterApplyParentClosePolicyRequestAttributesFuzz
+		),
+	)
+}
+
+func TestReplicationTaskFuzz(t *testing.T) {
+	// This type has a oneof constraint, which doesn't lend itself well to fuzzing
+	// All child attributes are tested separately, so we exclude them here and test only TaskInfo
+	testutils.RunMapperFuzzTest(t, FromReplicationTask, ToReplicationTask,
+		testutils.WithCustomFuncs(
+			testutils.ReplicationTaskTypeFuzzer,
+		),
+		testutils.WithExcludedFields(
+			"DomainTaskAttributes",          // Tested in TestDomainTaskAttributesFuzz
+			"SyncShardStatusTaskAttributes", // Tested in TestSyncShardStatusTaskAttributesFuzz
+			"SyncActivityTaskAttributes",    // Tested in TestSyncActivityTaskAttributesFuzz
+			"HistoryTaskV2Attributes",       // Tested in TestHistoryTaskV2AttributesFuzz
+			"FailoverMarkerAttributes",      // Tested in TestFailoverMarkerAttributesFuzz
+		),
+	)
+}

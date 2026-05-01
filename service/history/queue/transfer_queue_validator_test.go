@@ -24,12 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
@@ -77,7 +76,7 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 		},
 		config.NewForTest(),
 	)
-	s.mockLogger = &log.MockLogger{}
+	s.mockLogger = log.NewMockLogger(gomock.NewController(s.T()))
 	s.mockMetricScope = &mocks.Scope{}
 
 	s.processor = &transferQueueProcessorBase{
@@ -99,7 +98,7 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 	}
 	s.validator = newTransferQueueValidator(
 		s.processor,
-		dynamicconfig.GetDurationPropertyFn(testValidationInterval),
+		dynamicproperties.GetDurationPropertyFn(testValidationInterval),
 		s.mockLogger,
 		s.mockMetricScope,
 	)
@@ -107,7 +106,6 @@ func (s *transferQueueValidatorSuite) SetupTest() {
 
 func (s *transferQueueValidatorSuite) TearDownTest() {
 	s.controller.Finish()
-	s.mockLogger.AssertExpectations(s.T())
 	s.mockMetricScope.AssertExpectations(s.T())
 }
 
@@ -151,7 +149,7 @@ func (s *transferQueueValidatorSuite) TestAddTasks_TaskDropped() {
 	}
 
 	numDroppedTasks := expectedPendingTasksLen + len(tasks) - defaultMaxPendingTasksSize
-	s.mockLogger.On("Warn", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Times(1)
+	s.mockLogger.EXPECT().Warn(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	s.mockMetricScope.On("AddCounter", metrics.QueueValidatorDropTaskCounter, int64(numDroppedTasks)).Times(1)
 
 	s.validator.addTasks(&hcommon.NotifyTaskInfo{ExecutionInfo: executionInfo, Tasks: tasks, PersistenceError: false})
@@ -170,10 +168,12 @@ func (s *transferQueueValidatorSuite) TestAckTasks_NoTaskLost() {
 
 	loadedTasks := make(map[task.Key]task.Task, len(pendingTasks))
 	for _, pendingTask := range pendingTasks[:len(pendingTasks)-1] {
-		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
+		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewHistoryTask(
 			s.mockShard,
-			&persistence.TransferTaskInfo{
-				TaskID: pendingTask.GetTaskID(),
+			&persistence.DecisionTask{
+				TaskData: persistence.TaskData{
+					TaskID: pendingTask.GetTaskID(),
+				},
 			},
 			task.QueueTypeActiveTransfer,
 			nil, nil, nil, nil, nil, nil,
@@ -201,10 +201,12 @@ func (s *transferQueueValidatorSuite) TestAckTasks_TaskLost() {
 
 	loadedTasks := make(map[task.Key]task.Task, len(pendingTasks))
 	for _, pendingTask := range pendingTasks[1:] {
-		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewTransferTask(
+		loadedTasks[newTransferTaskKey(pendingTask.GetTaskID())] = task.NewHistoryTask(
 			s.mockShard,
-			&persistence.TransferTaskInfo{
-				TaskID: pendingTask.GetTaskID(),
+			&persistence.DecisionTask{
+				TaskData: persistence.TaskData{
+					TaskID: pendingTask.GetTaskID(),
+				},
 			},
 			task.QueueTypeActiveTransfer,
 			nil, nil, nil, nil, nil, nil,
@@ -212,7 +214,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_TaskLost() {
 	}
 
 	time.Sleep(testValidationInterval)
-	s.mockLogger.On("Error", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Times(1)
+	s.mockLogger.EXPECT().Error(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1)
 	s.mockMetricScope.On("IncCounter", metrics.QueueValidatorValidationCounter).Times(1)
 	s.mockMetricScope.On("IncCounter", metrics.QueueValidatorLostTaskCounter).Times(1)
 
@@ -232,7 +234,7 @@ func (s *transferQueueValidatorSuite) TestAckTasks_LostRequestNotContinuous() {
 	maxReadLevel = newTransferTaskKey(15)
 	s.validator.ackTasks(defaultProcessingQueueLevel, readLevel, maxReadLevel, nil)
 
-	s.mockLogger.On("Error", mock.Anything, mock.Anything).Times(1)
+	s.mockLogger.EXPECT().Error(gomock.Any(), gomock.Any()).Times(1)
 	s.mockMetricScope.On("IncCounter", metrics.QueueValidatorInvalidLoadCounter).Times(1)
 
 	readLevel = newTransferTaskKey(16)

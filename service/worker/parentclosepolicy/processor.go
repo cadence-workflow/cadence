@@ -29,8 +29,8 @@ import (
 	"go.uber.org/cadence/worker"
 
 	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -89,6 +89,6 @@ func (s *Processor) Start() error {
 		BackgroundActivityContext: ctx,
 		Tracer:                    opentracing.GlobalTracer(),
 	}
-	processorWorker := worker.New(s.svcClient, common.SystemLocalDomainName, processorTaskListName, workerOpts)
+	processorWorker := worker.New(s.svcClient, constants.SystemLocalDomainName, processorTaskListName, workerOpts)
 	return processorWorker.Start()
 }

@@ -23,14 +23,22 @@ package engineimpl
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/collection"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
+	persistenceutils "github.com/uber/cadence/common/persistence/persistence-utils"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/execution"
+)
+
+const (
+	DefaultPageSize = 100
 )
 
 func (e *historyEngineImpl) ResetWorkflowExecution(
@@ -65,7 +73,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 			Message: "Cannot reset workflow without a decision task schedule.",
 		}
 	}
-	if request.GetDecisionFinishEventID() <= common.FirstEventID ||
+	if request.GetDecisionFinishEventID() <= constants.FirstEventID ||
 		request.GetDecisionFinishEventID() > baseMutableState.GetNextEventID() {
 		return nil, &types.BadRequestError{
 			Message: "Decision finish ID must be > 1 && <= workflow next event ID.",
@@ -80,6 +88,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		DomainID:   domainID,
 		WorkflowID: request.WorkflowExecution.GetWorkflowID(),
 		DomainName: domainName,
+		ShardID:    common.Ptr(e.shard.GetShardID()),
 	})
 	if err != nil {
 		return nil, err
@@ -145,6 +154,13 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 		baseCurrentBranchToken = baseCurrentVersionHistory.GetBranchToken()
 	}
 
+	// for reset workflow execution requests, the caller provides the decision finish event ID.
+	// must validate the event ID to ensure it is a valid reset point
+	err = e.validateResetPointForResetWorkflowExecutionRequest(ctx, request, baseCurrentBranchToken, domainID)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := e.workflowResetter.ResetWorkflow(
 		ctx,
 		domainID,
@@ -162,6 +178,7 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 			currentContext,
 			currentMutableState,
 			currentReleaseFn,
+			e.logger,
 		),
 		request.GetReason(),
 		nil,
@@ -181,4 +198,99 @@ func (e *historyEngineImpl) ResetWorkflowExecution(
 	return &types.ResetWorkflowExecutionResponse{
 		RunID: resetRunID,
 	}, nil
+}
+
+func (e *historyEngineImpl) validateResetPointForResetWorkflowExecutionRequest(
+	ctx context.Context,
+	request *types.ResetWorkflowExecutionRequest,
+	baseCurrentBranchToken []byte,
+	domainID string,
+) error {
+	iter := collection.NewPagingIterator(e.getPaginationFn(
+		ctx,
+		constants.FirstEventID,
+		request.GetDecisionFinishEventID()+1,
+		baseCurrentBranchToken,
+		domainID,
+	))
+
+	if !iter.HasNext() {
+		return fmt.Errorf("workflow has corrupted or missing history")
+	}
+
+	var events []*types.HistoryEvent
+
+	for iter.HasNext() {
+		batch, err := iter.Next()
+		if err != nil {
+			return err
+		}
+
+		events = batch.(*types.History).Events
+
+		// get the batch of events that contains the reset event and exit the loop
+		if events[len(events)-1].ID >= request.GetDecisionFinishEventID() {
+			break
+		}
+	}
+
+	return checkResetEventType(events, request.GetDecisionFinishEventID())
+}
+
+func (e *historyEngineImpl) getPaginationFn(
+	ctx context.Context,
+	firstEventID int64,
+	nextEventID int64,
+	branchToken []byte,
+	domainID string,
+) collection.PaginationFn {
+
+	return func(paginationToken []byte) ([]interface{}, []byte, error) {
+		_, historyBatches, token, _, err := persistenceutils.PaginateHistory(
+			ctx,
+			e.historyV2Mgr,
+			true,
+			branchToken,
+			firstEventID,
+			nextEventID,
+			paginationToken,
+			DefaultPageSize,
+			common.Ptr(e.shard.GetShardID()),
+			domainID,
+			e.shard.GetDomainCache(),
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var paginateItems []interface{}
+		for _, history := range historyBatches {
+			paginateItems = append(paginateItems, history)
+		}
+		return paginateItems, token, nil
+	}
+}
+
+// checkResetEventType checks the type of the reset event and only allows specific types to be resettable
+func checkResetEventType(events []*types.HistoryEvent, resetEventID int64) error {
+	for _, event := range events {
+		if event.ID == resetEventID {
+			switch *event.EventType {
+			case types.EventTypeDecisionTaskStarted:
+				return nil
+			case types.EventTypeDecisionTaskTimedOut:
+				return nil
+			case types.EventTypeDecisionTaskFailed:
+				return nil
+			case types.EventTypeDecisionTaskCompleted:
+				return nil
+			default:
+				return &types.BadRequestError{
+					Message: fmt.Sprintf("reset event must be of type DecisionTaskStarted, DecisionTaskTimedOut, DecisionTaskFailed, or DecisionTaskCompleted. Attempting to reset on event type: %v", event.EventType.String()),
+				}
+			}
+		}
+	}
+
+	return fmt.Errorf("reset event ID %v not found in the history events", resetEventID)
 }

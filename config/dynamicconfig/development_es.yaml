@@ -1,9 +1,9 @@
 frontend.enableClientVersionCheck:
   - value: true
-system.advancedVisibilityWritingMode:
-  - value: "on"
-system.enableReadVisibilityFromES:
-  - value: true
+system.writeVisibilityStoreName:
+  - value: "es"
+system.readVisibilityStoreName:
+  - value: "es"
 frontend.validSearchAttributes:
   - value:
       DomainID: 1
@@ -16,8 +16,10 @@ frontend.validSearchAttributes:
       CloseStatus: 2
       HistoryLength: 2
       TaskList: 1
-      IsCron: 1
+      IsCron: 4
       NumClusters: 2
+      ClusterAttributeScope: 1
+      ClusterAttributeName: 1
       UpdateTime: 2
       CustomStringField: 0
       CustomKeywordField: 1
@@ -38,9 +40,14 @@ frontend.validSearchAttributes:
       BinaryChecksums: 1
       Passed: 4
       ShardID: 2
+      ExecutionStatus: 2
+      CronSchedule: 1
+      ScheduledExecutionTime: 2
 system.minRetentionDays:
     - value: 0
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}
-
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
+  constraints: {}

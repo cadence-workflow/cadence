@@ -36,11 +36,14 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/types"
 )
+
+var FixedTime = time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)
 
 // fakeSession is fake implementation of gocql.Session
 type fakeSession struct {
@@ -942,11 +945,11 @@ func TestInsertOrUpsertWorkflowRequestRow(t *testing.T) {
 			},
 			wantErr: false,
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id) ` +
-					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, 1000, 25bd1013-0e79-4c45-8e55-08bb45886896) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, created_time) ` +
+					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, 1000, 25bd1013-0e79-4c45-8e55-08bb45886896, 2025-01-06T15:00:00Z) ` +
 					`IF NOT EXISTS USING TTL 10800`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id) ` +
-					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, -100, 25bd1013-0e79-4c45-8e55-08bb45886896) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, created_time) ` +
+					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, -100, 25bd1013-0e79-4c45-8e55-08bb45886896, 2025-01-06T15:00:00Z) ` +
 					`IF NOT EXISTS USING TTL 10800`,
 			},
 		},
@@ -967,11 +970,11 @@ func TestInsertOrUpsertWorkflowRequestRow(t *testing.T) {
 			},
 			wantErr: false,
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id) ` +
-					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, 1000, 25bd1013-0e79-4c45-8e55-08bb45886896) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, last_updated_time) ` +
+					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, 1000, 25bd1013-0e79-4c45-8e55-08bb45886896, 2025-01-06T15:00:00Z) ` +
 					`USING TTL 10800`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id) ` +
-					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, -100, 25bd1013-0e79-4c45-8e55-08bb45886896) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, last_updated_time) ` +
+					`VALUES(1, 7, c09537fd-67ce-4b08-a817-eb8f12ad3a91, test, 9ab1d25d-8620-440a-b3f1-d3167e08c769, 946684800000, -100, 25bd1013-0e79-4c45-8e55-08bb45886896, 2025-01-06T15:00:00Z) ` +
 					`USING TTL 10800`,
 			},
 		},
@@ -992,7 +995,7 @@ func TestInsertOrUpsertWorkflowRequestRow(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			batch := &fakeBatch{}
-			err := insertOrUpsertWorkflowRequestRow(batch, tc.request)
+			err := insertOrUpsertWorkflowRequestRow(batch, tc.request, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -1019,7 +1022,7 @@ func TestCreateTimerTasks(t *testing.T) {
 		shardID    int
 		domainID   string
 		workflowID string
-		timerTasks []*nosqlplugin.TimerTask
+		timerTasks []*nosqlplugin.HistoryMigrationTask
 		// expectations
 		wantQueries []string
 	}{
@@ -1028,37 +1031,51 @@ func TestCreateTimerTasks(t *testing.T) {
 			shardID:    1000,
 			domainID:   "domain_xyz",
 			workflowID: "workflow_xyz",
-			timerTasks: []*nosqlplugin.TimerTask{
+			timerTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					RunID:               "rundid_1",
-					TaskID:              1,
-					TaskType:            1,
-					TimeoutType:         1,
-					EventID:             10,
-					ScheduleAttempt:     0,
-					Version:             0,
-					VisibilityTimestamp: ts,
+					Timer: &nosqlplugin.TimerTask{
+						RunID:               "rundid_1",
+						TaskID:              1,
+						TaskType:            1,
+						TimeoutType:         1,
+						EventID:             10,
+						ScheduleAttempt:     0,
+						Version:             0,
+						VisibilityTimestamp: ts,
+						TaskList:            "tasklist_1",
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("timer1"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
 				},
 				{
-					RunID:               "rundid_1",
-					TaskID:              2,
-					TaskType:            1,
-					TimeoutType:         1,
-					EventID:             11,
-					ScheduleAttempt:     0,
-					Version:             0,
-					VisibilityTimestamp: ts.Add(time.Minute),
+					Timer: &nosqlplugin.TimerTask{
+						RunID:               "rundid_1",
+						TaskID:              2,
+						TaskType:            1,
+						TimeoutType:         1,
+						EventID:             11,
+						ScheduleAttempt:     0,
+						Version:             0,
+						VisibilityTimestamp: ts.Add(time.Minute),
+						TaskList:            "tasklist_2",
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("timer2"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 3, 10000000-4000-f000-f000-000000000000, 20000000-4000-f000-f000-000000000000, 30000000-4000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418921000, task_id: 1, type: 1, timeout_type: 1, event_id: 10, schedule_attempt: 0, version: 0}, ` +
-					`1702418921000, 1)`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, visibility_ts, task_id) ` +
+					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418921000, task_id: 1, type: 1, timeout_type: 1, event_id: 10, schedule_attempt: 0, version: 0, task_list: tasklist_1}, ` +
+					`[116 105 109 101 114 49], thriftrw, 1702418921000, 1, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, timer, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 3, 10000000-4000-f000-f000-000000000000, 20000000-4000-f000-f000-000000000000, 30000000-4000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418981000, task_id: 2, type: 1, timeout_type: 1, event_id: 11, schedule_attempt: 0, version: 0}, ` +
-					`1702418981000, 2)`,
+					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 1702418981000, task_id: 2, type: 1, timeout_type: 1, event_id: 11, schedule_attempt: 0, version: 0, task_list: tasklist_2}, ` +
+					`[116 105 109 101 114 50], thriftrw, 1702418981000, 2, 2025-01-06T15:00:00Z)`,
 			},
 		},
 	}
@@ -1066,7 +1083,7 @@ func TestCreateTimerTasks(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
-			err := createTimerTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.timerTasks)
+			err := createTimerTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.timerTasks, FixedTime)
 			if err != nil {
 				t.Fatalf("createTimerTasks failed: %v", err)
 			}
@@ -1089,7 +1106,7 @@ func TestReplicationTasks(t *testing.T) {
 		shardID    int
 		domainID   string
 		workflowID string
-		replTasks  []*nosqlplugin.ReplicationTask
+		replTasks  []*nosqlplugin.HistoryMigrationTask
 		// expectations
 		wantQueries []string
 	}{
@@ -1098,41 +1115,53 @@ func TestReplicationTasks(t *testing.T) {
 			shardID:    1000,
 			domainID:   "domain_xyz",
 			workflowID: "workflow_xyz",
-			replTasks: []*nosqlplugin.ReplicationTask{
+			replTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					RunID:             "rundid_1",
-					TaskID:            644,
-					TaskType:          0,
-					FirstEventID:      5,
-					NextEventID:       8,
-					Version:           0,
-					ScheduledID:       common.EmptyEventID,
-					NewRunBranchToken: []byte{'a', 'b', 'c'},
-					CreationTime:      ts,
+					Replication: &nosqlplugin.ReplicationTask{
+						RunID:             "rundid_1",
+						TaskID:            644,
+						TaskType:          0,
+						FirstEventID:      5,
+						NextEventID:       8,
+						Version:           0,
+						ScheduledID:       constants.EmptyEventID,
+						NewRunBranchToken: []byte{'a', 'b', 'c'},
+						CreationTime:      ts,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("rep1"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
 				},
 				{
-					RunID:             "rundid_1",
-					TaskID:            645,
-					TaskType:          0,
-					FirstEventID:      25,
-					NextEventID:       28,
-					Version:           0,
-					ScheduledID:       common.EmptyEventID,
-					NewRunBranchToken: []byte{'a', 'b', 'c'},
-					CreationTime:      ts.Add(time.Hour),
+					Replication: &nosqlplugin.ReplicationTask{
+						RunID:             "rundid_1",
+						TaskID:            645,
+						TaskType:          0,
+						FirstEventID:      25,
+						NextEventID:       28,
+						Version:           0,
+						ScheduledID:       constants.EmptyEventID,
+						NewRunBranchToken: []byte{'a', 'b', 'c'},
+						CreationTime:      ts.Add(time.Hour),
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("rep2"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 4, 10000000-5000-f000-f000-000000000000, 20000000-5000-f000-f000-000000000000, 30000000-5000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, task_id: 644, type: 0, ` +
 					`first_event_id: 5,next_event_id: 8,version: 0,scheduled_id: -23, event_store_version: 2, branch_token: [], ` +
-					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702418921000000000 }, 946684800000, 644)`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, visibility_ts, task_id) ` +
+					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702418921000000000 }, [114 101 112 49], thriftrw, 946684800000, 644, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, replication, data, data_encoding, visibility_ts, task_id, created_time) ` +
 					`VALUES(1000, 4, 10000000-5000-f000-f000-000000000000, 20000000-5000-f000-f000-000000000000, 30000000-5000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, task_id: 645, type: 0, ` +
 					`first_event_id: 25,next_event_id: 28,version: 0,scheduled_id: -23, event_store_version: 2, branch_token: [], ` +
-					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702422521000000000 }, 946684800000, 645)`,
+					`new_run_event_store_version: 2, new_run_branch_token: [97 98 99], created_time: 1702422521000000000 }, [114 101 112 50], thriftrw, 946684800000, 645, 2025-01-06T15:00:00Z)`,
 			},
 		},
 	}
@@ -1140,7 +1169,7 @@ func TestReplicationTasks(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
-			createReplicationTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.replTasks)
+			createReplicationTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.replTasks, FixedTime)
 			if diff := cmp.Diff(tc.wantQueries, batch.queries); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
 			}
@@ -1159,7 +1188,7 @@ func TestTransferTasks(t *testing.T) {
 		shardID       int
 		domainID      string
 		workflowID    string
-		transferTasks []*nosqlplugin.TransferTask
+		transferTasks []*nosqlplugin.HistoryMigrationTask
 		// expectations
 		wantQueries []string
 	}{
@@ -1168,87 +1197,9 @@ func TestTransferTasks(t *testing.T) {
 			shardID:    1000,
 			domainID:   "domain_xyz",
 			workflowID: "workflow_xyz",
-			transferTasks: []*nosqlplugin.TransferTask{
+			transferTasks: []*nosqlplugin.HistoryMigrationTask{
 				{
-					RunID:                   "rundid_1",
-					TaskID:                  355,
-					TaskType:                0,
-					Version:                 1,
-					VisibilityTimestamp:     ts,
-					TargetDomainID:          "e2bf2c8f-0ddf-4451-8840-27cfe8addd62",
-					TargetWorkflowID:        persistence.TransferTaskTransferTargetWorkflowID,
-					TargetRunID:             persistence.TransferTaskTransferTargetRunID,
-					TargetChildWorkflowOnly: true,
-					TaskList:                "tasklist_1",
-					ScheduleID:              14,
-				},
-				{
-					RunID:                   "rundid_2",
-					TaskID:                  220,
-					TaskType:                0,
-					Version:                 1,
-					VisibilityTimestamp:     ts.Add(time.Minute),
-					TargetDomainID:          "e2bf2c8f-0ddf-4451-8840-27cfe8addd62",
-					TargetWorkflowID:        persistence.TransferTaskTransferTargetWorkflowID,
-					TargetRunID:             persistence.TransferTaskTransferTargetRunID,
-					TargetChildWorkflowOnly: true,
-					TaskList:                "tasklist_2",
-					ScheduleID:              3,
-				},
-			},
-			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id) ` +
-					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 2023-12-12T22:08:41Z, ` +
-					`task_id: 355, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
-					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1}, ` +
-					`946684800000, 355)`,
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, visibility_ts, task_id) ` +
-					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
-					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_2, visibility_ts: 2023-12-12T22:09:41Z, ` +
-					`task_id: 220, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
-					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1}, ` +
-					`946684800000, 220)`,
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.desc, func(t *testing.T) {
-			batch := &fakeBatch{}
-			createTransferTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.transferTasks)
-			if diff := cmp.Diff(tc.wantQueries, batch.queries); diff != "" {
-				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestCrossClusterTasks(t *testing.T) {
-	ts, err := time.Parse(time.RFC3339, "2023-12-12T22:08:41Z")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tests := []struct {
-		desc          string
-		shardID       int
-		domainID      string
-		workflowID    string
-		xClusterTasks []*nosqlplugin.CrossClusterTask
-		// expectations
-		wantQueries []string
-	}{
-		{
-			desc:       "ok",
-			shardID:    1000,
-			domainID:   "domain_xyz",
-			workflowID: "workflow_xyz",
-			xClusterTasks: []*nosqlplugin.CrossClusterTask{
-				{
-					TransferTask: nosqlplugin.TransferTask{
+					Transfer: &nosqlplugin.TransferTask{
 						RunID:                   "rundid_1",
 						TaskID:                  355,
 						TaskType:                0,
@@ -1260,17 +1211,51 @@ func TestCrossClusterTasks(t *testing.T) {
 						TargetChildWorkflowOnly: true,
 						TaskList:                "tasklist_1",
 						ScheduleID:              14,
+						OriginalTaskList:        "original_tasklist_1",
+						OriginalTaskListKind:    types.TaskListKindEphemeral,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("tr1"),
+						Encoding: constants.EncodingTypeThriftRW,
+					},
+				},
+				{
+					Transfer: &nosqlplugin.TransferTask{
+						RunID:                   "rundid_2",
+						TaskID:                  220,
+						TaskType:                0,
+						Version:                 1,
+						VisibilityTimestamp:     ts.Add(time.Minute),
+						TargetDomainID:          "e2bf2c8f-0ddf-4451-8840-27cfe8addd62",
+						TargetWorkflowID:        persistence.TransferTaskTransferTargetWorkflowID,
+						TargetRunID:             persistence.TransferTaskTransferTargetRunID,
+						TargetChildWorkflowOnly: true,
+						TaskList:                "tasklist_2",
+						ScheduleID:              3,
+						OriginalTaskList:        "original_tasklist_2",
+						OriginalTaskListKind:    types.TaskListKindEphemeral,
+					},
+					Task: &persistence.DataBlob{
+						Data:     []byte("tr2"),
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, cross_cluster, visibility_ts, task_id) ` +
-					`VALUES(1000, 6, 10000000-7000-f000-f000-000000000000, , 30000000-7000-f000-f000-000000000000, ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
+					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
 					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_1, visibility_ts: 2023-12-12T22:08:41Z, ` +
 					`task_id: 355, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
 					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
-					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1}, ` +
-					`946684800000, 355)`,
+					`target_child_workflow_only: true, task_list: tasklist_1, type: 0, schedule_id: 14, record_visibility: false, version: 1, original_task_list: original_tasklist_1, original_task_list_kind: 2}, ` +
+					`[116 114 49], thriftrw, 946684800000, 355, 2025-01-06T15:00:00Z)`,
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, transfer, data, data_encoding, visibility_ts, task_id, created_time) ` +
+					`VALUES(1000, 2, 10000000-3000-f000-f000-000000000000, 20000000-3000-f000-f000-000000000000, 30000000-3000-f000-f000-000000000000, ` +
+					`{domain_id: domain_xyz, workflow_id: workflow_xyz, run_id: rundid_2, visibility_ts: 2023-12-12T22:09:41Z, ` +
+					`task_id: 220, target_domain_id: e2bf2c8f-0ddf-4451-8840-27cfe8addd62, target_domain_ids: map[],` +
+					`target_workflow_id: 20000000-0000-f000-f000-000000000001, target_run_id: 30000000-0000-f000-f000-000000000002, ` +
+					`target_child_workflow_only: true, task_list: tasklist_2, type: 0, schedule_id: 3, record_visibility: false, version: 1, original_task_list: original_tasklist_2, original_task_list_kind: 2}, ` +
+					`[116 114 50], thriftrw, 946684800000, 220, 2025-01-06T15:00:00Z)`,
 			},
 		},
 	}
@@ -1278,7 +1263,7 @@ func TestCrossClusterTasks(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
-			createCrossClusterTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.xClusterTasks)
+			createTransferTasks(batch, tc.shardID, tc.domainID, tc.workflowID, tc.transferTasks, FixedTime)
 			if diff := cmp.Diff(tc.wantQueries, batch.queries); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
 			}
@@ -1305,7 +1290,7 @@ func TestResetSignalsRequested(t *testing.T) {
 			runID:        "runid_123",
 			signalReqIDs: []string{"signalReqID_1", "signalReqID_2"},
 			wantQueries: []string{
-				`UPDATE executions SET signal_requested = [signalReqID_1 signalReqID_2] WHERE ` +
+				`UPDATE executions SET signal_requested = [signalReqID_1 signalReqID_2] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain_123 and workflow_id = workflow_123 and ` +
 					`run_id = runid_123 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1315,7 +1300,7 @@ func TestResetSignalsRequested(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
-			err := resetSignalsRequested(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalReqIDs)
+			err := resetSignalsRequested(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalReqIDs, FixedTime)
 			if err != nil {
 				t.Fatalf("resetSignalsRequested failed: %v", err)
 			}
@@ -1348,7 +1333,7 @@ func TestUpdateSignalsRequested(t *testing.T) {
 			signalReqIDs:       []string{"signalReqID_3", "signalReqID_4"},
 			deleteSignalReqIDs: []string{},
 			wantQueries: []string{
-				`UPDATE executions SET signal_requested = signal_requested + [signalReqID_3 signalReqID_4] WHERE ` +
+				`UPDATE executions SET signal_requested = signal_requested + [signalReqID_3 signalReqID_4] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain_abc and workflow_id = workflow_abc and ` +
 					`run_id = runid_abc and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1362,7 +1347,7 @@ func TestUpdateSignalsRequested(t *testing.T) {
 			signalReqIDs:       []string{},
 			deleteSignalReqIDs: []string{"signalReqID_5", "signalReqID_6"},
 			wantQueries: []string{
-				`UPDATE executions SET signal_requested = signal_requested - [signalReqID_5 signalReqID_6] WHERE ` +
+				`UPDATE executions SET signal_requested = signal_requested - [signalReqID_5 signalReqID_6] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1001 and type = 1 and domain_id = domain_def and workflow_id = workflow_def and ` +
 					`run_id = runid_def and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1376,10 +1361,10 @@ func TestUpdateSignalsRequested(t *testing.T) {
 			signalReqIDs:       []string{"signalReqID_7"},
 			deleteSignalReqIDs: []string{"signalReqID_8"},
 			wantQueries: []string{
-				`UPDATE executions SET signal_requested = signal_requested + [signalReqID_7] WHERE ` +
+				`UPDATE executions SET signal_requested = signal_requested + [signalReqID_7] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1002 and type = 1 and domain_id = domain_ghi and workflow_id = workflow_ghi and ` +
 					`run_id = runid_ghi and visibility_ts = 946684800000 and task_id = -10 `,
-				`UPDATE executions SET signal_requested = signal_requested - [signalReqID_8] WHERE ` +
+				`UPDATE executions SET signal_requested = signal_requested - [signalReqID_8] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1002 and type = 1 and domain_id = domain_ghi and workflow_id = workflow_ghi and ` +
 					`run_id = runid_ghi and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1389,7 +1374,7 @@ func TestUpdateSignalsRequested(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
-			err := updateSignalsRequested(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalReqIDs, tc.deleteSignalReqIDs)
+			err := updateSignalsRequested(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalReqIDs, tc.deleteSignalReqIDs, FixedTime)
 			if err != nil {
 				t.Fatalf("updateSignalsRequested failed: %v", err)
 			}
@@ -1442,7 +1427,7 @@ func TestResetSignalInfos(t *testing.T) {
 				`UPDATE executions SET signal_map = map[` +
 					`1:map[control:[99 111 110 116 114 111 108 49] initiated_event_batch_id:2 initiated_id:1 input:[105 110 112 117 116 49] signal_name:signal1 signal_request_id:request1 version:1] ` +
 					`5:map[control:[99 111 110 116 114 111 108 50] initiated_event_batch_id:6 initiated_id:5 input:[105 110 112 117 116 50] signal_name:signal2 signal_request_id:request2 version:1]` +
-					`] WHERE ` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1453,7 +1438,7 @@ func TestResetSignalInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := resetSignalInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalInfos)
+			err := resetSignalInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("resetSignalInfos failed: %v", err)
 			}
@@ -1500,7 +1485,7 @@ func TestUpdateSignalInfos(t *testing.T) {
 					`version: 1, initiated_id: 1, initiated_event_batch_id: 2, signal_request_id: request1, ` +
 					`signal_name: signal1, input: [105 110 112 117 116 49], ` +
 					`control: [99 111 110 116 114 111 108 49]` +
-					`} WHERE ` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and ` +
 					`workflow_id = workflow1 and run_id = runid1 and ` +
 					`visibility_ts = 946684800000 and task_id = -10 `,
@@ -1516,7 +1501,7 @@ func TestUpdateSignalInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateSignalInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalInfos, tc.deleteInfos)
+			err := updateSignalInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.signalInfos, tc.deleteInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("updateSignalInfos failed: %v", err)
 			}
@@ -1563,7 +1548,7 @@ func TestResetRequestCancelInfos(t *testing.T) {
 				`UPDATE executions SET request_cancel_map = map[` +
 					`1:map[cancel_request_id:cancelRequest1 initiated_event_batch_id:2 initiated_id:1 version:1] ` +
 					`3:map[cancel_request_id:cancelRequest3 initiated_event_batch_id:4 initiated_id:3 version:2]` +
-					`]WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and ` +
+					`], last_updated_time = 2025-01-06T15:00:00Z WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and ` +
 					`workflow_id = workflow1 and run_id = runid1 and ` +
 					`visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1574,7 +1559,7 @@ func TestResetRequestCancelInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := resetRequestCancelInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.requestCancelInfos)
+			err := resetRequestCancelInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.requestCancelInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("resetRequestCancelInfos failed: %v", err)
 			}
@@ -1615,7 +1600,7 @@ func TestUpdateRequestCancelInfos(t *testing.T) {
 			deleteInfos: []int64{2},
 			wantQueries: []string{
 				`UPDATE executions SET request_cancel_map[ 1 ] = ` +
-					`{version: 1,initiated_id: 1, initiated_event_batch_id: 2, cancel_request_id: cancelRequest1 } ` +
+					`{version: 1,initiated_id: 1, initiated_event_batch_id: 2, cancel_request_id: cancelRequest1 } , last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and ` +
 					`workflow_id = workflow1 and run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 				`DELETE request_cancel_map[ 2 ] FROM executions WHERE ` +
@@ -1629,7 +1614,7 @@ func TestUpdateRequestCancelInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateRequestCancelInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.requestCancelInfos, tc.deleteInfos)
+			err := updateRequestCancelInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.requestCancelInfos, tc.deleteInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("updateRequestCancelInfos failed: %v", err)
 			}
@@ -1666,13 +1651,13 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					InitiatedEventBatchID: 2,
 					StartedID:             3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					StartedWorkflowID: "startedWorkflowID1",
 					StartedRunID:      "startedRunID1",
 					CreateRequestID:   "createRequestID1",
 					InitiatedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
@@ -1686,7 +1671,7 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 ` +
 					`started_event:[] started_id:3 started_run_id:startedRunID1 started_workflow_id:startedWorkflowID1 ` +
 					`version:1 workflow_type_name:workflowType1` +
-					`]]` +
+					`]], last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1704,13 +1689,13 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					InitiatedEventBatchID: 2,
 					StartedID:             3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					StartedWorkflowID: "startedWorkflowID1",
 					StartedRunID:      "", // leave empty and validate it's querying empty runid
 					CreateRequestID:   "createRequestID1",
 					InitiatedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
@@ -1724,7 +1709,7 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 ` +
 					`started_event:[] started_id:3 started_run_id:30000000-0000-f000-f000-000000000000 started_workflow_id:startedWorkflowID1 ` +
 					`version:1 workflow_type_name:workflowType1` +
-					`]]` +
+					`]], last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = 30000000-0000-f000-f000-000000000000 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1735,7 +1720,7 @@ func TestResetChildExecutionInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := resetChildExecutionInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.childExecutionInfos)
+			err := resetChildExecutionInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.childExecutionInfos, FixedTime)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("resetChildExecutionInfos() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -1775,13 +1760,13 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					InitiatedEventBatchID: 2,
 					StartedID:             3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					StartedWorkflowID: "startedWorkflowID1",
 					StartedRunID:      "startedRunID1",
 					CreateRequestID:   "createRequestID1",
 					InitiatedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 					},
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
@@ -1795,7 +1780,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					`started_id: 3, started_workflow_id: startedWorkflowID1, started_run_id: startedRunID1, ` +
 					`started_event: [], create_request_id: createRequestID1, event_data_encoding: thriftrw, ` +
 					`domain_id: domain1, domain_name: , workflow_type_name: workflowType1, parent_close_policy: 0` +
-					`} WHERE ` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 				`DELETE child_executions_map[ 2 ] FROM executions WHERE ` +
@@ -1809,7 +1794,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateChildExecutionInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.childExecutionInfos, tc.deleteInfos)
+			err := updateChildExecutionInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.childExecutionInfos, tc.deleteInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("updateChildExecutionInfos failed: %v", err)
 			}
@@ -1854,7 +1839,7 @@ func TestResetTimerInfos(t *testing.T) {
 			wantQueries: []string{
 				`UPDATE executions SET timer_map = map[` +
 					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
-					`] WHERE ` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -1865,7 +1850,7 @@ func TestResetTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := resetTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos)
+			err := resetTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("resetTimerInfos() error = %v", err)
 			}
@@ -1913,7 +1898,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
-					`} WHERE ` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 				`DELETE timer_map[ timer2 ] FROM executions WHERE ` +
@@ -1927,7 +1912,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -1965,14 +1950,14 @@ func TestResetActivityInfos(t *testing.T) {
 				1: {
 					Version: 1,
 					ScheduledEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-scheduled-event-data"),
 					},
 					ScheduledTime: ts.UTC(),
 					ScheduleID:    1,
 					StartedID:     2,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-started-event-data"),
 					},
 					ActivityID:             "activity1",
@@ -1989,14 +1974,14 @@ func TestResetActivityInfos(t *testing.T) {
 				2: {
 					Version: 1,
 					ScheduledEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-scheduled-event-data"),
 					},
 					ScheduledTime: ts.UTC(),
 					ScheduleID:    2,
 					StartedID:     3,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-started-event-data"),
 					},
 					ActivityID:             "activity2",
@@ -2035,7 +2020,7 @@ func TestResetActivityInfos(t *testing.T) {
 					`started_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`started_id:3 started_identity: started_time:0001-01-01 00:00:00 +0000 UTC task_list:tasklist1 timer_task_status:0 version:1` +
 					`]` +
-					`] WHERE ` +
+					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
@@ -2046,7 +2031,7 @@ func TestResetActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := resetActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos)
+			err := resetActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("resetActivityInfos() error = %v", err)
 			}
@@ -2085,14 +2070,14 @@ func TestUpdateActivityInfos(t *testing.T) {
 				1: {
 					Version: 1,
 					ScheduledEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-scheduled-event-data"),
 					},
 					ScheduledTime: ts.UTC(),
 					ScheduleID:    1,
 					StartedID:     2,
 					StartedEvent: &persistence.DataBlob{
-						Encoding: common.EncodingTypeThriftRW,
+						Encoding: constants.EncodingTypeThriftRW,
 						Data:     []byte("thrift-encoded-started-event-data"),
 					},
 					ActivityID:             "activity1",
@@ -2103,6 +2088,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					Attempt:                3,
 					MaximumAttempts:        5,
 					TaskList:               "tasklist1",
+					TaskListKind:           types.TaskListKindEphemeral,
 					HasRetryPolicy:         true,
 					LastFailureReason:      "retry reason",
 				},
@@ -2117,11 +2103,11 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`started_time: 0001-01-01T00:00:00Z, activity_id: activity1, request_id: , ` +
 					`details: [], schedule_to_start_timeout: 60, schedule_to_close_timeout: 120, start_to_close_timeout: 180, ` +
 					`heart_beat_timeout: 60, cancel_requested: false, cancel_request_id: 0, last_hb_updated_time: 0001-01-01T00:00:00Z, ` +
-					`timer_task_status: 0, attempt: 3, task_list: tasklist1, started_identity: , has_retry_policy: true, ` +
+					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
 					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
 					`last_failure_details: [], event_data_encoding: thriftrw` +
-					`} WHERE ` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 				`DELETE activity_map[ 2 ] FROM executions ` +
@@ -2135,7 +2121,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}
@@ -2214,14 +2200,14 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 					1: {
 						Version: 1,
 						ScheduledEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-scheduled-event-data"),
 						},
 						ScheduledTime: ts.UTC(),
 						ScheduleID:    1,
 						StartedID:     2,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-started-event-data"),
 						},
 						ActivityID:             "activity1",
@@ -2252,13 +2238,13 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 						InitiatedEventBatchID: 2,
 						StartedID:             3,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						StartedWorkflowID: "startedWorkflowID1",
 						StartedRunID:      "startedRunID1",
 						CreateRequestID:   "createRequestID1",
 						InitiatedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						DomainID:          "domain1",
 						WorkflowTypeName:  "workflowType1",
@@ -2302,7 +2288,7 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution)
+			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2395,7 +2381,7 @@ func TestResetWorkflowExecutionAndMapsAndEventBuffer(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := resetWorkflowExecutionAndMapsAndEventBuffer(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution)
+			err := resetWorkflowExecutionAndMapsAndEventBuffer(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2462,14 +2448,14 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 					1: {
 						Version: 1,
 						ScheduledEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-scheduled-event-data"),
 						},
 						ScheduledTime: ts.UTC(),
 						ScheduleID:    1,
 						StartedID:     2,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("thrift-encoded-started-event-data"),
 						},
 						ActivityID:             "activity1",
@@ -2500,13 +2486,13 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 						InitiatedEventBatchID: 2,
 						StartedID:             3,
 						StartedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						StartedWorkflowID: "startedWorkflowID1",
 						StartedRunID:      "startedRunID1",
 						CreateRequestID:   "createRequestID1",
 						InitiatedEvent: &persistence.DataBlob{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 						},
 						DomainID:          "domain1",
 						WorkflowTypeName:  "workflowType1",
@@ -2551,7 +2537,7 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution)
+			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2597,12 +2583,14 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					ParentRunID:          "parentRunID1",
 					WorkflowTypeName:     "workflowType1",
 					TaskList:             "tasklist1",
+					TaskListKind:         types.TaskListKindNormal,
 					StartTimestamp:       ts,
 					LastUpdatedTimestamp: ts.Add(1 * time.Minute),
 					DecisionScheduleID:   2,
 					DecisionStartedID:    3,
 					CompletionEvent:      &persistence.DataBlob{},
 					AutoResetPoints:      &persistence.DataBlob{},
+					CronOverlapPolicy:    0,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
 				VersionHistories:             &persistence.DataBlob{},
@@ -2612,7 +2600,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 				`UPDATE executions SET execution = {` +
 					`domain_id: domain1, workflow_id: workflow1, run_id: runid1, first_run_id: , parent_domain_id: , parent_workflow_id: , ` +
 					`parent_run_id: parentRunID1, initiated_id: 0, completion_event_batch_id: 0, completion_event: [], ` +
-					`completion_event_data_encoding: , task_list: tasklist1, workflow_type_name: workflowType1, workflow_timeout: 0, ` +
+					`completion_event_data_encoding: , task_list: tasklist1, task_list_kind: 0, workflow_type_name: workflowType1, workflow_timeout: 0, ` +
 					`decision_task_timeout: 0, execution_context: [], state: 0, close_status: 0, last_first_event_id: 0, last_event_task_id: 0, ` +
 					`next_event_id: 0, last_processed_event: 0, start_time: 2023-12-19T22:08:41Z, last_updated_time: 2023-12-19T22:09:41Z, ` +
 					`create_request_id: , signal_count: 0, history_size: 0, decision_version: 0, decision_schedule_id: 2, decision_started_id: 3, ` +
@@ -2621,9 +2609,9 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					`cancel_requested: false, cancel_request_id: , sticky_task_list: , sticky_schedule_to_start_timeout: 0,client_library_version: , ` +
 					`client_feature_version: , client_impl: , auto_reset_points: [], auto_reset_points_encoding: , attempt: 0, has_retry_policy: false, ` +
 					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, ` +
-					`non_retriable_errors: [], event_store_version: 2, branch_token: [], cron_schedule: , expiration_seconds: 0, search_attributes: map[], ` +
-					`memo: map[], partition_config: map[] ` +
-					`}, next_event_id = 0 , version_histories = [] , version_histories_encoding =  , checksum = {version: 0, flavor: 0, value: [] }, workflow_last_write_version = 0 , workflow_state = 0 ` +
+					`non_retriable_errors: [], event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 0, expiration_seconds: 0, search_attributes: map[], ` +
+					`memo: map[], partition_config: map[], active_cluster_selection_policy: [], active_cluster_selection_policy_encoding: ` +
+					`}, next_event_id = 0 , version_histories = [] , version_histories_encoding =  , checksum = {version: 0, flavor: 0, value: [] }, workflow_last_write_version = 0 , workflow_state = 0 , last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 ` +
@@ -2636,7 +2624,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateWorkflowExecution(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution)
+			err := updateWorkflowExecution(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			if err != nil {
 				t.Fatalf("updateWorkflowExecution failed, err: %v", err)
 			}
@@ -2677,23 +2665,29 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					ParentRunID:          "parentRunID1",
 					WorkflowTypeName:     "workflowType1",
 					TaskList:             "tasklist1",
+					TaskListKind:         types.TaskListKindNormal,
 					StartTimestamp:       ts,
 					LastUpdatedTimestamp: ts.Add(1 * time.Minute),
 					DecisionScheduleID:   2,
 					DecisionStartedID:    3,
 					CompletionEvent:      &persistence.DataBlob{},
 					AutoResetPoints:      &persistence.DataBlob{},
+					ActiveClusterSelectionPolicy: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-active-cluster-selection-policy-data"),
+					},
+					CronOverlapPolicy: types.CronOverlapPolicyBufferOne,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
 				VersionHistories:             &persistence.DataBlob{},
 				Checksums:                    &checksum.Checksum{},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state) ` +
+				`INSERT INTO executions (shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
 					`VALUES(1000, domain1, workflow1, runid1, 1, ` +
 					`{domain_id: domain1, workflow_id: workflow1, run_id: runid1, first_run_id: , parent_domain_id: , parent_workflow_id: , ` +
 					`parent_run_id: parentRunID1, initiated_id: 0, completion_event_batch_id: 0, completion_event: [], completion_event_data_encoding: , ` +
-					`task_list: tasklist1, workflow_type_name: workflowType1, workflow_timeout: 0, decision_task_timeout: 0, execution_context: [], state: 0, ` +
+					`task_list: tasklist1, task_list_kind: 0, workflow_type_name: workflowType1, workflow_timeout: 0, decision_task_timeout: 0, execution_context: [], state: 0, ` +
 					`close_status: 0, last_first_event_id: 0, last_event_task_id: 0, next_event_id: 0, last_processed_event: 0, start_time: 2023-12-19T22:08:41Z, ` +
 					`last_updated_time: 2023-12-19T22:09:41Z, create_request_id: , signal_count: 0, history_size: 0, decision_version: 0, ` +
 					`decision_schedule_id: 2, decision_started_id: 3, decision_request_id: , decision_timeout: 0, decision_attempt: 0, ` +
@@ -2701,8 +2695,9 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					`cancel_requested: false, cancel_request_id: , sticky_task_list: , sticky_schedule_to_start_timeout: 0,client_library_version: , client_feature_version: , ` +
 					`client_impl: , auto_reset_points: [], auto_reset_points_encoding: , attempt: 0, has_retry_policy: false, init_interval: 0, ` +
 					`backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, non_retriable_errors: [], ` +
-					`event_store_version: 2, branch_token: [], cron_schedule: , expiration_seconds: 0, search_attributes: map[], memo: map[], partition_config: map[] ` +
-					`}, 0, 946684800000, -10, [], , {version: 0, flavor: 0, value: [] }, 0, 0) IF NOT EXISTS `,
+					`event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 1, expiration_seconds: 0, search_attributes: map[], memo: map[], partition_config: map[], ` +
+					`active_cluster_selection_policy: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 97 99 116 105 118 101 45 99 108 117 115 116 101 114 45 115 101 108 101 99 116 105 111 110 45 112 111 108 105 99 121 45 100 97 116 97], active_cluster_selection_policy_encoding: thriftrw` +
+					`}, 0, 946684800000, -10, [], , {version: 0, flavor: 0, value: [] }, 0, 0, 2025-01-06T15:00:00Z) IF NOT EXISTS `,
 			},
 		},
 	}
@@ -2711,7 +2706,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := createWorkflowExecution(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution)
+			err := createWorkflowExecution(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			if err != nil {
 				t.Fatalf("createWorkflowExecution failed, err: %v", err)
 			}
@@ -2769,9 +2764,9 @@ func TestCreateOrUpdateWorkflowExecution(t *testing.T) {
 				},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, execution, workflow_last_write_version, workflow_state) ` +
+				`INSERT INTO executions (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, execution, workflow_last_write_version, workflow_state, created_time) ` +
 					`VALUES(1000, 1, domain1, workflow1, 30000000-0000-f000-f000-000000000001, 946684800000, -10, runid1, ` +
-					`{run_id: runid1, create_request_id: createRequestID1, state: 0, close_status: 0}, 0, 0) ` +
+					`{run_id: runid1, create_request_id: createRequestID1, state: 0, close_status: 0}, 0, 0, 2025-01-06T15:00:00Z) ` +
 					`IF NOT EXISTS USING TTL 0 `,
 			},
 		},
@@ -2833,7 +2828,7 @@ func TestCreateOrUpdateWorkflowExecution(t *testing.T) {
 				`UPDATE executions USING TTL 0 SET ` +
 					`current_run_id = runid1, ` +
 					`execution = {run_id: runid1, create_request_id: createRequestID1, state: 0, close_status: 0}, ` +
-					`workflow_last_write_version = 0, workflow_state = 0 ` +
+					`workflow_last_write_version = 0, workflow_state = 0, last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = 30000000-0000-f000-f000-000000000001 and visibility_ts = 946684800000 and task_id = -10 ` +
@@ -2861,7 +2856,7 @@ func TestCreateOrUpdateWorkflowExecution(t *testing.T) {
 				`UPDATE executions USING TTL 0 SET ` +
 					`current_run_id = runid1, ` +
 					`execution = {run_id: runid1, create_request_id: createRequestID1, state: 0, close_status: 0}, ` +
-					`workflow_last_write_version = 0, workflow_state = 0 ` +
+					`workflow_last_write_version = 0, workflow_state = 0, last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = 30000000-0000-f000-f000-000000000001 and visibility_ts = 946684800000 and task_id = -10 ` +
@@ -2874,7 +2869,7 @@ func TestCreateOrUpdateWorkflowExecution(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := createOrUpdateCurrentWorkflow(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution)
+			err := createOrUpdateCurrentWorkflow(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)

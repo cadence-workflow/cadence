@@ -28,6 +28,7 @@ import (
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -43,12 +44,14 @@ func (e *mutableStateBuilder) addWorkflowExecutionStartedEventForContinueAsNew(
 ) (*types.HistoryEvent, error) {
 
 	previousExecutionInfo := previousExecutionState.GetExecutionInfo()
-	taskList := previousExecutionInfo.TaskList
-	if attributes.TaskList != nil {
-		taskList = attributes.TaskList.GetName()
+	tl := &types.TaskList{
+		Name: previousExecutionInfo.TaskList,
+		Kind: previousExecutionInfo.TaskListKind.Ptr(),
 	}
-	tl := &types.TaskList{}
-	tl.Name = taskList
+	// ContinueAsNew can change the name, not the kind
+	if attributes.TaskList != nil {
+		tl.Name = attributes.TaskList.Name
+	}
 
 	workflowType := previousExecutionInfo.WorkflowTypeName
 	if attributes.WorkflowType != nil {
@@ -77,6 +80,8 @@ func (e *mutableStateBuilder) addWorkflowExecutionStartedEventForContinueAsNew(
 		Memo:                                attributes.Memo,
 		SearchAttributes:                    attributes.SearchAttributes,
 		JitterStartSeconds:                  attributes.JitterStartSeconds,
+		CronOverlapPolicy:                   attributes.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attributes.ActiveClusterSelectionPolicy,
 	}
 
 	req := &types.HistoryStartWorkflowExecutionRequest{
@@ -150,7 +155,7 @@ func (e *mutableStateBuilder) AddWorkflowExecutionStartedEvent(
 
 	request := startRequest.StartRequest
 	eventID := e.GetNextEventID()
-	if eventID != common.FirstEventID {
+	if eventID != constants.FirstEventID {
 		e.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(eventID),
 			tag.ErrorTypeInvalidHistoryAction)
@@ -191,6 +196,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		requestID = event.GetRequestID()
 	}
 	e.executionInfo.CreateRequestID = requestID
+
 	e.insertWorkflowRequest(persistence.WorkflowRequest{
 		RequestID:   requestID,
 		Version:     startEvent.Version,
@@ -204,6 +210,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.FirstExecutionRunID = execution.GetRunID()
 	}
 	e.executionInfo.TaskList = event.TaskList.GetName()
+	e.executionInfo.TaskListKind = event.TaskList.GetKind()
 	e.executionInfo.WorkflowTypeName = event.WorkflowType.GetName()
 	e.executionInfo.WorkflowTimeout = event.GetExecutionStartToCloseTimeoutSeconds()
 	e.executionInfo.DecisionStartToCloseTimeout = event.GetTaskStartToCloseTimeoutSeconds()
@@ -215,16 +222,19 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	); err != nil {
 		return err
 	}
-	e.executionInfo.LastProcessedEvent = common.EmptyEventID
+	e.executionInfo.LastProcessedEvent = constants.EmptyEventID
 	e.executionInfo.LastFirstEventID = startEvent.ID
 
-	e.executionInfo.DecisionVersion = common.EmptyVersion
-	e.executionInfo.DecisionScheduleID = common.EmptyEventID
-	e.executionInfo.DecisionStartedID = common.EmptyEventID
-	e.executionInfo.DecisionRequestID = common.EmptyUUID
+	e.executionInfo.DecisionVersion = constants.EmptyVersion
+	e.executionInfo.DecisionScheduleID = constants.EmptyEventID
+	e.executionInfo.DecisionStartedID = constants.EmptyEventID
+	e.executionInfo.DecisionRequestID = constants.EmptyUUID
 	e.executionInfo.DecisionTimeout = 0
 
 	e.executionInfo.CronSchedule = event.GetCronSchedule()
+	if event.CronOverlapPolicy != nil {
+		e.executionInfo.CronOverlapPolicy = *event.CronOverlapPolicy
+	}
 
 	if parentDomainID != nil {
 		e.executionInfo.ParentDomainID = *parentDomainID
@@ -236,7 +246,11 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 	if event.ParentInitiatedEventID != nil {
 		e.executionInfo.InitiatedID = event.GetParentInitiatedEventID()
 	} else {
-		e.executionInfo.InitiatedID = common.EmptyEventID
+		e.executionInfo.InitiatedID = constants.EmptyEventID
+	}
+
+	if event.CronOverlapPolicy != nil {
+		e.executionInfo.CronOverlapPolicy = *event.CronOverlapPolicy
 	}
 
 	e.executionInfo.Attempt = event.GetAttempt()
@@ -267,6 +281,7 @@ func (e *mutableStateBuilder) ReplicateWorkflowExecutionStartedEvent(
 		e.executionInfo.SearchAttributes = event.SearchAttributes.GetIndexedFields()
 	}
 	e.executionInfo.PartitionConfig = event.PartitionConfig
+	e.executionInfo.ActiveClusterSelectionPolicy = event.ActiveClusterSelectionPolicy
 
 	e.writeEventToCache(startEvent)
 

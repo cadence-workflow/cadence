@@ -25,30 +25,31 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
 type inMemoryClient struct {
 	sync.RWMutex
 
-	globalValues map[Key]interface{}
+	globalValues map[dynamicproperties.Key]interface{}
 }
 
 // NewInMemoryClient creates a new in memory dynamic config client for testing purpose
 func NewInMemoryClient() Client {
 	return &inMemoryClient{
-		globalValues: make(map[Key]interface{}),
+		globalValues: make(map[dynamicproperties.Key]interface{}),
 	}
 }
 
-func (mc *inMemoryClient) SetValue(key Key, value interface{}) {
+func (mc *inMemoryClient) SetValue(key dynamicproperties.Key, value interface{}) {
 	mc.Lock()
 	defer mc.Unlock()
 
 	mc.globalValues[key] = value
 }
 
-func (mc *inMemoryClient) GetValue(key Key) (interface{}, error) {
+func (mc *inMemoryClient) GetValue(key dynamicproperties.Key) (interface{}, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -58,14 +59,14 @@ func (mc *inMemoryClient) GetValue(key Key) (interface{}, error) {
 	return key.DefaultValue(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetValueWithFilters(name Key, filters map[Filter]interface{}) (interface{}, error) {
+func (mc *inMemoryClient) GetValueWithFilters(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) (interface{}, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
 	return mc.GetValue(name)
 }
 
-func (mc *inMemoryClient) GetIntValue(name IntKey, filters map[Filter]interface{}) (int, error) {
+func (mc *inMemoryClient) GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]interface{}) (int, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -75,7 +76,7 @@ func (mc *inMemoryClient) GetIntValue(name IntKey, filters map[Filter]interface{
 	return name.DefaultInt(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetFloatValue(name FloatKey, filters map[Filter]interface{}) (float64, error) {
+func (mc *inMemoryClient) GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]interface{}) (float64, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -85,7 +86,7 @@ func (mc *inMemoryClient) GetFloatValue(name FloatKey, filters map[Filter]interf
 	return name.DefaultFloat(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetBoolValue(name BoolKey, filters map[Filter]interface{}) (bool, error) {
+func (mc *inMemoryClient) GetBoolValue(name dynamicproperties.BoolKey, filters map[dynamicproperties.Filter]interface{}) (bool, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -95,7 +96,7 @@ func (mc *inMemoryClient) GetBoolValue(name BoolKey, filters map[Filter]interfac
 	return name.DefaultBool(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetStringValue(name StringKey, filters map[Filter]interface{}) (string, error) {
+func (mc *inMemoryClient) GetStringValue(name dynamicproperties.StringKey, filters map[dynamicproperties.Filter]interface{}) (string, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -105,7 +106,7 @@ func (mc *inMemoryClient) GetStringValue(name StringKey, filters map[Filter]inte
 	return name.DefaultString(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetMapValue(name MapKey, filters map[Filter]interface{}) (map[string]interface{}, error) {
+func (mc *inMemoryClient) GetMapValue(name dynamicproperties.MapKey, filters map[dynamicproperties.Filter]interface{}) (map[string]interface{}, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -115,7 +116,7 @@ func (mc *inMemoryClient) GetMapValue(name MapKey, filters map[Filter]interface{
 	return name.DefaultMap(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetDurationValue(name DurationKey, filters map[Filter]interface{}) (time.Duration, error) {
+func (mc *inMemoryClient) GetDurationValue(name dynamicproperties.DurationKey, filters map[dynamicproperties.Filter]interface{}) (time.Duration, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -125,7 +126,7 @@ func (mc *inMemoryClient) GetDurationValue(name DurationKey, filters map[Filter]
 	return name.DefaultDuration(), NotFoundError
 }
 
-func (mc *inMemoryClient) GetListValue(name ListKey, filters map[Filter]interface{}) ([]interface{}, error) {
+func (mc *inMemoryClient) GetListValue(name dynamicproperties.ListKey, filters map[dynamicproperties.Filter]interface{}) ([]interface{}, error) {
 	mc.RLock()
 	defer mc.RUnlock()
 
@@ -135,18 +136,18 @@ func (mc *inMemoryClient) GetListValue(name ListKey, filters map[Filter]interfac
 	return name.DefaultList(), NotFoundError
 }
 
-func (mc *inMemoryClient) UpdateValue(key Key, value interface{}) error {
-	if err := ValidateKeyValuePair(key, value); err != nil {
+func (mc *inMemoryClient) UpdateValue(key dynamicproperties.Key, value interface{}) error {
+	if err := dynamicproperties.ValidateKeyValuePair(key, value); err != nil {
 		return err
 	}
 	mc.SetValue(key, value)
 	return nil
 }
 
-func (mc *inMemoryClient) RestoreValue(name Key, filters map[Filter]interface{}) error {
+func (mc *inMemoryClient) RestoreValue(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) error {
 	return errors.New("not supported for in-memory client")
 }
 
-func (mc *inMemoryClient) ListValue(name Key) ([]*types.DynamicConfigEntry, error) {
+func (mc *inMemoryClient) ListValue(name dynamicproperties.Key) ([]*types.DynamicConfigEntry, error) {
 	return nil, errors.New("not supported for in-memory client")
 }

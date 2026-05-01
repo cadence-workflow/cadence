@@ -29,6 +29,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
+//go:generate mockgen -package=$GOPACKAGE -destination=pump_mock.go -self_package=github.com/uber/cadence/service/worker/archiver github.com/uber/cadence/service/worker/archiver Pump
+
 type (
 	// Pump pumps archival requests into request channel
 	Pump interface {

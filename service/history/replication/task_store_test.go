@@ -29,9 +29,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -44,19 +45,19 @@ func TestTaskStore(t *testing.T) {
 
 	t.Run("Get error on unknown cluster", func(t *testing.T) {
 		ts := createTestTaskStore(t, nil, nil)
-		_, err := ts.Get(ctx, "unknown cluster", testTask11)
+		_, err := ts.Get(ctx, "unknown cluster", &testTask11)
 		assert.Equal(t, ErrUnknownCluster, err)
 	})
 
 	t.Run("Get error resolving domain", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{}, nil)
-		_, err := ts.Get(ctx, testClusterA, testTask11)
+		_, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.EqualError(t, err, "resolving domain: domain does not exist")
 	})
 
 	t.Run("Get skips task for domains non belonging to polling cluster", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
-		task, err := ts.Get(ctx, testClusterB, testTask11)
+		task, err := ts.Get(ctx, testClusterB, &testTask11)
 		assert.NoError(t, err)
 		assert.Nil(t, task)
 	})
@@ -64,21 +65,21 @@ func TestTaskStore(t *testing.T) {
 	t.Run("Get returns cached replication task", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
 		ts.Put(&testHydratedTask11)
-		task, err := ts.Get(ctx, testClusterA, testTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.NoError(t, err)
 		assert.Equal(t, &testHydratedTask11, task)
 	})
 
 	t.Run("Get returns non-cached replication task by hydrating it", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, fakeTaskHydrator{testTask11.TaskID: testHydratedTask11})
-		task, err := ts.Get(ctx, testClusterA, testTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.NoError(t, err)
 		assert.Equal(t, &testHydratedTask11, task)
 	})
 
 	t.Run("Get fails to hydrate replication task", func(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, fakeTaskHydrator{testTask11.TaskID: testHydratedTaskErrorNonRecoverable})
-		task, err := ts.Get(ctx, testClusterA, testTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
 		assert.EqualError(t, err, "error hydrating task")
 		assert.Nil(t, task)
 	})
@@ -105,7 +106,7 @@ func TestTaskStore(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
 		ts.Put(&testHydratedTask11)
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -113,7 +114,7 @@ func TestTaskStore(t *testing.T) {
 		ts := createTestTaskStore(t, fakeDomainCache{testDomainID: testDomain}, nil)
 		ts.Put(&types.ReplicationTask{SourceTaskID: 123})
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 1, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -123,7 +124,7 @@ func TestTaskStore(t *testing.T) {
 		ts.Put(&testHydratedTask12)
 		ts.Put(&testHydratedTask14)
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
-			assert.Equal(t, 2, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 3, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -132,7 +133,7 @@ func TestTaskStore(t *testing.T) {
 		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
 			ts.Ack(cluster.ClusterName, testHydratedTask11.SourceTaskID)
 			ts.Put(&testHydratedTask11)
-			assert.Equal(t, 0, ts.clusters[cluster.ClusterName].Size())
+			assert.Equal(t, 0, ts.clusters[cluster.ClusterName].Count())
 		}
 	})
 
@@ -143,24 +144,116 @@ func TestTaskStore(t *testing.T) {
 	})
 }
 
+func TestTaskStoreWithBudgetManager(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Budget manager enforces capacity limits", func(t *testing.T) {
+		maxCount := 5
+
+		budgetManager := cache.NewBudgetManager(
+			"test-replication-cache",
+			dynamicproperties.GetIntPropertyFn(1000),
+			dynamicproperties.GetIntPropertyFn(maxCount),
+			cache.AdmissionOptimistic,
+			0,
+			metrics.NewNoopMetricsClient().Scope(metrics.ReplicatorCacheManagerScope),
+			testlogger.New(t),
+			dynamicproperties.GetFloatPropertyFn(1.0),
+		)
+		defer budgetManager.Stop()
+
+		ts := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, budgetManager, 1)
+
+		for i := int64(1); i <= 10; i++ {
+			task := &types.ReplicationTask{
+				SourceTaskID:            i,
+				HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID},
+			}
+			ts.Put(task)
+		}
+
+		totalCached := 0
+		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
+			totalCached += ts.clusters[cluster.ClusterName].Count()
+		}
+		assert.Equal(t, int64(totalCached), budgetManager.UsedCount())
+		assert.Equal(t, int64(maxCount), budgetManager.UsedCount())
+	})
+
+	t.Run("Nil budget manager works without errors", func(t *testing.T) {
+		ts := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, nil, 2)
+
+		ts.Put(&testHydratedTask11)
+		task, err := ts.Get(ctx, testClusterA, &testTask11)
+		assert.NoError(t, err)
+		assert.Equal(t, &testHydratedTask11, task)
+	})
+
+	t.Run("Multiple shards get separate cache IDs", func(t *testing.T) {
+		budgetManager := cache.NewBudgetManager(
+			"test-replication-cache",
+			dynamicproperties.GetIntPropertyFn(2000),
+			dynamicproperties.GetIntPropertyFn(100),
+			cache.AdmissionOptimistic,
+			0,
+			metrics.NewNoopMetricsClient().Scope(metrics.ReplicatorCacheManagerScope),
+			testlogger.New(t),
+			dynamicproperties.GetFloatPropertyFn(1.0),
+		)
+		defer budgetManager.Stop()
+
+		ts1 := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, budgetManager, 1)
+		ts2 := createTestTaskStoreWithBudgetManager(t, fakeDomainCache{testDomainID: testDomain}, nil, budgetManager, 2)
+
+		ts1.Put(&testHydratedTask11)
+		ts2.Put(&testHydratedTask12)
+
+		for _, cluster := range testDomain.GetReplicationConfig().Clusters {
+			assert.Equal(t, 1, ts1.clusters[cluster.ClusterName].Count())
+			assert.Equal(t, 1, ts2.clusters[cluster.ClusterName].Count())
+		}
+	})
+}
+
 func createTestTaskStore(t *testing.T, domains domainCache, hydrator taskHydrator) *TaskStore {
+	return createTestTaskStoreWithBudgetManager(t, domains, hydrator, nil, 0)
+}
+
+func createTestTaskStoreWithBudgetManager(t *testing.T, domains domainCache, hydrator taskHydrator, budgetManager cache.Manager, shardID int) *TaskStore {
 	cfg := hconfig.Config{
-		ReplicatorCacheCapacity:         dynamicconfig.GetIntPropertyFn(2),
-		ReplicationTaskGenerationQPS:    dynamicconfig.GetFloatPropertyFn(0),
-		ReplicatorReadTaskMaxRetryCount: dynamicconfig.GetIntPropertyFn(1),
+		ReplicatorCacheCapacity:         dynamicproperties.GetIntPropertyFn(100),
+		ReplicationTaskGenerationQPS:    dynamicproperties.GetFloatPropertyFn(0),
+		ReplicatorReadTaskMaxRetryCount: dynamicproperties.GetIntPropertyFn(1),
+		ReplicatorCacheMaxSize:          dynamicproperties.GetIntPropertyFn(20000),
 	}
 
-	clusterMetadata := cluster.NewMetadata(0, testClusterC, testClusterC, map[string]config.ClusterInformation{
-		testClusterA: {Enabled: true},
-		testClusterB: {Enabled: true},
-		testClusterC: {Enabled: true},
-	},
+	clusterMetadata := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 0,
+			PrimaryClusterName:       testClusterC,
+			CurrentClusterName:       testClusterC,
+			ClusterGroup: map[string]config.ClusterInformation{
+				testClusterA: {Enabled: true},
+				testClusterB: {Enabled: true},
+				testClusterC: {Enabled: true},
+			},
+		},
 		func(d string) bool { return false },
 		metrics.NewNoopMetricsClient(),
 		testlogger.New(t),
 	)
 
-	return NewTaskStore(&cfg, clusterMetadata, domains, metrics.NewNoopMetricsClient(), log.NewNoop(), hydrator)
+	return NewTaskStore(
+		&cfg,
+		clusterMetadata,
+		domains,
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+		hydrator,
+		budgetManager,
+		shardID,
+		clock.NewRealTimeSource(),
+	)
 }
 
 type fakeDomainCache map[string]*cache.DomainCacheEntry

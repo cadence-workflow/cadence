@@ -28,10 +28,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -72,7 +72,7 @@ func TestInsertConfig(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDriver := sqldriver.NewMockDriver(ctrl)
-			mdb := &db{driver: mockDriver, converter: &converter{}}
+			mdb := &DB{driver: mockDriver, converter: &converter{}}
 
 			// Setup mock expectations
 			tc.mockSetup(mockDriver)
@@ -121,7 +121,7 @@ func TestSelectLatestConfig(t *testing.T) {
 				Timestamp: now,
 				Values: &persistence.DataBlob{
 					Data:     []byte("test data"),
-					Encoding: common.EncodingType("json"),
+					Encoding: constants.EncodingType("json"),
 				},
 			},
 		},
@@ -141,7 +141,7 @@ func TestSelectLatestConfig(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDriver := sqldriver.NewMockDriver(ctrl)
-			mdb := &db{driver: mockDriver, converter: &converter{}}
+			mdb := &DB{driver: mockDriver, converter: &converter{}}
 
 			tc.setupMock(mockDriver)
 

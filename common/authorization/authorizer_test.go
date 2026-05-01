@@ -23,25 +23,32 @@
 package authorization
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/types"
 )
 
 func Test_validatePermission(t *testing.T) {
 
 	readRequestAttr := &Attributes{Permission: PermissionRead}
 	writeRequestAttr := &Attributes{Permission: PermissionWrite}
+	processRequestAttr := &Attributes{Permission: PermissionProcess}
 
 	readWriteDomainData := domainData{
-		common.DomainDataKeyForReadGroups:  "read1",
-		common.DomainDataKeyForWriteGroups: "write1",
+		constants.DomainDataKeyForReadGroups:  "read1",
+		constants.DomainDataKeyForWriteGroups: "write1",
 	}
 
 	readDomainData := domainData{
-		common.DomainDataKeyForReadGroups: "read1",
+		constants.DomainDataKeyForReadGroups: "read1",
+	}
+
+	processDomainData := domainData{
+		constants.DomainDataKeyForProcessGroups: "process1",
 	}
 
 	emptyDomainData := domainData{}
@@ -82,6 +89,20 @@ func Test_validatePermission(t *testing.T) {
 			wantErr:    assert.Error,
 		},
 		{
+			name:       "Process-only groups should not get access to write groups",
+			claims:     &JWTClaims{Groups: "process1"},
+			attributes: writeRequestAttr,
+			data:       processDomainData,
+			wantErr:    assert.Error,
+		},
+		{
+			name:       "Process-only groups should get access to process groups",
+			claims:     &JWTClaims{Groups: "process1"},
+			attributes: processRequestAttr,
+			data:       processDomainData,
+			wantErr:    assert.NoError,
+		},
+		{
 			name:       "Write-only groups should get access to read groups",
 			claims:     &JWTClaims{Groups: "write1"},
 			attributes: readRequestAttr,
@@ -94,4 +115,102 @@ func Test_validatePermission(t *testing.T) {
 			tt.wantErr(t, validatePermission(tt.claims, tt.attributes, tt.data))
 		})
 	}
+}
+
+func TestSignalWithStartWorkflowExecutionRequestSerializeForLogging(t *testing.T) {
+	tests := map[string]struct {
+		input               interface{}
+		expectedOutput      string
+		expectedErrorOutput error
+	}{
+		"complete request without error": {
+			input:          createNewSignalWithStartWorkflowExecutionRequest(),
+			expectedOutput: "{\"domain\":\"testDomain\",\"workflowId\":\"testWorkflowID\",\"workflowType\":{\"name\":\"testWorkflowType\"},\"taskList\":{\"name\":\"testTaskList\",\"kind\":\"STICKY\"},\"executionStartToCloseTimeoutSeconds\":1,\"taskStartToCloseTimeoutSeconds\":1,\"identity\":\"testIdentity\",\"requestId\":\"DF66E35D-A5B0-425D-8731-6AAC4A4B6368\",\"workflowIdReusePolicy\":\"AllowDuplicate\",\"signalName\":\"testRequest\",\"control\":\"dGVzdENvbnRyb2w=\",\"retryPolicy\":{\"initialIntervalInSeconds\":1,\"backoffCoefficient\":1,\"maximumIntervalInSeconds\":1,\"maximumAttempts\":1,\"nonRetriableErrorReasons\":[\"testArray\"],\"expirationIntervalInSeconds\":1},\"cronSchedule\":\"testSchedule\",\"header\":{},\"delayStartSeconds\":1,\"jitterStartSeconds\":1,\"firstRunAtTimestamp\":1}",
+		},
+
+		"non marchalable struct should error": {
+			input:               make(chan struct{}),
+			expectedErrorOutput: &json.UnsupportedTypeError{},
+		},
+
+		"empty request without error": {
+			input:          &types.SignalWithStartWorkflowExecutionRequest{},
+			expectedOutput: "{}",
+		},
+
+		"typed nil request without error": {
+			input:          (*types.SignalWithStartWorkflowExecutionRequest)(nil),
+			expectedOutput: "",
+		},
+
+		"nil request without error": {
+			input:          nil,
+			expectedOutput: "",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				wrappedInput := NewFilteredRequestBody(test.input)
+				output, err := wrappedInput.SerializeForLogging()
+				assert.Equal(t, test.expectedOutput, output)
+				if test.expectedErrorOutput != nil {
+					assert.ErrorAs(t, err, &test.expectedErrorOutput)
+				} else {
+					assert.NoError(t, err)
+				}
+
+				assert.NotContains(t, output, "PII")
+			})
+		})
+	}
+}
+
+func createNewSignalWithStartWorkflowExecutionRequest() *types.SignalWithStartWorkflowExecutionRequest {
+	testTasklistKind := types.TaskListKind(1)
+	testExecutionStartToCloseTimeoutSeconds := int32(1)
+	testTaskStartToCloseTimeoutSeconds := int32(1)
+	testWorkflowIDReusePolicy := types.WorkflowIDReusePolicy(1)
+	testDelayStartSeconds := int32(1)
+	testJitterStartSeconds := int32(1)
+	testFirstRunAtTimestamp := int64(1)
+	piiTestArray := []byte("testInputPII")
+	piiTestMap := make(map[string][]byte)
+	piiTestMap["PII"] = piiTestArray
+
+	testReq := &types.SignalWithStartWorkflowExecutionRequest{
+		Domain:       "testDomain",
+		WorkflowID:   "testWorkflowID",
+		WorkflowType: &types.WorkflowType{Name: "testWorkflowType"},
+		TaskList: &types.TaskList{
+			Name: "testTaskList",
+			Kind: &testTasklistKind,
+		},
+		Input:                               piiTestArray,
+		ExecutionStartToCloseTimeoutSeconds: &testExecutionStartToCloseTimeoutSeconds,
+		TaskStartToCloseTimeoutSeconds:      &testTaskStartToCloseTimeoutSeconds,
+		Identity:                            "testIdentity",
+		RequestID:                           "DF66E35D-A5B0-425D-8731-6AAC4A4B6368",
+		WorkflowIDReusePolicy:               &testWorkflowIDReusePolicy,
+		SignalName:                          "testRequest",
+		SignalInput:                         piiTestArray,
+		Control:                             []byte("testControl"),
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds:    1,
+			BackoffCoefficient:          1,
+			MaximumIntervalInSeconds:    1,
+			MaximumAttempts:             1,
+			NonRetriableErrorReasons:    []string{"testArray"},
+			ExpirationIntervalInSeconds: 1,
+		},
+		CronSchedule:        "testSchedule",
+		Memo:                &types.Memo{Fields: piiTestMap},
+		SearchAttributes:    &types.SearchAttributes{IndexedFields: piiTestMap},
+		Header:              &types.Header{Fields: map[string][]byte{}},
+		DelayStartSeconds:   &testDelayStartSeconds,
+		JitterStartSeconds:  &testJitterStartSeconds,
+		FirstRunAtTimestamp: &testFirstRunAtTimestamp,
+	}
+	return testReq
 }

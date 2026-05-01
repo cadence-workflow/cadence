@@ -27,19 +27,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest/observer"
 	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -87,27 +88,27 @@ func (s *attrValidatorSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
 	config := &config.Config{
-		MaxIDLengthWarnLimit:              dynamicconfig.GetIntPropertyFn(128),
-		DomainNameMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		IdentityMaxLength:                 dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		WorkflowIDMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		SignalNameMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		WorkflowTypeMaxLength:             dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		RequestIDMaxLength:                dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		TaskListNameMaxLength:             dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		ActivityIDMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		ActivityTypeMaxLength:             dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		MarkerNameMaxLength:               dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		TimerIDMaxLength:                  dynamicconfig.GetIntPropertyFilteredByDomain(1000),
-		ValidSearchAttributes:             dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-		EnableQueryAttributeValidation:    dynamicconfig.GetBoolPropertyFn(true),
-		SearchAttributesNumberOfKeysLimit: dynamicconfig.GetIntPropertyFilteredByDomain(100),
-		SearchAttributesSizeOfValueLimit:  dynamicconfig.GetIntPropertyFilteredByDomain(2 * 1024),
-		SearchAttributesTotalSizeLimit:    dynamicconfig.GetIntPropertyFilteredByDomain(40 * 1024),
-		ActivityMaxScheduleToStartTimeoutForRetry: dynamicconfig.GetDurationPropertyFnFilteredByDomain(
+		MaxIDLengthWarnLimit:              dynamicproperties.GetIntPropertyFn(128),
+		DomainNameMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		IdentityMaxLength:                 dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		WorkflowIDMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		SignalNameMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		WorkflowTypeMaxLength:             dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		RequestIDMaxLength:                dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		TaskListNameMaxLength:             dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		ActivityIDMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		ActivityTypeMaxLength:             dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		MarkerNameMaxLength:               dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		TimerIDMaxLength:                  dynamicproperties.GetIntPropertyFilteredByDomain(1000),
+		ValidSearchAttributes:             dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		EnableQueryAttributeValidation:    dynamicproperties.GetBoolPropertyFn(true),
+		SearchAttributesNumberOfKeysLimit: dynamicproperties.GetIntPropertyFilteredByDomain(100),
+		SearchAttributesSizeOfValueLimit:  dynamicproperties.GetIntPropertyFilteredByDomain(2 * 1024),
+		SearchAttributesTotalSizeLimit:    dynamicproperties.GetIntPropertyFilteredByDomain(40 * 1024),
+		ActivityMaxScheduleToStartTimeoutForRetry: dynamicproperties.GetDurationPropertyFnFilteredByDomain(
 			time.Duration(s.testActivityMaxScheduleToStartTimeoutForRetryInSeconds) * time.Second,
 		),
-		EnableCrossClusterOperationsForDomain: dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
+		EnableCrossClusterOperationsForDomain: dynamicproperties.GetBoolPropertyFnFilteredByDomain(false),
 	}
 	s.validator = newAttrValidator(
 		s.mockDomainCache,
@@ -504,7 +505,7 @@ func (s *attrValidatorSuite) TestValidateCrossDomainCall_GlobalToGlobal_DiffDoma
 	err := s.validator.validateCrossDomainCall(s.testDomainID, s.testTargetDomainID)
 	s.IsType(&types.BadRequestError{}, err)
 
-	s.validator.config.EnableCrossClusterOperationsForDomain = dynamicconfig.GetBoolPropertyFnFilteredByDomain(true)
+	s.validator.config.EnableCrossClusterOperationsForDomain = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 	err = s.validator.validateCrossDomainCall(s.testDomainID, s.testTargetDomainID)
 	s.Nil(err)
 }
@@ -549,28 +550,36 @@ func (s *attrValidatorSuite) TestValidateTaskListName() {
 		kind := types.TaskListKindNormal
 		return &types.TaskList{Name: name, Kind: &kind}
 	}
+	ephemeralTasklist := func(name string) *types.TaskList {
+		kind := types.TaskListKindEphemeral
+		return &types.TaskList{Name: name, Kind: &kind}
+	}
 
 	testCases := []struct {
-		defaultVal  string
+		defaultVal  *types.TaskList
 		input       *types.TaskList
 		output      *types.TaskList
 		isOutputErr bool
 	}{
-		{"tl-1", nil, &types.TaskList{Name: "tl-1"}, false},
-		{"", taskList("tl-1"), taskList("tl-1"), false},
-		{"tl-1", taskList("tl-1"), taskList("tl-1"), false},
-		{"", taskList("/tl-1"), taskList("/tl-1"), false},
-		{"", taskList("/__cadence_sys"), taskList("/__cadence_sys"), false},
-		{"", nil, &types.TaskList{}, true},
-		{"", taskList(""), taskList(""), true},
-		{"", taskList(common.ReservedTaskListPrefix), taskList(common.ReservedTaskListPrefix), true},
-		{"tl-1", taskList(common.ReservedTaskListPrefix), taskList(common.ReservedTaskListPrefix), true},
-		{"", taskList(common.ReservedTaskListPrefix + "tl-1"), taskList(common.ReservedTaskListPrefix + "tl-1"), true},
-		{"tl-1", taskList(common.ReservedTaskListPrefix + "tl-1"), taskList(common.ReservedTaskListPrefix + "tl-1"), true},
+		{taskList("tl-1"), nil, taskList("tl-1"), false},
+		{taskList(""), taskList("tl-1"), taskList("tl-1"), false},
+		{taskList("tl-1"), taskList("tl-1"), taskList("tl-1"), false},
+		{taskList(""), taskList("/tl-1"), taskList("/tl-1"), false},
+		{ephemeralTasklist("tl-1"), nil, ephemeralTasklist("tl-1"), false},
+		{ephemeralTasklist("tl-1"), taskList("tl-1"), ephemeralTasklist("tl-1"), false},
+		{ephemeralTasklist("tl-1"), taskList("tl-2"), ephemeralTasklist("tl-2"), false},
+		{ephemeralTasklist("tl-1"), taskList(""), ephemeralTasklist("tl-1"), false},
+		{taskList(""), taskList("/__cadence_sys"), taskList("/__cadence_sys"), false},
+		{taskList(""), nil, &types.TaskList{}, true},
+		{taskList(""), taskList(""), taskList(""), true},
+		{taskList(""), taskList(commonconstants.ReservedTaskListPrefix), taskList(commonconstants.ReservedTaskListPrefix), true},
+		{taskList("tl-1"), taskList(commonconstants.ReservedTaskListPrefix), taskList(commonconstants.ReservedTaskListPrefix), true},
+		{taskList(""), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), true},
+		{taskList("tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), taskList(commonconstants.ReservedTaskListPrefix + "tl-1"), true},
 	}
 
 	for _, tc := range testCases {
-		key := tc.defaultVal + "#"
+		key := tc.defaultVal.Name + "," + tc.defaultVal.Kind.String() + "#"
 		if tc.input != nil {
 			key += tc.input.GetName()
 		} else {
@@ -628,6 +637,9 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_NoRetryPolic
 		nil,
 		cluster.TestCurrentClusterName,
 	)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		WorkflowTimeout: wfTimeout,
+	}
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(domainEntry, nil).Times(1)
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testTargetDomainID).Return(targetDomainEntry, nil).Times(1)
 
@@ -635,7 +647,7 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_NoRetryPolic
 		s.testDomainID,
 		s.testTargetDomainID,
 		attributes,
-		wfTimeout,
+		executionInfo,
 		metrics.HistoryRespondDecisionTaskCompletedScope,
 	)
 	s.Nil(err)
@@ -691,6 +703,9 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		nil,
 		cluster.TestCurrentClusterName,
 	)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		WorkflowTimeout: wfTimeout,
+	}
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(domainEntry, nil).Times(1)
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testTargetDomainID).Return(targetDomainEntry, nil).Times(1)
 
@@ -698,7 +713,7 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		s.testDomainID,
 		s.testTargetDomainID,
 		attributes,
-		wfTimeout,
+		executionInfo,
 		metrics.HistoryRespondDecisionTaskCompletedScope,
 	)
 	s.Nil(err)
@@ -752,6 +767,9 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		nil,
 		cluster.TestCurrentClusterName,
 	)
+	executionInfo := &persistence.WorkflowExecutionInfo{
+		WorkflowTimeout: wfTimeout,
+	}
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testDomainID).Return(domainEntry, nil).Times(1)
 	s.mockDomainCache.EXPECT().GetDomainByID(s.testTargetDomainID).Return(targetDomainEntry, nil).Times(1)
 
@@ -759,7 +777,7 @@ func (s *attrValidatorSuite) TestValidateActivityScheduleAttributes_WithRetryPol
 		s.testDomainID,
 		s.testTargetDomainID,
 		attributes,
-		wfTimeout,
+		executionInfo,
 		metrics.HistoryRespondDecisionTaskCompletedScope,
 	)
 	s.Nil(err)
@@ -832,7 +850,7 @@ func TestWorkflowSizeChecker_failWorkflowIfBlobSizeExceedsLimit(t *testing.T) {
 				completedID:        testEventID,
 				mutableState:       mutableState,
 				logger:             logger,
-				metricsScope:       metrics.NewClient(metricsScope, metrics.History).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
+				metricsScope:       metrics.NewClient(metricsScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
 			}
 			mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
 				DomainID:   testDomainID,
@@ -993,7 +1011,7 @@ func TestWorkflowSizeChecker_failWorkflowSizeExceedsLimit(t *testing.T) {
 					HistorySize: int64(tc.historySize),
 				},
 				logger:       logger,
-				metricsScope: metrics.NewClient(metricsScope, metrics.History).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
+				metricsScope: metrics.NewClient(metricsScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.HistoryRespondDecisionTaskCompletedScope, metrics.DomainTag(testDomainName)),
 			}
 			failed, err := checker.failWorkflowSizeExceedsLimit()
 			require.NoError(t, err)

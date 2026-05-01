@@ -35,7 +35,7 @@ func (e *historyEngineImpl) RemoveSignalMutableState(
 	request *types.RemoveSignalMutableStateRequest,
 ) error {
 
-	domainEntry, err := e.getActiveDomainByID(request.DomainUUID)
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, request.DomainUUID, request.WorkflowExecution.GetWorkflowID(), request.WorkflowExecution.GetRunID())
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (e *historyEngineImpl) RemoveSignalMutableState(
 		RunID:      request.WorkflowExecution.RunID,
 	}
 
-	return workflow.UpdateWithAction(ctx, e.executionCache, domainID, workflowExecution, false, e.timeSource.Now(),
+	return workflow.UpdateWithAction(ctx, e.logger, e.executionCache, domainID, workflowExecution, false, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrNotExists

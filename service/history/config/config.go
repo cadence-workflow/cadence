@@ -25,303 +25,325 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 )
 
 // Config represents configuration for cadence-history service
 type Config struct {
-	NumberOfShards                         int
-	IsAdvancedVisConfigExist               bool
-	RPS                                    dynamicconfig.IntPropertyFn
-	MaxIDLengthWarnLimit                   dynamicconfig.IntPropertyFn
-	DomainNameMaxLength                    dynamicconfig.IntPropertyFnWithDomainFilter
-	IdentityMaxLength                      dynamicconfig.IntPropertyFnWithDomainFilter
-	WorkflowIDMaxLength                    dynamicconfig.IntPropertyFnWithDomainFilter
-	SignalNameMaxLength                    dynamicconfig.IntPropertyFnWithDomainFilter
-	WorkflowTypeMaxLength                  dynamicconfig.IntPropertyFnWithDomainFilter
-	RequestIDMaxLength                     dynamicconfig.IntPropertyFnWithDomainFilter
-	TaskListNameMaxLength                  dynamicconfig.IntPropertyFnWithDomainFilter
-	ActivityIDMaxLength                    dynamicconfig.IntPropertyFnWithDomainFilter
-	ActivityTypeMaxLength                  dynamicconfig.IntPropertyFnWithDomainFilter
-	MarkerNameMaxLength                    dynamicconfig.IntPropertyFnWithDomainFilter
-	TimerIDMaxLength                       dynamicconfig.IntPropertyFnWithDomainFilter
-	PersistenceMaxQPS                      dynamicconfig.IntPropertyFn
-	PersistenceGlobalMaxQPS                dynamicconfig.IntPropertyFn
-	EnableVisibilitySampling               dynamicconfig.BoolPropertyFn
-	EnableReadFromClosedExecutionV2        dynamicconfig.BoolPropertyFn
-	VisibilityOpenMaxQPS                   dynamicconfig.IntPropertyFnWithDomainFilter
-	VisibilityClosedMaxQPS                 dynamicconfig.IntPropertyFnWithDomainFilter
-	AdvancedVisibilityWritingMode          dynamicconfig.StringPropertyFn
-	AdvancedVisibilityMigrationWritingMode dynamicconfig.StringPropertyFn
-	EmitShardDiffLog                       dynamicconfig.BoolPropertyFn
-	MaxAutoResetPoints                     dynamicconfig.IntPropertyFnWithDomainFilter
-	ThrottledLogRPS                        dynamicconfig.IntPropertyFn
-	EnableStickyQuery                      dynamicconfig.BoolPropertyFnWithDomainFilter
-	ShutdownDrainDuration                  dynamicconfig.DurationPropertyFn
-	WorkflowDeletionJitterRange            dynamicconfig.IntPropertyFnWithDomainFilter
-	DeleteHistoryEventContextTimeout       dynamicconfig.IntPropertyFn
-	MaxResponseSize                        int
+	NumberOfShards                   int
+	IsAdvancedVisConfigExist         bool
+	RPS                              dynamicproperties.IntPropertyFn
+	MaxIDLengthWarnLimit             dynamicproperties.IntPropertyFn
+	DomainNameMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
+	IdentityMaxLength                dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowIDMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
+	SignalNameMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowTypeMaxLength            dynamicproperties.IntPropertyFnWithDomainFilter
+	RequestIDMaxLength               dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskListNameMaxLength            dynamicproperties.IntPropertyFnWithDomainFilter
+	ActivityIDMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
+	ActivityTypeMaxLength            dynamicproperties.IntPropertyFnWithDomainFilter
+	MarkerNameMaxLength              dynamicproperties.IntPropertyFnWithDomainFilter
+	TimerIDMaxLength                 dynamicproperties.IntPropertyFnWithDomainFilter
+	PersistenceMaxQPS                dynamicproperties.IntPropertyFn
+	PersistenceGlobalMaxQPS          dynamicproperties.IntPropertyFn
+	EnableVisibilitySampling         dynamicproperties.BoolPropertyFn
+	EnableReadFromClosedExecutionV2  dynamicproperties.BoolPropertyFn
+	VisibilityOpenMaxQPS             dynamicproperties.IntPropertyFnWithDomainFilter
+	VisibilityClosedMaxQPS           dynamicproperties.IntPropertyFnWithDomainFilter
+	WriteVisibilityStoreName         dynamicproperties.StringPropertyFn
+	EmitShardDiffLog                 dynamicproperties.BoolPropertyFn
+	MaxAutoResetPoints               dynamicproperties.IntPropertyFnWithDomainFilter
+	ThrottledLogRPS                  dynamicproperties.IntPropertyFn
+	EnableStickyQuery                dynamicproperties.BoolPropertyFnWithDomainFilter
+	ShutdownDrainDuration            dynamicproperties.DurationPropertyFn
+	WorkflowDeletionJitterRange      dynamicproperties.IntPropertyFnWithDomainFilter
+	DeleteHistoryEventContextTimeout dynamicproperties.IntPropertyFn
+	MaxResponseSize                  int
 
 	// HistoryCache settings
 	// Change of these configs require shard restart
-	HistoryCacheInitialSize dynamicconfig.IntPropertyFn
-	HistoryCacheMaxSize     dynamicconfig.IntPropertyFn
-	HistoryCacheTTL         dynamicconfig.DurationPropertyFn
+	HistoryCacheInitialSize              dynamicproperties.IntPropertyFn
+	HistoryCacheMaxSize                  dynamicproperties.IntPropertyFn
+	HistoryCacheTTL                      dynamicproperties.DurationPropertyFn
+	EnableSizeBasedHistoryExecutionCache dynamicproperties.BoolPropertyFn
+	ExecutionCacheMaxByteSize            dynamicproperties.IntPropertyFn
 
 	// EventsCache settings
 	// Change of these configs require shard restart
-	EventsCacheInitialCount       dynamicconfig.IntPropertyFn
-	EventsCacheMaxCount           dynamicconfig.IntPropertyFn
-	EventsCacheMaxSize            dynamicconfig.IntPropertyFn
-	EventsCacheTTL                dynamicconfig.DurationPropertyFn
-	EventsCacheGlobalEnable       dynamicconfig.BoolPropertyFn
-	EventsCacheGlobalInitialCount dynamicconfig.IntPropertyFn
-	EventsCacheGlobalMaxCount     dynamicconfig.IntPropertyFn
+	EventsCacheInitialCount          dynamicproperties.IntPropertyFn
+	EventsCacheMaxCount              dynamicproperties.IntPropertyFn
+	EventsCacheMaxSize               dynamicproperties.IntPropertyFn
+	EventsCacheTTL                   dynamicproperties.DurationPropertyFn
+	EventsCacheGlobalEnable          dynamicproperties.BoolPropertyFn
+	EventsCacheGlobalInitialCount    dynamicproperties.IntPropertyFn
+	EventsCacheGlobalMaxCount        dynamicproperties.IntPropertyFn
+	EnableSizeBasedHistoryEventCache dynamicproperties.BoolPropertyFn
 
 	// ShardController settings
 	RangeSizeBits           uint
-	AcquireShardInterval    dynamicconfig.DurationPropertyFn
-	AcquireShardConcurrency dynamicconfig.IntPropertyFn
+	AcquireShardInterval    dynamicproperties.DurationPropertyFn
+	AcquireShardConcurrency dynamicproperties.IntPropertyFn
 
 	// the artificial delay added to standby cluster's view of active cluster's time
-	StandbyClusterDelay                  dynamicconfig.DurationPropertyFn
-	StandbyTaskMissingEventsResendDelay  dynamicconfig.DurationPropertyFn
-	StandbyTaskMissingEventsDiscardDelay dynamicconfig.DurationPropertyFn
+	StandbyClusterDelay                  dynamicproperties.DurationPropertyFn
+	StandbyTaskMissingEventsResendDelay  dynamicproperties.DurationPropertyFn
+	StandbyTaskMissingEventsDiscardDelay dynamicproperties.DurationPropertyFn
 
 	// Task process settings
-	TaskProcessRPS                          dynamicconfig.IntPropertyFnWithDomainFilter
-	TaskSchedulerType                       dynamicconfig.IntPropertyFn
-	TaskSchedulerWorkerCount                dynamicconfig.IntPropertyFn
-	TaskSchedulerShardWorkerCount           dynamicconfig.IntPropertyFn
-	TaskSchedulerQueueSize                  dynamicconfig.IntPropertyFn
-	TaskSchedulerShardQueueSize             dynamicconfig.IntPropertyFn
-	TaskSchedulerDispatcherCount            dynamicconfig.IntPropertyFn
-	TaskSchedulerRoundRobinWeights          dynamicconfig.MapPropertyFn
-	TaskCriticalRetryCount                  dynamicconfig.IntPropertyFn
-	ActiveTaskRedispatchInterval            dynamicconfig.DurationPropertyFn
-	StandbyTaskRedispatchInterval           dynamicconfig.DurationPropertyFn
-	TaskRedispatchIntervalJitterCoefficient dynamicconfig.FloatPropertyFn
-	StandbyTaskReReplicationContextTimeout  dynamicconfig.DurationPropertyFnWithDomainIDFilter
-	EnableDropStuckTaskByDomainID           dynamicconfig.BoolPropertyFnWithDomainIDFilter
-	ResurrectionCheckMinDelay               dynamicconfig.DurationPropertyFnWithDomainFilter
+	TaskProcessRPS                                    dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskSchedulerType                                 dynamicproperties.IntPropertyFn
+	TaskSchedulerWorkerCount                          dynamicproperties.IntPropertyFn
+	TaskSchedulerQueueSize                            dynamicproperties.IntPropertyFn
+	TaskSchedulerDispatcherCount                      dynamicproperties.IntPropertyFn
+	TaskSchedulerRoundRobinWeights                    dynamicproperties.MapPropertyFn
+	TaskSchedulerDomainRoundRobinWeights              dynamicproperties.MapPropertyFnWithDomainFilter
+	TaskSchedulerGlobalDomainRPS                      dynamicproperties.IntPropertyFnWithDomainFilter
+	TaskSchedulerEnableRateLimiter                    dynamicproperties.BoolPropertyFn
+	TaskSchedulerEnableRateLimiterShadowMode          dynamicproperties.BoolPropertyFnWithDomainFilter
+	TaskCriticalRetryCount                            dynamicproperties.IntPropertyFn
+	ActiveTaskRedispatchInterval                      dynamicproperties.DurationPropertyFn
+	StandbyTaskRedispatchInterval                     dynamicproperties.DurationPropertyFn
+	StandbyTaskReReplicationContextTimeout            dynamicproperties.DurationPropertyFnWithDomainIDFilter
+	EnableDropStuckTaskByDomainID                     dynamicproperties.BoolPropertyFnWithDomainIDFilter
+	ResurrectionCheckMinDelay                         dynamicproperties.DurationPropertyFnWithDomainFilter
+	EnableHierarchicalWeightedRoundRobinTaskScheduler dynamicproperties.BoolPropertyFn
+	EnableTaskListAwareTaskSchedulerByDomain          dynamicproperties.BoolPropertyFnWithDomainFilter
+
+	// History Queue (v2) settings
+	EnableTimerQueueV2                         dynamicproperties.BoolPropertyFnWithShardIDFilter
+	EnableTransferQueueV2                      dynamicproperties.BoolPropertyFnWithShardIDFilter
+	QueueMaxPendingTaskCount                   dynamicproperties.IntPropertyFn
+	EnableTimerQueueV2PendingTaskCountAlert    dynamicproperties.BoolPropertyFnWithShardIDFilter
+	EnableTransferQueueV2PendingTaskCountAlert dynamicproperties.BoolPropertyFnWithShardIDFilter
+	QueueCriticalPendingTaskCount              dynamicproperties.IntPropertyFn
+	QueueMaxVirtualQueueCount                  dynamicproperties.IntPropertyFn
+	VirtualSliceForceAppendInterval            dynamicproperties.DurationPropertyFn
 
 	// QueueProcessor settings
-	QueueProcessorEnableSplit                          dynamicconfig.BoolPropertyFn
-	QueueProcessorSplitMaxLevel                        dynamicconfig.IntPropertyFn
-	QueueProcessorEnableRandomSplitByDomainID          dynamicconfig.BoolPropertyFnWithDomainIDFilter
-	QueueProcessorRandomSplitProbability               dynamicconfig.FloatPropertyFn
-	QueueProcessorEnablePendingTaskSplitByDomainID     dynamicconfig.BoolPropertyFnWithDomainIDFilter
-	QueueProcessorPendingTaskSplitThreshold            dynamicconfig.MapPropertyFn
-	QueueProcessorEnableStuckTaskSplitByDomainID       dynamicconfig.BoolPropertyFnWithDomainIDFilter
-	QueueProcessorStuckTaskSplitThreshold              dynamicconfig.MapPropertyFn
-	QueueProcessorSplitLookAheadDurationByDomainID     dynamicconfig.DurationPropertyFnWithDomainIDFilter
-	QueueProcessorPollBackoffInterval                  dynamicconfig.DurationPropertyFn
-	QueueProcessorPollBackoffIntervalJitterCoefficient dynamicconfig.FloatPropertyFn
-	QueueProcessorEnablePersistQueueStates             dynamicconfig.BoolPropertyFn
-	QueueProcessorEnableLoadQueueStates                dynamicconfig.BoolPropertyFn
-	QueueProcessorEnableGracefulSyncShutdown           dynamicconfig.BoolPropertyFn
+	QueueProcessorEnableSplit                          dynamicproperties.BoolPropertyFn
+	QueueProcessorSplitMaxLevel                        dynamicproperties.IntPropertyFn
+	QueueProcessorEnableRandomSplitByDomainID          dynamicproperties.BoolPropertyFnWithDomainIDFilter
+	QueueProcessorRandomSplitProbability               dynamicproperties.FloatPropertyFn
+	QueueProcessorEnablePendingTaskSplitByDomainID     dynamicproperties.BoolPropertyFnWithDomainIDFilter
+	QueueProcessorPendingTaskSplitThreshold            dynamicproperties.MapPropertyFn
+	QueueProcessorEnableStuckTaskSplitByDomainID       dynamicproperties.BoolPropertyFnWithDomainIDFilter
+	QueueProcessorStuckTaskSplitThreshold              dynamicproperties.MapPropertyFn
+	QueueProcessorSplitLookAheadDurationByDomainID     dynamicproperties.DurationPropertyFnWithDomainIDFilter
+	QueueProcessorPollBackoffInterval                  dynamicproperties.DurationPropertyFn
+	QueueProcessorPollBackoffIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+	QueueProcessorEnablePersistQueueStates             dynamicproperties.BoolPropertyFn
+	QueueProcessorEnableLoadQueueStates                dynamicproperties.BoolPropertyFn
+	QueueProcessorEnableGracefulSyncShutdown           dynamicproperties.BoolPropertyFn
 
 	// TimerQueueProcessor settings
-	TimerTaskBatchSize                                dynamicconfig.IntPropertyFn
-	TimerTaskDeleteBatchSize                          dynamicconfig.IntPropertyFn
-	TimerProcessorGetFailureRetryCount                dynamicconfig.IntPropertyFn
-	TimerProcessorCompleteTimerFailureRetryCount      dynamicconfig.IntPropertyFn
-	TimerProcessorUpdateAckInterval                   dynamicconfig.DurationPropertyFn
-	TimerProcessorUpdateAckIntervalJitterCoefficient  dynamicconfig.FloatPropertyFn
-	TimerProcessorCompleteTimerInterval               dynamicconfig.DurationPropertyFn
-	TimerProcessorFailoverMaxStartJitterInterval      dynamicconfig.DurationPropertyFn
-	TimerProcessorFailoverMaxPollRPS                  dynamicconfig.IntPropertyFn
-	TimerProcessorMaxPollRPS                          dynamicconfig.IntPropertyFn
-	TimerProcessorMaxPollInterval                     dynamicconfig.DurationPropertyFn
-	TimerProcessorMaxPollIntervalJitterCoefficient    dynamicconfig.FloatPropertyFn
-	TimerProcessorSplitQueueInterval                  dynamicconfig.DurationPropertyFn
-	TimerProcessorSplitQueueIntervalJitterCoefficient dynamicconfig.FloatPropertyFn
-	TimerProcessorMaxRedispatchQueueSize              dynamicconfig.IntPropertyFn
-	TimerProcessorMaxTimeShift                        dynamicconfig.DurationPropertyFn
-	TimerProcessorHistoryArchivalSizeLimit            dynamicconfig.IntPropertyFn
-	TimerProcessorArchivalTimeLimit                   dynamicconfig.DurationPropertyFn
+	TimerTaskBatchSize                                dynamicproperties.IntPropertyFn
+	TimerTaskDeleteBatchSize                          dynamicproperties.IntPropertyFn
+	TimerProcessorGetFailureRetryCount                dynamicproperties.IntPropertyFn
+	TimerProcessorCompleteTimerFailureRetryCount      dynamicproperties.IntPropertyFn
+	TimerProcessorUpdateAckInterval                   dynamicproperties.DurationPropertyFn
+	TimerProcessorUpdateAckIntervalJitterCoefficient  dynamicproperties.FloatPropertyFn
+	TimerProcessorCompleteTimerInterval               dynamicproperties.DurationPropertyFn
+	TimerProcessorFailoverMaxStartJitterInterval      dynamicproperties.DurationPropertyFn
+	TimerProcessorFailoverMaxPollRPS                  dynamicproperties.IntPropertyFn
+	TimerProcessorMaxPollRPS                          dynamicproperties.IntPropertyFn
+	TimerProcessorMaxPollInterval                     dynamicproperties.DurationPropertyFn
+	TimerProcessorMaxPollIntervalJitterCoefficient    dynamicproperties.FloatPropertyFn
+	TimerProcessorSplitQueueInterval                  dynamicproperties.DurationPropertyFn
+	TimerProcessorSplitQueueIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+	TimerProcessorMaxRedispatchQueueSize              dynamicproperties.IntPropertyFn
+	TimerProcessorMaxTimeShift                        dynamicproperties.DurationPropertyFn
+	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
+	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
+	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
 
 	// TransferQueueProcessor settings
-	TransferTaskBatchSize                                dynamicconfig.IntPropertyFn
-	TransferTaskDeleteBatchSize                          dynamicconfig.IntPropertyFn
-	TransferProcessorCompleteTransferFailureRetryCount   dynamicconfig.IntPropertyFn
-	TransferProcessorFailoverMaxStartJitterInterval      dynamicconfig.DurationPropertyFn
-	TransferProcessorFailoverMaxPollRPS                  dynamicconfig.IntPropertyFn
-	TransferProcessorMaxPollRPS                          dynamicconfig.IntPropertyFn
-	TransferProcessorMaxPollInterval                     dynamicconfig.DurationPropertyFn
-	TransferProcessorMaxPollIntervalJitterCoefficient    dynamicconfig.FloatPropertyFn
-	TransferProcessorSplitQueueInterval                  dynamicconfig.DurationPropertyFn
-	TransferProcessorSplitQueueIntervalJitterCoefficient dynamicconfig.FloatPropertyFn
-	TransferProcessorUpdateAckInterval                   dynamicconfig.DurationPropertyFn
-	TransferProcessorUpdateAckIntervalJitterCoefficient  dynamicconfig.FloatPropertyFn
-	TransferProcessorCompleteTransferInterval            dynamicconfig.DurationPropertyFn
-	TransferProcessorMaxRedispatchQueueSize              dynamicconfig.IntPropertyFn
-	TransferProcessorEnableValidator                     dynamicconfig.BoolPropertyFn
-	TransferProcessorValidationInterval                  dynamicconfig.DurationPropertyFn
-	TransferProcessorVisibilityArchivalTimeLimit         dynamicconfig.DurationPropertyFn
+	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
+	TransferTaskDeleteBatchSize                          dynamicproperties.IntPropertyFn
+	TransferProcessorCompleteTransferFailureRetryCount   dynamicproperties.IntPropertyFn
+	TransferProcessorFailoverMaxStartJitterInterval      dynamicproperties.DurationPropertyFn
+	TransferProcessorFailoverMaxPollRPS                  dynamicproperties.IntPropertyFn
+	TransferProcessorMaxPollRPS                          dynamicproperties.IntPropertyFn
+	TransferProcessorMaxPollInterval                     dynamicproperties.DurationPropertyFn
+	TransferProcessorMaxPollIntervalJitterCoefficient    dynamicproperties.FloatPropertyFn
+	TransferProcessorSplitQueueInterval                  dynamicproperties.DurationPropertyFn
+	TransferProcessorSplitQueueIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
+	TransferProcessorUpdateAckInterval                   dynamicproperties.DurationPropertyFn
+	TransferProcessorUpdateAckIntervalJitterCoefficient  dynamicproperties.FloatPropertyFn
+	TransferProcessorCompleteTransferInterval            dynamicproperties.DurationPropertyFn
+	TransferProcessorMaxRedispatchQueueSize              dynamicproperties.IntPropertyFn
+	TransferProcessorEnableValidator                     dynamicproperties.BoolPropertyFn
+	TransferProcessorValidationInterval                  dynamicproperties.DurationPropertyFn
+	TransferProcessorVisibilityArchivalTimeLimit         dynamicproperties.DurationPropertyFn
+	DisableTransferFailoverQueue                         dynamicproperties.BoolPropertyFn
 
 	// ReplicatorQueueProcessor settings
-	ReplicatorTaskDeleteBatchSize          dynamicconfig.IntPropertyFn
-	ReplicatorReadTaskMaxRetryCount        dynamicconfig.IntPropertyFn
-	ReplicatorProcessorFetchTasksBatchSize dynamicconfig.IntPropertyFnWithShardIDFilter
-	ReplicatorUpperLatency                 dynamicconfig.DurationPropertyFn
-	ReplicatorCacheCapacity                dynamicconfig.IntPropertyFn
-
-	// Persistence settings
-	ExecutionMgrNumConns dynamicconfig.IntPropertyFn
-	HistoryMgrNumConns   dynamicconfig.IntPropertyFn
+	ReplicatorTaskDeleteBatchSize            dynamicproperties.IntPropertyFn
+	ReplicatorReadTaskMaxRetryCount          dynamicproperties.IntPropertyFn
+	ReplicatorProcessorFetchTasksBatchSize   dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorMaxTaskBatchSize      dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorMinTaskBatchSize      dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorProcessorBatchSizeStepCount    dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicatorUpperLatency                   dynamicproperties.DurationPropertyFn
+	ReplicatorCacheCapacity                  dynamicproperties.IntPropertyFn
+	ReplicatorCacheMaxSize                   dynamicproperties.IntPropertyFn
+	ReplicationBudgetManagerMaxSizeBytes     dynamicproperties.IntPropertyFn
+	ReplicationBudgetManagerMaxSizeCount     dynamicproperties.IntPropertyFn
+	ReplicationBudgetManagerSoftCapThreshold dynamicproperties.FloatPropertyFn
 
 	// System Limits
-	MaximumBufferedEventsBatch dynamicconfig.IntPropertyFn
-	MaximumSignalsPerExecution dynamicconfig.IntPropertyFnWithDomainFilter
+	MaximumBufferedEventsBatch dynamicproperties.IntPropertyFn
+	MaximumSignalsPerExecution dynamicproperties.IntPropertyFnWithDomainFilter
 
 	// ShardUpdateMinInterval the minimal time interval which the shard info can be updated
-	ShardUpdateMinInterval dynamicconfig.DurationPropertyFn
+	ShardUpdateMinInterval dynamicproperties.DurationPropertyFn
 	// ShardSyncMinInterval the minimal time interval which the shard info should be sync to remote
-	ShardSyncMinInterval            dynamicconfig.DurationPropertyFn
-	ShardSyncTimerJitterCoefficient dynamicconfig.FloatPropertyFn
+	ShardSyncMinInterval            dynamicproperties.DurationPropertyFn
+	ShardSyncTimerJitterCoefficient dynamicproperties.FloatPropertyFn
 
 	// Time to hold a poll request before returning an empty response
 	// right now only used by GetMutableState
-	LongPollExpirationInterval dynamicconfig.DurationPropertyFnWithDomainFilter
+	LongPollExpirationInterval dynamicproperties.DurationPropertyFnWithDomainFilter
 
 	// encoding the history events
-	EventEncodingType dynamicconfig.StringPropertyFnWithDomainFilter
+	EventEncodingType dynamicproperties.StringPropertyFnWithDomainFilter
 	// whether or not using ParentClosePolicy
-	EnableParentClosePolicy dynamicconfig.BoolPropertyFnWithDomainFilter
+	EnableParentClosePolicy dynamicproperties.BoolPropertyFnWithDomainFilter
 	// whether or not enable system workers for processing parent close policy task
-	EnableParentClosePolicyWorker dynamicconfig.BoolPropertyFn
+	EnableParentClosePolicyWorker dynamicproperties.BoolPropertyFn
 	// parent close policy will be processed by sys workers(if enabled) if
 	// the number of children greater than or equal to this threshold
-	ParentClosePolicyThreshold dynamicconfig.IntPropertyFnWithDomainFilter
+	ParentClosePolicyThreshold dynamicproperties.IntPropertyFnWithDomainFilter
 	// the batch size of parent close policy processed by sys workers
-	ParentClosePolicyBatchSize dynamicconfig.IntPropertyFnWithDomainFilter
+	ParentClosePolicyBatchSize dynamicproperties.IntPropertyFnWithDomainFilter
 	// total number of parentClosePolicy system workflows
-	NumParentClosePolicySystemWorkflows dynamicconfig.IntPropertyFn
+	NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 
 	// Archival settings
-	NumArchiveSystemWorkflows        dynamicconfig.IntPropertyFn
-	ArchiveRequestRPS                dynamicconfig.IntPropertyFn
-	ArchiveInlineHistoryRPS          dynamicconfig.IntPropertyFn
-	ArchiveInlineHistoryGlobalRPS    dynamicconfig.IntPropertyFn
-	ArchiveInlineVisibilityRPS       dynamicconfig.IntPropertyFn
-	ArchiveInlineVisibilityGlobalRPS dynamicconfig.IntPropertyFn
-	AllowArchivingIncompleteHistory  dynamicconfig.BoolPropertyFn
+	NumArchiveSystemWorkflows        dynamicproperties.IntPropertyFn
+	ArchiveRequestRPS                dynamicproperties.IntPropertyFn
+	ArchiveInlineHistoryRPS          dynamicproperties.IntPropertyFn
+	ArchiveInlineHistoryGlobalRPS    dynamicproperties.IntPropertyFn
+	ArchiveInlineVisibilityRPS       dynamicproperties.IntPropertyFn
+	ArchiveInlineVisibilityGlobalRPS dynamicproperties.IntPropertyFn
+	AllowArchivingIncompleteHistory  dynamicproperties.BoolPropertyFn
 
 	// Size limit related settings
-	BlobSizeLimitError               dynamicconfig.IntPropertyFnWithDomainFilter
-	BlobSizeLimitWarn                dynamicconfig.IntPropertyFnWithDomainFilter
-	HistorySizeLimitError            dynamicconfig.IntPropertyFnWithDomainFilter
-	HistorySizeLimitWarn             dynamicconfig.IntPropertyFnWithDomainFilter
-	HistoryCountLimitError           dynamicconfig.IntPropertyFnWithDomainFilter
-	HistoryCountLimitWarn            dynamicconfig.IntPropertyFnWithDomainFilter
-	PendingActivitiesCountLimitError dynamicconfig.IntPropertyFn
-	PendingActivitiesCountLimitWarn  dynamicconfig.IntPropertyFn
-	PendingActivityValidationEnabled dynamicconfig.BoolPropertyFn
+	BlobSizeLimitError               dynamicproperties.IntPropertyFnWithDomainFilter
+	BlobSizeLimitWarn                dynamicproperties.IntPropertyFnWithDomainFilter
+	HistorySizeLimitError            dynamicproperties.IntPropertyFnWithDomainFilter
+	HistorySizeLimitWarn             dynamicproperties.IntPropertyFnWithDomainFilter
+	HistoryCountLimitError           dynamicproperties.IntPropertyFnWithDomainFilter
+	HistoryCountLimitWarn            dynamicproperties.IntPropertyFnWithDomainFilter
+	PendingActivitiesCountLimitError dynamicproperties.IntPropertyFn
+	PendingActivitiesCountLimitWarn  dynamicproperties.IntPropertyFn
+	PendingActivityValidationEnabled dynamicproperties.BoolPropertyFn
 
 	// ValidSearchAttributes is legal indexed keys that can be used in list APIs
-	EnableQueryAttributeValidation    dynamicconfig.BoolPropertyFn
-	ValidSearchAttributes             dynamicconfig.MapPropertyFn
-	SearchAttributesNumberOfKeysLimit dynamicconfig.IntPropertyFnWithDomainFilter
-	SearchAttributesSizeOfValueLimit  dynamicconfig.IntPropertyFnWithDomainFilter
-	SearchAttributesTotalSizeLimit    dynamicconfig.IntPropertyFnWithDomainFilter
+	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
+	ValidSearchAttributes             dynamicproperties.MapPropertyFn
+	SearchAttributesNumberOfKeysLimit dynamicproperties.IntPropertyFnWithDomainFilter
+	SearchAttributesSizeOfValueLimit  dynamicproperties.IntPropertyFnWithDomainFilter
+	SearchAttributesTotalSizeLimit    dynamicproperties.IntPropertyFnWithDomainFilter
+	SearchAttributesHiddenValueKeys   dynamicproperties.MapPropertyFn
 
 	// Decision settings
 	// StickyTTL is to expire a sticky tasklist if no update more than this duration
 	// TODO https://github.com/uber/cadence/issues/2357
-	StickyTTL dynamicconfig.DurationPropertyFnWithDomainFilter
+	StickyTTL dynamicproperties.DurationPropertyFnWithDomainFilter
 	// DecisionHeartbeatTimeout is to timeout behavior of: RespondDecisionTaskComplete with ForceCreateNewDecisionTask == true without any decisions
 	// So that decision will be scheduled to another worker(by clear stickyness)
-	DecisionHeartbeatTimeout dynamicconfig.DurationPropertyFnWithDomainFilter
+	DecisionHeartbeatTimeout dynamicproperties.DurationPropertyFnWithDomainFilter
 	// MaxDecisionStartToCloseSeconds is the StartToCloseSeconds for decision
-	MaxDecisionStartToCloseSeconds           dynamicconfig.IntPropertyFnWithDomainFilter
-	DecisionRetryCriticalAttempts            dynamicconfig.IntPropertyFn
-	DecisionRetryMaxAttempts                 dynamicconfig.IntPropertyFnWithDomainFilter
-	NormalDecisionScheduleToStartMaxAttempts dynamicconfig.IntPropertyFnWithDomainFilter
-	NormalDecisionScheduleToStartTimeout     dynamicconfig.DurationPropertyFnWithDomainFilter
+	MaxDecisionStartToCloseSeconds           dynamicproperties.IntPropertyFnWithDomainFilter
+	DecisionRetryCriticalAttempts            dynamicproperties.IntPropertyFn
+	DecisionRetryMaxAttempts                 dynamicproperties.IntPropertyFnWithDomainFilter
+	EnforceDecisionTaskAttempts              dynamicproperties.BoolPropertyFnWithDomainFilter
+	NormalDecisionScheduleToStartMaxAttempts dynamicproperties.IntPropertyFnWithDomainFilter
+	NormalDecisionScheduleToStartTimeout     dynamicproperties.DurationPropertyFnWithDomainFilter
 
 	// The following is used by the new RPC replication stack
-	ReplicationTaskFetcherParallelism                  dynamicconfig.IntPropertyFn
-	ReplicationTaskFetcherAggregationInterval          dynamicconfig.DurationPropertyFn
-	ReplicationTaskFetcherTimerJitterCoefficient       dynamicconfig.FloatPropertyFn
-	ReplicationTaskFetcherErrorRetryWait               dynamicconfig.DurationPropertyFn
-	ReplicationTaskFetcherServiceBusyWait              dynamicconfig.DurationPropertyFn
-	ReplicationTaskFetcherEnableGracefulSyncShutdown   dynamicconfig.BoolPropertyFn
-	ReplicationTaskProcessorErrorRetryWait             dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorRetryMaxAttempts      dynamicconfig.IntPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorSecondRetryWait       dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorSecondRetryMaxWait    dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorErrorSecondRetryExpiration dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorNoTaskRetryWait            dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorCleanupInterval            dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorCleanupJitterCoefficient   dynamicconfig.FloatPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorStartWait                  dynamicconfig.DurationPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorStartWaitJitterCoefficient dynamicconfig.FloatPropertyFnWithShardIDFilter
-	ReplicationTaskProcessorHostQPS                    dynamicconfig.FloatPropertyFn
-	ReplicationTaskProcessorShardQPS                   dynamicconfig.FloatPropertyFn
-	ReplicationTaskGenerationQPS                       dynamicconfig.FloatPropertyFn
-	EnableReplicationTaskGeneration                    dynamicconfig.BoolPropertyFnWithDomainIDAndWorkflowIDFilter
-	EnableRecordWorkflowExecutionUninitialized         dynamicconfig.BoolPropertyFnWithDomainFilter
+	ReplicationTaskFetcherParallelism                    dynamicproperties.IntPropertyFn
+	ReplicationTaskFetcherAggregationInterval            dynamicproperties.DurationPropertyFn
+	ReplicationTaskFetcherTimerJitterCoefficient         dynamicproperties.FloatPropertyFn
+	ReplicationTaskFetcherErrorRetryWait                 dynamicproperties.DurationPropertyFn
+	ReplicationTaskFetcherServiceBusyWait                dynamicproperties.DurationPropertyFn
+	ReplicationTaskProcessorErrorRetryWait               dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorRetryMaxAttempts        dynamicproperties.IntPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorSecondRetryWait         dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorSecondRetryMaxWait      dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorErrorSecondRetryExpiration   dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorNoTaskRetryWait              dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorCleanupInterval              dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorCleanupJitterCoefficient     dynamicproperties.FloatPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorStartWait                    dynamicproperties.DurationPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorStartWaitJitterCoefficient   dynamicproperties.FloatPropertyFnWithShardIDFilter
+	ReplicationTaskProcessorHostQPS                      dynamicproperties.FloatPropertyFn
+	ReplicationTaskProcessorShardQPS                     dynamicproperties.FloatPropertyFn
+	ReplicationTaskGenerationQPS                         dynamicproperties.FloatPropertyFn
+	EnableReplicationTaskGeneration                      dynamicproperties.BoolPropertyFnWithDomainIDAndWorkflowIDFilter
+	EnableRecordWorkflowExecutionUninitialized           dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation dynamicproperties.BoolPropertyFnWithDomainFilter
+	ReplicationTaskProcessorLatencyLogThreshold          dynamicproperties.DurationPropertyFn
 
 	// The following are used by the history workflowID cache
-	WorkflowIDCacheExternalEnabled     dynamicconfig.BoolPropertyFnWithDomainFilter
-	WorkflowIDCacheInternalEnabled     dynamicconfig.BoolPropertyFnWithDomainFilter
-	WorkflowIDExternalRateLimitEnabled dynamicconfig.BoolPropertyFnWithDomainFilter
-	WorkflowIDInternalRateLimitEnabled dynamicconfig.BoolPropertyFnWithDomainFilter
-	WorkflowIDExternalRPS              dynamicconfig.IntPropertyFnWithDomainFilter
-	WorkflowIDInternalRPS              dynamicconfig.IntPropertyFnWithDomainFilter
+	WorkflowIDExternalRPS dynamicproperties.IntPropertyFnWithDomainFilter
+	WorkflowIDInternalRPS dynamicproperties.IntPropertyFnWithDomainFilter
 
 	// The following are used by consistent query
-	EnableConsistentQuery         dynamicconfig.BoolPropertyFn
-	EnableConsistentQueryByDomain dynamicconfig.BoolPropertyFnWithDomainFilter
-	MaxBufferedQueryCount         dynamicconfig.IntPropertyFn
+	EnableConsistentQuery         dynamicproperties.BoolPropertyFn
+	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
+	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
-	EnableContextHeaderInVisibility dynamicconfig.BoolPropertyFnWithDomainFilter
+	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
 
-	EnableCrossClusterOperationsForDomain dynamicconfig.BoolPropertyFnWithDomainFilter
+	EnableCrossClusterOperationsForDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// Data integrity check related config knobs
-	MutableStateChecksumGenProbability    dynamicconfig.IntPropertyFnWithDomainFilter
-	MutableStateChecksumVerifyProbability dynamicconfig.IntPropertyFnWithDomainFilter
-	MutableStateChecksumInvalidateBefore  dynamicconfig.FloatPropertyFn
-	EnableRetryForChecksumFailure         dynamicconfig.BoolPropertyFnWithDomainFilter
+	MutableStateChecksumGenProbability    dynamicproperties.IntPropertyFnWithDomainFilter
+	MutableStateChecksumVerifyProbability dynamicproperties.IntPropertyFnWithDomainFilter
+	MutableStateChecksumInvalidateBefore  dynamicproperties.FloatPropertyFn
+
+	// Corruption detection and repair config knobs
+	EnableCorruptionAutoRepair             dynamicproperties.BoolPropertyFnWithDomainFilter
+	CorruptionRepairTimeout                dynamicproperties.DurationPropertyFnWithDomainFilter
+	RequireChecksumMatchAfterRebuildRepair dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// History check for corruptions
-	EnableHistoryCorruptionCheck dynamicconfig.BoolPropertyFnWithDomainFilter
+	EnableHistoryCorruptionCheck dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// Failover marker heartbeat
-	NotifyFailoverMarkerInterval               dynamicconfig.DurationPropertyFn
-	NotifyFailoverMarkerTimerJitterCoefficient dynamicconfig.FloatPropertyFn
-	EnableGracefulFailover                     dynamicconfig.BoolPropertyFn
+	NotifyFailoverMarkerInterval               dynamicproperties.DurationPropertyFn
+	NotifyFailoverMarkerTimerJitterCoefficient dynamicproperties.FloatPropertyFn
+	EnableGracefulFailover                     dynamicproperties.BoolPropertyFn
 
 	// Allows worker to dispatch activity tasks through local tunnel after decisions are made. This is an performance optimization to skip activity scheduling efforts.
-	EnableActivityLocalDispatchByDomain dynamicconfig.BoolPropertyFnWithDomainFilter
-	// Max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.
-	MaxActivityCountDispatchByDomain dynamicconfig.IntPropertyFnWithDomainFilter
+	EnableActivityLocalDispatchByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 
-	ActivityMaxScheduleToStartTimeoutForRetry dynamicconfig.DurationPropertyFnWithDomainFilter
+	ActivityMaxScheduleToStartTimeoutForRetry dynamicproperties.DurationPropertyFnWithDomainFilter
 
 	// Debugging configurations
 	EnableDebugMode               bool // note that this value is initialized once on service start
-	EnableTaskInfoLogByDomainID   dynamicconfig.BoolPropertyFnWithDomainIDFilter
-	EnableTimerDebugLogByDomainID dynamicconfig.BoolPropertyFnWithDomainIDFilter
+	EnableTaskInfoLogByDomainID   dynamicproperties.BoolPropertyFnWithDomainIDFilter
+	EnableTimerDebugLogByDomainID dynamicproperties.BoolPropertyFnWithDomainIDFilter
 
 	// Hotshard stuff
-	SampleLoggingRate                     dynamicconfig.IntPropertyFn
-	EnableShardIDMetrics                  dynamicconfig.BoolPropertyFn
-	LargeShardHistorySizeMetricThreshold  dynamicconfig.IntPropertyFn
-	LargeShardHistoryEventMetricThreshold dynamicconfig.IntPropertyFn
-	LargeShardHistoryBlobMetricThreshold  dynamicconfig.IntPropertyFn
+	SampleLoggingRate                     dynamicproperties.IntPropertyFn
+	EnableShardIDMetrics                  dynamicproperties.BoolPropertyFn
+	LargeShardHistorySizeMetricThreshold  dynamicproperties.IntPropertyFn
+	LargeShardHistoryEventMetricThreshold dynamicproperties.IntPropertyFn
+	LargeShardHistoryBlobMetricThreshold  dynamicproperties.IntPropertyFn
 
-	EnableStrongIdempotency            dynamicconfig.BoolPropertyFnWithDomainFilter
-	EnableStrongIdempotencySanityCheck dynamicconfig.BoolPropertyFnWithDomainFilter
+	EnableStrongIdempotency            dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableStrongIdempotencySanityCheck dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// Global ratelimiter
-	GlobalRatelimiterNewDataWeight  dynamicconfig.FloatPropertyFn
-	GlobalRatelimiterUpdateInterval dynamicconfig.DurationPropertyFn
-	GlobalRatelimiterDecayAfter     dynamicconfig.DurationPropertyFn
-	GlobalRatelimiterGCAfter        dynamicconfig.DurationPropertyFn
+	GlobalRatelimiterNewDataWeight  dynamicproperties.FloatPropertyFn
+	GlobalRatelimiterUpdateInterval dynamicproperties.DurationPropertyFn
+	GlobalRatelimiterDecayAfter     dynamicproperties.DurationPropertyFn
+	GlobalRatelimiterGCAfter        dynamicproperties.DurationPropertyFn
 
 	// HostName for machine running the service
 	HostName string
@@ -330,244 +352,265 @@ type Config struct {
 // New returns new service config with default values
 func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, isAdvancedVisConfigExist bool, hostname string) *Config {
 	cfg := &Config{
-		NumberOfShards:                         numberOfShards,
-		IsAdvancedVisConfigExist:               isAdvancedVisConfigExist,
-		RPS:                                    dc.GetIntProperty(dynamicconfig.HistoryRPS),
-		MaxIDLengthWarnLimit:                   dc.GetIntProperty(dynamicconfig.MaxIDLengthWarnLimit),
-		DomainNameMaxLength:                    dc.GetIntPropertyFilteredByDomain(dynamicconfig.DomainNameMaxLength),
-		IdentityMaxLength:                      dc.GetIntPropertyFilteredByDomain(dynamicconfig.IdentityMaxLength),
-		WorkflowIDMaxLength:                    dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowIDMaxLength),
-		SignalNameMaxLength:                    dc.GetIntPropertyFilteredByDomain(dynamicconfig.SignalNameMaxLength),
-		WorkflowTypeMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowTypeMaxLength),
-		RequestIDMaxLength:                     dc.GetIntPropertyFilteredByDomain(dynamicconfig.RequestIDMaxLength),
-		TaskListNameMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskListNameMaxLength),
-		ActivityIDMaxLength:                    dc.GetIntPropertyFilteredByDomain(dynamicconfig.ActivityIDMaxLength),
-		ActivityTypeMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicconfig.ActivityTypeMaxLength),
-		MarkerNameMaxLength:                    dc.GetIntPropertyFilteredByDomain(dynamicconfig.MarkerNameMaxLength),
-		TimerIDMaxLength:                       dc.GetIntPropertyFilteredByDomain(dynamicconfig.TimerIDMaxLength),
-		PersistenceMaxQPS:                      dc.GetIntProperty(dynamicconfig.HistoryPersistenceMaxQPS),
-		PersistenceGlobalMaxQPS:                dc.GetIntProperty(dynamicconfig.HistoryPersistenceGlobalMaxQPS),
-		ShutdownDrainDuration:                  dc.GetDurationProperty(dynamicconfig.HistoryShutdownDrainDuration),
-		EnableVisibilitySampling:               dc.GetBoolProperty(dynamicconfig.EnableVisibilitySampling),
-		EnableReadFromClosedExecutionV2:        dc.GetBoolProperty(dynamicconfig.EnableReadFromClosedExecutionV2),
-		VisibilityOpenMaxQPS:                   dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistoryVisibilityOpenMaxQPS),
-		VisibilityClosedMaxQPS:                 dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistoryVisibilityClosedMaxQPS),
-		MaxAutoResetPoints:                     dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistoryMaxAutoResetPoints),
-		MaxDecisionStartToCloseSeconds:         dc.GetIntPropertyFilteredByDomain(dynamicconfig.MaxDecisionStartToCloseSeconds),
-		AdvancedVisibilityWritingMode:          dc.GetStringProperty(dynamicconfig.AdvancedVisibilityWritingMode),
-		AdvancedVisibilityMigrationWritingMode: dc.GetStringProperty(dynamicconfig.AdvancedVisibilityMigrationWritingMode),
-		EmitShardDiffLog:                       dc.GetBoolProperty(dynamicconfig.EmitShardDiffLog),
-		HistoryCacheInitialSize:                dc.GetIntProperty(dynamicconfig.HistoryCacheInitialSize),
-		HistoryCacheMaxSize:                    dc.GetIntProperty(dynamicconfig.HistoryCacheMaxSize),
-		HistoryCacheTTL:                        dc.GetDurationProperty(dynamicconfig.HistoryCacheTTL),
-		EventsCacheInitialCount:                dc.GetIntProperty(dynamicconfig.EventsCacheInitialCount),
-		EventsCacheMaxCount:                    dc.GetIntProperty(dynamicconfig.EventsCacheMaxCount),
-		EventsCacheMaxSize:                     dc.GetIntProperty(dynamicconfig.EventsCacheMaxSize),
-		EventsCacheTTL:                         dc.GetDurationProperty(dynamicconfig.EventsCacheTTL),
-		EventsCacheGlobalEnable:                dc.GetBoolProperty(dynamicconfig.EventsCacheGlobalEnable),
-		EventsCacheGlobalInitialCount:          dc.GetIntProperty(dynamicconfig.EventsCacheGlobalInitialCount),
-		EventsCacheGlobalMaxCount:              dc.GetIntProperty(dynamicconfig.EventsCacheGlobalMaxCount),
-		RangeSizeBits:                          20, // 20 bits for sequencer, 2^20 sequence number for any range
-		AcquireShardInterval:                   dc.GetDurationProperty(dynamicconfig.AcquireShardInterval),
-		AcquireShardConcurrency:                dc.GetIntProperty(dynamicconfig.AcquireShardConcurrency),
-		StandbyClusterDelay:                    dc.GetDurationProperty(dynamicconfig.StandbyClusterDelay),
-		StandbyTaskMissingEventsResendDelay:    dc.GetDurationProperty(dynamicconfig.StandbyTaskMissingEventsResendDelay),
-		StandbyTaskMissingEventsDiscardDelay:   dc.GetDurationProperty(dynamicconfig.StandbyTaskMissingEventsDiscardDelay),
-		WorkflowDeletionJitterRange:            dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowDeletionJitterRange),
-		DeleteHistoryEventContextTimeout:       dc.GetIntProperty(dynamicconfig.DeleteHistoryEventContextTimeout),
-		MaxResponseSize:                        maxMessageSize,
+		NumberOfShards:                       numberOfShards,
+		IsAdvancedVisConfigExist:             isAdvancedVisConfigExist,
+		RPS:                                  dc.GetIntProperty(dynamicproperties.HistoryRPS),
+		MaxIDLengthWarnLimit:                 dc.GetIntProperty(dynamicproperties.MaxIDLengthWarnLimit),
+		DomainNameMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.DomainNameMaxLength),
+		IdentityMaxLength:                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.IdentityMaxLength),
+		WorkflowIDMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDMaxLength),
+		SignalNameMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.SignalNameMaxLength),
+		WorkflowTypeMaxLength:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowTypeMaxLength),
+		RequestIDMaxLength:                   dc.GetIntPropertyFilteredByDomain(dynamicproperties.RequestIDMaxLength),
+		TaskListNameMaxLength:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskListNameMaxLength),
+		ActivityIDMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.ActivityIDMaxLength),
+		ActivityTypeMaxLength:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.ActivityTypeMaxLength),
+		MarkerNameMaxLength:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.MarkerNameMaxLength),
+		TimerIDMaxLength:                     dc.GetIntPropertyFilteredByDomain(dynamicproperties.TimerIDMaxLength),
+		PersistenceMaxQPS:                    dc.GetIntProperty(dynamicproperties.HistoryPersistenceMaxQPS),
+		PersistenceGlobalMaxQPS:              dc.GetIntProperty(dynamicproperties.HistoryPersistenceGlobalMaxQPS),
+		ShutdownDrainDuration:                dc.GetDurationProperty(dynamicproperties.HistoryShutdownDrainDuration),
+		EnableVisibilitySampling:             dc.GetBoolProperty(dynamicproperties.EnableVisibilitySampling),
+		EnableReadFromClosedExecutionV2:      dc.GetBoolProperty(dynamicproperties.EnableReadFromClosedExecutionV2),
+		VisibilityOpenMaxQPS:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryVisibilityOpenMaxQPS),
+		VisibilityClosedMaxQPS:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryVisibilityClosedMaxQPS),
+		MaxAutoResetPoints:                   dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryMaxAutoResetPoints),
+		MaxDecisionStartToCloseSeconds:       dc.GetIntPropertyFilteredByDomain(dynamicproperties.MaxDecisionStartToCloseSeconds),
+		WriteVisibilityStoreName:             dc.GetStringProperty(dynamicproperties.WriteVisibilityStoreName),
+		EmitShardDiffLog:                     dc.GetBoolProperty(dynamicproperties.EmitShardDiffLog),
+		HistoryCacheInitialSize:              dc.GetIntProperty(dynamicproperties.HistoryCacheInitialSize),
+		HistoryCacheMaxSize:                  dc.GetIntProperty(dynamicproperties.HistoryCacheMaxSize),
+		ExecutionCacheMaxByteSize:            dc.GetIntProperty(dynamicproperties.ExecutionCacheMaxByteSize),
+		HistoryCacheTTL:                      dc.GetDurationProperty(dynamicproperties.HistoryCacheTTL),
+		EnableSizeBasedHistoryExecutionCache: dc.GetBoolProperty(dynamicproperties.EnableSizeBasedHistoryExecutionCache),
+		EventsCacheInitialCount:              dc.GetIntProperty(dynamicproperties.EventsCacheInitialCount),
+		EventsCacheMaxCount:                  dc.GetIntProperty(dynamicproperties.EventsCacheMaxCount),
+		EventsCacheMaxSize:                   dc.GetIntProperty(dynamicproperties.EventsCacheMaxSize),
+		EventsCacheTTL:                       dc.GetDurationProperty(dynamicproperties.EventsCacheTTL),
+		EventsCacheGlobalEnable:              dc.GetBoolProperty(dynamicproperties.EventsCacheGlobalEnable),
+		EventsCacheGlobalInitialCount:        dc.GetIntProperty(dynamicproperties.EventsCacheGlobalInitialCount),
+		EventsCacheGlobalMaxCount:            dc.GetIntProperty(dynamicproperties.EventsCacheGlobalMaxCount),
+		EnableSizeBasedHistoryEventCache:     dc.GetBoolProperty(dynamicproperties.EnableSizeBasedHistoryEventCache),
+		RangeSizeBits:                        20, // 20 bits for sequencer, 2^20 sequence number for any range
+		AcquireShardInterval:                 dc.GetDurationProperty(dynamicproperties.AcquireShardInterval),
+		AcquireShardConcurrency:              dc.GetIntProperty(dynamicproperties.AcquireShardConcurrency),
+		StandbyClusterDelay:                  dc.GetDurationProperty(dynamicproperties.StandbyClusterDelay),
+		StandbyTaskMissingEventsResendDelay:  dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsResendDelay),
+		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
+		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
+		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
+		MaxResponseSize:                      maxMessageSize,
 
-		TaskProcessRPS:                          dc.GetIntPropertyFilteredByDomain(dynamicconfig.TaskProcessRPS),
-		TaskSchedulerType:                       dc.GetIntProperty(dynamicconfig.TaskSchedulerType),
-		TaskSchedulerWorkerCount:                dc.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount),
-		TaskSchedulerShardWorkerCount:           dc.GetIntProperty(dynamicconfig.TaskSchedulerShardWorkerCount),
-		TaskSchedulerQueueSize:                  dc.GetIntProperty(dynamicconfig.TaskSchedulerQueueSize),
-		TaskSchedulerShardQueueSize:             dc.GetIntProperty(dynamicconfig.TaskSchedulerShardQueueSize),
-		TaskSchedulerDispatcherCount:            dc.GetIntProperty(dynamicconfig.TaskSchedulerDispatcherCount),
-		TaskSchedulerRoundRobinWeights:          dc.GetMapProperty(dynamicconfig.TaskSchedulerRoundRobinWeights),
-		TaskCriticalRetryCount:                  dc.GetIntProperty(dynamicconfig.TaskCriticalRetryCount),
-		ActiveTaskRedispatchInterval:            dc.GetDurationProperty(dynamicconfig.ActiveTaskRedispatchInterval),
-		StandbyTaskRedispatchInterval:           dc.GetDurationProperty(dynamicconfig.StandbyTaskRedispatchInterval),
-		TaskRedispatchIntervalJitterCoefficient: dc.GetFloat64Property(dynamicconfig.TaskRedispatchIntervalJitterCoefficient),
-		StandbyTaskReReplicationContextTimeout:  dc.GetDurationPropertyFilteredByDomainID(dynamicconfig.StandbyTaskReReplicationContextTimeout),
-		EnableDropStuckTaskByDomainID:           dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.EnableDropStuckTaskByDomainID),
-		ResurrectionCheckMinDelay:               dc.GetDurationPropertyFilteredByDomain(dynamicconfig.ResurrectionCheckMinDelay),
+		TaskProcessRPS:                                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskProcessRPS),
+		TaskSchedulerType:                                 dc.GetIntProperty(dynamicproperties.TaskSchedulerType),
+		TaskSchedulerWorkerCount:                          dc.GetIntProperty(dynamicproperties.TaskSchedulerWorkerCount),
+		TaskSchedulerQueueSize:                            dc.GetIntProperty(dynamicproperties.TaskSchedulerQueueSize),
+		TaskSchedulerDispatcherCount:                      dc.GetIntProperty(dynamicproperties.TaskSchedulerDispatcherCount),
+		TaskSchedulerRoundRobinWeights:                    dc.GetMapProperty(dynamicproperties.TaskSchedulerRoundRobinWeights),
+		TaskSchedulerDomainRoundRobinWeights:              dc.GetMapPropertyFilteredByDomain(dynamicproperties.TaskSchedulerDomainRoundRobinWeights),
+		TaskSchedulerGlobalDomainRPS:                      dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskSchedulerGlobalDomainRPS),
+		TaskSchedulerEnableRateLimiter:                    dc.GetBoolProperty(dynamicproperties.TaskSchedulerEnableRateLimiter),
+		TaskSchedulerEnableRateLimiterShadowMode:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.TaskSchedulerEnableRateLimiterShadowMode),
+		TaskCriticalRetryCount:                            dc.GetIntProperty(dynamicproperties.TaskCriticalRetryCount),
+		ActiveTaskRedispatchInterval:                      dc.GetDurationProperty(dynamicproperties.ActiveTaskRedispatchInterval),
+		StandbyTaskRedispatchInterval:                     dc.GetDurationProperty(dynamicproperties.StandbyTaskRedispatchInterval),
+		StandbyTaskReReplicationContextTimeout:            dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.StandbyTaskReReplicationContextTimeout),
+		EnableDropStuckTaskByDomainID:                     dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.EnableDropStuckTaskByDomainID),
+		ResurrectionCheckMinDelay:                         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
+		EnableHierarchicalWeightedRoundRobinTaskScheduler: dc.GetBoolProperty(dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler),
+		EnableTaskListAwareTaskSchedulerByDomain:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain),
 
-		QueueProcessorEnableSplit:                          dc.GetBoolProperty(dynamicconfig.QueueProcessorEnableSplit),
-		QueueProcessorSplitMaxLevel:                        dc.GetIntProperty(dynamicconfig.QueueProcessorSplitMaxLevel),
-		QueueProcessorEnableRandomSplitByDomainID:          dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.QueueProcessorEnableRandomSplitByDomainID),
-		QueueProcessorRandomSplitProbability:               dc.GetFloat64Property(dynamicconfig.QueueProcessorRandomSplitProbability),
-		QueueProcessorEnablePendingTaskSplitByDomainID:     dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.QueueProcessorEnablePendingTaskSplitByDomainID),
-		QueueProcessorPendingTaskSplitThreshold:            dc.GetMapProperty(dynamicconfig.QueueProcessorPendingTaskSplitThreshold),
-		QueueProcessorEnableStuckTaskSplitByDomainID:       dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.QueueProcessorEnableStuckTaskSplitByDomainID),
-		QueueProcessorStuckTaskSplitThreshold:              dc.GetMapProperty(dynamicconfig.QueueProcessorStuckTaskSplitThreshold),
-		QueueProcessorSplitLookAheadDurationByDomainID:     dc.GetDurationPropertyFilteredByDomainID(dynamicconfig.QueueProcessorSplitLookAheadDurationByDomainID),
-		QueueProcessorPollBackoffInterval:                  dc.GetDurationProperty(dynamicconfig.QueueProcessorPollBackoffInterval),
-		QueueProcessorPollBackoffIntervalJitterCoefficient: dc.GetFloat64Property(dynamicconfig.QueueProcessorPollBackoffIntervalJitterCoefficient),
-		QueueProcessorEnablePersistQueueStates:             dc.GetBoolProperty(dynamicconfig.QueueProcessorEnablePersistQueueStates),
-		QueueProcessorEnableLoadQueueStates:                dc.GetBoolProperty(dynamicconfig.QueueProcessorEnableLoadQueueStates),
-		QueueProcessorEnableGracefulSyncShutdown:           dc.GetBoolProperty(dynamicconfig.QueueProcessorEnableGracefulSyncShutdown),
+		EnableTimerQueueV2:                         dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
+		EnableTransferQueueV2:                      dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
+		QueueMaxPendingTaskCount:                   dc.GetIntProperty(dynamicproperties.QueueMaxPendingTaskCount),
+		EnableTimerQueueV2PendingTaskCountAlert:    dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2PendingTaskCountAlert),
+		EnableTransferQueueV2PendingTaskCountAlert: dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2PendingTaskCountAlert),
+		QueueCriticalPendingTaskCount:              dc.GetIntProperty(dynamicproperties.QueueCriticalPendingTaskCount),
+		QueueMaxVirtualQueueCount:                  dc.GetIntProperty(dynamicproperties.QueueMaxVirtualQueueCount),
+		VirtualSliceForceAppendInterval:            dc.GetDurationProperty(dynamicproperties.VirtualSliceForceAppendInterval),
 
-		TimerTaskBatchSize:                                dc.GetIntProperty(dynamicconfig.TimerTaskBatchSize),
-		TimerTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicconfig.TimerTaskDeleteBatchSize),
-		TimerProcessorGetFailureRetryCount:                dc.GetIntProperty(dynamicconfig.TimerProcessorGetFailureRetryCount),
-		TimerProcessorCompleteTimerFailureRetryCount:      dc.GetIntProperty(dynamicconfig.TimerProcessorCompleteTimerFailureRetryCount),
-		TimerProcessorUpdateAckInterval:                   dc.GetDurationProperty(dynamicconfig.TimerProcessorUpdateAckInterval),
-		TimerProcessorUpdateAckIntervalJitterCoefficient:  dc.GetFloat64Property(dynamicconfig.TimerProcessorUpdateAckIntervalJitterCoefficient),
-		TimerProcessorCompleteTimerInterval:               dc.GetDurationProperty(dynamicconfig.TimerProcessorCompleteTimerInterval),
-		TimerProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicconfig.TimerProcessorFailoverMaxStartJitterInterval),
-		TimerProcessorFailoverMaxPollRPS:                  dc.GetIntProperty(dynamicconfig.TimerProcessorFailoverMaxPollRPS),
-		TimerProcessorMaxPollRPS:                          dc.GetIntProperty(dynamicconfig.TimerProcessorMaxPollRPS),
-		TimerProcessorMaxPollInterval:                     dc.GetDurationProperty(dynamicconfig.TimerProcessorMaxPollInterval),
-		TimerProcessorMaxPollIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicconfig.TimerProcessorMaxPollIntervalJitterCoefficient),
-		TimerProcessorSplitQueueInterval:                  dc.GetDurationProperty(dynamicconfig.TimerProcessorSplitQueueInterval),
-		TimerProcessorSplitQueueIntervalJitterCoefficient: dc.GetFloat64Property(dynamicconfig.TimerProcessorSplitQueueIntervalJitterCoefficient),
-		TimerProcessorMaxRedispatchQueueSize:              dc.GetIntProperty(dynamicconfig.TimerProcessorMaxRedispatchQueueSize),
-		TimerProcessorMaxTimeShift:                        dc.GetDurationProperty(dynamicconfig.TimerProcessorMaxTimeShift),
-		TimerProcessorHistoryArchivalSizeLimit:            dc.GetIntProperty(dynamicconfig.TimerProcessorHistoryArchivalSizeLimit),
-		TimerProcessorArchivalTimeLimit:                   dc.GetDurationProperty(dynamicconfig.TimerProcessorArchivalTimeLimit),
+		QueueProcessorEnableSplit:                          dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableSplit),
+		QueueProcessorSplitMaxLevel:                        dc.GetIntProperty(dynamicproperties.QueueProcessorSplitMaxLevel),
+		QueueProcessorEnableRandomSplitByDomainID:          dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.QueueProcessorEnableRandomSplitByDomainID),
+		QueueProcessorRandomSplitProbability:               dc.GetFloat64Property(dynamicproperties.QueueProcessorRandomSplitProbability),
+		QueueProcessorEnablePendingTaskSplitByDomainID:     dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.QueueProcessorEnablePendingTaskSplitByDomainID),
+		QueueProcessorPendingTaskSplitThreshold:            dc.GetMapProperty(dynamicproperties.QueueProcessorPendingTaskSplitThreshold),
+		QueueProcessorEnableStuckTaskSplitByDomainID:       dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.QueueProcessorEnableStuckTaskSplitByDomainID),
+		QueueProcessorStuckTaskSplitThreshold:              dc.GetMapProperty(dynamicproperties.QueueProcessorStuckTaskSplitThreshold),
+		QueueProcessorSplitLookAheadDurationByDomainID:     dc.GetDurationPropertyFilteredByDomainID(dynamicproperties.QueueProcessorSplitLookAheadDurationByDomainID),
+		QueueProcessorPollBackoffInterval:                  dc.GetDurationProperty(dynamicproperties.QueueProcessorPollBackoffInterval),
+		QueueProcessorPollBackoffIntervalJitterCoefficient: dc.GetFloat64Property(dynamicproperties.QueueProcessorPollBackoffIntervalJitterCoefficient),
+		QueueProcessorEnablePersistQueueStates:             dc.GetBoolProperty(dynamicproperties.QueueProcessorEnablePersistQueueStates),
+		QueueProcessorEnableLoadQueueStates:                dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableLoadQueueStates),
+		QueueProcessorEnableGracefulSyncShutdown:           dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableGracefulSyncShutdown),
 
-		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicconfig.TransferTaskBatchSize),
-		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicconfig.TransferTaskDeleteBatchSize),
-		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicconfig.TransferProcessorFailoverMaxStartJitterInterval),
-		TransferProcessorFailoverMaxPollRPS:                  dc.GetIntProperty(dynamicconfig.TransferProcessorFailoverMaxPollRPS),
-		TransferProcessorMaxPollRPS:                          dc.GetIntProperty(dynamicconfig.TransferProcessorMaxPollRPS),
-		TransferProcessorCompleteTransferFailureRetryCount:   dc.GetIntProperty(dynamicconfig.TransferProcessorCompleteTransferFailureRetryCount),
-		TransferProcessorMaxPollInterval:                     dc.GetDurationProperty(dynamicconfig.TransferProcessorMaxPollInterval),
-		TransferProcessorMaxPollIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicconfig.TransferProcessorMaxPollIntervalJitterCoefficient),
-		TransferProcessorSplitQueueInterval:                  dc.GetDurationProperty(dynamicconfig.TransferProcessorSplitQueueInterval),
-		TransferProcessorSplitQueueIntervalJitterCoefficient: dc.GetFloat64Property(dynamicconfig.TransferProcessorSplitQueueIntervalJitterCoefficient),
-		TransferProcessorUpdateAckInterval:                   dc.GetDurationProperty(dynamicconfig.TransferProcessorUpdateAckInterval),
-		TransferProcessorUpdateAckIntervalJitterCoefficient:  dc.GetFloat64Property(dynamicconfig.TransferProcessorUpdateAckIntervalJitterCoefficient),
-		TransferProcessorCompleteTransferInterval:            dc.GetDurationProperty(dynamicconfig.TransferProcessorCompleteTransferInterval),
-		TransferProcessorMaxRedispatchQueueSize:              dc.GetIntProperty(dynamicconfig.TransferProcessorMaxRedispatchQueueSize),
-		TransferProcessorEnableValidator:                     dc.GetBoolProperty(dynamicconfig.TransferProcessorEnableValidator),
-		TransferProcessorValidationInterval:                  dc.GetDurationProperty(dynamicconfig.TransferProcessorValidationInterval),
-		TransferProcessorVisibilityArchivalTimeLimit:         dc.GetDurationProperty(dynamicconfig.TransferProcessorVisibilityArchivalTimeLimit),
+		TimerTaskBatchSize:                                   dc.GetIntProperty(dynamicproperties.TimerTaskBatchSize),
+		TimerTaskDeleteBatchSize:                             dc.GetIntProperty(dynamicproperties.TimerTaskDeleteBatchSize),
+		TimerProcessorGetFailureRetryCount:                   dc.GetIntProperty(dynamicproperties.TimerProcessorGetFailureRetryCount),
+		TimerProcessorCompleteTimerFailureRetryCount:         dc.GetIntProperty(dynamicproperties.TimerProcessorCompleteTimerFailureRetryCount),
+		TimerProcessorUpdateAckInterval:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorUpdateAckInterval),
+		TimerProcessorUpdateAckIntervalJitterCoefficient:     dc.GetFloat64Property(dynamicproperties.TimerProcessorUpdateAckIntervalJitterCoefficient),
+		TimerProcessorCompleteTimerInterval:                  dc.GetDurationProperty(dynamicproperties.TimerProcessorCompleteTimerInterval),
+		TimerProcessorFailoverMaxStartJitterInterval:         dc.GetDurationProperty(dynamicproperties.TimerProcessorFailoverMaxStartJitterInterval),
+		TimerProcessorFailoverMaxPollRPS:                     dc.GetIntProperty(dynamicproperties.TimerProcessorFailoverMaxPollRPS),
+		TimerProcessorMaxPollRPS:                             dc.GetIntProperty(dynamicproperties.TimerProcessorMaxPollRPS),
+		TimerProcessorMaxPollInterval:                        dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxPollInterval),
+		TimerProcessorMaxPollIntervalJitterCoefficient:       dc.GetFloat64Property(dynamicproperties.TimerProcessorMaxPollIntervalJitterCoefficient),
+		TimerProcessorSplitQueueInterval:                     dc.GetDurationProperty(dynamicproperties.TimerProcessorSplitQueueInterval),
+		TimerProcessorSplitQueueIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicproperties.TimerProcessorSplitQueueIntervalJitterCoefficient),
+		TimerProcessorMaxRedispatchQueueSize:                 dc.GetIntProperty(dynamicproperties.TimerProcessorMaxRedispatchQueueSize),
+		TimerProcessorMaxTimeShift:                           dc.GetDurationProperty(dynamicproperties.TimerProcessorMaxTimeShift),
+		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
+		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
+		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
+		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
+		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
+		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),
+		TransferProcessorFailoverMaxPollRPS:                  dc.GetIntProperty(dynamicproperties.TransferProcessorFailoverMaxPollRPS),
+		TransferProcessorMaxPollRPS:                          dc.GetIntProperty(dynamicproperties.TransferProcessorMaxPollRPS),
+		TransferProcessorCompleteTransferFailureRetryCount:   dc.GetIntProperty(dynamicproperties.TransferProcessorCompleteTransferFailureRetryCount),
+		TransferProcessorMaxPollInterval:                     dc.GetDurationProperty(dynamicproperties.TransferProcessorMaxPollInterval),
+		TransferProcessorMaxPollIntervalJitterCoefficient:    dc.GetFloat64Property(dynamicproperties.TransferProcessorMaxPollIntervalJitterCoefficient),
+		TransferProcessorSplitQueueInterval:                  dc.GetDurationProperty(dynamicproperties.TransferProcessorSplitQueueInterval),
+		TransferProcessorSplitQueueIntervalJitterCoefficient: dc.GetFloat64Property(dynamicproperties.TransferProcessorSplitQueueIntervalJitterCoefficient),
+		TransferProcessorUpdateAckInterval:                   dc.GetDurationProperty(dynamicproperties.TransferProcessorUpdateAckInterval),
+		TransferProcessorUpdateAckIntervalJitterCoefficient:  dc.GetFloat64Property(dynamicproperties.TransferProcessorUpdateAckIntervalJitterCoefficient),
+		TransferProcessorCompleteTransferInterval:            dc.GetDurationProperty(dynamicproperties.TransferProcessorCompleteTransferInterval),
+		TransferProcessorMaxRedispatchQueueSize:              dc.GetIntProperty(dynamicproperties.TransferProcessorMaxRedispatchQueueSize),
+		TransferProcessorEnableValidator:                     dc.GetBoolProperty(dynamicproperties.TransferProcessorEnableValidator),
+		TransferProcessorValidationInterval:                  dc.GetDurationProperty(dynamicproperties.TransferProcessorValidationInterval),
+		TransferProcessorVisibilityArchivalTimeLimit:         dc.GetDurationProperty(dynamicproperties.TransferProcessorVisibilityArchivalTimeLimit),
+		DisableTransferFailoverQueue:                         dc.GetBoolProperty(dynamicproperties.DisableTransferFailoverQueue),
 
-		ReplicatorTaskDeleteBatchSize:          dc.GetIntProperty(dynamicconfig.ReplicatorTaskDeleteBatchSize),
-		ReplicatorReadTaskMaxRetryCount:        dc.GetIntProperty(dynamicconfig.ReplicatorReadTaskMaxRetryCount),
-		ReplicatorProcessorFetchTasksBatchSize: dc.GetIntPropertyFilteredByShardID(dynamicconfig.ReplicatorTaskBatchSize),
-		ReplicatorUpperLatency:                 dc.GetDurationProperty(dynamicconfig.ReplicatorUpperLatency),
-		ReplicatorCacheCapacity:                dc.GetIntProperty(dynamicconfig.ReplicatorCacheCapacity),
+		ReplicatorTaskDeleteBatchSize:            dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize),
+		ReplicatorReadTaskMaxRetryCount:          dc.GetIntProperty(dynamicproperties.ReplicatorReadTaskMaxRetryCount),
+		ReplicatorProcessorFetchTasksBatchSize:   dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchSize),
+		ReplicatorProcessorMaxTaskBatchSize:      dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorMaxTaskBatchSize),
+		ReplicatorProcessorMinTaskBatchSize:      dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorMinTaskBatchSize),
+		ReplicatorProcessorBatchSizeStepCount:    dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicatorTaskBatchStepCount),
+		ReplicatorUpperLatency:                   dc.GetDurationProperty(dynamicproperties.ReplicatorUpperLatency),
+		ReplicatorCacheCapacity:                  dc.GetIntProperty(dynamicproperties.ReplicatorCacheCapacity),
+		ReplicatorCacheMaxSize:                   dc.GetIntProperty(dynamicproperties.ReplicatorCacheMaxSize),
+		ReplicationBudgetManagerMaxSizeBytes:     dc.GetIntProperty(dynamicproperties.ReplicationBudgetManagerMaxSizeBytes),
+		ReplicationBudgetManagerMaxSizeCount:     dc.GetIntProperty(dynamicproperties.ReplicationBudgetManagerMaxSizeCount),
+		ReplicationBudgetManagerSoftCapThreshold: dc.GetFloat64Property(dynamicproperties.ReplicationBudgetManagerSoftCapThreshold),
 
-		ExecutionMgrNumConns:            dc.GetIntProperty(dynamicconfig.ExecutionMgrNumConns),
-		HistoryMgrNumConns:              dc.GetIntProperty(dynamicconfig.HistoryMgrNumConns),
-		MaximumBufferedEventsBatch:      dc.GetIntProperty(dynamicconfig.MaximumBufferedEventsBatch),
-		MaximumSignalsPerExecution:      dc.GetIntPropertyFilteredByDomain(dynamicconfig.MaximumSignalsPerExecution),
-		ShardUpdateMinInterval:          dc.GetDurationProperty(dynamicconfig.ShardUpdateMinInterval),
-		ShardSyncMinInterval:            dc.GetDurationProperty(dynamicconfig.ShardSyncMinInterval),
-		ShardSyncTimerJitterCoefficient: dc.GetFloat64Property(dynamicconfig.TransferProcessorMaxPollIntervalJitterCoefficient),
+		MaximumBufferedEventsBatch:      dc.GetIntProperty(dynamicproperties.MaximumBufferedEventsBatch),
+		MaximumSignalsPerExecution:      dc.GetIntPropertyFilteredByDomain(dynamicproperties.MaximumSignalsPerExecution),
+		ShardUpdateMinInterval:          dc.GetDurationProperty(dynamicproperties.ShardUpdateMinInterval),
+		ShardSyncMinInterval:            dc.GetDurationProperty(dynamicproperties.ShardSyncMinInterval),
+		ShardSyncTimerJitterCoefficient: dc.GetFloat64Property(dynamicproperties.TransferProcessorMaxPollIntervalJitterCoefficient),
 
 		// history client: client/history/client.go set the client timeout 30s
-		LongPollExpirationInterval:          dc.GetDurationPropertyFilteredByDomain(dynamicconfig.HistoryLongPollExpirationInterval),
-		EventEncodingType:                   dc.GetStringPropertyFilteredByDomain(dynamicconfig.DefaultEventEncoding),
-		EnableParentClosePolicy:             dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableParentClosePolicy),
-		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicconfig.NumParentClosePolicySystemWorkflows),
-		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicconfig.EnableParentClosePolicyWorker),
-		ParentClosePolicyThreshold:          dc.GetIntPropertyFilteredByDomain(dynamicconfig.ParentClosePolicyThreshold),
-		ParentClosePolicyBatchSize:          dc.GetIntPropertyFilteredByDomain(dynamicconfig.ParentClosePolicyBatchSize),
+		LongPollExpirationInterval:          dc.GetDurationPropertyFilteredByDomain(dynamicproperties.HistoryLongPollExpirationInterval),
+		EventEncodingType:                   dc.GetStringPropertyFilteredByDomain(dynamicproperties.DefaultEventEncoding),
+		EnableParentClosePolicy:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableParentClosePolicy),
+		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
+		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
+		ParentClosePolicyThreshold:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.ParentClosePolicyThreshold),
+		ParentClosePolicyBatchSize:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.ParentClosePolicyBatchSize),
 
-		NumArchiveSystemWorkflows:        dc.GetIntProperty(dynamicconfig.NumArchiveSystemWorkflows),
-		ArchiveRequestRPS:                dc.GetIntProperty(dynamicconfig.ArchiveRequestRPS),
-		ArchiveInlineHistoryRPS:          dc.GetIntProperty(dynamicconfig.ArchiveInlineHistoryRPS),
-		ArchiveInlineHistoryGlobalRPS:    dc.GetIntProperty(dynamicconfig.ArchiveInlineHistoryGlobalRPS),
-		ArchiveInlineVisibilityRPS:       dc.GetIntProperty(dynamicconfig.ArchiveInlineVisibilityRPS),
-		ArchiveInlineVisibilityGlobalRPS: dc.GetIntProperty(dynamicconfig.ArchiveInlineVisibilityGlobalRPS),
-		AllowArchivingIncompleteHistory:  dc.GetBoolProperty(dynamicconfig.AllowArchivingIncompleteHistory),
+		NumArchiveSystemWorkflows:        dc.GetIntProperty(dynamicproperties.NumArchiveSystemWorkflows),
+		ArchiveRequestRPS:                dc.GetIntProperty(dynamicproperties.ArchiveRequestRPS),
+		ArchiveInlineHistoryRPS:          dc.GetIntProperty(dynamicproperties.ArchiveInlineHistoryRPS),
+		ArchiveInlineHistoryGlobalRPS:    dc.GetIntProperty(dynamicproperties.ArchiveInlineHistoryGlobalRPS),
+		ArchiveInlineVisibilityRPS:       dc.GetIntProperty(dynamicproperties.ArchiveInlineVisibilityRPS),
+		ArchiveInlineVisibilityGlobalRPS: dc.GetIntProperty(dynamicproperties.ArchiveInlineVisibilityGlobalRPS),
+		AllowArchivingIncompleteHistory:  dc.GetBoolProperty(dynamicproperties.AllowArchivingIncompleteHistory),
 
-		BlobSizeLimitError:               dc.GetIntPropertyFilteredByDomain(dynamicconfig.BlobSizeLimitError),
-		BlobSizeLimitWarn:                dc.GetIntPropertyFilteredByDomain(dynamicconfig.BlobSizeLimitWarn),
-		HistorySizeLimitError:            dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistorySizeLimitError),
-		HistorySizeLimitWarn:             dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistorySizeLimitWarn),
-		HistoryCountLimitError:           dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistoryCountLimitError),
-		HistoryCountLimitWarn:            dc.GetIntPropertyFilteredByDomain(dynamicconfig.HistoryCountLimitWarn),
-		PendingActivitiesCountLimitError: dc.GetIntProperty(dynamicconfig.PendingActivitiesCountLimitError),
-		PendingActivitiesCountLimitWarn:  dc.GetIntProperty(dynamicconfig.PendingActivitiesCountLimitWarn),
-		PendingActivityValidationEnabled: dc.GetBoolProperty(dynamicconfig.EnablePendingActivityValidation),
+		BlobSizeLimitError:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitError),
+		BlobSizeLimitWarn:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
+		HistorySizeLimitError:            dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitError),
+		HistorySizeLimitWarn:             dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitWarn),
+		HistoryCountLimitError:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitError),
+		HistoryCountLimitWarn:            dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitWarn),
+		PendingActivitiesCountLimitError: dc.GetIntProperty(dynamicproperties.PendingActivitiesCountLimitError),
+		PendingActivitiesCountLimitWarn:  dc.GetIntProperty(dynamicproperties.PendingActivitiesCountLimitWarn),
+		PendingActivityValidationEnabled: dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation),
 
-		ThrottledLogRPS:   dc.GetIntProperty(dynamicconfig.HistoryThrottledLogRPS),
-		EnableStickyQuery: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableStickyQuery),
+		ThrottledLogRPS:   dc.GetIntProperty(dynamicproperties.HistoryThrottledLogRPS),
+		EnableStickyQuery: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStickyQuery),
 
-		EnableQueryAttributeValidation:           dc.GetBoolProperty(dynamicconfig.EnableQueryAttributeValidation),
-		ValidSearchAttributes:                    dc.GetMapProperty(dynamicconfig.ValidSearchAttributes),
-		SearchAttributesNumberOfKeysLimit:        dc.GetIntPropertyFilteredByDomain(dynamicconfig.SearchAttributesNumberOfKeysLimit),
-		SearchAttributesSizeOfValueLimit:         dc.GetIntPropertyFilteredByDomain(dynamicconfig.SearchAttributesSizeOfValueLimit),
-		SearchAttributesTotalSizeLimit:           dc.GetIntPropertyFilteredByDomain(dynamicconfig.SearchAttributesTotalSizeLimit),
-		StickyTTL:                                dc.GetDurationPropertyFilteredByDomain(dynamicconfig.StickyTTL),
-		DecisionHeartbeatTimeout:                 dc.GetDurationPropertyFilteredByDomain(dynamicconfig.DecisionHeartbeatTimeout),
-		DecisionRetryCriticalAttempts:            dc.GetIntProperty(dynamicconfig.DecisionRetryCriticalAttempts),
-		DecisionRetryMaxAttempts:                 dc.GetIntPropertyFilteredByDomain(dynamicconfig.DecisionRetryMaxAttempts),
-		NormalDecisionScheduleToStartMaxAttempts: dc.GetIntPropertyFilteredByDomain(dynamicconfig.NormalDecisionScheduleToStartMaxAttempts),
-		NormalDecisionScheduleToStartTimeout:     dc.GetDurationPropertyFilteredByDomain(dynamicconfig.NormalDecisionScheduleToStartTimeout),
+		EnableQueryAttributeValidation:           dc.GetBoolProperty(dynamicproperties.EnableQueryAttributeValidation),
+		ValidSearchAttributes:                    dc.GetMapProperty(dynamicproperties.ValidSearchAttributes),
+		SearchAttributesNumberOfKeysLimit:        dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesNumberOfKeysLimit),
+		SearchAttributesSizeOfValueLimit:         dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesSizeOfValueLimit),
+		SearchAttributesTotalSizeLimit:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesTotalSizeLimit),
+		SearchAttributesHiddenValueKeys:          dc.GetMapProperty(dynamicproperties.SearchAttributesHiddenValueKeys),
+		StickyTTL:                                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.StickyTTL),
+		DecisionHeartbeatTimeout:                 dc.GetDurationPropertyFilteredByDomain(dynamicproperties.DecisionHeartbeatTimeout),
+		DecisionRetryCriticalAttempts:            dc.GetIntProperty(dynamicproperties.DecisionRetryCriticalAttempts),
+		DecisionRetryMaxAttempts:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.DecisionRetryMaxAttempts),
+		EnforceDecisionTaskAttempts:              dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnforceDecisionTaskAttempts),
+		NormalDecisionScheduleToStartMaxAttempts: dc.GetIntPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts),
+		NormalDecisionScheduleToStartTimeout:     dc.GetDurationPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartTimeout),
 
-		ReplicationTaskFetcherParallelism:                  dc.GetIntProperty(dynamicconfig.ReplicationTaskFetcherParallelism),
-		ReplicationTaskFetcherAggregationInterval:          dc.GetDurationProperty(dynamicconfig.ReplicationTaskFetcherAggregationInterval),
-		ReplicationTaskFetcherTimerJitterCoefficient:       dc.GetFloat64Property(dynamicconfig.ReplicationTaskFetcherTimerJitterCoefficient),
-		ReplicationTaskFetcherErrorRetryWait:               dc.GetDurationProperty(dynamicconfig.ReplicationTaskFetcherErrorRetryWait),
-		ReplicationTaskFetcherServiceBusyWait:              dc.GetDurationProperty(dynamicconfig.ReplicationTaskFetcherServiceBusyWait),
-		ReplicationTaskFetcherEnableGracefulSyncShutdown:   dc.GetBoolProperty(dynamicconfig.ReplicationTaskFetcherEnableGracefulSyncShutdown),
-		ReplicationTaskProcessorErrorRetryWait:             dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorErrorRetryWait),
-		ReplicationTaskProcessorErrorRetryMaxAttempts:      dc.GetIntPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorErrorRetryMaxAttempts),
-		ReplicationTaskProcessorErrorSecondRetryWait:       dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorErrorSecondRetryWait),
-		ReplicationTaskProcessorErrorSecondRetryMaxWait:    dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorErrorSecondRetryMaxWait),
-		ReplicationTaskProcessorErrorSecondRetryExpiration: dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorErrorSecondRetryExpiration),
-		ReplicationTaskProcessorNoTaskRetryWait:            dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorNoTaskInitialWait),
-		ReplicationTaskProcessorCleanupInterval:            dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorCleanupInterval),
-		ReplicationTaskProcessorCleanupJitterCoefficient:   dc.GetFloat64PropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorCleanupJitterCoefficient),
-		ReplicationTaskProcessorStartWait:                  dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorStartWait),
-		ReplicationTaskProcessorStartWaitJitterCoefficient: dc.GetFloat64PropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorStartWaitJitterCoefficient),
-		ReplicationTaskProcessorHostQPS:                    dc.GetFloat64Property(dynamicconfig.ReplicationTaskProcessorHostQPS),
-		ReplicationTaskProcessorShardQPS:                   dc.GetFloat64Property(dynamicconfig.ReplicationTaskProcessorShardQPS),
-		ReplicationTaskGenerationQPS:                       dc.GetFloat64Property(dynamicconfig.ReplicationTaskGenerationQPS),
-		EnableReplicationTaskGeneration:                    dc.GetBoolPropertyFilteredByDomainIDAndWorkflowID(dynamicconfig.EnableReplicationTaskGeneration),
-		EnableRecordWorkflowExecutionUninitialized:         dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableRecordWorkflowExecutionUninitialized),
+		ReplicationTaskFetcherParallelism:                    dc.GetIntProperty(dynamicproperties.ReplicationTaskFetcherParallelism),
+		ReplicationTaskFetcherAggregationInterval:            dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherAggregationInterval),
+		ReplicationTaskFetcherTimerJitterCoefficient:         dc.GetFloat64Property(dynamicproperties.ReplicationTaskFetcherTimerJitterCoefficient),
+		ReplicationTaskFetcherErrorRetryWait:                 dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherErrorRetryWait),
+		ReplicationTaskFetcherServiceBusyWait:                dc.GetDurationProperty(dynamicproperties.ReplicationTaskFetcherServiceBusyWait),
+		ReplicationTaskProcessorErrorRetryWait:               dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorRetryWait),
+		ReplicationTaskProcessorErrorRetryMaxAttempts:        dc.GetIntPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts),
+		ReplicationTaskProcessorErrorSecondRetryWait:         dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryWait),
+		ReplicationTaskProcessorErrorSecondRetryMaxWait:      dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryMaxWait),
+		ReplicationTaskProcessorErrorSecondRetryExpiration:   dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorErrorSecondRetryExpiration),
+		ReplicationTaskProcessorNoTaskRetryWait:              dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorNoTaskInitialWait),
+		ReplicationTaskProcessorCleanupInterval:              dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupInterval),
+		ReplicationTaskProcessorCleanupJitterCoefficient:     dc.GetFloat64PropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupJitterCoefficient),
+		ReplicationTaskProcessorStartWait:                    dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWait),
+		ReplicationTaskProcessorStartWaitJitterCoefficient:   dc.GetFloat64PropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWaitJitterCoefficient),
+		ReplicationTaskProcessorHostQPS:                      dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorHostQPS),
+		ReplicationTaskProcessorShardQPS:                     dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorShardQPS),
+		ReplicationTaskGenerationQPS:                         dc.GetFloat64Property(dynamicproperties.ReplicationTaskGenerationQPS),
+		EnableReplicationTaskGeneration:                      dc.GetBoolPropertyFilteredByDomainIDAndWorkflowID(dynamicproperties.EnableReplicationTaskGeneration),
+		EnableRecordWorkflowExecutionUninitialized:           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableRecordWorkflowExecutionUninitialized),
+		EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation),
+		ReplicationTaskProcessorLatencyLogThreshold:          dc.GetDurationProperty(dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold),
 
-		WorkflowIDCacheExternalEnabled:     dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDCacheExternalEnabled),
-		WorkflowIDCacheInternalEnabled:     dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDCacheInternalEnabled),
-		WorkflowIDExternalRateLimitEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDExternalRateLimitEnabled),
-		WorkflowIDInternalRateLimitEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.WorkflowIDInternalRateLimitEnabled),
-		WorkflowIDExternalRPS:              dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowIDExternalRPS),
-		WorkflowIDInternalRPS:              dc.GetIntPropertyFilteredByDomain(dynamicconfig.WorkflowIDInternalRPS),
+		WorkflowIDExternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDExternalRPS),
+		WorkflowIDInternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDInternalRPS),
 
-		EnableConsistentQuery:                 dc.GetBoolProperty(dynamicconfig.EnableConsistentQuery),
-		EnableConsistentQueryByDomain:         dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableConsistentQueryByDomain),
-		EnableContextHeaderInVisibility:       dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableContextHeaderInVisibility),
-		EnableCrossClusterOperationsForDomain: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableCrossClusterOperationsForDomain),
-		MaxBufferedQueryCount:                 dc.GetIntProperty(dynamicconfig.MaxBufferedQueryCount),
-		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicconfig.MutableStateChecksumGenProbability),
-		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicconfig.MutableStateChecksumVerifyProbability),
-		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicconfig.MutableStateChecksumInvalidateBefore),
-		EnableRetryForChecksumFailure:         dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableRetryForChecksumFailure),
+		EnableConsistentQuery:                 dc.GetBoolProperty(dynamicproperties.EnableConsistentQuery),
+		EnableConsistentQueryByDomain:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableConsistentQueryByDomain),
+		EnableContextHeaderInVisibility:       dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableContextHeaderInVisibility),
+		EnableCrossClusterOperationsForDomain: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCrossClusterOperationsForDomain),
+		MaxBufferedQueryCount:                 dc.GetIntProperty(dynamicproperties.MaxBufferedQueryCount),
+		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
+		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
+		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
 
-		EnableHistoryCorruptionCheck: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableHistoryCorruptionCheck),
+		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
+		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),
+		RequireChecksumMatchAfterRebuildRepair: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.RequireChecksumMatchAfterRebuildRepair),
 
-		NotifyFailoverMarkerInterval:               dc.GetDurationProperty(dynamicconfig.NotifyFailoverMarkerInterval),
-		NotifyFailoverMarkerTimerJitterCoefficient: dc.GetFloat64Property(dynamicconfig.NotifyFailoverMarkerTimerJitterCoefficient),
-		EnableGracefulFailover:                     dc.GetBoolProperty(dynamicconfig.EnableGracefulFailover),
+		EnableHistoryCorruptionCheck: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableHistoryCorruptionCheck),
 
-		EnableActivityLocalDispatchByDomain: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableActivityLocalDispatchByDomain),
-		MaxActivityCountDispatchByDomain:    dc.GetIntPropertyFilteredByDomain(dynamicconfig.MaxActivityCountDispatchByDomain),
+		NotifyFailoverMarkerInterval:               dc.GetDurationProperty(dynamicproperties.NotifyFailoverMarkerInterval),
+		NotifyFailoverMarkerTimerJitterCoefficient: dc.GetFloat64Property(dynamicproperties.NotifyFailoverMarkerTimerJitterCoefficient),
+		EnableGracefulFailover:                     dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),
 
-		ActivityMaxScheduleToStartTimeoutForRetry: dc.GetDurationPropertyFilteredByDomain(dynamicconfig.ActivityMaxScheduleToStartTimeoutForRetry),
+		EnableActivityLocalDispatchByDomain: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableActivityLocalDispatchByDomain),
 
-		EnableDebugMode:               dc.GetBoolProperty(dynamicconfig.EnableDebugMode)(),
-		EnableTaskInfoLogByDomainID:   dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.HistoryEnableTaskInfoLogByDomainID),
-		EnableTimerDebugLogByDomainID: dc.GetBoolPropertyFilteredByDomainID(dynamicconfig.EnableTimerDebugLogByDomainID),
+		ActivityMaxScheduleToStartTimeoutForRetry: dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ActivityMaxScheduleToStartTimeoutForRetry),
 
-		SampleLoggingRate:                     dc.GetIntProperty(dynamicconfig.SampleLoggingRate),
-		EnableShardIDMetrics:                  dc.GetBoolProperty(dynamicconfig.EnableShardIDMetrics),
-		LargeShardHistorySizeMetricThreshold:  dc.GetIntProperty(dynamicconfig.LargeShardHistorySizeMetricThreshold),
-		LargeShardHistoryEventMetricThreshold: dc.GetIntProperty(dynamicconfig.LargeShardHistoryEventMetricThreshold),
-		LargeShardHistoryBlobMetricThreshold:  dc.GetIntProperty(dynamicconfig.LargeShardHistoryBlobMetricThreshold),
+		EnableDebugMode:               dc.GetBoolProperty(dynamicproperties.EnableDebugMode)(),
+		EnableTaskInfoLogByDomainID:   dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.HistoryEnableTaskInfoLogByDomainID),
+		EnableTimerDebugLogByDomainID: dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.EnableTimerDebugLogByDomainID),
 
-		EnableStrongIdempotency:            dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableStrongIdempotency),
-		EnableStrongIdempotencySanityCheck: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableStrongIdempotencySanityCheck),
+		SampleLoggingRate:                     dc.GetIntProperty(dynamicproperties.SampleLoggingRate),
+		EnableShardIDMetrics:                  dc.GetBoolProperty(dynamicproperties.EnableShardIDMetrics),
+		LargeShardHistorySizeMetricThreshold:  dc.GetIntProperty(dynamicproperties.LargeShardHistorySizeMetricThreshold),
+		LargeShardHistoryEventMetricThreshold: dc.GetIntProperty(dynamicproperties.LargeShardHistoryEventMetricThreshold),
+		LargeShardHistoryBlobMetricThreshold:  dc.GetIntProperty(dynamicproperties.LargeShardHistoryBlobMetricThreshold),
 
-		GlobalRatelimiterNewDataWeight:  dc.GetFloat64Property(dynamicconfig.HistoryGlobalRatelimiterNewDataWeight),
-		GlobalRatelimiterUpdateInterval: dc.GetDurationProperty(dynamicconfig.GlobalRatelimiterUpdateInterval),
-		GlobalRatelimiterDecayAfter:     dc.GetDurationProperty(dynamicconfig.HistoryGlobalRatelimiterDecayAfter),
-		GlobalRatelimiterGCAfter:        dc.GetDurationProperty(dynamicconfig.HistoryGlobalRatelimiterGCAfter),
+		EnableStrongIdempotency:            dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStrongIdempotency),
+		EnableStrongIdempotencySanityCheck: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStrongIdempotencySanityCheck),
+
+		GlobalRatelimiterNewDataWeight:  dc.GetFloat64Property(dynamicproperties.HistoryGlobalRatelimiterNewDataWeight),
+		GlobalRatelimiterUpdateInterval: dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
+		GlobalRatelimiterDecayAfter:     dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterDecayAfter),
+		GlobalRatelimiterGCAfter:        dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterGCAfter),
 
 		HostName: hostname,
 	}
@@ -588,56 +631,52 @@ func NewForTestByShardNumber(shardNumber int) *Config {
 		}
 	}
 	inMem := dynamicconfig.NewInMemoryClient()
-	panicIfErr(inMem.UpdateValue(dynamicconfig.HistoryLongPollExpirationInterval, 10*time.Second))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.EnableConsistentQueryByDomain, true))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ReplicationTaskProcessorHostQPS, float64(10000)))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ReplicationTaskProcessorCleanupInterval, 20*time.Millisecond))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ReplicatorTaskDeleteBatchSize, 50))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ShardSyncMinInterval, 20*time.Millisecond))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ReplicationTaskProcessorShardQPS, float64(10000)))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ReplicationTaskProcessorStartWait, time.Nanosecond))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.EnableActivityLocalDispatchByDomain, true))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.MaxActivityCountDispatchByDomain, 0))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.EnableCrossClusterOperationsForDomain, true))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.NormalDecisionScheduleToStartMaxAttempts, 3))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.EnablePendingActivityValidation, true))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.QueueProcessorEnableGracefulSyncShutdown, true))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.QueueProcessorSplitMaxLevel, 2))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.QueueProcessorPendingTaskSplitThreshold, map[string]interface{}{
+	panicIfErr(inMem.UpdateValue(dynamicproperties.HistoryLongPollExpirationInterval, 10*time.Second))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.EnableConsistentQueryByDomain, true))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicationTaskProcessorHostQPS, float64(10000)))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicationTaskProcessorCleanupInterval, 20*time.Millisecond))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicatorTaskDeleteBatchSize, 50))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.ShardSyncMinInterval, 20*time.Millisecond))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicationTaskProcessorShardQPS, float64(10000)))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.ReplicationTaskProcessorStartWait, time.Nanosecond))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.EnableActivityLocalDispatchByDomain, true))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.EnableCrossClusterOperationsForDomain, true))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts, 3))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.EnablePendingActivityValidation, true))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.QueueProcessorEnableGracefulSyncShutdown, true))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.QueueProcessorSplitMaxLevel, 2))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.QueueProcessorPendingTaskSplitThreshold, map[string]interface{}{
 		"0": 1000,
 		"1": 5000,
 	}))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.QueueProcessorStuckTaskSplitThreshold, map[string]interface{}{
+	panicIfErr(inMem.UpdateValue(dynamicproperties.QueueProcessorStuckTaskSplitThreshold, map[string]interface{}{
 		"0": 10,
 		"1": 50,
 	}))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.QueueProcessorRandomSplitProbability, 0.5))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.ReplicationTaskFetcherEnableGracefulSyncShutdown, true))
-	panicIfErr(inMem.UpdateValue(dynamicconfig.EnableStrongIdempotency, true))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.QueueProcessorRandomSplitProbability, 0.5))
+	panicIfErr(inMem.UpdateValue(dynamicproperties.EnableStrongIdempotency, true))
 
 	dc := dynamicconfig.NewCollection(inMem, log.NewNoop())
 	config := New(dc, shardNumber, 1024*1024, false, "")
 	// reduce the duration of long poll to increase test speed
-	config.LongPollExpirationInterval = dc.GetDurationPropertyFilteredByDomain(dynamicconfig.HistoryLongPollExpirationInterval)
-	config.EnableConsistentQueryByDomain = dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableConsistentQueryByDomain)
-	config.ReplicationTaskProcessorHostQPS = dc.GetFloat64Property(dynamicconfig.ReplicationTaskProcessorHostQPS)
-	config.ReplicationTaskProcessorCleanupInterval = dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorCleanupInterval)
-	config.ReplicatorTaskDeleteBatchSize = dc.GetIntProperty(dynamicconfig.ReplicatorTaskDeleteBatchSize)
-	config.ShardSyncMinInterval = dc.GetDurationProperty(dynamicconfig.ShardSyncMinInterval)
-	config.ReplicationTaskProcessorShardQPS = dc.GetFloat64Property(dynamicconfig.ReplicationTaskProcessorShardQPS)
-	config.ReplicationTaskProcessorStartWait = dc.GetDurationPropertyFilteredByShardID(dynamicconfig.ReplicationTaskProcessorStartWait)
-	config.EnableActivityLocalDispatchByDomain = dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableActivityLocalDispatchByDomain)
-	config.MaxActivityCountDispatchByDomain = dc.GetIntPropertyFilteredByDomain(dynamicconfig.MaxActivityCountDispatchByDomain)
-	config.EnableCrossClusterOperationsForDomain = dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableCrossClusterOperationsForDomain)
-	config.NormalDecisionScheduleToStartMaxAttempts = dc.GetIntPropertyFilteredByDomain(dynamicconfig.NormalDecisionScheduleToStartMaxAttempts)
-	config.NormalDecisionScheduleToStartTimeout = dc.GetDurationPropertyFilteredByDomain(dynamicconfig.NormalDecisionScheduleToStartTimeout)
-	config.PendingActivityValidationEnabled = dc.GetBoolProperty(dynamicconfig.EnablePendingActivityValidation)
-	config.QueueProcessorEnableGracefulSyncShutdown = dc.GetBoolProperty(dynamicconfig.QueueProcessorEnableGracefulSyncShutdown)
-	config.QueueProcessorSplitMaxLevel = dc.GetIntProperty(dynamicconfig.QueueProcessorSplitMaxLevel)
-	config.QueueProcessorPendingTaskSplitThreshold = dc.GetMapProperty(dynamicconfig.QueueProcessorPendingTaskSplitThreshold)
-	config.QueueProcessorStuckTaskSplitThreshold = dc.GetMapProperty(dynamicconfig.QueueProcessorStuckTaskSplitThreshold)
-	config.QueueProcessorRandomSplitProbability = dc.GetFloat64Property(dynamicconfig.QueueProcessorRandomSplitProbability)
-	config.ReplicationTaskFetcherEnableGracefulSyncShutdown = dc.GetBoolProperty(dynamicconfig.ReplicationTaskFetcherEnableGracefulSyncShutdown)
+	config.LongPollExpirationInterval = dc.GetDurationPropertyFilteredByDomain(dynamicproperties.HistoryLongPollExpirationInterval)
+	config.EnableConsistentQueryByDomain = dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableConsistentQueryByDomain)
+	config.ReplicationTaskProcessorHostQPS = dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorHostQPS)
+	config.ReplicationTaskProcessorCleanupInterval = dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorCleanupInterval)
+	config.ReplicatorTaskDeleteBatchSize = dc.GetIntProperty(dynamicproperties.ReplicatorTaskDeleteBatchSize)
+	config.ShardSyncMinInterval = dc.GetDurationProperty(dynamicproperties.ShardSyncMinInterval)
+	config.ReplicationTaskProcessorShardQPS = dc.GetFloat64Property(dynamicproperties.ReplicationTaskProcessorShardQPS)
+	config.ReplicationTaskProcessorStartWait = dc.GetDurationPropertyFilteredByShardID(dynamicproperties.ReplicationTaskProcessorStartWait)
+	config.EnableActivityLocalDispatchByDomain = dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableActivityLocalDispatchByDomain)
+	config.EnableCrossClusterOperationsForDomain = dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCrossClusterOperationsForDomain)
+	config.NormalDecisionScheduleToStartMaxAttempts = dc.GetIntPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartMaxAttempts)
+	config.NormalDecisionScheduleToStartTimeout = dc.GetDurationPropertyFilteredByDomain(dynamicproperties.NormalDecisionScheduleToStartTimeout)
+	config.PendingActivityValidationEnabled = dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation)
+	config.QueueProcessorEnableGracefulSyncShutdown = dc.GetBoolProperty(dynamicproperties.QueueProcessorEnableGracefulSyncShutdown)
+	config.QueueProcessorSplitMaxLevel = dc.GetIntProperty(dynamicproperties.QueueProcessorSplitMaxLevel)
+	config.QueueProcessorPendingTaskSplitThreshold = dc.GetMapProperty(dynamicproperties.QueueProcessorPendingTaskSplitThreshold)
+	config.QueueProcessorStuckTaskSplitThreshold = dc.GetMapProperty(dynamicproperties.QueueProcessorStuckTaskSplitThreshold)
+	config.QueueProcessorRandomSplitProbability = dc.GetFloat64Property(dynamicproperties.QueueProcessorRandomSplitProbability)
 	return config
 }
 

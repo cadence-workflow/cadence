@@ -29,13 +29,13 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/testflags"
 )
 
 type (
@@ -46,26 +46,38 @@ type (
 )
 
 func TestDomainReplicationTaskExecutorSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
-
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
 
 	s := new(domainReplicationTaskExecutorSuite)
-
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
-
+	s.setupTestBase(t)
 	suite.Run(t, s)
 }
 
-func (s *domainReplicationTaskExecutorSuite) SetupTest() {
+func (s *domainReplicationTaskExecutorSuite) setupTestBase(t *testing.T) {
+	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
+	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
 	s.Setup()
+}
+
+func (s *domainReplicationTaskExecutorSuite) SetupTest() {
+	s.setupTestBase(s.T())
+
+	domainAuditManager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	if err != nil {
+		s.T().Fatalf("Failed to create domain audit manager: %v", err)
+	}
+
+	// Disable audit logging for integration tests as SQLite doesn't fully support the audit manager
+	enableAuditLogging := func(...dynamicproperties.FilterOption) bool { return false }
 
 	s.domainReplicator = NewReplicationTaskExecutor(
 		s.DomainManager,
+		domainAuditManager,
 		clock.NewRealTimeSource(),
 		s.Logger,
+		enableAuditLogging,
 	).(*domainReplicationTaskExecutorImpl)
 }
 
@@ -574,7 +586,7 @@ func (s *domainReplicationTaskExecutorSuite) TestExecute_UpdateDomainTask_Update
 	s.Equal(s.domainReplicator.convertClusterReplicationConfigFromThrift(updateClusters), resp.ReplicationConfig.Clusters)
 	s.Equal(updateConfigVersion, resp.ConfigVersion)
 	s.Equal(failoverVersion, resp.FailoverVersion)
-	s.Equal(common.InitialPreviousFailoverVersion, resp.PreviousFailoverVersion)
+	s.Equal(constants.InitialPreviousFailoverVersion, resp.PreviousFailoverVersion)
 	s.Equal(int64(0), resp.FailoverNotificationVersion)
 	s.Equal(notificationVersion, resp.NotificationVersion)
 }
@@ -655,7 +667,7 @@ func (s *domainReplicationTaskExecutorSuite) TestExecute_UpdateDomainTask_NoUpda
 	s.Equal(s.domainReplicator.convertClusterReplicationConfigFromThrift(clusters), resp1.ReplicationConfig.Clusters)
 	s.Equal(configVersion, resp1.ConfigVersion)
 	s.Equal(failoverVersion, resp1.FailoverVersion)
-	s.Equal(common.InitialPreviousFailoverVersion, resp1.PreviousFailoverVersion)
+	s.Equal(constants.InitialPreviousFailoverVersion, resp1.PreviousFailoverVersion)
 
 	// success update case
 	updateOperation := types.DomainOperationUpdate
@@ -858,7 +870,7 @@ func (s *domainReplicationTaskExecutorSuite) TestExecute_UpdateDomainTask_NoUpda
 	s.Equal(s.domainReplicator.convertClusterReplicationConfigFromThrift(clusters), resp.ReplicationConfig.Clusters)
 	s.Equal(configVersion, resp.ConfigVersion)
 	s.Equal(failoverVersion, resp.FailoverVersion)
-	s.Equal(common.InitialPreviousFailoverVersion, resp.PreviousFailoverVersion)
+	s.Equal(constants.InitialPreviousFailoverVersion, resp.PreviousFailoverVersion)
 	s.Equal(int64(0), resp.FailoverNotificationVersion)
 	s.Equal(notificationVersion, resp.NotificationVersion)
 }

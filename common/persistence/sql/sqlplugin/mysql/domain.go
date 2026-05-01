@@ -60,17 +60,17 @@ const (
 var errMissingArgs = errors.New("missing one or more args for API")
 
 // InsertIntoDomain inserts a single row into domains table
-func (mdb *db) InsertIntoDomain(ctx context.Context, row *sqlplugin.DomainRow) (sql.Result, error) {
+func (mdb *DB) InsertIntoDomain(ctx context.Context, row *sqlplugin.DomainRow) (sql.Result, error) {
 	return mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, createDomainQuery, row.ID, row.Name, row.IsGlobal, row.Data, row.DataEncoding)
 }
 
 // UpdateDomain updates a single row in domains table
-func (mdb *db) UpdateDomain(ctx context.Context, row *sqlplugin.DomainRow) (sql.Result, error) {
+func (mdb *DB) UpdateDomain(ctx context.Context, row *sqlplugin.DomainRow) (sql.Result, error) {
 	return mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, updateDomainQuery, row.Name, row.Data, row.DataEncoding, row.ID)
 }
 
 // SelectFromDomain reads one or more rows from domains table
-func (mdb *db) SelectFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) ([]sqlplugin.DomainRow, error) {
+func (mdb *DB) SelectFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) ([]sqlplugin.DomainRow, error) {
 	switch {
 	case filter.ID != nil || filter.Name != nil:
 		return mdb.selectFromDomain(ctx, filter)
@@ -81,7 +81,7 @@ func (mdb *db) SelectFromDomain(ctx context.Context, filter *sqlplugin.DomainFil
 	}
 }
 
-func (mdb *db) selectFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) ([]sqlplugin.DomainRow, error) {
+func (mdb *DB) selectFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) ([]sqlplugin.DomainRow, error) {
 	var err error
 	var row sqlplugin.DomainRow
 	switch {
@@ -96,7 +96,7 @@ func (mdb *db) selectFromDomain(ctx context.Context, filter *sqlplugin.DomainFil
 	return []sqlplugin.DomainRow{row}, err
 }
 
-func (mdb *db) selectAllFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) ([]sqlplugin.DomainRow, error) {
+func (mdb *DB) selectAllFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) ([]sqlplugin.DomainRow, error) {
 	var err error
 	var rows []sqlplugin.DomainRow
 	switch {
@@ -109,7 +109,7 @@ func (mdb *db) selectAllFromDomain(ctx context.Context, filter *sqlplugin.Domain
 }
 
 // DeleteFromDomain deletes a single row in domains table
-func (mdb *db) DeleteFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) (sql.Result, error) {
+func (mdb *DB) DeleteFromDomain(ctx context.Context, filter *sqlplugin.DomainFilter) (sql.Result, error) {
 	var err error
 	var result sql.Result
 	switch {
@@ -122,20 +122,20 @@ func (mdb *db) DeleteFromDomain(ctx context.Context, filter *sqlplugin.DomainFil
 }
 
 // LockDomainMetadata acquires a write lock on a single row in domain_metadata table
-func (mdb *db) LockDomainMetadata(ctx context.Context) error {
+func (mdb *DB) LockDomainMetadata(ctx context.Context) error {
 	var row sqlplugin.DomainMetadataRow
 	err := mdb.driver.GetContext(ctx, sqlplugin.DbDefaultShard, &row.NotificationVersion, lockDomainMetadataQuery)
 	return err
 }
 
 // SelectFromDomainMetadata reads a single row in domain_metadata table
-func (mdb *db) SelectFromDomainMetadata(ctx context.Context) (*sqlplugin.DomainMetadataRow, error) {
+func (mdb *DB) SelectFromDomainMetadata(ctx context.Context) (*sqlplugin.DomainMetadataRow, error) {
 	var row sqlplugin.DomainMetadataRow
 	err := mdb.driver.GetContext(ctx, sqlplugin.DbDefaultShard, &row.NotificationVersion, getDomainMetadataQuery)
 	return &row, err
 }
 
 // UpdateDomainMetadata updates a single row in domain_metadata table
-func (mdb *db) UpdateDomainMetadata(ctx context.Context, row *sqlplugin.DomainMetadataRow) (sql.Result, error) {
+func (mdb *DB) UpdateDomainMetadata(ctx context.Context, row *sqlplugin.DomainMetadataRow) (sql.Result, error) {
 	return mdb.driver.ExecContext(ctx, sqlplugin.DbDefaultShard, updateDomainMetadataQuery, row.NotificationVersion+1, row.NotificationVersion)
 }

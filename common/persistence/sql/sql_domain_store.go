@@ -25,8 +25,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -99,7 +99,7 @@ func (m *sqlDomainStore) CreateDomain(
 	}
 
 	var badBinaries []byte
-	badBinariesEncoding := string(common.EncodingTypeEmpty)
+	badBinariesEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.BadBinaries != nil {
 		badBinaries = request.Config.BadBinaries.Data
 		badBinariesEncoding = string(request.Config.BadBinaries.GetEncoding())
@@ -119,34 +119,43 @@ func (m *sqlDomainStore) CreateDomain(
 		asyncWorkflowsEncoding = request.Config.AsyncWorkflowsConfig.GetEncodingString()
 	}
 
+	var activeClustersConfig []byte
+	var activeClustersConfigEncoding string
+	if request.ReplicationConfig != nil && request.ReplicationConfig.ActiveClustersConfig != nil {
+		activeClustersConfig = request.ReplicationConfig.ActiveClustersConfig.GetData()
+		activeClustersConfigEncoding = request.ReplicationConfig.ActiveClustersConfig.GetEncodingString()
+	}
+
 	domainInfo := &serialization.DomainInfo{
-		Name:                        request.Info.Name,
-		Status:                      int32(request.Info.Status),
-		Description:                 request.Info.Description,
-		Owner:                       request.Info.OwnerEmail,
-		Data:                        request.Info.Data,
-		Retention:                   request.Config.Retention,
-		EmitMetric:                  request.Config.EmitMetric,
-		ArchivalBucket:              request.Config.ArchivalBucket,
-		ArchivalStatus:              int16(request.Config.ArchivalStatus),
-		HistoryArchivalStatus:       int16(request.Config.HistoryArchivalStatus),
-		HistoryArchivalURI:          request.Config.HistoryArchivalURI,
-		VisibilityArchivalStatus:    int16(request.Config.VisibilityArchivalStatus),
-		VisibilityArchivalURI:       request.Config.VisibilityArchivalURI,
-		ActiveClusterName:           request.ReplicationConfig.ActiveClusterName,
-		Clusters:                    clusters,
-		ConfigVersion:               request.ConfigVersion,
-		FailoverVersion:             request.FailoverVersion,
-		NotificationVersion:         metadata.NotificationVersion,
-		FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-		PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
-		LastUpdatedTimestamp:        request.LastUpdatedTime,
-		BadBinaries:                 badBinaries,
-		BadBinariesEncoding:         badBinariesEncoding,
-		IsolationGroups:             isolationGroups,
-		IsolationGroupsEncoding:     isolationGroupsEncoding,
-		AsyncWorkflowConfig:         asyncWorkflowsCfg,
-		AsyncWorkflowConfigEncoding: asyncWorkflowsEncoding,
+		Name:                         request.Info.Name,
+		Status:                       int32(request.Info.Status),
+		Description:                  request.Info.Description,
+		Owner:                        request.Info.OwnerEmail,
+		Data:                         request.Info.Data,
+		Retention:                    request.Config.Retention,
+		EmitMetric:                   request.Config.EmitMetric,
+		ArchivalBucket:               request.Config.ArchivalBucket,
+		ArchivalStatus:               int16(request.Config.ArchivalStatus),
+		HistoryArchivalStatus:        int16(request.Config.HistoryArchivalStatus),
+		HistoryArchivalURI:           request.Config.HistoryArchivalURI,
+		VisibilityArchivalStatus:     int16(request.Config.VisibilityArchivalStatus),
+		VisibilityArchivalURI:        request.Config.VisibilityArchivalURI,
+		ActiveClusterName:            request.ReplicationConfig.ActiveClusterName,
+		ActiveClustersConfig:         activeClustersConfig,
+		ActiveClustersConfigEncoding: activeClustersConfigEncoding,
+		Clusters:                     clusters,
+		ConfigVersion:                request.ConfigVersion,
+		FailoverVersion:              request.FailoverVersion,
+		NotificationVersion:          metadata.NotificationVersion,
+		FailoverNotificationVersion:  persistence.InitialFailoverNotificationVersion,
+		PreviousFailoverVersion:      constants.InitialPreviousFailoverVersion,
+		LastUpdatedTimestamp:         request.LastUpdatedTime,
+		BadBinaries:                  badBinaries,
+		BadBinariesEncoding:          badBinariesEncoding,
+		IsolationGroups:              isolationGroups,
+		IsolationGroupsEncoding:      isolationGroupsEncoding,
+		AsyncWorkflowConfig:          asyncWorkflowsCfg,
+		AsyncWorkflowConfigEncoding:  asyncWorkflowsEncoding,
 	}
 
 	blob, err := m.parser.DomainInfoToBlob(domainInfo)
@@ -241,17 +250,26 @@ func (m *sqlDomainStore) domainRowToGetDomainResponse(row *sqlplugin.DomainRow) 
 
 	var badBinaries *persistence.DataBlob
 	if domainInfo.BadBinaries != nil {
-		badBinaries = persistence.NewDataBlob(domainInfo.BadBinaries, common.EncodingType(domainInfo.GetBadBinariesEncoding()))
+		badBinaries = persistence.NewDataBlob(domainInfo.BadBinaries, constants.EncodingType(domainInfo.GetBadBinariesEncoding()))
 	}
 
 	var isolationGroups *persistence.DataBlob
 	if domainInfo.IsolationGroups != nil {
-		isolationGroups = persistence.NewDataBlob(domainInfo.IsolationGroups, common.EncodingType(domainInfo.IsolationGroupsEncoding))
+		isolationGroups = persistence.NewDataBlob(domainInfo.IsolationGroups, constants.EncodingType(domainInfo.IsolationGroupsEncoding))
 	}
 
 	var asyncWorkflowsCfg *persistence.DataBlob
 	if domainInfo.AsyncWorkflowConfig != nil {
-		asyncWorkflowsCfg = persistence.NewDataBlob(domainInfo.AsyncWorkflowConfig, common.EncodingType(domainInfo.AsyncWorkflowConfigEncoding))
+		asyncWorkflowsCfg = persistence.NewDataBlob(domainInfo.AsyncWorkflowConfig, constants.EncodingType(domainInfo.AsyncWorkflowConfigEncoding))
+	}
+
+	activeClusterName := cluster.GetOrUseDefaultActiveCluster(m.activeClusterName, domainInfo.GetActiveClusterName())
+
+	var activeClustersConfig *persistence.DataBlob
+	if domainInfo.ActiveClustersConfig != nil {
+		activeClustersConfig = persistence.NewDataBlob(domainInfo.ActiveClustersConfig, constants.EncodingType(domainInfo.ActiveClustersConfigEncoding))
+		// for active-active domains, do not populate active cluster name with current cluster name if it is not set
+		activeClusterName = domainInfo.GetActiveClusterName()
 	}
 
 	return &persistence.InternalGetDomainResponse{
@@ -276,9 +294,10 @@ func (m *sqlDomainStore) domainRowToGetDomainResponse(row *sqlplugin.DomainRow) 
 			IsolationGroups:          isolationGroups,
 			AsyncWorkflowsConfig:     asyncWorkflowsCfg,
 		},
-		ReplicationConfig: &persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.GetOrUseDefaultActiveCluster(m.activeClusterName, domainInfo.GetActiveClusterName()),
-			Clusters:          cluster.GetOrUseDefaultClusters(m.activeClusterName, clusters),
+		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+			ActiveClusterName:    activeClusterName,
+			Clusters:             cluster.GetOrUseDefaultClusters(m.activeClusterName, clusters),
+			ActiveClustersConfig: activeClustersConfig,
 		},
 		IsGlobalDomain:              row.IsGlobal,
 		FailoverVersion:             domainInfo.GetFailoverVersion(),
@@ -302,54 +321,63 @@ func (m *sqlDomainStore) UpdateDomain(
 	}
 
 	var badBinaries []byte
-	badBinariesEncoding := string(common.EncodingTypeEmpty)
+	badBinariesEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.BadBinaries != nil {
 		badBinaries = request.Config.BadBinaries.Data
 		badBinariesEncoding = string(request.Config.BadBinaries.GetEncoding())
 	}
 
 	var isolationGroups []byte
-	isolationGroupsEncoding := string(common.EncodingTypeEmpty)
+	isolationGroupsEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.IsolationGroups != nil {
 		isolationGroups = request.Config.IsolationGroups.Data
 		isolationGroupsEncoding = request.Config.IsolationGroups.GetEncodingString()
 	}
 
 	var asyncWorkflowsCfg []byte
-	asyncWorkflowsEncoding := string(common.EncodingTypeEmpty)
+	asyncWorkflowsEncoding := string(constants.EncodingTypeEmpty)
 	if request.Config.AsyncWorkflowsConfig != nil {
 		asyncWorkflowsCfg = request.Config.AsyncWorkflowsConfig.Data
 		asyncWorkflowsEncoding = request.Config.AsyncWorkflowsConfig.GetEncodingString()
 	}
 
+	var activeClustersConfig []byte
+	var activeClustersConfigEncoding string
+	if request.ReplicationConfig.ActiveClustersConfig != nil {
+		activeClustersConfig = request.ReplicationConfig.ActiveClustersConfig.Data
+		activeClustersConfigEncoding = request.ReplicationConfig.ActiveClustersConfig.GetEncodingString()
+	}
+
 	domainInfo := &serialization.DomainInfo{
-		Status:                      int32(request.Info.Status),
-		Description:                 request.Info.Description,
-		Owner:                       request.Info.OwnerEmail,
-		Data:                        request.Info.Data,
-		Retention:                   request.Config.Retention,
-		EmitMetric:                  request.Config.EmitMetric,
-		ArchivalBucket:              request.Config.ArchivalBucket,
-		ArchivalStatus:              int16(request.Config.ArchivalStatus),
-		HistoryArchivalStatus:       int16(request.Config.HistoryArchivalStatus),
-		HistoryArchivalURI:          request.Config.HistoryArchivalURI,
-		VisibilityArchivalStatus:    int16(request.Config.VisibilityArchivalStatus),
-		VisibilityArchivalURI:       request.Config.VisibilityArchivalURI,
-		ActiveClusterName:           request.ReplicationConfig.ActiveClusterName,
-		Clusters:                    clusters,
-		ConfigVersion:               request.ConfigVersion,
-		FailoverVersion:             request.FailoverVersion,
-		NotificationVersion:         request.NotificationVersion,
-		FailoverNotificationVersion: request.FailoverNotificationVersion,
-		PreviousFailoverVersion:     request.PreviousFailoverVersion,
-		FailoverEndTimestamp:        request.FailoverEndTime,
-		LastUpdatedTimestamp:        request.LastUpdatedTime,
-		BadBinaries:                 badBinaries,
-		BadBinariesEncoding:         badBinariesEncoding,
-		IsolationGroups:             isolationGroups,
-		IsolationGroupsEncoding:     isolationGroupsEncoding,
-		AsyncWorkflowConfig:         asyncWorkflowsCfg,
-		AsyncWorkflowConfigEncoding: asyncWorkflowsEncoding,
+		Status:                       int32(request.Info.Status),
+		Description:                  request.Info.Description,
+		Owner:                        request.Info.OwnerEmail,
+		Data:                         request.Info.Data,
+		Retention:                    request.Config.Retention,
+		EmitMetric:                   request.Config.EmitMetric,
+		ArchivalBucket:               request.Config.ArchivalBucket,
+		ArchivalStatus:               int16(request.Config.ArchivalStatus),
+		HistoryArchivalStatus:        int16(request.Config.HistoryArchivalStatus),
+		HistoryArchivalURI:           request.Config.HistoryArchivalURI,
+		VisibilityArchivalStatus:     int16(request.Config.VisibilityArchivalStatus),
+		VisibilityArchivalURI:        request.Config.VisibilityArchivalURI,
+		ActiveClusterName:            request.ReplicationConfig.ActiveClusterName,
+		ActiveClustersConfig:         activeClustersConfig,
+		ActiveClustersConfigEncoding: activeClustersConfigEncoding,
+		Clusters:                     clusters,
+		ConfigVersion:                request.ConfigVersion,
+		FailoverVersion:              request.FailoverVersion,
+		NotificationVersion:          request.NotificationVersion,
+		FailoverNotificationVersion:  request.FailoverNotificationVersion,
+		PreviousFailoverVersion:      request.PreviousFailoverVersion,
+		FailoverEndTimestamp:         request.FailoverEndTime,
+		LastUpdatedTimestamp:         request.LastUpdatedTime,
+		BadBinaries:                  badBinaries,
+		BadBinariesEncoding:          badBinariesEncoding,
+		IsolationGroups:              isolationGroups,
+		IsolationGroupsEncoding:      isolationGroupsEncoding,
+		AsyncWorkflowConfig:          asyncWorkflowsCfg,
+		AsyncWorkflowConfigEncoding:  asyncWorkflowsEncoding,
 	}
 
 	blob, err := m.parser.DomainInfoToBlob(domainInfo)

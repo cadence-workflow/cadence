@@ -30,7 +30,7 @@ import (
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -55,7 +55,7 @@ type (
 		hbd                        ScavengerHeartbeatDetails
 		rps                        int
 		limiter                    *rate.Limiter
-		maxWorkflowRetentionInDays dynamicconfig.IntPropertyFn
+		maxWorkflowRetentionInDays dynamicproperties.IntPropertyFn
 		metrics                    metrics.Client
 		logger                     log.Logger
 		isInTest                   bool
@@ -103,7 +103,7 @@ func NewScavenger(
 	hbd ScavengerHeartbeatDetails,
 	metricsClient metrics.Client,
 	logger log.Logger,
-	maxWorkflowRetentionInDays dynamicconfig.IntPropertyFn,
+	maxWorkflowRetentionInDays dynamicproperties.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) *Scavenger {
 

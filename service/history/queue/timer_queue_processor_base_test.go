@@ -25,16 +25,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -87,17 +89,14 @@ func (s *timerQueueProcessorBaseSuite) SetupTest() {
 
 	s.clusterName = cluster.TestCurrentClusterName
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.metricsScope = s.metricsClient.Scope(metrics.TimerQueueProcessorScope)
 }
 
 func (s *timerQueueProcessorBaseSuite) TearDownTest() {
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	defer goleak.VerifyNone(s.T(),
-		// TODO(CDNC-8881):  TimerGate should not start background goroutine in constructor. Make it start/stoppable
-		goleak.IgnoreTopFunction("github.com/uber/cadence/service/history/queue.NewLocalTimerGate.func1"),
-	)
+	defer goleak.VerifyNone(s.T())
 }
 
 func (s *timerQueueProcessorBaseSuite) TestIsProcessNow() {
@@ -121,38 +120,42 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_More() {
 	maxReadLevel := newTimerTaskKey(time.Now().Add(10*time.Second), 0)
 	batchSize := 10
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     batchSize,
-		NextPageToken: []byte("some random input next page token"),
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            batchSize,
+		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: []byte("some random output next page token"),
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.getTimerTasks(readLevel, maxReadLevel, request.NextPageToken, batchSize)
 	s.Nil(err)
-	s.Equal(response.Timers, got.Timers)
+	s.Equal(response.Tasks, got.Tasks)
 	s.Equal(response.NextPageToken, got.NextPageToken)
 }
 
@@ -161,126 +164,139 @@ func (s *timerQueueProcessorBaseSuite) TestGetTimerTasks_NoMore() {
 	maxReadLevel := newTimerTaskKey(time.Now().Add(10*time.Second), 0)
 	batchSize := 10
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     batchSize,
-		NextPageToken: nil,
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            batchSize,
+		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: nil,
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.getTimerTasks(readLevel, maxReadLevel, request.NextPageToken, batchSize)
 	s.Nil(err)
-	s.Equal(response.Timers, got.Timers)
+	s.Equal(response.Tasks, got.Tasks)
 	s.Empty(got.NextPageToken)
 }
 
 func (s *timerQueueProcessorBaseSuite) TestReadLookAheadTask() {
-	shardMaxReadLevel := s.mockShard.UpdateTimerMaxReadLevel(s.clusterName)
+	shardMaxReadLevel := s.mockShard.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, s.clusterName).GetScheduledTime()
 	readLevel := newTimerTaskKey(shardMaxReadLevel, 0)
 	maxReadLevel := newTimerTaskKey(shardMaxReadLevel.Add(10*time.Second), 0)
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     1,
-		NextPageToken: nil,
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: shardMaxReadLevel,
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
-				Version:             int64(79),
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: shardMaxReadLevel,
+					TaskID:              int64(59),
+					Version:             int64(79),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: []byte("some random next page token"),
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	lookAheadTask, err := timerQueueProcessBase.readLookAheadTask(readLevel, maxReadLevel)
 	s.Nil(err)
-	s.Equal(response.Timers[0], lookAheadTask)
+	s.Equal(response.Tasks[0], lookAheadTask)
 }
 
 func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_NoNextPage() {
 	readLevel := newTimerTaskKey(time.Now().Add(-10*time.Second), 0)
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
-	lookAheadRequest := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     1,
-		NextPageToken: nil,
+	lookAheadRequest := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: nil,
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, lookAheadRequest).Return(&persistence.GetTimerIndexTasksResponse{}, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, lookAheadRequest).Return(&persistence.GetHistoryTasksResponse{}, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.readAndFilterTasks(readLevel, maxReadLevel, request.NextPageToken)
 	s.Nil(err)
-	s.Equal(response.Timers, got.timerTasks)
-	s.Nil(got.lookAheadTask)
+	s.Equal(response.Tasks, got.timerTasks)
+	s.Zero(got.lookAheadTimestamp)
 	s.Nil(got.nextPageToken)
 }
 
@@ -288,39 +304,43 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_NoLookAhead_HasNex
 	readLevel := newTimerTaskKey(time.Now().Add(-10*time.Second), 0)
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: []byte("some random next page token"),
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.readAndFilterTasks(readLevel, maxReadLevel, request.NextPageToken)
 	s.Nil(err)
-	s.Equal(response.Timers, got.timerTasks)
-	s.Nil(got.lookAheadTask)
+	s.Equal(response.Tasks, got.timerTasks)
+	s.Zero(got.lookAheadTimestamp)
 	s.Equal(response.NextPageToken, got.nextPageToken)
 }
 
@@ -328,50 +348,52 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_HasLookAhead_NoNex
 	readLevel := newTimerTaskKey(time.Now().Add(-10*time.Second), 0)
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+				},
+				EventID: int64(28),
 			},
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(500 * time.Millisecond),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(500 * time.Millisecond),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: nil,
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.readAndFilterTasks(readLevel, maxReadLevel, request.NextPageToken)
 	s.Nil(err)
-	s.Equal([]*persistence.TimerTaskInfo{response.Timers[0]}, got.timerTasks)
-	s.Equal(response.Timers[1], got.lookAheadTask)
+	s.Equal([]persistence.Task{response.Tasks[0]}, got.timerTasks)
+	s.Equal(response.Tasks[1].GetVisibilityTimestamp(), got.lookAheadTimestamp)
 	s.Nil(got.nextPageToken)
 }
 
@@ -379,109 +401,119 @@ func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_HasLookAhead_HasNe
 	readLevel := newTimerTaskKey(time.Now().Add(-10*time.Second), 0)
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+				},
+				EventID: int64(28),
 			},
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(500 * time.Millisecond),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(500 * time.Millisecond),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: []byte("some random next page token"),
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.readAndFilterTasks(readLevel, maxReadLevel, request.NextPageToken)
 	s.Nil(err)
-	s.Equal([]*persistence.TimerTaskInfo{response.Timers[0]}, got.timerTasks)
-	s.Equal(response.Timers[1], got.lookAheadTask)
-	s.Nil(got.nextPageToken)
+	s.Equal([]persistence.Task{response.Tasks[0]}, got.timerTasks)
+	s.Equal(response.Tasks[1].GetVisibilityTimestamp(), got.lookAheadTimestamp)
+	s.Equal(response.NextPageToken, got.nextPageToken)
 }
 
 func (s *timerQueueProcessorBaseSuite) TestReadAndFilterTasks_LookAheadFailed_NoNextPage() {
 	readLevel := newTimerTaskKey(time.Now().Add(-10*time.Second), 0)
 	maxReadLevel := newTimerTaskKey(time.Now().Add(1*time.Second), 0)
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  readLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: []byte("some random input next page token"),
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(readLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       []byte("some random input next page token"),
+		ShardID:             common.Ptr(10),
 	}
 
-	lookAheadRequest := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  maxReadLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     1,
-		NextPageToken: nil,
+	lookAheadRequest := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(maxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-5 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-5 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: time.Now().Add(-500 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: time.Now().Add(-500 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: nil,
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, lookAheadRequest).Return(nil, errors.New("some random error")).Times(s.mockShard.GetConfig().TimerProcessorGetFailureRetryCount())
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, lookAheadRequest).Return(nil, errors.New("some random error")).Times(0)
 
 	timerQueueProcessBase, done := s.newTestTimerQueueProcessorBase(nil, nil, nil, nil, nil)
 	defer done()
 	got, err := timerQueueProcessBase.readAndFilterTasks(readLevel, maxReadLevel, request.NextPageToken)
 	s.Nil(err)
-	s.Equal(response.Timers, got.timerTasks)
-	s.Equal(maxReadLevel.(timerTaskKey).visibilityTimestamp, got.lookAheadTask.VisibilityTimestamp)
+	s.Equal(response.Tasks, got.timerTasks)
+	s.Equal(maxReadLevel.(timerTaskKey).visibilityTimestamp, got.lookAheadTimestamp)
 	s.Nil(got.nextPageToken)
 }
 
@@ -573,7 +605,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessQueueCollections_SkipRead() {
 	time.Sleep(100 * time.Millisecond)
 	s.True(timerQueueProcessBase.nextPollTime[queueLevel].Before(s.mockShard.GetTimeSource().Now()))
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 	default:
 		s.Fail("timer gate should fire")
 	}
@@ -597,43 +629,49 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_HasNextPage() {
 		return shardMaxReadLevel
 	}
 
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  ackLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: nil,
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: now.Add(-3 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: now.Add(-3 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
-			{
-				DomainID:            "excludedDomain",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: now.Add(-2 * time.Second),
-				TaskID:              int64(60),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "excludedDomain",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: now.Add(-2 * time.Second),
+					TaskID:              int64(60),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: []byte("some random next page token"),
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	s.mockTaskProcessor.EXPECT().TrySubmit(gomock.Any()).Return(true, nil).AnyTimes()
 
@@ -646,7 +684,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_HasNextPage() {
 	activeQueue := timerQueueProcessBase.processingQueueCollections[0].ActiveQueue()
 	s.NotNil(activeQueue)
 	s.Equal(ackLevel, activeQueue.State().AckLevel())
-	s.Equal(newTimerTaskKey(response.Timers[1].VisibilityTimestamp, 0), activeQueue.State().ReadLevel())
+	s.Equal(newTimerTaskKey(response.Tasks[1].GetVisibilityTimestamp(), 0), activeQueue.State().ReadLevel())
 	s.Equal(maxLevel, activeQueue.State().MaxLevel())
 	s.Len(activeQueue.(*processingQueueImpl).outstandingTasks, 1)
 
@@ -662,7 +700,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_HasNextPage() {
 	s.Empty(timerQueueProcessBase.backoffTimer)
 	time.Sleep(100 * time.Millisecond)
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 	default:
 		s.Fail("timer gate should fire")
 	}
@@ -687,44 +725,50 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_HasLookAhead(
 	}
 
 	requestNextPageToken := []byte("some random input next page token")
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  ackLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: requestNextPageToken,
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       requestNextPageToken,
+		ShardID:             common.Ptr(10),
 	}
 
 	lookAheadTaskTimestamp := now.Add(50 * time.Millisecond)
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: now.Add(-3 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: now.Add(-3 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
-			{
-				DomainID:            "excludedDomain",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: lookAheadTaskTimestamp,
-				TaskID:              int64(60),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "excludedDomain",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: lookAheadTaskTimestamp,
+					TaskID:              int64(60),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: nil,
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
 
 	s.mockTaskProcessor.EXPECT().TrySubmit(gomock.Any()).Return(true, nil).AnyTimes()
 
@@ -753,7 +797,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_HasLookAhead(
 	s.Equal(lookAheadTaskTimestamp, timerQueueProcessBase.nextPollTime[queueLevel])
 	time.Sleep(100 * time.Millisecond)
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 	default:
 		s.Fail("timer gate should fire")
 	}
@@ -778,51 +822,59 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_NoLookAhead()
 	}
 
 	requestNextPageToken := []byte("some random input next page token")
-	request := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  ackLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     s.mockShard.GetConfig().TimerTaskBatchSize(),
-		NextPageToken: requestNextPageToken,
+	request := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(ackLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            s.mockShard.GetConfig().TimerTaskBatchSize(),
+		NextPageToken:       requestNextPageToken,
+		ShardID:             common.Ptr(10),
 	}
 
-	lookAheadRequest := &persistence.GetTimerIndexTasksRequest{
-		MinTimestamp:  shardMaxReadLevel.(timerTaskKey).visibilityTimestamp,
-		MaxTimestamp:  maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp,
-		BatchSize:     1,
-		NextPageToken: nil,
+	lookAheadRequest := &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryTimer,
+		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(shardMaxReadLevel.(timerTaskKey).visibilityTimestamp, 0),
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maximumTimerTaskKey.(timerTaskKey).visibilityTimestamp, 0),
+		PageSize:            1,
+		NextPageToken:       nil,
+		ShardID:             common.Ptr(10),
 	}
 
-	response := &persistence.GetTimerIndexTasksResponse{
-		Timers: []*persistence.TimerTaskInfo{
-			{
-				DomainID:            "some random domain ID",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: now.Add(-3 * time.Second),
-				TaskID:              int64(59),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+	response := &persistence.GetHistoryTasksResponse{
+		Tasks: []persistence.Task{
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "some random domain ID",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: now.Add(-3 * time.Second),
+					TaskID:              int64(59),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
-			{
-				DomainID:            "excludedDomain",
-				WorkflowID:          "some random workflow ID",
-				RunID:               uuid.New(),
-				VisibilityTimestamp: now.Add(-2 * time.Second),
-				TaskID:              int64(60),
-				TaskType:            1,
-				TimeoutType:         2,
-				EventID:             int64(28),
-				ScheduleAttempt:     0,
+			&persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   "excludedDomain",
+					WorkflowID: "some random workflow ID",
+					RunID:      uuid.New(),
+				},
+				TaskData: persistence.TaskData{
+					VisibilityTimestamp: now.Add(-2 * time.Second),
+					TaskID:              int64(60),
+					Version:             int64(1),
+				},
+				EventID: int64(28),
 			},
 		},
 		NextPageToken: nil,
 	}
 
 	mockExecutionMgr := s.mockShard.Resource.ExecutionMgr
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, request).Return(response, nil).Once()
-	mockExecutionMgr.On("GetTimerIndexTasks", mock.Anything, lookAheadRequest).Return(&persistence.GetTimerIndexTasksResponse{}, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, request).Return(response, nil).Once()
+	mockExecutionMgr.On("GetHistoryTasks", mock.Anything, lookAheadRequest).Return(&persistence.GetHistoryTasksResponse{}, nil).Once()
 
 	s.mockTaskProcessor.EXPECT().TrySubmit(gomock.Any()).Return(true, nil).AnyTimes()
 
@@ -851,7 +903,7 @@ func (s *timerQueueProcessorBaseSuite) TestProcessBatch_NoNextPage_NoLookAhead()
 	s.True(ok) // this is the poll time for max poll interval
 	time.Sleep(100 * time.Millisecond)
 	select {
-	case <-timerQueueProcessBase.timerGate.FireChan():
+	case <-timerQueueProcessBase.timerGate.Chan():
 		s.Fail("timer gate should not fire")
 	default:
 	}
@@ -875,7 +927,7 @@ func (s *timerQueueProcessorBaseSuite) TestTimerProcessorPump_HandleAckLevelUpda
 	}
 
 	timerQueueProcessBase, _ := s.newTestTimerQueueProcessorBase(processingQueueStates, updateMaxReadLevel, nil, nil, nil)
-	timerQueueProcessBase.options.UpdateAckInterval = dynamicconfig.GetDurationPropertyFn(1 * time.Millisecond)
+	timerQueueProcessBase.options.UpdateAckInterval = dynamicproperties.GetDurationPropertyFn(1 * time.Millisecond)
 	updatedCh := make(chan struct{}, 1)
 	timerQueueProcessBase.updateAckLevelFn = func() (bool, task.Key, error) {
 		updatedCh <- struct{}{}
@@ -910,7 +962,7 @@ func (s *timerQueueProcessorBaseSuite) TestTimerProcessorPump_SplitQueue() {
 	}
 
 	timerQueueProcessBase, _ := s.newTestTimerQueueProcessorBase(processingQueueStates, updateMaxReadLevel, nil, nil, nil)
-	timerQueueProcessBase.options.SplitQueueInterval = dynamicconfig.GetDurationPropertyFn(1 * time.Millisecond)
+	timerQueueProcessBase.options.SplitQueueInterval = dynamicproperties.GetDurationPropertyFn(1 * time.Millisecond)
 	splittedCh := make(chan struct{}, 1)
 	timerQueueProcessBase.splitProcessingQueueCollectionFn = func(splitPolicy ProcessingQueueSplitPolicy, upsertPollTimeFn func(int, time.Time)) {
 		splittedCh <- struct{}{}
@@ -933,7 +985,7 @@ func (s *timerQueueProcessorBaseSuite) newTestTimerQueueProcessorBase(
 	updateProcessingQueueStates updateProcessingQueueStatesFn,
 	queueShutdown queueShutdownFn,
 ) (*timerQueueProcessorBase, func()) {
-	timerGate := NewLocalTimerGate(s.mockShard.GetTimeSource())
+	timerGate := clock.NewTimerGate(s.mockShard.GetTimeSource())
 
 	return newTimerQueueProcessorBase(
 			s.clusterName,
@@ -951,6 +1003,6 @@ func (s *timerQueueProcessorBaseSuite) newTestTimerQueueProcessorBase(
 			s.logger,
 			s.metricsClient,
 		), func() {
-			timerGate.Close()
+			timerGate.Stop()
 		}
 }

@@ -182,6 +182,9 @@ func printErr(err error, to io.Writer) (writeErr error) {
 //	  ErrorDetails:
 //	    more nested errors
 func Problem(msg string, err error) error {
+	if err != nil && strings.Contains(err.Error(), "Request unauthorized") {
+		msg = fmt.Sprintf("%s. Ensure the domain and cluster are correct.", msg)
+	}
 	return &printableErr{msg, err}
 }
 

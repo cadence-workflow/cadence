@@ -58,8 +58,8 @@ func (et *emitter) EmitUsageData(ctx context.Context, data WfDiagnosticsUsageDat
 	msg[DiagnosticsWfID] = data.DiagnosticsWorkflowID
 	msg[DiagnosticsWfRunID] = data.DiagnosticsRunID
 	msg[Environment] = data.Environment
-	msg[DiagnosticsStartTime] = data.DiagnosticsStartTime
-	msg[DiagnosticsEndTime] = data.DiagnosticsEndTime
+	msg[DiagnosticsStartTime] = data.DiagnosticsStartTime.UTC().UnixMilli()
+	msg[DiagnosticsEndTime] = data.DiagnosticsEndTime.UTC().UnixMilli()
 
 	serializedMsg, err := json.Marshal(msg)
 	if err != nil {

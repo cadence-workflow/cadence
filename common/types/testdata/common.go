@@ -58,8 +58,11 @@ const (
 	ClientLibraryVersion = "ClientLibraryVersion"
 	SupportedVersions    = "SupportedVersions"
 	FeatureFlag          = "FeatureFlag"
+	Namespace            = "Namespace"
+	ShardKey             = "ShardKey"
 
 	Attempt            = 2
+	ScheduleID         = 5
 	PageSize           = 10
 	HistoryLength      = 20
 	BacklogCountHint   = 30
@@ -149,8 +152,9 @@ var (
 		Name: ActivityTypeName,
 	}
 	TaskList = types.TaskList{
-		Name: TaskListName,
-		Kind: types.TaskListKindNormal.Ptr(),
+		Name:     TaskListName,
+		Kind:     types.TaskListKindNormal.Ptr(),
+		BaseName: "BaseTaskListName",
 	}
 	RetryPolicy = types.RetryPolicy{
 		InitialIntervalInSeconds:    1,
@@ -238,6 +242,14 @@ var (
 		AckLevel:         AckLevel,
 		RatePerSecond:    RatePerSecond,
 		TaskIDBlock:      &TaskIDBlock,
+		IsolationGroupMetrics: map[string]*types.IsolationGroupMetrics{
+			"dca": {
+				NewTasksPerSecond: 10,
+				PollerCount:       1,
+			},
+		},
+		NewTasksPerSecond: 10,
+		Empty:             true,
 	}
 	TaskIDBlock = types.TaskIDBlock{
 		StartID: 551,
@@ -354,8 +366,28 @@ var (
 		Memo:              &Memo,
 		SearchAttributes:  &SearchAttributes,
 		AutoResetPoints:   &ResetPoints,
-		TaskList:          TaskListName,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindNormal.Ptr()},
 		PartitionConfig:   PartitionConfig,
+		CronOverlapPolicy: &CronOverlapPolicy,
+	}
+	WorkflowExecutionInfoEphemeral = types.WorkflowExecutionInfo{
+		Execution:         &WorkflowExecution,
+		Type:              &WorkflowType,
+		StartTime:         &Timestamp1,
+		CloseTime:         &Timestamp2,
+		CloseStatus:       &WorkflowExecutionCloseStatus,
+		HistoryLength:     HistoryLength,
+		ParentDomainID:    common.StringPtr(DomainID),
+		ParentDomain:      common.StringPtr(DomainName),
+		ParentExecution:   &WorkflowExecution,
+		ParentInitiatedID: common.Int64Ptr(EventID1),
+		ExecutionTime:     &Timestamp3,
+		Memo:              &Memo,
+		SearchAttributes:  &SearchAttributes,
+		AutoResetPoints:   &ResetPoints,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindEphemeral.Ptr()},
+		PartitionConfig:   PartitionConfig,
+		CronOverlapPolicy: &CronOverlapPolicy,
 	}
 	CronWorkflowExecutionInfo = types.WorkflowExecutionInfo{
 		Execution:         &WorkflowExecution,
@@ -372,9 +404,10 @@ var (
 		Memo:              &Memo,
 		SearchAttributes:  &SearchAttributes,
 		AutoResetPoints:   &ResetPoints,
-		TaskList:          TaskListName,
+		TaskList:          &types.TaskList{Name: TaskListName, Kind: types.TaskListKindNormal.Ptr()},
 		PartitionConfig:   PartitionConfig,
 		IsCron:            true,
+		CronOverlapPolicy: &CronOverlapPolicy,
 	}
 	WorkflowExecutionInfoArray = []*types.WorkflowExecutionInfo{&WorkflowExecutionInfo}
 
@@ -416,6 +449,7 @@ var (
 		LastWorkerIdentity:     Identity,
 		LastFailureDetails:     FailureDetails,
 		StartedWorkerIdentity:  Identity,
+		ScheduleID:             ScheduleID,
 	}
 	PendingActivityInfoArray = []*types.PendingActivityInfo{
 		&PendingActivityInfo,
@@ -437,5 +471,51 @@ var (
 		StartedTimestamp:           &Timestamp2,
 		Attempt:                    Attempt,
 		OriginalScheduledTimestamp: &Timestamp3,
+		ScheduleID:                 ScheduleID,
 	}
+	AutoConfigHint = types.AutoConfigHint{
+		EnableAutoConfig:   false,
+		PollerWaitTimeInMs: 10,
+	}
+	TaskKey = types.TaskKey{
+		TaskID:            TaskID,
+		ScheduledTimeNano: Timestamp1,
+	}
+	TaskKey2 = types.TaskKey{
+		TaskID:            TaskID + 1,
+		ScheduledTimeNano: Timestamp2,
+	}
+	TaskRange = types.TaskRange{
+		InclusiveMin: &TaskKey,
+		ExclusiveMax: &TaskKey2,
+	}
+	VirtualSliceState = types.VirtualSliceState{
+		TaskRange: &TaskRange,
+	}
+	VirtualQueueState = types.VirtualQueueState{
+		VirtualSliceStates: []*types.VirtualSliceState{&VirtualSliceState},
+	}
+	QueueState = types.QueueState{
+		VirtualQueueStates: map[int64]*types.VirtualQueueState{
+			0: &VirtualQueueState,
+		},
+		ExclusiveMaxReadLevel: &TaskKey,
+	}
+	ActiveClusterSelectionPolicyRegionSticky = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "region1",
+	}
+	ActiveClusterSelectionPolicyExternalEntity = types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
+		ExternalEntityType:             "externalEntityType1",
+		ExternalEntityKey:              "externalEntityKey1",
+	}
+	ClusterAttribute = types.ClusterAttribute{
+		Scope: "region",
+		Name:  "us-west-1",
+	}
+	ActiveClusterSelectionPolicyWithClusterAttribute = types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &ClusterAttribute,
+	}
+	CronOverlapPolicy = types.CronOverlapPolicySkipped
 )

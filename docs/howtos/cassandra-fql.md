@@ -2,7 +2,7 @@
 
 1. Run cadence components via docker compose
 ```
-docker-compose docker/docker-compose.yml up
+docker compose docker/docker-compose.yml up
 ```
 
 2. First enable fql via nodetool ([ref](https://cassandra.apache.org/doc/stable/cassandra/operating/fqllogging.html#enabling-fql))

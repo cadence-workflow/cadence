@@ -25,8 +25,10 @@ package serialization
 import (
 	"time"
 
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/.gen/go/sqlblobs"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
@@ -58,6 +60,12 @@ func shardInfoToThrift(info *ShardInfo) *sqlblobs.ShardInfo {
 		result.ClusterTimerAckLevel = make(map[string]int64, len(info.ClusterTimerAckLevel))
 		for k, v := range info.ClusterTimerAckLevel {
 			result.ClusterTimerAckLevel[k] = v.UnixNano()
+		}
+	}
+	if info.QueueStates != nil {
+		result.QueueStates = make(map[int32]*shared.QueueState, len(info.QueueStates))
+		for k, v := range info.QueueStates {
+			result.QueueStates[k] = thrift.FromQueueState(v)
 		}
 	}
 	return result
@@ -94,6 +102,12 @@ func shardInfoFromThrift(info *sqlblobs.ShardInfo) *ShardInfo {
 			result.ClusterTimerAckLevel[k] = time.Unix(0, v)
 		}
 	}
+	if info.QueueStates != nil {
+		result.QueueStates = make(map[int32]*types.QueueState, len(info.QueueStates))
+		for k, v := range info.QueueStates {
+			result.QueueStates[k] = thrift.ToQueueState(v)
+		}
+	}
 	return result
 }
 
@@ -114,6 +128,8 @@ func domainInfoToThrift(info *DomainInfo) *sqlblobs.DomainInfo {
 		FailoverNotificationVersion:          &info.FailoverNotificationVersion,
 		FailoverVersion:                      &info.FailoverVersion,
 		ActiveClusterName:                    &info.ActiveClusterName,
+		ActiveClustersConfiguration:          info.ActiveClustersConfig,
+		ActiveClustersConfigurationEncoding:  &info.ActiveClustersConfigEncoding,
 		Clusters:                             info.Clusters,
 		Data:                                 info.Data,
 		BadBinaries:                          info.BadBinaries,
@@ -138,34 +154,36 @@ func domainInfoFromThrift(info *sqlblobs.DomainInfo) *DomainInfo {
 		return nil
 	}
 	return &DomainInfo{
-		Name:                        info.GetName(),
-		Description:                 info.GetDescription(),
-		Owner:                       info.GetOwner(),
-		Status:                      info.GetStatus(),
-		EmitMetric:                  info.GetEmitMetric(),
-		ArchivalBucket:              info.GetArchivalBucket(),
-		ArchivalStatus:              info.GetArchivalStatus(),
-		ConfigVersion:               info.GetConfigVersion(),
-		NotificationVersion:         info.GetNotificationVersion(),
-		FailoverNotificationVersion: info.GetFailoverNotificationVersion(),
-		FailoverVersion:             info.GetFailoverVersion(),
-		ActiveClusterName:           info.GetActiveClusterName(),
-		Clusters:                    info.Clusters,
-		Data:                        info.Data,
-		BadBinaries:                 info.BadBinaries,
-		BadBinariesEncoding:         info.GetBadBinariesEncoding(),
-		HistoryArchivalStatus:       info.GetHistoryArchivalStatus(),
-		HistoryArchivalURI:          info.GetHistoryArchivalURI(),
-		VisibilityArchivalStatus:    info.GetVisibilityArchivalStatus(),
-		VisibilityArchivalURI:       info.GetVisibilityArchivalURI(),
-		PreviousFailoverVersion:     info.GetPreviousFailoverVersion(),
-		Retention:                   common.DaysToDuration(int32(info.GetRetentionDays())),
-		FailoverEndTimestamp:        timePtr(info.FailoverEndTime),
-		LastUpdatedTimestamp:        timeFromUnixNano(info.GetLastUpdatedTime()),
-		IsolationGroups:             info.GetIsolationGroupsConfiguration(),
-		IsolationGroupsEncoding:     info.GetIsolationGroupsConfigurationEncoding(),
-		AsyncWorkflowConfig:         info.AsyncWorkflowConfiguration,
-		AsyncWorkflowConfigEncoding: info.GetAsyncWorkflowConfigurationEncoding(),
+		Name:                         info.GetName(),
+		Description:                  info.GetDescription(),
+		Owner:                        info.GetOwner(),
+		Status:                       info.GetStatus(),
+		EmitMetric:                   info.GetEmitMetric(),
+		ArchivalBucket:               info.GetArchivalBucket(),
+		ArchivalStatus:               info.GetArchivalStatus(),
+		ConfigVersion:                info.GetConfigVersion(),
+		NotificationVersion:          info.GetNotificationVersion(),
+		FailoverNotificationVersion:  info.GetFailoverNotificationVersion(),
+		FailoverVersion:              info.GetFailoverVersion(),
+		ActiveClusterName:            info.GetActiveClusterName(),
+		ActiveClustersConfig:         info.GetActiveClustersConfiguration(),
+		ActiveClustersConfigEncoding: info.GetActiveClustersConfigurationEncoding(),
+		Clusters:                     info.Clusters,
+		Data:                         info.Data,
+		BadBinaries:                  info.BadBinaries,
+		BadBinariesEncoding:          info.GetBadBinariesEncoding(),
+		HistoryArchivalStatus:        info.GetHistoryArchivalStatus(),
+		HistoryArchivalURI:           info.GetHistoryArchivalURI(),
+		VisibilityArchivalStatus:     info.GetVisibilityArchivalStatus(),
+		VisibilityArchivalURI:        info.GetVisibilityArchivalURI(),
+		PreviousFailoverVersion:      info.GetPreviousFailoverVersion(),
+		Retention:                    common.DaysToDuration(int32(info.GetRetentionDays())),
+		FailoverEndTimestamp:         timePtr(info.FailoverEndTime),
+		LastUpdatedTimestamp:         timeFromUnixNano(info.GetLastUpdatedTime()),
+		IsolationGroups:              info.GetIsolationGroupsConfiguration(),
+		IsolationGroupsEncoding:      info.GetIsolationGroupsConfigurationEncoding(),
+		AsyncWorkflowConfig:          info.AsyncWorkflowConfiguration,
+		AsyncWorkflowConfigEncoding:  info.GetAsyncWorkflowConfigurationEncoding(),
 	}
 }
 
@@ -191,6 +209,14 @@ func historyTreeInfoFromThrift(info *sqlblobs.HistoryTreeInfo) *HistoryTreeInfo 
 	}
 }
 
+func taskListKindFromThrift(kind *shared.TaskListKind) types.TaskListKind {
+	res := thrift.ToTaskListKind(kind)
+	if res == nil {
+		return types.TaskListKindNormal
+	}
+	return *res
+}
+
 func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.WorkflowExecutionInfo {
 	if info == nil {
 		return nil
@@ -204,6 +230,7 @@ func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.Workfl
 		CompletionEvent:                         info.CompletionEvent,
 		CompletionEventEncoding:                 &info.CompletionEventEncoding,
 		TaskList:                                &info.TaskList,
+		TaskListKind:                            thrift.FromTaskListKind(&info.TaskListKind),
 		WorkflowTypeName:                        &info.WorkflowTypeName,
 		WorkflowTimeoutSeconds:                  durationToSecondsInt32Ptr(info.WorkflowTimeout),
 		DecisionTaskTimeoutSeconds:              durationToSecondsInt32Ptr(info.DecisionTaskTimeout),
@@ -241,6 +268,7 @@ func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.Workfl
 		RetryNonRetryableErrors:                 info.RetryNonRetryableErrors,
 		HasRetryPolicy:                          &info.HasRetryPolicy,
 		CronSchedule:                            &info.CronSchedule,
+		CronOverlapPolicy:                       thrift.FromCronOverlapPolicy(&info.CronOverlapPolicy),
 		EventStoreVersion:                       &info.EventStoreVersion,
 		EventBranchToken:                        info.EventBranchToken,
 		SignalCount:                             &info.SignalCount,
@@ -258,6 +286,8 @@ func workflowExecutionInfoToThrift(info *WorkflowExecutionInfo) *sqlblobs.Workfl
 		PartitionConfig:                         info.PartitionConfig,
 		Checksum:                                info.Checksum,
 		ChecksumEncoding:                        &info.ChecksumEncoding,
+		ActiveClusterSelectionPolicy:            info.ActiveClusterSelectionPolicy,
+		ActiveClusterSelectionPolicyEncoding:    &info.ActiveClusterSelectionPolicyEncoding,
 	}
 }
 
@@ -266,69 +296,73 @@ func workflowExecutionInfoFromThrift(info *sqlblobs.WorkflowExecutionInfo) *Work
 		return nil
 	}
 	return &WorkflowExecutionInfo{
-		ParentDomainID:                     info.ParentDomainID,
-		ParentWorkflowID:                   info.GetParentWorkflowID(),
-		ParentRunID:                        info.ParentRunID,
-		InitiatedID:                        info.GetInitiatedID(),
-		CompletionEventBatchID:             info.CompletionEventBatchID,
-		CompletionEvent:                    info.CompletionEvent,
-		CompletionEventEncoding:            info.GetCompletionEventEncoding(),
-		TaskList:                           info.GetTaskList(),
-		WorkflowTypeName:                   info.GetWorkflowTypeName(),
-		WorkflowTimeout:                    common.SecondsToDuration(int64(info.GetWorkflowTimeoutSeconds())),
-		DecisionTaskTimeout:                common.SecondsToDuration(int64(info.GetDecisionTaskTimeoutSeconds())),
-		ExecutionContext:                   info.ExecutionContext,
-		State:                              info.GetState(),
-		CloseStatus:                        info.GetCloseStatus(),
-		StartVersion:                       info.GetStartVersion(),
-		LastWriteEventID:                   info.LastWriteEventID,
-		LastEventTaskID:                    info.GetLastEventTaskID(),
-		LastFirstEventID:                   info.GetLastFirstEventID(),
-		LastProcessedEvent:                 info.GetLastProcessedEvent(),
-		StartTimestamp:                     timeFromUnixNano(info.GetStartTimeNanos()),
-		LastUpdatedTimestamp:               timeFromUnixNano(info.GetLastUpdatedTimeNanos()),
-		DecisionVersion:                    info.GetDecisionVersion(),
-		DecisionScheduleID:                 info.GetDecisionScheduleID(),
-		DecisionStartedID:                  info.GetDecisionStartedID(),
-		DecisionTimeout:                    common.SecondsToDuration(int64(info.GetDecisionTimeout())),
-		DecisionAttempt:                    info.GetDecisionAttempt(),
-		DecisionStartedTimestamp:           timeFromUnixNano(info.GetDecisionStartedTimestampNanos()),
-		DecisionScheduledTimestamp:         timeFromUnixNano(info.GetDecisionScheduledTimestampNanos()),
-		CancelRequested:                    info.GetCancelRequested(),
-		DecisionOriginalScheduledTimestamp: timeFromUnixNano(info.GetDecisionOriginalScheduledTimestampNanos()),
-		CreateRequestID:                    info.GetCreateRequestID(),
-		DecisionRequestID:                  info.GetDecisionRequestID(),
-		CancelRequestID:                    info.GetCancelRequestID(),
-		StickyTaskList:                     info.GetStickyTaskList(),
-		StickyScheduleToStartTimeout:       common.SecondsToDuration(info.GetStickyScheduleToStartTimeout()),
-		RetryAttempt:                       info.GetRetryAttempt(),
-		RetryInitialInterval:               common.SecondsToDuration(int64(info.GetRetryInitialIntervalSeconds())),
-		RetryMaximumInterval:               common.SecondsToDuration(int64(info.GetRetryMaximumIntervalSeconds())),
-		RetryMaximumAttempts:               info.GetRetryMaximumAttempts(),
-		RetryExpiration:                    common.SecondsToDuration(int64(info.GetRetryExpirationSeconds())),
-		RetryBackoffCoefficient:            info.GetRetryBackoffCoefficient(),
-		RetryExpirationTimestamp:           timeFromUnixNano(info.GetRetryExpirationTimeNanos()),
-		RetryNonRetryableErrors:            info.RetryNonRetryableErrors,
-		HasRetryPolicy:                     info.GetHasRetryPolicy(),
-		CronSchedule:                       info.GetCronSchedule(),
-		EventStoreVersion:                  info.GetEventStoreVersion(),
-		EventBranchToken:                   info.EventBranchToken,
-		SignalCount:                        info.GetSignalCount(),
-		HistorySize:                        info.GetHistorySize(),
-		ClientLibraryVersion:               info.GetClientLibraryVersion(),
-		ClientFeatureVersion:               info.GetClientFeatureVersion(),
-		ClientImpl:                         info.GetClientImpl(),
-		AutoResetPoints:                    info.AutoResetPoints,
-		AutoResetPointsEncoding:            info.GetAutoResetPointsEncoding(),
-		SearchAttributes:                   info.SearchAttributes,
-		Memo:                               info.Memo,
-		VersionHistories:                   info.VersionHistories,
-		VersionHistoriesEncoding:           info.GetVersionHistoriesEncoding(),
-		FirstExecutionRunID:                info.FirstExecutionRunID,
-		PartitionConfig:                    info.PartitionConfig,
-		IsCron:                             info.GetCronSchedule() != "",
-		Checksum:                           info.Checksum,
-		ChecksumEncoding:                   info.GetChecksumEncoding(),
+		ParentDomainID:                       info.ParentDomainID,
+		ParentWorkflowID:                     info.GetParentWorkflowID(),
+		ParentRunID:                          info.ParentRunID,
+		InitiatedID:                          info.GetInitiatedID(),
+		CompletionEventBatchID:               info.CompletionEventBatchID,
+		CompletionEvent:                      info.CompletionEvent,
+		CompletionEventEncoding:              info.GetCompletionEventEncoding(),
+		TaskList:                             info.GetTaskList(),
+		TaskListKind:                         taskListKindFromThrift(info.TaskListKind),
+		WorkflowTypeName:                     info.GetWorkflowTypeName(),
+		WorkflowTimeout:                      common.SecondsToDuration(int64(info.GetWorkflowTimeoutSeconds())),
+		DecisionTaskTimeout:                  common.SecondsToDuration(int64(info.GetDecisionTaskTimeoutSeconds())),
+		ExecutionContext:                     info.ExecutionContext,
+		State:                                info.GetState(),
+		CloseStatus:                          info.GetCloseStatus(),
+		StartVersion:                         info.GetStartVersion(),
+		LastWriteEventID:                     info.LastWriteEventID,
+		LastEventTaskID:                      info.GetLastEventTaskID(),
+		LastFirstEventID:                     info.GetLastFirstEventID(),
+		LastProcessedEvent:                   info.GetLastProcessedEvent(),
+		StartTimestamp:                       timeFromUnixNano(info.GetStartTimeNanos()),
+		LastUpdatedTimestamp:                 timeFromUnixNano(info.GetLastUpdatedTimeNanos()),
+		DecisionVersion:                      info.GetDecisionVersion(),
+		DecisionScheduleID:                   info.GetDecisionScheduleID(),
+		DecisionStartedID:                    info.GetDecisionStartedID(),
+		DecisionTimeout:                      common.SecondsToDuration(int64(info.GetDecisionTimeout())),
+		DecisionAttempt:                      info.GetDecisionAttempt(),
+		DecisionStartedTimestamp:             timeFromUnixNano(info.GetDecisionStartedTimestampNanos()),
+		DecisionScheduledTimestamp:           timeFromUnixNano(info.GetDecisionScheduledTimestampNanos()),
+		CancelRequested:                      info.GetCancelRequested(),
+		DecisionOriginalScheduledTimestamp:   timeFromUnixNano(info.GetDecisionOriginalScheduledTimestampNanos()),
+		CreateRequestID:                      info.GetCreateRequestID(),
+		DecisionRequestID:                    info.GetDecisionRequestID(),
+		CancelRequestID:                      info.GetCancelRequestID(),
+		StickyTaskList:                       info.GetStickyTaskList(),
+		StickyScheduleToStartTimeout:         common.SecondsToDuration(info.GetStickyScheduleToStartTimeout()),
+		RetryAttempt:                         info.GetRetryAttempt(),
+		RetryInitialInterval:                 common.SecondsToDuration(int64(info.GetRetryInitialIntervalSeconds())),
+		RetryMaximumInterval:                 common.SecondsToDuration(int64(info.GetRetryMaximumIntervalSeconds())),
+		RetryMaximumAttempts:                 info.GetRetryMaximumAttempts(),
+		RetryExpiration:                      common.SecondsToDuration(int64(info.GetRetryExpirationSeconds())),
+		RetryBackoffCoefficient:              info.GetRetryBackoffCoefficient(),
+		RetryExpirationTimestamp:             timeFromUnixNano(info.GetRetryExpirationTimeNanos()),
+		RetryNonRetryableErrors:              info.RetryNonRetryableErrors,
+		HasRetryPolicy:                       info.GetHasRetryPolicy(),
+		CronSchedule:                         info.GetCronSchedule(),
+		CronOverlapPolicy:                    cronOverlapPolicyFromThrift(info.CronOverlapPolicy),
+		EventStoreVersion:                    info.GetEventStoreVersion(),
+		EventBranchToken:                     info.EventBranchToken,
+		SignalCount:                          info.GetSignalCount(),
+		HistorySize:                          info.GetHistorySize(),
+		ClientLibraryVersion:                 info.GetClientLibraryVersion(),
+		ClientFeatureVersion:                 info.GetClientFeatureVersion(),
+		ClientImpl:                           info.GetClientImpl(),
+		AutoResetPoints:                      info.AutoResetPoints,
+		AutoResetPointsEncoding:              info.GetAutoResetPointsEncoding(),
+		SearchAttributes:                     info.SearchAttributes,
+		Memo:                                 info.Memo,
+		VersionHistories:                     info.VersionHistories,
+		VersionHistoriesEncoding:             info.GetVersionHistoriesEncoding(),
+		FirstExecutionRunID:                  info.FirstExecutionRunID,
+		PartitionConfig:                      info.PartitionConfig,
+		IsCron:                               info.GetCronSchedule() != "",
+		Checksum:                             info.Checksum,
+		ChecksumEncoding:                     info.GetChecksumEncoding(),
+		ActiveClusterSelectionPolicy:         info.ActiveClusterSelectionPolicy,
+		ActiveClusterSelectionPolicyEncoding: info.GetActiveClusterSelectionPolicyEncoding(),
 	}
 }
 
@@ -357,6 +391,7 @@ func activityInfoToThrift(info *ActivityInfo) *sqlblobs.ActivityInfo {
 		TimerTaskStatus:               &info.TimerTaskStatus,
 		Attempt:                       &info.Attempt,
 		TaskList:                      &info.TaskList,
+		TaskListKind:                  thrift.FromTaskListKind(&info.TaskListKind),
 		StartedIdentity:               &info.StartedIdentity,
 		HasRetryPolicy:                &info.HasRetryPolicy,
 		RetryInitialIntervalSeconds:   durationToSecondsInt32Ptr(info.RetryInitialInterval),
@@ -396,6 +431,7 @@ func activityInfoFromThrift(info *sqlblobs.ActivityInfo) *ActivityInfo {
 		TimerTaskStatus:          info.GetTimerTaskStatus(),
 		Attempt:                  info.GetAttempt(),
 		TaskList:                 info.GetTaskList(),
+		TaskListKind:             taskListKindFromThrift(info.TaskListKind),
 		StartedIdentity:          info.GetStartedIdentity(),
 		HasRetryPolicy:           info.GetHasRetryPolicy(),
 		RetryInitialInterval:     common.SecondsToDuration(int64(info.GetRetryInitialIntervalSeconds())),
@@ -562,9 +598,33 @@ func taskListPartitionConfigToThrift(info *TaskListPartitionConfig) *sqlblobs.Ta
 	}
 	return &sqlblobs.TaskListPartitionConfig{
 		Version:            &info.Version,
-		NumReadPartitions:  &info.NumReadPartitions,
-		NumWritePartitions: &info.NumWritePartitions,
+		NumReadPartitions:  common.Int32Ptr(info.NumReadPartitions),
+		NumWritePartitions: common.Int32Ptr(info.NumWritePartitions),
+		ReadPartitions:     taskListPartitionMapToThrift(info.ReadPartitions),
+		WritePartitions:    taskListPartitionMapToThrift(info.WritePartitions),
 	}
+}
+
+func taskListPartitionMapToThrift(m map[int32]*TaskListPartition) map[int32]*sqlblobs.TaskListPartition {
+	if m == nil {
+		return nil
+	}
+	result := make(map[int32]*sqlblobs.TaskListPartition)
+	for id, p := range m {
+		result[id] = &sqlblobs.TaskListPartition{IsolationGroups: p.IsolationGroups}
+	}
+	return result
+}
+
+func taskListPartitionMapFromThrift(m map[int32]*sqlblobs.TaskListPartition) map[int32]*TaskListPartition {
+	if m == nil {
+		return nil
+	}
+	result := make(map[int32]*TaskListPartition)
+	for id, p := range m {
+		result[id] = &TaskListPartition{IsolationGroups: p.IsolationGroups}
+	}
+	return result
 }
 
 func taskListParititionConfigFromThrift(info *sqlblobs.TaskListPartitionConfig) *TaskListPartitionConfig {
@@ -575,6 +635,8 @@ func taskListParititionConfigFromThrift(info *sqlblobs.TaskListPartitionConfig) 
 		Version:            info.GetVersion(),
 		NumReadPartitions:  info.GetNumReadPartitions(),
 		NumWritePartitions: info.GetNumWritePartitions(),
+		ReadPartitions:     taskListPartitionMapFromThrift(info.ReadPartitions),
+		WritePartitions:    taskListPartitionMapFromThrift(info.WritePartitions),
 	}
 }
 
@@ -622,6 +684,8 @@ func transferTaskInfoToThrift(info *TransferTaskInfo) *sqlblobs.TransferTaskInfo
 		ScheduleID:               &info.ScheduleID,
 		Version:                  &info.Version,
 		VisibilityTimestampNanos: timeToUnixNanoPtr(info.VisibilityTimestamp),
+		OriginalTaskList:         &info.OriginalTaskList,
+		OriginalTaskListKind:     thrift.FromTaskListKind(&info.OriginalTaskListKind),
 	}
 	if len(info.TargetDomainIDs) > 0 {
 		thriftTaskInfo.TargetDomainIDs = [][]byte{}
@@ -650,6 +714,8 @@ func transferTaskInfoFromThrift(info *sqlblobs.TransferTaskInfo) *TransferTaskIn
 		ScheduleID:              info.GetScheduleID(),
 		Version:                 info.GetVersion(),
 		VisibilityTimestamp:     timeFromUnixNano(info.GetVisibilityTimestampNanos()),
+		OriginalTaskList:        info.GetOriginalTaskList(),
+		OriginalTaskListKind:    taskListKindFromThrift(info.OriginalTaskListKind),
 	}
 	if len(info.GetTargetDomainIDs()) > 0 {
 		transferTaskInfo.TargetDomainIDs = []UUID{}
@@ -681,6 +747,7 @@ func timerTaskInfoToThrift(info *TimerTaskInfo) *sqlblobs.TimerTaskInfo {
 		Version:         &info.Version,
 		ScheduleAttempt: &info.ScheduleAttempt,
 		EventID:         &info.EventID,
+		TaskList:        &info.TaskList,
 	}
 }
 
@@ -697,6 +764,7 @@ func timerTaskInfoFromThrift(info *sqlblobs.TimerTaskInfo) *TimerTaskInfo {
 		Version:         info.GetVersion(),
 		ScheduleAttempt: info.GetScheduleAttempt(),
 		EventID:         info.GetEventID(),
+		TaskList:        info.GetTaskList(),
 	}
 }
 
@@ -786,4 +854,14 @@ func durationToSecondsInt64Ptr(t time.Duration) *int64 {
 
 func durationToDaysInt16Ptr(t time.Duration) *int16 {
 	return common.Int16Ptr(int16(common.DurationToDays(t)))
+}
+
+func cronOverlapPolicyFromThrift(t *shared.CronOverlapPolicy) types.CronOverlapPolicy {
+	if t == nil {
+		return types.CronOverlapPolicySkipped
+	}
+	if result := thrift.ToCronOverlapPolicy(t); result != nil {
+		return *result
+	}
+	return types.CronOverlapPolicySkipped
 }

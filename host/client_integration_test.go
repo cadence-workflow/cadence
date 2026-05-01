@@ -87,10 +87,10 @@ func (s *ClientIntegrationSuite) SetupSuite() {
 	if err != nil {
 		s.Logger.Fatal("Error when build service client", tag.Error(err))
 	}
-	s.wfClient = client.NewClient(s.wfService, s.domainName, nil)
+	s.wfClient = client.NewClient(s.wfService, s.DomainName, nil)
 
 	s.taskList = "client-integration-test-tasklist"
-	s.worker = worker.New(s.wfService, s.domainName, s.taskList, worker.Options{})
+	s.worker = worker.New(s.wfService, s.DomainName, s.taskList, worker.Options{})
 	if err := s.worker.Start(); err != nil {
 		s.Logger.Fatal("Error when start worker", tag.Error(err))
 	} else {
@@ -99,7 +99,7 @@ func (s *ClientIntegrationSuite) SetupSuite() {
 }
 
 func (s *ClientIntegrationSuite) TearDownSuite() {
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *ClientIntegrationSuite) buildServiceClient() (workflowserviceclient.Interface, error) {
@@ -208,7 +208,7 @@ func (s *ClientIntegrationSuite) startWorkerWithDataConverter(tl string, dataCon
 	if dataConverter != nil {
 		opts.DataConverter = dataConverter
 	}
-	worker := worker.New(s.wfService, s.domainName, tl, opts)
+	worker := worker.New(s.wfService, s.DomainName, tl, opts)
 	if err := worker.Start(); err != nil {
 		s.Logger.Fatal("Error when start worker with data converter", tag.Error(err))
 	}
@@ -437,7 +437,7 @@ func (s *ClientIntegrationSuite) Test_StickyWorkerRestartDecisionTask() {
 
 			taskList := "task-list-" + tt.name
 
-			oldWorker := worker.New(s.wfService, s.domainName, taskList, worker.Options{})
+			oldWorker := worker.New(s.wfService, s.DomainName, taskList, worker.Options{})
 			oldWorker.RegisterWorkflow(workflowFn)
 			if err := oldWorker.Start(); err != nil {
 				s.Logger.Fatal("Error when start worker", tag.Error(err))
@@ -483,7 +483,7 @@ func (s *ClientIntegrationSuite) Test_StickyWorkerRestartDecisionTask() {
 			time.Sleep(tt.waitTime)
 
 			// start a new worker
-			newWorker := worker.New(s.wfService, s.domainName, taskList, worker.Options{})
+			newWorker := worker.New(s.wfService, s.DomainName, taskList, worker.Options{})
 			newWorker.RegisterWorkflow(workflowFn)
 			if err := newWorker.Start(); err != nil {
 				s.Logger.Fatal("Error when start worker", tag.Error(err))

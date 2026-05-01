@@ -51,6 +51,7 @@ var (
 		Execution:           &WorkflowExecution,
 		ExpectedNextEventID: EventID1,
 		CurrentBranchToken:  BranchToken,
+		VersionHistoryItem:  &VersionHistoryItem,
 	}
 	HistoryGetMutableStateResponse = types.GetMutableStateResponse{
 		Execution:                            &WorkflowExecution,

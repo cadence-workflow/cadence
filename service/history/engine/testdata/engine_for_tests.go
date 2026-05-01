@@ -23,14 +23,12 @@ package testdata
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	// client library cannot change from old gomock
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
-	"go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/config"
@@ -41,8 +39,6 @@ import (
 	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/shard"
-	"github.com/uber/cadence/service/history/task"
-	"github.com/uber/cadence/service/history/workflowcache"
 )
 
 type EngineForTest struct {
@@ -56,16 +52,12 @@ type NewEngineFn func(
 	shard shard.Context,
 	visibilityMgr persistence.VisibilityManager,
 	matching matching.Client,
-	publicClient workflowserviceclient.Interface,
 	historyEventNotifier events.Notifier,
 	config *config.Config,
 	replicationTaskFetchers replication.TaskFetchers,
 	rawMatchingClient matching.Client,
-	queueTaskProcessor task.Processor,
 	failoverCoordinator failover.Coordinator,
-	wfIDCache workflowcache.WFCache,
-	ratelimitInternalPerWorkflowID dynamicconfig.BoolPropertyFnWithDomainFilter,
-	queueProcessorFactory queue.ProcessorFactory,
+	queueFactories []queue.Factory,
 ) engine.Engine
 
 func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
@@ -93,8 +85,8 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 	executionMgr := shardCtx.Resource.ExecutionMgr
 	// RangeCompleteReplicationTask is called by taskProcessorImpl's background loop
 	executionMgr.
-		On("RangeCompleteReplicationTask", mock.Anything, mock.Anything).
-		Return(&persistence.RangeCompleteReplicationTaskResponse{}, nil)
+		On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil)
 
 	membershipResolver := shardCtx.Resource.MembershipResolver
 	membershipResolver.EXPECT().MemberCount(gomock.Any()).Return(1, nil).AnyTimes()
@@ -117,56 +109,44 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 		},
 	)
 
-	mockWFServiceClient := workflowservicetest.NewMockClient(controller)
-
 	replicatonTaskFetchers := replication.NewMockTaskFetchers(controller)
 	replicationTaskFetcher := replication.NewMockTaskFetcher(controller)
 	// TODO: this should probably return another cluster name, not current
 	replicationTaskFetcher.EXPECT().GetSourceCluster().Return(constants.TestClusterMetadata.GetCurrentClusterName()).AnyTimes()
 	replicationTaskFetcher.EXPECT().GetRateLimiter().Return(quotas.NewDynamicRateLimiter(func() float64 { return 100 })).AnyTimes()
-	replicationTaskFetcher.EXPECT().GetRequestChan().Return(nil).AnyTimes()
+	replicationTaskFetcher.EXPECT().GetRequestChan(gomock.Any()).Return(nil).AnyTimes()
 	replicatonTaskFetchers.EXPECT().GetFetchers().Return([]replication.TaskFetcher{replicationTaskFetcher}).AnyTimes()
 
-	queueTaskProcessor := task.NewMockProcessor(controller)
-	queueTaskProcessor.EXPECT().StopShardProcessor(gomock.Any()).Return().Times(1)
-
 	failoverCoordinator := failover.NewMockCoordinator(controller)
-	wfIDCache := workflowcache.NewMockWFCache(controller)
-	ratelimitInternalPerWorkflowID := dynamicconfig.GetBoolPropertyFnFilteredByDomain(false)
 
-	queueProcessorFactory := queue.NewMockProcessorFactory(controller)
+	timerQueueFactory := queue.NewMockFactory(controller)
+	timerQueueFactory.EXPECT().Category().Return(persistence.HistoryTaskCategoryTimer).AnyTimes()
 	timerQProcessor := queue.NewMockProcessor(controller)
 	timerQProcessor.EXPECT().Start().Return().Times(1)
 	timerQProcessor.EXPECT().NotifyNewTask(gomock.Any(), gomock.Any()).Return().AnyTimes()
 	timerQProcessor.EXPECT().Stop().Return().Times(1)
-	queueProcessorFactory.EXPECT().
-		NewTimerQueueProcessor(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(timerQProcessor).
-		Times(1)
+	timerQueueFactory.EXPECT().CreateQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(timerQProcessor).Times(1)
 
+	transferQueueFactory := queue.NewMockFactory(controller)
+	transferQueueFactory.EXPECT().Category().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 	transferQProcessor := queue.NewMockProcessor(controller)
 	transferQProcessor.EXPECT().Start().Return().Times(1)
 	transferQProcessor.EXPECT().NotifyNewTask(gomock.Any(), gomock.Any()).Return().AnyTimes()
 	transferQProcessor.EXPECT().Stop().Return().Times(1)
-	queueProcessorFactory.EXPECT().
-		NewTransferQueueProcessor(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(transferQProcessor).
-		Times(1)
+	transferQueueFactory.EXPECT().CreateQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(transferQProcessor).Times(1)
+
+	queueFactories := []queue.Factory{timerQueueFactory, transferQueueFactory}
 
 	engine := newEngineFn(
 		shardCtx,
 		shardCtx.Resource.VisibilityMgr,
 		shardCtx.Resource.MatchingClient,
-		mockWFServiceClient,
 		historyEventNotifier,
 		historyCfg,
 		replicatonTaskFetchers,
 		shardCtx.Resource.MatchingClient,
-		queueTaskProcessor,
 		failoverCoordinator,
-		wfIDCache,
-		ratelimitInternalPerWorkflowID,
-		queueProcessorFactory,
+		queueFactories,
 	)
 
 	shardCtx.SetEngine(engine)

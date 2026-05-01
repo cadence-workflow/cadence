@@ -29,10 +29,11 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/worker"
+	"go.uber.org/mock/gomock"
 
 	carchiver "github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -62,6 +63,7 @@ type activitiesSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
 
+	controller         *gomock.Controller
 	logger             log.Logger
 	metricsClient      *mmocks.Client
 	metricsScope       *mmocks.Scope
@@ -75,10 +77,11 @@ func TestActivitiesSuite(t *testing.T) {
 }
 
 func (s *activitiesSuite) SetupTest() {
+	s.controller = gomock.NewController(s.T())
 	s.logger = testlogger.New(s.T())
 	s.metricsClient = &mmocks.Client{}
 	s.metricsScope = &mmocks.Scope{}
-	s.archiverProvider = &provider.MockArchiverProvider{}
+	s.archiverProvider = provider.NewMockArchiverProvider(s.controller)
 	s.historyArchiver = &carchiver.HistoryArchiverMock{}
 	s.visibilityArchiver = &carchiver.VisibilityArchiverMock{}
 	s.metricsScope.On("StartTimer", metrics.CadenceLatency).Return(metrics.NewTestStopwatch()).Maybe()
@@ -88,7 +91,6 @@ func (s *activitiesSuite) SetupTest() {
 func (s *activitiesSuite) TearDownTest() {
 	s.metricsClient.AssertExpectations(s.T())
 	s.metricsScope.AssertExpectations(s.T())
-	s.archiverProvider.AssertExpectations(s.T())
 	s.historyArchiver.AssertExpectations(s.T())
 	s.visibilityArchiver.AssertExpectations(s.T())
 }
@@ -100,7 +102,7 @@ func (s *activitiesSuite) TestUploadHistory_Fail_InvalidURI() {
 		Logger:        s.logger,
 		MetricsClient: s.metricsClient,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -124,13 +126,13 @@ func (s *activitiesSuite) TestUploadHistory_Fail_InvalidURI() {
 func (s *activitiesSuite) TestUploadHistory_Fail_GetArchiverError() {
 	s.metricsClient.On("Scope", metrics.ArchiverUploadHistoryActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.metricsScope.On("IncCounter", metrics.ArchiverNonRetryableErrorCount).Once()
-	s.archiverProvider.On("GetHistoryArchiver", mock.Anything, service.Worker).Return(nil, errors.New("failed to get archiver"))
+	s.archiverProvider.EXPECT().GetHistoryArchiver(gomock.Any(), service.Worker).Return(nil, errors.New("failed to get archiver"))
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -155,13 +157,13 @@ func (s *activitiesSuite) TestUploadHistory_Fail_ArchiveNonRetriableError() {
 	s.metricsClient.On("Scope", metrics.ArchiverUploadHistoryActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.metricsScope.On("IncCounter", metrics.ArchiverNonRetryableErrorCount).Once()
 	s.historyArchiver.On("Archive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errUploadNonRetriable)
-	s.archiverProvider.On("GetHistoryArchiver", mock.Anything, service.Worker).Return(s.historyArchiver, nil)
+	s.archiverProvider.EXPECT().GetHistoryArchiver(gomock.Any(), service.Worker).Return(s.historyArchiver, nil)
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -186,13 +188,13 @@ func (s *activitiesSuite) TestUploadHistory_Fail_ArchiveRetriableError() {
 	s.metricsClient.On("Scope", metrics.ArchiverUploadHistoryActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	testArchiveErr := errors.New("some transient error")
 	s.historyArchiver.On("Archive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(testArchiveErr)
-	s.archiverProvider.On("GetHistoryArchiver", mock.Anything, service.Worker).Return(s.historyArchiver, nil)
+	s.archiverProvider.EXPECT().GetHistoryArchiver(gomock.Any(), service.Worker).Return(s.historyArchiver, nil)
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -216,13 +218,13 @@ func (s *activitiesSuite) TestUploadHistory_Fail_ArchiveRetriableError() {
 func (s *activitiesSuite) TestUploadHistory_Success() {
 	s.metricsClient.On("Scope", metrics.ArchiverUploadHistoryActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.historyArchiver.On("Archive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.archiverProvider.On("GetHistoryArchiver", mock.Anything, service.Worker).Return(s.historyArchiver, nil)
+	s.archiverProvider.EXPECT().GetHistoryArchiver(gomock.Any(), service.Worker).Return(s.historyArchiver, nil)
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -253,7 +255,7 @@ func (s *activitiesSuite) TestDeleteHistoryActivity_Fail_DeleteFromV2NonRetryabl
 		MetricsClient:    s.metricsClient,
 		HistoryV2Manager: mockHistoryV2Manager,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -281,7 +283,7 @@ func (s *activitiesSuite) TestArchiveVisibilityActivity_Fail_InvalidURI() {
 		Logger:        s.logger,
 		MetricsClient: s.metricsClient,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -302,13 +304,13 @@ func (s *activitiesSuite) TestArchiveVisibilityActivity_Fail_InvalidURI() {
 func (s *activitiesSuite) TestArchiveVisibilityActivity_Fail_GetArchiverError() {
 	s.metricsClient.On("Scope", metrics.ArchiverArchiveVisibilityActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.metricsScope.On("IncCounter", metrics.ArchiverNonRetryableErrorCount).Once()
-	s.archiverProvider.On("GetVisibilityArchiver", mock.Anything, service.Worker).Return(nil, errors.New("failed to get archiver"))
+	s.archiverProvider.EXPECT().GetVisibilityArchiver(gomock.Any(), service.Worker).Return(nil, errors.New("failed to get archiver"))
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -330,13 +332,13 @@ func (s *activitiesSuite) TestArchiveVisibilityActivity_Fail_ArchiveNonRetriable
 	s.metricsClient.On("Scope", metrics.ArchiverArchiveVisibilityActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.metricsScope.On("IncCounter", metrics.ArchiverNonRetryableErrorCount).Once()
 	s.visibilityArchiver.On("Archive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errArchiveVisibilityNonRetriable)
-	s.archiverProvider.On("GetVisibilityArchiver", mock.Anything, service.Worker).Return(s.visibilityArchiver, nil)
+	s.archiverProvider.EXPECT().GetVisibilityArchiver(gomock.Any(), service.Worker).Return(s.visibilityArchiver, nil)
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -358,13 +360,13 @@ func (s *activitiesSuite) TestArchiveVisibilityActivity_Fail_ArchiveRetriableErr
 	s.metricsClient.On("Scope", metrics.ArchiverArchiveVisibilityActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	testArchiveErr := errors.New("some transient error")
 	s.visibilityArchiver.On("Archive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(testArchiveErr)
-	s.archiverProvider.On("GetVisibilityArchiver", mock.Anything, service.Worker).Return(s.visibilityArchiver, nil)
+	s.archiverProvider.EXPECT().GetVisibilityArchiver(gomock.Any(), service.Worker).Return(s.visibilityArchiver, nil)
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()
@@ -385,13 +387,13 @@ func (s *activitiesSuite) TestArchiveVisibilityActivity_Fail_ArchiveRetriableErr
 func (s *activitiesSuite) TestArchiveVisibilityActivity_Success() {
 	s.metricsClient.On("Scope", metrics.ArchiverArchiveVisibilityActivityScope, metrics.DomainTag(testDomainName)).Return(s.metricsScope).Once()
 	s.visibilityArchiver.On("Archive", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	s.archiverProvider.On("GetVisibilityArchiver", mock.Anything, service.Worker).Return(s.visibilityArchiver, nil)
+	s.archiverProvider.EXPECT().GetVisibilityArchiver(gomock.Any(), service.Worker).Return(s.visibilityArchiver, nil)
 	container := &BootstrapContainer{
 		Logger:           s.logger,
 		MetricsClient:    s.metricsClient,
 		ArchiverProvider: s.archiverProvider,
 		Config: &Config{
-			AllowArchivingIncompleteHistory: dynamicconfig.GetBoolPropertyFn(false),
+			AllowArchivingIncompleteHistory: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	}
 	env := s.NewTestActivityEnvironment()

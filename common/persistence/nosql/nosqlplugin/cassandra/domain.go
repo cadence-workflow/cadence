@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -42,8 +43,9 @@ const (
 // Insert a new record to domain
 // return types.DomainAlreadyExistsError error if failed or already exists
 // Must return ConditionFailure error if other condition doesn't match
-func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
-	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name).WithContext(ctx)
+func (db *CDB) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
+	timeStamp := row.CurrentTimeStamp
+	query := db.session.Query(templateCreateDomainQuery, row.Info.ID, row.Info.Name, timeStamp).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
 		return err
@@ -64,6 +66,7 @@ func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 	}
 	isolationGroupData, isolationGroupEncoding := getIsolationGroupFields(row)
 	asyncWFConfigData, asyncWFConfigEncoding := getAsyncWFConfigFields(row)
+	activeClustersData, activeClustersEncoding := getActiveClustersFields(row)
 
 	batch.Query(templateCreateDomainByNameQueryWithinBatchV2,
 		constDomainPartition,
@@ -90,14 +93,17 @@ func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 		asyncWFConfigEncoding,
 		row.ReplicationConfig.ActiveClusterName,
 		persistence.SerializeClusterConfigs(row.ReplicationConfig.Clusters),
+		activeClustersData,
+		activeClustersEncoding,
 		row.IsGlobalDomain,
 		row.ConfigVersion,
 		row.FailoverVersion,
 		persistence.InitialFailoverNotificationVersion,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		failoverEndTime,
 		row.LastUpdatedTime.UnixNano(),
 		metadataNotificationVersion,
+		timeStamp,
 	)
 	db.updateMetadataBatch(batch, metadataNotificationVersion)
 
@@ -141,7 +147,7 @@ func (db *cdb) InsertDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 	return nil
 }
 
-func (db *cdb) updateMetadataBatch(
+func (db *CDB) updateMetadataBatch(
 	batch gocql.Batch,
 	notificationVersion int64,
 ) {
@@ -160,7 +166,7 @@ func (db *cdb) updateMetadataBatch(
 }
 
 // Update domain
-func (db *cdb) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
+func (db *CDB) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) error {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	failoverEndTime := emptyFailoverEndTime
 	if row.FailoverEndTime != nil {
@@ -169,6 +175,7 @@ func (db *cdb) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 
 	isolationGroupData, isolationGroupEncoding := getIsolationGroupFields(row)
 	asyncWFConfigData, asyncWFConfigEncoding := getAsyncWFConfigFields(row)
+	activeClustersData, activeClustersEncoding := getActiveClustersFields(row)
 
 	batch.Query(templateUpdateDomainByNameQueryWithinBatchV2,
 		row.Info.ID,
@@ -193,6 +200,8 @@ func (db *cdb) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 		asyncWFConfigEncoding,
 		row.ReplicationConfig.ActiveClusterName,
 		persistence.SerializeClusterConfigs(row.ReplicationConfig.Clusters),
+		activeClustersData,
+		activeClustersEncoding,
 		row.ConfigVersion,
 		row.FailoverVersion,
 		row.FailoverNotificationVersion,
@@ -223,7 +232,7 @@ func (db *cdb) UpdateDomain(ctx context.Context, row *nosqlplugin.DomainRow) err
 }
 
 // Get one domain data, either by domainID or domainName
-func (db *cdb) SelectDomain(
+func (db *CDB) SelectDomain(
 	ctx context.Context,
 	domainID *string,
 	domainName *string,
@@ -246,7 +255,7 @@ func (db *cdb) SelectDomain(
 
 	info := &persistence.DomainInfo{}
 	config := &persistence.InternalDomainConfig{}
-	replicationConfig := &persistence.DomainReplicationConfig{}
+	replicationConfig := &persistence.InternalDomainReplicationConfig{}
 
 	// because of encoding/types, we can't directly read from config struct
 	var badBinariesData []byte
@@ -266,6 +275,8 @@ func (db *cdb) SelectDomain(
 	var isolationGroupEncoding string
 	var asyncWFConfigData []byte
 	var asyncWFConfigEncoding string
+	var activeClustersData []byte
+	var activeClustersEncoding string
 
 	query = db.session.Query(templateGetDomainByNameQueryV2, constDomainPartition, domainName).WithContext(ctx)
 	err = query.Scan(
@@ -287,6 +298,8 @@ func (db *cdb) SelectDomain(
 		&badBinariesDataEncoding,
 		&replicationConfig.ActiveClusterName,
 		&replicationClusters,
+		&activeClustersData,
+		&activeClustersEncoding,
 		&isolationGroupData,
 		&isolationGroupEncoding,
 		&asyncWFConfigData,
@@ -305,12 +318,12 @@ func (db *cdb) SelectDomain(
 		return nil, err
 	}
 
-	config.IsolationGroups = persistence.NewDataBlob(isolationGroupData, common.EncodingType(isolationGroupEncoding))
-	config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, common.EncodingType(asyncWFConfigEncoding))
-	config.BadBinaries = persistence.NewDataBlob(badBinariesData, common.EncodingType(badBinariesDataEncoding))
+	config.IsolationGroups = persistence.NewDataBlob(isolationGroupData, constants.EncodingType(isolationGroupEncoding))
+	config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, constants.EncodingType(asyncWFConfigEncoding))
+	config.BadBinaries = persistence.NewDataBlob(badBinariesData, constants.EncodingType(badBinariesDataEncoding))
 	config.Retention = common.DaysToDuration(retentionDays)
 	replicationConfig.Clusters = persistence.DeserializeClusterConfigs(replicationClusters)
-
+	replicationConfig.ActiveClustersConfig = persistence.NewDataBlob(activeClustersData, constants.EncodingType(activeClustersEncoding))
 	dr := &nosqlplugin.DomainRow{
 		Info:                        info,
 		Config:                      config,
@@ -331,7 +344,7 @@ func (db *cdb) SelectDomain(
 }
 
 // Get all domain data
-func (db *cdb) SelectAllDomains(
+func (db *CDB) SelectAllDomains(
 	ctx context.Context,
 	pageSize int,
 	pageToken []byte,
@@ -348,7 +361,7 @@ func (db *cdb) SelectAllDomains(
 	domain := &nosqlplugin.DomainRow{
 		Info:              &persistence.DomainInfo{},
 		Config:            &persistence.InternalDomainConfig{},
-		ReplicationConfig: &persistence.DomainReplicationConfig{},
+		ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 	}
 	var replicationClusters []map[string]interface{}
 	var badBinariesData []byte
@@ -360,6 +373,8 @@ func (db *cdb) SelectAllDomains(
 	var retentionDays int32
 	var failoverEndTime int64
 	var lastUpdateTime int64
+	var activeClustersData []byte
+	var activeClustersEncoding string
 	var rows []*nosqlplugin.DomainRow
 	for iter.Scan(
 		&name,
@@ -385,6 +400,8 @@ func (db *cdb) SelectAllDomains(
 		&asyncWFConfigEncoding,
 		&domain.ReplicationConfig.ActiveClusterName,
 		&replicationClusters,
+		&activeClustersData,
+		&activeClustersEncoding,
 		&domain.IsGlobalDomain,
 		&domain.ConfigVersion,
 		&domain.FailoverVersion,
@@ -396,11 +413,12 @@ func (db *cdb) SelectAllDomains(
 	) {
 		if name != domainMetadataRecordName {
 			// do not include the metadata record
-			domain.Config.BadBinaries = persistence.NewDataBlob(badBinariesData, common.EncodingType(badBinariesDataEncoding))
+			domain.Config.BadBinaries = persistence.NewDataBlob(badBinariesData, constants.EncodingType(badBinariesDataEncoding))
 			domain.ReplicationConfig.Clusters = persistence.DeserializeClusterConfigs(replicationClusters)
+			domain.ReplicationConfig.ActiveClustersConfig = persistence.NewDataBlob(activeClustersData, constants.EncodingType(activeClustersEncoding))
 			domain.Config.Retention = common.DaysToDuration(retentionDays)
-			domain.Config.IsolationGroups = persistence.NewDataBlob(isolationGroups, common.EncodingType(isolationGroupsEncoding))
-			domain.Config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, common.EncodingType(asyncWFConfigEncoding))
+			domain.Config.IsolationGroups = persistence.NewDataBlob(isolationGroups, constants.EncodingType(isolationGroupsEncoding))
+			domain.Config.AsyncWorkflowsConfig = persistence.NewDataBlob(asyncWFConfigData, constants.EncodingType(asyncWFConfigEncoding))
 			domain.LastUpdatedTime = time.Unix(0, lastUpdateTime)
 			if failoverEndTime > emptyFailoverEndTime {
 				domain.FailoverEndTime = common.TimePtr(time.Unix(0, failoverEndTime))
@@ -417,10 +435,12 @@ func (db *cdb) SelectAllDomains(
 		failoverEndTime = 0
 		lastUpdateTime = 0
 		retentionDays = 0
+		activeClustersData = []byte("")
+		activeClustersEncoding = ""
 		domain = &nosqlplugin.DomainRow{
 			Info:              &persistence.DomainInfo{},
 			Config:            &persistence.InternalDomainConfig{},
-			ReplicationConfig: &persistence.DomainReplicationConfig{},
+			ReplicationConfig: &persistence.InternalDomainReplicationConfig{},
 		}
 	}
 
@@ -432,7 +452,7 @@ func (db *cdb) SelectAllDomains(
 }
 
 // Delete a domain, either by domainID or domainName
-func (db *cdb) DeleteDomain(ctx context.Context, domainID *string, domainName *string) error {
+func (db *CDB) DeleteDomain(ctx context.Context, domainID *string, domainName *string) error {
 	if domainName == nil && domainID == nil {
 		return fmt.Errorf("must provide either domainID or domainName")
 	}
@@ -451,7 +471,7 @@ func (db *cdb) DeleteDomain(ctx context.Context, domainID *string, domainName *s
 	} else {
 		var id string
 		query := db.session.Query(templateGetDomainByNameQueryV2, constDomainPartition, *domainName).WithContext(ctx)
-		err := query.Scan(&id, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		err := query.Scan(&id, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			if db.client.IsNotFoundError(err) {
 				return nil
@@ -464,7 +484,7 @@ func (db *cdb) DeleteDomain(ctx context.Context, domainID *string, domainName *s
 	return db.deleteDomain(ctx, *domainName, *domainID)
 }
 
-func (db *cdb) SelectDomainMetadata(ctx context.Context) (int64, error) {
+func (db *CDB) SelectDomainMetadata(ctx context.Context) (int64, error) {
 	var notificationVersion int64
 	query := db.session.Query(templateGetMetadataQueryV2, constDomainPartition, domainMetadataRecordName).WithContext(ctx)
 	err := query.Scan(&notificationVersion)
@@ -480,7 +500,7 @@ func (db *cdb) SelectDomainMetadata(ctx context.Context) (int64, error) {
 	return notificationVersion, nil
 }
 
-func (db *cdb) deleteDomain(ctx context.Context, name, ID string) error {
+func (db *CDB) deleteDomain(ctx context.Context, name, ID string) error {
 	query := db.session.Query(templateDeleteDomainByNameQueryV2, constDomainPartition, name).WithContext(ctx)
 	if err := db.executeWithConsistencyAll(query); err != nil {
 		return err
@@ -506,6 +526,16 @@ func getAsyncWFConfigFields(row *nosqlplugin.DomainRow) ([]byte, string) {
 	if row != nil && row.Config != nil && row.Config.AsyncWorkflowsConfig != nil {
 		d = row.Config.AsyncWorkflowsConfig.GetData()
 		e = row.Config.AsyncWorkflowsConfig.GetEncodingString()
+	}
+	return d, e
+}
+
+func getActiveClustersFields(row *nosqlplugin.DomainRow) ([]byte, string) {
+	var d []byte
+	var e string
+	if row != nil && row.ReplicationConfig != nil && row.ReplicationConfig.ActiveClustersConfig != nil {
+		d = row.ReplicationConfig.ActiveClustersConfig.GetData()
+		e = row.ReplicationConfig.ActiveClustersConfig.GetEncodingString()
 	}
 	return d, e
 }

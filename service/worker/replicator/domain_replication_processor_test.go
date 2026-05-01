@@ -26,13 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
@@ -51,6 +53,7 @@ type domainReplicationSuite struct {
 	remoteClient           *admin.MockClient
 	domainReplicationQueue *domain.MockReplicationQueue
 	replicationProcessor   *domainReplicationProcessor
+	timeSource             clock.MockedTimeSource
 }
 
 func TestDomainReplicationSuite(t *testing.T) {
@@ -70,6 +73,7 @@ func (s *domainReplicationSuite) SetupTest() {
 	s.remoteClient = resource.RemoteAdminClient
 	serviceResolver := resource.MembershipResolver
 	serviceResolver.EXPECT().Lookup(service.Worker, s.sourceCluster).Return(resource.GetHostInfo(), nil).AnyTimes()
+	s.timeSource = clock.NewMockedTimeSource()
 	s.replicationProcessor = newDomainReplicationProcessor(
 		s.sourceCluster,
 		s.currentCluster,
@@ -81,6 +85,7 @@ func (s *domainReplicationSuite) SetupTest() {
 		serviceResolver,
 		s.domainReplicationQueue,
 		time.Millisecond,
+		s.timeSource,
 	)
 	retryPolicy := backoff.NewExponentialRetryPolicy(time.Nanosecond)
 	retryPolicy.SetMaximumAttempts(1)
@@ -91,6 +96,33 @@ func (s *domainReplicationSuite) SetupTest() {
 }
 
 func (s *domainReplicationSuite) TearDownTest() {
+}
+
+func (s *domainReplicationSuite) TestStartStop() {
+
+	s.replicationProcessor.Start()
+
+	// second call should be no-op
+	s.replicationProcessor.Start()
+	// yield execution so background goroutine starts
+	time.Sleep(50 * time.Millisecond)
+
+	s.remoteClient.EXPECT().
+		GetDomainReplicationMessages(gomock.Any(), gomock.Any()).
+		Return(&types.GetDomainReplicationMessagesResponse{
+			Messages: &types.ReplicationMessages{},
+		}, nil)
+
+	// advance time to let it run one iteration
+	s.timeSource.Advance(pollIntervalSecs * 5 * time.Second)
+	// yield execution
+	time.Sleep(50 * time.Millisecond)
+
+	// stop processor
+	s.replicationProcessor.Stop()
+
+	// validate no goroutines left
+	goleak.VerifyNone(s.T())
 }
 
 func (s *domainReplicationSuite) TestHandleDomainReplicationTask() {

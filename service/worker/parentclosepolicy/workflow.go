@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -242,7 +243,10 @@ func signalRemoteCluster(
 	numWorkflows int,
 ) error {
 	for cluster, executions := range remoteExecutions {
-		remoteClient := clientBean.GetRemoteFrontendClient(cluster)
+		remoteClient, err := clientBean.GetRemoteFrontendClient(cluster)
+		if err != nil {
+			return err
+		}
 		signalCtx, cancel := context.WithTimeout(ctx, signalTimeout)
 		signalValue := Request{
 			ParentExecution: parentExecution,
@@ -257,7 +261,7 @@ func signalRemoteCluster(
 		}
 
 		_, err = remoteClient.SignalWithStartWorkflowExecution(signalCtx, &types.SignalWithStartWorkflowExecutionRequest{
-			Domain:                              common.SystemLocalDomainName,
+			Domain:                              constants.SystemLocalDomainName,
 			RequestID:                           uuid.New(),
 			WorkflowID:                          fmt.Sprintf("%v-%v", workflowIDPrefix, rand.Intn(numWorkflows)),
 			WorkflowType:                        &types.WorkflowType{Name: processorWFTypeName},

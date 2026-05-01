@@ -80,7 +80,7 @@ func timeToUnixNano(t *gogo.Timestamp) *int64 {
 }
 
 func timeToTimestamp(t *time.Time) *gogo.Timestamp {
-	if t == nil {
+	if t == nil || t.IsZero() {
 		return nil
 	}
 
@@ -95,6 +95,31 @@ func timestampToTime(t *gogo.Timestamp) *time.Time {
 
 	time := time.Unix(t.GetSeconds(), int64(t.GetNanos()))
 	return &time
+}
+
+func timestampToTimeVal(t *gogo.Timestamp) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return time.Unix(t.GetSeconds(), int64(t.GetNanos())).UTC()
+}
+
+func durationToDurationProto(d time.Duration) *gogo.Duration {
+	if d == 0 {
+		return nil
+	}
+	return gogo.DurationProto(d)
+}
+
+func durationProtoToDuration(d *gogo.Duration) time.Duration {
+	if d == nil {
+		return 0
+	}
+	dur, err := gogo.DurationFromProto(d)
+	if err != nil {
+		panic(err)
+	}
+	return dur
 }
 
 func daysToDuration(d *int32) *gogo.Duration {

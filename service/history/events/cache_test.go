@@ -26,14 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -88,7 +89,7 @@ func (s *eventsCacheSuite) TearDownTest() {
 
 func (s *eventsCacheSuite) newTestEventsCache() *cacheImpl {
 	return newCacheWithOption(common.IntPtr(10), 16, 32, time.Minute, s.mockHistoryManager, false, s.logger,
-		metrics.NewClient(tally.NoopScope, metrics.History), 0, s.domainCache)
+		metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}), dynamicproperties.GetBoolPropertyFn(false), dynamicproperties.GetIntPropertyFn(1000), s.domainCache)
 }
 
 func (s *eventsCacheSuite) TestEventsCacheHitSuccess() {

@@ -34,7 +34,8 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/types"
@@ -48,10 +49,8 @@ func TestWorkflowIDRateLimitIntegrationSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	clusterConfig.TimeSource = clock.NewMockedTimeSource()
-	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicconfig.Key]interface{}{
-		dynamicconfig.WorkflowIDCacheExternalEnabled:     true,
-		dynamicconfig.WorkflowIDExternalRPS:              5,
-		dynamicconfig.WorkflowIDExternalRateLimitEnabled: true,
+	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.WorkflowIDExternalRPS: 5,
 	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
@@ -67,29 +66,33 @@ func TestWorkflowIDRateLimitIntegrationSuite(t *testing.T) {
 }
 
 func (s *WorkflowIDRateLimitIntegrationSuite) SetupSuite() {
-	s.setupLogger()
+	s.SetupLogger()
 
 	s.Logger.Info("Running integration test against test cluster")
-	clusterMetadata := NewClusterMetadata(s.T(), s.testClusterConfig)
+	clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-		EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
+		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.visibilityTestCluster,
+		DefaultTestCluster:    s.DefaultTestCluster,
+		VisibilityTestCluster: s.VisibilityTestCluster,
 		ClusterMetadata:       clusterMetadata,
 		DynamicConfiguration:  dc,
 	}
-	cluster, err := NewCluster(s.T(), s.testClusterConfig, s.Logger, params)
+	cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)
-	s.testCluster = cluster
-	s.engine = s.testCluster.GetFrontendClient()
-	s.adminClient = s.testCluster.GetAdminClient()
+	s.TestCluster = cluster
+	s.Engine = s.TestCluster.GetFrontendClient()
+	s.AdminClient = s.TestCluster.GetAdminClient()
 
-	s.domainName = s.randomizeStr("integration-test-domain")
-	s.Require().NoError(s.registerDomain(s.domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.DomainName = s.RandomizeStr("integration-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	s.domainCacheRefresh()
 }
@@ -99,7 +102,7 @@ func (s *WorkflowIDRateLimitIntegrationSuite) SetupTest() {
 }
 
 func (s *WorkflowIDRateLimitIntegrationSuite) TearDownSuite() {
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits() {
@@ -112,7 +115,7 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          testWorkflowID,
 		WorkflowType:                        &types.WorkflowType{Name: testWorkflowType},
 		TaskList:                            &types.TaskList{Name: testTaskListName},
@@ -129,19 +132,19 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 
 	// The ratelimit is 5 per second with a burst of 5, so we should be able to start 5 workflows without any error
 	for i := 0; i < 5; i++ {
-		_, err := s.engine.StartWorkflowExecution(ctx, request)
+		_, err := s.Engine.StartWorkflowExecution(ctx, request)
 		assert.NoError(s.T(), err)
 	}
 
 	// Now we should get a rate limit error (with some fuzziness for time passing)
 	limited := 0
 	for i := 0; i < 5; i++ {
-		_, err := s.engine.StartWorkflowExecution(ctx, request)
+		_, err := s.Engine.StartWorkflowExecution(ctx, request)
 		var busyErr *types.ServiceBusyError
 		if err != nil {
 			if assert.ErrorAs(s.T(), err, &busyErr) {
 				limited++
-				assert.Equal(s.T(), common.WorkflowIDRateLimitReason, busyErr.Reason)
+				assert.Equal(s.T(), constants.WorkflowIDRateLimitReason, busyErr.Reason)
 			}
 		}
 	}
@@ -151,6 +154,6 @@ func (s *WorkflowIDRateLimitIntegrationSuite) TestWorkflowIDSpecificRateLimits()
 
 	// After 1 second (200ms at a minimum) we should be able to start more workflows without being limited
 	time.Sleep(1 * time.Second)
-	_, err := s.engine.StartWorkflowExecution(ctx, request)
+	_, err := s.Engine.StartWorkflowExecution(ctx, request)
 	assert.NoError(s.T(), err)
 }

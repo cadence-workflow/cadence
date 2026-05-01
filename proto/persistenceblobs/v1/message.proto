@@ -1064,6 +1064,7 @@ enum DomainOperation {
     DOMAIN_OPERATION_UNSPECIFIED = 0;
     DOMAIN_OPERATION_CREATE = 1;
     DOMAIN_OPERATION_UPDATE = 2;
+    DOMAIN_OPERATION_DELETE = 3;
 }
 
 message HistoryTaskAttributes {

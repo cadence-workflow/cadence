@@ -32,7 +32,7 @@ func New{{$Decorator}}(client {{.Interface.Type}}, policy backoff.RetryPolicy, i
     {{$resultsLength := len ($method.Results)}}
     {{if eq $resultsLength 1}}
         func (c *{{$decorator}}) {{$method.Declaration}} {
-            op := func() error {
+            op := func(ctx context.Context) error {
                 return c.client.{{$method.Call}}
             }
             return c.throttleRetry.Do(ctx, op)
@@ -40,7 +40,7 @@ func New{{$Decorator}}(client {{.Interface.Type}}, policy backoff.RetryPolicy, i
     {{else}}
         func (c *{{$decorator}}) {{$method.Declaration}} {
             var resp {{ (index $method.Results 0).Type }}
-            op := func() error {
+            op := func(ctx context.Context) error {
                 var err error
                 resp, err = c.client.{{$method.Call}}
                 return err

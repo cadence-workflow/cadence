@@ -30,13 +30,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common/elasticsearch"
@@ -699,4 +700,389 @@ func TestGenerateESDoc(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateReport(t *testing.T) {
+	tests := []struct {
+		name           string
+		handler        http.HandlerFunc
+		setupContext   func(app *cli.App) *cli.Context
+		setupMocks     func(mockClientFactory *MockClientFactory, esClient *elastic.Client)
+		expectedOutput string
+		expectedError  string
+	}{
+		{
+			name: "SuccessCSVReportWithExtraKey",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate a successful response with extra key not in primaryColsMap
+				expectedPath := "/test-index/_search"
+				if r.URL.Path == expectedPath && r.Method == "POST" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{
+						"aggregations": {
+							"groupby": {
+								"buckets": [
+									{
+										"key": {
+											"group_DomainID": "domain1",
+											"group_CustomKey": "custom-value"
+										},
+										"Attr_CustomDatetimeField": {
+											"value_as_string": "2023-10-01T12:34:56.789Z"
+										}
+									}
+								]
+							}
+						}
+					}`))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}),
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Define and set flags
+				set.String(FlagIndex, "", "Index flag")
+				set.String(FlagListQuery, "", "List query flag")
+				set.String(FlagOutputFormat, "", "Output format flag")
+				set.String(FlagOutputFilename, "", "Output file flag")
+				// Set the actual values
+				_ = set.Set(FlagIndex, "test-index")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				_ = set.Set(FlagOutputFormat, "csv")
+				_ = set.Set(FlagOutputFilename, "test-report.csv")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks: func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {
+				mockClientFactory.EXPECT().ElasticSearchClient(gomock.Any()).Return(esClient, nil).Times(1)
+			},
+			expectedOutput: `+-------------+--------------+--------------------------+
+| DOMAINID(*) | CUSTOMKEY(*) | ATTR CUSTOMDATETIMEFIELD |
++-------------+--------------+--------------------------+
+| domain1     | custom-value | 2023-10-01T12:34:56.789Z |
++-------------+--------------+--------------------------+
+`,
+			expectedError: "",
+		},
+		// can't put all keys all together because keys generated in reports are in a random order, thus will fail tests
+		{
+			name: "SuccessCSVReportWithOtherExtraKey",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate a successful response with extra key not in primaryColsMap
+				expectedPath := "/test-index/_search"
+				if r.URL.Path == expectedPath && r.Method == "POST" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{
+						"aggregations": {
+							"groupby": {
+								"buckets": [
+									{
+										"key": {
+											"group_DomainID": "domain1",
+											"group_CustomKey": "custom-value"
+										},
+										"Attr_CustomStringField": {
+											"value": "test-string"
+										}
+									}
+								]
+							}
+						}
+					}`))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}),
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Define and set flags
+				set.String(FlagIndex, "", "Index flag")
+				set.String(FlagListQuery, "", "List query flag")
+				set.String(FlagOutputFormat, "", "Output format flag")
+				set.String(FlagOutputFilename, "", "Output file flag")
+				// Set the actual values
+				_ = set.Set(FlagIndex, "test-index")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				_ = set.Set(FlagOutputFormat, "csv")
+				_ = set.Set(FlagOutputFilename, "test-report.csv")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks: func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {
+				mockClientFactory.EXPECT().ElasticSearchClient(gomock.Any()).Return(esClient, nil).Times(1)
+			},
+			expectedOutput: `+-------------+--------------+------------------------+
+| DOMAINID(*) | CUSTOMKEY(*) | ATTR CUSTOMSTRINGFIELD |
++-------------+--------------+------------------------+
+| domain1     | custom-value | test-string            |
++-------------+--------------+------------------------+
+`,
+			expectedError: "",
+		},
+		{
+			name: "SuccessHTMLReportWithExtraKey",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate a successful response with extra key not in primaryColsMap
+				expectedPath := "/test-index/_search"
+				if r.URL.Path == expectedPath && r.Method == "POST" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{
+						"aggregations": {
+							"groupby": {
+								"buckets": [
+									{
+										"key": {
+											"group_DomainID": "domain1",
+											"group_CustomKey": "custom-value"
+										},
+										"doc_count": 10
+									}
+								]
+							}
+						}
+					}`))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}),
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Define and set flags
+				set.String(FlagIndex, "", "Index flag")
+				set.String(FlagListQuery, "", "List query flag")
+				set.String(FlagOutputFormat, "", "Output format flag")
+				set.String(FlagOutputFilename, "", "Output file flag")
+				// Set the actual values
+				_ = set.Set(FlagIndex, "test-index")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				_ = set.Set(FlagOutputFormat, "html")
+				_ = set.Set(FlagOutputFilename, "test-report.csv")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks: func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {
+				mockClientFactory.EXPECT().ElasticSearchClient(gomock.Any()).Return(esClient, nil).Times(1)
+			},
+			expectedOutput: `+-------------+--------------+-------+
+| DOMAINID(*) | CUSTOMKEY(*) | COUNT |
++-------------+--------------+-------+
+| domain1     | custom-value |    10 |
++-------------+--------------+-------+
+`,
+			expectedError: "",
+		},
+		{
+			name: "EmptyBucket",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate a successful response with extra key not in primaryColsMap
+				expectedPath := "/test-index/_search"
+				if r.URL.Path == expectedPath && r.Method == "POST" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{
+						"aggregations": {
+							"groupby": {
+								"buckets": []
+							}
+						}
+					}`))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}),
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Define and set flags
+				set.String(FlagIndex, "", "Index flag")
+				set.String(FlagListQuery, "", "List query flag")
+				set.String(FlagOutputFormat, "", "Output format flag")
+				set.String(FlagOutputFilename, "", "Output file flag")
+				// Set the actual values
+				_ = set.Set(FlagIndex, "test-index")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				_ = set.Set(FlagOutputFormat, "html")
+				_ = set.Set(FlagOutputFilename, "test-report.csv")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks: func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {
+				mockClientFactory.EXPECT().ElasticSearchClient(gomock.Any()).Return(esClient, nil).Times(1)
+			},
+			expectedOutput: `no matching bucket
+`,
+			expectedError: "",
+		},
+		{
+			name: "UnsupportedReportFormat",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Elasticsearch request returns successful response
+				if r.URL.Path == "/test-index/_search" && r.Method == "POST" {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`{
+						"aggregations": {
+							"groupby": {
+								"buckets": [
+									{
+										"key": {"group_DomainID": "domain1"},
+										"doc_count": 10
+									}
+								]
+							}
+						}
+					}`))
+				} else {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}),
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Define and set flags
+				set.String(FlagIndex, "", "Index flag")
+				set.String(FlagListQuery, "", "List query flag")
+				set.String(FlagOutputFormat, "", "Output format flag")
+				set.String(FlagOutputFilename, "", "Output file flag")
+				// Set the actual values
+				_ = set.Set(FlagIndex, "test-index")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				_ = set.Set(FlagOutputFormat, "unsupported-format")
+				_ = set.Set(FlagOutputFilename, "test-report.unsupported")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks: func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {
+				mockClientFactory.EXPECT().ElasticSearchClient(gomock.Any()).Return(esClient, nil).Times(1)
+			},
+			expectedOutput: "",
+			expectedError:  "Report format unsupported-format not supported.",
+		},
+		{
+			name: "ElasticsearchQueryError",
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Simulate an error response from Elasticsearch
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"error": "query failed"}`))
+			}),
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Define and set flags
+				set.String(FlagIndex, "", "Index flag")
+				set.String(FlagListQuery, "", "List query flag")
+				// Set the actual values
+				_ = set.Set(FlagIndex, "test-index")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks: func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {
+				mockClientFactory.EXPECT().ElasticSearchClient(gomock.Any()).Return(esClient, nil).Times(1)
+			},
+			expectedOutput: "",
+			expectedError:  "Fail to talk with ES",
+		},
+		{
+			name:    "MissingRequiredFlagIndex",
+			handler: nil, // No handler needed since the error occurs before any Elasticsearch interaction
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Only setting FlagListQuery, but missing FlagIndex to trigger the error
+				set.String(FlagListQuery, "", "List query flag")
+				_ = set.Set(FlagListQuery, "SELECT * FROM logs")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks:     func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {},
+			expectedOutput: "",
+			expectedError:  "Required flag not found: ",
+		},
+		{
+			name:    "MissingRequiredFlagListQuery",
+			handler: nil, // No handler needed since the error occurs before any Elasticsearch interaction
+			setupContext: func(app *cli.App) *cli.Context {
+				set := flag.NewFlagSet("test", 0)
+				// Only setting FlagIndex, but missing FlagListQuery to trigger the error
+				set.String(FlagIndex, "", "Index flag")
+				_ = set.Set(FlagIndex, "test-index")
+				return cli.NewContext(app, set, nil)
+			},
+			setupMocks:     func(mockClientFactory *MockClientFactory, esClient *elastic.Client) {},
+			expectedOutput: "",
+			expectedError:  "Required flag not found: ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock Elasticsearch client and server
+			esClient, testServer := getMockClient(t, tt.handler)
+			defer testServer.Close()
+
+			// Initialize mock controller
+			mockCtrl := gomock.NewController(t)
+
+			// Create mock client factory
+			mockClientFactory := NewMockClientFactory(mockCtrl)
+
+			// Create test IO handler to capture output
+			ioHandler := &testIOHandler{}
+
+			// Set up the CLI app
+			app := NewCliApp(mockClientFactory, WithIOHandler(ioHandler))
+
+			// Expect ElasticSearchClient to return the mock client created by getMockClient
+			tt.setupMocks(mockClientFactory, esClient)
+
+			// Set up the context for the specific test case
+			c := tt.setupContext(app)
+
+			// Call GenerateReport
+			err := GenerateReport(c)
+
+			// Validate results
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				// Validate the output captured by testIOHandler
+				assert.Equal(t, tt.expectedOutput, ioHandler.outputBytes.String())
+			}
+
+			os.Remove("test-report.csv")
+		})
+	}
+}
+
+func TestGenerateHTMLReport_RowSpanLogic(t *testing.T) {
+	// Prepare headers and tableData to trigger the rowspan logic
+	headers := []string{"Domain", "Status", "Count"}
+	tableData := [][]string{
+		{"domain1", "open", "10"},
+		{"domain1", "open", "15"},
+		{"domain2", "closed", "20"},
+		{"domain2", "closed", "25"},
+	}
+
+	// Prepare temp file to write HTML report
+	tempFile, err := os.CreateTemp("", "test_report_*.html")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name()) // Clean up
+
+	// Call generateHTMLReport with numBuckKeys to control the column collapsing
+	err = generateHTMLReport(tempFile.Name(), 2, false, headers, tableData)
+	assert.NoError(t, err)
+
+	// Read and validate the generated HTML content
+	content, err := os.ReadFile(tempFile.Name())
+	assert.NoError(t, err)
+
+	// Remove all newlines and spaces to simplify comparison
+	actualContent := string(content)
+	actualContent = removeWhitespace(actualContent)
+
+	// Expected HTML content (also simplified by removing whitespace)
+	expectedHTMLStructure := removeWhitespace(`<tr>
+	<td rowspan="2">domain1</td><td>open</td><td>10</td>
+	</tr>
+	<tr><td>open</td><td>15</td></tr>`)
+
+	// Validate the rowspan logic was applied correctly
+	assert.Contains(t, actualContent, expectedHTMLStructure)
+}
+
+// Helper function to remove all whitespace from a string
+func removeWhitespace(input string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(input, "\n", ""), "\t", "")
 }

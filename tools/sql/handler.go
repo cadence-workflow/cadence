@@ -30,8 +30,10 @@ import (
 	"github.com/uber/cadence/common/config"
 	mysql_db "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 	postgres_db "github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"
+	sqlite_db "github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/schema/mysql"
 	"github.com/uber/cadence/schema/postgres"
+	"github.com/uber/cadence/schema/sqlite"
 	cliflag "github.com/uber/cadence/tools/common/flag"
 	"github.com/uber/cadence/tools/common/schema"
 )
@@ -50,6 +52,8 @@ func VerifyCompatibleVersion(
 			expectedVersion = mysql.Version
 		case postgres_db.PluginName:
 			expectedVersion = postgres.Version
+		case sqlite_db.PluginName:
+			expectedVersion = sqlite.Version
 		}
 		err := CheckCompatibleVersion(*ds.SQL, expectedVersion)
 		if err != nil {
@@ -64,6 +68,9 @@ func VerifyCompatibleVersion(
 			expectedVersion = mysql.VisibilityVersion
 		case postgres_db.PluginName:
 			expectedVersion = postgres.VisibilityVersion
+		case sqlite_db.PluginName:
+			expectedVersion = sqlite.VisibilityVersion
+
 		}
 		err := CheckCompatibleVersion(*ds.SQL, expectedVersion)
 		if err != nil {

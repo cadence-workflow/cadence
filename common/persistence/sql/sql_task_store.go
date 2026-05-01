@@ -42,7 +42,7 @@ type sqlTaskStore struct {
 }
 
 var (
-	stickyTasksListsTTL = time.Hour * 24
+	taskListTTL = time.Hour * 24
 )
 
 // newTaskPersistence creates a new instance of TaskManager
@@ -98,7 +98,7 @@ func (m *sqlTaskStore) LeaseTaskList(
 				AckLevel:        ackLevel,
 				Kind:            int16(request.TaskListKind),
 				ExpiryTimestamp: time.Unix(0, 0),
-				LastUpdated:     time.Now(),
+				LastUpdated:     request.CurrentTimeStamp,
 			}
 			blob, err := m.parser.TaskListInfoToBlob(tlInfo)
 			if err != nil {
@@ -113,10 +113,10 @@ func (m *sqlTaskStore) LeaseTaskList(
 				DataEncoding: string(blob.Encoding),
 			}
 			rows = []sqlplugin.TaskListsRow{row}
-			if m.db.SupportsTTL() && request.TaskListKind == persistence.TaskListKindSticky {
+			if m.db.SupportsTTL() && persistence.TaskListKindHasTTL(request.TaskListKind) {
 				rowWithTTL := sqlplugin.TaskListsRowWithTTL{
 					TaskListsRow: row,
-					TTL:          stickyTasksListsTTL,
+					TTL:          taskListTTL,
 				}
 				if _, err := m.db.InsertIntoTaskListsWithTTL(ctx, &rowWithTTL); err != nil {
 					return nil, convertCommonErrors(m.db, "LeaseTaskListWithTTL", fmt.Sprintf("Failed to make task list %v of type %v.", request.TaskList, request.TaskType), err)
@@ -155,7 +155,7 @@ func (m *sqlTaskStore) LeaseTaskList(
 		if err1 != nil {
 			return err1
 		}
-		now := time.Now()
+		now := request.CurrentTimeStamp
 		tlInfo.LastUpdated = now
 		blob, err1 := m.parser.TaskListInfoToBlob(tlInfo)
 		if err1 != nil {
@@ -171,10 +171,10 @@ func (m *sqlTaskStore) LeaseTaskList(
 			DataEncoding: string(blob.Encoding),
 		}
 		var result sql.Result
-		if tlInfo.GetKind() == persistence.TaskListKindSticky && m.db.SupportsTTL() {
+		if m.db.SupportsTTL() && persistence.TaskListKindHasTTL(int(tlInfo.GetKind())) {
 			result, err1 = tx.UpdateTaskListsWithTTL(ctx, &sqlplugin.TaskListsRowWithTTL{
 				TaskListsRow: *row,
-				TTL:          stickyTasksListsTTL,
+				TTL:          taskListTTL,
 			})
 		} else {
 			result, err1 = tx.UpdateTaskLists(ctx, row)
@@ -189,14 +189,6 @@ func (m *sqlTaskStore) LeaseTaskList(
 		if rowsAffected == 0 {
 			return fmt.Errorf("%v rows affected instead of 1", rowsAffected)
 		}
-		var c *persistence.TaskListPartitionConfig
-		if tlInfo.AdaptivePartitionConfig != nil {
-			c = &persistence.TaskListPartitionConfig{
-				Version:            tlInfo.AdaptivePartitionConfig.Version,
-				NumReadPartitions:  int(tlInfo.AdaptivePartitionConfig.NumReadPartitions),
-				NumWritePartitions: int(tlInfo.AdaptivePartitionConfig.NumWritePartitions),
-			}
-		}
 		resp = &persistence.LeaseTaskListResponse{TaskListInfo: &persistence.TaskListInfo{
 			DomainID:                request.DomainID,
 			Name:                    request.TaskList,
@@ -205,7 +197,7 @@ func (m *sqlTaskStore) LeaseTaskList(
 			AckLevel:                ackLevel,
 			Kind:                    request.TaskListKind,
 			LastUpdated:             now,
-			AdaptivePartitionConfig: c,
+			AdaptivePartitionConfig: fromSerializationTaskListPartitionConfig(tlInfo.AdaptivePartitionConfig),
 		}}
 		return nil
 	})
@@ -232,14 +224,6 @@ func (m *sqlTaskStore) GetTaskList(
 	if err != nil {
 		return nil, err
 	}
-	var c *persistence.TaskListPartitionConfig
-	if tlInfo.AdaptivePartitionConfig != nil {
-		c = &persistence.TaskListPartitionConfig{
-			Version:            tlInfo.AdaptivePartitionConfig.Version,
-			NumReadPartitions:  int(tlInfo.AdaptivePartitionConfig.NumReadPartitions),
-			NumWritePartitions: int(tlInfo.AdaptivePartitionConfig.NumWritePartitions),
-		}
-	}
 	return &persistence.GetTaskListResponse{
 		TaskListInfo: &persistence.TaskListInfo{
 			DomainID:                request.DomainID,
@@ -250,7 +234,7 @@ func (m *sqlTaskStore) GetTaskList(
 			Kind:                    int(tlInfo.Kind),
 			Expiry:                  tlInfo.ExpiryTimestamp,
 			LastUpdated:             tlInfo.LastUpdated,
-			AdaptivePartitionConfig: c,
+			AdaptivePartitionConfig: fromSerializationTaskListPartitionConfig(tlInfo.AdaptivePartitionConfig),
 		},
 	}, nil
 }
@@ -261,23 +245,16 @@ func (m *sqlTaskStore) UpdateTaskList(
 ) (*persistence.UpdateTaskListResponse, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromDomainIDAndTasklist(request.TaskListInfo.DomainID, request.TaskListInfo.Name, m.db.GetTotalNumDBShards())
 	domainID := serialization.MustParseUUID(request.TaskListInfo.DomainID)
-	var c *serialization.TaskListPartitionConfig
-	if request.TaskListInfo.AdaptivePartitionConfig != nil {
-		c = &serialization.TaskListPartitionConfig{
-			Version:            request.TaskListInfo.AdaptivePartitionConfig.Version,
-			NumReadPartitions:  int32(request.TaskListInfo.AdaptivePartitionConfig.NumReadPartitions),
-			NumWritePartitions: int32(request.TaskListInfo.AdaptivePartitionConfig.NumWritePartitions),
-		}
-	}
+	now := request.CurrentTimeStamp
 	tlInfo := &serialization.TaskListInfo{
 		AckLevel:                request.TaskListInfo.AckLevel,
 		Kind:                    int16(request.TaskListInfo.Kind),
 		ExpiryTimestamp:         time.Unix(0, 0),
-		LastUpdated:             time.Now(),
-		AdaptivePartitionConfig: c,
+		LastUpdated:             now,
+		AdaptivePartitionConfig: toSerializationTaskListPartitionConfig(request.TaskListInfo.AdaptivePartitionConfig),
 	}
-	if request.TaskListInfo.Kind == persistence.TaskListKindSticky {
-		tlInfo.ExpiryTimestamp = stickyTaskListExpiry()
+	if persistence.TaskListKindHasTTL(request.TaskListInfo.Kind) {
+		tlInfo.ExpiryTimestamp = now.Add(taskListTTL)
 	}
 
 	var resp *persistence.UpdateTaskListResponse
@@ -301,10 +278,10 @@ func (m *sqlTaskStore) UpdateTaskList(
 			Data:         blob.Data,
 			DataEncoding: string(blob.Encoding),
 		}
-		if m.db.SupportsTTL() && request.TaskListInfo.Kind == persistence.TaskListKindSticky {
+		if m.db.SupportsTTL() && persistence.TaskListKindHasTTL(request.TaskListInfo.Kind) {
 			result, err1 = tx.UpdateTaskListsWithTTL(ctx, &sqlplugin.TaskListsRowWithTTL{
 				TaskListsRow: *row,
-				TTL:          stickyTasksListsTTL,
+				TTL:          taskListTTL,
 			})
 		} else {
 			result, err1 = tx.UpdateTaskLists(ctx, row)
@@ -460,14 +437,14 @@ func (m *sqlTaskStore) CreateTasks(
 					ttl = *maxAllowedTTL
 				}
 			}
-			expiryTime = time.Now().Add(ttl)
+			expiryTime = request.CurrentTimeStamp.Add(ttl)
 		}
 		blob, err := m.parser.TaskInfoToBlob(&serialization.TaskInfo{
 			WorkflowID:       v.Data.WorkflowID,
 			RunID:            serialization.MustParseUUID(v.Data.RunID),
 			ScheduleID:       v.Data.ScheduleID,
 			ExpiryTimestamp:  expiryTime,
-			CreatedTimestamp: time.Now(),
+			CreatedTimestamp: request.CurrentTimeStamp,
 			PartitionConfig:  v.Data.PartitionConfig,
 		})
 		if err != nil {
@@ -651,6 +628,68 @@ func lockTaskList(ctx context.Context, tx sqlplugin.Tx, shardID int, domainID se
 	}
 }
 
-func stickyTaskListExpiry() time.Time {
-	return time.Now().Add(stickyTasksListsTTL)
+func toSerializationTaskListPartitionConfig(c *persistence.TaskListPartitionConfig) *serialization.TaskListPartitionConfig {
+	if c == nil {
+		return nil
+	}
+	return &serialization.TaskListPartitionConfig{
+		Version:            c.Version,
+		NumReadPartitions:  int32(len(c.ReadPartitions)),
+		NumWritePartitions: int32(len(c.WritePartitions)),
+		ReadPartitions:     toSerializationTaskListPartitionMap(c.ReadPartitions),
+		WritePartitions:    toSerializationTaskListPartitionMap(c.WritePartitions),
+	}
+}
+
+func toSerializationTaskListPartitionMap(m map[int]*persistence.TaskListPartition) map[int32]*serialization.TaskListPartition {
+	if m == nil {
+		return nil
+	}
+	result := make(map[int32]*serialization.TaskListPartition, len(m))
+	for id, p := range m {
+		result[int32(id)] = &serialization.TaskListPartition{IsolationGroups: p.IsolationGroups}
+	}
+	return result
+}
+
+func fromSerializationTaskListPartitionConfig(c *serialization.TaskListPartitionConfig) *persistence.TaskListPartitionConfig {
+	if c == nil {
+		return nil
+	}
+	var read map[int]*persistence.TaskListPartition
+	if int32(len(c.ReadPartitions)) == c.NumReadPartitions {
+		read = fromSerializationTaskListPartitionMap(c.ReadPartitions)
+	} else {
+		read = createDefaultPartitions(c.NumReadPartitions)
+	}
+	var write map[int]*persistence.TaskListPartition
+	if int32(len(c.WritePartitions)) == c.NumWritePartitions {
+		write = fromSerializationTaskListPartitionMap(c.WritePartitions)
+	} else {
+		write = createDefaultPartitions(c.NumWritePartitions)
+	}
+	return &persistence.TaskListPartitionConfig{
+		Version:         c.Version,
+		ReadPartitions:  read,
+		WritePartitions: write,
+	}
+}
+
+func createDefaultPartitions(len int32) map[int]*persistence.TaskListPartition {
+	partitions := make(map[int]*persistence.TaskListPartition, len)
+	for i := 0; i < int(len); i++ {
+		partitions[i] = &persistence.TaskListPartition{}
+	}
+	return partitions
+}
+
+func fromSerializationTaskListPartitionMap(m map[int32]*serialization.TaskListPartition) map[int]*persistence.TaskListPartition {
+	if m == nil {
+		return nil
+	}
+	result := make(map[int]*persistence.TaskListPartition, len(m))
+	for id, p := range m {
+		result[int(id)] = &persistence.TaskListPartition{IsolationGroups: p.IsolationGroups}
+	}
+	return result
 }

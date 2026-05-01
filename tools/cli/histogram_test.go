@@ -24,7 +24,7 @@ package cli
 
 import (
 	"bytes"
-	"os"
+	"strings"
 	"testing"
 )
 
@@ -110,36 +110,27 @@ func TestHistogram_AddMultiplier(t *testing.T) {
 func TestHistogram_Print(t *testing.T) {
 	h := NewHistogram()
 
+	// Add sample keys to the histogram
 	h.Add("key1")
 	h.Add("key2")
 
-	// Create a buffer to capture stdout
+	// Use a buffer to capture the output
 	var buf bytes.Buffer
-	// Save the current stdout so we can restore it later
-	oldStdout := os.Stdout
-	// Set os.Stdout to the buffer
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
-	// Call the Print function
-	err := h.Print(2)
+	// Call the Print function with the buffer as the output writer and a multiplier
+	err := h.Print(&buf, 2)
 	if err != nil {
 		t.Errorf("Print() failed. Expected no error, got %v", err)
 	}
 
-	// Close writer and read captured output
-	w.Close()
-	// Copy the output from the pipe to the buffer
-	buf.ReadFrom(r)
-	// Restore the original stdout
-	os.Stdout = oldStdout
-
 	output := buf.String()
-	if !bytes.Contains([]byte(output), []byte("Bucket")) {
+
+	// Check if the output contains the expected headers and keys
+	if !strings.Contains(output, "Bucket") {
 		t.Errorf("Print() failed. Expected header 'Bucket' in output")
 	}
 
-	if !bytes.Contains([]byte(output), []byte("key1")) || !bytes.Contains([]byte(output), []byte("key2")) {
+	if !strings.Contains(output, "key1") || !strings.Contains(output, "key2") {
 		t.Errorf("Print() failed. Expected 'key1' and 'key2' in output")
 	}
 }

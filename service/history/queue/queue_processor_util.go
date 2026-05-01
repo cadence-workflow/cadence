@@ -111,7 +111,7 @@ func validateProcessingQueueStates(pStates []*types.ProcessingQueueState, ackLev
 
 	minAckLevel := pStates[0].GetAckLevel()
 	for _, pState := range pStates {
-		minAckLevel = common.MinInt64(minAckLevel, pState.GetAckLevel())
+		minAckLevel = min(minAckLevel, pState.GetAckLevel())
 	}
 
 	switch ackLevel := ackLevel.(type) {

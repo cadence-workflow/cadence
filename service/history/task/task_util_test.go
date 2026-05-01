@@ -26,15 +26,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
+	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -47,52 +49,29 @@ func TestInitializeLoggerForTask(t *testing.T) {
 	timeSource := clock.NewMockedTimeSource()
 
 	testCases := []struct {
-		name       string
-		task       Info
-		assertions func(logs *observer.ObservedLogs)
+		name string
+		task persistence.Task
 	}{
 		{
-			name: "TimerTaskInfo",
-			task: &persistence.TimerTaskInfo{
-				TaskID:              1,
-				VisibilityTimestamp: timeSource.Now(),
-				Version:             10,
-				TaskType:            persistence.TaskTypeDecisionTimeout,
-				DomainID:            constants.TestDomainID,
-				WorkflowID:          constants.TestWorkflowID,
-				RunID:               constants.TestRunID,
+			name: "UserTimerTask",
+			task: &persistence.UserTimerTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   constants.TestDomainID,
+					WorkflowID: constants.TestWorkflowID,
+					RunID:      constants.TestRunID,
+				},
+				TaskData: persistence.TaskData{
+					TaskID:              1,
+					VisibilityTimestamp: timeSource.Now(),
+					Version:             10,
+				},
 			},
-		},
-		{
-			name: "TransferTaskInfo",
-			task: &persistence.TransferTaskInfo{
-				TaskID:              1,
-				VisibilityTimestamp: timeSource.Now(),
-				Version:             10,
-				TaskType:            persistence.TransferTaskTypeDecisionTask,
-				DomainID:            constants.TestDomainID,
-				WorkflowID:          constants.TestWorkflowID,
-				RunID:               constants.TestRunID,
-			},
-			assertions: func(logs *observer.ObservedLogs) {},
-		},
-		{
-			name: "ReplicationTaskInfo",
-			task: &persistence.ReplicationTaskInfo{
-				TaskID:     1,
-				Version:    10,
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
-				DomainID:   constants.TestDomainID,
-				WorkflowID: constants.TestWorkflowID,
-				RunID:      constants.TestRunID,
-			},
-			assertions: func(logs *observer.ObservedLogs) {},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			logger := InitializeLoggerForTask(1, tc.task, loggerimpl.NewLogger(zap.NewNop()))
+			logger := InitializeLoggerForTask(1, tc.task, log.NewLogger(zap.NewNop()))
 			assert.NotNil(t, logger)
 		})
 	}
@@ -103,7 +82,7 @@ func TestGetTransferTaskMetricsScope(t *testing.T) {
 		name          string
 		taskType      int
 		isActive      bool
-		expectedScope int
+		expectedScope metrics.ScopeIdx
 	}{
 		{
 			name:          "TransferTaskTypeActivityTask - active",
@@ -275,7 +254,7 @@ func TestGetTimerTaskMetricScope(t *testing.T) {
 		name          string
 		taskType      int
 		isActive      bool
-		expectedScope int
+		expectedScope metrics.ScopeIdx
 	}{
 		{
 			name:          "TimerTaskTypeDecisionTimeout - active",
@@ -437,9 +416,11 @@ func Test_verifyTaskVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			s := shard.NewMockContext(ctrl)
-			l := loggerimpl.NewLogger(zap.NewNop())
-			task := &persistence.TimerTaskInfo{
-				Version: constants.TestVersion,
+			l := log.NewNoop()
+			task := &persistence.UserTimerTask{
+				TaskData: persistence.TaskData{
+					Version: constants.TestVersion,
+				},
 			}
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -451,108 +432,12 @@ func Test_verifyTaskVersion(t *testing.T) {
 	}
 }
 
-func Test_loadMutableStateForTimerTask(t *testing.T) {
-	testCases := []struct {
-		name                 string
-		setupMock            func(*execution.MockContext, *execution.MockMutableState)
-		timerTask            *persistence.TimerTaskInfo
-		err                  error
-		mutableStateReturned bool
-	}{
-		{
-			name: "error - failed to load workflow execution - entity does not exist",
-			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
-				w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, &types.EntityNotExistsError{}).Times(1)
-			},
-			err: nil,
-		},
-		{
-			name: "error - failed to load workflow execution - another error",
-			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
-				w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, errors.New("other-error")).Times(1)
-			},
-			err: errors.New("other-error"),
-		},
-		{
-			name: "error - timer task eventID > next eventID and !isDecisionRetry - error loading workflow execution",
-			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
-				gomock.InOrder(
-					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1),
-					m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1),
-					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
-					w.EXPECT().Clear().Times(1),
-					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, errors.New("some-other-error")).Times(1),
-				)
-
-			},
-			timerTask: &persistence.TimerTaskInfo{
-				TaskType: persistence.TransferTaskTypeDecisionTask,
-				EventID:  11,
-			},
-			err: errors.New("some-other-error"),
-		},
-		{
-			name: "no mutable state returned - timer task eventID > next eventID after refresh",
-			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
-				gomock.InOrder(
-					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1),
-					m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1),
-					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
-					w.EXPECT().Clear().Times(1),
-					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1),
-					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
-					m.EXPECT().GetDomainEntry().Return(constants.TestGlobalDomainEntry).Times(1),
-					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
-				)
-			},
-			timerTask: &persistence.TimerTaskInfo{
-				TaskType: persistence.TransferTaskTypeDecisionTask,
-				EventID:  11,
-			},
-			err: nil,
-		},
-		{
-			name: "success - timer task eventID < next eventID",
-			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
-				w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1)
-				m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1)
-				m.EXPECT().GetNextEventID().Return(int64(10)).Times(1)
-			},
-			timerTask: &persistence.TimerTaskInfo{
-				TaskType: persistence.TransferTaskTypeDecisionTask,
-				EventID:  3,
-			},
-			mutableStateReturned: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			w := execution.NewMockContext(ctrl)
-			m := execution.NewMockMutableState(ctrl)
-			metricsClient := metrics.NewNoopMetricsClient()
-			l := loggerimpl.NewNopLogger()
-
-			tc.setupMock(w, m)
-			ms, err := loadMutableStateForTimerTask(context.Background(), w, tc.timerTask, metricsClient, l)
-			assert.Equal(t, tc.err, err)
-			if tc.err != nil {
-				assert.Nil(t, ms)
-			} else if tc.mutableStateReturned {
-				assert.Equal(t, m, ms)
-			} else {
-				assert.Nil(t, ms)
-			}
-		})
-	}
-}
-
-func Test_loadMutableStateForTransferTask(t *testing.T) {
+func Test_loadMutableState(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		setupMock              func(*execution.MockContext, *execution.MockMutableState)
-		transferTask           *persistence.TransferTaskInfo
+		task                   persistence.Task
+		eventID                int64
 		err                    error
 		isMutableStateReturned bool
 	}{
@@ -581,11 +466,11 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, errors.New("some-other-error")).Times(1),
 				)
 			},
-			transferTask: &persistence.TransferTaskInfo{
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
+			task: &persistence.DecisionTask{
 				ScheduleID: 11,
 			},
-			err: errors.New("some-other-error"),
+			eventID: 11,
+			err:     errors.New("some-other-error"),
 		},
 		{
 			name: "no mutable state returned - transfer task scheduleID > next eventID after refresh",
@@ -602,11 +487,11 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 				)
 
 			},
-			transferTask: &persistence.TransferTaskInfo{
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
+			task: &persistence.DecisionTask{
 				ScheduleID: 11,
 			},
-			err: nil,
+			eventID: 11,
+			err:     nil,
 		},
 		{
 			name: "success - transfer task scheduleID < next eventID",
@@ -615,10 +500,55 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 				m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1)
 				m.EXPECT().GetNextEventID().Return(int64(10)).Times(1)
 			},
-			transferTask: &persistence.TransferTaskInfo{
-				TaskType:   persistence.TransferTaskTypeDecisionTask,
+			task: &persistence.DecisionTask{
 				ScheduleID: 3,
 			},
+			eventID:                3,
+			isMutableStateReturned: true,
+		},
+		{
+			name: "error - timer task eventID > next eventID and !isDecisionRetry - error loading workflow execution",
+			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
+				gomock.InOrder(
+					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1),
+					m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1),
+					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
+					w.EXPECT().Clear().Times(1),
+					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(nil, errors.New("some-other-error")).Times(1),
+				)
+
+			},
+			task:    &persistence.DecisionTimeoutTask{},
+			eventID: 11,
+			err:     errors.New("some-other-error"),
+		},
+		{
+			name: "no mutable state returned - timer task eventID > next eventID after refresh",
+			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
+				gomock.InOrder(
+					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1),
+					m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1),
+					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
+					w.EXPECT().Clear().Times(1),
+					w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1),
+					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
+					m.EXPECT().GetDomainEntry().Return(constants.TestGlobalDomainEntry).Times(1),
+					m.EXPECT().GetNextEventID().Return(int64(10)).Times(1),
+				)
+			},
+			task:    &persistence.DecisionTimeoutTask{},
+			eventID: 11,
+			err:     nil,
+		},
+		{
+			name: "success - timer task eventID < next eventID",
+			setupMock: func(w *execution.MockContext, m *execution.MockMutableState) {
+				w.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(m, nil).Times(1)
+				m.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{NextEventID: int64(5), DecisionAttempt: 1, DecisionScheduleID: 1}).Times(1)
+				m.EXPECT().GetNextEventID().Return(int64(10)).Times(1)
+			},
+			task:                   &persistence.DecisionTimeoutTask{},
+			eventID:                3,
 			isMutableStateReturned: true,
 		},
 	}
@@ -628,11 +558,11 @@ func Test_loadMutableStateForTransferTask(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			w := execution.NewMockContext(ctrl)
 			m := execution.NewMockMutableState(ctrl)
-			metricsClient := metrics.NewNoopMetricsClient()
-			l := loggerimpl.NewNopLogger()
+			metricsScope := metrics.NoopScope
+			l := log.NewNoop()
 
 			tc.setupMock(w, m)
-			ms, err := loadMutableStateForTransferTask(context.Background(), w, tc.transferTask, metricsClient, l)
+			ms, err := loadMutableState(context.Background(), w, tc.task, metricsScope, l, tc.eventID)
 			assert.Equal(t, tc.err, err)
 			if tc.err != nil {
 				assert.Nil(t, ms)
@@ -815,7 +745,7 @@ func Test_retryWorkflow(t *testing.T) {
 				m.EXPECT().AddContinueAsNewEvent(
 					gomock.Any(),
 					eventBatchFirstEventID,
-					common.EmptyEventID,
+					commonconstants.EmptyEventID,
 					parentDomainName,
 					continueAsNewAttributes,
 				).Return(nil, m, nil).Times(1)
@@ -845,7 +775,7 @@ func Test_retryWorkflow(t *testing.T) {
 				m.EXPECT().AddContinueAsNewEvent(
 					gomock.Any(),
 					eventBatchFirstEventID,
-					common.EmptyEventID,
+					commonconstants.EmptyEventID,
 					parentDomainName,
 					continueAsNewAttributes,
 				).Return(nil, nil, errors.New("continueAsNew-error")).Times(1)
@@ -875,7 +805,7 @@ func Test_retryWorkflow(t *testing.T) {
 				m.EXPECT().AddContinueAsNewEvent(
 					gomock.Any(),
 					eventBatchFirstEventID,
-					common.EmptyEventID,
+					commonconstants.EmptyEventID,
 					parentDomainName,
 					continueAsNewAttributes,
 				).Return(nil, m, nil).Times(1)
@@ -914,4 +844,135 @@ func Test_mocks(t *testing.T) {
 	assert.False(t, matches)
 
 	assert.Equal(t, fmt.Sprintf("is equal to %v", mockTask), resp.String())
+}
+
+func TestShouldPushToMatching(t *testing.T) {
+	domainID := "domainID"
+	wfid := "wfid"
+	rid := "rid"
+	currentClusterName := "currentCluster"
+
+	tests := []struct {
+		name           string
+		setupMock      func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager)
+		expectedResult bool
+		expectedError  string
+	}{
+		{
+			name: "failed to get domain",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(nil, errors.New("failed to get domain"))
+			},
+			expectedResult: false,
+			expectedError:  "failed to get domain",
+		},
+		{
+			name: "not an active-active domain so returns true",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, false), nil)
+			},
+			expectedResult: true,
+		},
+		{
+			name: "active-active domain and workflow is active in current cluster so returns true",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: currentClusterName,
+					}, nil)
+			},
+			expectedResult: true,
+		},
+		{
+			name: "active-active domain and workflow is not active in current cluster so returns false",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(&types.ActiveClusterInfo{
+						ActiveClusterName: "otherCluster",
+					}, nil)
+			},
+			expectedResult: false,
+		},
+		{
+			name: "active-active domain - failed to lookup workflow",
+			setupMock: func(mockDomainCache *cache.MockDomainCache, mockActiveClusterMgr *activecluster.MockManager) {
+				mockDomainCache.EXPECT().GetDomainByID(domainID).Return(getDomainCacheEntry(true, true), nil)
+				mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), domainID, wfid, rid).
+					Return(nil, errors.New("failed to lookup workflow"))
+			},
+			expectedResult: false,
+			expectedError:  "failed to lookup workflow",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			shard := shard.NewMockContext(ctrl)
+
+			domainCache := cache.NewMockDomainCache(ctrl)
+
+			shard.EXPECT().GetClusterMetadata().Return(cluster.NewMetadata(
+				config.ClusterGroupMetadata{
+					CurrentClusterName: currentClusterName,
+				},
+				func(d string) bool { return false },
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+			)).AnyTimes()
+
+			shard.EXPECT().GetDomainCache().Return(domainCache)
+
+			activeClusterMgr := activecluster.NewMockManager(ctrl)
+			shard.EXPECT().GetActiveClusterManager().Return(activeClusterMgr).AnyTimes()
+
+			test.setupMock(domainCache, activeClusterMgr)
+
+			mockTask := NewMockTask(ctrl)
+			mockTask.EXPECT().GetDomainID().Return(domainID).AnyTimes()
+			mockTask.EXPECT().GetWorkflowID().Return(wfid).AnyTimes()
+			mockTask.EXPECT().GetRunID().Return(rid).AnyTimes()
+
+			result, err := shouldPushToMatching(context.Background(), shard, mockTask)
+			assert.Equal(t, test.expectedResult, result)
+			if test.expectedError != "" {
+				assert.EqualError(t, err, test.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func getDomainCacheEntry(isGlobal, isActiveActive bool) *cache.DomainCacheEntry {
+	activeClusters := &types.ActiveClusters{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"us-west": {
+						ActiveClusterName: "cluster0",
+						FailoverVersion:   1,
+					},
+				},
+			},
+		},
+	}
+	if !isActiveActive {
+		activeClusters = nil
+	}
+	return cache.NewDomainCacheEntryForTest(
+		nil,
+		nil,
+		isGlobal,
+		&persistence.DomainReplicationConfig{
+			ActiveClusters: activeClusters,
+		},
+		1,
+		nil,
+		1,
+		1,
+		1,
+	)
 }

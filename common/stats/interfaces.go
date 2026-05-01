@@ -20,6 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go -self_package github.com/uber/cadence/common/stats QPSTracker
+
 package stats
 
 import (
@@ -34,4 +36,13 @@ type QPSTracker interface {
 
 	// QPS returns the current queries per second (QPS) value.
 	QPS() float64
+}
+
+// QPSTrackerGroup allows for estimating QPS metrics with an additional dimension
+type QPSTrackerGroup interface {
+	QPSTracker
+
+	ReportGroup(group string, amount int64)
+
+	GroupQPS(group string) float64
 }

@@ -36,6 +36,6 @@ func TestServiceNames(t *testing.T) {
 	assert.Equal(t, fullName, FullName(shortName))
 	assert.Equal(t, fullName, FullName(fullName))
 
-	assert.Equal(t, []string{"cadence-frontend", "cadence-history", "cadence-matching", "cadence-worker", "cadence-shard-manager"}, List)
-	assert.Equal(t, []string{"frontend", "history", "matching", "worker", "shard-manager"}, ShortNames(List))
+	assert.Equal(t, []string{"cadence-frontend", "cadence-history", "cadence-matching", "cadence-worker", "cadence-shard-distributor"}, List)
+	assert.Equal(t, []string{"frontend", "history", "matching", "worker", "shard-distributor"}, ShortNames(List))
 }

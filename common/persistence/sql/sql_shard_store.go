@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -123,7 +123,7 @@ func (m *sqlShardStore) GetShard(
 	var transferPQS *persistence.DataBlob
 	if shardInfo.GetTransferProcessingQueueStates() != nil {
 		transferPQS = &persistence.DataBlob{
-			Encoding: common.EncodingType(shardInfo.GetTransferProcessingQueueStatesEncoding()),
+			Encoding: constants.EncodingType(shardInfo.GetTransferProcessingQueueStatesEncoding()),
 			Data:     shardInfo.GetTransferProcessingQueueStates(),
 		}
 	}
@@ -131,11 +131,18 @@ func (m *sqlShardStore) GetShard(
 	var timerPQS *persistence.DataBlob
 	if shardInfo.GetTimerProcessingQueueStates() != nil {
 		timerPQS = &persistence.DataBlob{
-			Encoding: common.EncodingType(shardInfo.GetTimerProcessingQueueStatesEncoding()),
+			Encoding: constants.EncodingType(shardInfo.GetTimerProcessingQueueStatesEncoding()),
 			Data:     shardInfo.GetTimerProcessingQueueStates(),
 		}
 	}
 
+	var pendingFailoverMarkers *persistence.DataBlob
+	if shardInfo.GetPendingFailoverMarkers() != nil {
+		pendingFailoverMarkers = &persistence.DataBlob{
+			Encoding: constants.EncodingType(shardInfo.GetPendingFailoverMarkersEncoding()),
+			Data:     shardInfo.GetPendingFailoverMarkers(),
+		}
+	}
 	resp := &persistence.InternalGetShardResponse{ShardInfo: &persistence.InternalShardInfo{
 		ShardID:                       int(row.ShardID),
 		RangeID:                       row.RangeID,
@@ -152,6 +159,8 @@ func (m *sqlShardStore) GetShard(
 		DomainNotificationVersion:     shardInfo.GetDomainNotificationVersion(),
 		ClusterReplicationLevel:       shardInfo.ClusterReplicationLevel,
 		ReplicationDLQAckLevel:        shardInfo.ReplicationDlqAckLevel,
+		PendingFailoverMarkers:        pendingFailoverMarkers,
+		QueueStates:                   shardInfo.GetQueueStates(),
 	}}
 
 	return resp, nil
@@ -232,21 +241,21 @@ func readLockShard(ctx context.Context, tx sqlplugin.Tx, shardID int, oldRangeID
 
 func shardInfoToShardsRow(s persistence.InternalShardInfo, parser serialization.Parser) (*sqlplugin.ShardsRow, error) {
 	var markerData []byte
-	markerEncoding := string(common.EncodingTypeEmpty)
+	markerEncoding := string(constants.EncodingTypeEmpty)
 	if s.PendingFailoverMarkers != nil {
 		markerData = s.PendingFailoverMarkers.Data
 		markerEncoding = string(s.PendingFailoverMarkers.Encoding)
 	}
 
 	var transferPQSData []byte
-	transferPQSEncoding := string(common.EncodingTypeEmpty)
+	transferPQSEncoding := string(constants.EncodingTypeEmpty)
 	if s.TransferProcessingQueueStates != nil {
 		transferPQSData = s.TransferProcessingQueueStates.Data
 		transferPQSEncoding = string(s.TransferProcessingQueueStates.Encoding)
 	}
 
 	var timerPQSData []byte
-	timerPQSEncoding := string(common.EncodingTypeEmpty)
+	timerPQSEncoding := string(constants.EncodingTypeEmpty)
 	if s.TimerProcessingQueueStates != nil {
 		timerPQSData = s.TimerProcessingQueueStates.Data
 		timerPQSEncoding = string(s.TimerProcessingQueueStates.Encoding)
@@ -270,6 +279,7 @@ func shardInfoToShardsRow(s persistence.InternalShardInfo, parser serialization.
 		ReplicationDlqAckLevel:                s.ReplicationDLQAckLevel,
 		PendingFailoverMarkers:                markerData,
 		PendingFailoverMarkersEncoding:        markerEncoding,
+		QueueStates:                           s.QueueStates,
 	}
 
 	blob, err := parser.ShardInfoToBlob(shardInfo)

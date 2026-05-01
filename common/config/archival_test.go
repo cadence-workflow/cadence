@@ -25,7 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 func defaultFilestoreConfig(t *testing.T) *YamlNode {
@@ -41,7 +41,7 @@ func defaultFilestoreConfig(t *testing.T) *YamlNode {
 func TestValidEnabledHistoryArchivalConfig(t *testing.T) {
 	archival := Archival{
 		History: HistoryArchival{
-			Status: common.ArchivalEnabled,
+			Status: constants.ArchivalEnabled,
 			Provider: HistoryArchiverProvider{
 				FilestoreConfig: defaultFilestoreConfig(t),
 			},
@@ -58,7 +58,7 @@ func TestValidEnabledHistoryArchivalConfig(t *testing.T) {
 func TestInvalidHEnabledHistoryArchivalConfig(t *testing.T) {
 	archival := Archival{
 		History: HistoryArchival{
-			Status: common.ArchivalEnabled,
+			Status: constants.ArchivalEnabled,
 		},
 	}
 	err := archival.Validate(&ArchivalDomainDefaults{})
@@ -100,7 +100,7 @@ func TestValidEmptyHistoryArchivalConfig(t *testing.T) {
 func TestValidEnabledVisibilityArchivalConfig(t *testing.T) {
 	archival := Archival{
 		Visibility: VisibilityArchival{
-			Status: common.ArchivalEnabled,
+			Status: constants.ArchivalEnabled,
 			Provider: VisibilityArchiverProvider{
 				FilestoreConfig: defaultFilestoreConfig(t),
 			},
@@ -117,7 +117,7 @@ func TestValidEnabledVisibilityArchivalConfig(t *testing.T) {
 func TestInvalidHEnabledVisibilityArchivalConfig(t *testing.T) {
 	archival := Archival{
 		Visibility: VisibilityArchival{
-			Status: common.ArchivalEnabled,
+			Status: constants.ArchivalEnabled,
 		},
 	}
 	err := archival.Validate(&ArchivalDomainDefaults{})

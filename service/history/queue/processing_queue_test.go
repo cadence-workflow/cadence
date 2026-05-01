@@ -24,10 +24,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -63,7 +63,7 @@ func (s *processingQueueSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 }
 
 func (s *processingQueueSuite) TearDownTest() {
@@ -258,7 +258,7 @@ func (s *processingQueueSuite) TestUpdateAckLevel_WithPendingTasks() {
 	taskStates := []t.State{
 		t.TaskStateAcked,
 		t.TaskStateAcked,
-		t.TaskStateNacked,
+		t.TaskStatePending,
 		t.TaskStateAcked,
 		t.TaskStatePending,
 	}

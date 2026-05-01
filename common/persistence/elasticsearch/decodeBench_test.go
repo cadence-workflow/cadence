@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	es "github.com/uber/cadence/common/elasticsearch"
 	p "github.com/uber/cadence/common/persistence"
@@ -70,7 +70,7 @@ func BenchmarkJSONDecodeToType(b *testing.B) {
 			TypeName:      source.WorkflowType,
 			StartTime:     time.Unix(0, source.StartTime),
 			ExecutionTime: time.Unix(0, source.ExecutionTime),
-			Memo:          p.NewDataBlob(source.Memo, common.EncodingType(source.Encoding)),
+			Memo:          p.NewDataBlob(source.Memo, constants.EncodingType(source.Encoding)),
 			TaskList:      source.TaskList,
 			IsCron:        source.IsCron,
 			NumClusters:   source.NumClusters,
@@ -106,7 +106,7 @@ func BenchmarkJSONDecodeToMap(b *testing.B) {
 			TaskList:      source[definition.TaskList].(string),
 			IsCron:        source[definition.IsCron].(bool),
 			NumClusters:   source[definition.NumClusters].(int16),
-			Memo:          p.NewDataBlob([]byte(source[definition.Memo].(string)), common.EncodingType(source[definition.Encoding].(string))),
+			Memo:          p.NewDataBlob([]byte(source[definition.Memo].(string)), constants.EncodingType(source[definition.Encoding].(string))),
 		}
 		record.CloseTime = time.Unix(0, closeTime)
 		status := (shared.WorkflowExecutionCloseStatus)(int32(closeStatus))

@@ -20,7 +20,9 @@
 
 package cluster
 
-import "github.com/uber/cadence/common/persistence"
+import (
+	"github.com/uber/cadence/common/persistence"
+)
 
 // GetOrUseDefaultActiveCluster return the current cluster name or use the input if valid
 func GetOrUseDefaultActiveCluster(currentClusterName string, activeClusterName string) string {

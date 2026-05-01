@@ -23,7 +23,7 @@ package task
 import (
 	"testing"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 func TestSchedulerOptionsString(t *testing.T) {
@@ -31,9 +31,8 @@ func TestSchedulerOptionsString(t *testing.T) {
 		desc            string
 		schedulerType   int
 		queueSize       int
-		workerCount     dynamicconfig.IntPropertyFn
+		workerCount     dynamicproperties.IntPropertyFn
 		dispatcherCount int
-		weights         dynamicconfig.MapPropertyFn
 		wantErr         bool
 		want            string
 	}{
@@ -41,7 +40,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 			desc:            "FIFO",
 			schedulerType:   int(SchedulerTypeFIFO),
 			queueSize:       1,
-			workerCount:     dynamicconfig.GetIntPropertyFn(3),
+			workerCount:     dynamicproperties.GetIntPropertyFn(3),
 			dispatcherCount: 1,
 			want:            "{schedulerType:1, fifoSchedulerOptions:{QueueSize: 1, WorkerCount: 3, DispatcherCount: 1}, wrrSchedulerOptions:<nil>}",
 		},
@@ -49,13 +48,9 @@ func TestSchedulerOptionsString(t *testing.T) {
 			desc:            "WRR",
 			schedulerType:   int(SchedulerTypeWRR),
 			queueSize:       3,
-			workerCount:     dynamicconfig.GetIntPropertyFn(4),
+			workerCount:     dynamicproperties.GetIntPropertyFn(4),
 			dispatcherCount: 5,
-			weights: dynamicconfig.GetMapPropertyFn(map[string]interface{}{
-				"1": 500,
-				"9": 20,
-			}),
-			want: "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, WorkerCount: 4, DispatcherCount: 5, Weights: map[1:500 9:20]}}",
+			want:            "{schedulerType:2, fifoSchedulerOptions:<nil>, wrrSchedulerOptions:{QueueSize: 3, DispatcherCount: 5}}",
 		},
 		{
 			desc:          "InvalidSchedulerType",
@@ -66,7 +61,7 @@ func TestSchedulerOptionsString(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			o, err := NewSchedulerOptions(tc.schedulerType, tc.queueSize, tc.workerCount, tc.dispatcherCount, tc.weights)
+			o, err := NewSchedulerOptions[int, PriorityTask](tc.schedulerType, tc.queueSize, tc.workerCount, tc.dispatcherCount, nil, nil)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("Got error: %v, wantErr: %v", err, tc.wantErr)
 			}

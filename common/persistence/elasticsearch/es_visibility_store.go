@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/query"
@@ -47,10 +48,6 @@ import (
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/thrift"
-)
-
-const (
-	esPersistenceName = "elasticsearch"
 )
 
 type (
@@ -85,7 +82,7 @@ func NewElasticSearchVisibilityStore(
 func (v *esVisibilityStore) Close() {}
 
 func (v *esVisibilityStore) GetName() string {
-	return esPersistenceName
+	return constants.ESPersistenceName
 }
 
 func (v *esVisibilityStore) RecordWorkflowExecutionStarted(
@@ -106,13 +103,18 @@ func (v *esVisibilityStore) RecordWorkflowExecutionStarted(
 		request.Memo.GetEncoding(),
 		request.IsCron,
 		request.NumClusters,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
 		request.SearchAttributes,
-		common.RecordStarted,
+		constants.RecordStarted,
 		0,                                  // will not be used
 		0,                                  // will not be used
 		0,                                  // will not be used
 		request.UpdateTimestamp.UnixNano(), // will be updated when workflow execution updates
 		int64(request.ShardID),
+		request.CronSchedule,
+		int32(request.ExecutionStatus),
+		request.ScheduledExecutionTime.UnixNano(),
 	)
 	return v.producer.Publish(ctx, msg)
 }
@@ -135,13 +137,18 @@ func (v *esVisibilityStore) RecordWorkflowExecutionClosed(
 		request.Memo.GetEncoding(),
 		request.IsCron,
 		request.NumClusters,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
 		request.SearchAttributes,
-		common.RecordClosed,
+		constants.RecordClosed,
 		request.CloseTimestamp.UnixNano(),
 		*thrift.FromWorkflowExecutionCloseStatus(&request.Status),
 		request.HistoryLength,
 		request.UpdateTimestamp.UnixNano(),
 		int64(request.ShardID),
+		request.CronSchedule,
+		int32(request.ExecutionStatus),
+		request.ScheduledExecutionTime.UnixNano(),
 	)
 	return v.producer.Publish(ctx, msg)
 }
@@ -180,13 +187,18 @@ func (v *esVisibilityStore) UpsertWorkflowExecution(
 		request.Memo.GetEncoding(),
 		request.IsCron,
 		request.NumClusters,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
 		request.SearchAttributes,
-		common.UpsertSearchAttributes,
+		constants.UpsertSearchAttributes,
 		0, // will not be used
 		0, // will not be used
 		0, // will not be used
 		request.UpdateTimestamp.UnixNano(),
 		request.ShardID,
+		request.CronSchedule,
+		int32(request.ExecutionStatus),
+		request.ScheduledExecutionTimestamp,
 	)
 	return v.producer.Publish(ctx, msg)
 }
@@ -462,15 +474,17 @@ func (v *esVisibilityStore) ScanWorkflowExecutions(
 		}
 	}
 
-	resp, err := v.esClient.ScanByQuery(ctx, &es.ScanByQueryRequest{
+	scanRequest := &es.ScanByQueryRequest{
 		Index:         v.index,
 		Query:         queryDSL,
 		NextPageToken: request.NextPageToken,
 		PageSize:      request.PageSize,
-	})
+	}
+
+	resp, err := v.esClient.ScanByQuery(ctx, scanRequest)
 	if err != nil {
 		return nil, &types.InternalServiceError{
-			Message: fmt.Sprintf("ScanWorkflowExecutions failed, %v", err),
+			Message: fmt.Sprintf("ScanWorkflowExecutions failed: %v, scanRequest: %+v", err, scanRequest),
 		}
 	}
 	return resp, nil
@@ -530,6 +544,7 @@ var (
 )
 
 var missingStartTimeRegex = regexp.MustCompile(jsonMissingStartTime)
+var dummyFieldRegex = regexp.MustCompile(`^__dummy_field_(\d+)__$`)
 
 func getESQueryDSLForScan(request *p.ListWorkflowExecutionsByQueryRequest) (string, error) {
 	sql := getSQLFromListRequest(request)
@@ -613,15 +628,50 @@ func getSQLFromCountRequest(request *p.CountWorkflowExecutionsRequest) string {
 }
 
 func getCustomizedDSLFromSQL(sql string, domainID string) (*fastjson.Value, error) {
+	// Only process LIKE clauses if they exist
+	if strings.Contains(strings.ToLower(sql), " like ") {
+		return processSQLWithLike(sql, domainID)
+	}
+
+	// No LIKE clauses found, use the original elasticsql.Convert
+	return processSQLWithoutLike(sql, domainID)
+}
+
+// processSQLWithLike handles SQL queries that contain LIKE clauses
+func processSQLWithLike(sql string, domainID string) (*fastjson.Value, error) {
+	likeClauses, strippedSQL := extractLikeClauses(sql)
+
+	// Step 1: Convert with elasticsql for the non-LIKE portion
+	dslStr, _, err := elasticsql.Convert(strippedSQL)
+	if err != nil {
+		return nil, err
+	}
+	dsl, err := fastjson.Parse(dslStr)
+	if err != nil {
+		return nil, err
+	}
+	// Step 2: Replace dummy nodes with wildcard queries in-place
+	dsl = replaceDummyWithWildcard(dsl, likeClauses)
+	return applyStandardProcessing(dsl, domainID)
+}
+
+// processSQLWithoutLike handles SQL queries without LIKE clauses
+func processSQLWithoutLike(sql string, domainID string) (*fastjson.Value, error) {
 	dslStr, _, err := elasticsql.Convert(sql)
 	if err != nil {
 		return nil, err
 	}
-	dsl, err := fastjson.Parse(dslStr) // dsl.String() will be a compact json without spaces
+	dsl, err := fastjson.Parse(dslStr)
 	if err != nil {
 		return nil, err
 	}
-	dslStr = dsl.String()
+
+	return applyStandardProcessing(dsl, domainID)
+}
+
+// applyStandardProcessing applies the standard post-processing steps to the DSL
+func applyStandardProcessing(dsl *fastjson.Value, domainID string) (*fastjson.Value, error) {
+	dslStr := dsl.String()
 	if strings.Contains(dslStr, jsonMissingStartTime) { // isUninitialized
 		dsl = replaceQueryForUninitialized(dsl)
 	}
@@ -776,29 +826,39 @@ func createVisibilityMessage(
 	executionTimeUnixNano int64,
 	taskID int64,
 	memo []byte,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 	isCron bool,
 	NumClusters int16,
+	clusterAttributeScope string,
+	clusterAttributeName string,
 	searchAttributes map[string][]byte,
-	visibilityOperation common.VisibilityOperation,
+	visibilityOperation constants.VisibilityOperation,
 	// specific to certain status
 	endTimeUnixNano int64, // close execution
 	closeStatus workflow.WorkflowExecutionCloseStatus, // close execution
 	historyLength int64, // close execution
 	updateTimeUnixNano int64, // update execution,
 	shardID int64,
+	cronSchedule string,
+	executionStatus int32,
+	scheduledExecutionTimeUnixNano int64,
 ) *indexer.Message {
 	msgType := indexer.MessageTypeIndex
 
 	fields := map[string]*indexer.Field{
-		es.WorkflowType:  {Type: &es.FieldTypeString, StringData: common.StringPtr(workflowTypeName)},
-		es.StartTime:     {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(startTimeUnixNano)},
-		es.ExecutionTime: {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(executionTimeUnixNano)},
-		es.TaskList:      {Type: &es.FieldTypeString, StringData: common.StringPtr(taskList)},
-		es.IsCron:        {Type: &es.FieldTypeBool, BoolData: common.BoolPtr(isCron)},
-		es.NumClusters:   {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(NumClusters))},
-		es.UpdateTime:    {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(updateTimeUnixNano)},
-		es.ShardID:       {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(shardID)},
+		es.WorkflowType:           {Type: &es.FieldTypeString, StringData: common.StringPtr(workflowTypeName)},
+		es.StartTime:              {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(startTimeUnixNano)},
+		es.ExecutionTime:          {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(executionTimeUnixNano)},
+		es.TaskList:               {Type: &es.FieldTypeString, StringData: common.StringPtr(taskList)},
+		es.IsCron:                 {Type: &es.FieldTypeBool, BoolData: common.BoolPtr(isCron)},
+		es.NumClusters:            {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(NumClusters))},
+		es.ClusterAttributeScope:  {Type: &es.FieldTypeString, StringData: common.StringPtr(clusterAttributeScope)},
+		es.ClusterAttributeName:   {Type: &es.FieldTypeString, StringData: common.StringPtr(clusterAttributeName)},
+		es.UpdateTime:             {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(updateTimeUnixNano)},
+		es.ShardID:                {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(shardID)},
+		es.CronSchedule:           {Type: &es.FieldTypeString, StringData: common.StringPtr(cronSchedule)},
+		es.ExecutionStatus:        {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(executionStatus))},
+		es.ScheduledExecutionTime: {Type: &es.FieldTypeInt, IntData: common.Int64Ptr(scheduledExecutionTimeUnixNano)},
 	}
 
 	if len(memo) != 0 {
@@ -810,8 +870,8 @@ func createVisibilityMessage(
 	}
 
 	switch visibilityOperation {
-	case common.RecordStarted:
-	case common.RecordClosed:
+	case constants.RecordStarted:
+	case constants.RecordClosed:
 		fields[es.CloseTime] = &indexer.Field{Type: &es.FieldTypeInt, IntData: common.Int64Ptr(endTimeUnixNano)}
 		fields[es.CloseStatus] = &indexer.Field{Type: &es.FieldTypeInt, IntData: common.Int64Ptr(int64(closeStatus))}
 		fields[es.HistoryLength] = &indexer.Field{Type: &es.FieldTypeInt, IntData: common.Int64Ptr(historyLength)}
@@ -819,11 +879,11 @@ func createVisibilityMessage(
 
 	var visibilityOperationThrift indexer.VisibilityOperation = -1
 	switch visibilityOperation {
-	case common.RecordStarted:
+	case constants.RecordStarted:
 		visibilityOperationThrift = indexer.VisibilityOperationRecordStarted
-	case common.RecordClosed:
+	case constants.RecordClosed:
 		visibilityOperationThrift = indexer.VisibilityOperationRecordClosed
-	case common.UpsertSearchAttributes:
+	case constants.UpsertSearchAttributes:
 		visibilityOperationThrift = indexer.VisibilityOperationUpsertSearchAttributes
 	default:
 		panic("VisibilityOperation not set")
@@ -997,4 +1057,110 @@ func cleanDSL(input string) string {
 	var re = regexp.MustCompile("(`)(Attr.\\w+)(`)")
 	result := re.ReplaceAllString(input, `$2`)
 	return result
+}
+
+type likeClause struct {
+	Field   string
+	Pattern string
+}
+
+func extractLikeClauses(sql string) ([]likeClause, string) {
+	var clauses []likeClause
+	re := regexp.MustCompile(`(?i)([\w\.]+)\s+LIKE\s+'([^']+)'`)
+	strippedSQL := sql
+
+	matches := re.FindAllStringSubmatch(sql, -1)
+	for i, match := range matches {
+		clauses = append(clauses, likeClause{
+			Field:   match[1],
+			Pattern: match[2],
+		})
+		// Replace each LIKE clause with a uniquely-indexed dummy so we can
+		// correlate them later when walking the DSL tree.
+		replacement := fmt.Sprintf(`__dummy_field_%d__ = '__dummy_value_%d__'`, i, i)
+		strippedSQL = strings.Replace(strippedSQL, match[0], replacement, 1)
+	}
+	return clauses, strippedSQL
+}
+
+// skipNode is a sentinel returned by the walk function to signal that a node
+// should be removed from its parent array (e.g. empty LIKE pattern).
+var skipNode = &fastjson.Value{}
+
+// replaceDummyWithWildcard walks the fastjson DSL tree and replaces dummy
+// match_phrase nodes (produced by elasticsql from our indexed dummy expressions)
+// with the corresponding wildcard queries in-place.
+// Dummies whose LIKE pattern is whitespace-only are removed from their parent array entirely.
+func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson.Value {
+	dummyRe := dummyFieldRegex
+
+	var walk func(v *fastjson.Value) *fastjson.Value
+	walk = func(v *fastjson.Value) *fastjson.Value {
+		switch v.Type() {
+		case fastjson.TypeObject:
+			// Check if this is a match_phrase dummy: {"match_phrase":{"__dummy_field_N__":{"query":"__dummy_value_N__"}}}
+			mp := v.Get("match_phrase")
+			if mp != nil && mp.Type() == fastjson.TypeObject {
+				obj := mp.GetObject()
+				var dummyKey string
+				obj.Visit(func(key []byte, _ *fastjson.Value) {
+					if dummyKey == "" {
+						dummyKey = string(key)
+					}
+				})
+				if m := dummyRe.FindStringSubmatch(dummyKey); m != nil {
+					idx, _ := strconv.Atoi(m[1])
+					if idx < len(likes) {
+						clause := likes[idx]
+						wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
+						wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
+						if strings.TrimSpace(wildcardValue) == "" {
+							return skipNode
+						}
+						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*","case_insensitive":true}}}`, clause.Field, wildcardValue)
+						return fastjson.MustParse(wildcard)
+					}
+				}
+			}
+			// Otherwise recurse into all object values
+			obj := v.GetObject()
+			keys := make([]string, 0)
+			obj.Visit(func(key []byte, _ *fastjson.Value) {
+				keys = append(keys, string(key))
+			})
+			for _, key := range keys {
+				child := obj.Get(key)
+				replaced := walk(child)
+				if replaced != child {
+					obj.Set(key, replaced)
+				}
+			}
+		case fastjson.TypeArray:
+			arr := v.GetArray()
+			var kept []*fastjson.Value
+			changed := false
+			for _, elem := range arr {
+				replaced := walk(elem)
+				if replaced == skipNode {
+					changed = true
+					continue
+				}
+				if replaced != elem {
+					changed = true
+				}
+				kept = append(kept, replaced)
+			}
+			if !changed {
+				return v
+			}
+			// Rebuild the array without the removed elements
+			parts := make([]string, len(kept))
+			for i, k := range kept {
+				parts[i] = k.String()
+			}
+			return fastjson.MustParse("[" + strings.Join(parts, ",") + "]")
+		}
+		return v
+	}
+	return walk(dsl)
 }

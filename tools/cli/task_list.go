@@ -53,6 +53,12 @@ func newTaskListCommands() []*cli.Command {
 					Aliases: []string{"tl"},
 					Usage:   "TaskList description",
 				},
+				&cli.StringFlag{
+					Name:    FlagTaskListType,
+					Aliases: []string{"tlt"},
+					Value:   "decision",
+					Usage:   "Optional TaskList type [decision|activity]",
+				},
 			},
 			Action: ListTaskListPartitions,
 		},

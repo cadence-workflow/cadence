@@ -39,11 +39,12 @@ import (
 type (
 	// TaskExecutor is the executor for replication task
 	TaskExecutor interface {
-		execute(replicationTask *types.ReplicationTask, forceApply bool) (int, error)
+		execute(replicationTask *types.ReplicationTask, forceApply bool) (metrics.ScopeIdx, error)
 	}
 
 	taskExecutorImpl struct {
 		currentCluster  string
+		sourceCluster   string
 		shard           shard.Context
 		domainCache     cache.DomainCache
 		historyResender ndc.HistoryResender
@@ -59,6 +60,7 @@ var _ TaskExecutor = (*taskExecutorImpl)(nil)
 // NewTaskExecutor creates an replication task executor
 // The executor uses by 1) DLQ replication task handler 2) history replication task processor
 func NewTaskExecutor(
+	sourceCluster string,
 	shard shard.Context,
 	domainCache cache.DomainCache,
 	historyResender ndc.HistoryResender,
@@ -68,6 +70,7 @@ func NewTaskExecutor(
 ) TaskExecutor {
 	return &taskExecutorImpl{
 		currentCluster:  shard.GetClusterMetadata().GetCurrentClusterName(),
+		sourceCluster:   sourceCluster,
 		shard:           shard,
 		domainCache:     domainCache,
 		historyResender: historyResender,
@@ -80,10 +83,10 @@ func NewTaskExecutor(
 func (e *taskExecutorImpl) execute(
 	replicationTask *types.ReplicationTask,
 	forceApply bool,
-) (int, error) {
+) (metrics.ScopeIdx, error) {
 
 	var err error
-	var scope int
+	var scope metrics.ScopeIdx
 	switch replicationTask.GetTaskType() {
 	case types.ReplicationTaskTypeSyncActivity:
 		scope = metrics.SyncActivityTaskScope
@@ -106,7 +109,20 @@ func (e *taskExecutorImpl) execute(
 func (e *taskExecutorImpl) handleActivityTask(
 	task *types.ReplicationTask,
 	forceApply bool,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			attr := task.SyncActivityTaskAttributes
+			e.logger.Error(
+				"handleActivityTask encountered panic.",
+				tag.WorkflowDomainID(attr.GetDomainID()),
+				tag.WorkflowID(attr.GetWorkflowID()),
+				tag.WorkflowRunID(attr.GetRunID()),
+				tag.Value(r),
+			)
+			panic(r)
+		}
+	}()
 
 	attr := task.SyncActivityTaskAttributes
 	doContinue, err := e.filterTask(attr.GetDomainID(), forceApply)
@@ -159,6 +175,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	defer stopwatch.Stop()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
+		e.sourceCluster,
 		retryErr.GetDomainID(),
 		retryErr.GetWorkflowID(),
 		retryErr.GetRunID(),
@@ -196,7 +213,20 @@ func (e *taskExecutorImpl) handleActivityTask(
 func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	task *types.ReplicationTask,
 	forceApply bool,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			attr := task.HistoryTaskV2Attributes
+			e.logger.Error(
+				"handleHistoryReplicationTaskV2 encountered panic.",
+				tag.WorkflowDomainID(attr.GetDomainID()),
+				tag.WorkflowID(attr.GetWorkflowID()),
+				tag.WorkflowRunID(attr.GetRunID()),
+				tag.Value(r),
+			)
+			panic(r)
+		}
+	}()
 
 	attr := task.HistoryTaskV2Attributes
 	doContinue, err := e.filterTask(attr.GetDomainID(), forceApply)
@@ -242,6 +272,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	defer resendStopWatch.Stop()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
+		e.sourceCluster,
 		retryErr.GetDomainID(),
 		retryErr.GetWorkflowID(),
 		retryErr.GetRunID(),
@@ -267,6 +298,10 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
 			tag.WorkflowID(retryErr.GetWorkflowID()),
 			tag.WorkflowRunID(retryErr.GetRunID()),
+			tag.WorkflowFirstEventID(retryErr.GetStartEventID()),
+			tag.FirstEventVersion(retryErr.GetStartEventVersion()),
+			tag.WorkflowLastEventID(retryErr.GetEndEventID()),
+			tag.LastEventVersion(retryErr.GetEndEventVersion()),
 			tag.Error(resendErr),
 		)
 		// should return the replication error, not the resending error

@@ -36,8 +36,6 @@ var (
 	ToMatchingGetTaskListsByDomainResponse     = ToGetTaskListsByDomainResponse
 	FromMatchingListTaskListPartitionsResponse = FromListTaskListPartitionsResponse
 	ToMatchingListTaskListPartitionsResponse   = ToListTaskListPartitionsResponse
-	FromMatchingQueryWorkflowResponse          = FromQueryWorkflowResponse
-	ToMatchingQueryWorkflowResponse            = ToQueryWorkflowResponse
 )
 
 // FromMatchingAddActivityTaskRequest converts internal AddActivityTaskRequest type to thrift
@@ -293,6 +291,7 @@ func FromMatchingPollForDecisionTaskResponse(t *types.MatchingPollForDecisionTas
 		StartedTimestamp:          t.StartedTimestamp,
 		Queries:                   FromWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         &t.TotalHistoryBytes,
+		AutoConfigHint:            FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -320,6 +319,7 @@ func ToMatchingPollForDecisionTaskResponse(t *matching.PollForDecisionTaskRespon
 		StartedTimestamp:          t.StartedTimestamp,
 		Queries:                   ToWorkflowQueryMap(t.Queries),
 		TotalHistoryBytes:         t.GetTotalHistoryBytes(),
+		AutoConfigHint:            ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -344,6 +344,7 @@ func FromMatchingPollForActivityTaskResponse(t *types.MatchingPollForActivityTas
 		WorkflowType:                    FromWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  &t.WorkflowDomain,
 		Header:                          FromHeader(t.Header),
+		AutoConfigHint:                  FromAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -368,6 +369,7 @@ func ToMatchingPollForActivityTaskResponse(t *shared.PollForActivityTaskResponse
 		WorkflowType:                    ToWorkflowType(t.WorkflowType),
 		WorkflowDomain:                  t.GetWorkflowDomain(),
 		Header:                          ToHeader(t.Header),
+		AutoConfigHint:                  ToAutoConfigHint(t.AutoConfigHint),
 	}
 }
 
@@ -453,4 +455,24 @@ func ToTaskSource(t *matching.TaskSource) *types.TaskSource {
 		return &v
 	}
 	panic("unexpected enum value")
+}
+
+func FromMatchingQueryWorkflowResponse(t *types.MatchingQueryWorkflowResponse) *shared.QueryWorkflowResponse {
+	if t == nil {
+		return nil
+	}
+	return &shared.QueryWorkflowResponse{
+		QueryResult:   t.QueryResult,
+		QueryRejected: FromQueryRejected(t.QueryRejected),
+	}
+}
+
+func ToMatchingQueryWorkflowResponse(t *shared.QueryWorkflowResponse) *types.MatchingQueryWorkflowResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MatchingQueryWorkflowResponse{
+		QueryResult:   t.QueryResult,
+		QueryRejected: ToQueryRejected(t.QueryRejected),
+	}
 }

@@ -22,6 +22,7 @@ package testing
 
 import (
 	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -39,6 +40,7 @@ func AddWorkflowExecutionStartedEventWithParent(
 	taskStartToCloseTimeout int32,
 	parentInfo *types.ParentExecutionInfo,
 	identity string,
+	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
 ) *types.HistoryEvent {
 
 	startRequest := &types.StartWorkflowExecutionRequest{
@@ -49,6 +51,7 @@ func AddWorkflowExecutionStartedEventWithParent(
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(executionStartToCloseTimeout),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(taskStartToCloseTimeout),
 		Identity:                            identity,
+		ActiveClusterSelectionPolicy:        activeClusterSelectionPolicy,
 	}
 
 	event, _ := builder.AddWorkflowExecutionStartedEvent(
@@ -73,9 +76,10 @@ func AddWorkflowExecutionStartedEvent(
 	executionStartToCloseTimeout int32,
 	taskStartToCloseTimeout int32,
 	identity string,
+	activeClusterSelectionPolicy *types.ActiveClusterSelectionPolicy,
 ) *types.HistoryEvent {
 	return AddWorkflowExecutionStartedEventWithParent(builder, workflowExecution, workflowType, taskList, input,
-		executionStartToCloseTimeout, taskStartToCloseTimeout, nil, identity)
+		executionStartToCloseTimeout, taskStartToCloseTimeout, nil, identity, activeClusterSelectionPolicy)
 }
 
 // AddDecisionTaskScheduledEvent adds DecisionTaskScheduled event
@@ -123,7 +127,7 @@ func AddDecisionTaskCompletedEvent(
 	event, _ := builder.AddDecisionTaskCompletedEvent(scheduleID, startedID, &types.RespondDecisionTaskCompletedRequest{
 		ExecutionContext: context,
 		Identity:         identity,
-	}, common.DefaultHistoryMaxAutoResetPoints)
+	}, commonconstants.DefaultHistoryMaxAutoResetPoints)
 
 	builder.FlushBufferedEvents() //nolint:errcheck
 
@@ -145,17 +149,16 @@ func AddActivityTaskScheduledEvent(
 ) (*types.HistoryEvent,
 	*persistence.ActivityInfo) {
 
-	event, ai, _, _, _, _ := builder.AddActivityTaskScheduledEvent(nil, decisionCompletedID, &types.ScheduleActivityTaskDecisionAttributes{
+	event, ai, _, _ := builder.AddActivityTaskScheduledEvent(decisionCompletedID, &types.ScheduleActivityTaskDecisionAttributes{
 		ActivityID:                    activityID,
 		ActivityType:                  &types.ActivityType{Name: activityType},
-		TaskList:                      &types.TaskList{Name: taskList},
+		TaskList:                      &types.TaskList{Name: taskList, Kind: types.TaskListKindNormal.Ptr()},
 		Input:                         input,
 		ScheduleToCloseTimeoutSeconds: common.Int32Ptr(scheduleToCloseTimeout),
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(scheduleToStartTimeout),
 		StartToCloseTimeoutSeconds:    common.Int32Ptr(startToCloseTimeout),
 		HeartbeatTimeoutSeconds:       common.Int32Ptr(heartbeatTimeout),
-	}, false,
-	)
+	})
 
 	return event, ai
 }
@@ -175,7 +178,7 @@ func AddActivityTaskScheduledEventWithRetry(
 	retryPolicy *types.RetryPolicy,
 ) (*types.HistoryEvent, *persistence.ActivityInfo) {
 
-	event, ai, _, _, _, _ := builder.AddActivityTaskScheduledEvent(nil, decisionCompletedID, &types.ScheduleActivityTaskDecisionAttributes{
+	event, ai, _, _ := builder.AddActivityTaskScheduledEvent(decisionCompletedID, &types.ScheduleActivityTaskDecisionAttributes{
 		ActivityID:                    activityID,
 		ActivityType:                  &types.ActivityType{Name: activityType},
 		TaskList:                      &types.TaskList{Name: taskList},
@@ -185,8 +188,7 @@ func AddActivityTaskScheduledEventWithRetry(
 		StartToCloseTimeoutSeconds:    common.Int32Ptr(startToCloseTimeout),
 		HeartbeatTimeoutSeconds:       common.Int32Ptr(heartbeatTimeout),
 		RetryPolicy:                   retryPolicy,
-	}, false,
-	)
+	})
 
 	return event, ai
 }

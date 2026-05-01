@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/yarpc/api/peer"
@@ -35,12 +36,16 @@ import (
 
 type (
 	dnsUpdater struct {
+		resolver     dnsHostResolver
 		interval     time.Duration
 		dnsAddress   string
 		port         string
 		currentPeers map[string]struct{}
 		list         peer.List
 		logger       log.Logger
+		wg           sync.WaitGroup
+		ctx          context.Context
+		cancel       context.CancelFunc
 	}
 	dnsRefreshResult struct {
 		updates  peer.ListUpdates
@@ -52,23 +57,33 @@ type (
 	}
 )
 
+type dnsHostResolver interface {
+	LookupHost(ctx context.Context, host string) (addrs []string, err error)
+}
+
 func newDNSUpdater(list peer.List, dnsPort string, interval time.Duration, logger log.Logger) (*dnsUpdater, error) {
 	ss := strings.Split(dnsPort, ":")
 	if len(ss) != 2 {
 		return nil, fmt.Errorf("incorrect DNS:Port format")
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &dnsUpdater{
+		resolver:     net.DefaultResolver,
 		interval:     interval,
 		logger:       logger,
 		list:         list,
 		dnsAddress:   ss[0],
 		port:         ss[1],
 		currentPeers: make(map[string]struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 	}, nil
 }
 
 func (d *dnsUpdater) Start() {
+	d.wg.Add(1)
 	go func() {
+		defer d.wg.Done()
 		for {
 			now := time.Now()
 			res, err := d.refresh()
@@ -86,18 +101,33 @@ func (d *dnsUpdater) Start() {
 				err := d.list.Update(res.updates)
 				if err != nil {
 					d.logger.Error("Failed to update peerList", tag.Error(err), tag.Address(d.dnsAddress))
+				} else {
+					d.currentPeers = res.newPeers
 				}
-				d.currentPeers = res.newPeers
 			}
 			sleepDu := now.Add(d.interval).Sub(now)
-			time.Sleep(sleepDu)
+			t := time.NewTimer(sleepDu)
+			select {
+			case <-d.ctx.Done():
+				t.Stop()
+				d.logger.Info("DNS updater is stopping so returning from dns update loop", tag.Address(d.dnsAddress))
+				return
+			case <-t.C:
+				continue
+			}
 		}
 	}()
 }
 
+func (d *dnsUpdater) Stop() {
+	d.logger.Info("DNS updater is stopping", tag.Address(d.dnsAddress))
+	d.cancel()
+	d.wg.Wait()
+	d.logger.Info("DNS updater stopped", tag.Address(d.dnsAddress))
+}
+
 func (d *dnsUpdater) refresh() (*dnsRefreshResult, error) {
-	resolver := net.DefaultResolver
-	ips, err := resolver.LookupHost(context.Background(), d.dnsAddress)
+	ips, err := d.resolver.LookupHost(d.ctx, d.dnsAddress)
 	if err != nil {
 		return nil, err
 	}

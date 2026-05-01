@@ -156,7 +156,8 @@ func (t *sequentialTaskProcessorImpl) processTaskQueue(taskqueue SequentialTaskQ
 			t.metricsScope.RecordTimer(metrics.SequentialTaskQueueSize, time.Duration(queueSize))
 			if queueSize > 0 {
 				t.processTaskOnce(taskqueue)
-			} else {
+			}
+			if taskqueue.IsEmpty() {
 				deleted := t.taskqueues.RemoveIf(taskqueue.QueueID(), func(key interface{}, value interface{}) bool {
 					return value.(SequentialTaskQueue).IsEmpty()
 				})
@@ -184,7 +185,7 @@ func (t *sequentialTaskProcessorImpl) processTaskOnce(taskqueue SequentialTaskQu
 			taskqueue.Add(task)
 		} else {
 			t.logger.Error("Unable to process task", tag.Error(err))
-			task.Nack()
+			task.Nack(err)
 		}
 	} else {
 		task.Ack()

@@ -24,7 +24,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -34,7 +34,7 @@ func NewVersionHistoryItem(
 	inputVersion int64,
 ) *VersionHistoryItem {
 
-	if inputEventID < 0 || (inputVersion < 0 && inputVersion != common.EmptyVersion) {
+	if inputEventID < 0 || (inputVersion < 0 && inputVersion != constants.EmptyVersion) {
 		panic(fmt.Sprintf(
 			"invalid version history item event ID: %v, version: %v",
 			inputEventID,
@@ -49,11 +49,9 @@ func NewVersionHistoryItem(
 func NewVersionHistoryItemFromInternalType(
 	input *types.VersionHistoryItem,
 ) *VersionHistoryItem {
-
 	if input == nil {
-		panic("version history item is null")
+		return nil
 	}
-
 	return NewVersionHistoryItem(input.EventID, input.Version)
 }
 
@@ -65,14 +63,16 @@ func (item *VersionHistoryItem) Duplicate() *VersionHistoryItem {
 
 // ToInternalType return internal format of version history item
 func (item *VersionHistoryItem) ToInternalType() *types.VersionHistoryItem {
-
+	if item == nil {
+		return nil
+	}
 	return &types.VersionHistoryItem{
 		EventID: item.EventID,
 		Version: item.Version,
 	}
 }
 
-// Equals test if this version history itme and input version history item  are the same
+// Equals test if this version history item and input version history item are the same
 func (item *VersionHistoryItem) Equals(input *VersionHistoryItem) bool {
 	return item.Version == input.Version && item.EventID == input.EventID
 }
@@ -105,7 +105,7 @@ func NewVersionHistoryFromInternalType(
 ) *VersionHistory {
 
 	if input == nil {
-		panic("version history is null")
+		return nil
 	}
 
 	items := make([]*VersionHistoryItem, 0, len(input.Items))
@@ -123,6 +123,9 @@ func (v *VersionHistory) Duplicate() *VersionHistory {
 
 // ToInternalType return internal format of version history
 func (v *VersionHistory) ToInternalType() *types.VersionHistory {
+	if v == nil {
+		return nil
+	}
 
 	token := make([]byte, len(v.BranchToken))
 	copy(token, v.BranchToken)
@@ -229,8 +232,7 @@ func (v *VersionHistory) AddOrUpdateItem(
 func (v *VersionHistory) ContainsItem(
 	item *VersionHistoryItem,
 ) bool {
-
-	prevEventID := common.FirstEventID - 1
+	prevEventID := constants.FirstEventID - 1
 	for _, currentItem := range v.Items {
 		if item.Version == currentItem.Version {
 			if prevEventID < item.EventID && item.EventID <= currentItem.EventID {
@@ -301,11 +303,9 @@ func (v *VersionHistory) GetFirstItem() (*VersionHistoryItem, error) {
 
 // GetLastItem return the last version history item
 func (v *VersionHistory) GetLastItem() (*VersionHistoryItem, error) {
-
 	if len(v.Items) == 0 {
 		return nil, &types.BadRequestError{Message: "version history is empty"}
 	}
-
 	return v.Items[len(v.Items)-1].Duplicate(), nil
 }
 
@@ -318,7 +318,7 @@ func (v *VersionHistory) GetEventVersion(
 	if err != nil {
 		return 0, err
 	}
-	if eventID < common.FirstEventID || eventID > lastItem.EventID {
+	if eventID < constants.FirstEventID || eventID > lastItem.EventID {
 		return 0, &types.BadRequestError{Message: "input event ID is not in range."}
 	}
 
@@ -364,11 +364,9 @@ func (v *VersionHistory) Equals(
 func NewVersionHistories(
 	versionHistory *VersionHistory,
 ) *VersionHistories {
-
 	if versionHistory == nil {
-		panic("version history cannot be null")
+		return nil
 	}
-
 	return &VersionHistories{
 		CurrentVersionHistoryIndex: 0,
 		Histories:                  []*VersionHistory{versionHistory},
@@ -379,9 +377,8 @@ func NewVersionHistories(
 func NewVersionHistoriesFromInternalType(
 	input *types.VersionHistories,
 ) *VersionHistories {
-
 	if input == nil {
-		panic("version histories is null")
+		return nil
 	}
 	if len(input.Histories) == 0 {
 		panic("version histories cannot have empty")
@@ -406,6 +403,9 @@ func NewVersionHistoriesFromInternalType(
 
 // Duplicate duplicate VersionHistories
 func (h *VersionHistories) Duplicate() *VersionHistories {
+	if h == nil {
+		return nil
+	}
 
 	currentVersionHistoryIndex := h.CurrentVersionHistoryIndex
 	histories := []*VersionHistory{}
@@ -590,6 +590,5 @@ func (h *VersionHistories) GetCurrentVersionHistoryIndex() int {
 
 // GetCurrentVersionHistory get the current version history
 func (h *VersionHistories) GetCurrentVersionHistory() (*VersionHistory, error) {
-
 	return h.GetVersionHistory(h.GetCurrentVersionHistoryIndex())
 }

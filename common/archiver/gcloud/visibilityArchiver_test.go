@@ -26,11 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
@@ -49,7 +49,7 @@ func (s *visibilityArchiverSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 	s.container = &archiver.VisibilityBootstrapContainer{
 		Logger:        testlogger.New(s.T()),
-		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History),
+		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 	}
 	s.expectedVisibilityRecords = []*visibilityRecord{
 		{

@@ -35,6 +35,7 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -259,7 +260,7 @@ func failoverDomainsByBatch(
 		pauseSignalHandler()
 
 		failoverActivityParams := &FailoverActivityParams{
-			Domains:                          domains[i*batchSize : common.MinInt((i+1)*batchSize, totalNumOfDomains)],
+			Domains:                          domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)],
 			TargetCluster:                    targetCluster,
 			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
 		}
@@ -286,7 +287,7 @@ func getOperator(ctx workflow.Context) string {
 	if memo == nil || len(memo.Fields) == 0 {
 		return unknownOperator
 	}
-	opBytes, ok := memo.Fields[common.MemoKeyForOperator]
+	opBytes, ok := memo.Fields[constants.MemoKeyForOperator]
 	if !ok {
 		return unknownOperator
 	}
@@ -380,6 +381,22 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) 
 	if !domain.GetIsGlobalDomain() {
 		return false
 	}
+	// Skip deprecated and deleted domains
+	if domain.DomainInfo != nil && domain.DomainInfo.Status != nil {
+		status := *domain.DomainInfo.Status
+		if status == types.DomainStatusDeprecated || status == types.DomainStatusDeleted {
+			return false
+		}
+	}
+
+	// TODO(active-active): Remove this check once failover drills are supported for
+	// active-active workflows
+
+	if domain.ReplicationConfiguration.ActiveClusters != nil &&
+		len(domain.ReplicationConfiguration.ActiveClusters.AttributeScopes) > 0 {
+		return false
+	}
+
 	currentActiveCluster := domain.ReplicationConfiguration.GetActiveClusterName()
 	isDomainTarget := currentActiveCluster == sourceCluster
 	return isDomainTarget && isDomainFailoverManagedByCadence(domain)
@@ -387,7 +404,7 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) 
 
 func isDomainFailoverManagedByCadence(domain *types.DescribeDomainResponse) bool {
 	domainData := domain.DomainInfo.GetData()
-	return strings.ToLower(strings.TrimSpace(domainData[common.DomainDataKeyForManagedFailover])) == "true"
+	return strings.ToLower(strings.TrimSpace(domainData[constants.DomainDataKeyForManagedFailover])) == "true"
 }
 
 func getClient(ctx context.Context) frontend.Client {
@@ -396,10 +413,9 @@ func getClient(ctx context.Context) frontend.Client {
 	return feClient
 }
 
-func getRemoteClient(ctx context.Context, clusterName string) frontend.Client {
+func getRemoteClient(ctx context.Context, clusterName string) (frontend.Client, error) {
 	manager := ctx.Value(failoverManagerContextKey).(*FailoverManager)
-	feClient := manager.clientBean.GetRemoteFrontendClient(clusterName)
-	return feClient
+	return manager.clientBean.GetRemoteFrontendClient(clusterName)
 }
 
 func getAllDomains(ctx context.Context, targetDomains []string) ([]*types.DescribeDomainResponse, error) {
@@ -487,7 +503,10 @@ func cleanupChannel(channel workflow.Channel) {
 }
 
 func validateTaskListPollerInfo(ctx context.Context, targetCluster string, domain string) error {
-	remoteFrontendClient := getRemoteClient(ctx, targetCluster)
+	remoteFrontendClient, err := getRemoteClient(ctx, targetCluster)
+	if err != nil {
+		return err
+	}
 	frontendClient := getClient(ctx)
 	localTaskListResponse, err := frontendClient.GetTaskListsByDomain(ctx, &types.GetTaskListsByDomainRequest{Domain: domain})
 	if err != nil {

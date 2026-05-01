@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -279,8 +280,59 @@ func TestIsolationGroupFromDomainBlobConversion(t *testing.T) {
 }
 
 func TestWorkflowExecutionInfoConversion(t *testing.T) {
-	for _, item := range []*types.WorkflowExecutionInfo{nil, {}, &testdata.WorkflowExecutionInfo, &testdata.CronWorkflowExecutionInfo} {
+	for _, item := range []*types.WorkflowExecutionInfo{nil, {}, &testdata.WorkflowExecutionInfo, &testdata.CronWorkflowExecutionInfo, &testdata.WorkflowExecutionInfoEphemeral} {
 		assert.Equal(t, item, ToWorkflowExecutionInfo(FromWorkflowExecutionInfo(item)))
+	}
+}
+
+func TestWorkflowExecutionInfo_MigrateTaskList(t *testing.T) {
+	tlName := "foo"
+	otherName := "bar"
+	cases := []struct {
+		name string
+		in   *shared.WorkflowExecutionInfo
+		out  *types.WorkflowExecutionInfo
+	}{
+		{
+			name: "nil",
+			in:   &shared.WorkflowExecutionInfo{},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: nil,
+			},
+		},
+		{
+			name: "name only",
+			in: &shared.WorkflowExecutionInfo{
+				TaskList: &tlName,
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+		{
+			name: "tl only",
+			in: &shared.WorkflowExecutionInfo{
+				TaskListInfo: &shared.TaskList{Name: &tlName, Kind: shared.TaskListKindNormal.Ptr()},
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+		{
+			name: "both",
+			in: &shared.WorkflowExecutionInfo{
+				TaskList:     &otherName,
+				TaskListInfo: &shared.TaskList{Name: &tlName, Kind: shared.TaskListKindNormal.Ptr()},
+			},
+			out: &types.WorkflowExecutionInfo{
+				TaskList: &types.TaskList{Name: tlName, Kind: types.TaskListKindNormal.Ptr()},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.out, ToWorkflowExecutionInfo(tc.in))
+		})
 	}
 }
 
@@ -952,6 +1004,20 @@ func TestDecisionTypeConversion(t *testing.T) {
 	}
 }
 
+func TestDeleteDomainRequestConversion(t *testing.T) {
+	testCases := []*types.DeleteDomainRequest{
+		nil,
+		{},
+		&testdata.DeleteDomainRequest,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromDeleteDomainRequest(original)
+		roundTripObj := ToDeleteDomainRequest(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestDeprecateDomainRequestConversion(t *testing.T) {
 	testCases := []*types.DeprecateDomainRequest{
 		nil,
@@ -1102,7 +1168,10 @@ func TestDescribeTaskListResponseConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromDescribeTaskListResponse(original)
 		roundTripObj := ToDescribeTaskListResponse(thriftObj)
-		assert.Equal(t, original, roundTripObj)
+		opt := cmpopts.IgnoreFields(types.DescribeTaskListResponse{}, "PartitionConfig")
+		if diff := cmp.Diff(original, roundTripObj, opt); diff != "" {
+			t.Fatalf("Mismatch (-want +got):\n%s", diff)
+		}
 	}
 }
 
@@ -1237,6 +1306,8 @@ func TestDomainNotActiveErrorConversion(t *testing.T) {
 		nil,
 		{},
 		{Message: "test-message"},
+		{Message: "test-message", DomainName: "test-domain", CurrentCluster: "test-current-cluster", ActiveCluster: "test-active-cluster"},
+		{Message: "test-message", DomainName: "test-domain", CurrentCluster: "test-current-cluster", ActiveClusters: []string{"test-active-cluster-1", "test-active-cluster-2"}},
 	}
 
 	for _, original := range testCases {
@@ -1775,7 +1846,10 @@ func TestDescribeTaskListResponseMapConversion(t *testing.T) {
 	for _, original := range testCases {
 		thriftObj := FromDescribeTaskListResponseMap(original)
 		roundTripObj := ToDescribeTaskListResponseMap(thriftObj)
-		assert.Equal(t, original, roundTripObj)
+		opt := cmpopts.IgnoreFields(types.DescribeTaskListResponse{}, "PartitionConfig")
+		if diff := cmp.Diff(original, roundTripObj, opt); diff != "" {
+			t.Fatalf("Mismatch (-want +got):\n%s", diff)
+		}
 	}
 }
 
@@ -2202,6 +2276,41 @@ func TestRegisterDomainRequestConversion(t *testing.T) {
 		roundTripObj := ToRegisterDomainRequest(thriftObj)
 		assert.Equal(t, original, roundTripObj)
 	}
+}
+
+func TestRegisterDomainRequestFuzz(t *testing.T) {
+	t.Run("round trip from internal", func(t *testing.T) {
+		testutils.EnsureFuzzCoverage(t, []string{
+			"nil", "empty", "filled",
+		}, func(t *testing.T, f *fuzz.Fuzzer) string {
+			// Configure fuzzer to generate valid enum values
+			fuzzer := f.Funcs(
+				func(e *types.ArchivalStatus, c fuzz.Continue) {
+					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
+				},
+				func(s *string, c fuzz.Continue) {
+					if c.RandBool() {
+						*s = ""
+					} else {
+						c.Fuzz(s)
+					}
+				},
+			).NilChance(0.3)
+
+			var orig *types.RegisterDomainRequest
+			fuzzer.Fuzz(&orig)
+			out := ToRegisterDomainRequest(FromRegisterDomainRequest(orig))
+			assert.Equal(t, orig, out, "RegisterDomainRequest did not survive round-tripping")
+
+			if orig == nil {
+				return "nil"
+			}
+			if orig.Name == "" && orig.ActiveClusterName == "" && orig.ActiveClusters == nil {
+				return "empty"
+			}
+			return "filled"
+		})
+	})
 }
 
 func TestRemoteSyncMatchedErrorConversion(t *testing.T) {
@@ -3417,4 +3526,195 @@ func TestAny(t *testing.T) {
 			return "filled data"
 		})
 	})
+}
+
+func TestTaskKeyConversion(t *testing.T) {
+	testCases := []*types.TaskKey{
+		nil,
+		&types.TaskKey{},
+		&testdata.TaskKey,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromTaskKey(original)
+		roundTripObj := ToTaskKey(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestTaskRangeConversion(t *testing.T) {
+	testCases := []*types.TaskRange{
+		nil,
+		&types.TaskRange{},
+		&testdata.TaskRange,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromTaskRange(original)
+		roundTripObj := ToTaskRange(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestVirtualSliceStateConversion(t *testing.T) {
+	testCases := []*types.VirtualSliceState{
+		nil,
+		&types.VirtualSliceState{},
+		&testdata.VirtualSliceState,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromVirtualSliceState(original)
+		roundTripObj := ToVirtualSliceState(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestVirtualQueueStateConversion(t *testing.T) {
+	testCases := []*types.VirtualQueueState{
+		nil,
+		&types.VirtualQueueState{},
+		&testdata.VirtualQueueState,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromVirtualQueueState(original)
+		roundTripObj := ToVirtualQueueState(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestQueueStateConversion(t *testing.T) {
+	testCases := []*types.QueueState{
+		nil,
+		&types.QueueState{},
+		&testdata.QueueState,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromQueueState(original)
+		roundTripObj := ToQueueState(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+// TODO: The way we're testing mappers doesn't have good coverage. The round trip tests don't cover serialization and deserialization of thrift.
+// We should also generate test data in thrift types and do round trip tests from thrift to internal and back to thrift.
+func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
+	testCases := []*types.ActiveClusterSelectionPolicy{
+		nil,
+		{},
+		&testdata.ActiveClusterSelectionPolicyExternalEntity,
+		&testdata.ActiveClusterSelectionPolicyRegionSticky,
+		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromActiveClusterSelectionPolicy(original)
+		roundTripObj := ToActiveClusterSelectionPolicy(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+
+}
+
+func TestActiveClustersConversion(t *testing.T) {
+	testCases := []*types.ActiveClusters{
+		nil,
+		{},
+		{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				},
+			},
+		},
+		{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
+				},
+				"datacenter": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"dc1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   10,
+						},
+					},
+				},
+			},
+		},
+		{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromActiveClusters(original)
+		roundTripObj := ToActiveClusters(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestClusterAttributeScopeConversion(t *testing.T) {
+	testCases := []*types.ClusterAttributeScope{
+		nil,
+		{},
+		{
+			ClusterAttributes: map[string]types.ActiveClusterInfo{
+				"us-west-1": {
+					ActiveClusterName: "cluster1",
+					FailoverVersion:   1,
+				},
+				"us-east-1": {
+					ActiveClusterName: "cluster2",
+					FailoverVersion:   2,
+				},
+			},
+		},
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromClusterAttributeScope(original)
+		roundTripObj := ToClusterAttributeScope(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestListFailoverHistoryResponseConversion(t *testing.T) {
+	fuzzer := testdatagen.New(t)
+	for i := 0; i < 100; i++ {
+		var response types.ListFailoverHistoryResponse
+		fuzzer.Fuzz(&response)
+		thriftResponse := FromListFailoverHistoryResponse(&response)
+
+		toResponse := ToListFailoverHistoryResponse(thriftResponse)
+		assert.Equal(t, &response, toResponse)
+	}
 }

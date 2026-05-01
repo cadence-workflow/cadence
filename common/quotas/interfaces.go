@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 //go:generate mockgen -package=$GOPACKAGE -destination=limiter_mock.go github.com/uber/cadence/common/quotas Limiter
+//go:generate mockgen -package=$GOPACKAGE -destination=policy_mock.go github.com/uber/cadence/common/quotas Policy
 
 package quotas
 
@@ -38,7 +39,8 @@ type RPSKeyFunc func(key string) float64
 
 // Info corresponds to information required to determine rate limits
 type Info struct {
-	Domain string
+	Domain   string
+	TaskList string
 }
 
 // Limiter corresponds to basic rate limiting functionality.
@@ -73,4 +75,8 @@ type Policy interface {
 	// immediately with a true or false indicating if the request can make
 	// progress
 	Allow(info Info) bool
+
+	// Wait waits up till the context deadline for a rate limit token to allow
+	// the request to go through. Returns nil if request is allowed.
+	Wait(ctx context.Context, info Info) error
 }

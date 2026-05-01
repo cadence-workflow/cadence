@@ -38,13 +38,14 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/testflags"
 )
 
 type (
@@ -59,25 +60,27 @@ type (
 		mockDomainReplicator   Replicator
 		archivalMetadata       archiver.ArchivalMetadata
 		mockArchiverProvider   *provider.MockArchiverProvider
+		mockDomainAuditManager persistence.DomainAuditManager
 
 		handler *handlerImpl
 	}
 )
 
 func TestDomainHandlerGlobalDomainEnabledPrimaryClusterSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
-
 	if testing.Verbose() {
 		log.SetOutput(os.Stdout)
 	}
 
 	s := new(domainHandlerGlobalDomainEnabledPrimaryClusterSuite)
-
-	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{
-		ClusterMetadata: cluster.GetTestClusterMetadata(true),
-	})
-
+	s.setupTestBase(t)
 	suite.Run(t, s)
+}
+
+func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) setupTestBase(t *testing.T) {
+	sqliteTestBaseOptions := sqlite.GetTestClusterOption()
+	sqliteTestBaseOptions.ClusterMetadata = cluster.GetTestClusterMetadata(true)
+	s.TestBase = persistencetests.NewTestBaseWithSQL(t, sqliteTestBaseOptions)
+	s.Setup()
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TearDownSuite() {
@@ -85,7 +88,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TearDownSuite() {
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
-	s.Setup()
+	s.setupTestBase(s.T())
 
 	logger := s.Logger
 	dcCollection := dc.NewCollection(dc.NewNopClient(), logger)
@@ -95,6 +98,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 	s.domainManager = s.TestBase.DomainManager
 	s.mockProducer = &mocks.KafkaProducer{}
 	s.mockDomainReplicator = NewDomainReplicator(s.mockProducer, logger)
+	s.mockDomainAuditManager = persistence.NewMockDomainAuditManager(s.Controller)
 	s.archivalMetadata = archiver.NewArchivalMetadata(
 		dcCollection,
 		"",
@@ -105,15 +109,17 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{
-		MinRetentionDays:       dc.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dc.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dc.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dc.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,
@@ -124,7 +130,6 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) SetupTest() {
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TearDownTest() {
 	s.mockProducer.AssertExpectations(s.T())
-	s.mockArchiverProvider.AssertExpectations(s.T())
 }
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDomain_LocalDomain_InvalidCluster() {
@@ -186,7 +191,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		Status:      types.DomainStatusRegistered.Ptr(),
 		Description: "",
 		OwnerEmail:  "",
-		Data:        map[string]string{},
+		Data:        nil,
 		UUID:        "",
 	}, resp.DomainInfo)
 	s.Equal(&types.DomainConfiguration{
@@ -204,7 +209,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 		Clusters:          clusters,
 	}, resp.ReplicationConfiguration)
-	s.Equal(common.EmptyVersion, resp.GetFailoverVersion())
+	s.Equal(constants.EmptyVersion, resp.GetFailoverVersion())
 	s.Equal(isGlobalDomain, resp.GetIsGlobalDomain())
 }
 
@@ -273,7 +278,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 		Clusters:          expectedClusters,
 	}, resp.ReplicationConfiguration)
-	s.Equal(common.EmptyVersion, resp.GetFailoverVersion())
+	s.Equal(constants.EmptyVersion, resp.GetFailoverVersion())
 	s.Equal(isGlobalDomain, resp.GetIsGlobalDomain())
 }
 
@@ -332,7 +337,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 			ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 			Clusters:          clusters,
 		}, replicationConfig)
-		s.Equal(common.EmptyVersion, failoverVersion)
+		s.Equal(constants.EmptyVersion, failoverVersion)
 		s.Equal(isGlobalDomain, isGlobalDomain)
 	}
 
@@ -410,7 +415,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 			ActiveClusterName: s.ClusterMetadata.GetCurrentClusterName(),
 			Clusters:          clusters,
 		}, replicationConfig)
-		s.Equal(common.EmptyVersion, failoverVersion)
+		s.Equal(constants.EmptyVersion, failoverVersion)
 		s.Equal(isGlobalDomain, isGlobalDomain)
 	}
 
@@ -426,8 +431,6 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 		VisibilityArchivalStatus:               types.ArchivalStatusDisabled.Ptr(),
 		VisibilityArchivalURI:                  common.StringPtr(""),
 		BadBinaries:                            &types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
-		ActiveClusterName:                      common.StringPtr(s.ClusterMetadata.GetCurrentClusterName()),
-		Clusters:                               clusters,
 	})
 	s.Nil(err)
 	fnTest(
@@ -502,7 +505,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestRegisterGetDom
 		Status:      types.DomainStatusRegistered.Ptr(),
 		Description: "",
 		OwnerEmail:  "",
-		Data:        map[string]string{},
+		Data:        nil,
 		UUID:        "",
 	}, resp.DomainInfo)
 	s.Equal(&types.DomainConfiguration{
@@ -825,12 +828,23 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 	s.Nil(err)
 
 	var failoverHistory []FailoverEvent
-	failoverHistory = append(failoverHistory, FailoverEvent{EventTime: s.handler.timeSource.Now(), FromCluster: prevActiveClusterName, ToCluster: nextActiveClusterName, FailoverType: common.FailoverType(common.FailoverTypeForce).String()})
+	failoverHistory = append(failoverHistory, FailoverEvent{
+		EventTime:    s.handler.timeSource.Now(),
+		FromCluster:  prevActiveClusterName,
+		ToCluster:    nextActiveClusterName,
+		FailoverType: constants.FailoverType(constants.FailoverTypeForce).String(),
+	})
 	failoverHistoryJSON, _ := json.Marshal(failoverHistory)
-	data[common.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
+	data[constants.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
 
-	fnTest := func(info *types.DomainInfo, config *types.DomainConfiguration,
-		replicationConfig *types.DomainReplicationConfiguration, isGlobalDomain bool, failoverVersion int64) {
+	fnTest := func(
+		info *types.DomainInfo,
+		config *types.DomainConfiguration,
+		replicationConfig *types.DomainReplicationConfiguration,
+		isGlobalDomain bool,
+		failoverVersion int64) {
+
+		s.T().Helper()
 		s.NotEmpty(info.GetUUID())
 		info.UUID = ""
 		s.Equal(&types.DomainInfo{
@@ -891,14 +905,16 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateGetDomai
 
 func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateDomain_CoolDown() {
 	domainConfig := Config{
-		MinRetentionDays:  dc.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount: dc.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:  dc.GetDurationPropertyFnFilteredByDomain(10000 * time.Second),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(10000 * time.Second),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		s.Logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,
@@ -937,7 +953,7 @@ func (s *domainHandlerGlobalDomainEnabledPrimaryClusterSuite) TestUpdateDomain_C
 		Status:      types.DomainStatusRegistered.Ptr(),
 		Description: "",
 		OwnerEmail:  "",
-		Data:        map[string]string{},
+		Data:        nil,
 		UUID:        "",
 	}, resp.DomainInfo)
 	s.Equal(&types.DomainConfiguration{

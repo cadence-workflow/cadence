@@ -25,10 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/events"
@@ -60,6 +61,7 @@ func (s *transactionManagerForNewWorkflowSuite) SetupTest() {
 
 	s.createManager = newTransactionManagerForNewWorkflow(
 		s.mockTransactionManager,
+		testlogger.New(s.T()),
 	).(*transactionManagerForNewWorkflowImpl)
 }
 
@@ -211,7 +213,9 @@ func (s *transactionManagerForNewWorkflowSuite) TestDispatchForNewWorkflow_Creat
 		WorkflowID: workflowID,
 		RunID:      currentRunID,
 	}).AnyTimes()
-	currentWorkflow.EXPECT().GetVectorClock().Return(currentLastWriteVersion, int64(0), nil)
+	currentWorkflow.EXPECT().GetVectorClock().Return(execution.WorkflowVectorClock{
+		LastWriteVersion: currentLastWriteVersion,
+	}, nil)
 
 	targetContext.EXPECT().PersistNonStartWorkflowBatchEvents(
 		gomock.Any(),
@@ -410,6 +414,10 @@ func (s *transactionManagerForNewWorkflowSuite) TestDispatchForNewWorkflow_Suppr
 	currentWorkflow := execution.NewMockWorkflow(s.controller)
 	currentContext := execution.NewMockContext(s.controller)
 	currentMutableState := execution.NewMockMutableState(s.controller)
+	currentMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+	}).AnyTimes()
 	var currentReleaseFn execution.ReleaseFunc = func(error) { currentReleaseCalled = true }
 	currentWorkflow.EXPECT().GetContext().Return(currentContext).AnyTimes()
 	currentWorkflow.EXPECT().GetMutableState().Return(currentMutableState).AnyTimes()

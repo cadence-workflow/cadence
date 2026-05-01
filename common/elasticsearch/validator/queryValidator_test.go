@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -165,18 +165,26 @@ func TestValidateQuery(t *testing.T) {
 				"Custom-Field": types.IndexedValueTypeString,
 			},
 		},
+		{
+			msg:       "custom string search attribute support not like",
+			query:     "CustomStringField not like 'value'",
+			validated: "`Attr.CustomStringField` not like 'value'",
+			dcValid: map[string]interface{}{
+				"CustomStringField": types.IndexedValueTypeString,
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.msg, func(t *testing.T) {
-			validSearchAttr := func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			validSearchAttr := func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				valid := definition.GetDefaultIndexedKeys()
 				for k, v := range tt.dcValid {
 					valid[k] = v
 				}
 				return valid
 			}
-			validateSearchAttr := dynamicconfig.GetBoolPropertyFn(true)
+			validateSearchAttr := dynamicproperties.GetBoolPropertyFn(true)
 			qv := NewQueryValidator(validSearchAttr, validateSearchAttr)
 			validated, err := qv.ValidateQuery(tt.query)
 			if err != nil {

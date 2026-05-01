@@ -146,7 +146,7 @@ func (r *dlqHandlerImpl) fetchAndEmitMessageCount(ctx context.Context) error {
 	shardID := strconv.Itoa(r.shard.GetShardID())
 	result := map[string]int64{}
 	for sourceCluster := range r.taskExecutors {
-		request := persistence.GetReplicationDLQSizeRequest{SourceClusterName: sourceCluster}
+		request := persistence.GetReplicationDLQSizeRequest{SourceClusterName: sourceCluster, ShardID: common.Ptr(r.shard.GetShardID())}
 		response, err := r.shard.GetExecutionManager().GetReplicationDLQSize(ctx, &request)
 		if err != nil {
 			r.logger.Error("failed to get replication DLQ size", tag.Error(err))
@@ -222,36 +222,29 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 		ctx,
 		&persistence.GetReplicationTasksFromDLQRequest{
 			SourceClusterName: sourceCluster,
-			GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-				ReadLevel:     defaultBeginningMessageID,
-				MaxReadLevel:  lastMessageID,
-				BatchSize:     pageSize,
-				NextPageToken: pageToken,
-			},
+			ReadLevel:         defaultBeginningMessageID + 1,
+			MaxReadLevel:      lastMessageID + 1,
+			BatchSize:         pageSize,
+			NextPageToken:     pageToken,
+			ShardID:           common.Ptr(r.shard.GetShardID()),
 		},
 	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	remoteAdminClient := r.shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
-	if remoteAdminClient == nil {
-		return nil, nil, nil, errInvalidCluster
+	remoteAdminClient, err := r.shard.GetService().GetClientBean().GetRemoteAdminClient(sourceCluster)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	taskInfo := make([]*types.ReplicationTaskInfo, 0, len(resp.Tasks))
 	for _, task := range resp.Tasks {
-		taskInfo = append(taskInfo, &types.ReplicationTaskInfo{
-			DomainID:     task.GetDomainID(),
-			WorkflowID:   task.GetWorkflowID(),
-			RunID:        task.GetRunID(),
-			TaskType:     int16(task.GetTaskType()),
-			TaskID:       task.GetTaskID(),
-			Version:      task.GetVersion(),
-			FirstEventID: task.FirstEventID,
-			NextEventID:  task.NextEventID,
-			ScheduledID:  task.ScheduledID,
-		})
+		ti, err := task.ToInternalReplicationTaskInfo()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		taskInfo = append(taskInfo, ti)
 	}
 	response := &types.GetDLQReplicationMessagesResponse{}
 	if len(taskInfo) > 0 {
@@ -279,8 +272,9 @@ func (r *dlqHandlerImpl) PurgeMessages(
 		ctx,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    sourceCluster,
-			ExclusiveBeginTaskID: defaultBeginningMessageID,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: defaultBeginningMessageID + 1,
+			ExclusiveEndTaskID:   lastMessageID + 1,
+			ShardID:              common.Ptr(r.shard.GetShardID()),
 		},
 	)
 	if err != nil {
@@ -336,8 +330,9 @@ func (r *dlqHandlerImpl) MergeMessages(
 		ctx,
 		&persistence.RangeDeleteReplicationTaskFromDLQRequest{
 			SourceClusterName:    sourceCluster,
-			ExclusiveBeginTaskID: defaultBeginningMessageID,
-			InclusiveEndTaskID:   lastMessageID,
+			InclusiveBeginTaskID: defaultBeginningMessageID + 1,
+			ExclusiveEndTaskID:   lastMessageID + 1,
+			ShardID:              common.Ptr(r.shard.GetShardID()),
 		},
 	)
 	if err != nil {

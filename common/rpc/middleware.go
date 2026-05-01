@@ -31,9 +31,9 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
-	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 type authOutboundMiddleware struct {
@@ -116,26 +116,27 @@ func (m *InboundMetricsMiddleware) Handle(ctx context.Context, req *transport.Re
 	return h.Handle(ctx, req, resw)
 }
 
-// ComparatorYarpcKey is the const for yarpc key
-const ComparatorYarpcKey = "cadence-visibility-override"
+// CallerInfoMiddleware extracts caller information from headers and adds it to the context.
+type CallerInfoMiddleware struct{}
 
-// PinotComparatorMiddleware checks the header of a grpc request, and then override the context accordingly
-// note: for Pinot Migration only (Jan. 2024)
-type PinotComparatorMiddleware struct{}
-
-func (m *PinotComparatorMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
-	yarpcKey, _ := req.Headers.Get(ComparatorYarpcKey)
-	if yarpcKey == persistence.VisibilityOverridePrimary {
-		ctx = contextWithVisibilityOverride(ctx, persistence.VisibilityOverridePrimary)
-	} else if yarpcKey == persistence.VisibilityOverrideSecondary {
-		ctx = contextWithVisibilityOverride(ctx, persistence.VisibilityOverrideSecondary)
-	}
+func (m *CallerInfoMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
+	ctx = types.GetContextWithCallerInfoFromHeaders(ctx, req.Headers)
 	return h.Handle(ctx, req, resw)
 }
 
-// ContextWithOverride adds a value in ctx
-func contextWithVisibilityOverride(ctx context.Context, value string) context.Context {
-	return context.WithValue(ctx, persistence.ContextKey, value)
+// CallerInfoOutboundMiddleware sets the caller type header on outbound calls.
+// If the caller type is not already set in headers (by HeaderForwardingMiddleware),
+// it sets to "internal" only if the call originated from internal service logic.
+// External requests without the header are left unset and will be extracted as "unknown" by the receiving service.
+type CallerInfoOutboundMiddleware struct{}
+
+func (m *CallerInfoOutboundMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
+	if _, ok := request.Headers.Get(types.CallerTypeHeaderName); !ok {
+		if yarpc.CallFromContext(ctx) == nil {
+			request.Headers = request.Headers.With(types.CallerTypeHeaderName, string(types.CallerTypeInternal))
+		}
+	}
+	return out.Call(ctx, request)
 }
 
 type overrideCallerMiddleware struct {
@@ -218,16 +219,16 @@ func (m *ForwardPartitionConfigMiddleware) Handle(ctx context.Context, req *tran
 				return err
 			}
 		}
-		ctx = partition.ContextWithConfig(ctx, partitionConfig)
+		ctx = isolationgroup.ContextWithConfig(ctx, partitionConfig)
 		isolationGroup, _ := req.Headers.Get(common.IsolationGroupHeaderName)
-		ctx = partition.ContextWithIsolationGroup(ctx, isolationGroup)
+		ctx = isolationgroup.ContextWithIsolationGroup(ctx, isolationGroup)
 	}
 	return h.Handle(ctx, req, resw)
 }
 
 func (m *ForwardPartitionConfigMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
 	if _, ok := request.Headers.Get(common.AutoforwardingClusterHeaderName); ok {
-		partitionConfig := partition.ConfigFromContext(ctx)
+		partitionConfig := isolationgroup.ConfigFromContext(ctx)
 		if len(partitionConfig) > 0 {
 			blob, err := json.Marshal(partitionConfig)
 			if err != nil {
@@ -237,7 +238,7 @@ func (m *ForwardPartitionConfigMiddleware) Call(ctx context.Context, request *tr
 		} else {
 			request.Headers.Del(common.PartitionConfigHeaderName)
 		}
-		isolationGroup := partition.IsolationGroupFromContext(ctx)
+		isolationGroup := isolationgroup.IsolationGroupFromContext(ctx)
 		if isolationGroup != "" {
 			request.Headers = request.Headers.With(common.IsolationGroupHeaderName, isolationGroup)
 		} else {
@@ -254,10 +255,10 @@ type ClientPartitionConfigMiddleware struct{}
 func (m *ClientPartitionConfigMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
 	zone, _ := req.Headers.Get(common.ClientIsolationGroupHeaderName)
 	if zone != "" {
-		ctx = partition.ContextWithConfig(ctx, map[string]string{
-			partition.IsolationGroupKey: zone,
+		ctx = isolationgroup.ContextWithConfig(ctx, map[string]string{
+			isolationgroup.GroupKey: zone,
 		})
-		ctx = partition.ContextWithIsolationGroup(ctx, zone)
+		ctx = isolationgroup.ContextWithIsolationGroup(ctx, zone)
 	}
 	return h.Handle(ctx, req, resw)
 }

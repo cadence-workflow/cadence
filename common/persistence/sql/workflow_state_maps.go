@@ -25,7 +25,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -71,6 +71,7 @@ func updateActivityInfos(
 				TimerTaskStatus:          activityInfo.TimerTaskStatus,
 				Attempt:                  activityInfo.Attempt,
 				TaskList:                 activityInfo.TaskList,
+				TaskListKind:             activityInfo.TaskListKind,
 				StartedIdentity:          activityInfo.StartedIdentity,
 				HasRetryPolicy:           activityInfo.HasRetryPolicy,
 				RetryInitialInterval:     activityInfo.InitialInterval,
@@ -153,7 +154,7 @@ func getActivityInfoMap(
 			LastHeartBeatUpdatedTime: row.LastHeartbeatUpdatedTime,
 			Version:                  decoded.GetVersion(),
 			ScheduledEventBatchID:    decoded.GetScheduledEventBatchID(),
-			ScheduledEvent:           persistence.NewDataBlob(decoded.ScheduledEvent, common.EncodingType(decoded.GetScheduledEventEncoding())),
+			ScheduledEvent:           persistence.NewDataBlob(decoded.ScheduledEvent, constants.EncodingType(decoded.GetScheduledEventEncoding())),
 			ScheduledTime:            decoded.GetScheduledTimestamp(),
 			StartedID:                decoded.GetStartedID(),
 			StartedTime:              decoded.GetStartedTimestamp(),
@@ -169,6 +170,7 @@ func getActivityInfoMap(
 			Attempt:                  decoded.GetAttempt(),
 			StartedIdentity:          decoded.GetStartedIdentity(),
 			TaskList:                 decoded.GetTaskList(),
+			TaskListKind:             decoded.GetTaskListKind(),
 			HasRetryPolicy:           decoded.GetHasRetryPolicy(),
 			InitialInterval:          decoded.GetRetryInitialInterval(),
 			BackoffCoefficient:       decoded.GetRetryBackoffCoefficient(),
@@ -181,7 +183,7 @@ func getActivityInfoMap(
 			LastFailureDetails:       decoded.GetRetryLastFailureDetails(),
 		}
 		if decoded.StartedEvent != nil {
-			info.StartedEvent = persistence.NewDataBlob(decoded.StartedEvent, common.EncodingType(decoded.GetStartedEventEncoding()))
+			info.StartedEvent = persistence.NewDataBlob(decoded.StartedEvent, constants.EncodingType(decoded.GetStartedEventEncoding()))
 		}
 		ret[row.ScheduleID] = info
 	}
@@ -434,10 +436,10 @@ func getChildExecutionInfoMap(
 			ParentClosePolicy:     types.ParentClosePolicy(rowInfo.GetParentClosePolicy()),
 		}
 		if rowInfo.InitiatedEvent != nil {
-			info.InitiatedEvent = persistence.NewDataBlob(rowInfo.InitiatedEvent, common.EncodingType(rowInfo.GetInitiatedEventEncoding()))
+			info.InitiatedEvent = persistence.NewDataBlob(rowInfo.InitiatedEvent, constants.EncodingType(rowInfo.GetInitiatedEventEncoding()))
 		}
 		if rowInfo.StartedEvent != nil {
-			info.StartedEvent = persistence.NewDataBlob(rowInfo.StartedEvent, common.EncodingType(rowInfo.GetStartedEventEncoding()))
+			info.StartedEvent = persistence.NewDataBlob(rowInfo.StartedEvent, constants.EncodingType(rowInfo.GetStartedEventEncoding()))
 		}
 		ret[row.InitiatedID] = info
 	}

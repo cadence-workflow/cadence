@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
 
 type keyType struct {
@@ -59,16 +60,15 @@ func TestLRU(t *testing.T) {
 	cache.Put("E", "Epsi")
 	assert.Equal(t, "Epsi", cache.Get("E"))
 	assert.Equal(t, "Foo2", cache.Get("A"))
-	assert.Nil(t, cache.Get("B")) // Oldest, should be evicted
 
 	// Access C, D is now LRU
 	cache.Get("C")
 	cache.Put("F", "Felp")
-	assert.Nil(t, cache.Get("D"))
-	assert.Equal(t, 4, cache.Size())
+	assert.Nil(t, cache.Get("B"))
+	assert.Equal(t, 5, cache.Size())
 
-	cache.Delete("A")
-	assert.Nil(t, cache.Get("A"))
+	cache.Delete("C")
+	assert.Nil(t, cache.Get("C"))
 }
 
 func TestGenerics(t *testing.T) {
@@ -282,81 +282,134 @@ func TestIterator(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+// Move the struct definition and method outside the test function
+type sizeableValue struct {
+	val  string
+	size uint64
+}
+
+func (s sizeableValue) ByteSize() uint64 {
+	return s.size
+}
+
 func TestLRU_SizeBased_SizeExceeded(t *testing.T) {
-	valueSize := 5
 	cache := New(&Options{
-		MaxCount: 5,
-		GetCacheItemSizeFunc: func(interface{}) uint64 {
-			return uint64(valueSize)
-		},
-		MaxSize: 15,
+		IsSizeBased: dynamicproperties.GetBoolPropertyFn(true),
+		MaxSize:     dynamicproperties.GetIntPropertyFn(15),
 	})
 
-	cache.Put("A", "Foo")
-	assert.Equal(t, "Foo", cache.Get("A"))
+	fooValue := sizeableValue{val: "Foo", size: 5}
+	cache.Put("A", fooValue)
+	assert.Equal(t, fooValue, cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))
 	assert.Equal(t, 1, cache.Size())
 
-	cache.Put("B", "Bar")
-	cache.Put("C", "Cid")
-	cache.Put("D", "Delt")
+	barValue := sizeableValue{val: "Bar", size: 5}
+	cidValue := sizeableValue{val: "Cid", size: 5}
+	deltValue := sizeableValue{val: "Delt", size: 5}
+
+	cache.Put("B", barValue)
+	cache.Put("C", cidValue)
+	cache.Put("D", deltValue)
 	assert.Nil(t, cache.Get("A"))
 	assert.Equal(t, 3, cache.Size())
 
-	assert.Equal(t, "Bar", cache.Get("B"))
-	assert.Equal(t, "Cid", cache.Get("C"))
-	assert.Equal(t, "Delt", cache.Get("D"))
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, cidValue, cache.Get("C"))
+	assert.Equal(t, deltValue, cache.Get("D"))
 
-	cache.Put("A", "Foo2")
-	assert.Equal(t, "Foo2", cache.Get("A"))
+	foo2Value := sizeableValue{val: "Foo2", size: 5}
+	cache.Put("A", foo2Value)
+	assert.Equal(t, foo2Value, cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))
 	assert.Equal(t, 3, cache.Size())
 
-	valueSize = 15 // put large value to evict the rest in a loop
-	cache.Put("E", "Epsi")
+	// Put large value to evict the rest in a loop
+	epsiValue := sizeableValue{val: "Epsi", size: 15}
+	cache.Put("E", epsiValue)
 	assert.Nil(t, cache.Get("C"))
-	assert.Equal(t, "Epsi", cache.Get("E"))
+	assert.Equal(t, epsiValue, cache.Get("E"))
 	assert.Nil(t, cache.Get("A"))
 	assert.Equal(t, 1, cache.Size())
 
-	valueSize = 25 // put large value greater than maxSize to evict everything
-	cache.Put("M", "Mepsi")
+	// Put large value greater than maxSize but should not evict anything
+	mepsiValue := sizeableValue{val: "Mepsi", size: 25}
+	cache.Put("M", mepsiValue)
 	assert.Nil(t, cache.Get("M"))
-	assert.Equal(t, 0, cache.Size())
+	assert.Equal(t, 1, cache.Size())
 }
 
 func TestLRU_SizeBased_CountExceeded(t *testing.T) {
 	cache := New(&Options{
-		MaxCount: 5,
-		GetCacheItemSizeFunc: func(interface{}) uint64 {
-			return 5
-		},
-		MaxSize: 0,
+		MaxCount:    5,
+		IsSizeBased: dynamicproperties.GetBoolPropertyFn(true),
+		MaxSize:     dynamicproperties.GetIntPropertyFn(10000),
 	})
 
-	cache.Put("A", "Foo")
-	assert.Equal(t, "Foo", cache.Get("A"))
+	fooValue := sizeableValue{val: "Foo", size: 5}
+	cache.Put("A", fooValue)
+	assert.Equal(t, fooValue, cache.Get("A"))
 	assert.Nil(t, cache.Get("B"))
 	assert.Equal(t, 1, cache.Size())
 
-	cache.Put("B", "Bar")
-	cache.Put("C", "Cid")
-	cache.Put("D", "Delt")
+	barValue := sizeableValue{val: "Bar", size: 5}
+	cidValue := sizeableValue{val: "Cid", size: 5}
+	deltValue := sizeableValue{val: "Delt", size: 5}
+
+	cache.Put("B", barValue)
+	cache.Put("C", cidValue)
+	cache.Put("D", deltValue)
 	assert.Equal(t, 4, cache.Size())
 
-	assert.Equal(t, "Bar", cache.Get("B"))
-	assert.Equal(t, "Cid", cache.Get("C"))
-	assert.Equal(t, "Delt", cache.Get("D"))
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, cidValue, cache.Get("C"))
+	assert.Equal(t, deltValue, cache.Get("D"))
 
-	cache.Put("A", "Foo2")
-	assert.Equal(t, "Foo2", cache.Get("A"))
+	foo2Value := sizeableValue{val: "Foo2", size: 5}
+	cache.Put("A", foo2Value)
+	assert.Equal(t, foo2Value, cache.Get("A"))
 	assert.Equal(t, 4, cache.Size())
 
-	cache.Put("E", "Epsi")
-	assert.Nil(t, cache.Get("B"))
-	assert.Equal(t, "Epsi", cache.Get("E"))
-	assert.Equal(t, "Foo2", cache.Get("A"))
+	epsiValue := sizeableValue{val: "Epsi", size: 5}
+	cache.Put("E", epsiValue)
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, epsiValue, cache.Get("E"))
+	assert.Equal(t, foo2Value, cache.Get("A"))
+	assert.Equal(t, 5, cache.Size())
+}
+
+func TestLRU_EvictWhileSwitchToSizeBased(t *testing.T) {
+	sizeBased := true
+
+	// Create a function literal that can be implicitly coerced to BoolPropertyFn
+	cache := New(&Options{
+		MaxCount:    2,
+		IsSizeBased: func(...dynamicproperties.FilterOption) bool { return sizeBased },
+		MaxSize:     dynamicproperties.GetIntPropertyFn(10000),
+	})
+
+	fooValue := sizeableValue{val: "Foo", size: 5}
+	barValue := sizeableValue{val: "Bar", size: 5}
+	cidValue := sizeableValue{val: "Cid", size: 5}
+	deltValue := sizeableValue{val: "Delt", size: 5}
+	cache.Put("A", fooValue)
+	cache.Put("B", barValue)
+	cache.Put("C", cidValue)
+	cache.Put("D", deltValue)
 	assert.Equal(t, 4, cache.Size())
+	assert.Equal(t, fooValue, cache.Get("A"))
+	assert.Equal(t, barValue, cache.Get("B"))
+	assert.Equal(t, cidValue, cache.Get("C"))
+	assert.Equal(t, deltValue, cache.Get("D"))
+
+	// Change the sizeBased flag to false
+	sizeBased = false
+
+	echoValue := sizeableValue{val: "Echo", size: 5}
+	cache.Put("E", echoValue)
+	assert.Equal(t, deltValue, cache.Get("D"))
+	assert.Equal(t, echoValue, cache.Get("E"))
+	assert.Equal(t, 2, cache.Size())
 }
 
 func TestPanicMaxCountAndSizeNotProvided(t *testing.T) {
@@ -383,7 +436,7 @@ func TestPanicMaxCountAndSizeFuncNotProvided(t *testing.T) {
 
 	New(&Options{
 		TTL:     time.Millisecond * 100,
-		MaxSize: 25,
+		MaxSize: dynamicproperties.GetIntPropertyFn(0),
 	})
 }
 
@@ -432,4 +485,220 @@ func TestEvictItemsPastTimeToLive_ActivelyEvict(t *testing.T) {
 	// Advance time to 150s, so C and D should be expired as well
 	mockTimeSource.Advance(time.Second * 50)
 	assert.Equal(t, 0, cache.Size())
+}
+
+func TestLRU_PutInternal_EvictUnpinnedInMiddle(t *testing.T) {
+	cache, ok := New(&Options{
+		MaxCount: 5,
+		Pin:      true,
+	}).(*lru)
+	require.True(t, ok)
+
+	_, err := cache.PutIfNotExist("A", "Alpha")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("B", "Beta")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("C", "Charlie")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("D", "Delta")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("E", "Echo")
+	require.NoError(t, err)
+
+	// Verify all items are present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// release C and D twice
+	cache.Release("C")
+	cache.Release("C")
+	cache.Release("D")
+	cache.Release("D")
+
+	// Try to add a new item - should evict unpinned items C and D
+	_, err = cache.PutIfNotExist("F", "Foxtrot")
+	require.NoError(t, err)
+
+	// Verify pinned items are still present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+	assert.Equal(t, "Foxtrot", cache.Get("F"))
+
+	// Verify only C was evicted
+	assert.Nil(t, cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+
+}
+
+func TestLRU_PutInternal_EvictUnpinnedFront(t *testing.T) {
+	cache, ok := New(&Options{
+		MaxCount: 5,
+		Pin:      true,
+	}).(*lru)
+	require.True(t, ok)
+
+	_, err := cache.PutIfNotExist("A", "Alpha")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("B", "Beta")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("C", "Charlie")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("D", "Delta")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("E", "Echo")
+	require.NoError(t, err)
+
+	// Verify all items are present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// move C to the front
+	assert.Equal(t, "Charlie", cache.Get("C"))
+
+	// release C twice
+	cache.Release("C")
+	cache.Release("C")
+
+	// Try to add a new item - should evict unpinned item C
+	_, err = cache.PutIfNotExist("F", "Foxtrot")
+	require.NoError(t, err)
+
+	// Verify pinned items are still present
+	assert.Equal(t, "Foxtrot", cache.Get("F"))
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// Verify only C was evicted
+	assert.Nil(t, cache.Get("C"))
+}
+
+func TestLRU_PutInternal_EvictUnpinnedBack(t *testing.T) {
+	cache, ok := New(&Options{
+		MaxCount: 5,
+		Pin:      true,
+	}).(*lru)
+	require.True(t, ok)
+
+	_, err := cache.PutIfNotExist("A", "Alpha")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("B", "Beta")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("C", "Charlie")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("D", "Delta")
+	require.NoError(t, err)
+	_, err = cache.PutIfNotExist("E", "Echo")
+	require.NoError(t, err)
+
+	// Verify all items are present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// release A twice
+	cache.Release("A")
+	cache.Release("A")
+
+	// Try to add a new item - should evict unpinned item A
+	_, err = cache.PutIfNotExist("F", "Foxtrot")
+	require.NoError(t, err)
+
+	// Verify pinned items are still present
+	assert.Equal(t, "Foxtrot", cache.Get("F"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// Verify A was evicted
+	assert.Nil(t, cache.Get("A"))
+}
+
+func TestLRU_PutInternal_AllPinned(t *testing.T) {
+	cache, ok := New(&Options{
+		MaxCount: 5,
+		Pin:      true,
+	}).(*lru)
+	assert.True(t, ok)
+
+	_, err := cache.PutIfNotExist("A", "Alpha")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("B", "Beta")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("C", "Charlie")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("D", "Delta")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("E", "Echo")
+	assert.NoError(t, err)
+
+	// Verify all items are present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// Try to add a new item - should not evict anything
+	_, err = cache.PutIfNotExist("F", "Foxtrot")
+	assert.Error(t, err)
+
+	// Verify pinned items are still present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// Verify F was never added
+	assert.Nil(t, cache.Get("F"))
+}
+
+func TestLRU_PutInternal_Unpinned(t *testing.T) {
+	cache, ok := New(&Options{
+		MaxCount: 5,
+		Pin:      false,
+	}).(*lru)
+	assert.True(t, ok)
+
+	_, err := cache.PutIfNotExist("A", "Alpha")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("B", "Beta")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("C", "Charlie")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("D", "Delta")
+	assert.NoError(t, err)
+	_, err = cache.PutIfNotExist("E", "Echo")
+	assert.NoError(t, err)
+
+	// Verify all items are present
+	assert.Equal(t, "Alpha", cache.Get("A"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// Try to add a new item - should just evict A
+	_, err = cache.PutIfNotExist("F", "Foxtrot")
+	assert.NoError(t, err)
+
+	assert.Equal(t, "Foxtrot", cache.Get("F"))
+	assert.Equal(t, "Beta", cache.Get("B"))
+	assert.Equal(t, "Charlie", cache.Get("C"))
+	assert.Equal(t, "Delta", cache.Get("D"))
+	assert.Equal(t, "Echo", cache.Get("E"))
+
+	// Verify A was evicted
+	assert.Nil(t, cache.Get("A"))
 }

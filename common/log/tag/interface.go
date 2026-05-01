@@ -44,6 +44,12 @@ func newStringTag(key string, value string) Tag {
 	}
 }
 
+func newStringsTag(key string, value []string) Tag {
+	return Tag{
+		field: zap.Strings(key, value),
+	}
+}
+
 func newInt64(key string, value int64) Tag {
 	return Tag{
 		field: zap.Int64(key, value),
@@ -102,5 +108,11 @@ func newPredefinedStringTag(key string, value string) Tag {
 func newPredefinedDynamicTag(key string, value interface{}) Tag {
 	return Tag{
 		field: zap.Any(key, value),
+	}
+}
+
+func newFloat64Tag(key string, value float64) Tag {
+	return Tag{
+		field: zap.Float64(key, value),
 	}
 }

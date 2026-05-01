@@ -28,10 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -79,13 +81,70 @@ func testFixtureDomainReplicationConfig() *DomainReplicationConfig {
 	}
 }
 
+func testFixtureDomainReplicationConfigWithActiveClusters() *DomainReplicationConfig {
+	return &DomainReplicationConfig{
+		Clusters: []*ClusterReplicationConfig{
+			{
+				ClusterName: "cluster-1",
+			},
+			{
+				ClusterName: "cluster-2",
+			},
+		},
+		ActiveClusters: &types.ActiveClusters{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"region-1": {
+							ActiveClusterName: "cluster-1",
+							FailoverVersion:   1,
+						},
+						"region-2": {
+							ActiveClusterName: "cluster-2",
+							FailoverVersion:   2,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func testFixtureDomainReplicationConfigInternal() *InternalDomainReplicationConfig {
+	return &InternalDomainReplicationConfig{
+		ActiveClusterName: "cluster-1",
+		Clusters: []*ClusterReplicationConfig{
+			{
+				ClusterName: "cluster-1",
+			},
+			{
+				ClusterName: "cluster-2",
+			},
+		},
+	}
+}
+
+func testFixtureDomainReplicationConfigInternalWithActiveClusters() *InternalDomainReplicationConfig {
+	return &InternalDomainReplicationConfig{
+		Clusters: []*ClusterReplicationConfig{
+			{
+				ClusterName: "cluster-1",
+			},
+			{
+				ClusterName: "cluster-2",
+			},
+		},
+		ActiveClustersConfig: &DataBlob{Encoding: constants.EncodingTypeThriftRWSnappy, Data: []byte("active-clusters-config")},
+	}
+}
+
 func setUpMocksForDomainManager(t *testing.T) (*domainManagerImpl, *MockDomainStore, *MockPayloadSerializer) {
 	ctrl := gomock.NewController(t)
 	mockStore := NewMockDomainStore(ctrl)
 	mockSerializer := NewMockPayloadSerializer(ctrl)
 	logger := log.NewNoop()
 
-	domainManager := NewDomainManagerImpl(mockStore, logger, mockSerializer).(*domainManagerImpl)
+	domainManager := NewDomainManagerImpl(mockStore, logger, mockSerializer, &DynamicConfiguration{SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW))}).(*domainManagerImpl)
 
 	return domainManager, mockStore, mockSerializer
 }
@@ -102,40 +161,105 @@ func TestCreateDomain(t *testing.T) {
 			name: "success",
 			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
 				mockSerializer.EXPECT().
-					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
+					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
+					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeActiveClusters(nil, constants.EncodingTypeThriftRWSnappy).
+					Return(nil, nil).Times(1)
+
+				expectedReq := &InternalCreateDomainRequest{
+					Info: testFixtureDomainInfo(),
+					Config: &InternalDomainConfig{
+						Retention:                common.DaysToDuration(1),
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+						HistoryArchivalURI:       "s3://abc",
+						VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+						VisibilityArchivalURI:    "s3://xyz",
+						BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+						IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+						AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+					},
+					ReplicationConfig: testFixtureDomainReplicationConfigInternal(),
+					IsGlobalDomain:    true,
+					ConfigVersion:     1,
+					FailoverVersion:   10,
+					LastUpdatedTime:   time.Unix(0, 100),
+					CurrentTimeStamp:  time.Now(),
+				}
+
 				mockStore.EXPECT().
-					CreateDomain(gomock.Any(), &InternalCreateDomainRequest{
-						Info: testFixtureDomainInfo(),
-						Config: &InternalDomainConfig{
-							Retention:                common.DaysToDuration(1),
-							EmitMetric:               true,
-							HistoryArchivalStatus:    types.ArchivalStatusEnabled,
-							HistoryArchivalURI:       "s3://abc",
-							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
-							VisibilityArchivalURI:    "s3://xyz",
-							BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-							IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-							AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
-						},
-						ReplicationConfig: testFixtureDomainReplicationConfig(),
-						IsGlobalDomain:    true,
-						ConfigVersion:     1,
-						FailoverVersion:   10,
-						LastUpdatedTime:   time.Unix(0, 100),
-					}).
-					Return(&CreateDomainResponse{}, nil).Times(1)
+					CreateDomain(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, actualRequest *InternalCreateDomainRequest) (*CreateDomainResponse, error) {
+						assert.WithinDuration(t, expectedReq.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
+						return nil, nil
+					})
 			},
 			request: &CreateDomainRequest{
 				Info:              testFixtureDomainInfo(),
 				Config:            testFixtureDomainConfig(),
 				ReplicationConfig: testFixtureDomainReplicationConfig(),
+				IsGlobalDomain:    true,
+				ConfigVersion:     1,
+				FailoverVersion:   10,
+				LastUpdatedTime:   100,
+			},
+			expectError: false,
+		},
+		{
+			name: "success with activeclusters config populated",
+			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
+				mockSerializer.EXPECT().
+					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeActiveClusters(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, constants.EncodingTypeThriftRWSnappy).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRWSnappy, Data: []byte("active-clusters-config")}, nil).Times(1)
+
+				expectedReq := &InternalCreateDomainRequest{
+					Info: testFixtureDomainInfo(),
+					Config: &InternalDomainConfig{
+						Retention:                common.DaysToDuration(1),
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+						HistoryArchivalURI:       "s3://abc",
+						VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+						VisibilityArchivalURI:    "s3://xyz",
+						BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+						IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+						AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+					},
+					ReplicationConfig: testFixtureDomainReplicationConfigInternalWithActiveClusters(),
+					IsGlobalDomain:    true,
+					ConfigVersion:     1,
+					FailoverVersion:   10,
+					LastUpdatedTime:   time.Unix(0, 100),
+					CurrentTimeStamp:  time.Now(),
+				}
+
+				mockStore.EXPECT().
+					CreateDomain(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, actualRequest *InternalCreateDomainRequest) (*CreateDomainResponse, error) {
+						assert.WithinDuration(t, expectedReq.CurrentTimeStamp, actualRequest.CurrentTimeStamp, time.Second)
+						return nil, nil
+					})
+			},
+			request: &CreateDomainRequest{
+				Info:              testFixtureDomainInfo(),
+				Config:            testFixtureDomainConfig(),
+				ReplicationConfig: testFixtureDomainReplicationConfigWithActiveClusters(),
 				IsGlobalDomain:    true,
 				ConfigVersion:     1,
 				FailoverVersion:   10,
@@ -205,11 +329,11 @@ func TestGetDomain(t *testing.T) {
 							HistoryArchivalURI:       "s3://abc",
 							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 							VisibilityArchivalURI:    "s3://xyz",
-							BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-							IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-							AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+							BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+							IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+							AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 						},
-						ReplicationConfig: testFixtureDomainReplicationConfig(),
+						ReplicationConfig: testFixtureDomainReplicationConfigInternal(),
 						IsGlobalDomain:    true,
 						ConfigVersion:     1,
 						FailoverVersion:   10,
@@ -217,14 +341,17 @@ func TestGetDomain(t *testing.T) {
 						FailoverEndTime:   common.Ptr(time.Unix(0, 200)),
 					}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeBadBinaries(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
+					DeserializeBadBinaries(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
 					Return(&types.BadBinaries{}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeIsolationGroups(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
+					DeserializeIsolationGroups(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
 					Return(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
+					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
 					Return(&types.AsyncWorkflowConfiguration{}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeActiveClusters(nil).
+					Return(nil, nil).Times(1)
 			},
 			request:     &GetDomainRequest{ID: "domain1"},
 			expectError: false,
@@ -242,6 +369,67 @@ func TestGetDomain(t *testing.T) {
 					AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{},
 				},
 				ReplicationConfig: testFixtureDomainReplicationConfig(),
+				IsGlobalDomain:    true,
+				ConfigVersion:     1,
+				FailoverVersion:   10,
+				LastUpdatedTime:   100,
+				FailoverEndTime:   common.Ptr(time.Unix(0, 200).UnixNano()),
+			},
+		},
+		{
+			name: "success with activeclusters config populated",
+			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
+				mockStore.EXPECT().
+					GetDomain(gomock.Any(), &GetDomainRequest{ID: "domain1"}).
+					Return(&InternalGetDomainResponse{
+						Info: testFixtureDomainInfo(),
+						Config: &InternalDomainConfig{
+							Retention:                common.DaysToDuration(1),
+							EmitMetric:               true,
+							HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+							HistoryArchivalURI:       "s3://abc",
+							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+							VisibilityArchivalURI:    "s3://xyz",
+							BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+							IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+							AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+						},
+						ReplicationConfig: testFixtureDomainReplicationConfigInternalWithActiveClusters(),
+						IsGlobalDomain:    true,
+						ConfigVersion:     1,
+						FailoverVersion:   10,
+						LastUpdatedTime:   time.Unix(0, 100),
+						FailoverEndTime:   common.Ptr(time.Unix(0, 200)),
+					}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeBadBinaries(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
+					Return(&types.BadBinaries{}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeIsolationGroups(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
+					Return(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
+					Return(&types.AsyncWorkflowConfiguration{}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeActiveClusters(testFixtureDomainReplicationConfigInternalWithActiveClusters().ActiveClustersConfig).
+					Return(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, nil).Times(1)
+			},
+			request:     &GetDomainRequest{ID: "domain1"},
+			expectError: false,
+			expected: &GetDomainResponse{
+				Info: testFixtureDomainInfo(),
+				Config: &DomainConfig{
+					Retention:                1,
+					EmitMetric:               true,
+					HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+					HistoryArchivalURI:       "s3://abc",
+					VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+					VisibilityArchivalURI:    "s3://xyz",
+					BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+					IsolationGroups:          map[string]types.IsolationGroupPartition{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}},
+					AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{},
+				},
+				ReplicationConfig: testFixtureDomainReplicationConfigWithActiveClusters(),
 				IsGlobalDomain:    true,
 				ConfigVersion:     1,
 				FailoverVersion:   10,
@@ -268,7 +456,7 @@ func TestGetDomain(t *testing.T) {
 					Return(&InternalGetDomainResponse{
 						Info:              &DomainInfo{ID: "domain1"},
 						Config:            &InternalDomainConfig{},
-						ReplicationConfig: &DomainReplicationConfig{},
+						ReplicationConfig: &InternalDomainReplicationConfig{},
 					}, nil).Times(1)
 				mockSerializer.EXPECT().
 					DeserializeBadBinaries(gomock.Any()).
@@ -311,14 +499,17 @@ func TestUpdateDomain(t *testing.T) {
 			name: "success",
 			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
 				mockSerializer.EXPECT().
-					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
+					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
+					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
 				mockSerializer.EXPECT().
-					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, common.EncodingTypeThriftRW).
-					Return(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeActiveClusters(nil, constants.EncodingTypeThriftRWSnappy).
+					Return(nil, nil).Times(1)
 				mockStore.EXPECT().
 					UpdateDomain(gomock.Any(), &InternalUpdateDomainRequest{
 						Info: testFixtureDomainInfo(),
@@ -329,11 +520,11 @@ func TestUpdateDomain(t *testing.T) {
 							HistoryArchivalURI:       "s3://abc",
 							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 							VisibilityArchivalURI:    "s3://xyz",
-							BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-							IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-							AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+							BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+							IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+							AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 						},
-						ReplicationConfig:           testFixtureDomainReplicationConfig(),
+						ReplicationConfig:           testFixtureDomainReplicationConfigInternal(),
 						ConfigVersion:               1,
 						FailoverVersion:             10,
 						FailoverNotificationVersion: 11,
@@ -348,6 +539,60 @@ func TestUpdateDomain(t *testing.T) {
 				Info:                        testFixtureDomainInfo(),
 				Config:                      testFixtureDomainConfig(),
 				ReplicationConfig:           testFixtureDomainReplicationConfig(),
+				ConfigVersion:               1,
+				FailoverVersion:             10,
+				FailoverNotificationVersion: 11,
+				PreviousFailoverVersion:     9,
+				LastUpdatedTime:             100,
+				FailoverEndTime:             common.Ptr(time.Unix(0, 200).UnixNano()),
+				NotificationVersion:         1000,
+			},
+			expectError: false,
+		},
+		{
+			name: "success with activeclusters config populated",
+			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
+				mockSerializer.EXPECT().
+					SerializeBadBinaries(&types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeIsolationGroups(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeAsyncWorkflowsConfig(&types.AsyncWorkflowConfiguration{Enabled: true, PredefinedQueueName: "q", QueueType: "kafka"}, constants.EncodingTypeThriftRW).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}, nil).Times(1)
+				mockSerializer.EXPECT().
+					SerializeActiveClusters(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, constants.EncodingTypeThriftRWSnappy).
+					Return(&DataBlob{Encoding: constants.EncodingTypeThriftRWSnappy, Data: []byte("active-clusters-config")}, nil).Times(1)
+				mockStore.EXPECT().
+					UpdateDomain(gomock.Any(), &InternalUpdateDomainRequest{
+						Info: testFixtureDomainInfo(),
+						Config: &InternalDomainConfig{
+							Retention:                common.DaysToDuration(1),
+							EmitMetric:               true,
+							HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+							HistoryArchivalURI:       "s3://abc",
+							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+							VisibilityArchivalURI:    "s3://xyz",
+							BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+							IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+							AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+						},
+						ReplicationConfig:           testFixtureDomainReplicationConfigInternalWithActiveClusters(),
+						ConfigVersion:               1,
+						FailoverVersion:             10,
+						FailoverNotificationVersion: 11,
+						PreviousFailoverVersion:     9,
+						NotificationVersion:         1000,
+						LastUpdatedTime:             time.Unix(0, 100),
+						FailoverEndTime:             common.Ptr(time.Unix(0, 200)),
+					}).
+					Return(nil).Times(1)
+			},
+			request: &UpdateDomainRequest{
+				Info:                        testFixtureDomainInfo(),
+				Config:                      testFixtureDomainConfig(),
+				ReplicationConfig:           testFixtureDomainReplicationConfigWithActiveClusters(),
 				ConfigVersion:               1,
 				FailoverVersion:             10,
 				FailoverNotificationVersion: 11,
@@ -522,11 +767,11 @@ func TestListDomains(t *testing.T) {
 									HistoryArchivalURI:       "s3://abc",
 									VisibilityArchivalStatus: types.ArchivalStatusEnabled,
 									VisibilityArchivalURI:    "s3://xyz",
-									BadBinaries:              &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
-									IsolationGroups:          &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
-									AsyncWorkflowsConfig:     &DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+									BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+									IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+									AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
 								},
-								ReplicationConfig: testFixtureDomainReplicationConfig(),
+								ReplicationConfig: testFixtureDomainReplicationConfigInternal(),
 								IsGlobalDomain:    true,
 								ConfigVersion:     1,
 								FailoverVersion:   10,
@@ -537,14 +782,17 @@ func TestListDomains(t *testing.T) {
 						NextPageToken: []byte("token"),
 					}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeBadBinaries(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
+					DeserializeBadBinaries(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
 					Return(&types.BadBinaries{}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeIsolationGroups(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
+					DeserializeIsolationGroups(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
 					Return(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, nil).Times(1)
 				mockSerializer.EXPECT().
-					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: common.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
+					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
 					Return(&types.AsyncWorkflowConfiguration{}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeActiveClusters(nil).
+					Return(nil, nil).Times(1)
 			},
 			request:     &ListDomainsRequest{PageSize: 10},
 			expectError: false,
@@ -565,6 +813,78 @@ func TestListDomains(t *testing.T) {
 							AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{},
 						},
 						ReplicationConfig: testFixtureDomainReplicationConfig(),
+						IsGlobalDomain:    true,
+						ConfigVersion:     1,
+						FailoverVersion:   10,
+						LastUpdatedTime:   100,
+						FailoverEndTime:   common.Ptr(time.Unix(0, 200).UnixNano()),
+					},
+				},
+				NextPageToken: []byte("token"),
+			},
+		},
+		{
+			name: "success with activeclusters config populated",
+			setupMock: func(mockStore *MockDomainStore, mockSerializer *MockPayloadSerializer) {
+				mockStore.EXPECT().
+					ListDomains(gomock.Any(), gomock.Any()).
+					Return(&InternalListDomainsResponse{
+						Domains: []*InternalGetDomainResponse{
+							{
+								Info: testFixtureDomainInfo(),
+								Config: &InternalDomainConfig{
+									Retention:                common.DaysToDuration(1),
+									EmitMetric:               true,
+									HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+									HistoryArchivalURI:       "s3://abc",
+									VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+									VisibilityArchivalURI:    "s3://xyz",
+									BadBinaries:              &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")},
+									IsolationGroups:          &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")},
+									AsyncWorkflowsConfig:     &DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")},
+								},
+								ReplicationConfig: testFixtureDomainReplicationConfigInternalWithActiveClusters(),
+								IsGlobalDomain:    true,
+								ConfigVersion:     1,
+								FailoverVersion:   10,
+								LastUpdatedTime:   time.Unix(0, 100),
+								FailoverEndTime:   common.Ptr(time.Unix(0, 200)),
+							},
+						},
+						NextPageToken: []byte("token"),
+					}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeBadBinaries(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("bad-binaries")}).
+					Return(&types.BadBinaries{}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeIsolationGroups(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("isolation-groups")}).
+					Return(&types.IsolationGroupConfiguration{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeAsyncWorkflowsConfig(&DataBlob{Encoding: constants.EncodingTypeThriftRW, Data: []byte("async-workflow-config")}).
+					Return(&types.AsyncWorkflowConfiguration{}, nil).Times(1)
+				mockSerializer.EXPECT().
+					DeserializeActiveClusters(testFixtureDomainReplicationConfigInternalWithActiveClusters().ActiveClustersConfig).
+					Return(testFixtureDomainReplicationConfigWithActiveClusters().ActiveClusters, nil).Times(1)
+			},
+			request:     &ListDomainsRequest{PageSize: 10},
+			expectError: false,
+			expected: &ListDomainsResponse{
+				Domains: []*GetDomainResponse{
+					{
+
+						Info: testFixtureDomainInfo(),
+						Config: &DomainConfig{
+							Retention:                1,
+							EmitMetric:               true,
+							HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+							HistoryArchivalURI:       "s3://abc",
+							VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+							VisibilityArchivalURI:    "s3://xyz",
+							BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+							IsolationGroups:          map[string]types.IsolationGroupPartition{"abc": {Name: "abc", State: types.IsolationGroupStateDrained}},
+							AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{},
+						},
+						ReplicationConfig: testFixtureDomainReplicationConfigWithActiveClusters(),
 						IsGlobalDomain:    true,
 						ConfigVersion:     1,
 						FailoverVersion:   10,

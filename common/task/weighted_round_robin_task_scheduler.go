@@ -21,30 +21,31 @@
 package task
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 )
 
-type weightedRoundRobinTaskSchedulerImpl struct {
+type weightedRoundRobinTaskSchedulerImpl[K comparable, T Task] struct {
 	sync.RWMutex
 
 	status       int32
-	weights      atomic.Value // store the currently used weights
-	taskChs      map[int]chan PriorityTask
-	shutdownCh   chan struct{}
+	pool         *WeightedRoundRobinChannelPool[K, T]
+	ctx          context.Context
+	cancel       context.CancelFunc
 	notifyCh     chan struct{}
 	dispatcherWG sync.WaitGroup
 	logger       log.Logger
 	metricsScope metrics.Scope
-	options      *WeightedRoundRobinTaskSchedulerOptions
+	options      *WeightedRoundRobinTaskSchedulerOptions[K, T]
 
 	processor Processor
 }
@@ -60,73 +61,60 @@ var (
 )
 
 // NewWeightedRoundRobinTaskScheduler creates a new WRR task scheduler
-func NewWeightedRoundRobinTaskScheduler(
+func NewWeightedRoundRobinTaskScheduler[K comparable, T Task](
 	logger log.Logger,
 	metricsClient metrics.Client,
-	options *WeightedRoundRobinTaskSchedulerOptions,
-) (Scheduler, error) {
-	weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(options.Weights())
-	if err != nil {
-		return nil, err
-	}
-
-	if len(weights) == 0 {
-		return nil, errors.New("weight is not specified in the scheduler option")
-	}
-
-	scheduler := &weightedRoundRobinTaskSchedulerImpl{
-		status:       common.DaemonStatusInitialized,
-		taskChs:      make(map[int]chan PriorityTask),
-		shutdownCh:   make(chan struct{}),
+	timeSource clock.TimeSource,
+	processor Processor,
+	options *WeightedRoundRobinTaskSchedulerOptions[K, T],
+) (Scheduler[T], error) {
+	metricsScope := metricsClient.Scope(metrics.TaskSchedulerScope)
+	ctx, cancel := context.WithCancel(context.Background())
+	scheduler := &weightedRoundRobinTaskSchedulerImpl[K, T]{
+		status: common.DaemonStatusInitialized,
+		pool: NewWeightedRoundRobinChannelPool[K, T](
+			logger,
+			metricsScope,
+			timeSource,
+			WeightedRoundRobinChannelPoolOptions{
+				BufferSize:              options.QueueSize,
+				IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
+			}),
+		ctx:          ctx,
+		cancel:       cancel,
 		notifyCh:     make(chan struct{}, 1),
 		logger:       logger,
-		metricsScope: metricsClient.Scope(metrics.TaskSchedulerScope),
+		metricsScope: metricsScope,
 		options:      options,
-		processor: NewParallelTaskProcessor(
-			logger,
-			metricsClient,
-			&ParallelTaskProcessorOptions{
-				QueueSize:   wRRTaskProcessorQueueSize,
-				WorkerCount: options.WorkerCount,
-				RetryPolicy: options.RetryPolicy,
-			},
-		),
+		processor:    processor,
 	}
-	scheduler.weights.Store(weights)
 
 	return scheduler, nil
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) Start() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Start() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
-
-	w.processor.Start()
 
 	w.dispatcherWG.Add(w.options.DispatcherCount)
 	for i := 0; i != w.options.DispatcherCount; i++ {
 		go w.dispatcher()
 	}
-	go w.updateWeights()
-
 	w.logger.Info("Weighted round robin task scheduler started.")
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) Stop() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Stop() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
 
-	close(w.shutdownCh)
+	w.cancel()
 
-	w.processor.Stop()
-
-	w.RLock()
-	for _, taskCh := range w.taskChs {
+	taskChs := w.pool.GetAllChannels()
+	for _, taskCh := range taskChs {
 		drainAndNackPriorityTask(taskCh)
 	}
-	w.RUnlock()
 
 	if success := common.AwaitWaitGroup(&w.dispatcherWG, time.Minute); !success {
 		w.logger.Warn("Weighted round robin task scheduler timedout on shutdown.")
@@ -135,7 +123,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl) Stop() {
 	w.logger.Info("Weighted round robin task scheduler shutdown.")
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) Submit(task PriorityTask) error {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) error {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer sw.Stop()
@@ -144,11 +132,10 @@ func (w *weightedRoundRobinTaskSchedulerImpl) Submit(task PriorityTask) error {
 		return ErrTaskSchedulerClosed
 	}
 
-	taskCh, err := w.getOrCreateTaskChan(task.Priority())
-	if err != nil {
-		return err
-	}
-
+	key := w.options.TaskToChannelKeyFn(task)
+	weight := w.options.ChannelKeyToWeightFn(key)
+	taskCh, releaseFn := w.pool.GetOrCreateChannel(key, weight)
+	defer releaseFn()
 	select {
 	case taskCh <- task:
 		w.notifyDispatcher()
@@ -156,22 +143,22 @@ func (w *weightedRoundRobinTaskSchedulerImpl) Submit(task PriorityTask) error {
 			drainAndNackPriorityTask(taskCh)
 		}
 		return nil
-	case <-w.shutdownCh:
+	case <-w.ctx.Done():
 		return ErrTaskSchedulerClosed
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) TrySubmit(
-	task PriorityTask,
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) TrySubmit(
+	task T,
 ) (bool, error) {
 	if w.isStopped() {
 		return false, ErrTaskSchedulerClosed
 	}
 
-	taskCh, err := w.getOrCreateTaskChan(task.Priority())
-	if err != nil {
-		return false, err
-	}
+	key := w.options.TaskToChannelKeyFn(task)
+	weight := w.options.ChannelKeyToWeightFn(key)
+	taskCh, releaseFn := w.pool.GetOrCreateChannel(key, weight)
+	defer releaseFn()
 
 	select {
 	case taskCh <- task:
@@ -182,98 +169,52 @@ func (w *weightedRoundRobinTaskSchedulerImpl) TrySubmit(
 			w.notifyDispatcher()
 		}
 		return true, nil
-	case <-w.shutdownCh:
+	case <-w.ctx.Done():
 		return false, ErrTaskSchedulerClosed
 	default:
 		return false, nil
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) dispatcher() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) dispatcher() {
 	defer w.dispatcherWG.Done()
 
-	outstandingTasks := false
-	taskChs := make(map[int]chan PriorityTask)
-
 	for {
-		if !outstandingTasks {
-			// if no task is dispatched in the last round,
-			// wait for a notification
-			w.logger.Debug("Weighted round robin task scheduler is waiting for new task notification because there was no task dispatched in the last round.")
+		select {
+		case <-w.notifyCh:
+			w.dispatchTasks()
+		case <-w.ctx.Done():
+			return
+		}
+	}
+}
+
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) dispatchTasks() {
+	hasTask := true
+	for hasTask {
+		hasTask = false
+		schedule := w.pool.GetSchedule()
+
+		// Create a new iterator for this dispatch cycle
+		iter := schedule.NewIterator()
+		// Iterate through the schedule using the iterator
+		for ch, ok := iter.TryNext(); ok; ch, ok = iter.TryNext() {
 			select {
-			case <-w.notifyCh:
-				// block until there's a new task
-				w.logger.Debug("Weighted round robin task scheduler got notification so will check for new tasks.")
-			case <-w.shutdownCh:
-				return
-			}
-		}
-
-		outstandingTasks = false
-		w.updateTaskChs(taskChs)
-		weights := w.getWeights()
-		for priority, taskCh := range taskChs {
-			count, ok := weights[priority]
-			if !ok {
-				w.logger.Error("weights not found for task priority", tag.Dynamic("priority", priority), tag.Dynamic("weights", weights))
-				continue
-			}
-		Submit_Loop:
-			for i := 0; i < count; i++ {
-				select {
-				case task := <-taskCh:
-					// dispatched at least one task in this round
-					outstandingTasks = true
-
-					if err := w.processor.Submit(task); err != nil {
-						w.logger.Error("fail to submit task to processor", tag.Error(err))
-						task.Nack()
-					}
-				case <-w.shutdownCh:
-					return
-				default:
-					// if no task, don't block. Skip to next priority
-					break Submit_Loop
+			case task := <-ch.c:
+				hasTask = true
+				if err := w.processor.Submit(task); err != nil {
+					w.logger.Error("fail to submit task to processor", tag.Error(err))
+					task.Nack(err)
 				}
+			case <-w.ctx.Done():
+				return
+			default:
 			}
 		}
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) getOrCreateTaskChan(priority int) (chan PriorityTask, error) {
-	if _, ok := w.getWeights()[priority]; !ok {
-		return nil, fmt.Errorf("unknown task priority: %v", priority)
-	}
-
-	w.RLock()
-	if taskCh, ok := w.taskChs[priority]; ok {
-		w.RUnlock()
-		return taskCh, nil
-	}
-	w.RUnlock()
-
-	w.Lock()
-	defer w.Unlock()
-	if taskCh, ok := w.taskChs[priority]; ok {
-		return taskCh, nil
-	}
-	taskCh := make(chan PriorityTask, w.options.QueueSize)
-	w.taskChs[priority] = taskCh
-	return taskCh, nil
-}
-
-func (w *weightedRoundRobinTaskSchedulerImpl) updateTaskChs(taskChs map[int]chan PriorityTask) {
-	w.RLock()
-	defer w.RUnlock()
-
-	for priority, taskCh := range w.taskChs {
-		if _, ok := taskChs[priority]; !ok {
-			taskChs[priority] = taskCh
-		}
-	}
-}
-
-func (w *weightedRoundRobinTaskSchedulerImpl) notifyDispatcher() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) notifyDispatcher() {
 	select {
 	case w.notifyCh <- struct{}{}:
 		// sent a notification to the dispatcher
@@ -282,37 +223,15 @@ func (w *weightedRoundRobinTaskSchedulerImpl) notifyDispatcher() {
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl) getWeights() map[int]int {
-	return w.weights.Load().(map[int]int)
-}
-
-func (w *weightedRoundRobinTaskSchedulerImpl) updateWeights() {
-	ticker := time.NewTicker(defaultUpdateWeightsInterval)
-	for {
-		select {
-		case <-ticker.C:
-			weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(w.options.Weights())
-			if err != nil {
-				w.logger.Error("failed to update weight for round robin task scheduler", tag.Error(err))
-			} else {
-				w.weights.Store(weights)
-			}
-		case <-w.shutdownCh:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-func (w *weightedRoundRobinTaskSchedulerImpl) isStopped() bool {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) isStopped() bool {
 	return atomic.LoadInt32(&w.status) == common.DaemonStatusStopped
 }
 
-func drainAndNackPriorityTask(taskCh <-chan PriorityTask) {
+func drainAndNackPriorityTask[T Task](taskCh <-chan T) {
 	for {
 		select {
 		case task := <-taskCh:
-			task.Nack()
+			task.Nack(nil)
 		default:
 			return
 		}

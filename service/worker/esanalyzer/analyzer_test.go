@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -36,15 +35,16 @@ import (
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/log"
@@ -107,16 +107,16 @@ func (s *esanalyzerWorkflowTestSuite) SetupTest() {
 	)
 
 	s.config = Config{
-		ESAnalyzerPause:                          dynamicconfig.GetBoolPropertyFn(false),
-		ESAnalyzerTimeWindow:                     dynamicconfig.GetDurationPropertyFn(time.Hour * 24 * 30),
-		ESAnalyzerMaxNumDomains:                  dynamicconfig.GetIntPropertyFn(500),
-		ESAnalyzerMaxNumWorkflowTypes:            dynamicconfig.GetIntPropertyFn(100),
-		ESAnalyzerLimitToTypes:                   dynamicconfig.GetStringPropertyFn(""),
-		ESAnalyzerLimitToDomains:                 dynamicconfig.GetStringPropertyFn(""),
-		ESAnalyzerNumWorkflowsToRefresh:          dynamicconfig.GetIntPropertyFilteredByWorkflowType(2),
-		ESAnalyzerBufferWaitTime:                 dynamicconfig.GetDurationPropertyFilteredByWorkflowType(time.Minute * 30),
-		ESAnalyzerMinNumWorkflowsForAvg:          dynamicconfig.GetIntPropertyFilteredByWorkflowType(100),
-		ESAnalyzerWorkflowDurationWarnThresholds: dynamicconfig.GetStringPropertyFn(""),
+		ESAnalyzerPause:                          dynamicproperties.GetBoolPropertyFn(false),
+		ESAnalyzerTimeWindow:                     dynamicproperties.GetDurationPropertyFn(time.Hour * 24 * 30),
+		ESAnalyzerMaxNumDomains:                  dynamicproperties.GetIntPropertyFn(500),
+		ESAnalyzerMaxNumWorkflowTypes:            dynamicproperties.GetIntPropertyFn(100),
+		ESAnalyzerLimitToTypes:                   dynamicproperties.GetStringPropertyFn(""),
+		ESAnalyzerLimitToDomains:                 dynamicproperties.GetStringPropertyFn(""),
+		ESAnalyzerNumWorkflowsToRefresh:          dynamicproperties.GetIntPropertyFilteredByWorkflowType(2),
+		ESAnalyzerBufferWaitTime:                 dynamicproperties.GetDurationPropertyFilteredByWorkflowType(time.Minute * 30),
+		ESAnalyzerMinNumWorkflowsForAvg:          dynamicproperties.GetIntPropertyFilteredByWorkflowType(100),
+		ESAnalyzerWorkflowDurationWarnThresholds: dynamicproperties.GetStringPropertyFn(""),
 	}
 
 	s.activityEnv = s.NewTestActivityEnvironment()
@@ -126,7 +126,7 @@ func (s *esanalyzerWorkflowTestSuite) SetupTest() {
 	s.resource = resource.NewTest(s.T(), s.controller, metrics.Worker)
 	s.mockAdminClient = admin.NewMockClient(s.controller)
 	s.clientBean = client.NewMockBean(s.controller)
-	s.logger = &log.MockLogger{}
+	s.logger = log.NewMockLogger(s.controller)
 	s.mockMetricClient = &mocks.Client{}
 	s.scopedMetricClient = &mocks.Scope{}
 	s.mockESClient = &esMocks.GenericClient{}
@@ -187,7 +187,7 @@ func (s *esanalyzerWorkflowTestSuite) TestExecuteWorkflow() {
 }
 
 func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowVersionMetricsActivity() {
-	s.config.ESAnalyzerWorkflowVersionDomains = dynamicconfig.GetStringPropertyFn(
+	s.config.ESAnalyzerWorkflowVersionDomains = dynamicproperties.GetStringPropertyFn(
 		fmt.Sprintf(`["%s"]`, s.DomainName),
 	)
 	esRaw := `
@@ -286,7 +286,7 @@ func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowVersionMetricsActivity() {
 }
 
 func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowTypeCountMetricsActivity() {
-	s.config.ESAnalyzerWorkflowTypeDomains = dynamicconfig.GetStringPropertyFn(
+	s.config.ESAnalyzerWorkflowTypeDomains = dynamicproperties.GetStringPropertyFn(
 		fmt.Sprintf(`["%s"]`, s.DomainName),
 	)
 	esRaw := `
@@ -349,7 +349,7 @@ func (s *esanalyzerWorkflowTestSuite) TestEmitWorkflowTypeCountMetricsActivity()
 func TestNewAnalyzer(t *testing.T) {
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 	mockPinotConfig := &config.PinotVisibilityConfig{
@@ -369,7 +369,7 @@ func TestNewAnalyzer(t *testing.T) {
 func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 	mockPinotConfig := &config.PinotVisibilityConfig{
@@ -454,7 +454,7 @@ func TestEmitWorkflowTypeCountMetricsESErrorCases(t *testing.T) {
 func TestEmitWorkflowVersionMetricsESErrorCases(t *testing.T) {
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 	mockPinotConfig := &config.PinotVisibilityConfig{
@@ -542,7 +542,7 @@ func TestEmitWorkflowTypeCountMetricsPinot(t *testing.T) {
 	}
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 
@@ -634,7 +634,7 @@ func TestEmitWorkflowVersionMetricsPinot(t *testing.T) {
 	}
 	mockESConfig := &config.ElasticSearchConfig{
 		Indices: map[string]string{
-			common.VisibilityAppName: "test",
+			constants.VisibilityAppName: "test",
 		},
 	}
 

@@ -58,7 +58,7 @@ func (db *mdb) SetupTestDatabase(schemaBaseDir string, replicas int) error {
 	for _, cmd := range commands {
 		result := db.dbConn.RunCommand(context.Background(), cmd)
 		if result.Err() != nil {
-			return err
+			return result.Err()
 		}
 	}
 	return nil

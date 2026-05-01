@@ -23,17 +23,18 @@ package execution
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -67,6 +68,7 @@ func (s *mutableStateTaskGeneratorSuite) SetupTest() {
 	s.mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
 
 	s.taskGenerator = NewMutableStateTaskGenerator(
+		log.NewNoop(),
 		constants.TestClusterMetadata,
 		s.mockDomainCache,
 		s.mockMutableState,
@@ -94,6 +96,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_Jittered
 		// create new mockMutableState so can we can setup separete mock for each test case
 		mockMutableState := NewMockMutableState(s.controller)
 		taskGenerator := NewMutableStateTaskGenerator(
+			log.NewNoop(),
 			constants.TestClusterMetadata,
 			s.mockDomainCache,
 			mockMutableState,
@@ -149,6 +152,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks() {
 		// create new mockMutableState so can we can setup separete mock for each test case
 		mockMutableState := NewMockMutableState(s.controller)
 		taskGenerator := NewMutableStateTaskGenerator(
+			log.NewNoop(),
 			constants.TestClusterMetadata,
 			s.mockDomainCache,
 			mockMutableState,
@@ -187,7 +191,12 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_NotActiv
 		Timestamp: common.Ptr(time.Unix(1719224698, 0).UnixNano()),
 	}
 
-	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DomainID: "some-domain-id"}).Times(1)
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   "some-domain-id",
+		WorkflowID: "wf-id",
+		RunID:      "rid",
+		TaskList:   "task-list",
+	}).Times(1)
 	domainEntry := cache.NewGlobalDomainCacheEntryForTest(
 		&persistence.DomainInfo{},
 		&persistence.DomainConfig{
@@ -207,9 +216,15 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_NotActiv
 
 	var transferTasks []persistence.Task
 	transferTasks = append(transferTasks, &persistence.CloseExecutionTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "some-domain-id",
+			WorkflowID: "wf-id",
+			RunID:      "rid",
+		},
 		TaskData: persistence.TaskData{
 			Version: constants.TestVersion,
 		},
+		TaskList: "task-list",
 	})
 
 	s.mockMutableState.EXPECT().AddTransferTasks(transferTasks).Times(1)
@@ -218,11 +233,17 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowCloseTasks_NotActiv
 		Add(time.Duration(defaultWorkflowRetentionInDays) * time.Hour * 24)
 
 	s.mockMutableState.EXPECT().AddTimerTasks(&persistence.DeleteHistoryEventTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "some-domain-id",
+			WorkflowID: "wf-id",
+			RunID:      "rid",
+		},
 		TaskData: persistence.TaskData{
 			// TaskID is set by shard
 			VisibilityTimestamp: expectedDeletionTS,
 			Version:             closeEvent.Version,
 		},
+		TaskList: "task-list",
 	})
 
 	err := s.taskGenerator.GenerateWorkflowCloseTasks(closeEvent, 1)
@@ -344,12 +365,13 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowStartTasks() {
 
 	for _, tc := range testCases {
 		s.T().Run(tc.name, func(t *testing.T) {
-			s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{WorkflowTimeout: tc.workflowTimeout, ExpirationTime: expirationTime}).Times(1)
+			s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{WorkflowTimeout: tc.workflowTimeout, ExpirationTime: expirationTime, TaskList: "task-list"}).Times(1)
 			s.mockMutableState.EXPECT().AddTimerTasks(&persistence.WorkflowTimeoutTask{
 				TaskData: persistence.TaskData{
 					VisibilityTimestamp: tc.visibilityTimestamp,
 					Version:             tc.startEvent.Version,
 				},
+				TaskList: "task-list",
 			}).Times(1)
 
 			err := s.taskGenerator.GenerateWorkflowStartTasks(startTime, tc.startEvent)
@@ -380,12 +402,24 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDelayedDecisionTasks() {
 				Timestamp: timestamp,
 			},
 			setupMock: func() {
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				}).Times(1)
 				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.WorkflowBackoffTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, *timestamp).Add(time.Duration(*firstDecisionTaskBackoffSeconds) * time.Second),
 						Version:             constants.TestVersion,
 					},
 					TimeoutType: persistence.WorkflowBackoffTimeoutTypeCron,
+					TaskList:    "task-list",
 				}).Times(1)
 			},
 		},
@@ -400,12 +434,24 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDelayedDecisionTasks() {
 				Timestamp: timestamp,
 			},
 			setupMock: func() {
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				}).Times(1)
 				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.WorkflowBackoffTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, *timestamp).Add(time.Duration(*firstDecisionTaskBackoffSeconds) * time.Second),
 						Version:             constants.TestVersion,
 					},
 					TimeoutType: persistence.WorkflowBackoffTimeoutTypeRetry,
+					TaskList:    "task-list",
 				}).Times(1)
 			},
 		},
@@ -420,12 +466,24 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDelayedDecisionTasks() {
 				Timestamp: timestamp,
 			},
 			setupMock: func() {
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				}).Times(1)
 				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.WorkflowBackoffTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, *timestamp).Add(time.Duration(*firstDecisionTaskBackoffSeconds) * time.Second),
 						Version:             constants.TestVersion,
 					},
 					TimeoutType: persistence.WorkflowBackoffTimeoutTypeCron,
+					TaskList:    "task-list",
 				}).Times(1)
 			},
 		},
@@ -478,10 +536,22 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateRecordWorkflowStartedTasks(
 		Version: constants.TestVersion,
 	}
 
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   "domain-id",
+		WorkflowID: "wf-id",
+		RunID:      "rid",
+		TaskList:   "task-list",
+	}).Times(1)
 	s.mockMutableState.EXPECT().AddTransferTasks(&persistence.RecordWorkflowStartedTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "domain-id",
+			WorkflowID: "wf-id",
+			RunID:      "rid",
+		},
 		TaskData: persistence.TaskData{
 			Version: startEvent.Version,
 		},
+		TaskList: "task-list",
 	}).Times(1)
 
 	err := s.taskGenerator.GenerateRecordWorkflowStartedTasks(startEvent)
@@ -493,7 +563,11 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 	decisionScheduleID := int64(123)
 
 	executionInfo := &persistence.WorkflowExecutionInfo{
-		DomainID: constants.TestDomainID,
+		DomainID:     constants.TestDomainID,
+		WorkflowID:   constants.TestWorkflowID,
+		RunID:        constants.TestRunID,
+		TaskList:     "task-list",
+		TaskListKind: types.TaskListKindEphemeral,
 	}
 
 	decision := &DecisionInfo{
@@ -514,12 +588,19 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 			setupMock: func() {
 				s.mockMutableState.EXPECT().GetDecisionInfo(decisionScheduleID).Return(decision, true).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						Version: decision.Version,
 					},
-					DomainID:   executionInfo.DomainID,
-					TaskList:   decision.TaskList,
-					ScheduleID: decision.ScheduleID,
+					TargetDomainID:       executionInfo.DomainID,
+					TaskList:             decision.TaskList,
+					ScheduleID:           decision.ScheduleID,
+					OriginalTaskList:     "task-list",
+					OriginalTaskListKind: types.TaskListKindEphemeral,
 				}).Times(1)
 				s.mockMutableState.EXPECT().GetDecisionScheduleToStartTimeout().Return(time.Duration(0)).Times(1)
 			},
@@ -529,16 +610,28 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 			setupMock: func() {
 				s.mockMutableState.EXPECT().GetDecisionInfo(decisionScheduleID).Return(decision, true).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.DecisionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						Version: decision.Version,
 					},
-					DomainID:   executionInfo.DomainID,
-					TaskList:   decision.TaskList,
-					ScheduleID: decision.ScheduleID,
+					TargetDomainID:       executionInfo.DomainID,
+					TaskList:             decision.TaskList,
+					ScheduleID:           decision.ScheduleID,
+					OriginalTaskList:     "task-list",
+					OriginalTaskListKind: types.TaskListKindEphemeral,
 				}).Times(1)
 				scheduleToStartTimeout := time.Duration(1)
 				s.mockMutableState.EXPECT().GetDecisionScheduleToStartTimeout().Return(scheduleToStartTimeout).Times(1)
 				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.DecisionTimeoutTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, decision.ScheduledTimestamp).Add(scheduleToStartTimeout),
 						Version:             decision.Version,
@@ -546,6 +639,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 					TimeoutType:     int(TimerTypeScheduleToStart),
 					EventID:         decision.ScheduleID,
 					ScheduleAttempt: decision.Attempt,
+					TaskList:        "task-list",
 				}).Times(1)
 			},
 		},
@@ -579,8 +673,6 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 }
 
 func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
-	seed := int64(1)
-	rand.Seed(seed)
 	decisionScheduleID := int64(123)
 	getDecision := func() *DecisionInfo {
 		return &DecisionInfo{
@@ -602,20 +694,53 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 				decision.Attempt = 2
 				s.mockMutableState.EXPECT().GetDecisionInfo(decisionScheduleID).Return(decision, true).Times(1)
 				defaultStartToCloseTimeout := int32(1)
-				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{DecisionStartToCloseTimeout: defaultStartToCloseTimeout}).Times(1)
-				startToCloseTimeout := getNextDecisionTimeout(decision.Attempt, time.Duration(defaultStartToCloseTimeout)*time.Second)
-				decision.DecisionTimeout = int32(startToCloseTimeout.Seconds())
-				s.mockMutableState.EXPECT().UpdateDecision(decision).Times(1)
-				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.DecisionTimeoutTask{
-					TaskData: persistence.TaskData{
-						VisibilityTimestamp: time.Unix(0, decision.StartedTimestamp).Add(startToCloseTimeout),
-						Version:             decision.Version,
-					},
-					TimeoutType:     int(TimerTypeStartToClose),
-					EventID:         decision.ScheduleID,
-					ScheduleAttempt: decision.Attempt,
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:                    "domain-id",
+					WorkflowID:                  "wf-id",
+					RunID:                       "rid",
+					DecisionStartToCloseTimeout: defaultStartToCloseTimeout,
+					TaskList:                    "task-list",
+				}).Times(1)
+				s.mockMutableState.EXPECT().UpdateDecision(gomock.Any()).Times(1)
+
+				// Compute expected range deterministically from constants, without using rand.
+				// getNextDecisionTimeout for attempt=2: base = defaultInitIntervalForDecisionRetry * 2^0,
+				// capped at defaultMaxIntervalForDecisionRetry, then jitter added in [0, jitterPortion).
+				base := float64(defaultInitIntervalForDecisionRetry)
+				if base > float64(defaultMaxIntervalForDecisionRetry) {
+					base = float64(defaultMaxIntervalForDecisionRetry)
+				}
+				jitterPortion := int(defaultJitterCoefficient * base)
+				if jitterPortion < 1 {
+					jitterPortion = 1
+				}
+				minTimeout := time.Duration(base * (1 - defaultJitterCoefficient))
+				maxTimeout := minTimeout + time.Duration(jitterPortion)
+				startedTime := time.Unix(0, decision.StartedTimestamp)
+				minExpectedTimestamp := startedTime.Add(minTimeout)
+				maxExpectedTimestamp := startedTime.Add(maxTimeout)
+
+				s.mockMutableState.EXPECT().AddTimerTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
+					require.Len(s.T(), tasks, 1)
+					task, ok := tasks[0].(*persistence.DecisionTimeoutTask)
+					require.True(s.T(), ok, "expected *persistence.DecisionTimeoutTask")
+
+					// Check all fields match exactly
+					assert.Equal(s.T(), "domain-id", task.DomainID)
+					assert.Equal(s.T(), "wf-id", task.WorkflowID)
+					assert.Equal(s.T(), "rid", task.RunID)
+					assert.Equal(s.T(), decision.Version, task.Version)
+					assert.Equal(s.T(), int(TimerTypeStartToClose), task.TimeoutType)
+					assert.Equal(s.T(), decision.ScheduleID, task.EventID)
+					assert.Equal(s.T(), decision.Attempt, task.ScheduleAttempt)
+					assert.Equal(s.T(), "task-list", task.TaskList)
+
+					// Check VisibilityTimestamp is within the expected range [min, max)
+					assert.False(s.T(), task.VisibilityTimestamp.Before(minExpectedTimestamp),
+						"VisibilityTimestamp should be >= %v, got %v", minExpectedTimestamp, task.VisibilityTimestamp)
+					assert.True(s.T(), task.VisibilityTimestamp.Before(maxExpectedTimestamp),
+						"VisibilityTimestamp should be < %v, got %v", maxExpectedTimestamp, task.VisibilityTimestamp)
 				})
-				rand.Seed(seed)
 			},
 		},
 		{
@@ -623,15 +748,33 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 			setupMock: func() {
 				decision := getDecision()
 				decision.DecisionTimeout = 1
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetDecisionInfo(decisionScheduleID).Return(decision, true).Times(1)
-				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.DecisionTimeoutTask{
-					TaskData: persistence.TaskData{
-						VisibilityTimestamp: time.Unix(0, decision.StartedTimestamp).Add(time.Duration(decision.DecisionTimeout) * time.Second),
-						Version:             decision.Version,
-					},
-					TimeoutType:     int(TimerTypeStartToClose),
-					EventID:         decision.ScheduleID,
-					ScheduleAttempt: decision.Attempt,
+
+				minExpectedTimestamp := time.Unix(0, decision.StartedTimestamp).Add(time.Duration(decision.DecisionTimeout) * time.Second)
+				s.mockMutableState.EXPECT().AddTimerTasks(gomock.Any()).Do(func(tasks ...persistence.Task) {
+					require.Len(s.T(), tasks, 1)
+					task, ok := tasks[0].(*persistence.DecisionTimeoutTask)
+					require.True(s.T(), ok, "expected *persistence.DecisionTimeoutTask")
+
+					// Check all fields match exactly
+					assert.Equal(s.T(), "domain-id", task.DomainID)
+					assert.Equal(s.T(), "wf-id", task.WorkflowID)
+					assert.Equal(s.T(), "rid", task.RunID)
+					assert.Equal(s.T(), decision.Version, task.Version)
+					assert.Equal(s.T(), int(TimerTypeStartToClose), task.TimeoutType)
+					assert.Equal(s.T(), decision.ScheduleID, task.EventID)
+					assert.Equal(s.T(), decision.Attempt, task.ScheduleAttempt)
+					assert.Equal(s.T(), "task-list", task.TaskList)
+
+					// Check VisibilityTimestamp is at least the expected time
+					assert.False(s.T(), task.VisibilityTimestamp.Before(minExpectedTimestamp),
+						"VisibilityTimestamp should be >= %v, got %v", minExpectedTimestamp, task.VisibilityTimestamp)
 				})
 			},
 		},
@@ -690,14 +833,25 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateActivityTransferTasks() {
 			setupMock: func() {
 				activityInfo := getActivityInfo()
 				activityInfo.DomainID = constants.TestDomainID
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetActivityInfo(event.ID).Return(activityInfo, true).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.ActivityTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						Version: activityInfo.Version,
 					},
-					DomainID:   activityInfo.DomainID,
-					TaskList:   activityInfo.TaskList,
-					ScheduleID: activityInfo.ScheduleID,
+					TargetDomainID: activityInfo.DomainID,
+					TaskList:       activityInfo.TaskList,
+					ScheduleID:     activityInfo.ScheduleID,
 				}).Times(1)
 			},
 		},
@@ -705,15 +859,26 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateActivityTransferTasks() {
 			name: "Success case - DomainID is empty",
 			setupMock: func() {
 				activityInfo := getActivityInfo()
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetActivityInfo(event.ID).Return(activityInfo, true).Times(1)
 				s.mockDomainCache.EXPECT().GetDomainID(event.ActivityTaskScheduledEventAttributes.GetDomain()).Return(event.ActivityTaskScheduledEventAttributes.GetDomain(), nil).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.ActivityTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						Version: activityInfo.Version,
 					},
-					DomainID:   event.ActivityTaskScheduledEventAttributes.GetDomain(),
-					TaskList:   activityInfo.TaskList,
-					ScheduleID: activityInfo.ScheduleID,
+					TargetDomainID: event.ActivityTaskScheduledEventAttributes.GetDomain(),
+					TaskList:       activityInfo.TaskList,
+					ScheduleID:     activityInfo.ScheduleID,
 				}).Times(1)
 			},
 		},
@@ -770,15 +935,28 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateActivityRetryTasks() {
 					ScheduledTime: time.Now(),
 					ScheduleID:    activityScheduleID,
 					Attempt:       1,
+					TaskList:      "task-list2",
 				}
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetActivityInfo(activityScheduleID).Return(ai, true).Times(1)
 				s.mockMutableState.EXPECT().AddTimerTasks(&persistence.ActivityRetryTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						Version:             ai.Version,
 						VisibilityTimestamp: ai.ScheduledTime,
 					},
-					EventID: ai.ScheduleID,
-					Attempt: ai.Attempt,
+					EventID:  ai.ScheduleID,
+					Attempt:  int64(ai.Attempt),
+					TaskList: "task-list2",
 				}).Times(1)
 			},
 		},
@@ -842,15 +1020,27 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 			setupMock: func() {
 				childWorkflowInfo := getChildWorkflowInfo()
 				childWorkflowInfo.DomainID = constants.TestDomainID
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetDomainEntry().Return(parentDomain).Times(1)
 				s.mockMutableState.EXPECT().GetChildExecutionInfo(eventID).Return(childWorkflowInfo, true).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.StartChildExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						Version: childWorkflowInfo.Version,
 					},
 					TargetDomainID:   childWorkflowInfo.DomainID,
 					TargetWorkflowID: childWorkflowInfo.StartedWorkflowID,
 					InitiatedID:      childWorkflowInfo.InitiatedID,
+					TaskList:         "task-list",
 				}).Times(1)
 			},
 		},
@@ -860,15 +1050,27 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 			setupMock: func() {
 				childWorkflowInfo := getChildWorkflowInfo()
 
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetDomainEntry().Return(parentDomain).Times(1)
 				s.mockMutableState.EXPECT().GetChildExecutionInfo(eventID).Return(childWorkflowInfo, true).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.StartChildExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						Version: childWorkflowInfo.Version,
 					},
 					TargetDomainID:   constants.TestDomainID,
 					TargetWorkflowID: childWorkflowInfo.StartedWorkflowID,
 					InitiatedID:      childWorkflowInfo.InitiatedID,
+					TaskList:         "task-list",
 				}).Times(1)
 			},
 		},
@@ -884,11 +1086,14 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 					DomainID:          "child-domain-B",
 				}
 
+				cacheEntry := cache.NewGlobalDomainCacheEntryForTest(nil, nil, nil, 0)
+
+				s.mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cacheEntry, nil).Times(1)
 				s.mockMutableState.EXPECT().GetChildExecutionInfo(eventID).Return(childWorkflowInfo, true).Times(1)
-				s.mockMutableState.EXPECT().GetDomainEntry().Return(parentDomain).Times(1)
+				s.mockMutableState.EXPECT().GetDomainEntry().Return(parentDomain).Times(2)
 			},
 			err: &types.BadRequestError{
-				Message: "there would appear to be a bug: The child workflow is trying to use domain child-domain-B but it's running in domain deadbeef-0123-4567-890a-bcdef0123456. Cross-cluster child workflows are not supported",
+				Message: "The child workflow is trying to use domain child-domain-B but it's running in domain deadbeef-0123-4567-890a-bcdef0123456. Cross-cluster and cross domain child workflows are not supported for global domains",
 			},
 		},
 		{
@@ -1001,10 +1206,21 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateSignalExternalTasks() {
 			name: "Success case",
 			setupMock: func() {
 				targetDomainID := "target-domain-id"
+				s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "rid",
+					TaskList:   "task-list",
+				})
 				s.mockMutableState.EXPECT().GetSignalInfo(event.ID).Return(nil, true).Times(1)
 				s.mockDomainCache.EXPECT().GetDomainID(event.SignalExternalWorkflowExecutionInitiatedEventAttributes.GetDomain()).
 					Return(targetDomainID, nil).Times(1)
 				s.mockMutableState.EXPECT().AddTransferTasks(&persistence.SignalExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "domain-id",
+						WorkflowID: "wf-id",
+						RunID:      "rid",
+					},
 					TaskData: persistence.TaskData{
 						Version: event.Version,
 					},
@@ -1012,6 +1228,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateSignalExternalTasks() {
 					TargetWorkflowID: event.SignalExternalWorkflowExecutionInitiatedEventAttributes.WorkflowExecution.GetWorkflowID(),
 					TargetRunID:      event.SignalExternalWorkflowExecutionInitiatedEventAttributes.WorkflowExecution.GetRunID(),
 					InitiatedID:      event.ID,
+					TaskList:         "task-list",
 				}).Times(1)
 			},
 		},
@@ -1053,11 +1270,23 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateSignalExternalTasks() {
 
 func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowSearchAttrTasks() {
 	version := int64(123)
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   "domain-id",
+		WorkflowID: "wf-id",
+		RunID:      "run-id",
+		TaskList:   "task-list",
+	}).Times(1)
 	s.mockMutableState.EXPECT().GetCurrentVersion().Return(version).Times(1)
 	s.mockMutableState.EXPECT().AddTransferTasks(&persistence.UpsertWorkflowSearchAttributesTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "domain-id",
+			WorkflowID: "wf-id",
+			RunID:      "run-id",
+		},
 		TaskData: persistence.TaskData{
 			Version: version,
 		},
+		TaskList: "task-list",
 	}).Times(1)
 
 	err := s.taskGenerator.GenerateWorkflowSearchAttrTasks()
@@ -1067,11 +1296,23 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowSearchAttrTasks() {
 
 func (s *mutableStateTaskGeneratorSuite) TestGenerateWorkflowResetTasks() {
 	version := int64(123)
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+		DomainID:   "domain-id",
+		WorkflowID: "wf-id",
+		RunID:      "run-id",
+		TaskList:   "task-list",
+	}).Times(1)
 	s.mockMutableState.EXPECT().GetCurrentVersion().Return(version).Times(1)
 	s.mockMutableState.EXPECT().AddTransferTasks(&persistence.ResetWorkflowTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "domain-id",
+			WorkflowID: "wf-id",
+			RunID:      "run-id",
+		},
 		TaskData: persistence.TaskData{
 			Version: version,
 		},
+		TaskList: "task-list",
 	}).Times(1)
 
 	err := s.taskGenerator.GenerateWorkflowResetTasks()
@@ -1152,6 +1393,81 @@ func getNextBackoffRange(duration time.Duration) (time.Duration, time.Duration) 
 	return rangeMin, duration
 }
 
+func TestValidationOfChildWorkflowParameters(t *testing.T) {
+
+	g1 := cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "g1", Name: "g1"}, nil, nil, 0)
+	g2 := cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "g2", Name: "g2"}, nil, nil, 0)
+	l1 := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "l1", Name: "l1"}, nil, "")
+	l2 := cache.NewLocalDomainCacheEntryForTest(&persistence.DomainInfo{ID: "l2", Name: "l2"}, nil, "")
+
+	tests := map[string]struct {
+		thisDomain    *cache.DomainCacheEntry
+		childWorkflow *cache.DomainCacheEntry
+		setupCache    func(mockCache *cache.MockDomainCache)
+		expectedError error
+	}{
+		"Normal case: a child workflow running from the same domain as the parent shouldn't see any errors": {
+			thisDomain:    g1,
+			childWorkflow: g1,
+			setupCache:    func(mockCache *cache.MockDomainCache) {},
+			expectedError: nil,
+		},
+		"local domains, cross-domain call": {
+			thisDomain:    l1,
+			childWorkflow: l2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(l2.GetInfo().ID).Return(l2, nil).Times(1)
+			},
+			expectedError: nil,
+		},
+		"Global domains cross domain call. This is not permitted": {
+			thisDomain:    g1,
+			childWorkflow: g2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(g2.GetInfo().ID).Return(g2, nil).Times(1)
+			},
+			expectedError: &types.BadRequestError{Message: "The child workflow is trying to use domain g2 but it's running in domain g1. Cross-cluster and cross domain child workflows are not supported for global domains"},
+		},
+		"Global domains cross domain call 2. This is not permitted": {
+			thisDomain:    l1,
+			childWorkflow: g2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(g2.GetInfo().ID).Return(g2, nil).Times(1)
+			},
+			expectedError: &types.BadRequestError{Message: "The child workflow is trying to use domain g2 but it's running in domain l1. Cross-cluster and cross domain child workflows are not supported for global domains"},
+		},
+		"Global domains cross domain call 3. This is not permitted": {
+			thisDomain:    g1,
+			childWorkflow: l2,
+			setupCache: func(cache *cache.MockDomainCache) {
+				cache.EXPECT().GetDomainByID(l2.GetInfo().ID).Return(g2, nil).Times(1)
+			},
+			expectedError: &types.BadRequestError{Message: "The child workflow is trying to use domain l2 but it's running in domain g1. Cross-cluster and cross domain child workflows are not supported for global domains"},
+		},
+	}
+
+	for name, td := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			msb := mutableStateBuilder{
+				domainEntry: td.thisDomain,
+			}
+
+			ctrl := gomock.NewController(t)
+			domainCache := cache.NewMockDomainCache(ctrl)
+			td.setupCache(domainCache)
+
+			mstb := mutableStateTaskGeneratorImpl{
+				mutableState: &msb,
+				domainCache:  domainCache,
+			}
+
+			err := mstb.validateChildWorkflowParameters(td.thisDomain.GetInfo().ID, td.childWorkflow.GetInfo().ID)
+			assert.Equal(t, td.expectedError, err)
+		})
+	}
+}
+
 func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *types.HistoryEvent, now time.Time) []struct {
 	setupFn        func(mockMutableState *MockMutableState)
 	generatedTasks []persistence.Task
@@ -1168,22 +1484,35 @@ func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *ty
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
 					RunID:      constants.TestRunID,
+					TaskList:   "task-list",
 				}).AnyTimes()
 				mockMutableState.EXPECT().HasParentExecution().Return(false).AnyTimes()
 				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(nil).AnyTimes()
 			},
 			generatedTasks: []persistence.Task{
 				&persistence.CloseExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: now,
 						Version:             version,
 					},
+					TaskList: "task-list",
 				},
 				&persistence.DeleteHistoryEventTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, closeEvent.GetTimestamp()).Add(retention),
 						Version:             version,
 					},
+					TaskList: "task-list",
 				},
 			},
 		},
@@ -1199,6 +1528,7 @@ func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *ty
 					ParentRunID:      "parent runID",
 					InitiatedID:      101,
 					CloseStatus:      persistence.WorkflowCloseStatusCompleted,
+					TaskList:         "task-list",
 				}).AnyTimes()
 				mockMutableState.EXPECT().HasParentExecution().Return(true).AnyTimes()
 				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(map[int64]*persistence.ChildExecutionInfo{
@@ -1208,16 +1538,28 @@ func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *ty
 			},
 			generatedTasks: []persistence.Task{
 				&persistence.CloseExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: now,
 						Version:             version,
 					},
+					TaskList: "task-list",
 				},
 				&persistence.DeleteHistoryEventTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, closeEvent.GetTimestamp()).Add(retention),
 						Version:             version,
 					},
+					TaskList: "task-list",
 				},
 			},
 		},
@@ -1228,22 +1570,35 @@ func GenerateWorkflowCloseTasksTestCases(retention time.Duration, closeEvent *ty
 					DomainID:   constants.TestDomainID,
 					WorkflowID: constants.TestWorkflowID,
 					RunID:      constants.TestRunID,
+					TaskList:   "task-list",
 				}).AnyTimes()
 				mockMutableState.EXPECT().HasParentExecution().Return(false).AnyTimes()
 				mockMutableState.EXPECT().GetPendingChildExecutionInfos().Return(nil).AnyTimes()
 			},
 			generatedTasks: []persistence.Task{
 				&persistence.CloseExecutionTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: now,
 						Version:             version,
 					},
+					TaskList: "task-list",
 				},
 				&persistence.DeleteHistoryEventTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
 					TaskData: persistence.TaskData{
 						VisibilityTimestamp: time.Unix(0, closeEvent.GetTimestamp()).Add(retention),
 						Version:             version,
 					},
+					TaskList: "task-list",
 				},
 			},
 		},

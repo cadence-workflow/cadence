@@ -28,14 +28,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -47,10 +48,11 @@ type (
 
 		controller    *gomock.Controller
 		mockProcessor *MockProcessor
+		realProcessor Processor
 
 		queueSize int
 
-		scheduler *weightedRoundRobinTaskSchedulerImpl
+		scheduler *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask]
 	}
 
 	mockPriorityTaskMatcher struct {
@@ -59,7 +61,7 @@ type (
 )
 
 var (
-	testSchedulerWeights = dynamicconfig.GetMapPropertyFn(
+	testSchedulerWeights = dynamicproperties.GetMapPropertyFn(
 		map[string]interface{}{
 			"0": 3,
 			"1": 2,
@@ -80,13 +82,25 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 	s.mockProcessor = NewMockProcessor(s.controller)
 
 	s.queueSize = 1000
+	s.realProcessor = NewParallelTaskProcessor(
+		testlogger.New(s.Suite.T()),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
+		&ParallelTaskProcessorOptions{
+			QueueSize:   1,
+			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
+			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
+		},
+	)
 	s.scheduler = s.newTestWeightedRoundRobinTaskScheduler(
-		&WeightedRoundRobinTaskSchedulerOptions{
-			Weights:         testSchedulerWeights,
+		&WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask]{
 			QueueSize:       s.queueSize,
-			WorkerCount:     dynamicconfig.GetIntPropertyFn(1),
 			DispatcherCount: 3,
-			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
+			TaskToChannelKeyFn: func(task PriorityTask) int {
+				return task.Priority()
+			},
+			ChannelKeyToWeightFn: func(key int) int {
+				return testSchedulerWeights()[fmt.Sprintf("%v", key)].(int)
+			},
 		},
 	)
 }
@@ -103,9 +117,13 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Success() {
 	err := s.scheduler.Submit(mockTask)
 	s.NoError(err)
 
-	task := <-s.scheduler.taskChs[taskPriority]
+	weight := s.scheduler.options.ChannelKeyToWeightFn(taskPriority)
+	taskCh, releaseFn := s.scheduler.pool.GetOrCreateChannel(taskPriority, weight)
+	defer releaseFn()
+	task := <-taskCh
 	s.Equal(mockTask, task)
-	for _, taskCh := range s.scheduler.taskChs {
+	taskChs := s.scheduler.pool.GetAllChannels()
+	for _, taskCh := range taskChs {
 		s.Empty(taskCh)
 	}
 }
@@ -113,12 +131,9 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Success() {
 func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Fail_SchedulerShutDown() {
 	// create a new scheduler here with queue size 0, otherwise test is non-deterministic
 	scheduler := s.newTestWeightedRoundRobinTaskScheduler(
-		&WeightedRoundRobinTaskSchedulerOptions{
-			Weights:         testSchedulerWeights,
+		&WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask]{
 			QueueSize:       0,
-			WorkerCount:     dynamicconfig.GetIntPropertyFn(1),
 			DispatcherCount: 3,
-			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	)
 
@@ -127,15 +142,6 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Fail_SchedulerShutDown
 	scheduler.Stop()
 	err := scheduler.Submit(mockTask)
 	s.Equal(ErrTaskSchedulerClosed, err)
-}
-
-func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Fail_UnknownPriority() {
-	taskPriority := 5 // make sure the number is not in testSchedulerWeights
-	mockTask := NewMockPriorityTask(s.controller)
-	mockTask.EXPECT().Priority().Return(taskPriority)
-	err := s.scheduler.Submit(mockTask)
-	s.Error(err)
-	s.NotEqual(ErrTaskSchedulerClosed, err)
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) TestTrySubmit() {
@@ -157,7 +163,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestTrySubmit() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError() {
-	weights, err := common.ConvertDynamicConfigMapPropertyToIntMap(testSchedulerWeights())
+	weights, err := dynamicproperties.ConvertDynamicConfigMapPropertyToIntMap(testSchedulerWeights())
 	s.NoError(err)
 
 	numPriorities := len(weights)
@@ -182,7 +188,9 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 				if expectedRemainingTasksNum < 0 {
 					expectedRemainingTasksNum = 0
 				}
-				s.Equal(expectedRemainingTasksNum, len(s.scheduler.taskChs[priority]))
+				taskCh, releaseFn := s.scheduler.pool.GetOrCreateChannel(priority, weight)
+				s.Equal(expectedRemainingTasksNum, len(taskCh))
+				releaseFn()
 			}
 		}
 
@@ -211,7 +219,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 	}()
 
 	taskWG.Wait()
-	close(s.scheduler.shutdownCh)
+	s.scheduler.cancel()
 
 	<-doneCh
 }
@@ -219,7 +227,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_FailToSubmit() {
 	mockTask := NewMockPriorityTask(s.controller)
 	mockTask.EXPECT().Priority().Return(0)
-	mockTask.EXPECT().Nack()
+	mockTask.EXPECT().Nack(gomock.Any())
 
 	var taskWG sync.WaitGroup
 	s.scheduler.Submit(mockTask)
@@ -240,7 +248,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_FailToSubmit() {
 	}()
 
 	taskWG.Wait()
-	close(s.scheduler.shutdownCh)
+	s.scheduler.cancel()
 
 	<-doneCh
 }
@@ -248,9 +256,6 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_FailToSubmit() {
 func (s *weightedRoundRobinTaskSchedulerSuite) TestWRR() {
 	numTasks := 1000
 	var taskWG sync.WaitGroup
-
-	s.mockProcessor.EXPECT().Start()
-	s.mockProcessor.EXPECT().Stop()
 
 	tasks := []PriorityTask{}
 	mockFn := func(_ Task) error {
@@ -281,25 +286,28 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestWRR() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) TestSchedulerContract() {
-	testSchedulerContract(s.Assertions, s.controller, s.scheduler)
+	testSchedulerContract(s.Assertions, s.controller, s.scheduler, s.realProcessor)
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskScheduler(
-	options *WeightedRoundRobinTaskSchedulerOptions,
-) *weightedRoundRobinTaskSchedulerImpl {
+	options *WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask],
+) *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask] {
 	scheduler, err := NewWeightedRoundRobinTaskScheduler(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
+		clock.NewMockedTimeSource(),
+		s.realProcessor,
 		options,
 	)
 	s.NoError(err)
-	return scheduler.(*weightedRoundRobinTaskSchedulerImpl)
+	return scheduler.(*weightedRoundRobinTaskSchedulerImpl[int, PriorityTask])
 }
 
 func testSchedulerContract(
 	s *require.Assertions,
 	controller *gomock.Controller,
-	scheduler Scheduler,
+	scheduler Scheduler[PriorityTask],
+	processor Processor,
 ) {
 	numTasks := 10000
 	var taskWG sync.WaitGroup
@@ -320,22 +328,28 @@ func testSchedulerContract(
 			taskStatus[mockTask] = TaskStateAcked
 			taskWG.Done()
 		}).MaxTimes(1)
-		mockTask.EXPECT().Nack().Do(func() {
+		mockTask.EXPECT().Nack(gomock.Any()).Do(func(err error) {
 			taskStatusLock.Lock()
 			defer taskStatusLock.Unlock()
 
 			s.Equal(TaskStatePending, taskStatus[mockTask])
-			taskStatus[mockTask] = TaskStateNacked
+			taskStatus[mockTask] = State(-1) // set it to whatever state that is not TaskStatePending
 			taskWG.Done()
 		}).MaxTimes(1)
 		tasks = append(tasks, mockTask)
 		taskWG.Add(1)
 	}
 
+	if processor != nil {
+		processor.Start()
+	}
 	scheduler.Start()
 	go func() {
 		time.Sleep(time.Duration(rand.Intn(50)) * time.Millisecond)
 		scheduler.Stop()
+		if processor != nil {
+			processor.Stop()
+		}
 	}()
 
 	for _, task := range tasks {
@@ -357,10 +371,12 @@ func testSchedulerContract(
 	}
 	s.True(common.AwaitWaitGroup(&taskWG, 10*time.Second))
 	switch schedulerImpl := scheduler.(type) {
-	case *fifoTaskSchedulerImpl:
-		<-schedulerImpl.shutdownCh
-	case *weightedRoundRobinTaskSchedulerImpl:
-		<-schedulerImpl.shutdownCh
+	case *fifoTaskSchedulerImpl[PriorityTask]:
+		<-schedulerImpl.ctx.Done()
+	case *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask]:
+		<-schedulerImpl.ctx.Done()
+	case *hierarchicalWeightedRoundRobinTaskSchedulerImpl[string, PriorityTask]:
+		<-schedulerImpl.ctx.Done()
 	default:
 		s.Fail("unknown task scheduler type")
 	}

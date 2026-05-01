@@ -24,42 +24,46 @@
 package cadence
 
 import (
-	"log"
-	"os"
+	"context"
+	"slices"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/uber-go/tally"
+	"go.uber.org/fx/fxtest"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/log/loggerimpl"
-	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
+	pt "github.com/uber/cadence/common/persistence/persistence-tests"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/testflags"
-	"github.com/uber/cadence/tools/cassandra"
-
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"              // needed to load cassandra plugin
-	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public" // needed to load the default gocql client
 )
 
 type ServerSuite struct {
 	*require.Assertions
 	suite.Suite
+
+	logger log.Logger
 }
 
 func TestServerSuite(t *testing.T) {
-	testflags.RequireCassandra(t)
 	suite.Run(t, new(ServerSuite))
 }
 
 func (s *ServerSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
+	s.logger = testlogger.New(s.T())
 }
 
 /*
@@ -77,37 +81,36 @@ func (s *ServerSuite) TestServerStartup() {
 	var cfg config.Config
 	err := config.Load(env, configDir, zone, &cfg)
 	if err != nil {
-		log.Fatal("Config file corrupted.", err)
+		s.logger.Fatal("Config file corrupted.", tag.Error(err))
 	}
 
-	if os.Getenv("CASSANDRA_SEEDS") == "cassandra" {
-		// replace local host to docker network
-		// this env variable value is set by buildkite's docker-compose
-		ds := cfg.Persistence.DataStores[cfg.Persistence.DefaultStore]
-		ds.NoSQL.Hosts = "cassandra"
-		cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = ds
-
-		ds = cfg.Persistence.DataStores[cfg.Persistence.VisibilityStore]
-		ds.NoSQL.Hosts = "cassandra"
-		cfg.Persistence.DataStores[cfg.Persistence.VisibilityStore] = ds
-	}
+	// set up sqlite persistence layer and apply schema to sqlite db
+	testBase := pt.NewTestBaseWithSQL(s.T(), sqlite.GetTestClusterOption())
+	cfg.Persistence = testBase.Config()
+	testBase.Setup()
 
 	s.T().Logf("config=\n%v\n", cfg.String())
 
 	cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(rootDir, cfg.DynamicConfig.FileBased.Filepath)
 
 	if err := cfg.ValidateAndFillDefaults(); err != nil {
-		log.Fatalf("config validation failed: %v", err)
-	}
-	// cassandra schema version validation
-	if err := cassandra.VerifyCompatibleVersion(cfg.Persistence, gocql.All); err != nil {
-		log.Fatal("cassandra schema version compatibility check failed: ", err)
+		s.logger.Fatal("config validation failed", tag.Error(err))
 	}
 
+	logger := testlogger.New(s.T())
+
+	lifecycle := fxtest.NewLifecycle(s.T())
+
 	var daemons []common.Daemon
-	services := service.ShortNames(service.List)
+	// Shard distributor should be tested separately
+	distributorShortName := service.ShortName(service.ShardDistributor)
+	services := slices.DeleteFunc(service.ShortNames(service.List),
+		func(s string) bool {
+			return s == distributorShortName
+		})
+
 	for _, svc := range services {
-		server := newServer(svc, &cfg)
+		server := newServer(svc, cfg, logger, dynamicconfig.NewNopClient(), tally.NoopScope, metrics.NewNoopMetricsClient())
 		daemons = append(daemons, server)
 		server.Start()
 	}
@@ -115,24 +118,24 @@ func (s *ServerSuite) TestServerStartup() {
 	timer := time.NewTimer(time.Second * 10)
 
 	<-timer.C
+	s.NoError(lifecycle.Stop(context.Background()))
 	for _, daemon := range daemons {
 		daemon.Stop()
 	}
 }
 
 func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
-	client.EXPECT().GetListValue(dynamicconfig.AllIsolationGroups, gomock.Any()).Return([]interface{}{
+	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return([]interface{}{
 		"zone-1", "zone-2",
 	}, nil)
 
-	dc := dynamicconfig.NewCollection(client, loggerimpl.NewNopLogger())
+	dc := dynamicconfig.NewCollection(client, log.NewNoop())
 
 	assert.NotPanics(t, func() {
 		fn := getFromDynamicConfig(resource.Params{
-			Logger: loggerimpl.NewNopLogger(),
+			Logger: log.NewNoop(),
 		}, dc)
 		out := fn()
 		assert.Equal(t, []string{"zone-1", "zone-2"}, out)
@@ -142,12 +145,12 @@ func TestSettingGettingZonalIsolationGroupsFromIG(t *testing.T) {
 func TestSettingGettingZonalIsolationGroupsFromIGError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	client := dynamicconfig.NewMockClient(ctrl)
-	client.EXPECT().GetListValue(dynamicconfig.AllIsolationGroups, gomock.Any()).Return(nil, assert.AnError)
-	dc := dynamicconfig.NewCollection(client, loggerimpl.NewNopLogger())
+	client.EXPECT().GetListValue(dynamicproperties.AllIsolationGroups, gomock.Any()).Return(nil, assert.AnError)
+	dc := dynamicconfig.NewCollection(client, log.NewNoop())
 
 	assert.NotPanics(t, func() {
 		getFromDynamicConfig(resource.Params{
-			Logger: loggerimpl.NewNopLogger(),
+			Logger: log.NewNoop(),
 		}, dc)()
 	})
 }

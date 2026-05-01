@@ -30,6 +30,8 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -42,18 +44,19 @@ type (
 )
 
 const (
-	initialRangeID    int64 = 1 // Id of the first range of a new task list
-	initialAckLevel   int64 = 0
-	stickyTaskListTTL       = int64(24 * time.Hour / time.Second) // if sticky task_list stopped being updated, remove it in one day
+	initialRangeID  int64 = 1 // Id of the first range of a new task list
+	initialAckLevel int64 = 0
+	taskListTTL           = int64(24 * time.Hour / time.Second) // Applied only to kinds that have TTL
 )
 
 // newNoSQLTaskStore is used to create an instance of TaskStore implementation
 func newNoSQLTaskStore(
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.TaskStore, error) {
-	s, err := newShardedNosqlStore(cfg, logger, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +100,7 @@ func (t *nosqlTaskStore) LeaseTaskList(
 			Message: "LeaseTaskList requires non empty task list",
 		}
 	}
-	now := time.Now()
+	currentTimeStamp := request.CurrentTimeStamp
 	var err, selectErr error
 	var currTL *nosqlplugin.TaskListRow
 	storeShard, err := t.GetStoreShardByTaskList(request.DomainID, request.TaskList, request.TaskType)
@@ -114,13 +117,14 @@ func (t *nosqlTaskStore) LeaseTaskList(
 	if selectErr != nil {
 		if storeShard.db.IsNotFoundError(selectErr) { // First time task list is used
 			currTL = &nosqlplugin.TaskListRow{
-				DomainID:        request.DomainID,
-				TaskListName:    request.TaskList,
-				TaskListType:    request.TaskType,
-				RangeID:         initialRangeID,
-				TaskListKind:    request.TaskListKind,
-				AckLevel:        initialAckLevel,
-				LastUpdatedTime: now,
+				DomainID:         request.DomainID,
+				TaskListName:     request.TaskList,
+				TaskListType:     request.TaskType,
+				RangeID:          initialRangeID,
+				TaskListKind:     request.TaskListKind,
+				AckLevel:         initialAckLevel,
+				LastUpdatedTime:  currentTimeStamp,
+				CurrentTimeStamp: currentTimeStamp,
 			}
 			err = storeShard.db.InsertTaskList(ctx, currTL)
 		} else {
@@ -147,7 +151,8 @@ func (t *nosqlTaskStore) LeaseTaskList(
 			RangeID:                 currTL.RangeID,
 			TaskListKind:            currTL.TaskListKind,
 			AckLevel:                currTL.AckLevel,
-			LastUpdatedTime:         now,
+			LastUpdatedTime:         currentTimeStamp,
+			CurrentTimeStamp:        currentTimeStamp,
 			AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
 		}, currTL.RangeID-1)
 	}
@@ -168,7 +173,7 @@ func (t *nosqlTaskStore) LeaseTaskList(
 		RangeID:                 currTL.RangeID,
 		AckLevel:                currTL.AckLevel,
 		Kind:                    request.TaskListKind,
-		LastUpdated:             now,
+		LastUpdated:             currentTimeStamp,
 		AdaptivePartitionConfig: currTL.AdaptivePartitionConfig,
 	}
 	return &persistence.LeaseTaskListResponse{TaskListInfo: tli}, nil
@@ -216,7 +221,8 @@ func (t *nosqlTaskStore) UpdateTaskList(
 		RangeID:                 tli.RangeID,
 		TaskListKind:            tli.Kind,
 		AckLevel:                tli.AckLevel,
-		LastUpdatedTime:         time.Now(),
+		LastUpdatedTime:         request.CurrentTimeStamp,
+		CurrentTimeStamp:        request.CurrentTimeStamp,
 		AdaptivePartitionConfig: tli.AdaptivePartitionConfig,
 	}
 	storeShard, err := t.GetStoreShardByTaskList(tli.DomainID, tli.Name, tli.TaskType)
@@ -224,8 +230,8 @@ func (t *nosqlTaskStore) UpdateTaskList(
 		return nil, err
 	}
 
-	if tli.Kind == persistence.TaskListKindSticky { // if task_list is sticky, then update with TTL
-		err = storeShard.db.UpdateTaskListWithTTL(ctx, stickyTaskListTTL, taskListToUpdate, tli.RangeID)
+	if persistence.TaskListKindHasTTL(tli.Kind) {
+		err = storeShard.db.UpdateTaskListWithTTL(ctx, taskListTTL, taskListToUpdate, tli.RangeID)
 	} else {
 		err = storeShard.db.UpdateTaskList(ctx, taskListToUpdate, tli.RangeID)
 	}
@@ -286,21 +292,38 @@ func (t *nosqlTaskStore) CreateTasks(
 	ctx context.Context,
 	request *persistence.CreateTasksRequest,
 ) (*persistence.CreateTasksResponse, error) {
-	now := time.Now()
+	currentTimeStamp := request.CurrentTimeStamp
 	var tasks []*nosqlplugin.TaskRowForInsert
-	for _, t := range request.Tasks {
+	for _, taskRequest := range request.Tasks {
 		task := &nosqlplugin.TaskRow{
 			DomainID:        request.TaskListInfo.DomainID,
 			TaskListName:    request.TaskListInfo.Name,
 			TaskListType:    request.TaskListInfo.TaskType,
-			TaskID:          t.TaskID,
-			WorkflowID:      t.Data.WorkflowID,
-			RunID:           t.Data.RunID,
-			ScheduledID:     t.Data.ScheduleID,
-			CreatedTime:     now,
-			PartitionConfig: t.Data.PartitionConfig,
+			TaskID:          taskRequest.TaskID,
+			WorkflowID:      taskRequest.Data.WorkflowID,
+			RunID:           taskRequest.Data.RunID,
+			ScheduledID:     taskRequest.Data.ScheduleID,
+			CreatedTime:     currentTimeStamp,
+			PartitionConfig: taskRequest.Data.PartitionConfig,
 		}
-		ttl := int(t.Data.ScheduleToStartTimeoutSeconds)
+
+		var ttl int
+		// If the Data has a non-zero Expiry value, means that the ask is being re-added to the tasks table.
+		// If that's the case, use the Expiry value to calculate the new TTL value to match history's timeout value.
+		if !taskRequest.Data.Expiry.IsZero() {
+			scheduleToStartTimeoutSeconds := int(taskRequest.Data.Expiry.Sub(currentTimeStamp).Seconds())
+
+			if scheduleToStartTimeoutSeconds > 0 {
+				ttl = scheduleToStartTimeoutSeconds
+			} else {
+				logger := t.GetLogger()
+				logger.Warn("Async task not created. Task is expired", tag.WorkflowID(taskRequest.Data.WorkflowID), tag.WorkflowRunID(taskRequest.Data.RunID), tag.WorkflowScheduleID(taskRequest.Data.ScheduleID))
+				continue
+			}
+		} else {
+			ttl = int(taskRequest.Data.ScheduleToStartTimeoutSeconds)
+		}
+
 		tasks = append(tasks, &nosqlplugin.TaskRowForInsert{
 			TaskRow:    *task,
 			TTLSeconds: ttl,
@@ -308,10 +331,12 @@ func (t *nosqlTaskStore) CreateTasks(
 	}
 
 	tasklistCondition := &nosqlplugin.TaskListRow{
-		DomainID:     request.TaskListInfo.DomainID,
-		TaskListName: request.TaskListInfo.Name,
-		TaskListType: request.TaskListInfo.TaskType,
-		RangeID:      request.TaskListInfo.RangeID,
+		DomainID:         request.TaskListInfo.DomainID,
+		TaskListName:     request.TaskListInfo.Name,
+		TaskListType:     request.TaskListInfo.TaskType,
+		RangeID:          request.TaskListInfo.RangeID,
+		LastUpdatedTime:  currentTimeStamp,
+		CurrentTimeStamp: currentTimeStamp,
 	}
 
 	tli := request.TaskListInfo

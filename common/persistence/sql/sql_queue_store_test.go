@@ -27,14 +27,17 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
+
+var fixedTime = time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 
 func TestGetNextID(t *testing.T) {
 	tests := map[string]struct {
@@ -137,7 +140,10 @@ func TestEnqueueMessage(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.EnqueueMessage(context.Background(), nil)
+			err = store.EnqueueMessage(context.Background(), &persistence.InternalEnqueueMessageRequest{
+				MessagePayload:   nil,
+				CurrentTimeStamp: fixedTime,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -197,12 +203,15 @@ func TestReadMessages(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			got, err := store.ReadMessages(context.Background(), 0, 10)
+			resp, err := store.ReadMessages(context.Background(), &persistence.InternalReadMessagesRequest{
+				LastMessageID: 0,
+				MaxCount:      10,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
+				assert.Equal(t, tc.want, resp.Messages, "Unexpected result for test case")
 			}
 		})
 	}
@@ -245,7 +254,9 @@ func TestDeleteMessagesBefore(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			err = store.DeleteMessagesBefore(context.Background(), 10)
+			err = store.DeleteMessagesBefore(context.Background(), &persistence.InternalDeleteMessagesBeforeRequest{
+				MessageID: 10,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -352,7 +363,11 @@ func TestUpdateAckLevel(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.UpdateAckLevel(context.Background(), 0, tc.clusterName)
+			err = store.UpdateAckLevel(context.Background(), &persistence.InternalUpdateAckLevelRequest{
+				MessageID:        0,
+				ClusterName:      tc.clusterName,
+				CurrentTimeStamp: fixedTime,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -401,12 +416,12 @@ func TestGetAckLevels(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			got, err := store.GetAckLevels(context.Background())
+			resp, err := store.GetAckLevels(context.Background(), &persistence.InternalGetAckLevelsRequest{})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
+				assert.Equal(t, tc.want, resp.AckLevels, "Unexpected result for test case")
 			}
 		})
 	}
@@ -468,7 +483,10 @@ func TestEnqueueMessageToDLQ(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.EnqueueMessageToDLQ(context.Background(), nil)
+			err = store.EnqueueMessageToDLQ(context.Background(), &persistence.InternalEnqueueMessageToDLQRequest{
+				MessagePayload:   nil,
+				CurrentTimeStamp: fixedTime,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -515,7 +533,9 @@ func TestDeleteMessageFromDLQ(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			err = store.DeleteMessageFromDLQ(context.Background(), 10)
+			err = store.DeleteMessageFromDLQ(context.Background(), &persistence.InternalDeleteMessageFromDLQRequest{
+				MessageID: 10,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -562,7 +582,10 @@ func TestRangeDeleteMessagesFromDLQ(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			err = store.RangeDeleteMessagesFromDLQ(context.Background(), 10, 100)
+			err = store.RangeDeleteMessagesFromDLQ(context.Background(), &persistence.InternalRangeDeleteMessagesFromDLQRequest{
+				FirstMessageID: 10,
+				LastMessageID:  100,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -611,12 +634,12 @@ func TestGetDLQAckLevels(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			got, err := store.GetDLQAckLevels(context.Background())
+			resp, err := store.GetDLQAckLevels(context.Background(), &persistence.InternalGetDLQAckLevelsRequest{})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
+				assert.Equal(t, tc.want, resp.AckLevels, "Unexpected result for test case")
 			}
 		})
 	}
@@ -719,7 +742,11 @@ func TestUpdateDLQAckLevel(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB, mockTx)
-			err = store.UpdateDLQAckLevel(context.Background(), 0, tc.clusterName)
+			err = store.UpdateDLQAckLevel(context.Background(), &persistence.InternalUpdateDLQAckLevelRequest{
+				MessageID:        0,
+				ClusterName:      tc.clusterName,
+				CurrentTimeStamp: fixedTime,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -768,12 +795,12 @@ func TestGetDLQSize(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			got, err := store.GetDLQSize(context.Background())
+			resp, err := store.GetDLQSize(context.Background(), &persistence.InternalGetDLQSizeRequest{})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
+				assert.Equal(t, tc.want, resp.Size, "Unexpected result for test case")
 			}
 		})
 	}
@@ -843,13 +870,18 @@ func TestReadMessagesFromDLQ(t *testing.T) {
 			require.NoError(t, err, "Failed to create sql queue store")
 
 			tc.mockSetup(mockDB)
-			got, gotToken, err := store.ReadMessagesFromDLQ(context.Background(), firstMessageID, lastMessageID, pageSize, tc.pageToken)
+			resp, err := store.ReadMessagesFromDLQ(context.Background(), &persistence.InternalReadMessagesFromDLQRequest{
+				FirstMessageID: firstMessageID,
+				LastMessageID:  lastMessageID,
+				PageSize:       pageSize,
+				PageToken:      tc.pageToken,
+			})
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-				assert.Equal(t, tc.wantToken, gotToken, "Unexpected result for test case")
+				assert.Equal(t, tc.want, resp.Messages, "Unexpected result for test case")
+				assert.Equal(t, tc.wantToken, resp.NextPageToken, "Unexpected result for test case")
 			}
 		})
 	}

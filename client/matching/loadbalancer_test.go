@@ -26,207 +26,153 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/types"
 )
 
-func Test_defaultLoadBalancer_PickReadPartition(t *testing.T) {
-	type fields struct {
-		nReadPartitions  dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		nWritePartitions dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		domainIDToName   func(string) (string, error)
-	}
-	type args struct {
-		domainID      string
-		taskList      types.TaskList
-		taskListType  int
-		forwardedFrom string
-	}
-	tests := []struct {
-		name        string
-		fields      fields
-		args        args
-		expectedVal []string
-	}{
-		{name: "Testing Read",
-			fields: fields{
-				nReadPartitions: func(domainName string, taskListName string, taskListType int) int {
-					return 3
-				},
-				nWritePartitions: nil,
-				domainIDToName: func(domainID string) (string, error) {
-					return "domainName", nil
-				},
-			},
-			args: args{
-				domainID:      "domainID",
-				taskList:      types.TaskList{Name: "taskListName1"},
-				taskListType:  1,
-				forwardedFrom: "",
-			},
-			expectedVal: []string{"taskListName1", "/__cadence_sys/taskListName1/1", "/__cadence_sys/taskListName1/2"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lb := &defaultLoadBalancer{
-				nReadPartitions:  tt.fields.nReadPartitions,
-				nWritePartitions: tt.fields.nWritePartitions,
-				domainIDToName:   tt.fields.domainIDToName,
-			}
-			for i := 0; i < 100; i++ {
-				got := lb.PickReadPartition(tt.args.domainID, tt.args.taskList, tt.args.taskListType, tt.args.forwardedFrom)
-				assert.Contains(t, tt.expectedVal, got)
-			}
+func setUpMocksForLoadBalancer(t *testing.T) (*defaultLoadBalancer, *MockPartitionConfigProvider) {
+	ctrl := gomock.NewController(t)
+	mockProvider := NewMockPartitionConfigProvider(ctrl)
 
-		})
-	}
+	return &defaultLoadBalancer{
+		provider: mockProvider,
+	}, mockProvider
 }
 
 func Test_defaultLoadBalancer_PickWritePartition(t *testing.T) {
-	type fields struct {
-		nReadPartitions  dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		nWritePartitions dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		domainIDToName   func(string) (string, error)
-	}
-	type args struct {
-		domainID      string
-		taskList      types.TaskList
-		taskListType  int
-		forwardedFrom string
-	}
-	tests := []struct {
-		name        string
-		fields      fields
-		args        args
-		expectedVal []string
+	testCases := []struct {
+		name               string
+		forwardedFrom      string
+		taskListType       int
+		nPartitions        int
+		taskListKind       types.TaskListKind
+		expectedPartitions []string
 	}{
 		{
-			name: "Case: Writes and Reads are same amount",
-			fields: fields{
-				nReadPartitions:  func(domain string, taskList string, taskType int) int { return 2 },
-				nWritePartitions: func(domain string, taskList string, taskType int) int { return 2 },
-				domainIDToName:   func(string) (string, error) { return "domainName", nil },
-			},
-			args: args{
-				domainID:      "exampleDomainID",
-				taskList:      types.TaskList{Name: "taskListName1"},
-				taskListType:  1,
-				forwardedFrom: "",
-			},
-			expectedVal: []string{"taskListName1", "/__cadence_sys/taskListName1/1"},
+			name:               "single write partition, forwarded",
+			forwardedFrom:      "parent-task-list",
+			taskListType:       0,
+			nPartitions:        1,
+			taskListKind:       types.TaskListKindNormal,
+			expectedPartitions: []string{"test-task-list"},
 		},
-
 		{
-			name: "Case: More Writes than Reads ",
-			fields: fields{
-				nReadPartitions:  func(domain string, taskList string, taskType int) int { return 2 },
-				nWritePartitions: func(domain string, taskList string, taskType int) int { return 3 },
-				domainIDToName:   func(string) (string, error) { return "domainName", nil },
-			},
-			args: args{
-				domainID:      "exampleDomainID",
-				taskList:      types.TaskList{Name: "taskListName1"},
-				taskListType:  1,
-				forwardedFrom: "",
-			},
-			expectedVal: []string{"taskListName1", "/__cadence_sys/taskListName1/1"},
-		},
-
-		{
-			name: "Case: More Reads than Writes ",
-			fields: fields{
-				nReadPartitions:  func(domain string, taskList string, taskType int) int { return 4 },
-				nWritePartitions: func(domain string, taskList string, taskType int) int { return 2 },
-				domainIDToName:   func(string) (string, error) { return "domainName", nil },
-			},
-			args: args{
-				domainID:      "exampleDomainID",
-				taskList:      types.TaskList{Name: "taskListName3"},
-				taskListType:  1,
-				forwardedFrom: "",
-			},
-			expectedVal: []string{"taskListName3", "/__cadence_sys/taskListName3/1"},
+			name:               "multiple write partitions, no forward",
+			forwardedFrom:      "",
+			taskListType:       0,
+			nPartitions:        3,
+			taskListKind:       types.TaskListKindNormal,
+			expectedPartitions: []string{"test-task-list", "/__cadence_sys/test-task-list/1", "/__cadence_sys/test-task-list/2"},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lb := &defaultLoadBalancer{
-				nReadPartitions:  tt.fields.nReadPartitions,
-				nWritePartitions: tt.fields.nWritePartitions,
-				domainIDToName:   tt.fields.domainIDToName,
-			}
-			for i := 0; i < 100; i++ {
-				got := lb.PickWritePartition(tt.args.domainID, tt.args.taskList, tt.args.taskListType, tt.args.forwardedFrom)
-				assert.Contains(t, tt.expectedVal, got)
 
-			}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set up mocks
+			loadBalancer, mockProvider := setUpMocksForLoadBalancer(t)
 
+			mockProvider.EXPECT().
+				GetNumberOfWritePartitions("test-domain-id", types.TaskList{Name: "test-task-list", Kind: &tc.taskListKind}, tc.taskListType).
+				Return(tc.nPartitions).
+				Times(1)
+
+			// Pick write partition
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    "test-domain-id",
+				TaskList:      &types.TaskList{Name: "test-task-list", Kind: &tc.taskListKind},
+				ForwardedFrom: tc.forwardedFrom,
+			}
+			partition := loadBalancer.PickWritePartition(tc.taskListType, req)
+
+			// Validate result
+			assert.Contains(t, tc.expectedPartitions, partition)
 		})
 	}
 }
 
-func Test_defaultLoadBalancer_pickPartition(t *testing.T) {
-	type fields struct {
-		nReadPartitions  dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		nWritePartitions dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		domainIDToName   func(string) (string, error)
+func Test_defaultLoadBalancer_PickReadPartition(t *testing.T) {
+	testCases := []struct {
+		name               string
+		forwardedFrom      string
+		taskListType       int
+		nPartitions        int
+		taskListKind       types.TaskListKind
+		expectedPartitions []string
+	}{
+		{
+			name:               "single read partition, forwarded",
+			forwardedFrom:      "parent-task-list",
+			taskListType:       0,
+			nPartitions:        1,
+			taskListKind:       types.TaskListKindNormal,
+			expectedPartitions: []string{"test-task-list"},
+		},
+		{
+			name:               "multiple read partitions, no forward",
+			forwardedFrom:      "",
+			taskListType:       0,
+			nPartitions:        3,
+			taskListKind:       types.TaskListKindNormal,
+			expectedPartitions: []string{"test-task-list", "/__cadence_sys/test-task-list/1", "/__cadence_sys/test-task-list/2"},
+		},
 	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Set up mocks
+			loadBalancer, mockProvider := setUpMocksForLoadBalancer(t)
+
+			mockProvider.EXPECT().
+				GetNumberOfReadPartitions("test-domain-id", types.TaskList{Name: "test-task-list", Kind: &tc.taskListKind}, tc.taskListType).
+				Return(tc.nPartitions).
+				Times(1)
+
+			// Pick read partition
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    "test-domain-id",
+				TaskList:      &types.TaskList{Name: "test-task-list", Kind: &tc.taskListKind},
+				ForwardedFrom: tc.forwardedFrom,
+			}
+			partition := loadBalancer.PickReadPartition(tc.taskListType, req, "")
+
+			// Validate result
+			assert.Contains(t, tc.expectedPartitions, partition)
+		})
+	}
+}
+
+func Test_defaultLoadBalancer_UpdateWeight(t *testing.T) {
+	t.Run("no-op for task list partitions", func(t *testing.T) {
+		// Set up mocks
+		loadBalancer, _ := setUpMocksForLoadBalancer(t)
+
+		taskList := types.TaskList{Name: "test-task-list", Kind: types.TaskListKindNormal.Ptr()}
+
+		// Call UpdateWeight, should do nothing
+		req := &types.AddDecisionTaskRequest{
+			DomainUUID: "test-domain-id",
+			TaskList:   &taskList,
+		}
+		loadBalancer.UpdateWeight(0, req, "partition", nil)
+
+		// No expectations, just ensure no-op
+	})
+}
+
+func Test_defaultLoadBalancer_pickPartition(t *testing.T) {
 	type args struct {
 		taskList      types.TaskList
 		forwardedFrom string
 		nPartitions   int
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   string
+		name string
+		args args
+		want string
 	}{
 		{
-			name:   "Test: ForwardedFrom not empty",
-			fields: fields{},
-			args: args{
-				taskList: types.TaskList{
-					Name: "taskList1",
-					Kind: types.TaskListKindSticky.Ptr(),
-				},
-				forwardedFrom: "forwardedFromVal",
-				nPartitions:   10,
-			},
-			want: "taskList1",
-		},
-		{
-			name:   "Test: TaskList kind is Sticky",
-			fields: fields{},
-			args: args{
-				taskList: types.TaskList{
-					Name: "taskList2",
-					Kind: types.TaskListKindSticky.Ptr(),
-				},
-				forwardedFrom: "",
-				nPartitions:   10,
-			},
-			want: "taskList2",
-		},
-		{
-			name:   "Test: TaskList name starts with ReservedTaskListPrefix",
-			fields: fields{},
-			args: args{
-				taskList: types.TaskList{
-					Name: common.ReservedTaskListPrefix + "taskList3",
-					Kind: types.TaskListKindNormal.Ptr(),
-				},
-				forwardedFrom: "",
-				nPartitions:   10,
-			},
-			want: common.ReservedTaskListPrefix + "taskList3",
-		},
-		{
-			name:   "Test: nPartitions <= 0",
-			fields: fields{},
+			name: "Test: nPartitions <= 0",
 			args: args{
 				taskList: types.TaskList{
 					Name: "taskList4",
@@ -241,11 +187,7 @@ func Test_defaultLoadBalancer_pickPartition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lb := &defaultLoadBalancer{
-				nReadPartitions:  tt.fields.nReadPartitions,
-				nWritePartitions: tt.fields.nWritePartitions,
-				domainIDToName:   tt.fields.domainIDToName,
-			}
+			lb := &defaultLoadBalancer{}
 			got := lb.pickPartition(tt.args.taskList, tt.args.forwardedFrom, tt.args.nPartitions)
 			assert.Equal(t, tt.want, got)
 		})

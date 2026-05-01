@@ -1,4 +1,3 @@
-version: '3'
 services:
   cassandra:
     image: cassandra:4.1.1
@@ -21,7 +20,7 @@ services:
     ports:
       - '9090:9090'
   kafka:
-    image: docker.io/bitnami/kafka:3.7
+    image: docker.io/bitnamilegacy/kafka:3.7
     hostname: kafka
     container_name: kafka
     ports:
@@ -76,7 +75,7 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "VISIBILITY_NAME=cadence-visibility-primary"
-      - "FRONTEND_SERVICE=cadence"
+      - "PRIMARY_FRONTEND_SERVICE=cadence"
     depends_on:
       cassandra:
         condition: service_healthy
@@ -118,7 +117,7 @@ services:
       - "ES_SEEDS=elasticsearch"
       - "KAFKA_SEEDS=kafka"
       - "VISIBILITY_NAME=cadence-visibility-secondary"
-      - "FRONTEND_SERVICE=cadence-secondary"
+      - "SECONDARY_FRONTEND_SERVICE=cadence-secondary"
     depends_on:
       cassandra:
         condition: service_healthy
@@ -131,18 +130,14 @@ services:
   cadence-web:
     image: ubercadence/web:latest
     environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence:7933"
+      - "CADENCE_GRPC_PEERS=cadence:7833,cadence-secondary:7833"
+      - "CADENCE_GRPC_SERVICES_NAMES=cadence-frontend,cadence-frontend"
+      - "CADENCE_CLUSTERS_NAMES=cluster0,cluster1"
+      - "CADENCE_HISTORY_PAGE_V2_ENABLED=OPT_OUT"
     ports:
       - "8088:8088"
     depends_on:
       - cadence
-  cadence-web-secondary:
-    image: ubercadence/web:latest
-    environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence-secondary:7933"
-    ports:
-      - "8089:8088"
-    depends_on:
       - cadence-secondary
   grafana:
     image: grafana/grafana

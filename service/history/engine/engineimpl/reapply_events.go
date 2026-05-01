@@ -26,7 +26,7 @@ import (
 
 	"github.com/pborman/uuid"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -44,9 +44,11 @@ func (e *historyEngineImpl) ReapplyEvents(
 	reapplyEvents []*types.HistoryEvent,
 ) error {
 
-	domainEntry, err := e.getActiveDomainByID(domainUUID)
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, domainUUID, workflowID, runID)
 	if err != nil {
 		switch {
+		// TODO(active-active): should we remove this check for active-active domain?
+		// It was introduced in https://github.com/cadence-workflow/cadence/pull/3502
 		case domainEntry != nil && domainEntry.IsDomainPendingActive():
 			return nil
 		default:
@@ -61,6 +63,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 
 	return workflow.UpdateWithActionFunc(
 		ctx,
+		e.logger,
 		e.executionCache,
 		domainID,
 		currentExecution,
@@ -99,7 +102,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 
 				// TODO when https://github.com/uber/cadence/issues/2420 is finished, remove this block,
 				//  since cannot reapply event to a finished workflow which had no decisions started
-				if baseRebuildLastEventID == common.EmptyEventID {
+				if baseRebuildLastEventID == constants.EmptyEventID {
 					e.logger.Warn("cannot reapply event to a finished workflow",
 						tag.WorkflowDomainID(domainID),
 						tag.WorkflowID(currentExecution.GetWorkflowID()),
@@ -140,6 +143,7 @@ func (e *historyEngineImpl) ReapplyEvents(
 						wfContext,
 						mutableState,
 						execution.NoopReleaseFn,
+						e.logger,
 					),
 					ndc.EventsReapplicationResetWorkflowReason,
 					toReapplyEvents,

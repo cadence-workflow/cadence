@@ -77,7 +77,7 @@ type (
 func NewShardedConcurrentTxMap(initialCap int, hashfn HashFunc) ConcurrentTxMap {
 	cmap := new(ShardedConcurrentTxMap)
 	cmap.hashfn = hashfn
-	cmap.initialCap = MaxInt(nShards, initialCap/nShards)
+	cmap.initialCap = max(nShards, initialCap/nShards)
 	return cmap
 }
 

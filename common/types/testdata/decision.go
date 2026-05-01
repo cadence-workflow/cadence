@@ -121,6 +121,7 @@ var (
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		JitterStartSeconds:                  &Duration1,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 	}
 	FailWorkflowExecutionDecisionAttributes = types.FailWorkflowExecutionDecisionAttributes{
 		Reason:  &FailureReason,
@@ -179,6 +180,7 @@ var (
 		Header:                              &Header,
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
+		CronOverlapPolicy:                   &CronOverlapPolicy,
 	}
 	StartTimerDecisionAttributes = types.StartTimerDecisionAttributes{
 		TimerID:                   TimerID,

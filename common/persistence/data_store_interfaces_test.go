@@ -27,38 +27,38 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
 func TestDataBlob(t *testing.T) {
 	t.Run("NewDataBlob", func(t *testing.T) {
 		assert.Nil(t, NewDataBlob(nil, "anything"), "nil data should become nil blob")
-		data, encoding := []byte("something"), common.EncodingTypeJSON
+		data, encoding := []byte("something"), constants.EncodingTypeJSON
 		assert.EqualValues(t, &DataBlob{
 			Data:     data,
 			Encoding: encoding,
 		}, NewDataBlob(data, encoding))
 	})
 	t.Run("Y-prefixed data may panic", func(t *testing.T) {
-		allEncodings := []common.EncodingType{
-			common.EncodingTypeJSON,
-			common.EncodingTypeThriftRW,
-			common.EncodingTypeGob,
-			common.EncodingTypeUnknown,
-			common.EncodingTypeEmpty,
-			common.EncodingTypeProto,
+		allEncodings := []constants.EncodingType{
+			constants.EncodingTypeJSON,
+			constants.EncodingTypeThriftRW,
+			constants.EncodingTypeGob,
+			constants.EncodingTypeUnknown,
+			constants.EncodingTypeEmpty,
+			constants.EncodingTypeProto,
 		}
 		const problematic = "Y..."
 
 		// I'm not entirely sure why this behavior exists, but to nail it down:
 		assert.NotPanics(t, func() {
-			NewDataBlob([]byte(problematic), common.EncodingTypeThriftRW)
+			NewDataBlob([]byte(problematic), constants.EncodingTypeThriftRW)
 		}, "only thriftrw data can start with Y without panicking")
 
 		// all others panic
 		for _, encoding := range allEncodings {
-			if encoding == common.EncodingTypeThriftRW {
+			if encoding == constants.EncodingTypeThriftRW {
 				continue // handled above
 			}
 			assert.Panicsf(t, func() {
@@ -82,17 +82,17 @@ func TestDataBlob(t *testing.T) {
 		}
 		assertEmpty(FromDataBlob(nil))
 		assertEmpty(FromDataBlob(&DataBlob{}))
-		assertEmpty(FromDataBlob(&DataBlob{Encoding: common.EncodingTypeThriftRW}))
+		assertEmpty(FromDataBlob(&DataBlob{Encoding: constants.EncodingTypeThriftRW}))
 
 		dat, str := FromDataBlob(&DataBlob{
 			Data:     []byte("data"),
-			Encoding: common.EncodingTypeJSON,
+			Encoding: constants.EncodingTypeJSON,
 		})
 		assert.Equal(t, []byte("data"), dat, "data should be returned")
-		assert.Equal(t, string(common.EncodingTypeJSON), str, "encoding should be returned as a string")
+		assert.Equal(t, string(constants.EncodingTypeJSON), str, "encoding should be returned as a string")
 	})
 	t.Run("ToNilSafeDataBlob", func(t *testing.T) {
-		orig := &DataBlob{Encoding: common.EncodingTypeGob} // anything not empty
+		orig := &DataBlob{Encoding: constants.EncodingTypeGob} // anything not empty
 		assert.Equal(t, orig, orig.ToNilSafeDataBlob())
 		assert.NotNil(t, (*DataBlob)(nil).ToNilSafeDataBlob(), "typed nils should convert to non-nils")
 	})
@@ -109,29 +109,29 @@ func TestDataBlob(t *testing.T) {
 		assert.Equal(t, []byte("test"), (&DataBlob{Data: []byte("test")}).GetData())
 	})
 	t.Run("GetEncoding", func(t *testing.T) {
-		same := func(encoding common.EncodingType) {
+		same := func(encoding constants.EncodingType) {
 			assert.Equal(t, encoding, (&DataBlob{Encoding: encoding}).GetEncoding())
 		}
-		unknown := func(encoding common.EncodingType) {
-			assert.Equal(t, common.EncodingTypeUnknown, (&DataBlob{Encoding: encoding}).GetEncoding())
+		unknown := func(encoding constants.EncodingType) {
+			assert.Equal(t, constants.EncodingTypeUnknown, (&DataBlob{Encoding: encoding}).GetEncoding())
 		}
 		// obvious
-		same(common.EncodingTypeGob)
-		same(common.EncodingTypeJSON)
-		same(common.EncodingTypeThriftRW)
-		same(common.EncodingTypeEmpty)
+		same(constants.EncodingTypeGob)
+		same(constants.EncodingTypeJSON)
+		same(constants.EncodingTypeThriftRW)
+		same(constants.EncodingTypeEmpty)
 
 		// highly suspicious
-		unknown(common.EncodingTypeProto)
+		unknown(constants.EncodingTypeProto)
 
 		// should be unknown
-		unknown(common.EncodingTypeUnknown)
+		unknown(constants.EncodingTypeUnknown)
 		unknown("any other value")
 	})
 	t.Run("to and from internal", func(t *testing.T) {
 		data := []byte("some data")
 		t.Run("supported types", func(t *testing.T) {
-			check := func(t *testing.T, encodingType types.EncodingType, encodingCommon common.EncodingType) {
+			check := func(t *testing.T, encodingType types.EncodingType, encodingCommon constants.EncodingType) {
 				internal := &types.DataBlob{
 					EncodingType: encodingType.Ptr(),
 					Data:         data,
@@ -148,19 +148,19 @@ func TestDataBlob(t *testing.T) {
 			}
 
 			t.Run("json", func(t *testing.T) {
-				check(t, types.EncodingTypeJSON, common.EncodingTypeJSON)
+				check(t, types.EncodingTypeJSON, constants.EncodingTypeJSON)
 			})
 			t.Run("thriftrw", func(t *testing.T) {
-				check(t, types.EncodingTypeThriftRW, common.EncodingTypeThriftRW)
+				check(t, types.EncodingTypeThriftRW, constants.EncodingTypeThriftRW)
 			})
 		})
 
 		t.Run("other known encodings panic to internal", func(t *testing.T) {
-			for _, encoding := range []common.EncodingType{
-				common.EncodingTypeUnknown,
-				common.EncodingTypeProto,
-				common.EncodingTypeGob,
-				common.EncodingTypeEmpty,
+			for _, encoding := range []constants.EncodingType{
+				constants.EncodingTypeUnknown,
+				constants.EncodingTypeProto,
+				constants.EncodingTypeGob,
+				constants.EncodingTypeEmpty,
 				"any other value",
 			} {
 				assert.Panicsf(t, func() {
@@ -187,11 +187,4 @@ func TestDataBlob(t *testing.T) {
 			}, "should panic when decoding from unhandled encoding %q", unknownType)
 		})
 	})
-}
-
-func max[T ~int32](a, b T) T {
-	if a > b {
-		return a
-	}
-	return b
 }

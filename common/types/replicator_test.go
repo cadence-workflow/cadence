@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/thriftrw/ptr"
 )
 
 func TestDLQType_Ptr(t *testing.T) {
@@ -90,8 +91,11 @@ func TestDomainOperation_String(t *testing.T) {
 	domainOp = DomainOperationUpdate
 	assert.Equal(t, "Update", domainOp.String())
 
-	domainOp = 2
-	assert.Equal(t, "DomainOperation(2)", domainOp.String())
+	domainOp = DomainOperationDelete
+	assert.Equal(t, "Delete", domainOp.String())
+
+	domainOp = 3
+	assert.Equal(t, "DomainOperation(3)", domainOp.String())
 }
 
 func TestDomainOperation_UnmarshalText(t *testing.T) {
@@ -298,24 +302,6 @@ func TestMergeDLQMessagesRequest_GetInclusiveEndMessageID(t *testing.T) {
 	assert.Equal(t, int64(0), res)
 }
 
-func TestGetDLQReplicationMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *GetDLQReplicationMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	taskInfos := []*ReplicationTaskInfo{{}, {}}
-	testStruct := GetDLQReplicationMessagesRequest{
-		TaskInfos: taskInfos,
-	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
-}
-
 func TestGetDLQReplicationMessagesRequest_GetTaskInfos(t *testing.T) {
 	taskInfos := []*ReplicationTaskInfo{{}, {}}
 	testStruct := GetDLQReplicationMessagesRequest{
@@ -371,25 +357,6 @@ func TestGetDomainReplicationMessagesRequest_GetClusterName(t *testing.T) {
 	assert.Equal(t, "", res)
 }
 
-func TestGetReplicationMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *GetReplicationMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	tokens := []*ReplicationToken{{}, {}}
-	testStruct := GetReplicationMessagesRequest{
-		Tokens:      tokens,
-		ClusterName: "test-cluster",
-	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
-}
-
 func TestGetReplicationMessagesRequest_GetClusterName(t *testing.T) {
 	testStruct := GetReplicationMessagesRequest{
 		ClusterName: "test-cluster",
@@ -420,21 +387,38 @@ func TestGetReplicationMessagesResponse_GetMessagesByShard(t *testing.T) {
 	assert.Nil(t, res)
 }
 
-func TestCountDLQMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *CountDLQMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	testStruct := CountDLQMessagesRequest{
-		ForceFetch: true,
+func TestGetReplicationMessagesResponse_GetEarliestCreationTime(t *testing.T) {
+	for name, c := range map[string]struct {
+		response *GetReplicationMessagesResponse
+		want     *int64
+	}{
+		"nil":           {response: nil, want: nil},
+		"zero messages": {response: &GetReplicationMessagesResponse{}, want: nil},
+		"no messages with creation time": {
+			response: &GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*ReplicationMessages{
+					1: {ReplicationTasks: []*ReplicationTask{{}, {}, {}}},
+					2: {ReplicationTasks: []*ReplicationTask{{}, {}, {}}},
+				},
+			},
+		},
+		"a few messages with creation time": {
+			response: &GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*ReplicationMessages{
+					1: {ReplicationTasks: []*ReplicationTask{
+						{}, {CreationTime: ptr.Int64(20)}, {CreationTime: ptr.Int64(1000)}},
+					},
+					2: {ReplicationTasks: []*ReplicationTask{
+						{CreationTime: ptr.Int64(10)}, {}, {CreationTime: ptr.Int64(12000)}}},
+				},
+			},
+			want: ptrInt64(10),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.response.GetEarliestCreationTime())
+		})
 	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
 }
 
 func TestCountDLQMessagesResponse(t *testing.T) {
@@ -468,31 +452,6 @@ func TestHistoryCountDLQMessagesResponse(t *testing.T) {
 	// Test for empty entries
 	emptyStruct := HistoryCountDLQMessagesResponse{}
 	assert.Nil(t, emptyStruct.Entries)
-}
-
-func TestMergeDLQMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *MergeDLQMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	dlqType := DLQTypeReplication
-	endMessageID := int64(102)
-	nextPageToken := []byte("token")
-	testStruct := MergeDLQMessagesRequest{
-		Type:                  &dlqType,
-		ShardID:               101,
-		SourceCluster:         "cluster-1",
-		InclusiveEndMessageID: &endMessageID,
-		MaximumPageSize:       50,
-		NextPageToken:         nextPageToken,
-	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
 }
 
 func TestMergeDLQMessagesRequest_Getters(t *testing.T) {
@@ -606,28 +565,6 @@ func TestHistoryTaskV2Attributes_GetNewRunEvents(t *testing.T) {
 	assert.Nil(t, res)
 }
 
-func TestPurgeDLQMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *PurgeDLQMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	dlqType := DLQTypeReplication
-	endMessageID := int64(12345)
-	testStruct := PurgeDLQMessagesRequest{
-		Type:                  &dlqType,
-		ShardID:               101,
-		SourceCluster:         "test-cluster",
-		InclusiveEndMessageID: &endMessageID,
-	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
-}
-
 func TestPurgeDLQMessagesRequest_Getters(t *testing.T) {
 	dlqType := DLQTypeReplication
 	endMessageID := int64(12345)
@@ -649,31 +586,6 @@ func TestPurgeDLQMessagesRequest_Getters(t *testing.T) {
 	assert.Equal(t, int32(0), nilStruct.GetShardID())
 	assert.Equal(t, "", nilStruct.GetSourceCluster())
 	assert.Equal(t, int64(0), nilStruct.GetInclusiveEndMessageID())
-}
-
-func TestReadDLQMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *ReadDLQMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	dlqType := DLQTypeReplication
-	endMessageID := int64(12345)
-	nextPageToken := []byte("token")
-	testStruct := ReadDLQMessagesRequest{
-		Type:                  &dlqType,
-		ShardID:               101,
-		SourceCluster:         "test-cluster",
-		InclusiveEndMessageID: &endMessageID,
-		MaximumPageSize:       50,
-		NextPageToken:         nextPageToken,
-	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
 }
 
 func TestReadDLQMessagesRequest_Getters(t *testing.T) {
@@ -760,6 +672,39 @@ func TestReplicationMessages_GetSyncShardStatus(t *testing.T) {
 	assert.Nil(t, res)
 }
 
+func TestReplicationMessages_GetEarliestCreationTime(t *testing.T) {
+	for name, c := range map[string]struct {
+		msgs *ReplicationMessages
+		want *int64
+	}{
+		"nil":        {msgs: nil, want: nil},
+		"zero tasks": {msgs: &ReplicationMessages{}, want: nil},
+		"no tasks with creation time": {
+			msgs: &ReplicationMessages{
+				ReplicationTasks: []*ReplicationTask{
+					{}, {}, {},
+				},
+			},
+			want: nil,
+		},
+		"a few tasks with creation time": {
+			msgs: &ReplicationMessages{
+				ReplicationTasks: []*ReplicationTask{
+					{CreationTime: ptr.Int64(50)},
+					{CreationTime: ptr.Int64(20)},
+					{}, {}, {},
+					{CreationTime: ptr.Int64(100)},
+				},
+			},
+			want: ptr.Int64(20),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, c.msgs.GetEarliestCreationTime())
+		})
+	}
+}
+
 func TestReplicationTask_GetTaskType(t *testing.T) {
 	taskType := ReplicationTaskTypeDomain
 	testStruct := ReplicationTask{
@@ -784,6 +729,19 @@ func TestReplicationTask_GetSourceTaskID(t *testing.T) {
 
 	var nilStruct *ReplicationTask
 	res = nilStruct.GetSourceTaskID()
+	assert.Equal(t, int64(0), res)
+}
+
+func TestReplicationTask_GetSequenceID(t *testing.T) {
+	testStruct := ReplicationTask{
+		SourceTaskID: 12345,
+	}
+
+	res := testStruct.GetSequenceID()
+	assert.Equal(t, int64(12345), res)
+
+	var nilStruct *ReplicationTask
+	res = nilStruct.GetSequenceID()
 	assert.Equal(t, int64(0), res)
 }
 
@@ -1283,23 +1241,7 @@ func TestSyncShardStatus_GetTimestamp(t *testing.T) {
 	assert.Equal(t, int64(0), res)
 }
 
-func TestGetDomainReplicationMessagesRequest_SerializeForLogging(t *testing.T) {
-	// Test case where the struct is nil
-	var nilStruct *GetDomainReplicationMessagesRequest
-	res, err := nilStruct.SerializeForLogging()
-	assert.Equal(t, "", res)
-	assert.NoError(t, err)
-
-	// Test case with a non-nil struct
-	lastRetrievedMessageID := int64(12345)
-	lastProcessedMessageID := int64(67890)
-	testStruct := GetDomainReplicationMessagesRequest{
-		LastRetrievedMessageID: &lastRetrievedMessageID,
-		LastProcessedMessageID: &lastProcessedMessageID,
-		ClusterName:            "test-cluster",
-	}
-
-	res, err = testStruct.SerializeForLogging()
-	assert.NotEmpty(t, res)
-	assert.NoError(t, err)
+func TestReplicationTask_ByteSize(t *testing.T) {
+	AssertReachablesImplementByteSize(t, (*ReplicationTask)(nil))
+	AssertByteSizeMatchesReflect(t, &ReplicationTask{})
 }

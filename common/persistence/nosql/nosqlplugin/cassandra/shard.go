@@ -26,15 +26,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
 // InsertShard creates a new shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *cdb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error {
-	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(db.timeSrc.Now().UnixNano())
+func (db *CDB) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error {
+	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(row.CurrentTimestamp.UnixNano())
 	markerData, markerEncoding := persistence.FromDataBlob(row.PendingFailoverMarkers)
 	transferPQS, transferPQSEncoding := persistence.FromDataBlob(row.TransferProcessingQueueStates)
 	timerPQS, timerPQSEncoding := persistence.FromDataBlob(row.TimerProcessingQueueStates)
@@ -65,6 +65,8 @@ func (db *cdb) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error
 		row.ReplicationDLQAckLevel,
 		markerData,
 		markerEncoding,
+		row.Data,
+		row.DataEncoding,
 		row.RangeID,
 	).WithContext(ctx)
 
@@ -94,7 +96,7 @@ func convertToConflictedShardRow(previous map[string]interface{}) error {
 }
 
 // SelectShard gets a shard
-func (db *cdb) SelectShard(ctx context.Context, shardID int, currentClusterName string) (int64, *nosqlplugin.ShardRow, error) {
+func (db *CDB) SelectShard(ctx context.Context, shardID int, currentClusterName string) (int64, *nosqlplugin.ShardRow, error) {
 	query := db.session.Query(templateGetShardQuery,
 		shardID,
 		rowTypeShard,
@@ -113,14 +115,22 @@ func (db *cdb) SelectShard(ctx context.Context, shardID int, currentClusterName 
 	rangeID := result["range_id"].(int64)
 	shard := result["shard"].(map[string]interface{})
 	shardInfoRangeID := shard["range_id"].(int64)
-	return rangeID, convertToShardInfo(currentClusterName, shardInfoRangeID, shard), nil
+	info := convertToShardInfo(currentClusterName, shardInfoRangeID, shard)
+	data, _ := result["data"].([]byte)
+	dataEncoding, _ := result["data_encoding"].(string)
+	shardRow := &nosqlplugin.ShardRow{
+		InternalShardInfo: info,
+		Data:              data,
+		DataEncoding:      dataEncoding,
+	}
+	return rangeID, shardRow, nil
 }
 
 func convertToShardInfo(
 	currentCluster string,
 	rangeID int64,
 	shard map[string]interface{},
-) *nosqlplugin.ShardRow {
+) *persistence.InternalShardInfo {
 
 	var pendingFailoverMarkersRawData []byte
 	var pendingFailoverMarkersEncoding string
@@ -189,15 +199,15 @@ func convertToShardInfo(
 	}
 	info.PendingFailoverMarkers = persistence.NewDataBlob(
 		pendingFailoverMarkersRawData,
-		common.EncodingType(pendingFailoverMarkersEncoding),
+		constants.EncodingType(pendingFailoverMarkersEncoding),
 	)
 	info.TransferProcessingQueueStates = persistence.NewDataBlob(
 		transferProcessingQueueStatesRawData,
-		common.EncodingType(transferProcessingQueueStatesEncoding),
+		constants.EncodingType(transferProcessingQueueStatesEncoding),
 	)
 	info.TimerProcessingQueueStates = persistence.NewDataBlob(
 		timerProcessingQueueStatesRawData,
-		common.EncodingType(timerProcessingQueueStatesEncoding),
+		constants.EncodingType(timerProcessingQueueStatesEncoding),
 	)
 
 	return info
@@ -205,7 +215,7 @@ func convertToShardInfo(
 
 // UpdateRangeID updates the rangeID, return error is there is any
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *cdb) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, previousRangeID int64) error {
+func (db *CDB) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, previousRangeID int64) error {
 	query := db.session.Query(templateUpdateRangeIDQuery,
 		rangeID,
 		shardID,
@@ -233,8 +243,8 @@ func (db *cdb) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, pr
 
 // UpdateShard updates a shard, return error is there is any.
 // Return ShardOperationConditionFailure if the condition doesn't meet
-func (db *cdb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64) error {
-	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(db.timeSrc.Now().UnixNano())
+func (db *CDB) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64) error {
+	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(row.CurrentTimestamp.UnixNano())
 	markerData, markerEncoding := persistence.FromDataBlob(row.PendingFailoverMarkers)
 	transferPQS, transferPQSEncoding := persistence.FromDataBlob(row.TransferProcessingQueueStates)
 	timerPQS, timerPQSEncoding := persistence.FromDataBlob(row.TimerProcessingQueueStates)
@@ -259,6 +269,8 @@ func (db *cdb) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previ
 		row.ReplicationDLQAckLevel,
 		markerData,
 		markerEncoding,
+		row.Data,
+		row.DataEncoding,
 		row.RangeID,
 		row.ShardID,
 		rowTypeShard,

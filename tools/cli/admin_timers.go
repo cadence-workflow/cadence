@@ -20,9 +20,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -destination admin_timers_mock.go github.com/uber/cadence/tools/cli LoadCloser,Printer
+
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,7 +47,7 @@ type LoadCloser interface {
 
 // Printer prints timer task information
 type Printer interface {
-	Print(timers []*persistence.TimerTaskInfo) error
+	Print(output io.Writer, timers []*persistence.TimerTaskInfo) error
 }
 
 // Reporter wraps LoadCloser, Printer and a filter on time task type and domainID
@@ -79,7 +82,8 @@ func NewDBLoadCloser(c *cli.Context) (LoadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error in NewDBLoadCloser: failed to get shard ID: %w", err)
 	}
-	executionManager, err := initializeExecutionStore(c, shardID)
+
+	executionManager, err := getDeps(c).initializeExecutionManager(c, shardID)
 	if err != nil {
 		return nil, fmt.Errorf("error in NewDBLoadCloser: failed to initialize execution store: %w", err)
 	}
@@ -143,12 +147,12 @@ func (r *Reporter) filter(timers []*persistence.TimerTaskInfo) []*persistence.Ti
 }
 
 // Report loads, filters and prints timer tasks
-func (r *Reporter) Report() error {
+func (r *Reporter) Report(output io.Writer) error {
 	loader, err := r.loader.Load()
 	if err != nil {
 		return err
 	}
-	return r.printer.Print(r.filter(loader))
+	return r.printer.Print(output, r.filter(loader))
 }
 
 // AdminTimers is used to list scheduled timers.
@@ -208,13 +212,14 @@ func AdminTimers(c *cli.Context) error {
 	}
 
 	reporter := NewReporter(c.String(FlagDomainID), timerTypes, loader, printer)
-	if err := reporter.Report(); err != nil {
+	output := getDeps(c).Output()
+	if err := reporter.Report(output); err != nil {
 		return commoncli.Problem("Reporter failed", err)
 	}
 	return nil
 }
 
-func (jp *jsonPrinter) Print(timers []*persistence.TimerTaskInfo) error {
+func (jp *jsonPrinter) Print(output io.Writer, timers []*persistence.TimerTaskInfo) error {
 	for _, t := range timers {
 		if t == nil {
 			continue
@@ -224,9 +229,9 @@ func (jp *jsonPrinter) Print(timers []*persistence.TimerTaskInfo) error {
 			if !jp.ctx.Bool(FlagSkipErrorMode) {
 				return commoncli.Problem("cannot marshal timer to json", err)
 			}
-			fmt.Println(err.Error())
+			output.Write([]byte(fmt.Sprintf("%s\n", err.Error())))
 		} else {
-			fmt.Println(string(data))
+			output.Write([]byte(fmt.Sprintf("%s\n", data)))
 		}
 	}
 	return nil
@@ -260,22 +265,23 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 	isFirstIteration := true
 	for isFirstIteration || len(token) != 0 {
 		isFirstIteration = false
-		req := persistence.GetTimerIndexTasksRequest{
-			MinTimestamp:  st,
-			MaxTimestamp:  et,
-			BatchSize:     batchSize,
-			NextPageToken: token,
+		req := persistence.GetHistoryTasksRequest{
+			TaskCategory:        persistence.HistoryTaskCategoryTimer,
+			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(st, 0),
+			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(et, 0),
+			PageSize:            batchSize,
+			NextPageToken:       token,
 		}
 
-		resp := &persistence.GetTimerIndexTasksResponse{}
+		resp := &persistence.GetHistoryTasksResponse{}
 
-		op := func() error {
+		op := func(ctx context.Context) error {
 			ctx, cancel, err := newContext(cl.ctx)
 			defer cancel()
 			if err != nil {
 				return commoncli.Problem("Error in creating context:", err)
 			}
-			resp, err = cl.executionManager.GetTimerIndexTasks(ctx, &req)
+			resp, err = cl.executionManager.GetHistoryTasks(ctx, &req)
 			return err
 		}
 
@@ -286,7 +292,13 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 		}
 
 		token = resp.NextPageToken
-		timers = append(timers, resp.Timers...)
+		for _, task := range resp.Tasks {
+			timer, err := task.ToTimerTaskInfo()
+			if err != nil {
+				return nil, fmt.Errorf("error converting task to timer task info: %w", err)
+			}
+			timers = append(timers, timer)
+		}
 	}
 	return timers, nil
 }
@@ -320,7 +332,7 @@ func (fl *fileLoadCloser) Close() {
 	}
 }
 
-func (hp *histogramPrinter) Print(timers []*persistence.TimerTaskInfo) error {
+func (hp *histogramPrinter) Print(output io.Writer, timers []*persistence.TimerTaskInfo) error {
 	h := NewHistogram()
 	for _, t := range timers {
 		if t == nil {
@@ -329,5 +341,5 @@ func (hp *histogramPrinter) Print(timers []*persistence.TimerTaskInfo) error {
 		h.Add(t.VisibilityTimestamp.Format(hp.timeFormat))
 	}
 
-	return h.Print(hp.ctx.Int(FlagShardMultiplier))
+	return h.Print(output, hp.ctx.Int(FlagShardMultiplier))
 }

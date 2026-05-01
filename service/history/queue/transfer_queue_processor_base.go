@@ -30,7 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -116,8 +116,8 @@ func newTransferQueueProcessorBase(
 
 	transferQueueProcessorBase := &transferQueueProcessorBase{
 		processorBase: processorBase,
-		taskInitializer: func(taskInfo task.Info) task.Task {
-			return task.NewTransferTask(
+		taskInitializer: func(taskInfo persistence.Task) task.Task {
+			return task.NewHistoryTask(
 				shard,
 				taskInfo,
 				queueType,
@@ -125,7 +125,7 @@ func newTransferQueueProcessorBase(
 				taskFilter,
 				taskExecutor,
 				taskProcessor,
-				processorBase.redispatcher.AddTask,
+				processorBase.redispatcher,
 				shard.GetConfig().TaskCriticalRetryCount,
 			)
 		},
@@ -184,7 +184,6 @@ func (t *transferQueueProcessorBase) Stop() {
 	}
 
 	t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopping)
-	defer t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopped)
 
 	close(t.shutdownCh)
 	if t.startJitterTimer != nil {
@@ -204,6 +203,7 @@ func (t *transferQueueProcessorBase) Stop() {
 	}
 
 	t.redispatcher.Stop()
+	t.logger.Info("Transfer queue processor state changed", tag.LifeCycleStopped)
 }
 
 func (t *transferQueueProcessorBase) notifyNewTask(info *hcommon.NotifyTaskInfo) {
@@ -422,14 +422,22 @@ func (t *transferQueueProcessorBase) processQueueCollections() {
 
 		tasks := make(map[task.Key]task.Task)
 		taskChFull := false
+		now := t.shard.GetTimeSource().Now()
 		for _, taskInfo := range transferTaskInfos {
 			if !domainFilter.Filter(taskInfo.GetDomainID()) {
 				t.logger.Debug("transfer task filtered", tag.TaskID(taskInfo.GetTaskID()))
 				continue
 			}
 
+			if persistence.IsTaskCorrupted(taskInfo) {
+				t.logger.Error("Processing queue encountered a corrupted task", tag.Dynamic("task", taskInfo))
+				t.metricsScope.IncCounter(metrics.CorruptedHistoryTaskCounter)
+				continue
+			}
+
 			task := t.taskInitializer(taskInfo)
 			tasks[newTransferTaskKey(taskInfo.GetTaskID())] = task
+			t.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(taskInfo.GetVisibilityTimestamp()))
 			submitted, err := t.submitTask(task)
 			if err != nil {
 				// only err here is due to the fact that processor has been shutdown
@@ -501,7 +509,7 @@ func (t *transferQueueProcessorBase) splitQueue() {
 		func(key task.Key, domainID string) task.Key {
 			totalLookAhead := t.estimatedTasksPerMinute * int64(t.options.SplitLookAheadDurationByDomainID(domainID).Minutes())
 			// ensure the above calculation doesn't overflow and cap the maximun look ahead interval
-			totalLookAhead = common.MaxInt64(common.MinInt64(totalLookAhead, 2<<t.shard.GetConfig().RangeSizeBits), 0)
+			totalLookAhead = max(min(totalLookAhead, 2<<t.shard.GetConfig().RangeSizeBits), 0)
 			return newTransferTaskKey(key.(transferTaskKey).taskID + totalLookAhead)
 		},
 	)
@@ -523,15 +531,17 @@ func (t *transferQueueProcessorBase) handleActionNotification(notification actio
 func (t *transferQueueProcessorBase) readTasks(
 	readLevel task.Key,
 	maxReadLevel task.Key,
-) ([]*persistence.TransferTaskInfo, bool, error) {
+) ([]persistence.Task, bool, error) {
 
-	var response *persistence.GetTransferTasksResponse
-	op := func() error {
+	var response *persistence.GetHistoryTasksResponse
+	op := func(ctx context.Context) error {
 		var err error
-		response, err = t.shard.GetExecutionManager().GetTransferTasks(context.Background(), &persistence.GetTransferTasksRequest{
-			ReadLevel:    readLevel.(transferTaskKey).taskID,
-			MaxReadLevel: maxReadLevel.(transferTaskKey).taskID,
-			BatchSize:    t.options.BatchSize(),
+		response, err = t.shard.GetExecutionManager().GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(readLevel.(transferTaskKey).taskID + 1),
+			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(maxReadLevel.(transferTaskKey).taskID + 1),
+			PageSize:            t.options.BatchSize(),
+			ShardID:             common.Ptr(t.shard.GetShardID()),
 		})
 		return err
 	}
@@ -573,7 +583,6 @@ func newTransferQueueProcessorOptions(
 		MaxPollIntervalJitterCoefficient:     config.TransferProcessorMaxPollIntervalJitterCoefficient,
 		UpdateAckInterval:                    config.TransferProcessorUpdateAckInterval,
 		UpdateAckIntervalJitterCoefficient:   config.TransferProcessorUpdateAckIntervalJitterCoefficient,
-		RedispatchIntervalJitterCoefficient:  config.TaskRedispatchIntervalJitterCoefficient,
 		MaxRedispatchQueueSize:               config.TransferProcessorMaxRedispatchQueueSize,
 		SplitQueueInterval:                   config.TransferProcessorSplitQueueInterval,
 		SplitQueueIntervalJitterCoefficient:  config.TransferProcessorSplitQueueIntervalJitterCoefficient,
@@ -586,11 +595,11 @@ func newTransferQueueProcessorOptions(
 
 	if isFailover {
 		// disable queue split for failover processor
-		options.EnableSplit = dynamicconfig.GetBoolPropertyFn(false)
+		options.EnableSplit = dynamicproperties.GetBoolPropertyFn(false)
 
 		// disable persist and load processing queue states for failover processor as it will never be split
-		options.EnablePersistQueueStates = dynamicconfig.GetBoolPropertyFn(false)
-		options.EnableLoadQueueStates = dynamicconfig.GetBoolPropertyFn(false)
+		options.EnablePersistQueueStates = dynamicproperties.GetBoolPropertyFn(false)
+		options.EnableLoadQueueStates = dynamicproperties.GetBoolPropertyFn(false)
 
 		options.MaxStartJitterInterval = config.TransferProcessorFailoverMaxStartJitterInterval
 	} else {
@@ -607,7 +616,7 @@ func newTransferQueueProcessorOptions(
 		options.EnablePersistQueueStates = config.QueueProcessorEnablePersistQueueStates
 		options.EnableLoadQueueStates = config.QueueProcessorEnableLoadQueueStates
 
-		options.MaxStartJitterInterval = dynamicconfig.GetDurationPropertyFn(0)
+		options.MaxStartJitterInterval = dynamicproperties.GetDurationPropertyFn(0)
 	}
 
 	if isActive {

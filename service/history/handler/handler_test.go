@@ -26,16 +26,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -47,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/quotas/global/shared"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/proto"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine"
@@ -98,8 +100,7 @@ func (s *handlerSuite) SetupTest() {
 	s.mockEngine = engine.NewMockEngine(s.controller)
 	s.mockWFCache = workflowcache.NewMockWFCache(s.controller)
 	s.mockFailoverCoordinator = failover.NewMockCoordinator(s.controller)
-	internalRequestRateLimitingEnabledConfig := func(domainName string) bool { return false }
-	s.handler = NewHandler(s.mockResource, config.NewForTest(), s.mockWFCache, internalRequestRateLimitingEnabledConfig).(*handlerImpl)
+	s.handler = NewHandler(s.mockResource, config.NewForTest(), s.mockWFCache).(*handlerImpl)
 	s.handler.controller = s.mockShardController
 	s.mockTokenSerializer = common.NewMockTaskTokenSerializer(s.controller)
 	s.mockRatelimiter = quotas.NewMockLimiter(s.controller)
@@ -1210,38 +1211,46 @@ func (s *handlerSuite) TestRemoveTask() {
 		"transfer task": {
 			request: &types.RemoveTaskRequest{
 				ShardID: 0,
-				Type:    common.Int32Ptr(int32(common.TaskTypeTransfer)),
+				Type:    common.Int32Ptr(int32(commonconstants.TaskTypeTransfer)),
 				TaskID:  int64(1),
 			},
 			expectedError: false,
 			mockFn: func() {
-				s.mockResource.ExecutionMgr.On("CompleteTransferTask", mock.Anything, &persistence.CompleteTransferTaskRequest{
-					TaskID: int64(1),
+				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+					ShardID:      common.Ptr(0),
+					TaskCategory: persistence.HistoryTaskCategoryTransfer,
+					TaskKey:      persistence.NewImmediateTaskKey(1),
 				}).Return(nil).Once()
 			},
 		},
 		"timer task": {
 			request: &types.RemoveTaskRequest{
 				ShardID:             0,
-				Type:                common.Int32Ptr(int32(common.TaskTypeTimer)),
+				Type:                common.Int32Ptr(int32(commonconstants.TaskTypeTimer)),
 				TaskID:              int64(1),
 				VisibilityTimestamp: common.Int64Ptr(int64(now.UnixNano())),
 			},
 			expectedError: false,
 			mockFn: func() {
-				s.mockResource.ExecutionMgr.On("CompleteTimerTask", mock.Anything, mock.Anything).Return(nil).Once()
+				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+					ShardID:      common.Ptr(0),
+					TaskCategory: persistence.HistoryTaskCategoryTimer,
+					TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, int64(now.UnixNano())), 1),
+				}).Return(nil).Once()
 			},
 		},
 		"replication task": {
 			request: &types.RemoveTaskRequest{
 				ShardID: 0,
-				Type:    common.Int32Ptr(int32(common.TaskTypeReplication)),
+				Type:    common.Int32Ptr(int32(commonconstants.TaskTypeReplication)),
 				TaskID:  int64(1),
 			},
 			expectedError: false,
 			mockFn: func() {
-				s.mockResource.ExecutionMgr.On("CompleteReplicationTask", mock.Anything, &persistence.CompleteReplicationTaskRequest{
-					TaskID: int64(1),
+				s.mockResource.ExecutionMgr.On("CompleteHistoryTask", mock.Anything, &persistence.CompleteHistoryTaskRequest{
+					ShardID:      common.Ptr(0),
+					TaskCategory: persistence.HistoryTaskCategoryReplication,
+					TaskKey:      persistence.NewImmediateTaskKey(1),
 				}).Return(nil).Once()
 			},
 		},
@@ -1297,7 +1306,7 @@ func (s *handlerSuite) TestResetQueue() {
 		"transfer task": {
 			request: &types.ResetQueueRequest{
 				ShardID: 0,
-				Type:    common.Int32Ptr(int32(common.TaskTypeTransfer)),
+				Type:    common.Int32Ptr(int32(commonconstants.TaskTypeTransfer)),
 			},
 			expectedError: false,
 			mockFn: func() {
@@ -1308,7 +1317,7 @@ func (s *handlerSuite) TestResetQueue() {
 		"timer task": {
 			request: &types.ResetQueueRequest{
 				ShardID: 0,
-				Type:    common.Int32Ptr(int32(common.TaskTypeTimer)),
+				Type:    common.Int32Ptr(int32(commonconstants.TaskTypeTimer)),
 			},
 			expectedError: false,
 			mockFn: func() {
@@ -1360,7 +1369,7 @@ func (s *handlerSuite) TestDescribeQueue() {
 		"transfer task": {
 			request: &types.DescribeQueueRequest{
 				ShardID: 0,
-				Type:    common.Int32Ptr(int32(common.TaskTypeTransfer)),
+				Type:    common.Int32Ptr(int32(commonconstants.TaskTypeTransfer)),
 			},
 			expectedError: false,
 			mockFn: func() {
@@ -1371,7 +1380,7 @@ func (s *handlerSuite) TestDescribeQueue() {
 		"timer task": {
 			request: &types.DescribeQueueRequest{
 				ShardID: 0,
-				Type:    common.Int32Ptr(int32(common.TaskTypeTimer)),
+				Type:    common.Int32Ptr(int32(commonconstants.TaskTypeTimer)),
 			},
 			expectedError: false,
 			mockFn: func() {
@@ -2802,9 +2811,10 @@ func (s *handlerSuite) TestGetReplicationMessages() {
 	}
 
 	testInput := map[string]struct {
-		input         *types.GetReplicationMessagesRequest
-		expectedError bool
-		mockFn        func()
+		input            *types.GetReplicationMessagesRequest
+		mockFn           func()
+		expectedError    bool
+		expectedResponse *types.GetReplicationMessagesResponse
 	}{
 		"shutting down": {
 			input:         validInput,
@@ -2812,6 +2822,7 @@ func (s *handlerSuite) TestGetReplicationMessages() {
 			mockFn: func() {
 				s.handler.shuttingDown = int32(1)
 			},
+			expectedResponse: nil,
 		},
 		"success": {
 			input:         validInput,
@@ -2822,6 +2833,12 @@ func (s *handlerSuite) TestGetReplicationMessages() {
 				s.mockShardController.EXPECT().GetEngineForShard(int(validInput.Tokens[1].ShardID)).Return(s.mockEngine, nil).Times(1)
 				s.mockEngine.EXPECT().GetReplicationMessages(gomock.Any(), validInput.ClusterName, validInput.Tokens[1].LastRetrievedMessageID).Return(&types.ReplicationMessages{}, nil).Times(1)
 			},
+			expectedResponse: &types.GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*types.ReplicationMessages{
+					1: {},
+					2: {},
+				},
+			},
 		},
 		"cannot get engine and cannot get task": {
 			input:         validInput,
@@ -2830,6 +2847,9 @@ func (s *handlerSuite) TestGetReplicationMessages() {
 				s.mockShardController.EXPECT().GetEngineForShard(int(validInput.Tokens[0].ShardID)).Return(nil, errors.New("errors")).Times(1)
 				s.mockShardController.EXPECT().GetEngineForShard(int(validInput.Tokens[1].ShardID)).Return(s.mockEngine, nil).Times(1)
 				s.mockEngine.EXPECT().GetReplicationMessages(gomock.Any(), validInput.ClusterName, validInput.Tokens[1].LastRetrievedMessageID).Return(nil, errors.New("errors")).Times(1)
+			},
+			expectedResponse: &types.GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*types.ReplicationMessages{},
 			},
 		},
 		"maxSize exceeds": {
@@ -2860,6 +2880,66 @@ func (s *handlerSuite) TestGetReplicationMessages() {
 					},
 				}, nil).Times(1)
 			},
+			expectedResponse: &types.GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*types.ReplicationMessages{},
+			},
+		},
+		"only first shard in response": {
+			input:         validInput,
+			expectedError: false,
+			mockFn: func() {
+				firstShardMessages := &types.ReplicationMessages{
+					ReplicationTasks: []*types.ReplicationTask{
+						{
+							TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+							CreationTime: common.Int64Ptr(1000),
+						},
+						{
+							TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+							CreationTime: common.Int64Ptr(1000),
+						},
+					},
+				}
+
+				secondShardMessages := &types.ReplicationMessages{
+					ReplicationTasks: []*types.ReplicationTask{
+						{
+							TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+							CreationTime: common.Int64Ptr(100),
+						},
+						{
+							TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+							CreationTime: common.Int64Ptr(100),
+						},
+					},
+				}
+				// we want to allow only the second shard messages to be returned
+				s.handler.config.MaxResponseSize = proto.FromReplicationMessages(secondShardMessages).Size() + 1
+
+				s.mockShardController.EXPECT().GetEngineForShard(int(validInput.Tokens[0].ShardID)).Return(s.mockEngine, nil).Times(1)
+				s.mockEngine.EXPECT().GetReplicationMessages(gomock.Any(), validInput.ClusterName, validInput.Tokens[0].LastRetrievedMessageID).Return(firstShardMessages, nil).Times(1)
+				s.mockShardController.EXPECT().GetEngineForShard(int(validInput.Tokens[1].ShardID)).Return(s.mockEngine, nil).Times(1)
+				s.mockEngine.EXPECT().GetReplicationMessages(gomock.Any(), validInput.ClusterName, validInput.Tokens[1].LastRetrievedMessageID).Return(secondShardMessages, nil).Times(1)
+			},
+			expectedResponse: &types.GetReplicationMessagesResponse{
+				MessagesByShard: map[int32]*types.ReplicationMessages{
+					// second shard is older than first shard
+					// so it should only return the second shard messages
+					// because the first shard messages will exceed the max response size
+					2: {
+						ReplicationTasks: []*types.ReplicationTask{
+							{
+								TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+								CreationTime: common.Int64Ptr(100),
+							},
+							{
+								TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+								CreationTime: common.Int64Ptr(100),
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -2873,6 +2953,7 @@ func (s *handlerSuite) TestGetReplicationMessages() {
 				s.Error(err)
 			} else {
 				s.NotNil(resp)
+				s.Equal(input.expectedResponse, resp)
 				s.NoError(err)
 			}
 			goleak.VerifyNone(s.T())
@@ -3623,10 +3704,10 @@ func TestRatelimitUpdate(t *testing.T) {
 		metrics.NewNoopMetricsClient(),
 		testlogger.New(t),
 		algorithm.Config{
-			NewDataWeight:  func(opts ...dynamicconfig.FilterOption) float64 { return 0.5 },
-			UpdateInterval: func(opts ...dynamicconfig.FilterOption) time.Duration { return 3 * time.Second },
-			DecayAfter:     func(opts ...dynamicconfig.FilterOption) time.Duration { return 6 * time.Second },
-			GcAfter:        func(opts ...dynamicconfig.FilterOption) time.Duration { return time.Minute },
+			NewDataWeight:  func(opts ...dynamicproperties.FilterOption) float64 { return 0.5 },
+			UpdateInterval: func(opts ...dynamicproperties.FilterOption) time.Duration { return 3 * time.Second },
+			DecayAfter:     func(opts ...dynamicproperties.FilterOption) time.Duration { return 6 * time.Second },
+			GcAfter:        func(opts ...dynamicproperties.FilterOption) time.Duration { return time.Minute },
 		},
 	)
 	require.NoError(t, err)
@@ -3655,4 +3736,96 @@ func TestRatelimitUpdate(t *testing.T) {
 		w,
 		"unexpected weights returned from aggregator or serialization.  if values differ in a reasonable way, possibly aggregator behavior changed?",
 	)
+}
+
+func Test_cmpReplicationShardMessages(t *testing.T) {
+	for name, c := range map[string]struct {
+		a, b replicationShardMessages
+		want int
+	}{
+		"a time is nil, b is empty": {
+			a: replicationShardMessages{earliestCreationTime: nil}, want: 1,
+		},
+		"a time is not nil, b is empty": {
+			a: replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)}, want: -1,
+		},
+		"a time is not nil, b time is nil": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			b:    replicationShardMessages{earliestCreationTime: nil},
+			want: -1,
+		},
+		"a time less b time": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(20)},
+			want: -1,
+		},
+		"a time greater b time": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(20)},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			want: 1,
+		},
+		"a size less b size": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			want: -1,
+		},
+		"a size greater b size": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 20},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10), size: 10},
+			want: 1,
+		},
+		"a equal b": {
+			a:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			b:    replicationShardMessages{earliestCreationTime: common.Int64Ptr(10)},
+			want: 0,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, c.want, cmpReplicationShardMessages(c.a, c.b))
+		})
+	}
+}
+
+func Test_sortReplicationShardMessages(t *testing.T) {
+	for name, c := range map[string]struct {
+		msgs []replicationShardMessages
+		want []replicationShardMessages
+	}{
+		"empty": {},
+		"multiple nil, non nil earliestCreationTime": {
+			msgs: []replicationShardMessages{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(10)},
+			},
+			want: []replicationShardMessages{
+				{earliestCreationTime: common.Int64Ptr(10)},
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+		"multiple nil, non nil same earliestCreationTime, different size": {
+			msgs: []replicationShardMessages{
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(20)},
+			},
+			want: []replicationShardMessages{
+				{earliestCreationTime: common.Int64Ptr(20)},
+				{earliestCreationTime: common.Int64Ptr(100), size: 30},
+				{earliestCreationTime: common.Int64Ptr(100), size: 50},
+				{earliestCreationTime: nil},
+				{earliestCreationTime: nil},
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			sortReplicationShardMessages(c.msgs)
+			assert.Equal(t, c.want, c.msgs)
+		})
+	}
 }

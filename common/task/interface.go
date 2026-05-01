@@ -34,10 +34,10 @@ type (
 
 	// Scheduler is the generic interface for scheduling tasks with priority
 	// and processing them
-	Scheduler interface {
+	Scheduler[T Task] interface {
 		common.Daemon
-		Submit(task PriorityTask) error
-		TrySubmit(task PriorityTask) (bool, error)
+		Submit(task T) error
+		TrySubmit(task T) (bool, error)
 	}
 
 	// SchedulerType respresents the type of the task scheduler implementation
@@ -57,7 +57,9 @@ type (
 		// Ack marks the task as successful completed
 		Ack()
 		// Nack marks the task as unsuccessful completed
-		Nack()
+		Nack(err error)
+		// Cancel marks the task as canceled
+		Cancel()
 		// State returns the current task state
 		State() State
 	}
@@ -89,6 +91,22 @@ type (
 		// Len return the size of the queue
 		Len() int
 	}
+
+	// Schedule represents a stateless schedule definition
+	Schedule[V any] interface {
+		// NewIterator creates a new stateful iterator for this schedule
+		NewIterator() Iterator[V]
+
+		// Len returns the length of the schedule
+		Len() int
+	}
+
+	// Iterator represents a stateful iteration through a schedule
+	Iterator[V any] interface {
+		// Next returns the next value in the iteration
+		// Returns (value, true) if available, (zero value, false) if exhausted
+		TryNext() (V, bool)
+	}
 )
 
 const (
@@ -103,6 +121,6 @@ const (
 	TaskStatePending State = iota + 1
 	// TaskStateAcked is the state for a task if it has been successfully completed
 	TaskStateAcked
-	// TaskStateNacked is the state for a task if it can not be processed
-	TaskStateNacked
+	// TaskStateCanceled is the state for a task if it has been canceled
+	TaskStateCanceled
 )

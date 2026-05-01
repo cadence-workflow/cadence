@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.39",
+  "MinCompatibleVersion": "0.39",
+  "Description": "Adding create time and last update time for Cassandra tables",
+  "SchemaUpdateCqlFiles": [
+    "timestamps.cql"
+  ]
+}

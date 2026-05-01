@@ -18,21 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination loadbalancer_mock.go -package matching github.com/uber/cadence/client/matching LoadBalancer
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination loadbalancer_mock.go -package matching github.com/uber/cadence/client/matching LoadBalancer,WeightedLoadBalancer
 
 package matching
 
 import (
 	"fmt"
 	"math/rand"
-	"strings"
 
-	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
 type (
+	// WriteRequest is the interface for all types of AddTask* requests
+	WriteRequest interface {
+		ReadRequest
+		GetPartitionConfig() map[string]string
+	}
+	// ReadRequest is the interface for all types of Poll* requests
+	ReadRequest interface {
+		GetDomainUUID() string
+		GetTaskList() *types.TaskList
+		GetForwardedFrom() string
+	}
 	// LoadBalancer is the interface for implementers of
 	// component that distributes add/poll api calls across
 	// available task list partitions when possible
@@ -44,87 +53,62 @@ type (
 		// to a parent partition in which case, no load balancing should be
 		// performed
 		PickWritePartition(
-			domainID string,
-			taskList types.TaskList,
 			taskListType int,
-			forwardedFrom string,
+			request WriteRequest,
 		) string
 
 		// PickReadPartition returns the task list partition to send a poller to.
 		// Input is name of the original task list as specified by caller. When
 		// forwardedFrom is non-empty, no load balancing should be done.
 		PickReadPartition(
-			domainID string,
-			taskList types.TaskList,
 			taskListType int,
-			forwardedFrom string,
+			request ReadRequest,
+			isolationGroup string,
 		) string
 
 		// UpdateWeight updates the weight of a task list partition.
 		// Input is name of the original task list as specified by caller. When
 		// the original task list is a partition, no update should be done.
 		UpdateWeight(
-			domainID string,
-			taskList types.TaskList,
 			taskListType int,
-			forwardedFrom string,
+			request ReadRequest,
 			partition string,
-			weight int64,
+			info *types.LoadBalancerHints,
 		)
+	}
+	WeightedLoadBalancer interface {
+		LoadBalancer
+		PickBetween(domainID, taskListName string, taskListType int, partitions []int) int
 	}
 
 	defaultLoadBalancer struct {
-		nReadPartitions  dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		nWritePartitions dynamicconfig.IntPropertyFnWithTaskListInfoFilters
-		domainIDToName   func(string) (string, error)
+		provider PartitionConfigProvider
 	}
 )
 
 // NewLoadBalancer returns an instance of matching load balancer that
 // can help distribute api calls across task list partitions
 func NewLoadBalancer(
-	domainIDToName func(string) (string, error),
-	dc *dynamicconfig.Collection,
+	provider PartitionConfigProvider,
 ) LoadBalancer {
 	return &defaultLoadBalancer{
-		domainIDToName:   domainIDToName,
-		nReadPartitions:  dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingNumTasklistReadPartitions),
-		nWritePartitions: dc.GetIntPropertyFilteredByTaskListInfo(dynamicconfig.MatchingNumTasklistWritePartitions),
+		provider: provider,
 	}
 }
 
 func (lb *defaultLoadBalancer) PickWritePartition(
-	domainID string,
-	taskList types.TaskList,
-	taskListType int,
-	forwardedFrom string,
+	taskListType int, req WriteRequest,
 ) string {
-	domainName, err := lb.domainIDToName(domainID)
-	if err != nil {
-		return taskList.GetName()
-	}
-	nPartitions := lb.nWritePartitions(domainName, taskList.GetName(), taskListType)
-
-	// checks to make sure number of writes never exceeds number of reads
-	if nRead := lb.nReadPartitions(domainName, taskList.GetName(), taskListType); nPartitions > nRead {
-		nPartitions = nRead
-	}
-	return lb.pickPartition(taskList, forwardedFrom, nPartitions)
+	nPartitions := lb.provider.GetNumberOfWritePartitions(req.GetDomainUUID(), *req.GetTaskList(), taskListType)
+	return lb.pickPartition(*req.GetTaskList(), req.GetForwardedFrom(), nPartitions)
 
 }
 
 func (lb *defaultLoadBalancer) PickReadPartition(
-	domainID string,
-	taskList types.TaskList,
-	taskListType int,
-	forwardedFrom string,
+	taskListType int, req ReadRequest, _ string,
 ) string {
-	domainName, err := lb.domainIDToName(domainID)
-	if err != nil {
-		return taskList.GetName()
-	}
-	n := lb.nReadPartitions(domainName, taskList.GetName(), taskListType)
-	return lb.pickPartition(taskList, forwardedFrom, n)
+	n := lb.provider.GetNumberOfReadPartitions(req.GetDomainUUID(), *req.GetTaskList(), taskListType)
+	return lb.pickPartition(*req.GetTaskList(), req.GetForwardedFrom(), n)
 
 }
 
@@ -134,16 +118,7 @@ func (lb *defaultLoadBalancer) pickPartition(
 	nPartitions int,
 ) string {
 
-	if forwardedFrom != "" || taskList.GetKind() == types.TaskListKindSticky {
-		return taskList.GetName()
-	}
-
-	if strings.HasPrefix(taskList.GetName(), common.ReservedTaskListPrefix) {
-		// this should never happen when forwardedFrom is empty
-		return taskList.GetName()
-	}
-
-	if nPartitions <= 0 {
+	if nPartitions <= 1 {
 		return taskList.GetName()
 	}
 
@@ -152,12 +127,10 @@ func (lb *defaultLoadBalancer) pickPartition(
 }
 
 func (lb *defaultLoadBalancer) UpdateWeight(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req ReadRequest,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
 }
 
@@ -165,5 +138,5 @@ func getPartitionTaskListName(root string, partition int) string {
 	if partition <= 0 {
 		return root
 	}
-	return fmt.Sprintf("%v%v/%v", common.ReservedTaskListPrefix, root, partition)
+	return fmt.Sprintf("%v%v/%v", constants.ReservedTaskListPrefix, root, partition)
 }

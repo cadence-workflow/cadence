@@ -4,10 +4,22 @@ frontend.enableClientVersionCheck:
 system.minRetentionDays:
 - value: 0
   constraints: {}
+matching.enableStandbyTaskCompletion:
+- value: true
+  constraints: {}
+history.standbyClusterDelay:
+- value: 30s
+  constraints: {}
+history.standbyTaskMissingEventsResendDelay:
+- value: 30s
+  constraints: {}
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}
 history.useNewInitialFailoverVersion:
+- value: true
+  constraints: {}
+system.enableDomainAuditLogging:
 - value: true
   constraints: {}
 history.enableStrongIdempotency:
@@ -19,6 +31,12 @@ frontend.validSearchAttributes:
 - value:
     BinaryChecksums: 1
     CadenceChangeVersion: 1
+    CadenceScheduleID: 1
+    CadenceScheduleTime: 5
+    CadenceScheduleIsBackfill: 4
+    CadenceScheduleState: 1
+    CadenceScheduleCron: 1
+    CadenceScheduleWorkflowType: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
@@ -51,4 +69,33 @@ frontend.validSearchAttributes:
     service: 1
     user: 1
     IsDeleted: 4
+    ExecutionStatus: 2
+    CronSchedule: 1
+    ScheduledExecutionTime: 2
   constraints: {}
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+system.domainAuditLogTTL:
+  - value: "15m"
+matching.enableClientAutoConfig:
+- value: true
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
+history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
+- value: true
+shardDistributor.migrationMode:
+  - value: "onboarded"
+  - value: "local_pass"
+    constraints:
+      namespace: "test-local-passthrough"
+  - value: "local_pass_shadow"
+    constraints:
+      namespace: "test-local-passthrough-shadow"
+  - value: "distributed_pass"
+    constraints:
+      namespace: "test-distributed-passthrough"
+  - value: "distributed_pass"
+    constraints:
+      namespace: "test-external-assignment"

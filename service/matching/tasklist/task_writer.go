@@ -121,29 +121,40 @@ func (w *taskWriter) isStopped() bool {
 	return atomic.LoadInt64(&w.stopped) == 1
 }
 
-func (w *taskWriter) appendTask(taskInfo *persistence.TaskInfo) (*persistence.CreateTasksResponse, error) {
+func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskInfo) (*persistence.CreateTasksResponse, error) {
+	// Make context to respect the append task timeout.
+	tCtx, cancel := context.WithTimeout(ctx, w.config.AppendTaskTimeout())
+	defer cancel()
+
+	// If the writer has already stopped, it returns an error
 	if w.isStopped() {
 		return nil, errShutdown
 	}
 
-	ch := make(chan *writeTaskResponse)
+	// Create a result channel for this request.
+	// Use buffer size 1 so the writer can send one response even if this call is already timed out.
+	// Without a buffer, the writer can block forever when no receiver is waiting.
+	ch := make(chan *writeTaskResponse, 1)
+
 	req := &writeTaskRequest{
 		taskInfo:   taskInfo,
 		responseCh: ch,
 	}
 
 	select {
-	case w.appendCh <- req:
-		select {
-		case r := <-ch:
+	case w.appendCh <- req: // If enqueue succeed
+		select { // Wait for the task result after the enqueue
+		case r := <-ch: // If the writer sends the task result after the DB I/O task
 			return r.persistenceResponse, r.err
+		case <-tCtx.Done(): // If the writer didn't send the task result within a timeout threshold
+			return nil, fmt.Errorf("failed to receive a success response from the channel within a timeout threshold: %w", tCtx.Err())
 		case <-w.stopCh:
 			// if we are shutting down, this request will never make
 			// it to cassandra, just bail out and fail this request
 			return nil, errShutdown
 		}
-	default: // channel is full, throttle
-		return nil, createServiceBusyError("Too many outstanding appends to the TaskList")
+	case <-tCtx.Done(): // If a channel is full and timed out waiting to enqueue
+		return nil, createServiceBusyError("task queue is full and timed out waiting to enqueue")
 	}
 }
 
@@ -183,7 +194,7 @@ func (w *taskWriter) allocTaskIDBlock(prevBlockEnd int64) (taskIDBlock, error) {
 
 func (w *taskWriter) renewLeaseWithRetry() (taskListState, error) {
 	var newState taskListState
-	op := func() (err error) {
+	op := func(ctx context.Context) (err error) {
 		newState, err = w.db.RenewLease()
 		return
 	}
@@ -203,6 +214,10 @@ writerLoop:
 		select {
 		case request := <-w.appendCh:
 			{
+				if w.isStopped() {
+					break writerLoop
+				}
+
 				// read a batch of requests from the channel
 				reqs := []*writeTaskRequest{request}
 				reqs = w.getWriteBatch(reqs)
@@ -285,6 +300,11 @@ func (w *taskWriter) sendWriteResponse(reqs []*writeTaskRequest,
 			persistenceResponse: persistenceResponse,
 		}
 
-		req.responseCh <- resp
+		// appendTask() listens stopCh and terminates early without reading from responseCh.
+		// Therefore we need to listen stopCh here to avoid getting stuck while pushing response to responseCh.
+		select {
+		case <-w.stopCh:
+		case req.responseCh <- resp:
+		}
 	}
 }

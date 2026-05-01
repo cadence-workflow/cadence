@@ -4,7 +4,7 @@ Author: Cadence Team
 
 Last updated: Dec 2019
 
-Reference: [#2290](https://github.com/uber/cadence/issues/2290)
+Reference: [#2290](https://github.com/cadence-workflow/cadence/issues/2290)
 
 
 ## Abstract
@@ -360,4 +360,3 @@ T = 1: conflict resolution happens, workflow mutable state is rebuilt and histor
 T = 2: task A is loaded.
 
 At this time, due to the rebuilt of workflow mutable state (conflict resolution), task A is no longer relevant (task A's corresponding event belongs to non-current branch). Task processing logic will verify both the event ID and version of the task against corresponding workflow mutable state, then discard task A.
-

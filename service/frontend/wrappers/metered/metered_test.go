@@ -27,13 +27,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -48,7 +49,7 @@ func TestContextMetricsTags(t *testing.T) {
 	mockHandler.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.CountWorkflowExecutionsResponse{}, nil).Times(1)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.MigrationConfig{})
 	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, nil)
 
 	tag := metrics.TransportTag("grpc")
@@ -71,8 +72,8 @@ func TestSignalMetricHasSignalName(t *testing.T) {
 	mockHandler.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
-	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, &config.Config{EmitSignalNameMetricsTag: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true)})
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.MigrationConfig{})
+	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, &config.Config{EmitSignalNameMetricsTag: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)})
 
 	signalRequest := &types.SignalWorkflowExecutionRequest{
 		SignalName: "test_signal",
@@ -102,7 +103,7 @@ func TestSignalMetricHasSignalName(t *testing.T) {
 func TestHandleErr_InternalServiceError(t *testing.T) {
 	logger := testlogger.New(t)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.MigrationConfig{})
 	handler := &apiHandler{}
 
 	err := handler.handleErr(&types.InternalServiceError{Message: "internal error"}, metricsClient.Scope(0), logger)
@@ -111,10 +112,22 @@ func TestHandleErr_InternalServiceError(t *testing.T) {
 	assert.Contains(t, err.Error(), "cadence internal error")
 }
 
+func TestHandleErr_ClientConnectionClosingError(t *testing.T) {
+	logger := testlogger.New(t)
+	testScope := tally.NewTestScope("test", nil)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.MigrationConfig{})
+	handler := &apiHandler{}
+
+	err := handler.handleErr(errors.New(constants.GRPCConnectionClosingError), metricsClient.Scope(0), logger)
+
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), constants.GRPCConnectionClosingError)
+}
+
 func TestHandleErr_UncategorizedError(t *testing.T) {
 	logger := testlogger.New(t)
 	testScope := tally.NewTestScope("test", nil)
-	metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+	metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.MigrationConfig{})
 	handler := &apiHandler{}
 
 	err := handler.handleErr(errors.New("unknown error"), metricsClient.Scope(0), logger)
@@ -742,7 +755,7 @@ func TestHandleErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := testlogger.New(t)
 			testScope := tally.NewTestScope("test", nil)
-			metricsClient := metrics.NewClient(testScope, metrics.Frontend)
+			metricsClient := metrics.NewClient(testScope, metrics.Frontend, metrics.MigrationConfig{})
 			handler := &apiHandler{}
 
 			err := handler.handleErr(tt.err, metricsClient.Scope(0), logger)

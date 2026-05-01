@@ -27,12 +27,12 @@ import (
 	"time"
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -94,6 +94,14 @@ type (
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
 	}
 
+	// DomainAuditStore is a lower level of DomainAuditManager
+	DomainAuditStore interface {
+		Closeable
+		GetName() string
+		CreateDomainAuditLog(ctx context.Context, request *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
+		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error)
+	}
+
 	// ExecutionStore is used to manage workflow executions for Persistence layer
 	ExecutionStore interface {
 		Closeable
@@ -110,30 +118,26 @@ type (
 		GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error)
 		IsWorkflowExecutionExists(ctx context.Context, request *IsWorkflowExecutionExistsRequest) (*IsWorkflowExecutionExistsResponse, error)
 
-		// Transfer task related methods
-		GetTransferTasks(ctx context.Context, request *GetTransferTasksRequest) (*GetTransferTasksResponse, error)
-		CompleteTransferTask(ctx context.Context, request *CompleteTransferTaskRequest) error
-		RangeCompleteTransferTask(ctx context.Context, request *RangeCompleteTransferTaskRequest) (*RangeCompleteTransferTaskResponse, error)
-
 		// Replication task related methods
-		GetReplicationTasks(ctx context.Context, request *GetReplicationTasksRequest) (*InternalGetReplicationTasksResponse, error)
-		CompleteReplicationTask(ctx context.Context, request *CompleteReplicationTaskRequest) error
-		RangeCompleteReplicationTask(ctx context.Context, request *RangeCompleteReplicationTaskRequest) (*RangeCompleteReplicationTaskResponse, error)
 		PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationTasksFromDLQResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
-		// Timer related methods.
-		GetTimerIndexTasks(ctx context.Context, request *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
-		CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
-		RangeCompleteTimerTask(ctx context.Context, request *RangeCompleteTimerTaskRequest) (*RangeCompleteTimerTaskResponse, error)
+		// History task related methods
+		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
+		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
+		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
+
+		// Active cluster selection policy related methods
+		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*DataBlob, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
 	}
 
 	// HistoryStore is to manager workflow history events
@@ -194,21 +198,95 @@ type (
 		Values    *DataBlob
 	}
 
-	// Queue is a store to enqueue and get messages
-	Queue interface {
+	InternalEnqueueMessageRequest struct {
+		MessagePayload   []byte
+		CurrentTimeStamp time.Time
+	}
+
+	InternalReadMessagesRequest struct {
+		LastMessageID int64
+		MaxCount      int
+	}
+
+	InternalReadMessagesResponse struct {
+		Messages []*InternalQueueMessage
+	}
+
+	InternalDeleteMessagesBeforeRequest struct {
+		MessageID int64
+	}
+
+	InternalUpdateAckLevelRequest struct {
+		MessageID        int64
+		ClusterName      string
+		CurrentTimeStamp time.Time
+	}
+
+	InternalGetAckLevelsRequest struct{}
+
+	InternalGetAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	InternalEnqueueMessageToDLQRequest struct {
+		MessagePayload   []byte
+		CurrentTimeStamp time.Time
+	}
+
+	InternalReadMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+		PageSize       int
+		PageToken      []byte
+	}
+
+	InternalReadMessagesFromDLQResponse struct {
+		Messages      []*InternalQueueMessage
+		NextPageToken []byte
+	}
+
+	InternalDeleteMessageFromDLQRequest struct {
+		MessageID int64
+	}
+
+	InternalRangeDeleteMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+	}
+
+	InternalUpdateDLQAckLevelRequest struct {
+		MessageID        int64
+		ClusterName      string
+		CurrentTimeStamp time.Time
+	}
+
+	InternalGetDLQAckLevelsRequest struct{}
+
+	InternalGetDLQAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	InternalGetDLQSizeRequest struct{}
+
+	InternalGetDLQSizeResponse struct {
+		Size int64
+	}
+
+	// QueueStore is a store to enqueue and get messages
+	QueueStore interface {
 		Closeable
-		EnqueueMessage(ctx context.Context, messagePayload []byte) error
-		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) ([]*InternalQueueMessage, error)
-		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetAckLevels(ctx context.Context) (map[string]int64, error)
-		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error
-		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*InternalQueueMessage, []byte, error)
-		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
-		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
-		GetDLQSize(ctx context.Context) (int64, error)
+		EnqueueMessage(ctx context.Context, request *InternalEnqueueMessageRequest) error
+		ReadMessages(ctx context.Context, request *InternalReadMessagesRequest) (*InternalReadMessagesResponse, error)
+		DeleteMessagesBefore(ctx context.Context, request *InternalDeleteMessagesBeforeRequest) error
+		UpdateAckLevel(ctx context.Context, request *InternalUpdateAckLevelRequest) error
+		GetAckLevels(ctx context.Context, request *InternalGetAckLevelsRequest) (*InternalGetAckLevelsResponse, error)
+		EnqueueMessageToDLQ(ctx context.Context, request *InternalEnqueueMessageToDLQRequest) error
+		ReadMessagesFromDLQ(ctx context.Context, request *InternalReadMessagesFromDLQRequest) (*InternalReadMessagesFromDLQResponse, error)
+		DeleteMessageFromDLQ(ctx context.Context, request *InternalDeleteMessageFromDLQRequest) error
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *InternalRangeDeleteMessagesFromDLQRequest) error
+		UpdateDLQAckLevel(ctx context.Context, request *InternalUpdateDLQAckLevelRequest) error
+		GetDLQAckLevels(ctx context.Context, request *InternalGetDLQAckLevelsRequest) (*InternalGetDLQAckLevelsResponse, error)
+		GetDLQSize(ctx context.Context, request *InternalGetDLQSizeRequest) (*InternalGetDLQSizeResponse, error)
 	}
 
 	// InternalQueueMessage is the message that stores in the queue
@@ -222,12 +300,13 @@ type (
 	// It contains raw data, and metadata(right now only encoding) in other field
 	// Note that it should be only used for Persistence layer, below dataInterface and application(historyEngine/etc)
 	DataBlob struct {
-		Encoding common.EncodingType
+		Encoding constants.EncodingType
 		Data     []byte
 	}
 
 	// InternalCreateWorkflowExecutionRequest is used to write a new workflow execution
 	InternalCreateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode CreateWorkflowMode
@@ -238,22 +317,16 @@ type (
 		NewWorkflowSnapshot InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
-	}
 
-	// InternalGetReplicationTasksResponse is the response to GetReplicationTask
-	InternalGetReplicationTasksResponse struct {
-		Tasks         []*InternalReplicationTaskInfo
-		NextPageToken []byte
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalPutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	InternalPutReplicationTaskToDLQRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
 	}
-
-	// InternalGetReplicationTasksFromDLQResponse is the response for GetReplicationTasksFromDLQ
-	InternalGetReplicationTasksFromDLQResponse = InternalGetReplicationTasksResponse
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events
 	InternalReplicationTaskInfo struct {
@@ -269,6 +342,7 @@ type (
 		BranchToken       []byte
 		NewRunBranchToken []byte
 		CreationTime      time.Time
+		CurrentTimeStamp  time.Time
 	}
 
 	// InternalWorkflowExecutionInfo describes a workflow execution for Persistence Interface
@@ -284,6 +358,7 @@ type (
 		CompletionEventBatchID             int64
 		CompletionEvent                    *DataBlob
 		TaskList                           string
+		TaskListKind                       types.TaskListKind
 		WorkflowTypeName                   string
 		WorkflowTimeout                    time.Duration
 		DecisionStartToCloseTimeout        time.Duration
@@ -326,10 +401,13 @@ type (
 		NonRetriableErrors []string
 		BranchToken        []byte
 		CronSchedule       string
+		CronOverlapPolicy  types.CronOverlapPolicy
 		ExpirationInterval time.Duration
 		Memo               map[string][]byte
 		SearchAttributes   map[string][]byte
 		PartitionConfig    map[string]string
+
+		ActiveClusterSelectionPolicy *DataBlob
 
 		// attributes which are not related to mutable state at all
 		HistorySize int64
@@ -382,6 +460,7 @@ type (
 		DomainID           string
 		StartedIdentity    string
 		TaskList           string
+		TaskListKind       types.TaskListKind
 		HasRetryPolicy     bool
 		InitialInterval    time.Duration
 		BackoffCoefficient float64
@@ -415,6 +494,7 @@ type (
 
 	// InternalUpdateWorkflowExecutionRequest is used to update a workflow execution for Persistence Interface
 	InternalUpdateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode UpdateWorkflowMode
@@ -424,10 +504,13 @@ type (
 		NewWorkflowSnapshot *InternalWorkflowSnapshot
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for Persistence Interface
 	InternalConflictResolveWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode ConflictResolveWorkflowMode
@@ -442,6 +525,8 @@ type (
 		CurrentWorkflowMutation *InternalWorkflowMutation
 
 		WorkflowRequestMode CreateWorkflowRequestMode
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalWorkflowMutation is used as generic workflow execution state mutation for Persistence Interface
@@ -466,10 +551,7 @@ type (
 		NewBufferedEvents         *DataBlob
 		ClearBufferedEvents       bool
 
-		TransferTasks     []Task
-		CrossClusterTasks []Task
-		TimerTasks        []Task
-		ReplicationTasks  []Task
+		TasksByCategory map[HistoryTaskCategory][]Task
 
 		WorkflowRequests []*WorkflowRequest
 
@@ -493,10 +575,7 @@ type (
 		SignalInfos         []*SignalInfo
 		SignalRequestedIDs  []string
 
-		TransferTasks     []Task
-		CrossClusterTasks []Task
-		TimerTasks        []Task
-		ReplicationTasks  []Task
+		TasksByCategory map[HistoryTaskCategory][]Task
 
 		WorkflowRequests []*WorkflowRequest
 
@@ -534,10 +613,13 @@ type (
 		TransactionID int64
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
 	InternalGetWorkflowExecutionRequest struct {
+		ShardID   ShardID
 		DomainID  string
 		Execution types.WorkflowExecution
 		RangeID   int64
@@ -572,6 +654,8 @@ type (
 		Info string
 		// Used in sharded data stores to identify which shard to use
 		ShardID int
+
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalForkHistoryBranchResponse is the response to ForkHistoryBranchRequest
@@ -650,23 +734,28 @@ type (
 
 	// InternalVisibilityWorkflowExecutionInfo is visibility info for internal response
 	InternalVisibilityWorkflowExecutionInfo struct {
-		DomainID         string
-		WorkflowType     string
-		WorkflowID       string
-		RunID            string
-		TypeName         string
-		StartTime        time.Time
-		ExecutionTime    time.Time
-		CloseTime        time.Time
-		Status           *types.WorkflowExecutionCloseStatus
-		HistoryLength    int64
-		Memo             *DataBlob
-		TaskList         string
-		IsCron           bool
-		NumClusters      int16
-		UpdateTime       time.Time
-		SearchAttributes map[string]interface{}
-		ShardID          int16
+		DomainID               string
+		WorkflowType           string
+		WorkflowID             string
+		RunID                  string
+		TypeName               string
+		StartTime              time.Time
+		ExecutionTime          time.Time
+		CloseTime              time.Time
+		Status                 *types.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		Memo                   *DataBlob
+		TaskList               string
+		IsCron                 bool
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTime             time.Time
+		SearchAttributes       map[string]interface{}
+		ShardID                int16
+		CronSchedule           string
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalListWorkflowExecutionsResponse is response from ListWorkflowExecutions
@@ -709,43 +798,53 @@ type (
 
 	// InternalRecordWorkflowExecutionStartedRequest request to RecordWorkflowExecutionStarted
 	InternalRecordWorkflowExecutionStartedRequest struct {
-		DomainUUID         string
-		WorkflowID         string
-		RunID              string
-		WorkflowTypeName   string
-		StartTimestamp     time.Time
-		ExecutionTimestamp time.Time
-		WorkflowTimeout    time.Duration
-		TaskID             int64
-		Memo               *DataBlob
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    time.Time
-		SearchAttributes   map[string][]byte
-		ShardID            int16
+		DomainUUID             string
+		WorkflowID             string
+		RunID                  string
+		WorkflowTypeName       string
+		StartTimestamp         time.Time
+		ExecutionTimestamp     time.Time
+		WorkflowTimeout        time.Duration
+		TaskID                 int64
+		Memo                   *DataBlob
+		TaskList               string
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTimestamp        time.Time
+		SearchAttributes       map[string][]byte
+		ShardID                int16
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalRecordWorkflowExecutionClosedRequest is request to RecordWorkflowExecutionClosed
 	InternalRecordWorkflowExecutionClosedRequest struct {
-		DomainUUID         string
-		WorkflowID         string
-		RunID              string
-		WorkflowTypeName   string
-		StartTimestamp     time.Time
-		ExecutionTimestamp time.Time
-		TaskID             int64
-		Memo               *DataBlob
-		TaskList           string
-		SearchAttributes   map[string][]byte
-		CloseTimestamp     time.Time
-		Status             types.WorkflowExecutionCloseStatus
-		HistoryLength      int64
-		RetentionPeriod    time.Duration
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    time.Time
-		ShardID            int16
+		DomainUUID             string
+		WorkflowID             string
+		RunID                  string
+		WorkflowTypeName       string
+		StartTimestamp         time.Time
+		ExecutionTimestamp     time.Time
+		TaskID                 int64
+		Memo                   *DataBlob
+		TaskList               string
+		SearchAttributes       map[string][]byte
+		CloseTimestamp         time.Time
+		Status                 types.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		RetentionPeriod        time.Duration
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTimestamp        time.Time
+		ShardID                int16
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalRecordWorkflowExecutionUninitializedRequest is used to add a record of a newly uninitialized execution
@@ -760,21 +859,26 @@ type (
 
 	// InternalUpsertWorkflowExecutionRequest is request to UpsertWorkflowExecution
 	InternalUpsertWorkflowExecutionRequest struct {
-		DomainUUID         string
-		WorkflowID         string
-		RunID              string
-		WorkflowTypeName   string
-		StartTimestamp     time.Time
-		ExecutionTimestamp time.Time
-		WorkflowTimeout    time.Duration
-		TaskID             int64
-		Memo               *DataBlob
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    time.Time
-		SearchAttributes   map[string][]byte
-		ShardID            int64
+		DomainUUID                  string
+		WorkflowID                  string
+		RunID                       string
+		WorkflowTypeName            string
+		StartTimestamp              time.Time
+		ExecutionTimestamp          time.Time
+		WorkflowTimeout             time.Duration
+		TaskID                      int64
+		Memo                        *DataBlob
+		TaskList                    string
+		IsCron                      bool
+		CronSchedule                string
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             time.Time
+		SearchAttributes            map[string][]byte
+		ShardID                     int64
+		ExecutionStatus             types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp int64
 	}
 
 	// InternalListWorkflowExecutionsRequest is used to list executions in a domain
@@ -807,22 +911,29 @@ type (
 		AsyncWorkflowsConfig     *DataBlob
 	}
 
+	InternalDomainReplicationConfig struct {
+		Clusters             []*ClusterReplicationConfig
+		ActiveClusterName    string
+		ActiveClustersConfig *DataBlob
+	}
+
 	// InternalCreateDomainRequest is used to create the domain
 	InternalCreateDomainRequest struct {
 		Info              *DomainInfo
 		Config            *InternalDomainConfig
-		ReplicationConfig *DomainReplicationConfig
+		ReplicationConfig *InternalDomainReplicationConfig
 		IsGlobalDomain    bool
 		ConfigVersion     int64
 		FailoverVersion   int64
 		LastUpdatedTime   time.Time
+		CurrentTimeStamp  time.Time
 	}
 
 	// InternalGetDomainResponse is the response for GetDomain
 	InternalGetDomainResponse struct {
 		Info                        *DomainInfo
 		Config                      *InternalDomainConfig
-		ReplicationConfig           *DomainReplicationConfig
+		ReplicationConfig           *InternalDomainReplicationConfig
 		IsGlobalDomain              bool
 		ConfigVersion               int64
 		FailoverVersion             int64
@@ -837,7 +948,7 @@ type (
 	InternalUpdateDomainRequest struct {
 		Info                        *DomainInfo
 		Config                      *InternalDomainConfig
-		ReplicationConfig           *DomainReplicationConfig
+		ReplicationConfig           *InternalDomainReplicationConfig
 		ConfigVersion               int64
 		FailoverVersion             int64
 		FailoverNotificationVersion int64
@@ -853,29 +964,69 @@ type (
 		NextPageToken []byte
 	}
 
+	DomainAuditOperationType int
+
+	// InternalCreateDomainAuditLogRequest is used to create a domain audit log entry
+	InternalCreateDomainAuditLogRequest struct {
+		DomainID        string
+		EventID         string
+		StateBefore     *DataBlob
+		StateAfter      *DataBlob
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
+		TTLSeconds      int64 // TTL for the audit log entry in seconds
+	}
+
+	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
+	InternalGetDomainAuditLogsResponse struct {
+		AuditLogs     []*InternalDomainAuditLog
+		NextPageToken []byte
+	}
+
+	// InternalDomainAuditLog represents a single internal domain audit log entry
+	InternalDomainAuditLog struct {
+		EventID         string
+		DomainID        string
+		StateBefore     *DataBlob
+		StateAfter      *DataBlob
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
+	}
+
 	// InternalShardInfo describes a shard
 	InternalShardInfo struct {
-		ShardID                       int                  `json:"shard_id"`
-		Owner                         string               `json:"owner"`
-		RangeID                       int64                `json:"range_id"`
-		StolenSinceRenew              int                  `json:"stolen_since_renew"`
-		UpdatedAt                     time.Time            `json:"updated_at"`
-		ReplicationAckLevel           int64                `json:"replication_ack_level"`
-		ReplicationDLQAckLevel        map[string]int64     `json:"replication_dlq_ack_level"`
-		TransferAckLevel              int64                `json:"transfer_ack_level"`
-		TimerAckLevel                 time.Time            `json:"timer_ack_level"`
-		ClusterTransferAckLevel       map[string]int64     `json:"cluster_transfer_ack_level"`
-		ClusterTimerAckLevel          map[string]time.Time `json:"cluster_timer_ack_level"`
-		TransferProcessingQueueStates *DataBlob            `json:"transfer_processing_queue_states"`
-		TimerProcessingQueueStates    *DataBlob            `json:"timer_processing_queue_states"`
-		ClusterReplicationLevel       map[string]int64     `json:"cluster_replication_level"`
-		DomainNotificationVersion     int64                `json:"domain_notification_version"`
-		PendingFailoverMarkers        *DataBlob            `json:"pending_failover_markers"`
+		ShardID                       int                         `json:"shard_id"`
+		Owner                         string                      `json:"owner"`
+		RangeID                       int64                       `json:"range_id"`
+		StolenSinceRenew              int                         `json:"stolen_since_renew"`
+		UpdatedAt                     time.Time                   `json:"updated_at"`
+		ReplicationAckLevel           int64                       `json:"replication_ack_level"`
+		ReplicationDLQAckLevel        map[string]int64            `json:"replication_dlq_ack_level"`
+		TransferAckLevel              int64                       `json:"transfer_ack_level"`
+		TimerAckLevel                 time.Time                   `json:"timer_ack_level"`
+		ClusterTransferAckLevel       map[string]int64            `json:"cluster_transfer_ack_level"`
+		ClusterTimerAckLevel          map[string]time.Time        `json:"cluster_timer_ack_level"`
+		TransferProcessingQueueStates *DataBlob                   `json:"transfer_processing_queue_states"`
+		TimerProcessingQueueStates    *DataBlob                   `json:"timer_processing_queue_states"`
+		ClusterReplicationLevel       map[string]int64            `json:"cluster_replication_level"`
+		DomainNotificationVersion     int64                       `json:"domain_notification_version"`
+		PendingFailoverMarkers        *DataBlob                   `json:"pending_failover_markers"`
+		QueueStates                   map[int32]*types.QueueState `json:"queue_states"`
+		CurrentTimestamp              time.Time
 	}
 
 	// InternalCreateShardRequest is request to CreateShard
 	InternalCreateShardRequest struct {
-		ShardInfo *InternalShardInfo
+		ShardInfo        *InternalShardInfo
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetShardRequest is used to get shard information
@@ -885,8 +1036,9 @@ type (
 
 	// InternalUpdateShardRequest  is used to update shard information
 	InternalUpdateShardRequest struct {
-		ShardInfo       *InternalShardInfo
-		PreviousRangeID int64
+		ShardInfo        *InternalShardInfo
+		PreviousRangeID  int64
+		CurrentTimeStamp time.Time
 	}
 
 	// InternalGetShardResponse is the response to GetShard
@@ -895,12 +1047,20 @@ type (
 	}
 )
 
+func (tr *InternalGetHistoryTreeResponse) ByBranchID() map[string]*types.HistoryBranch {
+	out := make(map[string]*types.HistoryBranch, len(tr.Branches))
+	for _, branch := range tr.Branches {
+		out[branch.BranchID] = branch
+	}
+	return out
+}
+
 // NewDataBlob returns a new DataBlob
-func NewDataBlob(data []byte, encodingType common.EncodingType) *DataBlob {
+func NewDataBlob(data []byte, encodingType constants.EncodingType) *DataBlob {
 	if len(data) == 0 {
 		return nil
 	}
-	if encodingType != common.EncodingTypeThriftRW && data[0] == 'Y' {
+	if encodingType != constants.EncodingTypeThriftRW && data[0] == 'Y' {
 		// original reason for this is not written down, but maybe for handling data prior to an encoding type?
 		panic(fmt.Sprintf("Invalid data blob encoding: \"%v\"", encodingType))
 	}
@@ -942,32 +1102,34 @@ func (d *DataBlob) GetData() []byte {
 }
 
 // GetEncoding returns encoding type
-func (d *DataBlob) GetEncoding() common.EncodingType {
+func (d *DataBlob) GetEncoding() constants.EncodingType {
 	encodingStr := d.GetEncodingString()
 
-	switch common.EncodingType(encodingStr) {
-	case common.EncodingTypeGob:
-		return common.EncodingTypeGob
-	case common.EncodingTypeJSON:
-		return common.EncodingTypeJSON
-	case common.EncodingTypeThriftRW:
-		return common.EncodingTypeThriftRW
-	case common.EncodingTypeEmpty:
-		return common.EncodingTypeEmpty
+	switch constants.EncodingType(encodingStr) {
+	case constants.EncodingTypeGob:
+		return constants.EncodingTypeGob
+	case constants.EncodingTypeJSON:
+		return constants.EncodingTypeJSON
+	case constants.EncodingTypeThriftRW:
+		return constants.EncodingTypeThriftRW
+	case constants.EncodingTypeThriftRWSnappy:
+		return constants.EncodingTypeThriftRWSnappy
+	case constants.EncodingTypeEmpty:
+		return constants.EncodingTypeEmpty
 	default:
-		return common.EncodingTypeUnknown
+		return constants.EncodingTypeUnknown
 	}
 }
 
 // ToInternal convert data blob to internal representation
 func (d *DataBlob) ToInternal() *types.DataBlob {
 	switch d.Encoding {
-	case common.EncodingTypeJSON:
+	case constants.EncodingTypeJSON:
 		return &types.DataBlob{
 			EncodingType: types.EncodingTypeJSON.Ptr(),
 			Data:         d.Data,
 		}
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		return &types.DataBlob{
 			EncodingType: types.EncodingTypeThriftRW.Ptr(),
 			Data:         d.Data,
@@ -982,15 +1144,61 @@ func NewDataBlobFromInternal(blob *types.DataBlob) *DataBlob {
 	switch blob.GetEncodingType() {
 	case types.EncodingTypeJSON:
 		return &DataBlob{
-			Encoding: common.EncodingTypeJSON,
+			Encoding: constants.EncodingTypeJSON,
 			Data:     blob.Data,
 		}
 	case types.EncodingTypeThriftRW:
 		return &DataBlob{
-			Encoding: common.EncodingTypeThriftRW,
+			Encoding: constants.EncodingTypeThriftRW,
 			Data:     blob.Data,
 		}
 	default:
 		panic(fmt.Sprintf("NewDataBlobFromInternal with unsupported encoding type: %v", blob.GetEncodingType()))
+	}
+}
+
+func (t *InternalReplicationTaskInfo) ToTask() (Task, error) {
+	switch t.TaskType {
+	case ReplicationTaskTypeHistory:
+		return &HistoryReplicationTask{
+			WorkflowIdentifier: WorkflowIdentifier{
+				DomainID:   t.DomainID,
+				WorkflowID: t.WorkflowID,
+				RunID:      t.RunID,
+			},
+			TaskData: TaskData{
+				Version:             t.Version,
+				TaskID:              t.TaskID,
+				VisibilityTimestamp: t.CreationTime,
+			},
+			FirstEventID:      t.FirstEventID,
+			NextEventID:       t.NextEventID,
+			BranchToken:       t.BranchToken,
+			NewRunBranchToken: t.NewRunBranchToken,
+		}, nil
+	case ReplicationTaskTypeSyncActivity:
+		return &SyncActivityTask{
+			WorkflowIdentifier: WorkflowIdentifier{
+				DomainID:   t.DomainID,
+				WorkflowID: t.WorkflowID,
+				RunID:      t.RunID,
+			},
+			TaskData: TaskData{
+				Version:             t.Version,
+				TaskID:              t.TaskID,
+				VisibilityTimestamp: t.CreationTime,
+			},
+			ScheduledID: t.ScheduledID,
+		}, nil
+	case ReplicationTaskTypeFailoverMarker:
+		return &FailoverMarkerTask{
+			TaskData: TaskData{
+				Version: t.Version,
+				TaskID:  t.TaskID,
+			},
+			DomainID: t.DomainID,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}
 }

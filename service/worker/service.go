@@ -30,8 +30,10 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/resource"
@@ -41,6 +43,7 @@ import (
 	"github.com/uber/cadence/service/worker/asyncworkflow"
 	"github.com/uber/cadence/service/worker/batcher"
 	"github.com/uber/cadence/service/worker/diagnostics"
+	"github.com/uber/cadence/service/worker/domaindeprecation"
 	"github.com/uber/cadence/service/worker/esanalyzer"
 	"github.com/uber/cadence/service/worker/failovermanager"
 	"github.com/uber/cadence/service/worker/indexer"
@@ -51,6 +54,7 @@ import (
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 	"github.com/uber/cadence/service/worker/scanner/tasklist"
 	"github.com/uber/cadence/service/worker/scanner/timers"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 type (
@@ -69,6 +73,7 @@ type (
 
 	// Config contains all the service config for worker
 	Config struct {
+		AdminOperationToken                 dynamicproperties.StringPropertyFn
 		KafkaCfg                            config.KafkaConfig
 		ArchiverConfig                      *archiver.Config
 		IndexerCfg                          *indexer.Config
@@ -76,16 +81,18 @@ type (
 		BatcherCfg                          *batcher.Config
 		ESAnalyzerCfg                       *esanalyzer.Config
 		failoverManagerCfg                  *failovermanager.Config
-		ThrottledLogRPS                     dynamicconfig.IntPropertyFn
-		PersistenceGlobalMaxQPS             dynamicconfig.IntPropertyFn
-		PersistenceMaxQPS                   dynamicconfig.IntPropertyFn
-		EnableBatcher                       dynamicconfig.BoolPropertyFn
-		EnableParentClosePolicyWorker       dynamicconfig.BoolPropertyFn
-		NumParentClosePolicySystemWorkflows dynamicconfig.IntPropertyFn
-		EnableFailoverManager               dynamicconfig.BoolPropertyFn
-		DomainReplicationMaxRetryDuration   dynamicconfig.DurationPropertyFn
-		EnableESAnalyzer                    dynamicconfig.BoolPropertyFn
-		EnableAsyncWorkflowConsumption      dynamicconfig.BoolPropertyFn
+		ThrottledLogRPS                     dynamicproperties.IntPropertyFn
+		PersistenceGlobalMaxQPS             dynamicproperties.IntPropertyFn
+		PersistenceMaxQPS                   dynamicproperties.IntPropertyFn
+		EnableBatcher                       dynamicproperties.BoolPropertyFn
+		EnableScheduler                     dynamicproperties.BoolPropertyFnWithDomainFilter
+		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
+		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
+		EnableFailoverManager               dynamicproperties.BoolPropertyFn
+		DomainReplicationMaxRetryDuration   dynamicproperties.DurationPropertyFn
+		EnableESAnalyzer                    dynamicproperties.BoolPropertyFn
+		EnableAsyncWorkflowConsumption      dynamicproperties.BoolPropertyFn
+		EnableDomainAuditLogging            dynamicproperties.BoolPropertyFn
 		HostName                            string
 	}
 )
@@ -122,82 +129,86 @@ func NewConfig(params *resource.Params) *Config {
 	dc := dynamicconfig.NewCollection(
 		params.DynamicConfig,
 		params.Logger,
-		dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 	)
 	config := &Config{
+		AdminOperationToken: dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 		ArchiverConfig: &archiver.Config{
-			ArchiverConcurrency:             dc.GetIntProperty(dynamicconfig.WorkerArchiverConcurrency),
-			ArchivalsPerIteration:           dc.GetIntProperty(dynamicconfig.WorkerArchivalsPerIteration),
-			TimeLimitPerArchivalIteration:   dc.GetDurationProperty(dynamicconfig.WorkerTimeLimitPerArchivalIteration),
-			AllowArchivingIncompleteHistory: dc.GetBoolProperty(dynamicconfig.AllowArchivingIncompleteHistory),
+			ArchiverConcurrency:             dc.GetIntProperty(dynamicproperties.WorkerArchiverConcurrency),
+			ArchivalsPerIteration:           dc.GetIntProperty(dynamicproperties.WorkerArchivalsPerIteration),
+			TimeLimitPerArchivalIteration:   dc.GetDurationProperty(dynamicproperties.WorkerTimeLimitPerArchivalIteration),
+			AllowArchivingIncompleteHistory: dc.GetBoolProperty(dynamicproperties.AllowArchivingIncompleteHistory),
 		},
 		ScannerCfg: &scanner.Config{
-			ScannerPersistenceMaxQPS: dc.GetIntProperty(dynamicconfig.ScannerPersistenceMaxQPS),
+			ScannerPersistenceMaxQPS: dc.GetIntProperty(dynamicproperties.ScannerPersistenceMaxQPS),
 			TaskListScannerOptions: tasklist.Options{
-				GetOrphanTasksPageSizeFn: dc.GetIntProperty(dynamicconfig.ScannerGetOrphanTasksPageSize),
-				TaskBatchSizeFn:          dc.GetIntProperty(dynamicconfig.ScannerBatchSizeForTasklistHandler),
-				EnableCleaning:           dc.GetBoolProperty(dynamicconfig.EnableCleaningOrphanTaskInTasklistScavenger),
-				MaxTasksPerJobFn:         dc.GetIntProperty(dynamicconfig.ScannerMaxTasksProcessedPerTasklistJob),
+				GetOrphanTasksPageSizeFn: dc.GetIntProperty(dynamicproperties.ScannerGetOrphanTasksPageSize),
+				TaskBatchSizeFn:          dc.GetIntProperty(dynamicproperties.ScannerBatchSizeForTasklistHandler),
+				EnableCleaning:           dc.GetBoolProperty(dynamicproperties.EnableCleaningOrphanTaskInTasklistScavenger),
+				MaxTasksPerJobFn:         dc.GetIntProperty(dynamicproperties.ScannerMaxTasksProcessedPerTasklistJob),
 			},
 			Persistence:            &params.PersistenceConfig,
 			ClusterMetadata:        params.ClusterMetadata,
-			TaskListScannerEnabled: dc.GetBoolProperty(dynamicconfig.TaskListScannerEnabled),
-			HistoryScannerEnabled:  dc.GetBoolProperty(dynamicconfig.HistoryScannerEnabled),
+			TaskListScannerEnabled: dc.GetBoolProperty(dynamicproperties.TaskListScannerEnabled),
+			HistoryScannerEnabled:  dc.GetBoolProperty(dynamicproperties.HistoryScannerEnabled),
 			ShardScanners: []*shardscanner.ScannerConfig{
 				executions.ConcreteExecutionConfig(dc),
 				executions.CurrentExecutionConfig(dc),
 				timers.ScannerConfig(dc),
 			},
-			MaxWorkflowRetentionInDays: dc.GetIntProperty(dynamicconfig.MaxRetentionDays),
+			MaxWorkflowRetentionInDays: dc.GetIntProperty(dynamicproperties.MaxRetentionDays),
 		},
+		KafkaCfg: params.KafkaConfig,
 		BatcherCfg: &batcher.Config{
-			AdminOperationToken: dc.GetStringProperty(dynamicconfig.AdminOperationToken),
+			AdminOperationToken: dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 			ClusterMetadata:     params.ClusterMetadata,
 		},
 		failoverManagerCfg: &failovermanager.Config{
-			AdminOperationToken: dc.GetStringProperty(dynamicconfig.AdminOperationToken),
+			AdminOperationToken: dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 			ClusterMetadata:     params.ClusterMetadata,
 		},
 		ESAnalyzerCfg: &esanalyzer.Config{
-			ESAnalyzerPause:                          dc.GetBoolProperty(dynamicconfig.ESAnalyzerPause),
-			ESAnalyzerTimeWindow:                     dc.GetDurationProperty(dynamicconfig.ESAnalyzerTimeWindow),
-			ESAnalyzerMaxNumDomains:                  dc.GetIntProperty(dynamicconfig.ESAnalyzerMaxNumDomains),
-			ESAnalyzerMaxNumWorkflowTypes:            dc.GetIntProperty(dynamicconfig.ESAnalyzerMaxNumWorkflowTypes),
-			ESAnalyzerLimitToTypes:                   dc.GetStringProperty(dynamicconfig.ESAnalyzerLimitToTypes),
-			ESAnalyzerEnableAvgDurationBasedChecks:   dc.GetBoolProperty(dynamicconfig.ESAnalyzerEnableAvgDurationBasedChecks),
-			ESAnalyzerLimitToDomains:                 dc.GetStringProperty(dynamicconfig.ESAnalyzerLimitToDomains),
-			ESAnalyzerNumWorkflowsToRefresh:          dc.GetIntPropertyFilteredByWorkflowType(dynamicconfig.ESAnalyzerNumWorkflowsToRefresh),
-			ESAnalyzerBufferWaitTime:                 dc.GetDurationPropertyFilteredByWorkflowType(dynamicconfig.ESAnalyzerBufferWaitTime),
-			ESAnalyzerMinNumWorkflowsForAvg:          dc.GetIntPropertyFilteredByWorkflowType(dynamicconfig.ESAnalyzerMinNumWorkflowsForAvg),
-			ESAnalyzerWorkflowDurationWarnThresholds: dc.GetStringProperty(dynamicconfig.ESAnalyzerWorkflowDurationWarnThresholds),
-			ESAnalyzerWorkflowVersionDomains:         dc.GetStringProperty(dynamicconfig.ESAnalyzerWorkflowVersionMetricDomains),
-			ESAnalyzerWorkflowTypeDomains:            dc.GetStringProperty(dynamicconfig.ESAnalyzerWorkflowTypeMetricDomains),
+			ESAnalyzerPause:                          dc.GetBoolProperty(dynamicproperties.ESAnalyzerPause),
+			ESAnalyzerTimeWindow:                     dc.GetDurationProperty(dynamicproperties.ESAnalyzerTimeWindow),
+			ESAnalyzerMaxNumDomains:                  dc.GetIntProperty(dynamicproperties.ESAnalyzerMaxNumDomains),
+			ESAnalyzerMaxNumWorkflowTypes:            dc.GetIntProperty(dynamicproperties.ESAnalyzerMaxNumWorkflowTypes),
+			ESAnalyzerLimitToTypes:                   dc.GetStringProperty(dynamicproperties.ESAnalyzerLimitToTypes),
+			ESAnalyzerEnableAvgDurationBasedChecks:   dc.GetBoolProperty(dynamicproperties.ESAnalyzerEnableAvgDurationBasedChecks),
+			ESAnalyzerLimitToDomains:                 dc.GetStringProperty(dynamicproperties.ESAnalyzerLimitToDomains),
+			ESAnalyzerNumWorkflowsToRefresh:          dc.GetIntPropertyFilteredByWorkflowType(dynamicproperties.ESAnalyzerNumWorkflowsToRefresh),
+			ESAnalyzerBufferWaitTime:                 dc.GetDurationPropertyFilteredByWorkflowType(dynamicproperties.ESAnalyzerBufferWaitTime),
+			ESAnalyzerMinNumWorkflowsForAvg:          dc.GetIntPropertyFilteredByWorkflowType(dynamicproperties.ESAnalyzerMinNumWorkflowsForAvg),
+			ESAnalyzerWorkflowDurationWarnThresholds: dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowDurationWarnThresholds),
+			ESAnalyzerWorkflowVersionDomains:         dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowVersionMetricDomains),
+			ESAnalyzerWorkflowTypeDomains:            dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowTypeMetricDomains),
 		},
-		EnableBatcher:                       dc.GetBoolProperty(dynamicconfig.EnableBatcher),
-		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicconfig.EnableParentClosePolicyWorker),
-		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicconfig.NumParentClosePolicySystemWorkflows),
-		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicconfig.EnableESAnalyzer),
-		EnableFailoverManager:               dc.GetBoolProperty(dynamicconfig.EnableFailoverManager),
-		ThrottledLogRPS:                     dc.GetIntProperty(dynamicconfig.WorkerThrottledLogRPS),
-		PersistenceGlobalMaxQPS:             dc.GetIntProperty(dynamicconfig.WorkerPersistenceGlobalMaxQPS),
-		PersistenceMaxQPS:                   dc.GetIntProperty(dynamicconfig.WorkerPersistenceMaxQPS),
-		DomainReplicationMaxRetryDuration:   dc.GetDurationProperty(dynamicconfig.WorkerReplicationTaskMaxRetryDuration),
-		EnableAsyncWorkflowConsumption:      dc.GetBoolProperty(dynamicconfig.EnableAsyncWorkflowConsumption),
+		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
+		EnableScheduler:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
+		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
+		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
+		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
+		EnableFailoverManager:               dc.GetBoolProperty(dynamicproperties.EnableFailoverManager),
+		ThrottledLogRPS:                     dc.GetIntProperty(dynamicproperties.WorkerThrottledLogRPS),
+		PersistenceGlobalMaxQPS:             dc.GetIntProperty(dynamicproperties.WorkerPersistenceGlobalMaxQPS),
+		PersistenceMaxQPS:                   dc.GetIntProperty(dynamicproperties.WorkerPersistenceMaxQPS),
+		DomainReplicationMaxRetryDuration:   dc.GetDurationProperty(dynamicproperties.WorkerReplicationTaskMaxRetryDuration),
+		EnableAsyncWorkflowConsumption:      dc.GetBoolProperty(dynamicproperties.EnableAsyncWorkflowConsumption),
+		EnableDomainAuditLogging:            dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		HostName:                            params.HostName,
 	}
 	advancedVisWritingMode := dc.GetStringProperty(
-		dynamicconfig.AdvancedVisibilityWritingMode,
+		dynamicproperties.WriteVisibilityStoreName,
 	)
 
 	if shouldStartIndexer(params, advancedVisWritingMode) {
 		config.IndexerCfg = &indexer.Config{
-			IndexerConcurrency:             dc.GetIntProperty(dynamicconfig.WorkerIndexerConcurrency),
-			ESProcessorNumOfWorkers:        dc.GetIntProperty(dynamicconfig.WorkerESProcessorNumOfWorkers),
-			ESProcessorBulkActions:         dc.GetIntProperty(dynamicconfig.WorkerESProcessorBulkActions),
-			ESProcessorBulkSize:            dc.GetIntProperty(dynamicconfig.WorkerESProcessorBulkSize),
-			ESProcessorFlushInterval:       dc.GetDurationProperty(dynamicconfig.WorkerESProcessorFlushInterval),
-			ValidSearchAttributes:          dc.GetMapProperty(dynamicconfig.ValidSearchAttributes),
-			EnableQueryAttributeValidation: dc.GetBoolProperty(dynamicconfig.EnableQueryAttributeValidation),
+			IndexerConcurrency:             dc.GetIntProperty(dynamicproperties.WorkerIndexerConcurrency),
+			ESProcessorNumOfWorkers:        dc.GetIntProperty(dynamicproperties.WorkerESProcessorNumOfWorkers),
+			ESProcessorBulkActions:         dc.GetIntProperty(dynamicproperties.WorkerESProcessorBulkActions),
+			ESProcessorBulkSize:            dc.GetIntProperty(dynamicproperties.WorkerESProcessorBulkSize),
+			ESProcessorFlushInterval:       dc.GetDurationProperty(dynamicproperties.WorkerESProcessorFlushInterval),
+			ValidSearchAttributes:          dc.GetMapProperty(dynamicproperties.ValidSearchAttributes),
+			EnableQueryAttributeValidation: dc.GetBoolProperty(dynamicproperties.EnableQueryAttributeValidation),
 		}
 	}
 
@@ -215,12 +226,12 @@ func (s *Service) Start() {
 	s.Resource.Start()
 	s.Resource.GetDomainReplicationQueue().Start()
 
-	s.ensureDomainExists(common.SystemLocalDomainName)
+	s.ensureDomainExists(constants.SystemLocalDomainName)
 	s.startScanner()
 	s.startFixerWorkflowWorker()
 	if s.config.IndexerCfg != nil {
 		if shouldStartMigrationIndexer(s.params) {
-			s.startMigrationIndexer()
+			s.startMigrationDualIndexer()
 		} else {
 			s.startIndexer()
 		}
@@ -228,14 +239,17 @@ func (s *Service) Start() {
 
 	s.startReplicator()
 	s.startDiagnostics()
+	s.startDomainDeprecation()
 
 	if s.GetArchivalMetadata().GetHistoryConfig().ClusterConfiguredForArchival() {
 		s.startArchiver()
 	}
 	if s.config.EnableBatcher() {
-		s.ensureDomainExists(common.BatcherLocalDomainName)
+		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
 	}
+	sm := s.startSchedulerWorkerManager()
+	defer sm.Stop()
 	if s.config.EnableParentClosePolicyWorker() {
 		s.startParentClosePolicyProcessor()
 	}
@@ -286,13 +300,22 @@ func (s *Service) startParentClosePolicyProcessor() {
 }
 
 func (s *Service) startESAnalyzer() {
+	esClient := s.params.ESClient
+	esConfig := s.params.ESConfig
+	// when es client is not configured, use os client, this can happen during os migration, we will use os client to read from os
+	// there is another case is pinot migration and migration mode is off, in this case nil es config/client is expected
+	if esClient == nil && s.params.OSClient != nil {
+		esClient = s.params.OSClient
+		esConfig = s.params.OSConfig
+	}
+
 	analyzer := esanalyzer.New(
 		s.params.PublicClient,
 		s.GetFrontendClient(),
 		s.GetClientBean(),
-		s.params.ESClient,
+		esClient,
 		s.params.PinotClient,
-		s.params.ESConfig,
+		esConfig,
 		s.params.PinotConfig,
 		s.GetLogger(),
 		s.params.MetricScope,
@@ -320,6 +343,21 @@ func (s *Service) startBatcher() {
 	}
 }
 
+func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
+	params := &scheduler.BootstrapParams{
+		ServiceClient:      s.params.PublicClient,
+		FrontendClient:     s.GetClientBean().GetFrontendClient(),
+		MetricsClient:      s.GetMetricsClient(),
+		Logger:             s.GetLogger(),
+		DomainCache:        s.GetDomainCache(),
+		MembershipResolver: s.GetMembershipResolver(),
+		HostInfo:           s.GetHostInfo(),
+	}
+	wm := scheduler.NewWorkerManager(params, s.config.EnableScheduler)
+	wm.Start()
+	return wm
+}
+
 func (s *Service) startScanner() {
 	params := &scanner.BootstrapParams{
 		Config:     *s.config.ScannerCfg,
@@ -342,12 +380,14 @@ func (s *Service) startFixerWorkflowWorker() {
 
 func (s *Service) startDiagnostics() {
 	params := diagnostics.Params{
-		ServiceClient: s.params.PublicClient,
-		MetricsClient: s.GetMetricsClient(),
-		TallyScope:    s.params.MetricScope,
-		ClientBean:    s.GetClientBean(),
-		Logger:        s.GetLogger(),
-		KafkaCfg:      s.params.KafkaConfig,
+		ServiceClient:   s.params.PublicClient,
+		MetricsClient:   s.GetMetricsClient(),
+		MessagingClient: s.GetMessagingClient(),
+		TallyScope:      s.params.MetricScope,
+		ClientBean:      s.GetClientBean(),
+		Logger:          s.GetLogger(),
+		Invariants:      s.params.DiagnosticsInvariants,
+		ClusterMetadata: s.GetClusterMetadata(),
 	}
 	if err := diagnostics.New(params).Start(); err != nil {
 		s.Stop()
@@ -358,8 +398,10 @@ func (s *Service) startDiagnostics() {
 func (s *Service) startReplicator() {
 	domainReplicationTaskExecutor := domain.NewReplicationTaskExecutor(
 		s.Resource.GetDomainManager(),
+		s.Resource.GetDomainAuditManager(),
 		s.Resource.GetTimeSource(),
 		s.Resource.GetLogger(),
+		s.config.EnableDomainAuditLogging,
 	)
 	msgReplicator := replicator.NewReplicator(
 		s.GetClusterMetadata(),
@@ -383,7 +425,8 @@ func (s *Service) startIndexer() {
 		s.config.IndexerCfg,
 		s.GetMessagingClient(),
 		s.params.ESClient,
-		s.params.ESConfig.Indices[common.VisibilityAppName],
+		s.params.ESConfig.Indices[constants.VisibilityAppName],
+		s.params.ESConfig.ConsumerName,
 		s.GetLogger(),
 		s.GetMetricsClient(),
 	)
@@ -393,18 +436,21 @@ func (s *Service) startIndexer() {
 	}
 }
 
-func (s *Service) startMigrationIndexer() {
-	visibilityIndexer := indexer.NewMigrationIndexer(
+func (s *Service) startMigrationDualIndexer() {
+	visibilityDualIndexer := indexer.NewMigrationDualIndexer(
 		s.config.IndexerCfg,
 		s.GetMessagingClient(),
 		s.params.ESClient,
 		s.params.OSClient,
-		s.params.ESConfig.Indices[common.VisibilityAppName],
+		s.params.ESConfig.Indices[constants.VisibilityAppName],
+		s.params.OSConfig.Indices[constants.VisibilityAppName],
+		s.params.ESConfig.ConsumerName,
+		s.params.OSConfig.ConsumerName,
 		s.GetLogger(),
 		s.GetMetricsClient(),
 	)
-	if err := visibilityIndexer.Start(); err != nil {
-		visibilityIndexer.Stop()
+	if err := visibilityDualIndexer.Start(); err != nil {
+		// not need to call visibilityDualIndexer.Stop() since it has been called inside Start()
 		s.GetLogger().Fatal("fail to start indexer", tag.Error(err))
 	}
 }
@@ -454,6 +500,24 @@ func (s *Service) startAsyncWorkflowConsumerManager() common.Daemon {
 	return cm
 }
 
+func (s *Service) startDomainDeprecation() {
+	params := domaindeprecation.Params{
+		Config: domaindeprecation.Config{
+			AdminOperationToken: s.config.AdminOperationToken,
+		},
+		ServiceClient: s.params.PublicClient,
+		ClientBean:    s.GetClientBean(),
+		MetricsClient: s.GetMetricsClient(),
+		Tally:         s.params.MetricScope,
+		Logger:        s.GetLogger(),
+	}
+
+	if err := domaindeprecation.New(params).Start(); err != nil {
+		s.Stop()
+		s.GetLogger().Fatal("error starting domain deprecator", tag.Error(err))
+	}
+}
+
 func (s *Service) ensureDomainExists(domain string) {
 	_, err := s.GetDomainManager().GetDomain(context.Background(), &persistence.GetDomainRequest{Name: domain})
 	switch err.(type) {
@@ -477,7 +541,7 @@ func (s *Service) registerSystemDomain(domain string) {
 			Description: "Cadence internal system domain",
 		},
 		Config: &persistence.DomainConfig{
-			Retention:  common.SystemDomainRetentionDays,
+			Retention:  constants.SystemDomainRetentionDays,
 			EmitMetric: true,
 		},
 		ReplicationConfig: &persistence.DomainReplicationConfig{
@@ -485,7 +549,7 @@ func (s *Service) registerSystemDomain(domain string) {
 			Clusters:          cluster.GetOrUseDefaultClusters(currentClusterName, nil),
 		},
 		IsGlobalDomain:  false,
-		FailoverVersion: common.EmptyVersion,
+		FailoverVersion: constants.EmptyVersion,
 	})
 	if err != nil {
 		if _, ok := err.(*types.DomainAlreadyExistsError); ok {
@@ -498,24 +562,24 @@ func (s *Service) registerSystemDomain(domain string) {
 func getDomainID(domain string) string {
 	var domainID string
 	switch domain {
-	case common.SystemLocalDomainName:
-		domainID = common.SystemDomainID
-	case common.BatcherLocalDomainName:
-		domainID = common.BatcherDomainID
-	case common.ShadowerLocalDomainName:
-		domainID = common.ShadowerDomainID
+	case constants.SystemLocalDomainName:
+		domainID = constants.SystemDomainID
+	case constants.BatcherLocalDomainName:
+		domainID = constants.BatcherDomainID
+	case constants.ShadowerLocalDomainName:
+		domainID = constants.ShadowerDomainID
 	}
 	return domainID
 }
 
-func shouldStartIndexer(params *resource.Params, advancedWritingMode dynamicconfig.StringPropertyFn) bool {
+func shouldStartIndexer(params *resource.Params, advancedWritingMode dynamicproperties.StringPropertyFn) bool {
 	// only start indexer when advanced visibility writing mode is set to on and advanced visibility store is configured
 	if !common.IsAdvancedVisibilityWritingEnabled(advancedWritingMode(), params.PersistenceConfig.IsAdvancedVisibilityConfigExist()) {
 		return false
 	}
 
 	// when it is using pinot and not in migration mode, indexer should not be started since Pinot will direclty ingest from kafka
-	if params.PersistenceConfig.AdvancedVisibilityStore == common.PinotVisibilityStoreName &&
+	if params.PersistenceConfig.AdvancedVisibilityStore == constants.PinotVisibilityStoreName &&
 		params.PinotConfig != nil &&
 		!params.PinotConfig.Migration.Enabled {
 		return false
@@ -527,7 +591,7 @@ func shouldStartIndexer(params *resource.Params, advancedWritingMode dynamicconf
 func shouldStartMigrationIndexer(params *resource.Params) bool {
 	// not need to check IsAdvancedVisibilityWritingEnabled here since it was already checked or the s.config.IndexerCfg will be nil
 	// when it is using OS and in migration mode, we should start dual indexer to write to both ES and OS
-	if params.PersistenceConfig.AdvancedVisibilityStore == common.OSVisibilityStoreName &&
+	if params.PersistenceConfig.AdvancedVisibilityStore == constants.OSVisibilityStoreName &&
 		params.OSConfig != nil &&
 		params.OSConfig.Migration.Enabled {
 		return true

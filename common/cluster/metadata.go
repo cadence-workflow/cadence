@@ -23,9 +23,9 @@ package cluster
 import (
 	"fmt"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -53,28 +53,25 @@ type (
 		// versionToClusterName contains all initial version -> corresponding cluster name
 		versionToClusterName map[int64]string
 		// allows for a new failover version migration
-		useNewFailoverVersionOverride dynamicconfig.BoolPropertyFnWithDomainFilter
+		useNewFailoverVersionOverride dynamicproperties.BoolPropertyFnWithDomainFilter
 	}
 )
 
 // NewMetadata create a new instance of Metadata
 func NewMetadata(
-	failoverVersionIncrement int64,
-	primaryClusterName string,
-	currentClusterName string,
-	clusterGroup map[string]config.ClusterInformation,
-	useMinFailoverVersionOverrideConfig dynamicconfig.BoolPropertyFnWithDomainFilter,
+	clusterGroupMetadata config.ClusterGroupMetadata,
+	useMinFailoverVersionOverrideConfig dynamicproperties.BoolPropertyFnWithDomainFilter,
 	metricsClient metrics.Client,
 	logger log.Logger,
 ) Metadata {
 	versionToClusterName := make(map[int64]string)
-	for clusterName, info := range clusterGroup {
+	for clusterName, info := range clusterGroupMetadata.ClusterGroup {
 		versionToClusterName[info.InitialFailoverVersion] = clusterName
 	}
 
 	// We never use disable clusters, filter them out on start
 	enabledClusters := map[string]config.ClusterInformation{}
-	for cluster, info := range clusterGroup {
+	for cluster, info := range clusterGroupMetadata.ClusterGroup {
 		if info.Enabled {
 			enabledClusters[cluster] = info
 		}
@@ -83,28 +80,36 @@ func NewMetadata(
 	// Precompute remote clusters, they are used in multiple places
 	remoteClusters := map[string]config.ClusterInformation{}
 	for cluster, info := range enabledClusters {
-		if cluster != currentClusterName {
+		if cluster != clusterGroupMetadata.CurrentClusterName {
 			remoteClusters[cluster] = info
 		}
 	}
 
-	return Metadata{
+	m := Metadata{
 		log:                           logger,
 		metrics:                       metricsClient.Scope(metrics.ClusterMetadataScope),
-		failoverVersionIncrement:      failoverVersionIncrement,
-		primaryClusterName:            primaryClusterName,
-		currentClusterName:            currentClusterName,
-		allClusters:                   clusterGroup,
+		failoverVersionIncrement:      clusterGroupMetadata.FailoverVersionIncrement,
+		primaryClusterName:            clusterGroupMetadata.PrimaryClusterName,
+		currentClusterName:            clusterGroupMetadata.CurrentClusterName,
+		allClusters:                   clusterGroupMetadata.ClusterGroup,
 		enabledClusters:               enabledClusters,
 		remoteClusters:                remoteClusters,
 		versionToClusterName:          versionToClusterName,
 		useNewFailoverVersionOverride: useMinFailoverVersionOverrideConfig,
 	}
+
+	m.log.Info("cluster metadata created",
+		tag.Dynamic("primary-cluster-name", m.primaryClusterName),
+		tag.Dynamic("current-cluster-name", m.currentClusterName),
+		tag.Dynamic("failover-version-increment", m.failoverVersionIncrement),
+	)
+
+	return m
 }
 
-// GetNextFailoverVersion return the next failover version based on input
-func (m Metadata) GetNextFailoverVersion(cluster string, currentFailoverVersion int64, domainName string) int64 {
-	initialFailoverVersion := m.getInitialFailoverVersion(cluster, domainName)
+// GetNextFailoverVersion returns the next valid FailoverVersion for a domain
+func (m Metadata) GetNextFailoverVersion(targetClusterName string, currentFailoverVersion int64, domainName string) int64 {
+	initialFailoverVersion := m.getInitialFailoverVersion(targetClusterName, domainName)
 	failoverVersion := currentFailoverVersion/m.failoverVersionIncrement*m.failoverVersionIncrement + initialFailoverVersion
 	if failoverVersion < currentFailoverVersion {
 		return failoverVersion + m.failoverVersionIncrement
@@ -155,13 +160,13 @@ func (m Metadata) GetRemoteClusterInfo() map[string]config.ClusterInformation {
 
 // ClusterNameForFailoverVersion return the corresponding cluster name for a given failover version
 func (m Metadata) ClusterNameForFailoverVersion(failoverVersion int64) (string, error) {
-	if failoverVersion == common.EmptyVersion {
+	if failoverVersion == constants.EmptyVersion {
 		return m.currentClusterName, nil
 	}
 	server, err := m.resolveServerName(failoverVersion)
 	if err != nil {
 		m.metrics.IncCounter(metrics.ClusterMetadataResolvingFailoverVersionCounter)
-		return "", fmt.Errorf("failed to resolve failover version: %v", err)
+		return "", fmt.Errorf("failed to resolve failover version to a cluster: %v", err)
 	}
 	return server, nil
 }
@@ -197,20 +202,21 @@ func (m Metadata) getInitialFailoverVersion(cluster string, domainName string) i
 // resolves the server name from a version number. Better to use this
 // than to check versionToClusterName directly, as this also falls back to catch
 // when there's a migration NewInitialFailoverVersion
-func (m Metadata) resolveServerName(version int64) (string, error) {
-	moddedFoVersion := version % m.failoverVersionIncrement
+func (m Metadata) resolveServerName(originalVersion int64) (string, error) {
+	version := originalVersion % m.failoverVersionIncrement
 	// attempt a lookup first
-	server, ok := m.versionToClusterName[moddedFoVersion]
+	server, ok := m.versionToClusterName[version]
 	if ok {
 		return server, nil
 	}
 
 	// else fall back on checking for new failover versions
 	for name, cluster := range m.allClusters {
-		if cluster.NewInitialFailoverVersion != nil && *cluster.NewInitialFailoverVersion == moddedFoVersion {
+		if cluster.NewInitialFailoverVersion != nil && *cluster.NewInitialFailoverVersion == version {
 			return name, nil
 		}
 	}
+
 	m.metrics.IncCounter(metrics.ClusterMetadataFailureToResolveCounter)
-	return "", fmt.Errorf("could not resolve failover version: %d", version)
+	return "", fmt.Errorf("could not resolve failover version: %d", originalVersion)
 }

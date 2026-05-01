@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 )
 
 const (
@@ -64,7 +65,7 @@ type (
 	metricsEmitterShardData interface {
 		GetLogger() log.Logger
 		GetClusterMetadata() cluster.Metadata
-		GetClusterReplicationLevel(cluster string) int64
+		GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
 		GetTimeSource() clock.TimeSource
 	}
 )
@@ -160,9 +161,9 @@ func (m *MetricsEmitterImpl) emitMetrics() {
 
 func (m *MetricsEmitterImpl) determineReplicationLatency(remoteClusterName string) (time.Duration, error) {
 	logger := m.logger.WithTags(tag.RemoteCluster(remoteClusterName))
-	lastReadTaskID := m.shardData.GetClusterReplicationLevel(remoteClusterName)
+	lastReadTaskID := m.shardData.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, remoteClusterName).GetTaskID()
 
-	tasks, _, err := m.reader.Read(m.ctx, lastReadTaskID, lastReadTaskID+1)
+	tasks, _, err := m.reader.Read(m.ctx, lastReadTaskID, lastReadTaskID+1, 1)
 	if err != nil {
 		logger.Error(fmt.Sprintf(
 			"Error reading when determining replication latency, lastReadTaskID=%v", lastReadTaskID),
@@ -173,7 +174,7 @@ func (m *MetricsEmitterImpl) determineReplicationLatency(remoteClusterName strin
 
 	var replicationLatency time.Duration
 	if len(tasks) > 0 {
-		creationTime := time.Unix(0, tasks[0].CreationTime)
+		creationTime := tasks[0].GetVisibilityTimestamp()
 		replicationLatency = m.shardData.GetTimeSource().Now().Sub(creationTime)
 	}
 

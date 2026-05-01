@@ -27,8 +27,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +36,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -56,6 +55,10 @@ const (
 	historyServiceOperationMaxInterval        = 10 * time.Second
 	historyServiceOperationExpirationInterval = 30 * time.Second
 
+	recordTaskStartedInitialInterval    = 50 * time.Millisecond
+	recordTaskStartedMaxInterval        = 1 * time.Second
+	recordTaskStartedExpirationInterval = 3 * time.Second
+
 	matchingServiceOperationInitialInterval    = 1000 * time.Millisecond
 	matchingServiceOperationMaxInterval        = 10 * time.Second
 	matchingServiceOperationExpirationInterval = 30 * time.Second
@@ -63,6 +66,10 @@ const (
 	frontendServiceOperationInitialInterval    = 200 * time.Millisecond
 	frontendServiceOperationMaxInterval        = 5 * time.Second
 	frontendServiceOperationExpirationInterval = 15 * time.Second
+
+	shardDistributorServiceOperationInitialInterval    = 200 * time.Millisecond
+	shardDistributorServiceOperationMaxInterval        = 10 * time.Second
+	shardDistributorServiceOperationExpirationInterval = 15 * time.Second
 
 	adminServiceOperationInitialInterval    = 200 * time.Millisecond
 	adminServiceOperationMaxInterval        = 5 * time.Second
@@ -79,6 +86,14 @@ const (
 	replicationServiceBusyInitialInterval    = 2 * time.Second
 	replicationServiceBusyMaxInterval        = 10 * time.Second
 	replicationServiceBusyExpirationInterval = 5 * time.Minute
+
+	taskCompleterInitialInterval    = 1 * time.Second
+	taskCompleterMaxInterval        = 10 * time.Second
+	taskCompleterExpirationInterval = 5 * time.Minute
+
+	domainCacheInitialInterval    = 1 * time.Second
+	domainCacheMaxInterval        = 5 * time.Second
+	domainCacheExpirationInterval = 2 * time.Minute
 
 	contextExpireThreshold = 10 * time.Millisecond
 
@@ -98,6 +113,8 @@ const (
 	FailureReasonTransactionSizeExceedsLimit = "TRANSACTION_SIZE_EXCEEDS_LIMIT"
 	// FailureReasonDecisionAttemptsExceedsLimit is reason to fail workflow when decision attempts fail too many times
 	FailureReasonDecisionAttemptsExceedsLimit = "DECISION_ATTEMPTS_EXCEEDS_LIMIT"
+	// FailureReasonPendingActivityExceedsLimit is reason to fail overflow when pending activity exceeds limit
+	FailureReasonPendingActivityExceedsLimit = "PENDING_ACTIVITY_EXCEEDS_LIMIT"
 )
 
 var (
@@ -110,6 +127,7 @@ var (
 	// ErrDecisionResultCountTooLarge error for decision result count exceeds limit
 	ErrDecisionResultCountTooLarge = &types.BadRequestError{Message: "Decision result count exceeds limit."}
 	stickyTaskListMetricTag        = metrics.TaskListTag("__sticky__")
+	ephemeralTaskListMetricTag     = metrics.TaskListTag("__ephemeral__")
 )
 
 // AwaitWaitGroup calls Wait on the given wait
@@ -149,6 +167,14 @@ func CreateHistoryServiceRetryPolicy() backoff.RetryPolicy {
 	return policy
 }
 
+func CreateRecordTaskStartedRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(recordTaskStartedInitialInterval)
+	policy.SetMaximumInterval(recordTaskStartedMaxInterval)
+	policy.SetExpirationInterval(recordTaskStartedExpirationInterval)
+
+	return policy
+}
+
 // CreateMatchingServiceRetryPolicy creates a retry policy for calls to matching service
 func CreateMatchingServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(matchingServiceOperationInitialInterval)
@@ -163,6 +189,14 @@ func CreateFrontendServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(frontendServiceOperationInitialInterval)
 	policy.SetMaximumInterval(frontendServiceOperationMaxInterval)
 	policy.SetExpirationInterval(frontendServiceOperationExpirationInterval)
+
+	return policy
+}
+
+func CreateShardDistributorServiceRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(shardDistributorServiceOperationInitialInterval)
+	policy.SetMaximumInterval(shardDistributorServiceOperationMaxInterval)
+	policy.SetExpirationInterval(shardDistributorServiceOperationExpirationInterval)
 
 	return policy
 }
@@ -203,13 +237,31 @@ func CreateReplicationServiceBusyRetryPolicy() backoff.RetryPolicy {
 	return policy
 }
 
+// CreateTaskCompleterRetryPolicy creates a retry policy to handle tasks not being started
+func CreateTaskCompleterRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(taskCompleterInitialInterval)
+	policy.SetMaximumInterval(taskCompleterMaxInterval)
+	policy.SetExpirationInterval(taskCompleterExpirationInterval)
+
+	return policy
+}
+
+// CreateDomainCacheRetryPolicy creates a retry policy to handle domain cache refresh failures
+func CreateDomainCacheRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(domainCacheInitialInterval)
+	policy.SetMaximumInterval(domainCacheMaxInterval)
+	policy.SetExpirationInterval(domainCacheExpirationInterval)
+
+	return policy
+}
+
 // IsValidIDLength checks if id is valid according to its length
 func IsValidIDLength(
 	id string,
 	scope metrics.Scope,
 	warnLimit int,
 	errorLimit int,
-	metricsCounter int,
+	metricsCounter metrics.MetricIdx,
 	domainName string,
 	logger log.Logger,
 	idTypeViolationTag tag.Tag,
@@ -231,6 +283,7 @@ func CheckDecisionResultLimit(
 	scope metrics.Scope,
 ) error {
 	scope.RecordTimer(metrics.DecisionResultCount, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.DecisionResultCountHistogram, actualSize)
 	if limit > 0 && actualSize > limit {
 		return ErrDecisionResultCountTooLarge
 	}
@@ -242,7 +295,7 @@ func ToServiceTransientError(err error) error {
 	if err == nil || IsServiceTransientError(err) {
 		return err
 	}
-	return yarpcerrors.Newf(yarpcerrors.CodeUnavailable, err.Error())
+	return yarpcerrors.Newf(yarpcerrors.CodeUnavailable, "%v", err)
 }
 
 // HistoryRetryFuncFrontendExceptions checks if an error should be retried
@@ -251,7 +304,7 @@ func FrontendRetry(err error) bool {
 	var sbErr *types.ServiceBusyError
 	if errors.As(err, &sbErr) {
 		// If the service busy error is due to workflow id rate limiting, proxy it to the caller
-		return sbErr.Reason != WorkflowIDRateLimitReason
+		return sbErr.Reason != constants.WorkflowIDRateLimitReason
 	}
 	return IsServiceTransientError(err)
 }
@@ -287,6 +340,7 @@ func IsServiceTransientError(err error) bool {
 		// We only selectively retry the following yarpc errors client can safe retry with a backoff
 		if yarpcerrors.IsUnavailable(err) ||
 			yarpcerrors.IsUnknown(err) ||
+			yarpcerrors.IsCancelled(err) ||
 			yarpcerrors.IsInternal(err) {
 			return true
 		}
@@ -330,19 +384,6 @@ func WorkflowIDToHistoryShard(workflowID string, numberOfShards int) int {
 func DomainIDToHistoryShard(domainID string, numberOfShards int) int {
 	hash := farm.Fingerprint32([]byte(domainID))
 	return int(hash % uint32(numberOfShards))
-}
-
-// PrettyPrintHistory prints history in human readable format
-func PrettyPrintHistory(history *types.History, logger log.Logger) {
-	data, err := json.MarshalIndent(history, "", "    ")
-
-	if err != nil {
-		logger.Error("Error serializing history: %v\n", tag.Error(err))
-	}
-
-	fmt.Println("******************************************")
-	fmt.Println("History", tag.DetailInfo(string(data)))
-	fmt.Println("******************************************")
 }
 
 // IsValidContext checks that the thrift context is not expired on cancelled.
@@ -437,74 +478,10 @@ func CreateMatchingPollForDecisionTaskResponse(historyResponse *types.RecordDeci
 		Queries:                   historyResponse.Queries,
 		TotalHistoryBytes:         historyResponse.HistorySize,
 	}
-	if historyResponse.GetPreviousStartedEventID() != EmptyEventID {
+	if historyResponse.GetPreviousStartedEventID() != constants.EmptyEventID {
 		matchingResp.PreviousStartedEventID = historyResponse.PreviousStartedEventID
 	}
 	return matchingResp
-}
-
-// MinInt64 returns the smaller of two given int64
-func MinInt64(a, b int64) int64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MaxInt64 returns the greater of two given int64
-func MaxInt64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// MinInt32 return smaller one of two inputs int32
-func MinInt32(a, b int32) int32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MinInt returns the smaller of two given integers
-func MinInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MaxInt returns the greater one of two given integers
-func MaxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// MinDuration returns the smaller of two given time duration
-func MinDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// MaxDuration returns the greater of two given time durations
-func MaxDuration(a, b time.Duration) time.Duration {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// SortInt64Slice sorts the given int64 slice.
-// Sort is not guaranteed to be stable.
-func SortInt64Slice(slice []int64) {
-	sort.Slice(slice, func(i int, j int) bool {
-		return slice[i] < slice[j]
-	})
 }
 
 // ValidateRetryPolicy validates a retry policy
@@ -568,7 +545,7 @@ func CreateHistoryStartWorkflowRequest(
 			delayedStartTime := now.Add(time.Second * time.Duration(delayStartSeconds))
 			var err error
 			firstDecisionTaskBackoffSeconds, err = backoff.GetBackoffForNextScheduleInSeconds(
-				startRequest.GetCronSchedule(), delayedStartTime, delayedStartTime, jitterStartSeconds)
+				startRequest.GetCronSchedule(), delayedStartTime, delayedStartTime, jitterStartSeconds, startRequest.GetCronOverlapPolicy())
 			if err != nil {
 				return nil, err
 			}
@@ -610,6 +587,7 @@ func CheckEventBlobSizeLimit(
 ) error {
 
 	scope.RecordTimer(metrics.EventBlobSize, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.EventBlobSizeHistogram, actualSize)
 
 	if errorLimit < warnLimit {
 		logger.Warn("Error limit is less than warn limit.", tag.WorkflowDomainName(domainName), tag.WorkflowDomainID(domainID))
@@ -657,13 +635,13 @@ func ValidateLongPollContextTimeout(
 		return err
 	}
 	timeout := time.Until(deadline)
-	if timeout < MinLongPollTimeout {
+	if timeout < constants.MinLongPollTimeout {
 		err := ErrContextTimeoutTooShort
 		logger.Error("Context timeout is too short for long poll API.",
 			tag.WorkflowHandlerName(handlerName), tag.Error(err), tag.WorkflowPollContextTimeout(timeout))
 		return err
 	}
-	if timeout < CriticalLongPollTimeout {
+	if timeout < constants.CriticalLongPollTimeout {
 		logger.Debug("Context timeout is lower than critical value for long poll API.",
 			tag.WorkflowHandlerName(handlerName), tag.WorkflowPollContextTimeout(timeout))
 	}
@@ -923,7 +901,7 @@ func DeserializeSearchAttributeValue(value []byte, valueType types.IndexedValueT
 
 // IsAdvancedVisibilityWritingEnabled returns true if we should write to advanced visibility
 func IsAdvancedVisibilityWritingEnabled(advancedVisibilityWritingMode string, isAdvancedVisConfigExist bool) bool {
-	return advancedVisibilityWritingMode != AdvancedVisibilityWritingModeOff && isAdvancedVisConfigExist
+	return advancedVisibilityWritingMode != constants.AdvancedVisibilityModeOff && isAdvancedVisConfigExist
 }
 
 // IsAdvancedVisibilityReadingEnabled returns true if we should read from advanced visibility
@@ -931,50 +909,10 @@ func IsAdvancedVisibilityReadingEnabled(isAdvancedVisReadEnabled, isAdvancedVisC
 	return isAdvancedVisReadEnabled && isAdvancedVisConfigExist
 }
 
-// ConvertIntMapToDynamicConfigMapProperty converts a map whose key value type are both int to
-// a map value that is compatible with dynamic config's map property
-func ConvertIntMapToDynamicConfigMapProperty(
-	intMap map[int]int,
-) map[string]interface{} {
-	dcValue := make(map[string]interface{})
-	for key, value := range intMap {
-		dcValue[strconv.Itoa(key)] = value
-	}
-	return dcValue
-}
-
-// ConvertDynamicConfigMapPropertyToIntMap convert a map property from dynamic config to a map
-// whose type for both key and value are int
-func ConvertDynamicConfigMapPropertyToIntMap(dcValue map[string]interface{}) (map[int]int, error) {
-	intMap := make(map[int]int)
-	for key, value := range dcValue {
-		intKey, err := strconv.Atoi(strings.TrimSpace(key))
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert key %v, error: %v", key, err)
-		}
-
-		var intValue int
-		switch value := value.(type) {
-		case float64:
-			intValue = int(value)
-		case int:
-			intValue = value
-		case int32:
-			intValue = int(value)
-		case int64:
-			intValue = int(value)
-		default:
-			return nil, fmt.Errorf("unknown value %v with type %T", value, value)
-		}
-		intMap[intKey] = intValue
-	}
-	return intMap, nil
-}
-
 // IsStickyTaskConditionError is error from matching engine
 func IsStickyTaskConditionError(err error) bool {
 	if e, ok := err.(*types.InternalServiceError); ok {
-		return e.GetMessage() == StickyTaskConditionFailedErrorMsg
+		return e.GetMessage() == constants.StickyTaskConditionFailedErrorMsg
 	}
 	return false
 }
@@ -1002,7 +940,7 @@ func SecondsToDuration(d int64) time.Duration {
 // SleepWithMinDuration sleeps for the minimum of desired and available duration
 // returns the remaining available time duration
 func SleepWithMinDuration(desired time.Duration, available time.Duration) time.Duration {
-	d := MinDuration(desired, available)
+	d := min(desired, available)
 	if d > 0 {
 		time.Sleep(d)
 	}
@@ -1037,14 +975,6 @@ func ConvertGetTaskFailedCauseToErr(failedCause types.GetTaskFailedCause) error 
 	}
 }
 
-// GetTaskPriority returns priority given a task's priority class and subclass
-func GetTaskPriority(
-	class int,
-	subClass int,
-) int {
-	return class | subClass
-}
-
 // IntersectionStringSlice get the intersection of 2 string slices
 func IntersectionStringSlice(a, b []string) []string {
 	var result []string
@@ -1060,24 +990,33 @@ func IntersectionStringSlice(a, b []string) []string {
 	return result
 }
 
+// GetTaskListTag returns the task list tag for the given task list name and kind
+func GetTaskListTag(taskListName string, taskListKind types.TaskListKind) metrics.Tag {
+	taskListTag := metrics.TaskListUnknownTag()
+	if taskListName != "" && taskListKind == types.TaskListKindNormal {
+		taskListTag = metrics.TaskListTag(taskListName)
+	}
+	if taskListKind == types.TaskListKindSticky {
+		taskListTag = stickyTaskListMetricTag
+	}
+	if taskListKind == types.TaskListKindEphemeral {
+		taskListTag = ephemeralTaskListMetricTag
+	}
+	return taskListTag
+}
+
 // NewPerTaskListScope creates a tasklist metrics scope
 func NewPerTaskListScope(
 	domainName string,
 	taskListName string,
 	taskListKind types.TaskListKind,
 	client metrics.Client,
-	scopeIdx int,
+	scopeIdx metrics.ScopeIdx,
 ) metrics.Scope {
 	domainTag := metrics.DomainUnknownTag()
-	taskListTag := metrics.TaskListUnknownTag()
 	if domainName != "" {
 		domainTag = metrics.DomainTag(domainName)
 	}
-	if taskListName != "" && taskListKind != types.TaskListKindSticky {
-		taskListTag = metrics.TaskListTag(taskListName)
-	}
-	if taskListKind == types.TaskListKindSticky {
-		taskListTag = stickyTaskListMetricTag
-	}
+	taskListTag := GetTaskListTag(taskListName, taskListKind)
 	return client.Scope(scopeIdx, domainTag, taskListTag)
 }

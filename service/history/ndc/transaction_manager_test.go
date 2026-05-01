@@ -25,12 +25,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
@@ -96,6 +97,15 @@ func (s *transactionManagerSuite) SetupTest() {
 	s.logger = s.mockShard.GetLogger()
 	s.domainEntry = constants.TestGlobalDomainEntry
 
+	// Setup mock for GetActiveClusterInfoByClusterAttribute to avoid errors
+	mockActiveClusterManager := s.mockShard.Resource.ActiveClusterMgr
+	mockActiveClusterManager.EXPECT().GetActiveClusterInfoByClusterAttribute(
+		gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(&types.ActiveClusterInfo{
+		ActiveClusterName: s.mockShard.GetClusterMetadata().GetCurrentClusterName(),
+		FailoverVersion:   int64(0),
+	}, nil).AnyTimes()
+
 	s.transactionManager = newTransactionManager(s.mockShard, execution.NewCache(s.mockShard), s.mockEventsReapplier, s.logger)
 	s.transactionManager.createManager = s.mockCreateManager
 	s.transactionManager.updateManager = s.mockUpdateManager
@@ -159,7 +169,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Op
 	mutableState.EXPECT().IsCurrentWorkflowGuaranteed().Return(true).AnyTimes()
 	mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true).AnyTimes()
 	mutableState.EXPECT().GetDomainEntry().Return(s.domainEntry).AnyTimes()
-	mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{RunID: runID}).Times(1)
+	mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{RunID: runID}).AnyTimes()
 	context.EXPECT().PersistNonStartWorkflowBatchEvents(gomock.Any(), workflowEvents).Return(events.PersistedBlob{}, nil).Times(1)
 	context.EXPECT().UpdateWorkflowExecutionWithNew(
 		gomock.Any(), now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, execution.TransactionPolicyActive, (*execution.TransactionPolicy)(nil), persistence.CreateWorkflowRequestModeReplicated,
@@ -229,6 +239,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Active_Cl
 
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(10),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		DomainName: domainName,
@@ -266,6 +277,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Passive_O
 	mutableState.EXPECT().IsCurrentWorkflowGuaranteed().Return(true).AnyTimes()
 	mutableState.EXPECT().IsWorkflowExecutionRunning().Return(true).AnyTimes()
 	mutableState.EXPECT().GetDomainEntry().Return(s.domainEntry).AnyTimes()
+	mutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{}).AnyTimes()
 	context.EXPECT().ReapplyEvents([]*persistence.WorkflowEvents{workflowEvents}).Times(1)
 	context.EXPECT().PersistNonStartWorkflowBatchEvents(gomock.Any(), workflowEvents).Return(events.PersistedBlob{}, nil).Times(1)
 	context.EXPECT().UpdateWorkflowExecutionWithNew(
@@ -309,6 +321,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_CurrentWorkflow_Passive_C
 	}).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(gomock.Any()).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(10),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		DomainName: domainName,
@@ -363,6 +376,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_NotCurrentWorkflow_Active
 	}).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(10),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		DomainName: domainName,
@@ -415,6 +429,7 @@ func (s *transactionManagerSuite) TestBackfillWorkflow_NotCurrentWorkflow_Passiv
 	}).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(10),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		DomainName: domainName,
@@ -437,6 +452,7 @@ func (s *transactionManagerSuite) TestCheckWorkflowExists_DoesNotExists() {
 	domainName := "some random domainName"
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil)
 	s.mockExecutionManager.On("GetWorkflowExecution", mock.Anything, &persistence.GetWorkflowExecutionRequest{
+		ShardID:  common.Ptr(10),
 		DomainID: domainID,
 		Execution: types.WorkflowExecution{
 			WorkflowID: workflowID,
@@ -460,6 +476,7 @@ func (s *transactionManagerSuite) TestCheckWorkflowExists_DoesExists() {
 
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetWorkflowExecution", mock.Anything, &persistence.GetWorkflowExecutionRequest{
+		ShardID:  common.Ptr(10),
 		DomainID: domainID,
 		Execution: types.WorkflowExecution{
 			WorkflowID: workflowID,
@@ -481,6 +498,7 @@ func (s *transactionManagerSuite) TestGetWorkflowCurrentRunID_Missing() {
 	domainName := "some random domainName"
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(10),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		DomainName: domainName,
@@ -499,6 +517,7 @@ func (s *transactionManagerSuite) TestGetWorkflowCurrentRunID_Exists() {
 	domainName := "some random domainName"
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(domainID).Return(domainName, nil).AnyTimes()
 	s.mockExecutionManager.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(10),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		DomainName: domainName,

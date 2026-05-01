@@ -22,10 +22,6 @@
 package execution
 
 import (
-	"encoding/json"
-
-	"golang.org/x/exp/slices"
-
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence"
@@ -49,44 +45,8 @@ func (policy TransactionPolicy) Ptr() *TransactionPolicy {
 	return &policy
 }
 
-// NOTE: do not use make(type, len(input))
-// since this will assume initial length being len(inputs)
-// always use make(type, 0, len(input))
-
-func convertPendingActivityInfos(
-	inputs map[int64]*persistence.ActivityInfo,
-) []*persistence.ActivityInfo {
-
-	outputs := make([]*persistence.ActivityInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertUpdateActivityInfos(
-	inputs map[int64]*persistence.ActivityInfo,
-) []*persistence.ActivityInfo {
-
-	outputs := make([]*persistence.ActivityInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertInt64SetToSlice(
-	inputs map[int64]struct{},
-) []int64 {
-
-	outputs := make([]int64, 0, len(inputs))
-	for item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
 func convertSyncActivityInfos(
+	executionInfo *persistence.WorkflowExecutionInfo,
 	activityInfos map[int64]*persistence.ActivityInfo,
 	inputs map[int64]struct{},
 ) []persistence.Task {
@@ -96,111 +56,17 @@ func convertSyncActivityInfos(
 		if ok {
 			// the visibility timestamp will be set in shard context
 			outputs = append(outputs, &persistence.SyncActivityTask{
+				WorkflowIdentifier: persistence.WorkflowIdentifier{
+					DomainID:   executionInfo.DomainID,
+					WorkflowID: executionInfo.WorkflowID,
+					RunID:      executionInfo.RunID,
+				},
 				TaskData: persistence.TaskData{
 					Version: activityInfo.Version,
 				},
 				ScheduledID: activityInfo.ScheduleID,
 			})
 		}
-	}
-	return outputs
-}
-
-func convertPendingTimerInfos(
-	inputs map[string]*persistence.TimerInfo,
-) []*persistence.TimerInfo {
-
-	outputs := make([]*persistence.TimerInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertUpdateTimerInfos(
-	inputs map[string]*persistence.TimerInfo,
-) []*persistence.TimerInfo {
-
-	outputs := make([]*persistence.TimerInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertStringSetToSlice(
-	inputs map[string]struct{},
-) []string {
-
-	outputs := make([]string, 0, len(inputs))
-	for item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertPendingChildExecutionInfos(
-	inputs map[int64]*persistence.ChildExecutionInfo,
-) []*persistence.ChildExecutionInfo {
-
-	outputs := make([]*persistence.ChildExecutionInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertUpdateChildExecutionInfos(
-	inputs map[int64]*persistence.ChildExecutionInfo,
-) []*persistence.ChildExecutionInfo {
-
-	outputs := make([]*persistence.ChildExecutionInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertPendingRequestCancelInfos(
-	inputs map[int64]*persistence.RequestCancelInfo,
-) []*persistence.RequestCancelInfo {
-
-	outputs := make([]*persistence.RequestCancelInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertUpdateRequestCancelInfos(
-	inputs map[int64]*persistence.RequestCancelInfo,
-) []*persistence.RequestCancelInfo {
-
-	outputs := make([]*persistence.RequestCancelInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertPendingSignalInfos(
-	inputs map[int64]*persistence.SignalInfo,
-) []*persistence.SignalInfo {
-
-	outputs := make([]*persistence.SignalInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
-	}
-	return outputs
-}
-
-func convertUpdateSignalInfos(
-	inputs map[int64]*persistence.SignalInfo,
-) []*persistence.SignalInfo {
-
-	outputs := make([]*persistence.SignalInfo, 0, len(inputs))
-	for _, item := range inputs {
-		outputs = append(outputs, item)
 	}
 	return outputs
 }
@@ -279,235 +145,6 @@ func FindAutoResetPoint(
 	return "", nil
 }
 
-// CreatePersistenceMutableState creates a persistence mutable state based on the its in-memory version
-func CreatePersistenceMutableState(ms MutableState) *persistence.WorkflowMutableState {
-	builder := ms.(*mutableStateBuilder)
-	builder.FlushBufferedEvents() //nolint:errcheck
-	info := CopyWorkflowExecutionInfo(builder.GetExecutionInfo())
-	stats := &persistence.ExecutionStats{}
-	activityInfos := make(map[int64]*persistence.ActivityInfo)
-	for id, info := range builder.GetPendingActivityInfos() {
-		activityInfos[id] = CopyActivityInfo(info)
-	}
-	timerInfos := make(map[string]*persistence.TimerInfo)
-	for id, info := range builder.GetPendingTimerInfos() {
-		timerInfos[id] = CopyTimerInfo(info)
-	}
-	cancellationInfos := make(map[int64]*persistence.RequestCancelInfo)
-	for id, info := range builder.GetPendingRequestCancelExternalInfos() {
-		cancellationInfos[id] = CopyCancellationInfo(info)
-	}
-	signalInfos := make(map[int64]*persistence.SignalInfo)
-	for id, info := range builder.GetPendingSignalExternalInfos() {
-		signalInfos[id] = CopySignalInfo(info)
-	}
-	childInfos := make(map[int64]*persistence.ChildExecutionInfo)
-	for id, info := range builder.GetPendingChildExecutionInfos() {
-		childInfos[id] = CopyChildInfo(info)
-	}
-
-	builder.FlushBufferedEvents() //nolint:errcheck
-	var bufferedEvents []*types.HistoryEvent
-	if len(builder.bufferedEvents) > 0 {
-		bufferedEvents = append(bufferedEvents, builder.bufferedEvents...)
-	}
-	if len(builder.updateBufferedEvents) > 0 {
-		bufferedEvents = append(bufferedEvents, builder.updateBufferedEvents...)
-	}
-
-	var versionHistories *persistence.VersionHistories
-	if ms.GetVersionHistories() != nil {
-		versionHistories = ms.GetVersionHistories().Duplicate()
-	}
-	return &persistence.WorkflowMutableState{
-		ExecutionInfo:       info,
-		ExecutionStats:      stats,
-		ActivityInfos:       activityInfos,
-		TimerInfos:          timerInfos,
-		BufferedEvents:      bufferedEvents,
-		SignalInfos:         signalInfos,
-		RequestCancelInfos:  cancellationInfos,
-		ChildExecutionInfos: childInfos,
-		VersionHistories:    versionHistories,
-	}
-}
-
-// CopyWorkflowExecutionInfo copies WorkflowExecutionInfo
-func CopyWorkflowExecutionInfo(sourceInfo *persistence.WorkflowExecutionInfo) *persistence.WorkflowExecutionInfo {
-	return &persistence.WorkflowExecutionInfo{
-		DomainID:                           sourceInfo.DomainID,
-		WorkflowID:                         sourceInfo.WorkflowID,
-		RunID:                              sourceInfo.RunID,
-		FirstExecutionRunID:                sourceInfo.FirstExecutionRunID,
-		ParentDomainID:                     sourceInfo.ParentDomainID,
-		ParentWorkflowID:                   sourceInfo.ParentWorkflowID,
-		ParentRunID:                        sourceInfo.ParentRunID,
-		IsCron:                             sourceInfo.IsCron,
-		InitiatedID:                        sourceInfo.InitiatedID,
-		CompletionEventBatchID:             sourceInfo.CompletionEventBatchID,
-		CompletionEvent:                    sourceInfo.CompletionEvent,
-		TaskList:                           sourceInfo.TaskList,
-		StickyTaskList:                     sourceInfo.StickyTaskList,
-		StickyScheduleToStartTimeout:       sourceInfo.StickyScheduleToStartTimeout,
-		WorkflowTypeName:                   sourceInfo.WorkflowTypeName,
-		WorkflowTimeout:                    sourceInfo.WorkflowTimeout,
-		DecisionStartToCloseTimeout:        sourceInfo.DecisionStartToCloseTimeout,
-		ExecutionContext:                   sourceInfo.ExecutionContext,
-		State:                              sourceInfo.State,
-		CloseStatus:                        sourceInfo.CloseStatus,
-		LastFirstEventID:                   sourceInfo.LastFirstEventID,
-		LastEventTaskID:                    sourceInfo.LastEventTaskID,
-		NextEventID:                        sourceInfo.NextEventID,
-		LastProcessedEvent:                 sourceInfo.LastProcessedEvent,
-		StartTimestamp:                     sourceInfo.StartTimestamp,
-		LastUpdatedTimestamp:               sourceInfo.LastUpdatedTimestamp,
-		CreateRequestID:                    sourceInfo.CreateRequestID,
-		SignalCount:                        sourceInfo.SignalCount,
-		DecisionVersion:                    sourceInfo.DecisionVersion,
-		DecisionScheduleID:                 sourceInfo.DecisionScheduleID,
-		DecisionStartedID:                  sourceInfo.DecisionStartedID,
-		DecisionRequestID:                  sourceInfo.DecisionRequestID,
-		DecisionTimeout:                    sourceInfo.DecisionTimeout,
-		DecisionAttempt:                    sourceInfo.DecisionAttempt,
-		DecisionScheduledTimestamp:         sourceInfo.DecisionScheduledTimestamp,
-		DecisionStartedTimestamp:           sourceInfo.DecisionStartedTimestamp,
-		DecisionOriginalScheduledTimestamp: sourceInfo.DecisionOriginalScheduledTimestamp,
-		CancelRequested:                    sourceInfo.CancelRequested,
-		CancelRequestID:                    sourceInfo.CancelRequestID,
-		CronSchedule:                       sourceInfo.CronSchedule,
-		ClientLibraryVersion:               sourceInfo.ClientLibraryVersion,
-		ClientFeatureVersion:               sourceInfo.ClientFeatureVersion,
-		ClientImpl:                         sourceInfo.ClientImpl,
-		AutoResetPoints:                    sourceInfo.AutoResetPoints,
-		Memo:                               sourceInfo.Memo,
-		SearchAttributes:                   sourceInfo.SearchAttributes,
-		PartitionConfig:                    sourceInfo.PartitionConfig,
-		Attempt:                            sourceInfo.Attempt,
-		HasRetryPolicy:                     sourceInfo.HasRetryPolicy,
-		InitialInterval:                    sourceInfo.InitialInterval,
-		BackoffCoefficient:                 sourceInfo.BackoffCoefficient,
-		MaximumInterval:                    sourceInfo.MaximumInterval,
-		ExpirationTime:                     sourceInfo.ExpirationTime,
-		MaximumAttempts:                    sourceInfo.MaximumAttempts,
-		NonRetriableErrors:                 sourceInfo.NonRetriableErrors,
-		BranchToken:                        sourceInfo.BranchToken,
-		ExpirationSeconds:                  sourceInfo.ExpirationSeconds,
-	}
-}
-
-// CopyActivityInfo copies ActivityInfo
-func CopyActivityInfo(sourceInfo *persistence.ActivityInfo) *persistence.ActivityInfo {
-	details := slices.Clone(sourceInfo.Details)
-
-	return &persistence.ActivityInfo{
-		Version:                  sourceInfo.Version,
-		ScheduleID:               sourceInfo.ScheduleID,
-		ScheduledEventBatchID:    sourceInfo.ScheduledEventBatchID,
-		ScheduledEvent:           deepCopyHistoryEvent(sourceInfo.ScheduledEvent),
-		StartedID:                sourceInfo.StartedID,
-		StartedEvent:             deepCopyHistoryEvent(sourceInfo.StartedEvent),
-		ActivityID:               sourceInfo.ActivityID,
-		RequestID:                sourceInfo.RequestID,
-		Details:                  details,
-		ScheduledTime:            sourceInfo.ScheduledTime,
-		StartedTime:              sourceInfo.StartedTime,
-		ScheduleToStartTimeout:   sourceInfo.ScheduleToStartTimeout,
-		ScheduleToCloseTimeout:   sourceInfo.ScheduleToCloseTimeout,
-		StartToCloseTimeout:      sourceInfo.StartToCloseTimeout,
-		HeartbeatTimeout:         sourceInfo.HeartbeatTimeout,
-		LastHeartBeatUpdatedTime: sourceInfo.LastHeartBeatUpdatedTime,
-		CancelRequested:          sourceInfo.CancelRequested,
-		CancelRequestID:          sourceInfo.CancelRequestID,
-		TimerTaskStatus:          sourceInfo.TimerTaskStatus,
-		Attempt:                  sourceInfo.Attempt,
-		DomainID:                 sourceInfo.DomainID,
-		StartedIdentity:          sourceInfo.StartedIdentity,
-		TaskList:                 sourceInfo.TaskList,
-		HasRetryPolicy:           sourceInfo.HasRetryPolicy,
-		InitialInterval:          sourceInfo.InitialInterval,
-		BackoffCoefficient:       sourceInfo.BackoffCoefficient,
-		MaximumInterval:          sourceInfo.MaximumInterval,
-		ExpirationTime:           sourceInfo.ExpirationTime,
-		MaximumAttempts:          sourceInfo.MaximumAttempts,
-		NonRetriableErrors:       sourceInfo.NonRetriableErrors,
-		LastFailureReason:        sourceInfo.LastFailureReason,
-		LastWorkerIdentity:       sourceInfo.LastWorkerIdentity,
-		LastFailureDetails:       sourceInfo.LastFailureDetails,
-		// Not written to database - This is used only for deduping heartbeat timer creation
-		LastHeartbeatTimeoutVisibilityInSeconds: sourceInfo.LastHeartbeatTimeoutVisibilityInSeconds,
-	}
-}
-
-// CopyTimerInfo copies TimerInfo
-func CopyTimerInfo(sourceInfo *persistence.TimerInfo) *persistence.TimerInfo {
-	return &persistence.TimerInfo{
-		Version:    sourceInfo.Version,
-		TimerID:    sourceInfo.TimerID,
-		StartedID:  sourceInfo.StartedID,
-		ExpiryTime: sourceInfo.ExpiryTime,
-		TaskStatus: sourceInfo.TaskStatus,
-	}
-}
-
-// CopyCancellationInfo copies RequestCancelInfo
-func CopyCancellationInfo(sourceInfo *persistence.RequestCancelInfo) *persistence.RequestCancelInfo {
-	return &persistence.RequestCancelInfo{
-		Version:               sourceInfo.Version,
-		InitiatedID:           sourceInfo.InitiatedID,
-		InitiatedEventBatchID: sourceInfo.InitiatedEventBatchID,
-		CancelRequestID:       sourceInfo.CancelRequestID,
-	}
-}
-
-// CopySignalInfo copies SignalInfo
-func CopySignalInfo(sourceInfo *persistence.SignalInfo) *persistence.SignalInfo {
-	result := &persistence.SignalInfo{
-		Version:               sourceInfo.Version,
-		InitiatedEventBatchID: sourceInfo.InitiatedEventBatchID,
-		InitiatedID:           sourceInfo.InitiatedID,
-		SignalRequestID:       sourceInfo.SignalRequestID,
-		SignalName:            sourceInfo.SignalName,
-	}
-	result.Input = slices.Clone(sourceInfo.Input)
-	result.Control = slices.Clone(sourceInfo.Control)
-	return result
-}
-
-// CopyChildInfo copies ChildExecutionInfo
-func CopyChildInfo(sourceInfo *persistence.ChildExecutionInfo) *persistence.ChildExecutionInfo {
-	return &persistence.ChildExecutionInfo{
-		Version:               sourceInfo.Version,
-		InitiatedID:           sourceInfo.InitiatedID,
-		InitiatedEventBatchID: sourceInfo.InitiatedEventBatchID,
-		StartedID:             sourceInfo.StartedID,
-		StartedWorkflowID:     sourceInfo.StartedWorkflowID,
-		StartedRunID:          sourceInfo.StartedRunID,
-		CreateRequestID:       sourceInfo.CreateRequestID,
-		DomainID:              sourceInfo.DomainID,
-		DomainNameDEPRECATED:  sourceInfo.DomainNameDEPRECATED,
-		WorkflowTypeName:      sourceInfo.WorkflowTypeName,
-		ParentClosePolicy:     sourceInfo.ParentClosePolicy,
-		InitiatedEvent:        deepCopyHistoryEvent(sourceInfo.InitiatedEvent),
-		StartedEvent:          deepCopyHistoryEvent(sourceInfo.StartedEvent),
-	}
-}
-
-func deepCopyHistoryEvent(e *types.HistoryEvent) *types.HistoryEvent {
-	if e == nil {
-		return nil
-	}
-	bytes, err := json.Marshal(e)
-	if err != nil {
-		panic(err)
-	}
-	var copy types.HistoryEvent
-	err = json.Unmarshal(bytes, &copy)
-	if err != nil {
-		panic(err)
-	}
-	return &copy
-}
-
 // GetChildExecutionDomainName gets domain name for the child workflow
 // NOTE: DomainName in ChildExecutionInfo is being deprecated, and
 // we should always use DomainID field instead.
@@ -546,26 +183,6 @@ func GetChildExecutionDomainID(
 	}
 
 	return parentDomainEntry.GetInfo().ID, nil
-}
-
-// GetChildExecutionDomainEntry get domain entry for the child workflow
-// NOTE: DomainName in ChildExecutionInfo is being deprecated, and
-// we should always use DomainID field instead.
-// this function exists for backward compatibility reason
-func GetChildExecutionDomainEntry(
-	childInfo *persistence.ChildExecutionInfo,
-	domainCache cache.DomainCache,
-	parentDomainEntry *cache.DomainCacheEntry,
-) (*cache.DomainCacheEntry, error) {
-	if childInfo.DomainID != "" {
-		return domainCache.GetDomainByID(childInfo.DomainID)
-	}
-
-	if childInfo.DomainNameDEPRECATED != "" {
-		return domainCache.GetDomain(childInfo.DomainNameDEPRECATED)
-	}
-
-	return parentDomainEntry, nil
 }
 
 func trimBinaryChecksums(recentBinaryChecksums []string, currResetPoints []*types.ResetPointInfo, maxResetPoints int) ([]string, []*types.ResetPointInfo) {

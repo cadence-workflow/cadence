@@ -51,6 +51,8 @@ type (
 
 var _ common.Daemon = (*Liveness)(nil)
 
+// NewLiveness creates a Liveness daemon that calls the broadcastShutdownFn if it does not receive MarkAlive() within ttl
+// NOTE: livesness needs to be stopped explicitly to avoid go routine leak
 func NewLiveness(timeSource clock.TimeSource, ttl time.Duration, broadcastShutdownFn func()) *Liveness {
 	return &Liveness{
 		status:              common.DaemonStatusInitialized,
@@ -68,29 +70,30 @@ func (l *Liveness) Start() {
 	}
 
 	l.wg.Add(1)
-	go l.eventLoop()
+	checkTimer := l.timeSource.NewTicker(l.ttl / 2)
+	go l.eventLoop(checkTimer)
 }
 
+// Stop ONLY shuts down liveness does not block on broadcastShutdownFn
 func (l *Liveness) Stop() {
 	if !atomic.CompareAndSwapInt32(&l.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
 
 	close(l.stopCh)
-	l.broadcastShutdownFn()
 	l.wg.Wait()
 }
 
-func (l *Liveness) eventLoop() {
+func (l *Liveness) eventLoop(ticker clock.Ticker) {
 	defer l.wg.Done()
-	checkTimer := time.NewTicker(l.ttl / 2)
-	defer checkTimer.Stop()
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-checkTimer.C:
+		case <-ticker.Chan():
 			if !l.IsAlive() {
-				l.Stop()
+				go l.broadcastShutdownFn() // do not block shutdown
+				return
 			}
 
 		case <-l.stopCh:

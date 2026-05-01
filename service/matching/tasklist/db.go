@@ -136,6 +136,28 @@ func (db *taskListDB) UpdateState(ackLevel int64) error {
 	return nil
 }
 
+func (db *taskListDB) UpdateTaskListPartitionConfig(partitionConfig *persistence.TaskListPartitionConfig) error {
+	db.Lock()
+	defer db.Unlock()
+	_, err := db.store.UpdateTaskList(context.Background(), &persistence.UpdateTaskListRequest{
+		TaskListInfo: &persistence.TaskListInfo{
+			DomainID:                db.domainID,
+			Name:                    db.taskListName,
+			TaskType:                db.taskType,
+			AckLevel:                db.ackLevel,
+			RangeID:                 db.rangeID,
+			Kind:                    db.taskListKind,
+			AdaptivePartitionConfig: partitionConfig,
+		},
+		DomainName: db.domainName,
+	})
+	if err != nil {
+		return err
+	}
+	db.partitionConfig = partitionConfig
+	return nil
+}
+
 // CreateTasks creates a batch of given tasks for this task list
 func (db *taskListDB) CreateTasks(tasks []*persistence.CreateTaskInfo) (*persistence.CreateTasksResponse, error) {
 	db.Lock()

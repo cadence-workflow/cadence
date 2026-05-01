@@ -29,7 +29,7 @@ Different ways of start the bench workers:
 You can [pre-built docker-compose file](../docker/docker-compose-bench.yml) to run against local server
 In the `docker/` directory, run:
 ```
-docker-compose -f docker-compose-bench.yml up
+docker compose -f docker-compose-bench.yml up
 ```
 You can modify [the bench worker config](../docker/config/bench/development.yaml) to run against a prod server cluster. 
 

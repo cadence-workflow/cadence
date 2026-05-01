@@ -57,7 +57,7 @@ type (
 
 		clusterConfigs        []*host.TestClusterConfig
 		defaultTestCluster    testcluster.PersistenceTestCluster
-		visibilityTestCluster testcluster.PersistenceTestCluster
+		VisibilityTestCluster testcluster.PersistenceTestCluster
 	}
 
 	NDCIntegrationTestSuiteParams struct {
@@ -71,6 +71,6 @@ func NewNDCIntegrationTestSuite(params NDCIntegrationTestSuiteParams) *NDCIntegr
 	return &NDCIntegrationTestSuite{
 		clusterConfigs:        params.ClusterConfigs,
 		defaultTestCluster:    params.DefaultTestCluster,
-		visibilityTestCluster: params.VisibilityTestCluster,
+		VisibilityTestCluster: params.VisibilityTestCluster,
 	}
 }

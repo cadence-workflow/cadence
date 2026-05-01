@@ -50,6 +50,22 @@ func WithIOHandler(h IOHandler) CLIAppOptions {
 	}
 }
 
+// WithManagerFactory sets the ManagerFactory for the CLI app.
+func WithManagerFactory(factory ManagerFactory) CLIAppOptions {
+	return func(app *cli.App) {
+		if app.Metadata == nil {
+			return
+		}
+
+		d, ok := app.Metadata[depsKey].(*deps)
+		if !ok {
+			return
+		}
+
+		d.ManagerFactory = factory
+	}
+}
+
 // NewCliApp instantiates a new instance of the CLI application
 func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 	version := fmt.Sprintf("CLI feature version: %v \n"+
@@ -63,7 +79,7 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 	app.Usage = "A command-line tool for cadence users"
 	app.Version = version
 	app.Metadata = map[string]any{
-		depsKey: &deps{ClientFactory: cf, IOHandler: &defaultIOHandler{app: app}},
+		depsKey: &deps{ClientFactory: cf, IOHandler: &defaultIOHandler{app: app}, ManagerFactory: &defaultManagerFactory{}},
 	}
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{
@@ -128,6 +144,12 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 			Aliases:     []string{"tl"},
 			Usage:       "Operate cadence tasklist",
 			Subcommands: newTaskListCommands(),
+		},
+		{
+			Name:        "schedule",
+			Aliases:     []string{"sched"},
+			Usage:       "Operate cadence schedules",
+			Subcommands: newScheduleCommands(),
 		},
 		{
 			Name:    "admin",
@@ -227,7 +249,8 @@ func NewCliApp(cf ClientFactory, opts ...CLIAppOptions) *cli.App {
 		},
 	}
 	app.CommandNotFound = func(context *cli.Context, command string) {
-		printMessage("command not found: " + command)
+		output := getDeps(context).Output()
+		printMessage(output, "command not found: "+command)
 	}
 
 	for _, opt := range opts {
@@ -255,6 +278,7 @@ func getDeps(ctx *cli.Context) cliDeps {
 type cliDeps interface {
 	ClientFactory
 	IOHandler
+	ManagerFactory
 }
 
 type IOHandler interface {
@@ -305,4 +329,5 @@ var _ cliDeps = &deps{}
 type deps struct {
 	ClientFactory
 	IOHandler
+	ManagerFactory
 }

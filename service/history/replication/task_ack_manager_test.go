@@ -31,20 +31,49 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/proto"
+	"github.com/uber/cadence/service/history/config"
 )
 
 var (
-	testTask11 = persistence.ReplicationTaskInfo{TaskID: 11, DomainID: testDomainID}
-	testTask12 = persistence.ReplicationTaskInfo{TaskID: 12, DomainID: testDomainID}
-	testTask13 = persistence.ReplicationTaskInfo{TaskID: 13, DomainID: testDomainID}
-	testTask14 = persistence.ReplicationTaskInfo{TaskID: 14, DomainID: testDomainID}
-
+	testTask11 = persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 11,
+		},
+	}
+	testTask12 = persistence.SyncActivityTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 12,
+		},
+	}
+	testTask13 = persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID: testDomainID,
+		},
+		TaskData: persistence.TaskData{
+			TaskID: 13,
+		},
+	}
+	testTask14 = persistence.FailoverMarkerTask{
+		DomainID: testDomainID,
+		TaskData: persistence.TaskData{
+			TaskID: 14,
+		},
+	}
 	testHydratedTask11 = types.ReplicationTask{SourceTaskID: 11, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
 	testHydratedTask12 = types.ReplicationTask{SourceTaskID: 12, SyncActivityTaskAttributes: &types.SyncActivityTaskAttributes{DomainID: testDomainID}}
+	testHydratedTask13 = types.ReplicationTask{SourceTaskID: 13, HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{DomainID: testDomainID}}
 	testHydratedTask14 = types.ReplicationTask{SourceTaskID: 14, FailoverMarkerAttributes: &types.FailoverMarkerAttributes{DomainID: testDomainID}}
 
 	testHydratedTaskErrorRecoverable    = types.ReplicationTask{SourceTaskID: -100}
@@ -69,6 +98,14 @@ var (
 		0,
 		0,
 	)
+
+	testConfig = &config.Config{
+		MaxResponseSize: testMaxResponseSize,
+	}
+)
+
+const (
+	testMaxResponseSize = 4 * 1024 * 1024 // 4MB
 )
 
 func TestTaskAckManager_GetTasks(t *testing.T) {
@@ -80,15 +117,37 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 		hydrator       taskHydrator
 		pollingCluster string
 		lastReadLevel  int64
+		batchSize      fakeDynamicTaskBatchSizer
 		expectResult   *types.ReplicationMessages
 		expectErr      string
 		expectAckLevel int64
+		config         *config.Config
 	}{
+		{
+			name: "main flow - no replication tasks",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
+			},
+			domains:        fakeDomainCache{testDomainID: testDomain},
+			reader:         fakeTaskReader{},
+			hydrator:       fakeTaskHydrator{},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			batchSize:      10,
+			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{},
+				LastRetrievedMessageID: 5,
+				HasMore:                false,
+			},
+			expectAckLevel: 5,
+			config:         testConfig,
+		},
 		{
 			name: "main flow - continues on recoverable error",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 2},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -100,18 +159,20 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask14},
 				LastRetrievedMessageID: 14,
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
+			config:         testConfig,
 		},
 		{
 			name: "main flow - stops at non recoverable error",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 2},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains: fakeDomainCache{testDomainID: testDomain},
 			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
@@ -123,81 +184,172 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12},
 				LastRetrievedMessageID: 12,
 				HasMore:                true,
 			},
 			expectAckLevel: 5,
+			config:         testConfig,
+		},
+		{
+			name: "main flow - stops at second task, batch size is 2",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
+			},
+			domains: fakeDomainCache{testDomainID: testDomain},
+			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
+			hydrator: fakeTaskHydrator{
+				testTask11.TaskID: testHydratedTask11,
+				testTask12.TaskID: testHydratedTask12, // Will stop hydrating beyond this point
+				testTask13.TaskID: testHydratedTask13,
+				testTask14.TaskID: testHydratedTask14,
+			},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			batchSize:      2,
+			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12},
+				LastRetrievedMessageID: 12,
+				HasMore:                true,
+			},
+			expectAckLevel: 5,
+			config:         testConfig,
+		},
+		{
+			name: "main flow - stops at a message exceeded max response size",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
+			},
+			domains: fakeDomainCache{testDomainID: testDomain},
+			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
+			hydrator: fakeTaskHydrator{
+				testTask11.TaskID: testHydratedTask11,
+				testTask12.TaskID: testHydratedTask12,
+				testTask13.TaskID: testHydratedTask13,
+				testTask14.TaskID: testHydratedTask14, // Will stop adding tasks beyond this point
+			},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask13},
+				LastRetrievedMessageID: 13,
+				HasMore:                true,
+			},
+			expectAckLevel: 5,
+			batchSize:      10,
+			config: &config.Config{
+				MaxResponseSize: proto.FromReplicationMessages(&types.ReplicationMessages{
+					ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11, &testHydratedTask12, &testHydratedTask13},
+					LastRetrievedMessageID: 13,
+					HasMore:                true,
+				}).Size() + 1,
+			},
+		},
+		{
+			name: "main flow - fail at a message exceeded max response size",
+			ackLevels: &fakeAckLevelStore{
+				readLevel: 200,
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
+			},
+			domains: fakeDomainCache{testDomainID: testDomain},
+			reader:  fakeTaskReader{&testTask11, &testTask12, &testTask13, &testTask14},
+			hydrator: fakeTaskHydrator{
+				testTask11.TaskID: testHydratedTask11,
+				testTask12.TaskID: testHydratedTask12,
+				testTask13.TaskID: testHydratedTask13,
+				testTask14.TaskID: testHydratedTask14, // Will stop adding tasks beyond this point
+			},
+			pollingCluster: testClusterA,
+			lastReadLevel:  5,
+			batchSize:      10,
+			expectResult:   nil,
+			expectErr:      "replication messages size is too large and cannot be shrunk anymore, shard will be stuck until the message size is reduced or max size is increased",
+			expectAckLevel: 2,
+			config: &config.Config{
+				MaxResponseSize: 0,
+			},
 		},
 		{
 			name: "skips tasks for domains non belonging to polling cluster",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 2},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
 			reader:         fakeTaskReader{&testTask11},
 			hydrator:       fakeTaskHydrator{testTask11.TaskID: testHydratedTask11},
 			pollingCluster: testClusterB,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
-				ReplicationTasks:       nil,
+				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 11,
 				HasMore:                false,
 			},
 			expectAckLevel: 5,
+			config:         testConfig,
 		},
 		{
 			name: "uses remote ack level for first fetch (empty task ID)",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 12},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(12)},
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
 			reader:         fakeTaskReader{&testTask11, &testTask12},
 			hydrator:       fakeTaskHydrator{testTask12.TaskID: testHydratedTask12},
 			pollingCluster: testClusterA,
 			lastReadLevel:  -1,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask12},
 				LastRetrievedMessageID: 12,
 				HasMore:                false,
 			},
 			expectAckLevel: 12,
+			config:         testConfig,
 		},
 		{
 			name: "failed to read replication tasks - return error",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 2},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			reader:         (fakeTaskReader)(nil),
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectErr:      "error reading replication tasks",
+			config:         testConfig,
 		},
 		{
 			name: "failed to get domain - stops",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 2},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 			},
 			domains:        fakeDomainCache{},
 			reader:         fakeTaskReader{&testTask11},
 			hydrator:       fakeTaskHydrator{},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
+				ReplicationTasks:       []*types.ReplicationTask{},
 				LastRetrievedMessageID: 5,
 				HasMore:                true,
 			},
+			config: testConfig,
 		},
 		{
 			name: "failed to update ack level - no error, return response anyway",
 			ackLevels: &fakeAckLevelStore{
 				readLevel: 200,
-				remote:    map[string]int64{testClusterA: 2},
+				remote:    map[string]persistence.HistoryTaskKey{testClusterA: persistence.NewImmediateTaskKey(2)},
 				updateErr: errors.New("error update ack level"),
 			},
 			domains:        fakeDomainCache{testDomainID: testDomain},
@@ -205,18 +357,31 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			hydrator:       fakeTaskHydrator{testTask11.TaskID: testHydratedTask11},
 			pollingCluster: testClusterA,
 			lastReadLevel:  5,
+			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{&testHydratedTask11},
 				LastRetrievedMessageID: 11,
 				HasMore:                false,
 			},
+			config: testConfig,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			taskStore := createTestTaskStore(t, tt.domains, tt.hydrator)
-			ackManager := NewTaskAckManager(testShardID, tt.ackLevels, metrics.NewNoopMetricsClient(), log.NewNoop(), tt.reader, taskStore)
+			ackManager := NewTaskAckManager(
+				testShardID,
+				tt.ackLevels,
+				metrics.NewNoopMetricsClient(),
+				log.NewNoop(),
+				tt.reader,
+				taskStore,
+				clock.NewMockedTimeSource(),
+				tt.config,
+				proto.ReplicationMessagesSize,
+				tt.batchSize,
+			)
 			result, err := ackManager.GetTasks(context.Background(), tt.pollingCluster, tt.lastReadLevel)
 
 			if tt.expectErr != "" {
@@ -227,55 +392,60 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			}
 
 			if tt.expectAckLevel != 0 {
-				assert.Equal(t, tt.expectAckLevel, tt.ackLevels.remote[tt.pollingCluster])
+				assert.Equal(t, tt.expectAckLevel, tt.ackLevels.remote[tt.pollingCluster].GetTaskID())
 			}
 		})
 	}
 }
 
 type fakeAckLevelStore struct {
-	remote    map[string]int64
+	remote    map[string]persistence.HistoryTaskKey
 	readLevel int64
 	updateErr error
 }
 
-func (s *fakeAckLevelStore) GetTransferMaxReadLevel() int64 {
-	return s.readLevel
+func (s *fakeAckLevelStore) UpdateIfNeededAndGetQueueMaxReadLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
+	return persistence.NewImmediateTaskKey(s.readLevel)
 }
-func (s *fakeAckLevelStore) GetClusterReplicationLevel(cluster string) int64 {
+func (s *fakeAckLevelStore) GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey {
 	return s.remote[cluster]
 }
-func (s *fakeAckLevelStore) UpdateClusterReplicationLevel(cluster string, lastTaskID int64) error {
+func (s *fakeAckLevelStore) UpdateQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string, lastTaskID persistence.HistoryTaskKey) error {
 	s.remote[cluster] = lastTaskID
 	return s.updateErr
 }
 
-type fakeTaskReader []*persistence.ReplicationTaskInfo
+type fakeTaskReader []persistence.Task
 
-func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]*persistence.ReplicationTaskInfo, bool, error) {
+func (r fakeTaskReader) Read(ctx context.Context, readLevel int64, maxReadLevel int64, batchSize int) ([]persistence.Task, bool, error) {
 	if r == nil {
 		return nil, false, errors.New("error reading replication tasks")
 	}
 
 	hasMore := false
-	var result []*persistence.ReplicationTaskInfo
+	var result []persistence.Task
 	for _, task := range r {
-		if task.TaskID < readLevel {
+		if task.GetTaskID() < readLevel {
 			continue
 		}
-		if task.TaskID >= maxReadLevel {
+		if task.GetTaskID() >= maxReadLevel {
 			hasMore = true
 			break
 		}
 		result = append(result, task)
 	}
+
+	if len(result) > batchSize {
+		return result[:batchSize], true, nil
+	}
+
 	return result, hasMore, nil
 }
 
 type fakeTaskHydrator map[int64]types.ReplicationTask
 
-func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.ReplicationTask, error) {
-	if hydratedTask, ok := h[task.TaskID]; ok {
+func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.Task) (*types.ReplicationTask, error) {
+	if hydratedTask, ok := h[task.GetTaskID()]; ok {
 		if hydratedTask == testHydratedTaskErrorNonRecoverable {
 			return nil, errors.New("error hydrating task")
 		}
@@ -286,3 +456,8 @@ func (h fakeTaskHydrator) Hydrate(ctx context.Context, task persistence.Replicat
 	}
 	panic("fix the test, should not reach this")
 }
+
+type fakeDynamicTaskBatchSizer int
+
+func (s fakeDynamicTaskBatchSizer) analyse(_ error, _ *getTasksResult) {}
+func (s fakeDynamicTaskBatchSizer) value() int                         { return int(s) }

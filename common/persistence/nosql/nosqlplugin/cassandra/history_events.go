@@ -33,7 +33,7 @@ import (
 )
 
 // InsertIntoHistoryTreeAndNode inserts one or two rows: tree row and node row(at least one of them)
-func (db *cdb) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *nosqlplugin.HistoryTreeRow, nodeRow *nosqlplugin.HistoryNodeRow) error {
+func (db *CDB) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *nosqlplugin.HistoryTreeRow, nodeRow *nosqlplugin.HistoryNodeRow) error {
 	if treeRow == nil && nodeRow == nil {
 		return fmt.Errorf("require at least a tree row or a node row to insert")
 	}
@@ -53,19 +53,19 @@ func (db *cdb) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *nosqlp
 		// Note: for perf, prefer using batch for inserting more than one records
 		batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 		batch.Query(v2templateInsertTree,
-			treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info)
+			treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info, treeRow.CreateTimestamp)
 		batch.Query(v2templateUpsertData,
-			nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding)
+			nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding, nodeRow.CreateTimestamp)
 		err = db.session.ExecuteBatch(batch)
 	} else {
 		var query gocql.Query
 		if treeRow != nil {
 			query = db.session.Query(v2templateInsertTree,
-				treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info).WithContext(ctx)
+				treeRow.TreeID, treeRow.BranchID, ancs, persistence.UnixNanoToDBTimestamp(treeRow.CreateTimestamp.UnixNano()), treeRow.Info, treeRow.CreateTimestamp).WithContext(ctx)
 		}
 		if nodeRow != nil {
 			query = db.session.Query(v2templateUpsertData,
-				nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding).WithContext(ctx)
+				nodeRow.TreeID, nodeRow.BranchID, nodeRow.NodeID, nodeRow.TxnID, nodeRow.Data, nodeRow.DataEncoding, nodeRow.CreateTimestamp).WithContext(ctx)
 		}
 		err = query.Exec()
 	}
@@ -74,7 +74,7 @@ func (db *cdb) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *nosqlp
 }
 
 // SelectFromHistoryNode read nodes based on a filter
-func (db *cdb) SelectFromHistoryNode(ctx context.Context, filter *nosqlplugin.HistoryNodeFilter) ([]*nosqlplugin.HistoryNodeRow, []byte, error) {
+func (db *CDB) SelectFromHistoryNode(ctx context.Context, filter *nosqlplugin.HistoryNodeFilter) ([]*nosqlplugin.HistoryNodeRow, []byte, error) {
 	query := db.session.Query(v2templateReadData, filter.TreeID, filter.BranchID, filter.MinNodeID, filter.MaxNodeID).WithContext(ctx)
 
 	iter := query.PageSize(filter.PageSize).PageState(filter.NextPageToken).Iter()
@@ -98,7 +98,7 @@ func (db *cdb) SelectFromHistoryNode(ctx context.Context, filter *nosqlplugin.Hi
 }
 
 // DeleteFromHistoryTreeAndNode delete a branch record, and a list of ranges of nodes.
-func (db *cdb) DeleteFromHistoryTreeAndNode(ctx context.Context, treeFilter *nosqlplugin.HistoryTreeFilter, nodeFilters []*nosqlplugin.HistoryNodeFilter) error {
+func (db *CDB) DeleteFromHistoryTreeAndNode(ctx context.Context, treeFilter *nosqlplugin.HistoryTreeFilter, nodeFilters []*nosqlplugin.HistoryNodeFilter) error {
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 	batch.Query(v2templateDeleteBranch, treeFilter.TreeID, treeFilter.BranchID)
 	for _, nodeFilter := range nodeFilters {
@@ -111,7 +111,7 @@ func (db *cdb) DeleteFromHistoryTreeAndNode(ctx context.Context, treeFilter *nos
 }
 
 // SelectAllHistoryTrees will return all tree branches with pagination
-func (db *cdb) SelectAllHistoryTrees(ctx context.Context, nextPageToken []byte, pageSize int) ([]*nosqlplugin.HistoryTreeRow, []byte, error) {
+func (db *CDB) SelectAllHistoryTrees(ctx context.Context, nextPageToken []byte, pageSize int) ([]*nosqlplugin.HistoryTreeRow, []byte, error) {
 	query := db.session.Query(v2templateScanAllTreeBranches).WithContext(ctx)
 
 	iter := query.PageSize(int(pageSize)).PageState(nextPageToken).Iter()
@@ -138,7 +138,7 @@ func (db *cdb) SelectAllHistoryTrees(ctx context.Context, nextPageToken []byte, 
 }
 
 // SelectFromHistoryTree read branch records for a tree
-func (db *cdb) SelectFromHistoryTree(ctx context.Context, filter *nosqlplugin.HistoryTreeFilter) ([]*nosqlplugin.HistoryTreeRow, error) {
+func (db *CDB) SelectFromHistoryTree(ctx context.Context, filter *nosqlplugin.HistoryTreeFilter) ([]*nosqlplugin.HistoryTreeRow, error) {
 	query := db.session.Query(v2templateReadAllBranches, filter.TreeID).WithContext(ctx)
 	var pagingToken []byte
 	var iter gocql.Iter

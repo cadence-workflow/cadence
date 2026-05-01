@@ -45,7 +45,7 @@ type (
 )
 
 const (
-	batcherContextKey contextKey = "batcherContext"
+	BatcherContextKey contextKey = "batcherContext"
 	// BatcherTaskListName is the tasklist name
 	BatcherTaskListName = "cadence-sys-batcher-tasklist"
 	// BatchWFTypeName is the workflow type
@@ -66,6 +66,8 @@ const (
 	DefaultAttemptsOnRetryableError = 50
 	// DefaultActivityHeartBeatTimeout is the default value for ActivityHeartBeatTimeout
 	DefaultActivityHeartBeatTimeout = time.Second * 10
+	// DefaultMaxActivityRetries is the default value for MaxActivityRetries
+	DefaultMaxActivityRetries = 4
 )
 
 const (
@@ -82,94 +84,8 @@ const (
 // AllBatchTypes is the batch types we supported
 var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate}
 
-type (
-	// TerminateParams is the parameters for terminating workflow
-	TerminateParams struct {
-		// this indicates whether to terminate children workflow. Default to true.
-		// TODO https://github.com/uber/cadence/issues/2159
-		// Ideally default should be childPolicy of the workflow. But it's currently totally broken.
-		TerminateChildren *bool
-	}
-
-	// CancelParams is the parameters for canceling workflow
-	CancelParams struct {
-		// this indicates whether to cancel children workflow. Default to true.
-		// TODO https://github.com/uber/cadence/issues/2159
-		// Ideally default should be childPolicy of the workflow. But it's currently totally broken.
-		CancelChildren *bool
-	}
-
-	// SignalParams is the parameters for signaling workflow
-	SignalParams struct {
-		SignalName string
-		Input      string
-	}
-
-	// ReplicateParams is the parameters for replicating workflow
-	ReplicateParams struct {
-		SourceCluster string
-		TargetCluster string
-	}
-
-	// BatchParams is the parameters for batch operation workflow
-	BatchParams struct {
-		// Target domain to execute batch operation
-		DomainName string
-		// To get the target workflows for processing
-		Query string
-		// Reason for the operation
-		Reason string
-		// Supporting: reset,terminate
-		BatchType string
-
-		// Below are all optional
-		// TerminateParams is params only for BatchTypeTerminate
-		TerminateParams TerminateParams
-		// CancelParams is params only for BatchTypeCancel
-		CancelParams CancelParams
-		// SignalParams is params only for BatchTypeSignal
-		SignalParams SignalParams
-		// ReplicateParams is params only for BatchTypeReplicate
-		ReplicateParams ReplicateParams
-		// RPS of processing. Default to DefaultRPS
-		// TODO we will implement smarter way than this static rate limiter: https://github.com/uber/cadence/issues/2138
-		RPS int
-		// Number of goroutines running in parallel to process
-		Concurrency int
-		// Number of workflows processed in a batch
-		PageSize int
-		// Number of attempts for each workflow to process in case of retryable error before giving up
-		AttemptsOnRetryableError int
-		// timeout for activity heartbeat
-		ActivityHeartBeatTimeout time.Duration
-		// errors that will not retry which consumes AttemptsOnRetryableError. Default to empty
-		NonRetryableErrors []string
-		// internal conversion for NonRetryableErrors
-		_nonRetryableErrors map[string]struct{}
-	}
-
-	// HeartBeatDetails is the struct for heartbeat details
-	HeartBeatDetails struct {
-		PageToken   []byte
-		CurrentPage int
-		// This is just an estimation for visibility
-		TotalEstimate int64
-		// Number of workflows processed successfully
-		SuccessCount int
-		// Number of workflows that give up due to errors.
-		ErrorCount int
-	}
-
-	taskDetail struct {
-		execution types.WorkflowExecution
-		attempts  int
-		// passing along the current heartbeat details to make heartbeat within a task so that it won't timeout
-		hbd HeartBeatDetails
-	}
-)
-
 var (
-	batchActivityRetryPolicy = cadence.RetryPolicy{
+	BatchActivityRetryPolicy = cadence.RetryPolicy{
 		InitialInterval:          10 * time.Second,
 		BackoffCoefficient:       1.7,
 		MaximumInterval:          5 * time.Minute,
@@ -180,7 +96,7 @@ var (
 	batchActivityOptions = workflow.ActivityOptions{
 		ScheduleToStartTimeout: 5 * time.Minute,
 		StartToCloseTimeout:    InfiniteDuration,
-		RetryPolicy:            &batchActivityRetryPolicy,
+		RetryPolicy:            &BatchActivityRetryPolicy,
 	}
 )
 
@@ -197,73 +113,16 @@ func BatchWorkflow(ctx workflow.Context, batchParams BatchParams) (HeartBeatDeta
 		return HeartBeatDetails{}, err
 	}
 	batchActivityOptions.HeartbeatTimeout = batchParams.ActivityHeartBeatTimeout
+	batchActivityOptions.RetryPolicy.MaximumAttempts = int32(batchParams.MaxActivityRetries)
 	opt := workflow.WithActivityOptions(ctx, batchActivityOptions)
 	var result HeartBeatDetails
 	err = workflow.ExecuteActivity(opt, batchActivityName, batchParams).Get(ctx, &result)
 	return result, err
 }
 
-func validateParams(params BatchParams) error {
-	if params.BatchType == "" ||
-		params.Reason == "" ||
-		params.DomainName == "" ||
-		params.Query == "" {
-		return fmt.Errorf("must provide required parameters: BatchType/Reason/DomainName/Query")
-	}
-	switch params.BatchType {
-	case BatchTypeSignal:
-		if params.SignalParams.SignalName == "" {
-			return fmt.Errorf("must provide signal name")
-		}
-		return nil
-	case BatchTypeReplicate:
-		if params.ReplicateParams.SourceCluster == "" {
-			return fmt.Errorf("must provide source cluster")
-		}
-		if params.ReplicateParams.TargetCluster == "" {
-			return fmt.Errorf("must provide target cluster")
-		}
-		return nil
-	case BatchTypeCancel:
-		fallthrough
-	case BatchTypeTerminate:
-		return nil
-	default:
-		return fmt.Errorf("not supported batch type: %v", params.BatchType)
-	}
-}
-
-func setDefaultParams(params BatchParams) BatchParams {
-	if params.RPS <= 0 {
-		params.RPS = DefaultRPS
-	}
-	if params.Concurrency <= 0 {
-		params.Concurrency = DefaultConcurrency
-	}
-	if params.PageSize <= 0 {
-		params.PageSize = DefaultPageSize
-	}
-	if params.AttemptsOnRetryableError <= 0 {
-		params.AttemptsOnRetryableError = DefaultAttemptsOnRetryableError
-	}
-	if params.ActivityHeartBeatTimeout <= 0 {
-		params.ActivityHeartBeatTimeout = DefaultActivityHeartBeatTimeout
-	}
-	if len(params.NonRetryableErrors) > 0 {
-		params._nonRetryableErrors = make(map[string]struct{}, len(params.NonRetryableErrors))
-		for _, estr := range params.NonRetryableErrors {
-			params._nonRetryableErrors[estr] = struct{}{}
-		}
-	}
-	if params.TerminateParams.TerminateChildren == nil {
-		params.TerminateParams.TerminateChildren = common.BoolPtr(true)
-	}
-	return params
-}
-
 // BatchActivity is activity for processing batch operation
 func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetails, error) {
-	batcher := ctx.Value(batcherContextKey).(*Batcher)
+	batcher := ctx.Value(BatcherContextKey).(*Batcher)
 	client := batcher.clientBean.GetFrontendClient()
 	var adminClient admin.Client
 	if batchParams.BatchType == BatchTypeReplicate {
@@ -271,7 +130,11 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 		if currentCluster != batchParams.ReplicateParams.SourceCluster {
 			return HeartBeatDetails{}, cadence.NewCustomError(_nonRetriableReason, fmt.Sprintf("the activity must run in the source cluster, current cluster is %s", currentCluster))
 		}
-		adminClient = batcher.clientBean.GetRemoteAdminClient(batchParams.ReplicateParams.TargetCluster)
+		var err error
+		adminClient, err = batcher.clientBean.GetRemoteAdminClient(batchParams.ReplicateParams.TargetCluster)
+		if err != nil {
+			return HeartBeatDetails{}, cadence.NewCustomError(_nonRetriableReason, err.Error())
+		}
 	}
 
 	domainResp, err := client.DescribeDomain(ctx, &types.DescribeDomainRequest{
@@ -281,19 +144,9 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 		return HeartBeatDetails{}, err
 	}
 	domainID := domainResp.GetDomainInfo().GetUUID()
-	hbd := HeartBeatDetails{}
-	startOver := true
-	if activity.HasHeartbeatDetails(ctx) {
-		if err := activity.GetHeartbeatDetails(ctx, &hbd); err == nil {
-			startOver = false
-		} else {
-			batcher := ctx.Value(batcherContextKey).(*Batcher)
-			batcher.metricsClient.IncCounter(metrics.BatcherScope, metrics.BatcherProcessorFailures)
-			getActivityLogger(ctx).Error("Failed to recover from last heartbeat, start over from beginning", tag.Error(err))
-		}
-	}
+	hbd, ok := getHeartBeatDetails(ctx)
 
-	if startOver {
+	if !ok {
 		resp, err := client.CountWorkflowExecutions(ctx, &types.CountWorkflowExecutionsRequest{
 			Domain: batchParams.DomainName,
 			Query:  batchParams.Query,
@@ -307,7 +160,7 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 	taskCh := make(chan taskDetail, batchParams.PageSize)
 	respCh := make(chan error, batchParams.PageSize)
 	for i := 0; i < batchParams.Concurrency; i++ {
-		go startTaskProcessor(ctx, batchParams, domainID, taskCh, respCh, rateLimiter, client, adminClient)
+		go startTaskProcessor(ctx, batchParams, domainID, taskCh, respCh, rateLimiter, client, adminClient, BatchWFTypeName)
 	}
 
 	for {
@@ -371,6 +224,20 @@ func BatchActivity(ctx context.Context, batchParams BatchParams) (HeartBeatDetai
 	return hbd, nil
 }
 
+func getHeartBeatDetails(ctx context.Context) (hbd HeartBeatDetails, ok bool) {
+	if activity.HasHeartbeatDetails(ctx) {
+		if err := activity.GetHeartbeatDetails(ctx, &hbd); err != nil {
+			batcher := ctx.Value(BatcherContextKey).(*Batcher)
+			batcher.metricsClient.IncCounter(metrics.BatcherScope, metrics.BatcherProcessorFailures)
+			getActivityLogger(ctx).Error("Failed to recover from last heartbeat, start over from beginning", tag.Error(err))
+			return HeartBeatDetails{}, false
+		}
+		return hbd, true
+	}
+
+	return hbd, false
+}
+
 func startTaskProcessor(
 	ctx context.Context,
 	batchParams BatchParams,
@@ -380,8 +247,9 @@ func startTaskProcessor(
 	limiter *rate.Limiter,
 	client frontend.Client,
 	adminClient admin.Client,
+	identity string,
 ) {
-	batcher := ctx.Value(batcherContextKey).(*Batcher)
+	batcher := ctx.Value(BatcherContextKey).(*Batcher)
 	for {
 		select {
 		case <-ctx.Done():
@@ -405,7 +273,7 @@ func startTaskProcessor(
 								RunID:      runID,
 							},
 							Reason:   batchParams.Reason,
-							Identity: BatchWFTypeName,
+							Identity: identity,
 						})
 					})
 			case BatchTypeCancel:
@@ -537,7 +405,7 @@ func isDone(ctx context.Context) bool {
 }
 
 func getActivityLogger(ctx context.Context) log.Logger {
-	batcher := ctx.Value(batcherContextKey).(*Batcher)
+	batcher := ctx.Value(BatcherContextKey).(*Batcher)
 	wfInfo := activity.GetInfo(ctx)
 	return batcher.logger.WithTags(
 		tag.WorkflowID(wfInfo.WorkflowExecution.ID),

@@ -25,7 +25,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -41,18 +41,17 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 	ctx context.Context,
 	req *types.HistoryRecordActivityTaskHeartbeatRequest,
 ) (*types.RecordActivityTaskHeartbeatResponse, error) {
-
-	domainEntry, err := e.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return nil, err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.HeartbeatRequest
 	token, err0 := e.tokenSerializer.Deserialize(request.TaskToken)
 	if err0 != nil {
 		return nil, workflow.ErrDeserializingToken
 	}
+
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return nil, err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
@@ -60,7 +59,7 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 	}
 
 	var cancelRequested bool
-	err = workflow.UpdateWithAction(ctx, e.executionCache, domainID, workflowExecution, false, e.timeSource.Now(),
+	err = workflow.UpdateWithAction(ctx, e.logger, e.executionCache, domainID, workflowExecution, false, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				e.logger.Debug("Heartbeat failed")
@@ -68,7 +67,7 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 			}
 
 			scheduleID := token.ScheduleID
-			if scheduleID == common.EmptyEventID { // client call RecordActivityHeartbeatByID, so get scheduleID by activityID
+			if scheduleID == constants.EmptyEventID { // client call RecordActivityHeartbeatByID, so get scheduleID by activityID
 				scheduleID, err0 = getScheduleID(token.ActivityID, mutableState)
 				if err0 != nil {
 					return err0
@@ -90,8 +89,8 @@ func (e *historyEngineImpl) RecordActivityTaskHeartbeat(
 				return workflow.ErrStaleState
 			}
 
-			if !isRunning || ai.StartedID == common.EmptyEventID ||
-				(token.ScheduleID != common.EmptyEventID && token.ScheduleAttempt != int64(ai.Attempt)) {
+			if !isRunning || ai.StartedID == constants.EmptyEventID ||
+				(token.ScheduleID != constants.EmptyEventID && token.ScheduleAttempt != int64(ai.Attempt)) {
 				e.logger.Warn(fmt.Sprintf(
 					"Encounter non existing activity in RecordActivityTaskHeartbeat: isRunning: %t, ai: %#v, token: %#v.",
 					isRunning, ai, token),

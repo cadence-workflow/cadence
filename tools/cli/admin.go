@@ -404,6 +404,17 @@ func newAdminDomainCommands() []*cli.Command {
 			},
 		},
 		{
+			Name:    "delete",
+			Aliases: []string{"del"},
+			Usage:   "Delete existing workflow domain",
+			Flags:   adminDeleteDomainFlags,
+			Action: func(c *cli.Context) error {
+				return withDomainClient(c, true, func(dc *domainCLIImpl) error {
+					return dc.DeleteDomain(c)
+				})
+			},
+		},
+		{
 			Name:    "deprecate",
 			Aliases: []string{"dep"},
 			Usage:   "Deprecate existing workflow domain",
@@ -430,10 +441,6 @@ func newAdminDomainCommands() []*cli.Command {
 			Aliases: []string{"getdn"},
 			Usage:   "Get domainID or domainName",
 			Flags: append(getDBFlags(),
-				&cli.StringFlag{
-					Name:  FlagDomain,
-					Usage: "DomainName",
-				},
 				&cli.StringFlag{
 					Name:  FlagDomainID,
 					Usage: "Domain ID(uuid)",
@@ -702,14 +709,40 @@ func newAdminTaskListCommands() []*cli.Command {
 			Name:    "list",
 			Aliases: []string{"l"},
 			Usage:   "List active tasklist under a domain",
+			Action:  AdminListTaskList,
+		},
+		{
+			Name:    "update-partition",
+			Aliases: []string{"up"},
+			Usage:   "Update tasklist's partition config",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:    FlagDomain,
-					Aliases: []string{"do"},
-					Usage:   "Required Domain name",
+					Name:    FlagTaskList,
+					Aliases: []string{"tl"},
+					Usage:   "TaskList Name",
+				},
+				&cli.StringFlag{
+					Name:    FlagTaskListType,
+					Aliases: []string{"tlt"},
+					Usage:   "TaskList type [decision|activity]",
+				},
+				&cli.IntFlag{
+					Name:    FlagNumReadPartitions,
+					Aliases: []string{"nrp"},
+					Usage:   "Number of read partitions",
+				},
+				&cli.IntFlag{
+					Name:    FlagNumWritePartitions,
+					Aliases: []string{"nwp"},
+					Usage:   "Number of write partitions",
+				},
+				&cli.BoolFlag{
+					Name:    FlagForce,
+					Aliases: []string{"f"},
+					Usage:   "Force an update operation that may be unsafe",
 				},
 			},
-			Action: AdminListTaskList,
+			Action: AdminUpdateTaskListPartitionConfig,
 		},
 	}
 }
@@ -873,26 +906,14 @@ func newAdminQueueCommands() []*cli.Command {
 func newAdminAsyncQueueCommands() []*cli.Command {
 	return []*cli.Command{
 		{
-			Name:  "get",
-			Usage: "get async workflow queue configuration of a domain",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `domain name`,
-					Required: true,
-				},
-			},
+			Name:   "get",
+			Usage:  "get async workflow queue configuration of a domain",
 			Action: AdminGetAsyncWFConfig,
 		},
 		{
 			Name:  "update",
 			Usage: "upsert async workflow queue configuration of a domain",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `domain name`,
-					Required: true,
-				},
 				&cli.StringFlag{
 					Name:     FlagJSON,
 					Usage:    `AsyncWorkflowConfiguration in json format. Schema can be found in https://github.com/uber/cadence/blob/master/common/types/admin.go`,
@@ -1285,9 +1306,9 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to get value of",
 					Required: true,
 				},
-				&cli.StringSliceFlag{
+				&cli.StringFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional. Can be specified multiple times for multiple filters. ex: --%s '{"Name":"domainName","Value":"global-samples-domain"}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional. ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
 				},
 			},
 			Action: AdminGetDynamicConfig,
@@ -1320,9 +1341,9 @@ func newAdminConfigStoreCommands() []*cli.Command {
 					Usage:    "Name of Dynamic Config parameter to restore",
 					Required: true,
 				},
-				&cli.StringSliceFlag{
+				&cli.StringFlag{
 					Name:  FlagDynamicConfigFilter,
-					Usage: fmt.Sprintf(`Optional. Can be specified multiple times for multiple filters. ex: --%s '{"Name":"domainName","Value":"global-samples-domain"}'`, FlagDynamicConfigFilter),
+					Usage: fmt.Sprintf(`Optional. ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
 				},
 			},
 			Action: AdminRestoreDynamicConfig,
@@ -1383,11 +1404,7 @@ func newAdminIsolationGroupCommands() []*cli.Command {
 			Name:  "get-domain",
 			Usage: "gets the domain isolation groups",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `The domain to operate on`,
-					Required: true,
-				},
+
 				&cli.StringFlag{
 					Name:  FlagFormat,
 					Usage: `output format`,
@@ -1399,11 +1416,6 @@ func newAdminIsolationGroupCommands() []*cli.Command {
 			Name:  "update-domain",
 			Usage: "sets the domain isolation groups",
 			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     FlagDomain,
-					Usage:    `The domain to operate on`,
-					Required: true,
-				},
 				&cli.StringFlag{
 					Name:     FlagJSON,
 					Usage:    `the configurations to upsert: eg: [{"Name": "zone-1": "State": 2}]. To remove groups, specify an empty configuration`,

@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -48,7 +49,7 @@ func (s *utilSuite) TestEncodeDecodeHistoryBatches() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:      common.FirstEventID,
+					ID:      constants.FirstEventID,
 					Version: 1,
 				},
 			},
@@ -56,12 +57,12 @@ func (s *utilSuite) TestEncodeDecodeHistoryBatches() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   1,
 				},
 				{
-					ID:      common.FirstEventID + 2,
+					ID:      constants.FirstEventID + 2,
 					Version: 2,
 					DecisionTaskStartedEventAttributes: &types.DecisionTaskStartedEventAttributes{
 						Identity: "some random identity",

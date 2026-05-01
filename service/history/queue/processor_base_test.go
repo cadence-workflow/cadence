@@ -25,13 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common/collection"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -51,10 +50,9 @@ type (
 		mockShard         *shard.TestContext
 		mockTaskProcessor *task.MockProcessor
 
-		redispatchQueue collection.Queue
-		logger          log.Logger
-		metricsClient   metrics.Client
-		metricsScope    metrics.Scope
+		logger        log.Logger
+		metricsClient metrics.Client
+		metricsScope  metrics.Scope
 	}
 )
 
@@ -79,9 +77,8 @@ func (s *processorBaseSuite) SetupTest() {
 	)
 	s.mockTaskProcessor = task.NewMockProcessor(s.controller)
 
-	s.redispatchQueue = collection.NewConcurrentQueue()
 	s.logger = testlogger.New(s.Suite.T())
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History)
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.metricsScope = s.metricsClient.Scope(metrics.TransferQueueProcessorScope)
 }
 
@@ -286,7 +283,7 @@ func (s *processorBaseSuite) TestUpdateAckLevel_Timer_UpdateAckLevel() {
 	}
 
 	timerQueueProcessBase := s.newTestProcessorBase(processingQueueStates, nil, updateTransferAckLevelFn, nil, nil)
-	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicconfig.GetBoolPropertyFn(true)
+	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicproperties.GetBoolPropertyFn(true)
 	processFinished, ackLevel, err := timerQueueProcessBase.updateAckLevel()
 	s.NoError(err)
 	s.False(processFinished)
@@ -324,7 +321,7 @@ func (s *processorBaseSuite) TestUpdateAckLevel_Timer_UpdateQueueStates() {
 	}
 
 	timerQueueProcessBase := s.newTestProcessorBase(processingQueueStates, nil, nil, updateProcessingQueueStates, nil)
-	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicconfig.GetBoolPropertyFn(true)
+	timerQueueProcessBase.options.EnablePersistQueueStates = dynamicproperties.GetBoolPropertyFn(true)
 	processFinished, ackLevel, err := timerQueueProcessBase.updateAckLevel()
 	s.NoError(err)
 	s.False(processFinished)
@@ -348,7 +345,7 @@ func (s *processorBaseSuite) TestInitializeSplitPolicy_Disabled() {
 func (s *processorBaseSuite) TestInitializeSplitPolicy_Enabled() {
 	processorBase := s.newTestProcessorBase(nil, nil, nil, nil, nil)
 
-	processorBase.options.EnableSplit = dynamicconfig.GetBoolPropertyFn(true)
+	processorBase.options.EnableSplit = dynamicproperties.GetBoolPropertyFn(true)
 
 	splitPolicy := processorBase.initializeSplitPolicy(nil)
 	s.NotNil(splitPolicy, "got nil split policy, want non-nil")

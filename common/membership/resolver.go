@@ -29,11 +29,9 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/service"
 )
 
 type (
@@ -63,6 +61,10 @@ type (
 		// Lookup will return host which is an owner for provided key.
 		Lookup(service, key string) (HostInfo, error)
 
+		// LookupN returns up to n hosts responsible for the given key. This
+		// enables redundant workers across multiple hosts for the same key.
+		LookupN(service, key string, n int) ([]HostInfo, error)
+
 		// Subscribe adds a subscriber which will get detailed change data on the given
 		// channel, whenever membership changes.
 		Subscribe(service, name string, notifyChannel chan<- *ChangedEvent) error
@@ -84,11 +86,12 @@ type (
 // MultiringResolver uses ring-per-service for membership information
 type MultiringResolver struct {
 	metrics metrics.Client
+	logger  log.Logger
 	status  int32
 
 	provider PeerProvider
 	mu       sync.Mutex
-	rings    map[string]*ring
+	rings    map[string]SingleProvider
 }
 
 var _ Resolver = (*MultiringResolver)(nil)
@@ -96,31 +99,20 @@ var _ Resolver = (*MultiringResolver)(nil)
 // NewResolver builds hashrings for all services
 func NewResolver(
 	provider PeerProvider,
-	logger log.Logger,
-	metrics metrics.Client,
-) (*MultiringResolver, error) {
-	return NewMultiringResolver(service.ListWithRing, provider, logger.WithTags(tag.ComponentServiceResolver), metrics), nil
-}
-
-// NewMultiringResolver creates hashrings for all services
-func NewMultiringResolver(
-	services []string,
-	provider PeerProvider,
-	logger log.Logger,
 	metricsClient metrics.Client,
-) *MultiringResolver {
+	logger log.Logger,
+	rings map[string]SingleProvider,
+) (Resolver, error) {
 	rpo := &MultiringResolver{
 		status:   common.DaemonStatusInitialized,
 		provider: provider,
-		rings:    make(map[string]*ring),
+		rings:    rings,
 		metrics:  metricsClient,
+		logger:   logger.WithTags(tag.ComponentMembershipResolver),
 		mu:       sync.Mutex{},
 	}
 
-	for _, s := range services {
-		rpo.rings[s] = newHashring(s, provider, clock.NewRealTimeSource(), logger, metricsClient.Scope(metrics.HashringScope))
-	}
-	return rpo
+	return rpo, nil
 }
 
 // Start starts provider and all rings
@@ -132,6 +124,9 @@ func (rpo *MultiringResolver) Start() {
 	) {
 		return
 	}
+
+	rpo.logger.Info("Starting membership resolver", tag.ComponentMembershipResolver)
+	defer rpo.logger.Info("Started membership resolver", tag.ComponentMembershipResolver)
 
 	rpo.provider.Start()
 
@@ -152,6 +147,9 @@ func (rpo *MultiringResolver) Stop() {
 		return
 	}
 
+	rpo.logger.Info("Stopping membership resolver", tag.ComponentMembershipResolver)
+	defer rpo.logger.Info("Stopped membership resolver", tag.ComponentMembershipResolver)
+
 	rpo.mu.Lock()
 	defer rpo.mu.Unlock()
 	for _, ring := range rpo.rings {
@@ -171,7 +169,7 @@ func (rpo *MultiringResolver) EvictSelf() error {
 	return rpo.provider.SelfEvict()
 }
 
-func (rpo *MultiringResolver) getRing(service string) (*ring, error) {
+func (rpo *MultiringResolver) getRing(service string) (SingleProvider, error) {
 	rpo.mu.Lock()
 	defer rpo.mu.Unlock()
 	ring, found := rpo.rings[service]
@@ -187,6 +185,14 @@ func (rpo *MultiringResolver) Lookup(service string, key string) (HostInfo, erro
 		return HostInfo{}, err
 	}
 	return ring.Lookup(key)
+}
+
+func (rpo *MultiringResolver) LookupN(service string, key string, n int) ([]HostInfo, error) {
+	ring, err := rpo.getRing(service)
+	if err != nil {
+		return nil, err
+	}
+	return ring.LookupN(key, n)
 }
 
 func (rpo *MultiringResolver) Subscribe(service string, name string, notifyChannel chan<- *ChangedEvent) error {
@@ -223,7 +229,7 @@ func (rpo *MultiringResolver) LookupByAddress(service, address string) (HostInfo
 			return m, nil
 		}
 	}
-	rpo.metrics.Scope(metrics.ResolverHostNotFoundScope).IncCounter(1)
+	rpo.metrics.Scope(metrics.ResolverHostNotFoundScope).IncCounter(metrics.RingResolverError)
 	return HostInfo{}, fmt.Errorf("host not found in service %s: %s", service, address)
 }
 

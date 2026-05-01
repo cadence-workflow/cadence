@@ -29,9 +29,9 @@ import (
 	"go.uber.org/cadence/worker"
 
 	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -40,7 +40,7 @@ import (
 type (
 	// Config defines the configuration for batcher
 	Config struct {
-		AdminOperationToken dynamicconfig.StringPropertyFn
+		AdminOperationToken dynamicproperties.StringPropertyFn
 		// ClusterMetadata contains the metadata for this cluster
 		ClusterMetadata cluster.Metadata
 	}
@@ -89,12 +89,12 @@ func New(params *BootstrapParams) *Batcher {
 // Start starts the scanner
 func (s *Batcher) Start() error {
 	// start worker for batch operation workflows
-	ctx := context.WithValue(context.Background(), batcherContextKey, s)
+	ctx := context.WithValue(context.Background(), BatcherContextKey, s)
 	workerOpts := worker.Options{
 		MetricsScope:              s.tallyScope,
 		BackgroundActivityContext: ctx,
 		Tracer:                    opentracing.GlobalTracer(),
 	}
-	batchWorker := worker.New(s.svcClient, common.BatcherLocalDomainName, BatcherTaskListName, workerOpts)
+	batchWorker := worker.New(s.svcClient, constants.BatcherLocalDomainName, BatcherTaskListName, workerOpts)
 	return batchWorker.Start()
 }

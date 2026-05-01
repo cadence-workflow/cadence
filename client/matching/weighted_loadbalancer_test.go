@@ -23,17 +23,17 @@
 package matching
 
 import (
-	"errors"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -41,16 +41,22 @@ func TestPollerWeight(t *testing.T) {
 	n := 4
 	pw := newWeightSelector(n, 100)
 	// uninitialized weights should return -1
-	assert.Equal(t, -1, pw.pick())
+	p, cumulativeWeights := pw.pick()
+	assert.Equal(t, -1, p)
+	assert.Equal(t, []int64{0, 0, 0, 0}, cumulativeWeights)
 	// all 0 weights should return -1
 	for i := 0; i < n; i++ {
 		pw.update(n, i, 0)
-		assert.Equal(t, -1, pw.pick())
+		p, cumulativeWeights := pw.pick()
+		assert.Equal(t, -1, p)
+		assert.Equal(t, []int64{0, 0, 0, 0}, cumulativeWeights)
 	}
 	// if only one item has non-zero weight, always pick that item
 	pw.update(n, 3, 400)
 	for i := 0; i < 100; i++ {
-		assert.Equal(t, 3, pw.pick())
+		p, cumulativeWeights := pw.pick()
+		assert.Equal(t, 3, p)
+		assert.Equal(t, []int64{0, 0, 0, 400}, cumulativeWeights)
 	}
 	pw.update(n, 2, 300)
 	pw.update(n, 1, 200)
@@ -66,6 +72,9 @@ func TestPollerWeight(t *testing.T) {
 	pw.update(n, 3, 300)
 	pw.update(n+1, 4, 400)
 	testPickProbHelper(t, pw, time.Now().UnixNano())
+
+	// no panics
+	pw.update(n, 4, 0)
 }
 
 func testPickProbHelper(t *testing.T, pw *weightSelector, seed int64) {
@@ -75,7 +84,7 @@ func testPickProbHelper(t *testing.T, pw *weightSelector, seed int64) {
 	results := make(map[int]int)
 	numPicks := 1000000
 	for i := 0; i < numPicks; i++ {
-		index := pw.pick()
+		index, _ := pw.pick()
 		results[index]++
 	}
 	// Calculate expected probabilities
@@ -101,19 +110,17 @@ func testPickProbHelper(t *testing.T, pw *weightSelector, seed int64) {
 func TestNewWeightedLoadBalancer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	roundRobinMock := NewMockLoadBalancer(ctrl)
-	domainIDToName := func(domainID string) (string, error) {
-		return "testDomainName", nil
-	}
-	dc := dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), testlogger.New(t))
+	p := NewMockPartitionConfigProvider(ctrl)
+	p.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
 	logger := testlogger.New(t)
-	lb := NewWeightedLoadBalancer(roundRobinMock, domainIDToName, dc, logger)
+	p.EXPECT().GetLogger().Return(logger).AnyTimes()
+	lb := NewWeightedLoadBalancer(roundRobinMock, p, logger)
 	assert.NotNil(t, lb)
 	weightedLB, ok := lb.(*weightedLoadBalancer)
 	assert.NotNil(t, weightedLB)
 	assert.True(t, ok)
-	assert.NotNil(t, weightedLB.fallbackLoadBalancer)
-	assert.NotNil(t, weightedLB.domainIDToName)
-	assert.NotNil(t, weightedLB.nReadPartitions)
+	assert.Equal(t, roundRobinMock, weightedLB.fallbackLoadBalancer)
+	assert.Equal(t, p, weightedLB.provider)
 	assert.NotNil(t, weightedLB.weightCache)
 	assert.NotNil(t, weightedLB.logger)
 }
@@ -133,8 +140,13 @@ func TestWeightedLoadBalancer_PickWritePartition(t *testing.T) {
 			domainID: "domainA",
 			taskList: types.TaskList{Name: "taskListA"},
 			setupMock: func(m *MockLoadBalancer) {
+				req := &types.AddDecisionTaskRequest{
+					DomainUUID:    "domainA",
+					TaskList:      &types.TaskList{Name: "taskListA"},
+					ForwardedFrom: "",
+				}
 				m.EXPECT().
-					PickWritePartition("domainA", types.TaskList{Name: "taskListA"}, 0, "").
+					PickWritePartition(0, req).
 					Return("partitionA")
 			},
 			expectedResult: "partitionA",
@@ -153,7 +165,13 @@ func TestWeightedLoadBalancer_PickWritePartition(t *testing.T) {
 				fallbackLoadBalancer: mockFallbackLB,
 			}
 
-			result := lb.PickWritePartition(tc.domainID, tc.taskList, tc.taskListType, tc.forwardedFrom)
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    tc.domainID,
+				TaskList:      &tc.taskList,
+				ForwardedFrom: tc.forwardedFrom,
+			}
+
+			result := lb.PickWritePartition(tc.taskListType, req)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -215,6 +233,11 @@ func TestWeightedLoadBalancer_PickReadPartition(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    tc.domainID,
+				TaskList:      &tc.taskList,
+				ForwardedFrom: tc.forwardedFrom,
+			}
 			ctrl := gomock.NewController(t)
 			// Create mocks.
 			mockWeightCache := cache.NewMockCache(ctrl)
@@ -232,7 +255,7 @@ func TestWeightedLoadBalancer_PickReadPartition(t *testing.T) {
 
 			if tc.expectFallbackCall {
 				mockFallbackLoadBalancer.EXPECT().
-					PickReadPartition(tc.domainID, tc.taskList, tc.taskListType, tc.forwardedFrom).
+					PickReadPartition(tc.taskListType, req, "").
 					Return(tc.fallbackReturn)
 			}
 
@@ -246,7 +269,7 @@ func TestWeightedLoadBalancer_PickReadPartition(t *testing.T) {
 			}
 
 			// Call the method under test.
-			result := lb.PickReadPartition(tc.domainID, tc.taskList, tc.taskListType, tc.forwardedFrom)
+			result := lb.PickReadPartition(tc.taskListType, req, "")
 
 			// Assert the result.
 			assert.Equal(t, tc.expectedResult, result)
@@ -256,15 +279,14 @@ func TestWeightedLoadBalancer_PickReadPartition(t *testing.T) {
 
 func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 	testCases := []struct {
-		name          string
-		domainID      string
-		taskList      types.TaskList
-		taskListType  int
-		forwardedFrom string
-		partition     string
-		weight        int64
-		nPartitions   int
-		setupCache    func(mockCache *cache.MockCache)
+		name              string
+		domainID          string
+		taskList          types.TaskList
+		taskListType      int
+		forwardedFrom     string
+		partition         string
+		loadBalancerHints *types.LoadBalancerHints
+		setupMock         func(*cache.MockCache, *MockPartitionConfigProvider)
 	}{
 		{
 			name:     "Sticky task list",
@@ -283,17 +305,20 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			taskList: types.TaskList{Name: "/__cadence_sys/aaa/1"},
 		},
 		{
-			name:     "domain Name lookup error",
-			domainID: "invalid-domainID",
+			name:     "nil loadBalancerHints",
+			domainID: "domainA",
 			taskList: types.TaskList{Name: "a"},
 		},
 		{
-			name:        "1 partition",
-			domainID:    "domainA",
-			taskList:    types.TaskList{Name: "a"},
-			partition:   "a",
-			nPartitions: 1,
-			setupCache: func(mockCache *cache.MockCache) {
+			name:      "1 partition",
+			domainID:  "domainA",
+			taskList:  types.TaskList{Name: "a"},
+			partition: "a",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
+			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
+				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(1)
 				mockCache.EXPECT().Delete(key{
 					domainID:     "domainA",
 					taskListName: "a",
@@ -302,13 +327,15 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			},
 		},
 		{
-			name:        "partition 0",
-			domainID:    "domainA",
-			taskList:    types.TaskList{Name: "a"},
-			partition:   "a",
-			weight:      1,
-			nPartitions: 2,
-			setupCache: func(mockCache *cache.MockCache) {
+			name:      "partition 0",
+			domainID:  "domainA",
+			taskList:  types.TaskList{Name: "a"},
+			partition: "a",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
+			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
+				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(2)
 				mockCache.EXPECT().Get(key{
 					domainID:     "domainA",
 					taskListName: "a",
@@ -322,13 +349,15 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 			},
 		},
 		{
-			name:        "partition 1",
-			domainID:    "domainA",
-			taskList:    types.TaskList{Name: "a"},
-			partition:   "/__cadence_sys/a/1",
-			weight:      1,
-			nPartitions: 2,
-			setupCache: func(mockCache *cache.MockCache) {
+			name:      "partition 1",
+			domainID:  "domainA",
+			taskList:  types.TaskList{Name: "a"},
+			partition: "/__cadence_sys/a/1",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount: 1,
+			},
+			setupMock: func(mockCache *cache.MockCache, mockPartitionConfigProvider *MockPartitionConfigProvider) {
+				mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions("domainA", types.TaskList{Name: "a"}, 0).Return(2)
 				mockCache.EXPECT().Get(key{
 					domainID:     "domainA",
 					taskListName: "a",
@@ -340,26 +369,254 @@ func TestWeightedLoadBalancer_UpdateWeight(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    tc.domainID,
+				TaskList:      &tc.taskList,
+				ForwardedFrom: tc.forwardedFrom,
+			}
 			ctrl := gomock.NewController(t)
 			mockWeightCache := cache.NewMockCache(ctrl)
+			mockPartitionConfigProvider := NewMockPartitionConfigProvider(ctrl)
 			lb := &weightedLoadBalancer{
-				domainIDToName: func(domainID string) (string, error) {
-					if domainID == "invalid-domainID" {
-						return "", errors.New("invalid domainID")
-					}
-					return "testDomainName", nil
-				},
-				nReadPartitions: func(domainName, taskListName string, taskListType int) int {
-					return tc.nPartitions
-				},
 				weightCache: mockWeightCache,
+				provider:    mockPartitionConfigProvider,
 				logger:      testlogger.New(t),
 			}
-			if tc.setupCache != nil {
-				tc.setupCache(mockWeightCache)
+			if tc.setupMock != nil {
+				tc.setupMock(mockWeightCache, mockPartitionConfigProvider)
 			}
 
-			lb.UpdateWeight(tc.domainID, tc.taskList, tc.taskListType, tc.forwardedFrom, tc.partition, tc.weight)
+			lb.UpdateWeight(tc.taskListType, req, tc.partition, tc.loadBalancerHints)
+		})
+	}
+}
+
+func TestCalcWeightFromLoadBalancerHints(t *testing.T) {
+	tests := []struct {
+		name     string
+		info     types.LoadBalancerHints
+		expected int64
+	}{
+		{
+			name:     "Zero QPS and backlog count",
+			info:     types.LoadBalancerHints{BacklogCount: 0, RatePerSecond: 0},
+			expected: 0,
+		},
+		{
+			name:     "Small QPS below threshold",
+			info:     types.LoadBalancerHints{BacklogCount: 10, RatePerSecond: 0.005},
+			expected: 10,
+		},
+		{
+			name:     "QPS above threshold with no backlog",
+			info:     types.LoadBalancerHints{BacklogCount: 0, RatePerSecond: 2},
+			expected: int64(math.Ceil(2 * 0.01)), // smoothingNumber calculation
+		},
+		{
+			name:     "QPS above threshold with backlog",
+			info:     types.LoadBalancerHints{BacklogCount: 100, RatePerSecond: 5},
+			expected: 100 + int64(math.Ceil(5*0.01)), // backlog + smoothingNumber
+		},
+		{
+			name:     "Large QPS",
+			info:     types.LoadBalancerHints{BacklogCount: 50, RatePerSecond: 100},
+			expected: 50 + int64(math.Ceil(100*0.01)), // backlog + smoothingNumber
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calcWeightFromLoadBalancerHints(&tt.info)
+			assert.Equal(t, tt.expected, result, "unexpected result for %s", tt.name)
+		})
+	}
+}
+
+func TestPickBetween(t *testing.T) {
+	tl := types.TaskList{Name: "a"}
+	cases := []struct {
+		name    string
+		hints   map[int]*types.LoadBalancerHints
+		config  *types.TaskListPartitionConfig
+		from    []int
+		allowed []int
+	}{
+		{
+			name:    "unknown TL",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:    "no partitions specified",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{},
+			allowed: []int{-1},
+		},
+		{
+			name:    "single partition specified",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{0},
+			allowed: []int{0},
+		},
+		{
+			name:    "single partition",
+			config:  createDefaultConfig(1, 1),
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:    "not initialized",
+			config:  createDefaultConfig(4, 4),
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:   "partially initialized",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+			},
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:   "fully initialized",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+			},
+			from:    []int{0, 1, 2, 3},
+			allowed: []int{0, 1, 2, 3},
+		},
+		{
+			name:   "invalid partition",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+			},
+			from:    []int{0, 1, 2, 4},
+			allowed: []int{-1},
+		},
+		{
+			name:   "only consider specified - below threshold",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  1,
+					RatePerSecond: 1,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1,
+					RatePerSecond: 1,
+				},
+			},
+			from:    []int{1, 3},
+			allowed: []int{-1},
+		},
+		{
+			name:   "only consider specified - above threshold",
+			config: createDefaultConfig(4, 4),
+			hints: map[int]*types.LoadBalancerHints{
+				0: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				1: {
+					BacklogCount:  _backlogThreshold,
+					RatePerSecond: 1,
+				},
+				2: {
+					BacklogCount:  1000000,
+					RatePerSecond: 100,
+				},
+				3: {
+					BacklogCount:  1,
+					RatePerSecond: 1,
+				},
+			},
+			from:    []int{1, 3},
+			allowed: []int{1, 3},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    testDomain,
+				TaskList:      &tl,
+				ForwardedFrom: "",
+			}
+			ctrl := gomock.NewController(t)
+			weightCache := cache.New(&cache.Options{
+				TTL:             0,
+				InitialCapacity: 100,
+				Pin:             false,
+				MaxCount:        3000,
+				ActivelyEvict:   false,
+				MetricsScope:    metrics.NoopScope,
+				Logger:          testlogger.New(t),
+			})
+			mockPartitionConfigProvider := NewMockPartitionConfigProvider(ctrl)
+			mockPartitionConfigProvider.EXPECT().GetNumberOfReadPartitions(testDomain, tl, 0).Return(len(tc.config.ReadPartitions)).Times(len(tc.hints))
+			lb := &weightedLoadBalancer{
+				weightCache: weightCache,
+				provider:    mockPartitionConfigProvider,
+				logger:      testlogger.New(t),
+			}
+			for partitionID, hint := range tc.hints {
+				lb.UpdateWeight(0, req, getPartitionTaskListName(tl.Name, partitionID), hint)
+			}
+			actual := lb.PickBetween(testDomain, tl.Name, 0, tc.from)
+			assert.Contains(t, tc.allowed, actual)
 		})
 	}
 }

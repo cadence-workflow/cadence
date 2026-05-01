@@ -28,10 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -40,7 +42,9 @@ func TestShardManagerGetName(t *testing.T) {
 	store := NewMockShardStore(ctrl)
 	store.EXPECT().GetName().Return("name")
 
-	manager := NewShardManager(store)
+	manager := NewShardManager(store, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 
 	assert.Equal(t, "name", manager.GetName())
 }
@@ -50,7 +54,9 @@ func TestShardManagerClose(t *testing.T) {
 	store := NewMockShardStore(ctrl)
 	store.EXPECT().Close().Times(1)
 
-	manager := NewShardManager(store)
+	manager := NewShardManager(store, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
 	manager.Close()
 }
 
@@ -97,10 +103,17 @@ func TestShardManagerCreateShard(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			store := NewMockShardStore(ctrl)
 			if test.internalRequest != nil {
-				store.EXPECT().CreateShard(gomock.Any(), gomock.Eq(test.internalRequest)).Return(test.internalResponse)
+				store.EXPECT().CreateShard(gomock.Any(), gomock.Any()).
+					Do(func(ctx context.Context, req *InternalCreateShardRequest) {
+						assert.Equal(t, test.internalRequest.ShardInfo, req.ShardInfo)
+
+						assert.WithinDuration(t, time.Now(), req.CurrentTimeStamp, time.Second)
+					}).Return(test.internalResponse)
 			}
 
-			manager := NewShardManager(store, WithSerializer(test.serializer))
+			manager := NewShardManager(store, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}, WithSerializer(test.serializer))
 
 			result := manager.CreateShard(context.Background(), test.request)
 
@@ -180,7 +193,9 @@ func TestShardManagerGetShard(t *testing.T) {
 				store.EXPECT().GetShard(gomock.Any(), gomock.Eq(test.internalRequest)).Return(test.internalResponse, test.internalErr)
 			}
 
-			manager := NewShardManager(store, WithSerializer(test.serializer))
+			manager := NewShardManager(store, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}, WithSerializer(test.serializer))
 
 			result, err := manager.GetShard(context.Background(), test.request)
 			assert.Equal(t, test.expected, result)
@@ -237,10 +252,18 @@ func TestShardManagerUpdateShard(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			store := NewMockShardStore(ctrl)
 			if test.internalRequest != nil {
-				store.EXPECT().UpdateShard(gomock.Any(), gomock.Eq(test.internalRequest)).Return(test.internalResponse)
+				store.EXPECT().UpdateShard(gomock.Any(), gomock.Any()).
+					Do(func(ctx context.Context, req *InternalUpdateShardRequest) {
+						assert.Equal(t, test.internalRequest.PreviousRangeID, req.PreviousRangeID)
+						assert.Equal(t, test.internalRequest.ShardInfo, req.ShardInfo)
+
+						assert.WithinDuration(t, time.Now(), req.CurrentTimeStamp, time.Second)
+					}).Return(test.internalResponse)
 			}
 
-			manager := NewShardManager(store, WithSerializer(test.serializer))
+			manager := NewShardManager(store, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			}, WithSerializer(test.serializer))
 
 			result := manager.UpdateShard(context.Background(), test.request)
 
@@ -323,11 +346,11 @@ func failingSerializer(ctrl *gomock.Controller) PayloadSerializer {
 
 func sampleInternalShardInfo(t *testing.T) *InternalShardInfo {
 	serializer := NewPayloadSerializer()
-	transferProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(transferProcessingQueueStates, common.EncodingTypeThriftRW)
+	transferProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(transferProcessingQueueStates, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
-	timerProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(timerProcesssingQueueStates, common.EncodingTypeThriftRW)
+	timerProcessingQueueStatesBlob, err := serializer.SerializeProcessingQueueStates(timerProcesssingQueueStates, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
-	pendingFailoverMarkerBlob, err := serializer.SerializePendingFailoverMarkers(pendingFailoverMarkers, common.EncodingTypeThriftRW)
+	pendingFailoverMarkerBlob, err := serializer.SerializePendingFailoverMarkers(pendingFailoverMarkers, constants.EncodingTypeThriftRW)
 	assert.NoError(t, err)
 	return &InternalShardInfo{
 		ShardID:                       shardID,

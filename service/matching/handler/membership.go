@@ -44,7 +44,7 @@ const subscriptionBufferSize = 1000
 // which host is the real owner of the tasklist.
 //
 // This is not the main shutdown process, its just an optimization.
-func (e *matchingEngineImpl) subscribeToMembershipChanges() {
+func (e *matchingEngineImpl) runMembershipChangeLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			e.logger.Error("matching membership watcher changes caused a panic, recovering", tag.Dynamic("recovered-panic", r))
@@ -127,22 +127,21 @@ func (e *matchingEngineImpl) getNonOwnedTasklistsLocked() ([]tasklist.Manager, e
 
 	var toShutDown []tasklist.Manager
 
-	e.taskListsLock.RLock()
-	defer e.taskListsLock.RUnlock()
+	taskLists := e.taskListRegistry.AllManagers()
 
 	self, err := e.membershipResolver.WhoAmI()
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup self im membership: %w", err)
 	}
 
-	for tl, manager := range e.taskLists {
-		taskListOwner, err := e.membershipResolver.Lookup(service.Matching, tl.GetName())
+	for _, tl := range taskLists {
+		taskListOwner, err := e.membershipResolver.Lookup(service.Matching, tl.TaskListID().GetName())
 		if err != nil {
 			return nil, fmt.Errorf("failed to lookup task list owner: %w", err)
 		}
 
 		if taskListOwner.Identity() != self.Identity() {
-			toShutDown = append(toShutDown, manager)
+			toShutDown = append(toShutDown, tl)
 		}
 	}
 

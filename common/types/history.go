@@ -100,10 +100,11 @@ func (v *FailoverMarkerToken) GetFailoverMarker() (o *FailoverMarkerAttributes) 
 
 // GetMutableStateRequest is an internal type (TBD...)
 type GetMutableStateRequest struct {
-	DomainUUID          string             `json:"domainUUID,omitempty"`
-	Execution           *WorkflowExecution `json:"execution,omitempty"`
-	ExpectedNextEventID int64              `json:"expectedNextEventId,omitempty"`
-	CurrentBranchToken  []byte             `json:"currentBranchToken,omitempty"`
+	DomainUUID          string              `json:"domainUUID,omitempty"`
+	Execution           *WorkflowExecution  `json:"execution,omitempty"`
+	ExpectedNextEventID int64               `json:"expectedNextEventId,omitempty"`
+	CurrentBranchToken  []byte              `json:"currentBranchToken,omitempty"`
+	VersionHistoryItem  *VersionHistoryItem `json:"versionHistoryItem,omitempty"`
 }
 
 // GetDomainUUID is an internal getter (TBD...)
@@ -272,16 +273,24 @@ func (v *ParentExecutionInfo) GetExecution() (o *WorkflowExecution) {
 
 // PollMutableStateRequest is an internal type (TBD...)
 type PollMutableStateRequest struct {
-	DomainUUID          string             `json:"domainUUID,omitempty"`
-	Execution           *WorkflowExecution `json:"execution,omitempty"`
-	ExpectedNextEventID int64              `json:"expectedNextEventId,omitempty"`
-	CurrentBranchToken  []byte             `json:"currentBranchToken,omitempty"`
+	DomainUUID          string              `json:"domainUUID,omitempty"`
+	Execution           *WorkflowExecution  `json:"execution,omitempty"`
+	ExpectedNextEventID int64               `json:"expectedNextEventId,omitempty"`
+	CurrentBranchToken  []byte              `json:"currentBranchToken,omitempty"`
+	VersionHistoryItem  *VersionHistoryItem `json:"versionHistoryItem,omitempty"`
+}
+
+func (p *PollMutableStateRequest) GetVersionHistoryItem() *VersionHistoryItem {
+	if p.VersionHistoryItem == nil {
+		return nil
+	}
+	return p.VersionHistoryItem
 }
 
 // GetDomainUUID is an internal getter (TBD...)
-func (v *PollMutableStateRequest) GetDomainUUID() (o string) {
-	if v != nil {
-		return v.DomainUUID
+func (p *PollMutableStateRequest) GetDomainUUID() (o string) {
+	if p != nil {
+		return p.DomainUUID
 	}
 	return
 }
@@ -325,6 +334,98 @@ func (v *PollMutableStateResponse) GetLastFirstEventID() (o int64) {
 func (v *PollMutableStateResponse) GetWorkflowCloseState() (o int32) {
 	if v != nil && v.WorkflowCloseState != nil {
 		return *v.WorkflowCloseState
+	}
+	return
+}
+
+type QueueState struct {
+	VirtualQueueStates    map[int64]*VirtualQueueState
+	ExclusiveMaxReadLevel *TaskKey
+}
+
+func (q *QueueState) Copy() (o *QueueState) {
+	if q == nil {
+		return
+	}
+	var virtualQueueStates map[int64]*VirtualQueueState
+	if q.VirtualQueueStates != nil {
+		virtualQueueStates = make(map[int64]*VirtualQueueState)
+		for key, value := range q.VirtualQueueStates {
+			virtualQueueStates[key] = value.Copy()
+		}
+	}
+	o = &QueueState{
+		VirtualQueueStates:    virtualQueueStates,
+		ExclusiveMaxReadLevel: q.ExclusiveMaxReadLevel.Copy(),
+	}
+	return
+}
+
+type VirtualQueueState struct {
+	VirtualSliceStates []*VirtualSliceState
+}
+
+func (v *VirtualQueueState) Copy() (o *VirtualQueueState) {
+	if v == nil {
+		return
+	}
+	var virtualSliceStates []*VirtualSliceState
+	if v.VirtualSliceStates != nil {
+		virtualSliceStates = make([]*VirtualSliceState, len(v.VirtualSliceStates))
+		for i, slice := range v.VirtualSliceStates {
+			virtualSliceStates[i] = slice.Copy()
+		}
+	}
+	o = &VirtualQueueState{
+		VirtualSliceStates: virtualSliceStates,
+	}
+	return
+}
+
+type VirtualSliceState struct {
+	TaskRange *TaskRange
+	Predicate *Predicate
+}
+
+func (v *VirtualSliceState) Copy() (o *VirtualSliceState) {
+	if v == nil {
+		return
+	}
+	o = &VirtualSliceState{
+		TaskRange: v.TaskRange.Copy(),
+		Predicate: v.Predicate.Copy(),
+	}
+	return
+}
+
+type TaskRange struct {
+	InclusiveMin *TaskKey
+	ExclusiveMax *TaskKey
+}
+
+func (t *TaskRange) Copy() (o *TaskRange) {
+	if t == nil {
+		return
+	}
+	o = &TaskRange{
+		InclusiveMin: t.InclusiveMin.Copy(),
+		ExclusiveMax: t.ExclusiveMax.Copy(),
+	}
+	return
+}
+
+type TaskKey struct {
+	ScheduledTimeNano int64
+	TaskID            int64
+}
+
+func (t *TaskKey) Copy() (o *TaskKey) {
+	if t == nil {
+		return
+	}
+	o = &TaskKey{
+		ScheduledTimeNano: t.ScheduledTimeNano,
+		TaskID:            t.TaskID,
 	}
 	return
 }

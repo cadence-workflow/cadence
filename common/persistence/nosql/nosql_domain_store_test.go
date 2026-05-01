@@ -28,11 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -71,8 +72,8 @@ func testFixtureInternalDomainConfig() *persistence.InternalDomainConfig {
 	}
 }
 
-func testFixtureDomainReplicationConfig() *persistence.DomainReplicationConfig {
-	return &persistence.DomainReplicationConfig{
+func testFixtureDomainReplicationConfig() *persistence.InternalDomainReplicationConfig {
+	return &persistence.InternalDomainReplicationConfig{
 		ActiveClusterName: "cluster-1",
 		Clusters: []*persistence.ClusterReplicationConfig{
 			{
@@ -81,6 +82,24 @@ func testFixtureDomainReplicationConfig() *persistence.DomainReplicationConfig {
 			{
 				ClusterName: "cluster-2",
 			},
+		},
+	}
+}
+
+func testFixtureDomainReplicationConfigActiveActive() *persistence.InternalDomainReplicationConfig {
+	return &persistence.InternalDomainReplicationConfig{
+		ActiveClusterName: "",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{
+				ClusterName: "cluster-1",
+			},
+			{
+				ClusterName: "cluster-2",
+			},
+		},
+		ActiveClustersConfig: &persistence.DataBlob{
+			Encoding: constants.EncodingTypeThriftRW,
+			Data:     []byte("active-clusters-config"),
 		},
 	}
 }
@@ -122,7 +141,7 @@ func TestCreateDomain(t *testing.T) {
 					ConfigVersion:               1,
 					FailoverVersion:             2,
 					FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-					PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
+					PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
 					IsGlobalDomain:              true,
 					LastUpdatedTime:             time.Unix(1, 2),
 				}).Return(nil).Times(1)
@@ -344,6 +363,37 @@ func TestGetDomain(t *testing.T) {
 			},
 		},
 		{
+			name: "success by name - active-active domain",
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				dbMock.EXPECT().SelectDomain(gomock.Any(), nil, common.Ptr("test-domain")).Return(&nosqlplugin.DomainRow{
+					Info:                        testFixtureDomainInfo(),
+					Config:                      testFixtureInternalDomainConfig(),
+					ReplicationConfig:           testFixtureDomainReplicationConfigActiveActive(),
+					ConfigVersion:               1,
+					FailoverVersion:             2,
+					FailoverNotificationVersion: 3,
+					PreviousFailoverVersion:     4,
+					NotificationVersion:         5,
+					FailoverEndTime:             common.Ptr(time.Unix(2, 3)),
+					LastUpdatedTime:             time.Unix(1, 2),
+				}, nil).Times(1)
+			},
+			request:     &persistence.GetDomainRequest{Name: "test-domain"},
+			expectError: false,
+			expected: &persistence.InternalGetDomainResponse{
+				Info:                        testFixtureDomainInfo(),
+				Config:                      testFixtureInternalDomainConfig(),
+				ReplicationConfig:           testFixtureDomainReplicationConfigActiveActive(),
+				ConfigVersion:               1,
+				FailoverVersion:             2,
+				FailoverNotificationVersion: 3,
+				PreviousFailoverVersion:     4,
+				NotificationVersion:         5,
+				FailoverEndTime:             common.Ptr(time.Unix(2, 3)),
+				LastUpdatedTime:             time.Unix(1, 2),
+			},
+		},
+		{
 			name: "bad request error - both id and domain are set",
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				// No database call should be made
@@ -428,15 +478,20 @@ func TestListDomains(t *testing.T) {
 		{
 			name: "success",
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				dbMock.EXPECT().SelectAllDomains(gomock.Any(), 1, []byte("token")).Return([]*nosqlplugin.DomainRow{
-					{
-						Info:              &persistence.DomainInfo{ID: "domain-id-1"},
-						ReplicationConfig: testFixtureDomainReplicationConfig(),
-					},
-				}, []byte("next-token"), nil).Times(1)
+				dbMock.EXPECT().SelectAllDomains(gomock.Any(), 2, []byte("token")).Return(
+					[]*nosqlplugin.DomainRow{
+						{
+							Info:              &persistence.DomainInfo{ID: "domain-id-1"},
+							ReplicationConfig: testFixtureDomainReplicationConfig(),
+						},
+						{
+							Info:              &persistence.DomainInfo{ID: "active-active-domain-id"},
+							ReplicationConfig: testFixtureDomainReplicationConfigActiveActive(),
+						},
+					}, []byte("next-token"), nil).Times(1)
 			},
 			request: &persistence.ListDomainsRequest{
-				PageSize:      1,
+				PageSize:      2,
 				NextPageToken: []byte("token"),
 			},
 			expectError: false,
@@ -445,6 +500,10 @@ func TestListDomains(t *testing.T) {
 					{
 						Info:              &persistence.DomainInfo{ID: "domain-id-1", Data: map[string]string{}},
 						ReplicationConfig: testFixtureDomainReplicationConfig(),
+					},
+					{
+						Info:              &persistence.DomainInfo{ID: "active-active-domain-id", Data: map[string]string{}},
+						ReplicationConfig: testFixtureDomainReplicationConfigActiveActive(),
 					},
 				},
 				NextPageToken: []byte("next-token"),

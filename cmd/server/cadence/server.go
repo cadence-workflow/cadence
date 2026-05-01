@@ -21,32 +21,43 @@
 package cadence
 
 import (
-	"log"
+	"context"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/startreedata/pinot-client-go/pinot"
+	"github.com/uber-go/tally"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/compatibility"
 
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
+	sharddistributorClient "github.com/uber/cadence/client/sharddistributor"
+	"github.com/uber/cadence/client/wrappers/errorinjectors"
+	"github.com/uber/cadence/client/wrappers/grpc"
+	"github.com/uber/cadence/client/wrappers/metered"
+	"github.com/uber/cadence/client/wrappers/retryable"
+	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/blobstore/filestore"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
-	"github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -54,26 +65,38 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
-	"github.com/uber/cadence/service/shardmanager"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 	"github.com/uber/cadence/service/worker"
+	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
 )
 
 type (
 	server struct {
-		name   string
-		cfg    *config.Config
-		doneC  chan struct{}
-		daemon common.Daemon
+		name             string
+		cfg              config.Config
+		logger           log.Logger
+		doneC            chan struct{}
+		daemon           common.Daemon
+		dynamicCfgClient dynamicconfig.Client
+		scope            tally.Scope
+		metricsClient    metrics.Client
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg *config.Config) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
 	return &server{
-		cfg:   cfg,
-		name:  service,
-		doneC: make(chan struct{}),
+		cfg:              cfg,
+		name:             service,
+		doneC:            make(chan struct{}),
+		logger:           logger,
+		dynamicCfgClient: dynamicCfgClient,
+		scope:            scope,
+		metricsClient:    metricsClient,
 	}
 }
 
@@ -84,7 +107,6 @@ func (s *server) Start() {
 
 // Stop stops the server
 func (s *server) Stop() {
-
 	if s.daemon == nil {
 		return
 	}
@@ -96,7 +118,7 @@ func (s *server) Stop() {
 		select {
 		case <-s.doneC:
 		case <-time.After(time.Minute):
-			log.Printf("timed out waiting for server %v to exit\n", s.name)
+			s.logger.Warn("timed out waiting for server to exit")
 		}
 	}
 }
@@ -105,60 +127,36 @@ func (s *server) Stop() {
 func (s *server) startService() common.Daemon {
 	svcCfg, err := s.cfg.GetServiceConfig(s.name)
 	if err != nil {
-		log.Fatal(err.Error())
+		s.logger.Fatal(err.Error())
 	}
 
-	params := resource.Params{}
-	params.Name = service.FullName(s.name)
-
-	zapLogger, err := s.cfg.Log.NewZapLogger()
+	hostName, err := os.Hostname()
 	if err != nil {
-		log.Fatal("failed to create the zap logger, err: ", err.Error())
-	}
-	params.Logger = loggerimpl.NewLogger(zapLogger).WithTags(tag.Service(params.Name))
-
-	params.PersistenceConfig = s.cfg.Persistence
-
-	err = nil
-	if s.cfg.DynamicConfig.Client == "" {
-		params.Logger.Warn("falling back to legacy file based dynamicClientConfig")
-		params.DynamicConfig, err = dynamicconfig.NewFileBasedClient(&s.cfg.DynamicConfigClient, params.Logger, s.doneC)
-	} else {
-		switch s.cfg.DynamicConfig.Client {
-		case dynamicconfig.ConfigStoreClient:
-			params.Logger.Info("initialising ConfigStore dynamic config client")
-			params.DynamicConfig, err = configstore.NewConfigStoreClient(
-				&s.cfg.DynamicConfig.ConfigStore,
-				&s.cfg.Persistence,
-				params.Logger,
-				persistence.DynamicConfig,
-			)
-		case dynamicconfig.FileBasedClient:
-			params.Logger.Info("initialising File Based dynamic config client")
-			params.DynamicConfig, err = dynamicconfig.NewFileBasedClient(&s.cfg.DynamicConfig.FileBased, params.Logger, s.doneC)
-		default:
-			params.Logger.Info("initialising NOP dynamic config client")
-			params.DynamicConfig = dynamicconfig.NewNopClient()
-		}
+		s.logger.Fatal("failed to get hostname", tag.Error(err))
 	}
 
-	if err != nil {
-		params.Logger.Error("creating dynamic config client failed, using no-op config client instead", tag.Error(err))
-		params.DynamicConfig = dynamicconfig.NewNopClient()
+	params := resource.Params{
+		Name:              service.FullName(s.name),
+		HostName:          hostName,
+		Logger:            s.logger.WithTags(tag.Service(service.FullName(s.name))),
+		PersistenceConfig: s.cfg.Persistence,
+		DynamicConfig:     s.dynamicCfgClient,
+		RPCConfig:         svcCfg.RPC,
 	}
 
 	clusterGroupMetadata := s.cfg.ClusterGroupMetadata
 	dc := dynamicconfig.NewCollection(
 		params.DynamicConfig,
 		params.Logger,
-		dynamicconfig.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
+		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
-	params.MetricScope = svcCfg.Metrics.NewScope(params.Logger, params.Name)
+	params.MetricScope = s.scope
+	params.MetricsClient = s.metricsClient
 
-	rpcParams, err := rpc.NewParams(params.Name, s.cfg, dc, params.Logger)
+	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {
-		log.Fatalf("error creating rpc factory params: %v", err)
+		s.logger.Fatal("error creating rpc factory params", tag.Error(err))
 	}
 	rpcParams.OutboundsBuilder = rpc.CombineOutbounds(
 		rpcParams.OutboundsBuilder,
@@ -179,18 +177,60 @@ func (s *server) startService() common.Daemon {
 	)
 
 	if err != nil {
-		log.Fatalf("ringpop provider failed: %v", err)
+		s.logger.Fatal("ringpop provider failed", tag.Error(err))
 	}
 
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, params.Logger))
+	shardDistributorClient := s.createShardDistributorClient(params, dc)
+	var spectator spectatorclient.Spectator
+	if shardDistributorClient != nil && len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 0 {
+		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
+			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
+		}
+		matchingPercentageOnboarded := dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)
+
+		spectatorParams := spectatorclient.Params{
+			Client:       shardDistributorClient,
+			MetricsScope: params.MetricScope,
+			Logger:       params.Logger,
+			Config:       s.cfg.ShardDistributorMatchingConfig,
+			TimeSource:   clock.NewRealTimeSource(),
+			Enabled: func() bool {
+				return matchingPercentageOnboarded() > 0
+			},
+		}
+		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
+		spectator, err = spectatorclient.NewSpectatorWithNamespace(
+			spectatorParams,
+			namespace,
+		)
+		if err != nil {
+			s.logger.Fatal("error creating spectator", tag.Error(err))
+		}
+
+		// Start the spectator to begin watching namespace state
+		if err := spectator.Start(context.Background()); err != nil {
+			s.logger.Fatal("error starting spectator", tag.Error(err))
+		}
+	} else {
+		s.logger.Warn("Shard distributor client not configured, spectator will not be started")
+	}
+
+	params.HashRings = make(map[string]membership.SingleProvider)
+	for _, s := range service.ListWithRing {
+		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
+	}
+
+	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, dc, params.Logger)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
-		params.Logger,
 		params.MetricsClient,
+		params.Logger,
+		wrappedRings,
 	)
+
 	if err != nil {
-		log.Fatalf("error creating membership monitor: %v", err)
+		s.logger.Fatal("error creating membership monitor", tag.Error(err))
 	}
 	params.PProfInitializer = svcCfg.PProf.NewInitializer(params.Logger)
 
@@ -199,17 +239,14 @@ func (s *server) startService() common.Daemon {
 	params.GetIsolationGroups = getFromDynamicConfig(params, dc)
 
 	params.ClusterMetadata = cluster.NewMetadata(
-		clusterGroupMetadata.FailoverVersionIncrement,
-		clusterGroupMetadata.PrimaryClusterName,
-		clusterGroupMetadata.CurrentClusterName,
-		clusterGroupMetadata.ClusterGroup,
-		dc.GetBoolPropertyFilteredByDomain(dynamicconfig.UseNewInitialFailoverVersion),
+		*clusterGroupMetadata,
+		dc.GetBoolPropertyFilteredByDomain(dynamicproperties.UseNewInitialFailoverVersion),
 		params.MetricsClient,
 		params.Logger,
 	)
 
 	advancedVisMode := dc.GetStringProperty(
-		dynamicconfig.AdvancedVisibilityWritingMode,
+		dynamicproperties.WriteVisibilityStoreName,
 	)()
 	isAdvancedVisEnabled := common.IsAdvancedVisibilityWritingEnabled(advancedVisMode, params.PersistenceConfig.IsAdvancedVisibilityConfigExist())
 	if isAdvancedVisEnabled {
@@ -244,21 +281,23 @@ func (s *server) startService() common.Daemon {
 	)
 
 	params.ArchiverProvider = provider.NewArchiverProvider(s.cfg.Archival.History.Provider, s.cfg.Archival.Visibility.Provider)
-	params.PersistenceConfig.TransactionSizeLimit = dc.GetIntProperty(dynamicconfig.TransactionSizeLimit)
-	params.PersistenceConfig.ErrorInjectionRate = dc.GetFloat64Property(dynamicconfig.PersistenceErrorInjectionRate)
+	params.PersistenceConfig.TransactionSizeLimit = dc.GetIntProperty(dynamicproperties.TransactionSizeLimit)
+	params.PersistenceConfig.ErrorInjectionRate = dc.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {
-		log.Printf("failed to create file blobstore client, will continue startup without it: %v", err)
+		s.logger.Warn("failed to create file blobstore client, will continue startup without it: %v", tag.Error(err))
 		params.BlobstoreClient = nil
 	}
 
 	params.AsyncWorkflowQueueProvider, err = queue.NewAsyncQueueProvider(s.cfg.AsyncWorkflowQueues)
 	if err != nil {
-		log.Fatalf("error creating async queue provider: %v", err)
+		s.logger.Fatal("error creating async queue provider", tag.Error(err))
 	}
 
 	params.KafkaConfig = s.cfg.Kafka
+	params.DiagnosticsInvariants = []diagnosticsInvariant.Invariant{timeout.NewInvariant(timeout.Params{Client: params.PublicClient}), failure.NewInvariant(), retry.NewInvariant()}
+	params.ShardDistributorMatchingConfig = s.cfg.ShardDistributorMatchingConfig
 
 	params.Logger.Info("Starting service " + s.name)
 
@@ -273,8 +312,8 @@ func (s *server) startService() common.Daemon {
 		daemon, err = matching.NewService(&params)
 	case service.Worker:
 		daemon, err = worker.NewService(&params)
-	case service.ShardManager:
-		daemon, err = shardmanager.NewService(&params, resource.NewResourceFactory())
+	default:
+		params.Logger.Fatal("unknown service", tag.Service(params.Name))
 	}
 	if err != nil {
 		params.Logger.Fatal("Fail to start "+s.name+" service ", tag.Error(err))
@@ -283,6 +322,60 @@ func (s *server) startService() common.Daemon {
 	go execute(daemon, s.doneC)
 
 	return daemon
+}
+
+func (*server) wrapHashRingsWithShardDistributor(
+	hashRings map[string]membership.SingleProvider,
+	spectator spectatorclient.Spectator,
+	dc *dynamicconfig.Collection,
+	logger log.Logger,
+) map[string]membership.SingleProvider {
+	if _, ok := hashRings[service.Matching]; ok {
+		hashRings[service.Matching] = membership.NewShardDistributorResolver(
+			spectator,
+			dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+			dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+			hashRings[service.Matching],
+			logger,
+		)
+	}
+	return hashRings
+}
+
+func (*server) createShardDistributorClient(
+	params resource.Params,
+	dc *dynamicconfig.Collection,
+) sharddistributorClient.Client {
+	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	var shardDistributorClient sharddistributorClient.Client
+	if ok {
+		if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
+			params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
+			return nil
+		}
+		if shardDistributorClientConfig.Outbounds.Stream == nil {
+			params.Logger.Error("shard distributor client does not support stream outbound will fail back to hashring")
+			return nil
+		}
+
+		shardDistributorClient = grpc.NewShardDistributorClient(
+			sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
+		)
+
+		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
+		shardDistributorClient = retryable.NewShardDistributorClient(
+			shardDistributorClient,
+			common.CreateShardDistributorServiceRetryPolicy(),
+			common.IsServiceTransientError,
+		)
+		if errorRate := dc.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
+		}
+		if params.MetricsClient != nil {
+			shardDistributorClient = metered.NewShardDistributorClient(shardDistributorClient, params.MetricsClient)
+		}
+	}
+	return shardDistributorClient
 }
 
 // execute runs the daemon in a separate go routine
@@ -301,14 +394,14 @@ func (s *server) setupVisibilityClients(params *resource.Params) {
 	advancedVisStoreKey := s.cfg.Persistence.AdvancedVisibilityStore
 	advancedVisStore, ok := s.cfg.Persistence.DataStores[advancedVisStoreKey]
 	if !ok {
-		log.Fatalf("Cannot find advanced visibility store in config: %v", advancedVisStoreKey)
+		s.logger.Fatal("Cannot find advanced visibility store in config", tag.Value(advancedVisStoreKey))
 	}
 
 	// Handle advanced visibility store based on type and migration state
 	switch advancedVisStoreKey {
-	case common.PinotVisibilityStoreName:
+	case constants.PinotVisibilityStoreName:
 		s.setupPinotClient(params, advancedVisStore)
-	case common.OSVisibilityStoreName:
+	case constants.OSVisibilityStoreName:
 		s.setupOSClient(params, advancedVisStore)
 	default: // Assume Elasticsearch by default
 		s.setupESClient(params)
@@ -320,7 +413,7 @@ func (s *server) setupPinotClient(params *resource.Params, advancedVisStore conf
 	pinotBroker := params.PinotConfig.Broker
 	pinotRawClient, err := pinot.NewFromBrokerList([]string{pinotBroker})
 	if err != nil || pinotRawClient == nil {
-		log.Fatalf("Creating Pinot visibility client failed: %v", err)
+		s.logger.Fatal("Creating Pinot visibility client failed", tag.Error(err))
 	}
 	params.PinotClient = pnt.NewPinotClient(pinotRawClient, params.Logger, params.PinotConfig)
 	if advancedVisStore.Pinot.Migration.Enabled {
@@ -329,9 +422,9 @@ func (s *server) setupPinotClient(params *resource.Params, advancedVisStore conf
 }
 
 func (s *server) setupESClient(params *resource.Params) {
-	esVisibilityStore, ok := s.cfg.Persistence.DataStores[common.ESVisibilityStoreName]
+	esVisibilityStore, ok := s.cfg.Persistence.DataStores[constants.ESVisibilityStoreName]
 	if !ok {
-		log.Fatalf("Cannot find Elasticsearch visibility store in config")
+		s.logger.Fatal("Cannot find Elasticsearch visibility store in config")
 	}
 
 	params.ESConfig = esVisibilityStore.ElasticSearch
@@ -339,11 +432,14 @@ func (s *server) setupESClient(params *resource.Params) {
 
 	esClient, err := elasticsearch.NewGenericClient(params.ESConfig, params.Logger)
 	if err != nil {
-		log.Fatalf("Error creating Elasticsearch client: %v", err)
+		s.logger.Fatal("Error creating Elasticsearch client", tag.Error(err))
 	}
 	params.ESClient = esClient
 
-	validateIndex(params.ESConfig)
+	err = validateIndex(params.ESConfig)
+	if err != nil {
+		s.logger.Fatal("Error creating OpenSearch client", tag.Error(err))
+	}
 }
 
 func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.DataStore) {
@@ -354,11 +450,14 @@ func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.
 
 	osClient, err := elasticsearch.NewGenericClient(params.OSConfig, params.Logger)
 	if err != nil {
-		log.Fatalf("Error creating OpenSearch client: %v", err)
+		s.logger.Fatal("Error creating OpenSearch client", tag.Error(err))
 	}
 	params.OSClient = osClient
 
-	validateIndex(params.OSConfig)
+	err = validateIndex(params.OSConfig)
+	if err != nil {
+		s.logger.Fatal("Error creating OpenSearch client", tag.Error(err))
+	}
 
 	if advancedVisStore.ElasticSearch.Migration.Enabled {
 		s.setupESClient(params)
@@ -370,16 +469,17 @@ func (s *server) setupOSClient(params *resource.Params, advancedVisStore config.
 	}
 }
 
-func validateIndex(config *config.ElasticSearchConfig) {
-	indexName, ok := config.Indices[common.VisibilityAppName]
+func validateIndex(config *config.ElasticSearchConfig) error {
+	indexName, ok := config.Indices[constants.VisibilityAppName]
 	if !ok || len(indexName) == 0 {
-		log.Fatalf("Visibility index is missing in config")
+		return fmt.Errorf("visibility index is missing in config")
 	}
+	return nil
 }
 
 func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) func() []string {
 	return func() []string {
-		res, err := isolationgroupapi.MapAllIsolationGroupsResponse(dc.GetListProperty(dynamicconfig.AllIsolationGroups)())
+		res, err := isolationgroupapi.MapAllIsolationGroupsResponse(dc.GetListProperty(dynamicproperties.AllIsolationGroups)())
 		if err != nil {
 			params.Logger.Error("failed to get isolation groups from config", tag.Error(err))
 			return nil

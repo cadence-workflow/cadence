@@ -27,14 +27,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -67,10 +68,10 @@ func (s *parallelTaskProcessorSuite) SetupTest() {
 
 	s.processor = NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   0,
-			WorkerCount: dynamicconfig.GetIntPropertyFn(1),
+			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
 			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	).(*parallelTaskProcessorImpl)
@@ -145,7 +146,7 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_NonRetryableError() {
 		mockTask.EXPECT().Execute().Return(errNonRetryable),
 		mockTask.EXPECT().HandleErr(errNonRetryable).Return(errNonRetryable),
 		mockTask.EXPECT().RetryErr(errNonRetryable).Return(false).AnyTimes(),
-		mockTask.EXPECT().Nack(),
+		mockTask.EXPECT().Nack(gomock.Any()),
 	)
 
 	s.processor.executeTask(mockTask, make(chan struct{}))
@@ -156,7 +157,7 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_WorkerStopped() {
 	mockTask.EXPECT().Execute().Return(errRetryable).AnyTimes()
 	mockTask.EXPECT().HandleErr(errRetryable).Return(errRetryable).AnyTimes()
 	mockTask.EXPECT().RetryErr(errRetryable).Return(true).AnyTimes()
-	mockTask.EXPECT().Nack().Times(1)
+	mockTask.EXPECT().Nack(gomock.Any()).Times(1)
 
 	done := make(chan struct{})
 	workerShutdownCh := make(chan struct{})
@@ -165,7 +166,6 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_WorkerStopped() {
 		close(done)
 	}()
 
-	time.Sleep(100 * time.Millisecond)
 	close(workerShutdownCh)
 	<-done
 }
@@ -210,10 +210,10 @@ func (s *parallelTaskProcessorSuite) TestMonitor() {
 
 	s.processor.shutdownWG.Add(1) // for monitor
 	dcClient := dynamicconfig.NewInMemoryClient()
-	err := dcClient.UpdateValue(dynamicconfig.TaskSchedulerWorkerCount, workerCount)
+	err := dcClient.UpdateValue(dynamicproperties.TaskSchedulerWorkerCount, workerCount)
 	s.NoError(err)
 	dcCollection := dynamicconfig.NewCollection(dcClient, s.processor.logger)
-	s.processor.options.WorkerCount = dcCollection.GetIntProperty(dynamicconfig.TaskSchedulerWorkerCount)
+	s.processor.options.WorkerCount = dcCollection.GetIntProperty(dynamicproperties.TaskSchedulerWorkerCount)
 
 	testMonitorTickerDuration := 100 * time.Millisecond
 	go s.processor.workerMonitor(testMonitorTickerDuration)
@@ -229,7 +229,7 @@ func (s *parallelTaskProcessorSuite) TestMonitor() {
 	s.processor.shutdownWG.Add(workerCount + 1)
 
 	newWorkerCount := 3
-	err = dcClient.UpdateValue(dynamicconfig.TaskSchedulerWorkerCount, newWorkerCount)
+	err = dcClient.UpdateValue(dynamicproperties.TaskSchedulerWorkerCount, newWorkerCount)
 	s.NoError(err)
 
 	time.Sleep(2 * testMonitorTickerDuration)
@@ -264,12 +264,12 @@ func (s *parallelTaskProcessorSuite) TestProcessorContract() {
 			taskStatus[mockTask] = TaskStateAcked
 			taskWG.Done()
 		}).MaxTimes(1)
-		mockTask.EXPECT().Nack().Do(func() {
+		mockTask.EXPECT().Nack(gomock.Any()).Do(func(err error) {
 			taskStatusLock.Lock()
 			defer taskStatusLock.Unlock()
 
 			s.Equal(TaskStatePending, taskStatus[mockTask])
-			taskStatus[mockTask] = TaskStateNacked
+			taskStatus[mockTask] = State(-1) // set it to whatever state that is not TaskStatePending
 			taskWG.Done()
 		}).MaxTimes(1)
 		tasks = append(tasks, mockTask)
@@ -278,10 +278,10 @@ func (s *parallelTaskProcessorSuite) TestProcessorContract() {
 
 	processor := NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   100,
-			WorkerCount: dynamicconfig.GetIntPropertyFn(10),
+			WorkerCount: dynamicproperties.GetIntPropertyFn(10),
 			RetryPolicy: backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
 	).(*parallelTaskProcessorImpl)
@@ -314,14 +314,13 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_PanicHandling() {
 		panic("A panic occurred")
 	})
 	mockTask.EXPECT().HandleErr(gomock.Any()).Return(errRetryable).AnyTimes()
-	mockTask.EXPECT().Nack().Times(1)
+	mockTask.EXPECT().Nack(gomock.Any()).Times(1)
 	done := make(chan struct{})
 	workerShutdownCh := make(chan struct{})
 	go func() {
 		s.processor.executeTask(mockTask, workerShutdownCh)
 		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
 	close(workerShutdownCh)
 	<-done
 }

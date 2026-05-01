@@ -107,9 +107,13 @@ func AdminDBScan(c *cli.Context) error {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				break
 			}
-		} else {
-			data = append(data, exec)
+			return commoncli.Problem("Error decoding input file", err)
 		}
+		data = append(data, exec)
+	}
+
+	if len(data) == 0 {
+		return commoncli.Problem("Input file contained no data to scan", nil)
 	}
 
 	for _, e := range data {
@@ -127,7 +131,7 @@ func AdminDBScan(c *cli.Context) error {
 			continue
 		}
 
-		fmt.Println(string(data))
+		getDeps(c).Output().Write(data)
 	}
 	return nil
 }
@@ -139,16 +143,18 @@ func checkExecution(
 	invariants []executions.InvariantFactory,
 	fetcher executions.ExecutionFetcher,
 ) (interface{}, invariant.ManagerCheckResult, error) {
-	execManager, err := initializeExecutionStore(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+	execManager, err := getDeps(c).initializeExecutionManager(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+	if err != nil {
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("initialize execution manager: %w", err)
+	}
 	defer execManager.Close()
+
+	historyV2Mgr, err := getDeps(c).initializeHistoryManager(c)
 	if err != nil {
-		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("Error in execution check: %w", err)
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("initialize history manager: %w", err)
 	}
-	historyV2Mgr, err := initializeHistoryManager(c)
 	defer historyV2Mgr.Close()
-	if err != nil {
-		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("Error in execution check: %w", err)
-	}
+
 	pr := persistence.NewPersistenceRetryer(
 		execManager,
 		historyV2Mgr,
@@ -156,14 +162,14 @@ func checkExecution(
 	)
 
 	ctx, cancel, err := newContext(c)
-	defer cancel()
 	if err != nil {
 		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("Error in creating context: %w", err)
 	}
+	defer cancel()
 	execution, err := fetcher(ctx, pr, req)
 
 	if err != nil {
-		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("Error in check execution: %w", err)
+		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("fetching execution: %w", err)
 	}
 
 	var ivs []invariant.Invariant
@@ -200,11 +206,11 @@ func listExecutionsByShardID(
 	outputFile *os.File,
 ) error {
 
-	client, err := initializeExecutionStore(c, shardID)
-	defer client.Close()
+	client, err := getDeps(c).initializeExecutionManager(c, shardID)
 	if err != nil {
-		commoncli.Problem("Error in Admin DB unsupported WF scan: ", err)
+		commoncli.Problem("initialize execution manager:", err)
 	}
+	defer client.Close()
 	paginationFunc := func(paginationToken []byte) ([]interface{}, []byte, error) {
 		ctx, cancel := context.WithTimeout(c.Context, listContextTimeout)
 		defer cancel()

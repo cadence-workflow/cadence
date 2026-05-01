@@ -28,9 +28,11 @@ import (
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -57,17 +59,18 @@ type (
 	}
 
 	handlerImpl struct {
-		config          *config.Config
-		shard           shard.Context
-		timeSource      clock.TimeSource
-		domainCache     cache.DomainCache
-		executionCache  execution.Cache
-		tokenSerializer common.TaskTokenSerializer
-		metricsClient   metrics.Client
-		logger          log.Logger
-		throttledLogger log.Logger
-		attrValidator   *attrValidator
-		versionChecker  client.VersionChecker
+		config               *config.Config
+		shard                shard.Context
+		timeSource           clock.TimeSource
+		domainCache          cache.DomainCache
+		executionCache       execution.Cache
+		tokenSerializer      common.TaskTokenSerializer
+		metricsClient        metrics.Client
+		logger               log.Logger
+		throttledLogger      log.Logger
+		attrValidator        *attrValidator
+		versionChecker       client.VersionChecker
+		activeClusterManager activecluster.Manager
 	}
 )
 
@@ -80,15 +83,16 @@ func NewHandler(
 	config := shard.GetConfig()
 	logger := shard.GetLogger().WithTags(tag.ComponentDecisionHandler)
 	return &handlerImpl{
-		config:          config,
-		shard:           shard,
-		timeSource:      shard.GetTimeSource(),
-		domainCache:     shard.GetDomainCache(),
-		executionCache:  executionCache,
-		tokenSerializer: tokenSerializer,
-		metricsClient:   shard.GetMetricsClient(),
-		logger:          shard.GetLogger().WithTags(tag.ComponentDecisionHandler),
-		throttledLogger: shard.GetThrottledLogger().WithTags(tag.ComponentDecisionHandler),
+		config:               config,
+		shard:                shard,
+		timeSource:           shard.GetTimeSource(),
+		domainCache:          shard.GetDomainCache(),
+		executionCache:       executionCache,
+		tokenSerializer:      tokenSerializer,
+		metricsClient:        shard.GetMetricsClient(),
+		logger:               shard.GetLogger().WithTags(tag.ComponentDecisionHandler),
+		activeClusterManager: shard.GetActiveClusterManager(),
+		throttledLogger:      shard.GetThrottledLogger().WithTags(tag.ComponentDecisionHandler),
 		attrValidator: newAttrValidator(
 			shard.GetDomainCache(),
 			shard.GetMetricsClient(),
@@ -104,7 +108,7 @@ func (handler *handlerImpl) HandleDecisionTaskScheduled(
 	req *types.ScheduleDecisionTaskRequest,
 ) error {
 
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, req.WorkflowExecution.WorkflowID, req.WorkflowExecution.RunID)
 	if err != nil {
 		return err
 	}
@@ -117,6 +121,7 @@ func (handler *handlerImpl) HandleDecisionTaskScheduled(
 
 	return workflow.UpdateWithActionFunc(
 		ctx,
+		handler.logger,
 		handler.executionCache,
 		domainID,
 		workflowExecution,
@@ -152,7 +157,7 @@ func (handler *handlerImpl) HandleDecisionTaskStarted(
 	req *types.RecordDecisionTaskStartedRequest,
 ) (*types.RecordDecisionTaskStartedResponse, error) {
 
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, req.WorkflowExecution.WorkflowID, req.WorkflowExecution.RunID)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +174,7 @@ func (handler *handlerImpl) HandleDecisionTaskStarted(
 	var resp *types.RecordDecisionTaskStartedResponse
 	err = workflow.UpdateWithActionFunc(
 		ctx,
+		handler.logger,
 		handler.executionCache,
 		domainID,
 		workflowExecution,
@@ -206,7 +212,7 @@ func (handler *handlerImpl) HandleDecisionTaskStarted(
 
 			updateAction := &workflow.UpdateAction{}
 
-			if decision.StartedID != common.EmptyEventID {
+			if decision.StartedID != constants.EmptyEventID {
 				// If decision is started as part of the current request scope then return a positive response
 				if decision.RequestID == requestID {
 					resp, err = handler.createRecordDecisionTaskStartedResponse(domainID, mutableState, decision, req.PollRequest.GetIdentity())
@@ -247,24 +253,24 @@ func (handler *handlerImpl) HandleDecisionTaskFailed(
 	req *types.HistoryRespondDecisionTaskFailedRequest,
 ) (retError error) {
 
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.FailedRequest
 	token, err := handler.tokenSerializer.Deserialize(request.TaskToken)
 	if err != nil {
 		return workflow.ErrDeserializingToken
 	}
 
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return err
+	}
+	domainID := domainEntry.GetInfo().ID
+
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
 		RunID:      token.RunID,
 	}
 
-	return workflow.UpdateWithAction(ctx, handler.executionCache, domainID, workflowExecution, true, handler.timeSource.Now(),
+	return workflow.UpdateWithAction(ctx, handler.logger, handler.executionCache, domainID, workflowExecution, true, handler.timeSource.Now(),
 		func(context execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrAlreadyCompleted
@@ -272,7 +278,7 @@ func (handler *handlerImpl) HandleDecisionTaskFailed(
 
 			scheduleID := token.ScheduleID
 			decision, isRunning := mutableState.GetDecisionInfo(scheduleID)
-			if !isRunning || decision.Attempt != token.ScheduleAttempt || decision.StartedID == common.EmptyEventID {
+			if !isRunning || decision.Attempt != token.ScheduleAttempt || decision.StartedID == constants.EmptyEventID {
 				return &types.EntityNotExistsError{Message: "Decision task not found."}
 			}
 
@@ -286,17 +292,17 @@ func (handler *handlerImpl) HandleDecisionTaskCompleted(
 	ctx context.Context,
 	req *types.HistoryRespondDecisionTaskCompletedRequest,
 ) (resp *types.HistoryRespondDecisionTaskCompletedResponse, retError error) {
-	domainEntry, err := handler.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return nil, err
-	}
-	domainID := domainEntry.GetInfo().ID
-
 	request := req.CompleteRequest
 	token, err0 := handler.tokenSerializer.Deserialize(request.TaskToken)
 	if err0 != nil {
 		return nil, workflow.ErrDeserializingToken
 	}
+
+	domainEntry, err := handler.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return nil, err
+	}
+	domainID := domainEntry.GetInfo().ID
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
@@ -354,7 +360,7 @@ Update_History_Loop:
 			continue Update_History_Loop
 		}
 
-		if !msBuilder.IsWorkflowExecutionRunning() || !isRunning || currentDecision.Attempt != token.ScheduleAttempt || currentDecision.StartedID == common.EmptyEventID {
+		if !msBuilder.IsWorkflowExecutionRunning() || !isRunning || currentDecision.Attempt != token.ScheduleAttempt || currentDecision.StartedID == constants.EmptyEventID {
 			logger.Debugf("Decision task not found. IsWorkflowExecutionRunning: %v, isRunning: %v, currentDecision.Attempt: %v, token.ScheduleAttempt: %v, currentDecision.StartID: %v",
 				msBuilder.IsWorkflowExecutionRunning(), isRunning, getDecisionInfoAttempt(currentDecision), token.ScheduleAttempt, getDecisionInfoStartedID(currentDecision))
 			return nil, &types.EntityNotExistsError{Message: "Decision task not found."}
@@ -547,12 +553,18 @@ Update_History_Loop:
 				continueAsNewBuilder,
 			)
 		} else {
+			handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
 			updateErr = wfContext.UpdateWorkflowExecutionAsActive(ctx, handler.shard.GetTimeSource().Now())
 		}
 
 		if updateErr != nil {
 			if execution.IsConflictError(updateErr) {
 				scope.IncCounter(metrics.ConcurrencyUpdateFailureCounter)
+				logger.Error("Encounter conflict error while updating workflow execution",
+					tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID),
+					tag.WorkflowRunID(msBuilder.GetExecutionInfo().RunID),
+					tag.Error(updateErr),
+				)
 				continue Update_History_Loop
 			}
 
@@ -576,6 +588,8 @@ Update_History_Loop:
 				); err != nil {
 					return nil, err
 				}
+
+				handler.logger.Debug("HandleDecisionTaskCompleted calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(msBuilder.GetExecutionInfo().WorkflowID))
 				if err := wfContext.UpdateWorkflowExecutionAsActive(
 					ctx,
 					handler.shard.GetTimeSource().Now(),
@@ -615,7 +629,7 @@ Update_History_Loop:
 				activitiesToDispatchLocally[dr.activityDispatchInfo.ActivityID] = dr.activityDispatchInfo
 			}
 		}
-		logger.Debugf("%d activities will be dispatched locally on the client side")
+		logger.Debugf("%d activities will be dispatched locally on the client side", len(activitiesToDispatchLocally))
 		resp.ActivitiesToDispatchLocally = activitiesToDispatchLocally
 
 		if request.GetReturnNewDecisionTask() && createNewDecisionTask {
@@ -644,7 +658,7 @@ func (handler *handlerImpl) createRecordDecisionTaskStartedResponse(
 	response := &types.RecordDecisionTaskStartedResponse{}
 	response.WorkflowType = msBuilder.GetWorkflowType()
 	executionInfo := msBuilder.GetExecutionInfo()
-	if executionInfo.LastProcessedEvent != common.EmptyEventID {
+	if executionInfo.LastProcessedEvent != constants.EmptyEventID {
 		response.PreviousStartedEventID = common.Int64Ptr(executionInfo.LastProcessedEvent)
 	}
 
@@ -901,8 +915,19 @@ func (handler *handlerImpl) failDecisionHelper(
 	return mutableState, nil
 }
 
-func (handler *handlerImpl) getActiveDomainByID(id string) (*cache.DomainCacheEntry, error) {
-	return cache.GetActiveDomainByID(handler.shard.GetDomainCache(), handler.shard.GetClusterMetadata().GetCurrentClusterName(), id)
+func (handler *handlerImpl) getActiveDomainByWorkflow(ctx context.Context, domainID, workflowID, runID string) (*cache.DomainCacheEntry, error) {
+	activeClusterInfo, err := handler.activeClusterManager.GetActiveClusterInfoByWorkflow(ctx, domainID, workflowID, runID)
+	if err != nil {
+		return nil, err
+	}
+	domain, err := handler.domainCache.GetDomainByID(domainID)
+	if err != nil {
+		return nil, err
+	}
+	if activeClusterInfo.ActiveClusterName == handler.shard.GetClusterMetadata().GetCurrentClusterName() {
+		return domain, nil
+	}
+	return nil, domain.NewDomainNotActiveError(handler.shard.GetClusterMetadata().GetCurrentClusterName(), activeClusterInfo.ActiveClusterName)
 }
 
 func getDecisionInfoAttempt(di *execution.DecisionInfo) int64 {

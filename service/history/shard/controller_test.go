@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -88,7 +88,7 @@ func (s *controllerSuite) SetupTest() {
 	s.logger = s.mockResource.Logger
 	s.config = config.NewForTest()
 
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 }
 
 func (s *controllerSuite) TearDownTest() {
@@ -159,6 +159,7 @@ func (s *controllerSuite) TestAcquireShardSuccess() {
 					},
 					ClusterReplicationLevel: map[string]int64{},
 					ReplicationDLQAckLevel:  map[string]int64{},
+					QueueStates:             map[int32]*types.QueueState{},
 				},
 				PreviousRangeID: 5,
 			}).Return(nil).Once()
@@ -175,12 +176,14 @@ func (s *controllerSuite) TestAcquireShardSuccess() {
 		count++
 	}
 	s.Equal(3, count)
+	s.Equal(3, s.shardController.NumShards())
+	s.ElementsMatch([]int32{0, 4, 8}, s.shardController.ShardIDs())
 }
 
 func (s *controllerSuite) TestAcquireShardsConcurrently() {
 	numShards := 10
 	s.config.NumberOfShards = numShards
-	s.config.AcquireShardConcurrency = func(opts ...dynamicconfig.FilterOption) int {
+	s.config.AcquireShardConcurrency = func(opts ...dynamicproperties.FilterOption) int {
 		return 10
 	}
 
@@ -243,6 +246,7 @@ func (s *controllerSuite) TestAcquireShardsConcurrently() {
 					},
 					ClusterReplicationLevel: map[string]int64{},
 					ReplicationDLQAckLevel:  map[string]int64{},
+					QueueStates:             map[int32]*types.QueueState{},
 				},
 				PreviousRangeID: 5,
 			}).Return(nil).Once()
@@ -259,6 +263,8 @@ func (s *controllerSuite) TestAcquireShardsConcurrently() {
 		count++
 	}
 	s.Equal(3, count)
+	s.Equal(3, s.shardController.NumShards())
+	s.ElementsMatch([]int32{0, 4, 8}, s.shardController.ShardIDs())
 }
 
 func (s *controllerSuite) TestAcquireShardLookupFailure() {
@@ -273,6 +279,8 @@ func (s *controllerSuite) TestAcquireShardLookupFailure() {
 		s.mockMembershipResolver.EXPECT().Lookup(service.History, string(rune(shardID))).Return(membership.HostInfo{}, errors.New("ring failure")).Times(1)
 		s.Nil(s.shardController.GetEngineForShard(shardID))
 	}
+	s.Equal(0, s.shardController.NumShards())
+	s.Empty(s.shardController.ShardIDs())
 }
 
 func (s *controllerSuite) TestAcquireShardRenewSuccess() {
@@ -334,6 +342,7 @@ func (s *controllerSuite) TestAcquireShardRenewSuccess() {
 				},
 				ClusterReplicationLevel: map[string]int64{},
 				ReplicationDLQAckLevel:  map[string]int64{},
+				QueueStates:             map[int32]*types.QueueState{},
 			},
 			PreviousRangeID: 5,
 		}).Return(nil).Once()
@@ -341,10 +350,16 @@ func (s *controllerSuite) TestAcquireShardRenewSuccess() {
 
 	s.shardController.acquireShards()
 
+	s.Equal(2, s.shardController.NumShards())
+	s.ElementsMatch([]int32{0, 1}, s.shardController.ShardIDs())
+
 	for shardID := 0; shardID < numShards; shardID++ {
 		s.mockMembershipResolver.EXPECT().Lookup(service.History, string(rune(shardID))).Return(s.hostInfo, nil).Times(1)
 	}
 	s.shardController.acquireShards()
+
+	s.Equal(2, s.shardController.NumShards())
+	s.ElementsMatch([]int32{0, 1}, s.shardController.ShardIDs())
 
 	for shardID := 0; shardID < numShards; shardID++ {
 		s.NotNil(s.shardController.GetEngineForShard(shardID))
@@ -410,6 +425,7 @@ func (s *controllerSuite) TestAcquireShardRenewLookupFailed() {
 				},
 				ClusterReplicationLevel: map[string]int64{},
 				ReplicationDLQAckLevel:  map[string]int64{},
+				QueueStates:             map[int32]*types.QueueState{},
 			},
 			PreviousRangeID: 5,
 		}).Return(nil).Once()
@@ -430,7 +446,7 @@ func (s *controllerSuite) TestAcquireShardRenewLookupFailed() {
 func (s *controllerSuite) TestHistoryEngineClosed() {
 	numShards := 4
 	s.config.NumberOfShards = numShards
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 	historyEngines := make(map[int]*engine.MockEngine)
 	for shardID := 0; shardID < numShards; shardID++ {
 		mockEngine := engine.NewMockEngine(s.controller)
@@ -510,12 +526,15 @@ func (s *controllerSuite) TestHistoryEngineClosed() {
 		s.mockMembershipResolver.EXPECT().Lookup(service.History, string(rune(shardID))).Return(s.hostInfo, nil).AnyTimes()
 	}
 	s.shardController.Stop()
+
+	s.Equal(0, s.shardController.NumShards())
+	s.Empty(s.shardController.ShardIDs())
 }
 
 func (s *controllerSuite) TestShardControllerClosed() {
 	numShards := 4
 	s.config.NumberOfShards = numShards
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 	historyEngines := make(map[int]*engine.MockEngine)
 	for shardID := 0; shardID < numShards; shardID++ {
 		mockEngine := engine.NewMockEngine(s.controller)
@@ -555,11 +574,14 @@ func (s *controllerSuite) TestShardControllerClosed() {
 	}
 	s.shardController.Stop()
 	workerWG.Wait()
+
+	s.Equal(0, s.shardController.NumShards())
+	s.Empty(s.shardController.ShardIDs())
 }
 
 func (s *controllerSuite) TestGetOrCreateHistoryShardItem_InvalidShardID_Error() {
 	s.config.NumberOfShards = 4
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 
 	eng, err := s.shardController.GetEngineForShard(-1)
 	s.Nil(eng)
@@ -628,6 +650,7 @@ func (s *controllerSuite) setupMocksForAcquireShard(shardID int, mockEngine *eng
 			},
 			ClusterReplicationLevel: map[string]int64{},
 			ReplicationDLQAckLevel:  map[string]int64{},
+			QueueStates:             map[int32]*types.QueueState{},
 		},
 		PreviousRangeID: currentRangeID,
 	}).Return(nil).Once()

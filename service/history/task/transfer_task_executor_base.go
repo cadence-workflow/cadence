@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/multierr"
@@ -31,6 +32,7 @@ import (
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -92,26 +94,42 @@ func newTransferTaskExecutorBase(
 
 func (t *transferTaskExecutorBase) pushActivity(
 	ctx context.Context,
-	task *persistence.TransferTaskInfo,
-	activityScheduleToStartTimeout int32,
-	partitionConfig map[string]string,
+	task *persistence.ActivityTask,
+	pushActivityInfo *pushActivityToMatchingInfo,
 ) error {
 
 	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 	defer cancel()
 
-	if task.TaskType != persistence.TransferTaskTypeActivityTask {
+	if task.GetTaskType() != persistence.TransferTaskTypeActivityTask {
 		t.logger.Fatal("Cannot process non activity task", tag.TaskType(task.GetTaskType()))
 	}
 
-	_, err := t.matchingClient.AddActivityTask(ctx, &types.AddActivityTaskRequest{
+	shouldPush, err := shouldPushToMatching(ctx, t.shard, task)
+	if err != nil {
+		return err
+	}
+	if !shouldPush {
+		// The domain is an active-active domain and the task is pending
+		// For the first few minutes, we will retry the task and then discard it if it is still pending.
+		if t.shard.GetTimeSource().Now().Before(task.GetVisibilityTimestamp().Add(t.config.StandbyTaskMissingEventsDiscardDelay())) {
+			err = standbyTaskPostActionNoOp(ctx, task, pushActivityInfo, t.logger)
+			return err
+		}
+		return standbyTaskPostActionTaskDiscarded(ctx, task, pushActivityInfo, t.logger)
+	}
+
+	activityScheduleToStartTimeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)
+	taskList := &pushActivityInfo.tasklist
+	partitionConfig := pushActivityInfo.partitionConfig
+	_, err = t.matchingClient.AddActivityTask(ctx, &types.AddActivityTaskRequest{
 		DomainUUID:       task.TargetDomainID,
 		SourceDomainUUID: task.DomainID,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 		},
-		TaskList:                      &types.TaskList{Name: task.TaskList},
+		TaskList:                      taskList,
 		ScheduleID:                    task.ScheduleID,
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(activityScheduleToStartTimeout),
 		PartitionConfig:               partitionConfig,
@@ -121,20 +139,34 @@ func (t *transferTaskExecutorBase) pushActivity(
 
 func (t *transferTaskExecutorBase) pushDecision(
 	ctx context.Context,
-	task *persistence.TransferTaskInfo,
-	tasklist *types.TaskList,
-	decisionScheduleToStartTimeout int32,
-	partitionConfig map[string]string,
+	task *persistence.DecisionTask,
+	pushDecisionInfo *pushDecisionToMatchingInfo,
 ) error {
 
 	ctx, cancel := context.WithTimeout(ctx, taskRPCCallTimeout)
 	defer cancel()
 
-	if task.TaskType != persistence.TransferTaskTypeDecisionTask {
+	if task.GetTaskType() != persistence.TransferTaskTypeDecisionTask {
 		t.logger.Fatal("Cannot process non decision task", tag.TaskType(task.GetTaskType()))
 	}
 
-	_, err := t.matchingClient.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
+	shouldPush, err := shouldPushToMatching(ctx, t.shard, task)
+	if err != nil {
+		return err
+	}
+	if !shouldPush {
+		// The domain is an active-active domain and the task is pending
+		// For the first few minutes, we will retry the task and then discard it if it is still pending.
+		if t.shard.GetTimeSource().Now().Before(task.GetVisibilityTimestamp().Add(t.config.StandbyTaskMissingEventsDiscardDelay())) {
+			return standbyTaskPostActionNoOp(ctx, task, pushDecisionInfo, t.logger)
+		}
+		return standbyTaskPostActionTaskDiscarded(ctx, task, pushDecisionInfo, t.logger)
+	}
+
+	decisionScheduleToStartTimeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, constants.MaxTaskTimeout)
+	tasklist := &pushDecisionInfo.tasklist
+	partitionConfig := pushDecisionInfo.partitionConfig
+	_, err = t.matchingClient.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
 		DomainUUID: task.DomainID,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: task.WorkflowID,
@@ -165,6 +197,10 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
+	clusterAttribute *types.ClusterAttribute,
+	cronSchedule string,
+	executionStatus types.WorkflowExecutionStatus,
+	scheduledExecutionTimeUnixNano int64,
 ) error {
 
 	domain := defaultDomainName
@@ -187,7 +223,7 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 	searchAttributes := copySearchAttributes(immutableSearchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domainEntry.GetInfo().Name) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
@@ -199,18 +235,23 @@ func (t *transferTaskExecutorBase) recordWorkflowStarted(
 			WorkflowID: workflowID,
 			RunID:      runID,
 		},
-		WorkflowTypeName:   workflowTypeName,
-		StartTimestamp:     startTimeUnixNano,
-		ExecutionTimestamp: executionTimeUnixNano,
-		WorkflowTimeout:    int64(workflowTimeout),
-		TaskID:             taskID,
-		Memo:               visibilityMemo,
-		TaskList:           taskList,
-		IsCron:             isCron,
-		NumClusters:        numClusters,
-		UpdateTimestamp:    updateTimeUnixNano,
-		SearchAttributes:   searchAttributes,
-		ShardID:            int16(t.shard.GetShardID()),
+		WorkflowTypeName:            workflowTypeName,
+		StartTimestamp:              startTimeUnixNano,
+		ExecutionTimestamp:          executionTimeUnixNano,
+		WorkflowTimeout:             int64(workflowTimeout),
+		TaskID:                      taskID,
+		Memo:                        visibilityMemo,
+		TaskList:                    taskList,
+		IsCron:                      isCron,
+		CronSchedule:                cronSchedule,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       clusterAttribute.GetScope(),
+		ClusterAttributeName:        clusterAttribute.GetName(),
+		UpdateTimestamp:             updateTimeUnixNano,
+		SearchAttributes:            searchAttributes,
+		ShardID:                     int16(t.shard.GetShardID()),
+		ExecutionStatus:             executionStatus,
+		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 	}
 
 	if t.config.EnableRecordWorkflowExecutionUninitialized(domain) {
@@ -250,6 +291,10 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
+	clusterAttribute *types.ClusterAttribute,
+	cronSchedule string,
+	executionStatus types.WorkflowExecutionStatus,
+	scheduledExecutionTimeUnixNano int64,
 ) error {
 
 	domain, err := t.shard.GetDomainCache().GetDomainName(domainID)
@@ -264,7 +309,7 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 	searchAttributes := copySearchAttributes(immutableSearchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domain) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
@@ -276,18 +321,23 @@ func (t *transferTaskExecutorBase) upsertWorkflowExecution(
 			WorkflowID: workflowID,
 			RunID:      runID,
 		},
-		WorkflowTypeName:   workflowTypeName,
-		StartTimestamp:     startTimeUnixNano,
-		ExecutionTimestamp: executionTimeUnixNano,
-		WorkflowTimeout:    int64(workflowTimeout),
-		TaskID:             taskID,
-		Memo:               visibilityMemo,
-		TaskList:           taskList,
-		IsCron:             isCron,
-		NumClusters:        numClusters,
-		SearchAttributes:   searchAttributes,
-		UpdateTimestamp:    updateTimeUnixNano,
-		ShardID:            int64(t.shard.GetShardID()),
+		WorkflowTypeName:            workflowTypeName,
+		StartTimestamp:              startTimeUnixNano,
+		ExecutionTimestamp:          executionTimeUnixNano,
+		WorkflowTimeout:             int64(workflowTimeout),
+		TaskID:                      taskID,
+		Memo:                        visibilityMemo,
+		TaskList:                    taskList,
+		IsCron:                      isCron,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       clusterAttribute.GetScope(),
+		ClusterAttributeName:        clusterAttribute.GetName(),
+		SearchAttributes:            searchAttributes,
+		UpdateTimestamp:             updateTimeUnixNano,
+		ShardID:                     int64(t.shard.GetShardID()),
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                cronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 	}
 
 	return t.visibilityMgr.UpsertWorkflowExecution(ctx, request)
@@ -308,10 +358,14 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	visibilityMemo *types.Memo,
 	taskList string,
 	isCron bool,
+	cronSchedule string,
 	numClusters int16,
 	updateTimeUnixNano int64,
 	immutableSearchAttributes map[string][]byte,
 	headers map[string][]byte,
+	clusterAttribute *types.ClusterAttribute,
+	executionStatus types.WorkflowExecutionStatus,
+	scheduledExecutionTimeUnixNano int64,
 ) error {
 
 	// Record closing in visibility store
@@ -344,7 +398,7 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 	searchAttributes := copySearchAttributes(immutableSearchAttributes)
 	if t.config.EnableContextHeaderInVisibility(domainEntry.GetInfo().Name) {
 		// fail open, if error occurs, just log it; successfully appended headers will be stored
-		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes()); err != nil {
+		if searchAttributes, err = appendContextHeaderToSearchAttributes(searchAttributes, headers, t.config.ValidSearchAttributes(), t.config.SearchAttributesHiddenValueKeys()); err != nil {
 			t.logger.Error("failed to add headers to search attributes", tag.Error(err))
 		}
 	}
@@ -357,21 +411,26 @@ func (t *transferTaskExecutorBase) recordWorkflowClosed(
 				WorkflowID: workflowID,
 				RunID:      runID,
 			},
-			WorkflowTypeName:   workflowTypeName,
-			StartTimestamp:     startTimeUnixNano,
-			ExecutionTimestamp: executionTimeUnixNano,
-			CloseTimestamp:     endTimeUnixNano,
-			Status:             closeStatus,
-			HistoryLength:      historyLength,
-			RetentionSeconds:   retentionSeconds,
-			TaskID:             taskID,
-			Memo:               visibilityMemo,
-			TaskList:           taskList,
-			SearchAttributes:   searchAttributes,
-			IsCron:             isCron,
-			UpdateTimestamp:    updateTimeUnixNano,
-			NumClusters:        numClusters,
-			ShardID:            int16(t.shard.GetShardID()),
+			WorkflowTypeName:            workflowTypeName,
+			StartTimestamp:              startTimeUnixNano,
+			ExecutionTimestamp:          executionTimeUnixNano,
+			CloseTimestamp:              endTimeUnixNano,
+			Status:                      closeStatus,
+			HistoryLength:               historyLength,
+			RetentionSeconds:            retentionSeconds,
+			TaskID:                      taskID,
+			Memo:                        visibilityMemo,
+			TaskList:                    taskList,
+			SearchAttributes:            searchAttributes,
+			IsCron:                      isCron,
+			CronSchedule:                cronSchedule,
+			ClusterAttributeScope:       clusterAttribute.GetScope(),
+			ClusterAttributeName:        clusterAttribute.GetName(),
+			UpdateTimestamp:             updateTimeUnixNano,
+			NumClusters:                 numClusters,
+			ShardID:                     int16(t.shard.GetShardID()),
+			ExecutionStatus:             executionStatus,
+			ScheduledExecutionTimestamp: scheduledExecutionTimeUnixNano,
 		}); err != nil {
 			return err
 		}
@@ -437,7 +496,7 @@ func getWorkflowMemo(
 }
 
 // context headers are appended to search attributes if in allow list; return errors when all context key is processed
-func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allowedKeys map[string]interface{}) (map[string][]byte, error) {
+func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allowedKeys map[string]interface{}, hiddenValueKeys map[string]interface{}) (map[string][]byte, error) {
 	// sanity check
 	if attr == nil {
 		attr = make(map[string][]byte)
@@ -458,7 +517,14 @@ func appendContextHeaderToSearchAttributes(attr, context map[string][]byte, allo
 		}
 		// context header are raw string bytes, need to be json encoded to be stored in search attributes
 		// ignore error as it can't happen to err on json encoding string
-		data, _ := json.Marshal(string(v))
+		// context header can contain sensitive information, so we need to hide the value if it is in the hiddenValueKeys
+		var val string
+		if shouldRedactContextHeader(key, hiddenValueKeys) {
+			val = "***redacted***" // Hide the actualvalue
+		} else {
+			val = string(v) // Convert []byte to string safely
+		}
+		data, _ := json.Marshal(val)
 		attr[key] = data
 	}
 	return attr, errGroup
@@ -498,4 +564,81 @@ func copySearchAttributes(
 func isWorkflowNotExistError(err error) bool {
 	_, ok := err.(*types.EntityNotExistsError)
 	return ok
+}
+
+func shouldRedactContextHeader(key string, hiddenValueKeys map[string]interface{}) bool {
+	if hiddenValueKeys == nil {
+		return false
+	}
+	if val, exists := hiddenValueKeys[key]; exists {
+		switch v := val.(type) {
+		case bool:
+			return v
+		case string:
+			return strings.ToLower(v) == "true"
+		case int:
+			return v > 0 // 1 means true, 0 means false
+		}
+	}
+	return false
+}
+
+// determineExecutionStatus determines whether a workflow execution is PENDING or STARTED
+// based on whether it has a first decision task backoff and if the decision task has been scheduled.
+//
+// A workflow is PENDING if:
+// - It has a firstDecisionTaskBackoffSeconds > 0, AND
+// - No decision task has been scheduled/processed yet
+//
+// Otherwise, it's STARTED.
+//
+// Returns:
+// - executionStatus: either WorkflowExecutionStatusPending or WorkflowExecutionStatusStarted
+// - scheduledExecutionTimestamp: startTime + firstDecisionTaskBackoffSeconds (in nanoseconds)
+func determineExecutionStatus(
+	startEvent *types.HistoryEvent,
+	mutableState execution.MutableState,
+) (executionStatus types.WorkflowExecutionStatus, scheduledExecutionTimestamp int64) {
+	executionStatus = types.WorkflowExecutionStatusStarted
+	backoffSeconds := int32(0)
+
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil {
+		backoffSeconds = startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds()
+	}
+
+	if backoffSeconds > 0 {
+		hasPending := mutableState.HasPendingDecision()
+		hasInFlight := mutableState.HasInFlightDecision()
+		hasProcessed := mutableState.HasProcessedOrPendingDecision()
+
+		// Check if the first decision task has been scheduled yet
+		// If there's no decision info, the workflow is still pending
+		if !hasPending && !hasInFlight && !hasProcessed {
+			executionStatus = types.WorkflowExecutionStatusPending
+		}
+	}
+
+	// startTime + firstDecisionTaskBackoffSeconds
+	scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+		int64(backoffSeconds)*int64(time.Second)
+
+	return executionStatus, scheduledExecutionTimestamp
+}
+
+func determineExecutionStatusForVisibility(
+	startEvent *types.HistoryEvent,
+	mutableState execution.MutableState,
+	isAdvancedVisibilityEnabled bool,
+) (executionStatus types.WorkflowExecutionStatus, scheduledExecutionTimestamp int64) {
+	executionStatus, scheduledExecutionTimestamp = determineExecutionStatus(startEvent, mutableState)
+
+	// For basic DB visibility, always use STARTED status
+	// Basic visibility cannot be updated mid-execution, so showing PENDING would be
+	// misleading as the workflow would appear to be waiting even when it's running.
+	// With advanced visibility, we can update PENDING -> STARTED via upsert.
+	if !isAdvancedVisibilityEnabled && executionStatus == types.WorkflowExecutionStatusPending {
+		executionStatus = types.WorkflowExecutionStatusStarted
+	}
+
+	return executionStatus, scheduledExecutionTimestamp
 }

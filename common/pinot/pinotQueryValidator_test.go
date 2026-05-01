@@ -29,7 +29,8 @@ import (
 	"github.com/xwb1989/sqlparser"
 
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/types"
 )
 
 func TestValidateQuery(t *testing.T) {
@@ -48,7 +49,7 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case2-2: simple query with partial match": {
 			query:     "WorkflowID like 'wid'",
-			validated: "TEXT_MATCH(WorkflowID, 'wid')",
+			validated: "TEXT_MATCH(WorkflowID, '/.*wid.*/')",
 		},
 		"Case2-3: invalid simple query with partial match": {
 			query: "WorkflowID like wid",
@@ -95,7 +96,7 @@ func TestValidateQuery(t *testing.T) {
 		},
 		"Case6-5: complex query with partial match": {
 			query:     "RunID like '123' or WorkflowID like '123'",
-			validated: "(TEXT_MATCH(RunID, '123') or TEXT_MATCH(WorkflowID, '123'))",
+			validated: "(TEXT_MATCH(RunID, '/.*123.*/') or TEXT_MATCH(WorkflowID, '/.*123.*/'))",
 		},
 		"Case7: invalid sql query": {
 			query: "Invalid SQL",
@@ -371,8 +372,11 @@ func TestValidateQuery(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			validSearchAttr := dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
-			qv := NewPinotQueryValidator(validSearchAttr)
+			validSearchAttr := dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
+			pinotOptimizedQueryColumns := dynamicproperties.GetMapPropertyFn(map[string]interface{}{
+				"CustomTestField": "test",
+			})
+			qv := NewPinotQueryValidator(validSearchAttr, pinotOptimizedQueryColumns)
 			validated, err := qv.ValidateQuery(test.query)
 			if err != nil {
 				assert.Equal(t, test.err, err.Error())
@@ -404,8 +408,11 @@ func TestProcessInClause_FailedInputExprCases(t *testing.T) {
 	}
 
 	// Create a new VisibilityQueryValidator
-	validSearchAttr := dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
-	qv := NewPinotQueryValidator(validSearchAttr)
+	validSearchAttr := dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys())
+	pinotOptimizedQueryColumns := dynamicproperties.GetMapPropertyFn(map[string]interface{}{
+		"CustomTestField": "test",
+	})
+	qv := NewPinotQueryValidator(validSearchAttr, pinotOptimizedQueryColumns)
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -478,6 +485,43 @@ func TestParseCloseStatus(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestIsOptimizedQueryColumn(t *testing.T) {
+	tests := map[string]struct {
+		query     string
+		validated string
+		err       string
+	}{
+		"case1-1: customzied search attribute field in pinotOptimizedQueryColumns": {
+			query:     "CustomTestKeywordField = 'Test-UUID-1234-5678'",
+			validated: `CustomTestKeywordField = 'TestUUID12345678'`,
+		},
+		"case1-2: customzied search attribute field in pinotOptimizedQueryColumns": {
+			query:     "CustomTestStringField = 'Test Test-UUID-1234-5678'",
+			validated: `CustomTestStringField = 'Test TestUUID12345678'`,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			searchAttr := definition.GetDefaultIndexedKeys()
+			searchAttr["CustomTestKeywordField"] = types.IndexedValueTypeKeyword
+			searchAttr["CustomTestStringField"] = types.IndexedValueTypeString
+			validSearchAttr := dynamicproperties.GetMapPropertyFn(searchAttr)
+			pinotOptimizedQueryColumns := dynamicproperties.GetMapPropertyFn(map[string]interface{}{
+				"CustomTestKeywordField": "test",
+				"CustomTestStringField":  "test",
+			})
+			qv := NewPinotQueryValidator(validSearchAttr, pinotOptimizedQueryColumns)
+			validated, err := qv.ValidateQuery(test.query)
+			if err != nil {
+				assert.Equal(t, test.err, err.Error())
+			} else {
+				assert.Equal(t, test.validated, validated)
 			}
 		})
 	}

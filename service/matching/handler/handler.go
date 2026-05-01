@@ -26,6 +26,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	dynamicquotas "github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
@@ -64,17 +65,19 @@ func NewHandler(
 		metricsClient: metricsClient,
 		userRateLimiter: quotas.NewMultiStageRateLimiter(
 			quotas.NewDynamicRateLimiter(config.UserRPS.AsFloat64()),
-			quotas.NewCollection(quotas.NewFallbackDynamicRateLimiterFactory(
+			quotas.NewCollection(dynamicquotas.NewFallbackDynamicRateLimiterFactory(
 				config.DomainUserRPS,
 				config.UserRPS,
 			)),
+			nil,
 		),
 		workerRateLimiter: quotas.NewMultiStageRateLimiter(
 			quotas.NewDynamicRateLimiter(config.WorkerRPS.AsFloat64()),
-			quotas.NewCollection(quotas.NewFallbackDynamicRateLimiterFactory(
+			quotas.NewCollection(dynamicquotas.NewFallbackDynamicRateLimiterFactory(
 				config.DomainWorkerRPS,
 				config.WorkerRPS,
 			)),
+			nil,
 		),
 		engine:          engine,
 		logger:          logger,
@@ -88,6 +91,7 @@ func NewHandler(
 
 // Start starts the handler
 func (h *handlerImpl) Start() {
+	h.engine.Start()
 	h.startWG.Done()
 }
 
@@ -108,7 +112,7 @@ func (h *handlerImpl) newHandlerContext(
 	ctx context.Context,
 	domainName string,
 	taskList *types.TaskList,
-	scope int,
+	scope metrics.ScopeIdx,
 ) *handlerContext {
 	return newHandlerContext(
 		ctx,
@@ -259,7 +263,7 @@ func (h *handlerImpl) PollForDecisionTask(
 func (h *handlerImpl) QueryWorkflow(
 	ctx context.Context,
 	request *types.MatchingQueryWorkflowRequest,
-) (resp *types.QueryWorkflowResponse, retError error) {
+) (resp *types.MatchingQueryWorkflowResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
 	domainName := h.domainName(request.GetDomainUUID())
@@ -412,6 +416,55 @@ func (h *handlerImpl) GetTaskListsByDomain(
 	}
 
 	response, err := h.engine.GetTaskListsByDomain(hCtx, request)
+	return response, hCtx.handleErr(err)
+}
+
+func (h *handlerImpl) UpdateTaskListPartitionConfig(
+	ctx context.Context,
+	request *types.MatchingUpdateTaskListPartitionConfigRequest,
+) (resp *types.MatchingUpdateTaskListPartitionConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	hCtx := h.newHandlerContext(
+		ctx,
+		domainName,
+		request.TaskList,
+		metrics.MatchingUpdateTaskListPartitionConfigScope,
+	)
+
+	sw := hCtx.startProfiling(&h.startWG)
+	defer sw.Stop()
+
+	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
+		return nil, hCtx.handleErr(errMatchingHostThrottle)
+	}
+
+	response, err := h.engine.UpdateTaskListPartitionConfig(hCtx, request)
+	return response, hCtx.handleErr(err)
+}
+
+func (h *handlerImpl) RefreshTaskListPartitionConfig(
+	ctx context.Context,
+	request *types.MatchingRefreshTaskListPartitionConfigRequest,
+) (resp *types.MatchingRefreshTaskListPartitionConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
+
+	domainName := h.domainName(request.DomainUUID)
+	hCtx := h.newHandlerContext(
+		ctx,
+		domainName,
+		request.TaskList,
+		metrics.MatchingRefreshTaskListPartitionConfigScope,
+	)
+
+	sw := hCtx.startProfiling(&h.startWG)
+	defer sw.Stop()
+
+	// Count the request in the RPS, but we still accept it even if RPS is exceeded
+	h.userRateLimiter.Allow(quotas.Info{Domain: domainName})
+
+	response, err := h.engine.RefreshTaskListPartitionConfig(hCtx, request)
 	return response, hCtx.handleErr(err)
 }
 

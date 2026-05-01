@@ -37,7 +37,7 @@ import (
 
 func TestHandleErrNil(t *testing.T) {
 	reqCtx := &handlerContext{
-		scope:  metrics.NoopScope(metrics.Matching),
+		scope:  metrics.NoopScope,
 		logger: log.NewNoop(),
 	}
 
@@ -96,6 +96,10 @@ func TestHandleErrKnowErrors(t *testing.T) {
 			err:  &types.StickyWorkerUnavailableError{},
 		},
 		{
+			name: "ReadOnlyPartitionError",
+			err:  &types.ReadOnlyPartitionError{},
+		},
+		{
 			name: "TaskListNotOwnedByHostError",
 			err:  &cadence_errors.TaskListNotOwnedByHostError{},
 		},
@@ -103,7 +107,7 @@ func TestHandleErrKnowErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		reqCtx := &handlerContext{
-			scope:  metrics.NoopScope(metrics.Matching),
+			scope:  metrics.NoopScope,
 			logger: log.NewNoop(),
 		}
 
@@ -120,7 +124,7 @@ func TestHandleErrKnowErrors(t *testing.T) {
 
 func TestHandleErrUncategorizedError(t *testing.T) {
 	reqCtx := &handlerContext{
-		scope:  metrics.NoopScope(metrics.Matching),
+		scope:  metrics.NoopScope,
 		logger: log.NewNoop(),
 	}
 

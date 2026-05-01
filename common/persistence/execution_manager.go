@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -37,6 +39,8 @@ type (
 		persistence   ExecutionStore
 		statsComputer statsComputer
 		logger        log.Logger
+		timeSrc       clock.TimeSource
+		dc            *DynamicConfiguration
 	}
 )
 
@@ -47,12 +51,15 @@ func NewExecutionManagerImpl(
 	persistence ExecutionStore,
 	logger log.Logger,
 	serializer PayloadSerializer,
+	dc *DynamicConfiguration,
 ) ExecutionManager {
 	return &executionManagerImpl{
 		serializer:    serializer,
 		persistence:   persistence,
 		statsComputer: statsComputer{},
 		logger:        logger,
+		timeSrc:       clock.NewRealTimeSource(),
+		dc:            dc,
 	}
 }
 
@@ -72,6 +79,7 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 ) (*GetWorkflowExecutionResponse, error) {
 
 	internalRequest := &InternalGetWorkflowExecutionRequest{
+		ShardID:   request.ShardID,
 		DomainID:  request.DomainID,
 		Execution: request.Execution,
 		RangeID:   request.RangeID,
@@ -138,6 +146,11 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		return nil, nil, err
 	}
 
+	activeClusterSelectionPolicy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(info.ActiveClusterSelectionPolicy)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	newInfo := &WorkflowExecutionInfo{
 		CompletionEvent: completionEvent,
 
@@ -151,6 +164,7 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		InitiatedID:                        info.InitiatedID,
 		CompletionEventBatchID:             info.CompletionEventBatchID,
 		TaskList:                           info.TaskList,
+		TaskListKind:                       info.TaskListKind,
 		IsCron:                             len(info.CronSchedule) > 0,
 		WorkflowTypeName:                   info.WorkflowTypeName,
 		WorkflowTimeout:                    int32(info.WorkflowTimeout.Seconds()),
@@ -192,11 +206,13 @@ func (m *executionManagerImpl) DeserializeExecutionInfo(
 		NonRetriableErrors:                 info.NonRetriableErrors,
 		BranchToken:                        info.BranchToken,
 		CronSchedule:                       info.CronSchedule,
+		CronOverlapPolicy:                  info.CronOverlapPolicy,
 		ExpirationSeconds:                  int32(info.ExpirationInterval.Seconds()),
 		AutoResetPoints:                    autoResetPoints,
 		SearchAttributes:                   info.SearchAttributes,
 		Memo:                               info.Memo,
 		PartitionConfig:                    info.PartitionConfig,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 	}
 	newStats := &ExecutionStats{
 		HistorySize: info.HistorySize,
@@ -305,6 +321,7 @@ func (m *executionManagerImpl) DeserializeActivityInfos(
 			DomainID:                                v.DomainID,
 			StartedIdentity:                         v.StartedIdentity,
 			TaskList:                                v.TaskList,
+			TaskListKind:                            v.TaskListKind,
 			HasRetryPolicy:                          v.HasRetryPolicy,
 			InitialInterval:                         int32(v.InitialInterval.Seconds()),
 			BackoffCoefficient:                      v.BackoffCoefficient,
@@ -340,6 +357,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 	}
 
 	newRequest := &InternalUpdateWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -348,6 +366,8 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 		NewWorkflowSnapshot:    serializedNewWorkflowSnapshot,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateUpdateStats(newRequest)
 	err = m.persistence.UpdateWorkflowExecution(ctx, newRequest)
@@ -359,7 +379,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 
 func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 	infos []*ChildExecutionInfo,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) ([]*InternalChildExecutionInfo, error) {
 
 	newInfos := make([]*InternalChildExecutionInfo, 0)
@@ -395,7 +415,7 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 
 func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 	infos []*ActivityInfo,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) ([]*InternalActivityInfo, error) {
 
 	newInfos := make([]*InternalActivityInfo, 0)
@@ -432,6 +452,7 @@ func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 			DomainID:                                v.DomainID,
 			StartedIdentity:                         v.StartedIdentity,
 			TaskList:                                v.TaskList,
+			TaskListKind:                            v.TaskListKind,
 			HasRetryPolicy:                          v.HasRetryPolicy,
 			InitialInterval:                         common.SecondsToDuration(int64(v.InitialInterval)),
 			BackoffCoefficient:                      v.BackoffCoefficient,
@@ -452,7 +473,7 @@ func (m *executionManagerImpl) SerializeUpsertActivityInfos(
 func (m *executionManagerImpl) SerializeExecutionInfo(
 	info *WorkflowExecutionInfo,
 	stats *ExecutionStats,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowExecutionInfo, error) {
 
 	if info == nil {
@@ -464,6 +485,11 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 	}
 
 	resetPoints, err := m.serializer.SerializeResetPoints(info.AutoResetPoints, encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	activeClusterSelectionPolicy, err := m.serializer.SerializeActiveClusterSelectionPolicy(info.ActiveClusterSelectionPolicy, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -480,6 +506,7 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		CompletionEventBatchID:             info.CompletionEventBatchID,
 		CompletionEvent:                    completionEvent,
 		TaskList:                           info.TaskList,
+		TaskListKind:                       info.TaskListKind,
 		WorkflowTypeName:                   info.WorkflowTypeName,
 		WorkflowTimeout:                    common.SecondsToDuration(int64(info.WorkflowTimeout)),
 		DecisionStartToCloseTimeout:        common.SecondsToDuration(int64(info.DecisionStartToCloseTimeout)),
@@ -525,6 +552,8 @@ func (m *executionManagerImpl) SerializeExecutionInfo(
 		Memo:                               info.Memo,
 		SearchAttributes:                   info.SearchAttributes,
 		PartitionConfig:                    info.PartitionConfig,
+		CronOverlapPolicy:                  info.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:       activeClusterSelectionPolicy,
 
 		// attributes which are not related to mutable state
 		HistorySize: stats.HistorySize,
@@ -556,6 +585,7 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 	}
 
 	newRequest := &InternalConflictResolveWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -567,6 +597,8 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 		CurrentWorkflowMutation: serializedCurrentWorkflowMutation,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	msuss := m.statsComputer.computeMutableStateConflictResolveStats(newRequest)
 	err = m.persistence.ConflictResolveWorkflowExecution(ctx, newRequest)
@@ -580,15 +612,13 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	ctx context.Context,
 	request *CreateWorkflowExecutionRequest,
 ) (*CreateWorkflowExecutionResponse, error) {
-
-	encoding := common.EncodingTypeThriftRW
-
-	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, encoding)
+	serializedNewWorkflowSnapshot, err := m.SerializeWorkflowSnapshot(&request.NewWorkflowSnapshot, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return nil, err
 	}
 
 	newRequest := &InternalCreateWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -599,6 +629,8 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 		NewWorkflowSnapshot: *serializedNewWorkflowSnapshot,
 
 		WorkflowRequestMode: request.WorkflowRequestMode,
+
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	msuss := m.statsComputer.computeMutableStateCreateStats(newRequest)
@@ -611,7 +643,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 
 func (m *executionManagerImpl) SerializeWorkflowMutation(
 	input *WorkflowMutation,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowMutation, error) {
 
 	serializedExecutionInfo, err := m.SerializeExecutionInfo(
@@ -650,7 +682,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
-	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, common.EncodingTypeJSON)
+	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, constants.EncodingTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -676,10 +708,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		NewBufferedEvents:         serializedNewBufferedEvents,
 		ClearBufferedEvents:       input.ClearBufferedEvents,
 
-		TransferTasks:     input.TransferTasks,
-		CrossClusterTasks: input.CrossClusterTasks,
-		ReplicationTasks:  input.ReplicationTasks,
-		TimerTasks:        input.TimerTasks,
+		TasksByCategory: input.TasksByCategory,
 
 		WorkflowRequests: input.WorkflowRequests,
 
@@ -691,7 +720,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 	input *WorkflowSnapshot,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*InternalWorkflowSnapshot, error) {
 
 	serializedExecutionInfo, err := m.SerializeExecutionInfo(
@@ -724,7 +753,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		return nil, err
 	}
 
-	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, common.EncodingTypeJSON)
+	checksumData, err := m.serializer.SerializeChecksum(input.Checksum, constants.EncodingTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -742,10 +771,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 		SignalInfos:         input.SignalInfos,
 		SignalRequestedIDs:  input.SignalRequestedIDs,
 
-		TransferTasks:     input.TransferTasks,
-		CrossClusterTasks: input.CrossClusterTasks,
-		ReplicationTasks:  input.ReplicationTasks,
-		TimerTasks:        input.TimerTasks,
+		TasksByCategory: input.TasksByCategory,
 
 		WorkflowRequests: input.WorkflowRequests,
 
@@ -757,7 +783,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 func (m *executionManagerImpl) SerializeVersionHistories(
 	versionHistories *VersionHistories,
-	encoding common.EncodingType,
+	encoding constants.EncodingType,
 ) (*DataBlob, error) {
 
 	if versionHistories == nil {
@@ -844,63 +870,12 @@ func (m *executionManagerImpl) ListConcreteExecutions(
 	return newResponse, nil
 }
 
-// Transfer task related methods
-func (m *executionManagerImpl) GetTransferTasks(
-	ctx context.Context,
-	request *GetTransferTasksRequest,
-) (*GetTransferTasksResponse, error) {
-	return m.persistence.GetTransferTasks(ctx, request)
-}
-
-func (m *executionManagerImpl) CompleteTransferTask(
-	ctx context.Context,
-	request *CompleteTransferTaskRequest,
-) error {
-	return m.persistence.CompleteTransferTask(ctx, request)
-}
-
-func (m *executionManagerImpl) RangeCompleteTransferTask(
-	ctx context.Context,
-	request *RangeCompleteTransferTaskRequest,
-) (*RangeCompleteTransferTaskResponse, error) {
-	return m.persistence.RangeCompleteTransferTask(ctx, request)
-}
-
-// Replication task related methods
-func (m *executionManagerImpl) GetReplicationTasks(
-	ctx context.Context,
-	request *GetReplicationTasksRequest,
-) (*GetReplicationTasksResponse, error) {
-	resp, err := m.persistence.GetReplicationTasks(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	return &GetReplicationTasksResponse{
-		Tasks:         m.fromInternalReplicationTaskInfos(resp.Tasks),
-		NextPageToken: resp.NextPageToken,
-	}, nil
-}
-
-func (m *executionManagerImpl) CompleteReplicationTask(
-	ctx context.Context,
-	request *CompleteReplicationTaskRequest,
-) error {
-	return m.persistence.CompleteReplicationTask(ctx, request)
-}
-
-func (m *executionManagerImpl) RangeCompleteReplicationTask(
-	ctx context.Context,
-	request *RangeCompleteReplicationTaskRequest,
-) (*RangeCompleteReplicationTaskResponse, error) {
-	return m.persistence.RangeCompleteReplicationTask(ctx, request)
-}
-
 func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *PutReplicationTaskToDLQRequest,
 ) error {
 	internalRequest := &InternalPutReplicationTaskToDLQRequest{
+		ShardID:           request.ShardID,
 		SourceClusterName: request.SourceClusterName,
 		TaskInfo:          m.toInternalReplicationTaskInfo(request.TaskInfo),
 	}
@@ -910,15 +885,8 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 func (m *executionManagerImpl) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *GetReplicationTasksFromDLQRequest,
-) (*GetReplicationTasksFromDLQResponse, error) {
-	resp, err := m.persistence.GetReplicationTasksFromDLQ(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	return &GetReplicationTasksFromDLQResponse{
-		Tasks:         m.fromInternalReplicationTaskInfos(resp.Tasks),
-		NextPageToken: resp.NextPageToken,
-	}, nil
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetReplicationTasksFromDLQ(ctx, request)
 }
 
 func (m *executionManagerImpl) GetReplicationDLQSize(
@@ -946,29 +914,35 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	ctx context.Context,
 	request *CreateFailoverMarkersRequest,
 ) error {
+	request.CurrentTimeStamp = m.timeSrc.Now()
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
-// Timer related methods.
-func (m *executionManagerImpl) GetTimerIndexTasks(
+func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
-	request *GetTimerIndexTasksRequest,
-) (*GetTimerIndexTasksResponse, error) {
-	return m.persistence.GetTimerIndexTasks(ctx, request)
+	request *GetActiveClusterSelectionPolicyRequest,
+) (*types.ActiveClusterSelectionPolicy, error) {
+	blob, err := m.persistence.GetActiveClusterSelectionPolicy(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if blob == nil {
+		return nil, &types.EntityNotExistsError{
+			Message: "active cluster selection policy not found",
+		}
+	}
+	policy, err := m.serializer.DeserializeActiveClusterSelectionPolicy(blob)
+	if err != nil {
+		return nil, err
+	}
+	return policy, nil
 }
 
-func (m *executionManagerImpl) CompleteTimerTask(
+func (m *executionManagerImpl) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
-	request *CompleteTimerTaskRequest,
+	request *DeleteActiveClusterSelectionPolicyRequest,
 ) error {
-	return m.persistence.CompleteTimerTask(ctx, request)
-}
-
-func (m *executionManagerImpl) RangeCompleteTimerTask(
-	ctx context.Context,
-	request *RangeCompleteTimerTaskRequest,
-) (*RangeCompleteTimerTaskResponse, error) {
-	return m.persistence.RangeCompleteTimerTask(ctx, request)
+	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, request)
 }
 
 func (m *executionManagerImpl) Close() {
@@ -1023,7 +997,29 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 		BranchToken:       info.BranchToken,
 		NewRunBranchToken: info.NewRunBranchToken,
 		CreationTime:      time.Unix(0, info.CreationTime).UTC(),
+		CurrentTimeStamp:  m.timeSrc.Now(),
 	}
+}
+
+func (m *executionManagerImpl) GetHistoryTasks(
+	ctx context.Context,
+	request *GetHistoryTasksRequest,
+) (*GetHistoryTasksResponse, error) {
+	return m.persistence.GetHistoryTasks(ctx, request)
+}
+
+func (m *executionManagerImpl) CompleteHistoryTask(
+	ctx context.Context,
+	request *CompleteHistoryTaskRequest,
+) error {
+	return m.persistence.CompleteHistoryTask(ctx, request)
+}
+
+func (m *executionManagerImpl) RangeCompleteHistoryTask(
+	ctx context.Context,
+	request *RangeCompleteHistoryTaskRequest,
+) (*RangeCompleteHistoryTaskResponse, error) {
+	return m.persistence.RangeCompleteHistoryTask(ctx, request)
 }
 
 func getStartVersion(
@@ -1031,7 +1027,7 @@ func getStartVersion(
 ) (int64, error) {
 
 	if versionHistories == nil {
-		return common.EmptyVersion, nil
+		return constants.EmptyVersion, nil
 	}
 
 	versionHistory, err := versionHistories.GetCurrentVersionHistory()
@@ -1050,7 +1046,7 @@ func getLastWriteVersion(
 ) (int64, error) {
 
 	if versionHistories == nil {
-		return common.EmptyVersion, nil
+		return constants.EmptyVersion, nil
 	}
 
 	versionHistory, err := versionHistories.GetCurrentVersionHistory()

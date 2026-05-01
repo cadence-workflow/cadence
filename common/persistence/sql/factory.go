@@ -34,15 +34,16 @@ import (
 type (
 	// Factory vends store objects backed by MySQL
 	Factory struct {
-		cfg         config.SQL
-		dbConn      dbConn
-		clusterName string
-		logger      log.Logger
-		parser      serialization.Parser
-		dc          *p.DynamicConfiguration
+		cfg            config.SQL
+		dbConn         dbConn
+		clusterName    string
+		logger         log.Logger
+		parser         serialization.Parser
+		taskSerializer serialization.TaskSerializer
+		dc             *p.DynamicConfiguration
 	}
 
-	// dbConn represents a logical mysql connection - its a
+	// dbConn represents a logical mysql connection - it's a
 	// wrapper around the standard sql connection pool with
 	// additional reference counting
 	dbConn struct {
@@ -63,12 +64,13 @@ func NewFactory(
 	dc *p.DynamicConfiguration,
 ) *Factory {
 	return &Factory{
-		cfg:         cfg,
-		clusterName: clusterName,
-		logger:      logger,
-		dbConn:      newRefCountedDBConn(&cfg),
-		parser:      parser,
-		dc:          dc,
+		cfg:            cfg,
+		clusterName:    clusterName,
+		logger:         logger,
+		dbConn:         newRefCountedDBConn(&cfg),
+		parser:         parser,
+		taskSerializer: serialization.NewTaskSerializer(parser),
+		dc:             dc,
 	}
 }
 
@@ -96,7 +98,7 @@ func (f *Factory) NewHistoryStore() (p.HistoryStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewHistoryV2Persistence(conn, f.logger, f.parser)
+	return NewHistoryV2Persistence(conn, f.logger, f.parser, f.dc)
 }
 
 // NewDomainStore returns a new metadata store
@@ -108,13 +110,22 @@ func (f *Factory) NewDomainStore() (p.DomainStore, error) {
 	return newMetadataPersistenceV2(conn, f.clusterName, f.logger, f.parser)
 }
 
+// NewDomainAuditStore returns a domain audit store
+func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
+	conn, err := f.dbConn.get()
+	if err != nil {
+		return nil, err
+	}
+	return newSQLDomainAuditStore(conn, f.logger, f.parser)
+}
+
 // NewExecutionStore returns an ExecutionStore for a given shardID
 func (f *Factory) NewExecutionStore(shardID int) (p.ExecutionStore, error) {
 	conn, err := f.dbConn.get()
 	if err != nil {
 		return nil, err
 	}
-	return NewSQLExecutionStore(conn, f.logger, shardID, f.parser, f.dc)
+	return NewSQLExecutionStore(conn, f.logger, shardID, f.parser, f.taskSerializer, f.dc)
 }
 
 // NewVisibilityStore returns a visibility store
@@ -124,7 +135,7 @@ func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, e
 }
 
 // NewQueue returns a new queue backed by sql
-func (f *Factory) NewQueue(queueType p.QueueType) (p.Queue, error) {
+func (f *Factory) NewQueue(queueType p.QueueType) (p.QueueStore, error) {
 	conn, err := f.dbConn.get()
 	if err != nil {
 		return nil, err

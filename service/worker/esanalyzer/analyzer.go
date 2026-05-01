@@ -33,10 +33,10 @@ import (
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/frontend"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -72,19 +72,19 @@ type (
 
 	// Config contains all configs for ElasticSearch Analyzer
 	Config struct {
-		ESAnalyzerPause                          dynamicconfig.BoolPropertyFn
-		ESAnalyzerTimeWindow                     dynamicconfig.DurationPropertyFn
-		ESAnalyzerMaxNumDomains                  dynamicconfig.IntPropertyFn
-		ESAnalyzerMaxNumWorkflowTypes            dynamicconfig.IntPropertyFn
-		ESAnalyzerLimitToTypes                   dynamicconfig.StringPropertyFn
-		ESAnalyzerEnableAvgDurationBasedChecks   dynamicconfig.BoolPropertyFn
-		ESAnalyzerLimitToDomains                 dynamicconfig.StringPropertyFn
-		ESAnalyzerNumWorkflowsToRefresh          dynamicconfig.IntPropertyFnWithWorkflowTypeFilter
-		ESAnalyzerBufferWaitTime                 dynamicconfig.DurationPropertyFnWithWorkflowTypeFilter
-		ESAnalyzerMinNumWorkflowsForAvg          dynamicconfig.IntPropertyFnWithWorkflowTypeFilter
-		ESAnalyzerWorkflowDurationWarnThresholds dynamicconfig.StringPropertyFn
-		ESAnalyzerWorkflowVersionDomains         dynamicconfig.StringPropertyFn
-		ESAnalyzerWorkflowTypeDomains            dynamicconfig.StringPropertyFn
+		ESAnalyzerPause                          dynamicproperties.BoolPropertyFn
+		ESAnalyzerTimeWindow                     dynamicproperties.DurationPropertyFn
+		ESAnalyzerMaxNumDomains                  dynamicproperties.IntPropertyFn
+		ESAnalyzerMaxNumWorkflowTypes            dynamicproperties.IntPropertyFn
+		ESAnalyzerLimitToTypes                   dynamicproperties.StringPropertyFn
+		ESAnalyzerEnableAvgDurationBasedChecks   dynamicproperties.BoolPropertyFn
+		ESAnalyzerLimitToDomains                 dynamicproperties.StringPropertyFn
+		ESAnalyzerNumWorkflowsToRefresh          dynamicproperties.IntPropertyFnWithWorkflowTypeFilter
+		ESAnalyzerBufferWaitTime                 dynamicproperties.DurationPropertyFnWithWorkflowTypeFilter
+		ESAnalyzerMinNumWorkflowsForAvg          dynamicproperties.IntPropertyFnWithWorkflowTypeFilter
+		ESAnalyzerWorkflowDurationWarnThresholds dynamicproperties.StringPropertyFn
+		ESAnalyzerWorkflowVersionDomains         dynamicproperties.StringPropertyFn
+		ESAnalyzerWorkflowTypeDomains            dynamicproperties.StringPropertyFn
 	}
 
 	Workflow struct {
@@ -124,7 +124,7 @@ func New(
 
 	if esClient != nil {
 		mode = ES
-		indexName = esConfig.Indices[common.VisibilityAppName]
+		indexName = esConfig.Indices[constants.VisibilityAppName]
 		pinotTableName = ""
 	} else if pinotClient != nil {
 		mode = Pinot
@@ -161,7 +161,7 @@ func (a *Analyzer) Start() error {
 		BackgroundActivityContext: ctx,
 		Tracer:                    opentracing.GlobalTracer(),
 	}
-	esWorker := worker.New(a.svcClient, common.SystemLocalDomainName, taskListName, workerOpts)
+	esWorker := worker.New(a.svcClient, constants.SystemLocalDomainName, taskListName, workerOpts)
 	err := esWorker.Start()
 	return err
 }

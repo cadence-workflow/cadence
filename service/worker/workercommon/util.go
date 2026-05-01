@@ -27,8 +27,8 @@ import (
 
 	"go.uber.org/cadence/client"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/resource"
 )
@@ -43,7 +43,7 @@ func StartWorkflowWithRetry(
 	time.Sleep(startUpDelay)
 	sdkClient := client.NewClient(
 		resource.GetSDKClient(),
-		common.SystemLocalDomainName,
+		constants.SystemLocalDomainName,
 		nil, /* &client.Options{} */
 	)
 	policy := backoff.NewExponentialRetryPolicy(time.Second)
@@ -53,7 +53,7 @@ func StartWorkflowWithRetry(
 		backoff.WithRetryPolicy(policy),
 		backoff.WithRetryableError(func(_ error) bool { return true }),
 	)
-	err := throttleRetry.Do(context.Background(), func() error {
+	err := throttleRetry.Do(context.Background(), func(ctx context.Context) error {
 		return startWorkflow(sdkClient)
 	})
 	if err != nil {

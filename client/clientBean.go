@@ -33,8 +33,10 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -44,20 +46,24 @@ type (
 		GetHistoryPeers() history.PeerResolver
 		GetMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error)
 		GetFrontendClient() frontend.Client
-		GetRemoteAdminClient(cluster string) admin.Client
+		GetShardDistributorClient() sharddistributor.Client
+		GetShardDistributorExecutorClient() executorclient.Client
+		GetRemoteAdminClient(cluster string) (admin.Client, error)
 		SetRemoteAdminClient(cluster string, client admin.Client)
-		GetRemoteFrontendClient(cluster string) frontend.Client
+		GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	}
 
 	clientBeanImpl struct {
 		sync.Mutex
-		historyClient         history.Client
-		historyPeers          history.PeerResolver
-		matchingClient        atomic.Value
-		frontendClient        frontend.Client
-		remoteAdminClients    map[string]admin.Client
-		remoteFrontendClients map[string]frontend.Client
-		factory               Factory
+		historyClient                  history.Client
+		historyPeers                   history.PeerResolver
+		matchingClient                 atomic.Value
+		frontendClient                 frontend.Client
+		shardDistributorClient         sharddistributor.Client
+		shardDistributorExecutorClient executorclient.Client
+		remoteAdminClients             map[string]admin.Client
+		remoteFrontendClients          map[string]frontend.Client
+		factory                        Factory
 	}
 )
 
@@ -96,13 +102,25 @@ func NewClientBean(factory Factory, dispatcher *yarpc.Dispatcher, clusterMetadat
 		remoteFrontendClients[clusterName] = frontendClient
 	}
 
+	shardDistributorClient, err := factory.NewShardDistributorClient()
+	if err != nil {
+		return nil, err
+	}
+
+	shardDistributorExecutorClient, err := factory.NewShardDistributorExecutorClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &clientBeanImpl{
-		factory:               factory,
-		historyClient:         historyClient,
-		historyPeers:          historyPeers,
-		frontendClient:        remoteFrontendClients[clusterMetadata.GetCurrentClusterName()],
-		remoteAdminClients:    remoteAdminClients,
-		remoteFrontendClients: remoteFrontendClients,
+		factory:                        factory,
+		historyClient:                  historyClient,
+		historyPeers:                   historyPeers,
+		frontendClient:                 remoteFrontendClients[clusterMetadata.GetCurrentClusterName()],
+		shardDistributorClient:         shardDistributorClient,
+		shardDistributorExecutorClient: shardDistributorExecutorClient,
+		remoteAdminClients:             remoteAdminClients,
+		remoteFrontendClients:          remoteFrontendClients,
 	}, nil
 }
 
@@ -125,16 +143,20 @@ func (h *clientBeanImpl) GetFrontendClient() frontend.Client {
 	return h.frontendClient
 }
 
-func (h *clientBeanImpl) GetRemoteAdminClient(cluster string) admin.Client {
+func (h *clientBeanImpl) GetShardDistributorClient() sharddistributor.Client {
+	return h.shardDistributorClient
+}
+
+func (h *clientBeanImpl) GetShardDistributorExecutorClient() executorclient.Client {
+	return h.shardDistributorExecutorClient
+}
+
+func (h *clientBeanImpl) GetRemoteAdminClient(cluster string) (admin.Client, error) {
 	client, ok := h.remoteAdminClients[cluster]
 	if !ok {
-		panic(fmt.Sprintf(
-			"Unknown cluster name: %v with given cluster client map: %v.",
-			cluster,
-			h.remoteAdminClients,
-		))
+		return nil, fmt.Errorf("unknown cluster name: %v with given cluster client map: %v", cluster, h.remoteAdminClients)
 	}
-	return client
+	return client, nil
 }
 
 func (h *clientBeanImpl) SetRemoteAdminClient(
@@ -145,16 +167,12 @@ func (h *clientBeanImpl) SetRemoteAdminClient(
 	h.remoteAdminClients[cluster] = client
 }
 
-func (h *clientBeanImpl) GetRemoteFrontendClient(cluster string) frontend.Client {
+func (h *clientBeanImpl) GetRemoteFrontendClient(cluster string) (frontend.Client, error) {
 	client, ok := h.remoteFrontendClients[cluster]
 	if !ok {
-		panic(fmt.Sprintf(
-			"Unknown cluster name: %v with given cluster client map: %v.",
-			cluster,
-			h.remoteFrontendClients,
-		))
+		return nil, fmt.Errorf("unknown cluster name: %v with given cluster client map: %v", cluster, h.remoteFrontendClients)
 	}
-	return client
+	return client, nil
 }
 
 func (h *clientBeanImpl) lazyInitMatchingClient(domainIDToName DomainIDToNameFunc) (matching.Client, error) {

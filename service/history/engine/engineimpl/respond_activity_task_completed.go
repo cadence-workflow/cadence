@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -39,19 +39,18 @@ func (e *historyEngineImpl) RespondActivityTaskCompleted(
 	ctx context.Context,
 	req *types.HistoryRespondActivityTaskCompletedRequest,
 ) error {
-
-	domainEntry, err := e.getActiveDomainByID(req.DomainUUID)
-	if err != nil {
-		return err
-	}
-	domainID := domainEntry.GetInfo().ID
-	domainName := domainEntry.GetInfo().Name
-
 	request := req.CompleteRequest
 	token, err0 := e.tokenSerializer.Deserialize(request.TaskToken)
 	if err0 != nil {
 		return workflow.ErrDeserializingToken
 	}
+
+	domainEntry, err := e.getActiveDomainByWorkflow(ctx, req.DomainUUID, token.WorkflowID, token.RunID)
+	if err != nil {
+		return err
+	}
+	domainID := domainEntry.GetInfo().ID
+	domainName := domainEntry.GetInfo().Name
 
 	workflowExecution := types.WorkflowExecution{
 		WorkflowID: token.WorkflowID,
@@ -60,14 +59,14 @@ func (e *historyEngineImpl) RespondActivityTaskCompleted(
 
 	var activityStartedTime time.Time
 	var taskList string
-	err = workflow.UpdateWithAction(ctx, e.executionCache, domainID, workflowExecution, true, e.timeSource.Now(),
+	err = workflow.UpdateWithAction(ctx, e.logger, e.executionCache, domainID, workflowExecution, true, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrAlreadyCompleted
 			}
 
 			scheduleID := token.ScheduleID
-			if scheduleID == common.EmptyEventID { // client call CompleteActivityById, so get scheduleID by activityID
+			if scheduleID == constants.EmptyEventID { // client call CompleteActivityById, so get scheduleID by activityID
 				scheduleID, err0 = getScheduleID(token.ActivityID, mutableState)
 				if err0 != nil {
 					return err0
@@ -89,8 +88,8 @@ func (e *historyEngineImpl) RespondActivityTaskCompleted(
 				return workflow.ErrStaleState
 			}
 
-			if !isRunning || ai.StartedID == common.EmptyEventID ||
-				(token.ScheduleID != common.EmptyEventID && token.ScheduleAttempt != int64(ai.Attempt)) {
+			if !isRunning || ai.StartedID == constants.EmptyEventID ||
+				(token.ScheduleID != constants.EmptyEventID && token.ScheduleAttempt != int64(ai.Attempt)) {
 				e.logger.Warn(fmt.Sprintf(
 					"Encounter non existing activity in RecordActivityTaskCompleted: isRunning: %t, ai: %#v, token: %#v.",
 					isRunning, ai, token),
@@ -119,7 +118,9 @@ func (e *historyEngineImpl) RespondActivityTaskCompleted(
 				metrics.ActivityTypeTag(token.ActivityType),
 				metrics.TaskListTag(taskList),
 			)
-		scope.RecordTimer(metrics.ActivityE2ELatency, time.Since(activityStartedTime))
+		e2eLatency := time.Since(activityStartedTime)
+		scope.RecordTimer(metrics.ActivityE2ELatency, e2eLatency)
+		scope.ExponentialHistogram(metrics.ActivityE2ELatencyHistogram, e2eLatency)
 	}
 	return err
 }

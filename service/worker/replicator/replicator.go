@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/client"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/log"
@@ -81,17 +82,22 @@ func NewReplicator(
 func (r *Replicator) Start() error {
 	currentClusterName := r.clusterMetadata.GetCurrentClusterName()
 	for clusterName := range r.clusterMetadata.GetRemoteClusterInfo() {
+		adminClient, err := r.clientBean.GetRemoteAdminClient(clusterName)
+		if err != nil {
+			return err
+		}
 		processor := newDomainReplicationProcessor(
 			clusterName,
 			currentClusterName,
 			r.logger.WithTags(tag.ComponentReplicationTaskProcessor, tag.SourceCluster(clusterName)),
-			r.clientBean.GetRemoteAdminClient(clusterName),
+			adminClient,
 			r.metricsClient,
 			r.domainReplicationTaskExecutor,
 			r.hostInfo,
 			r.membershipResolver,
 			r.domainReplicationQueue,
 			r.replicationMaxRetry,
+			clock.NewRealTimeSource(),
 		)
 		r.domainProcessors = append(r.domainProcessors, processor)
 	}

@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -destination mock_manager_factory.go -self_package github.com/uber/cadence/tools/cli github.com/uber/cadence/tools/cli ManagerFactory
+
 package cli
 
 import (
@@ -26,15 +28,16 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"
 	"github.com/uber/cadence/common/persistence/sql"
+	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/tools/common/flag"
 )
 
@@ -150,20 +153,33 @@ func getDBFlags() []cli.Flag {
 	}
 }
 
-func initializeExecutionStore(c *cli.Context, shardID int) (persistence.ExecutionManager, error) {
-	factory, err := getPersistenceFactory(c)
+type ManagerFactory interface {
+	initializeExecutionManager(c *cli.Context, shardID int) (persistence.ExecutionManager, error)
+	initializeHistoryManager(c *cli.Context) (persistence.HistoryManager, error)
+	initializeShardManager(c *cli.Context) (persistence.ShardManager, error)
+	initializeDomainManager(c *cli.Context) (persistence.DomainManager, error)
+	initPersistenceFactory(c *cli.Context) (client.Factory, error)
+	initializeInvariantManager(ivs []invariant.Invariant) (invariant.Manager, error)
+}
+
+type defaultManagerFactory struct {
+	persistenceFactory client.Factory
+}
+
+func (f *defaultManagerFactory) initializeExecutionManager(c *cli.Context, shardID int) (persistence.ExecutionManager, error) {
+	factory, err := f.getPersistenceFactory(c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get persistence factory: %w", err)
 	}
-	historyManager, err := factory.NewExecutionManager(shardID)
+	executionManager, err := factory.NewExecutionManager(shardID)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize history manager %w", err)
 	}
-	return historyManager, nil
+	return executionManager, nil
 }
 
-func initializeHistoryManager(c *cli.Context) (persistence.HistoryManager, error) {
-	factory, err := getPersistenceFactory(c)
+func (f *defaultManagerFactory) initializeHistoryManager(c *cli.Context) (persistence.HistoryManager, error) {
+	factory, err := f.getPersistenceFactory(c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get persistence factory: %w", err)
 	}
@@ -174,8 +190,8 @@ func initializeHistoryManager(c *cli.Context) (persistence.HistoryManager, error
 	return historyManager, nil
 }
 
-func initializeShardManager(c *cli.Context) (persistence.ShardManager, error) {
-	factory, err := getPersistenceFactory(c)
+func (f *defaultManagerFactory) initializeShardManager(c *cli.Context) (persistence.ShardManager, error) {
+	factory, err := f.getPersistenceFactory(c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get persistence factory: %w", err)
 	}
@@ -186,8 +202,8 @@ func initializeShardManager(c *cli.Context) (persistence.ShardManager, error) {
 	return shardManager, nil
 }
 
-func initializeDomainManager(c *cli.Context) (persistence.DomainManager, error) {
-	factory, err := getPersistenceFactory(c)
+func (f *defaultManagerFactory) initializeDomainManager(c *cli.Context) (persistence.DomainManager, error) {
+	factory, err := f.getPersistenceFactory(c)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get persistence factory: %w", err)
 	}
@@ -198,20 +214,18 @@ func initializeDomainManager(c *cli.Context) (persistence.DomainManager, error) 
 	return domainManager, nil
 }
 
-var persistenceFactory client.Factory
-
-func getPersistenceFactory(c *cli.Context) (client.Factory, error) {
+func (f *defaultManagerFactory) getPersistenceFactory(c *cli.Context) (client.Factory, error) {
 	var err error
-	if persistenceFactory == nil {
-		persistenceFactory, err = initPersistenceFactory(c)
+	if f.persistenceFactory == nil {
+		f.persistenceFactory, err = getDeps(c).initPersistenceFactory(c)
 		if err != nil {
-			return persistenceFactory, fmt.Errorf("%w", err)
+			return f.persistenceFactory, fmt.Errorf("%w", err)
 		}
 	}
-	return persistenceFactory, nil
+	return f.persistenceFactory, nil
 }
 
-func initPersistenceFactory(c *cli.Context) (client.Factory, error) {
+func (f *defaultManagerFactory) initPersistenceFactory(c *cli.Context) (client.Factory, error) {
 	cfg, err := getDeps(c).ServerConfig(c)
 
 	if err != nil {
@@ -236,8 +250,8 @@ func initPersistenceFactory(c *cli.Context) (client.Factory, error) {
 	}
 	cfg.Persistence.DataStores[cfg.Persistence.DefaultStore] = defaultStore
 
-	cfg.Persistence.TransactionSizeLimit = dynamicconfig.GetIntPropertyFn(common.DefaultTransactionSizeLimit)
-	cfg.Persistence.ErrorInjectionRate = dynamicconfig.GetFloatPropertyFn(0.0)
+	cfg.Persistence.TransactionSizeLimit = dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit)
+	cfg.Persistence.ErrorInjectionRate = dynamicproperties.GetFloatPropertyFn(0.0)
 
 	rps := c.Float64(FlagRPS)
 
@@ -248,9 +262,13 @@ func initPersistenceFactory(c *cli.Context) (client.Factory, error) {
 		metrics.NewNoopMetricsClient(),
 		log.NewNoop(),
 		&persistence.DynamicConfiguration{
-			EnableSQLAsyncTransaction: dynamicconfig.GetBoolPropertyFn(false),
+			EnableSQLAsyncTransaction: dynamicproperties.GetBoolPropertyFn(false),
 		},
 	), nil
+}
+
+func (f *defaultManagerFactory) initializeInvariantManager(ivs []invariant.Invariant) (invariant.Manager, error) {
+	return invariant.NewInvariantManager(ivs), nil
 }
 
 func overrideDataStore(c *cli.Context, ds config.DataStore) (config.DataStore, error) {

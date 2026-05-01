@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -51,7 +51,7 @@ func TestCopyActivityInfo(t *testing.T) {
 
 		d1 := persistence.ActivityInfo{}
 		f.Fuzz(&d1)
-		d2 := CopyActivityInfo(&d1)
+		d2 := CopyActivityInfo(t, &d1)
 
 		assert.Equal(t, &d1, d2)
 	})
@@ -63,7 +63,7 @@ func TestCopyWorkflowExecutionInfo(t *testing.T) {
 
 		d1 := persistence.WorkflowExecutionInfo{}
 		f.Fuzz(&d1)
-		d2 := CopyWorkflowExecutionInfo(&d1)
+		d2 := CopyWorkflowExecutionInfo(t, &d1)
 
 		assert.Equal(t, &d1, d2)
 	})
@@ -75,7 +75,7 @@ func TestCopyTimerInfoMapping(t *testing.T) {
 
 		d1 := persistence.TimerInfo{}
 		f.Fuzz(&d1)
-		d2 := CopyTimerInfo(&d1)
+		d2 := CopyTimerInfo(t, &d1)
 
 		assert.Equal(t, &d1, d2)
 	})
@@ -87,7 +87,7 @@ func TestChildWorkflowMapping(t *testing.T) {
 
 		d1 := persistence.ChildExecutionInfo{}
 		f.Fuzz(&d1)
-		d2 := CopyChildInfo(&d1)
+		d2 := CopyChildInfo(t, &d1)
 
 		assert.Equal(t, &d1, d2)
 	})
@@ -99,7 +99,7 @@ func TestCopySignalInfo(t *testing.T) {
 
 		d1 := persistence.SignalInfo{}
 		f.Fuzz(&d1)
-		d2 := CopySignalInfo(&d1)
+		d2 := CopySignalInfo(t, &d1)
 
 		assert.Equal(t, &d1, d2)
 	})
@@ -111,7 +111,7 @@ func TestCopyCancellationInfo(t *testing.T) {
 
 		d1 := persistence.RequestCancelInfo{}
 		f.Fuzz(&d1)
-		d2 := CopyCancellationInfo(&d1)
+		d2 := CopyCancellationInfo(t, &d1)
 
 		assert.Equal(t, &d1, d2)
 	})
@@ -339,10 +339,11 @@ func TestCreatePersistenceMutableState(t *testing.T) {
 	mockShardContext.EXPECT().GetEventsCache().Return(mockEventsCache)
 	mockShardContext.EXPECT().GetConfig().Return(config.NewForTest())
 	mockShardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
-	mockShardContext.EXPECT().GetMetricsClient().Return(metrics.NewClient(tally.NoopScope, metrics.History))
+	mockShardContext.EXPECT().GetMetricsClient().Return(metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}))
 	mockShardContext.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShardContext.EXPECT().GetLogger().Return(logger).AnyTimes()
 
-	builder := newMutableStateBuilder(mockShardContext, logger, constants.TestLocalDomainEntry)
+	builder := newMutableStateBuilder(mockShardContext, logger, constants.TestLocalDomainEntry, constants.TestLocalDomainEntry.GetFailoverVersion())
 	builder.pendingActivityInfoIDs[0] = &persistence.ActivityInfo{}
 	builder.pendingTimerInfoIDs["some-key"] = &persistence.TimerInfo{}
 	builder.pendingSignalInfoIDs[0] = &persistence.SignalInfo{}
@@ -354,7 +355,7 @@ func TestCreatePersistenceMutableState(t *testing.T) {
 	builder.decisionTaskManager.(*mutableStateDecisionTaskManagerImpl).HasInFlightDecision()
 	builder.executionInfo.DecisionStartedID = 1
 
-	mutableState := CreatePersistenceMutableState(builder)
+	mutableState := CreatePersistenceMutableState(t, builder)
 	assert.NotNil(t, mutableState)
 	assert.Equal(t, builder.executionInfo, mutableState.ExecutionInfo)
 	assert.Equal(t, builder.pendingActivityInfoIDs, mutableState.ActivityInfos)
@@ -429,7 +430,7 @@ func TestGetChildExecutionDomainEntry(t *testing.T) {
 		mockDomainCache := cache.NewMockDomainCache(gomock.NewController(t))
 		expected := &cache.DomainCacheEntry{}
 		mockDomainCache.EXPECT().GetDomainByID(childInfo.DomainID).Return(expected, nil)
-		entry, err := GetChildExecutionDomainEntry(childInfo, mockDomainCache, constants.TestLocalDomainEntry)
+		entry, err := GetChildExecutionDomainEntry(t, childInfo, mockDomainCache, constants.TestLocalDomainEntry)
 		require.NoError(t, err)
 		assert.Equal(t, expected, entry)
 	})
@@ -440,7 +441,7 @@ func TestGetChildExecutionDomainEntry(t *testing.T) {
 		mockDomainCache := cache.NewMockDomainCache(gomock.NewController(t))
 		expected := &cache.DomainCacheEntry{}
 		mockDomainCache.EXPECT().GetDomain(childInfo.DomainNameDEPRECATED).Return(expected, nil)
-		entry, err := GetChildExecutionDomainEntry(childInfo, mockDomainCache, parentDomainEntry)
+		entry, err := GetChildExecutionDomainEntry(t, childInfo, mockDomainCache, parentDomainEntry)
 		require.NoError(t, err)
 		assert.Equal(t, expected, entry)
 	})
@@ -449,7 +450,7 @@ func TestGetChildExecutionDomainEntry(t *testing.T) {
 		childInfo := &persistence.ChildExecutionInfo{}
 		parentDomainEntry := constants.TestLocalDomainEntry
 		mockDomainCache := cache.NewMockDomainCache(gomock.NewController(t))
-		entry, err := GetChildExecutionDomainEntry(childInfo, mockDomainCache, parentDomainEntry)
+		entry, err := GetChildExecutionDomainEntry(t, childInfo, mockDomainCache, parentDomainEntry)
 		require.NoError(t, err)
 		assert.Equal(t, parentDomainEntry, entry)
 	})
@@ -457,58 +458,21 @@ func TestGetChildExecutionDomainEntry(t *testing.T) {
 
 func TestConvert(t *testing.T) {
 	t.Run("convertSyncActivityInfos", func(t *testing.T) {
+		executionInfo := &persistence.WorkflowExecutionInfo{
+			DomainID:   "some-domain-id",
+			WorkflowID: "some-workflow-id",
+			RunID:      "some-run-id",
+		}
 		activityInfos := map[int64]*persistence.ActivityInfo{1: {Version: 1, ScheduleID: 1}}
 		inputs := map[int64]struct{}{1: {}}
-		outputs := convertSyncActivityInfos(activityInfos, inputs)
+		outputs := convertSyncActivityInfos(executionInfo, activityInfos, inputs)
 		assert.NotNil(t, outputs)
 		assert.Equal(t, 1, len(outputs))
 		assert.Equal(t, int64(1), outputs[0].(*persistence.SyncActivityTask).ScheduledID)
 		assert.Equal(t, int64(1), outputs[0].GetVersion())
-	})
-
-	t.Run("convertUpdateRequestCancelInfos", func(t *testing.T) {
-		key := int64(0)
-		inputs := map[int64]*persistence.RequestCancelInfo{key: {}}
-		outputs := convertUpdateRequestCancelInfos(inputs)
-		assert.NotNil(t, outputs)
-		assert.Equal(t, 1, len(outputs))
-		assert.Equal(t, inputs[key], outputs[0])
-	})
-
-	t.Run("convertPendingRequestCancelInfos", func(t *testing.T) {
-		key := int64(0)
-		inputs := map[int64]*persistence.RequestCancelInfo{key: {}}
-		outputs := convertPendingRequestCancelInfos(inputs)
-		assert.NotNil(t, outputs)
-		assert.Equal(t, 1, len(outputs))
-		assert.Equal(t, inputs[key], outputs[0])
-	})
-
-	t.Run("convertInt64SetToSlice", func(t *testing.T) {
-		key := int64(0)
-		inputs := map[int64]struct{}{key: {}}
-		outputs := convertInt64SetToSlice(inputs)
-		assert.NotNil(t, outputs)
-		assert.Equal(t, 1, len(outputs))
-		assert.Equal(t, key, outputs[0])
-	})
-
-	t.Run("convertUpdateChildExecutionInfos", func(t *testing.T) {
-		key := int64(0)
-		inputs := map[int64]*persistence.ChildExecutionInfo{key: {}}
-		outputs := convertUpdateChildExecutionInfos(inputs)
-		assert.NotNil(t, outputs)
-		assert.Equal(t, 1, len(outputs))
-		assert.Equal(t, inputs[key], outputs[0])
-	})
-
-	t.Run("convertUpdateSignalInfos", func(t *testing.T) {
-		key := int64(0)
-		inputs := map[int64]*persistence.SignalInfo{key: {}}
-		outputs := convertUpdateSignalInfos(inputs)
-		assert.NotNil(t, outputs)
-		assert.Equal(t, 1, len(outputs))
-		assert.Equal(t, inputs[key], outputs[0])
+		assert.Equal(t, executionInfo.DomainID, outputs[0].(*persistence.SyncActivityTask).DomainID)
+		assert.Equal(t, executionInfo.WorkflowID, outputs[0].(*persistence.SyncActivityTask).WorkflowID)
+		assert.Equal(t, executionInfo.RunID, outputs[0].(*persistence.SyncActivityTask).RunID)
 	})
 }
 

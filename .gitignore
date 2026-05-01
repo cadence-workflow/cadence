@@ -11,21 +11,24 @@
 .vscode/
 .build/
 .bin/
+.cursor/
 /vendor
 /_vendor-*
 /cadence
 .DS_Store
+*.log
 test
-test.log
 test_xdc
-test_xdc.log
 test_e2e
 test_eventsV2
-test_eventsV2.log
 test_eventsV2_xdc
-test_eventsV2_xdc.log
 matching-simulator-output/
-simulation_comparison.csv
+history-simulator-output/
+replication-simulator-output/
+**/Dockerfile.local*
+**/Dockerfile.light*
+dockerize
+*.crt
 
 # Executables produced by cadence repo
 /cadence
@@ -34,3 +37,14 @@ simulation_comparison.csv
 /cadence-bench
 /cadence-cassandra-tool
 /cadence-sql-tool
+/cadence-releaser
+/sharddistributor-canary
+
+# SQLite databases
+cadence.db*
+cadence_visibility.db*
+
+# Local settings
+settings.local.json
+.mcp.json
+*.bak

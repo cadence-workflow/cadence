@@ -30,14 +30,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -357,7 +357,7 @@ func TestConsumerManagerEnabledDisabled(t *testing.T) {
 		mockQueueProvider,
 		nil,
 		WithTimeSource(mockTimeSrc),
-		WithEnabledPropertyFn(func(opts ...dynamicconfig.FilterOption) bool {
+		WithEnabledPropertyFn(func(opts ...dynamicproperties.FilterOption) bool {
 			return atomic.LoadInt32(&consumerMgrEnabled) == 1
 		}),
 		WithEmitConsumerCountMetrifFn(func(count int) {
@@ -370,6 +370,7 @@ func TestConsumerManagerEnabledDisabled(t *testing.T) {
 
 	// wait for the first round of consumers to be created and verify consumer count
 	atomic.StoreInt32(&consumerMgrEnabled, 1)
+	mockTimeSrc.Advance(defaultRefreshInterval)
 	time.Sleep(50 * time.Millisecond)
 	t.Log("first round comparison")
 	got := atomic.LoadInt32(&consumerCount)

@@ -25,12 +25,15 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -153,7 +156,7 @@ func TestGetHistoryTree(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser)
+			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, nil)
 			require.NoError(t, err, "Failed to create sql history store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -365,7 +368,7 @@ func TestDeleteHistoryBranch(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockTx := sqlplugin.NewMockTx(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser)
+			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, nil)
 			require.NoError(t, err, "Failed to create sql history store")
 
 			tc.mockSetup(mockDB, mockTx, mockParser)
@@ -380,6 +383,7 @@ func TestDeleteHistoryBranch(t *testing.T) {
 }
 
 func TestForkHistoryBranch(t *testing.T) {
+	now := time.Now()
 	testCases := []struct {
 		name      string
 		req       *persistence.InternalForkHistoryBranchRequest
@@ -406,13 +410,17 @@ func TestForkHistoryBranch(t *testing.T) {
 						},
 					},
 				},
-				ForkNodeID:  4,
-				NewBranchID: "630ec3d3-f74b-423f-a138-3b35494fe699",
-				Info:        "test",
-				ShardID:     1,
+				ForkNodeID:       4,
+				NewBranchID:      "630ec3d3-f74b-423f-a138-3b35494fe699",
+				Info:             "test",
+				ShardID:          1,
+				CurrentTimeStamp: now,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil)
+				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.HistoryTreeInfo) (persistence.DataBlob, error) {
+					assert.WithinDuration(t, now, info.CreatedTimestamp, time.Second)
+					return persistence.DataBlob{}, nil
+				})
 				mockDB.EXPECT().InsertIntoHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeRow{
 					ShardID:  1,
 					TreeID:   serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
@@ -545,7 +553,7 @@ func TestForkHistoryBranch(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser)
+			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, nil)
 			require.NoError(t, err, "Failed to create sql history store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -561,6 +569,7 @@ func TestForkHistoryBranch(t *testing.T) {
 }
 
 func TestAppendHistoryNodes(t *testing.T) {
+	now := time.Now()
 	testCases := []struct {
 		name      string
 		req       *persistence.InternalAppendHistoryNodesRequest
@@ -584,13 +593,17 @@ func TestAppendHistoryNodes(t *testing.T) {
 						},
 					},
 				},
-				NodeID:        11,
-				Events:        &persistence.DataBlob{},
-				TransactionID: 100,
-				ShardID:       1,
+				NodeID:           11,
+				Events:           &persistence.DataBlob{},
+				TransactionID:    100,
+				ShardID:          1,
+				CurrentTimeStamp: now,
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil)
+				mockParser.EXPECT().HistoryTreeInfoToBlob(gomock.Any()).DoAndReturn(func(info *serialization.HistoryTreeInfo) (persistence.DataBlob, error) {
+					assert.WithinDuration(t, now, info.CreatedTimestamp, time.Second)
+					return persistence.DataBlob{}, nil
+				})
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 				mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
 				mockTx.EXPECT().InsertIntoHistoryNode(gomock.Any(), &sqlplugin.HistoryNodeRow{
@@ -807,7 +820,7 @@ func TestAppendHistoryNodes(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockTx := sqlplugin.NewMockTx(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser)
+			store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, nil)
 			require.NoError(t, err, "Failed to create sql history store")
 
 			tc.mockSetup(mockDB, mockTx, mockParser)
@@ -870,7 +883,7 @@ func TestReadHistoryBranch(t *testing.T) {
 				}, nil)
 			},
 			want: &persistence.InternalReadHistoryBranchResponse{
-				History:           []*persistence.DataBlob{{Data: []byte(`b`), Encoding: common.EncodingType("b")}},
+				History:           []*persistence.DataBlob{{Data: []byte(`b`), Encoding: constants.EncodingType("b")}},
 				NextPageToken:     serializePageToken(202),
 				LastNodeID:        202,
 				LastTransactionID: 101,
@@ -1025,7 +1038,7 @@ func TestReadHistoryBranch(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewHistoryV2Persistence(mockDB, nil, nil)
+			store, err := NewHistoryV2Persistence(mockDB, nil, nil, nil)
 			require.NoError(t, err, "Failed to create sql history store")
 
 			tc.mockSetup(mockDB)
@@ -1041,4 +1054,176 @@ func TestReadHistoryBranch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeleteHistoryBranch_CustomBatchSize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := sqlplugin.NewMockDB(ctrl)
+	mockTx := sqlplugin.NewMockTx(ctrl)
+	mockParser := serialization.NewMockParser(ctrl)
+
+	customBatchSize := 500
+	dc := &persistence.DynamicConfiguration{
+		HistoryNodeDeleteBatchSize: func(...dynamicproperties.FilterOption) int { return customBatchSize },
+	}
+
+	store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, dc)
+	require.NoError(t, err)
+
+	req := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "530ec3d3-f74b-423f-a138-3b35494fe691",
+			BranchID: "630ec3d3-f74b-423f-a138-3b35494fe691",
+		},
+		ShardID: 1,
+	}
+
+	mockDB.EXPECT().SelectFromHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeFilter{
+		TreeID:  serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		ShardID: 1,
+	}).Return([]sqlplugin.HistoryTreeRow{
+		{
+			ShardID:      1,
+			TreeID:       serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+			BranchID:     serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691"),
+			Data:         []byte(`aaaa`),
+			DataEncoding: "json",
+		},
+	}, nil)
+	mockParser.EXPECT().HistoryTreeInfoFromBlob([]byte(`aaaa`), "json").Return(&serialization.HistoryTreeInfo{}, nil)
+
+	mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+	mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+	mockTx.EXPECT().DeleteFromHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeFilter{
+		TreeID:   serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		BranchID: serialization.UUIDPtr(serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691")),
+		ShardID:  1,
+	}).Return(nil, nil)
+	mockTx.EXPECT().DeleteFromHistoryNode(gomock.Any(), &sqlplugin.HistoryNodeFilter{
+		TreeID:    serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		BranchID:  serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691"),
+		ShardID:   1,
+		PageSize:  customBatchSize,
+		MinNodeID: common.Int64Ptr(1),
+	}).Return(&sqlResult{rowsAffected: 1}, nil)
+	mockTx.EXPECT().Commit().Return(nil)
+
+	err = store.DeleteHistoryBranch(context.Background(), req)
+	assert.NoError(t, err)
+}
+
+func TestDeleteHistoryBranch_UnboundedBatchSize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := sqlplugin.NewMockDB(ctrl)
+	mockTx := sqlplugin.NewMockTx(ctrl)
+	mockParser := serialization.NewMockParser(ctrl)
+
+	dc := &persistence.DynamicConfiguration{
+		HistoryNodeDeleteBatchSize: func(...dynamicproperties.FilterOption) int { return 0 },
+	}
+
+	store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, dc)
+	require.NoError(t, err)
+
+	req := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "530ec3d3-f74b-423f-a138-3b35494fe691",
+			BranchID: "630ec3d3-f74b-423f-a138-3b35494fe691",
+		},
+		ShardID: 1,
+	}
+
+	mockDB.EXPECT().SelectFromHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeFilter{
+		TreeID:  serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		ShardID: 1,
+	}).Return([]sqlplugin.HistoryTreeRow{
+		{
+			ShardID:      1,
+			TreeID:       serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+			BranchID:     serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691"),
+			Data:         []byte(`aaaa`),
+			DataEncoding: "json",
+		},
+	}, nil)
+	mockParser.EXPECT().HistoryTreeInfoFromBlob([]byte(`aaaa`), "json").Return(&serialization.HistoryTreeInfo{}, nil)
+
+	mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+	mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+	mockTx.EXPECT().DeleteFromHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeFilter{
+		TreeID:   serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		BranchID: serialization.UUIDPtr(serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691")),
+		ShardID:  1,
+	}).Return(nil, nil)
+	mockTx.EXPECT().DeleteFromHistoryNode(gomock.Any(), &sqlplugin.HistoryNodeFilter{
+		TreeID:    serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		BranchID:  serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691"),
+		ShardID:   1,
+		PageSize:  0,
+		MinNodeID: common.Int64Ptr(1),
+	}).Return(&sqlResult{rowsAffected: 100}, nil)
+	mockTx.EXPECT().Commit().Return(nil)
+
+	err = store.DeleteHistoryBranch(context.Background(), req)
+	assert.NoError(t, err)
+}
+
+func TestDeleteHistoryBranch_NegativeBatchSize(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := sqlplugin.NewMockDB(ctrl)
+	mockTx := sqlplugin.NewMockTx(ctrl)
+	mockParser := serialization.NewMockParser(ctrl)
+
+	dc := &persistence.DynamicConfiguration{
+		HistoryNodeDeleteBatchSize: func(...dynamicproperties.FilterOption) int { return -100 },
+	}
+
+	store, err := NewHistoryV2Persistence(mockDB, nil, mockParser, dc)
+	require.NoError(t, err)
+
+	req := &persistence.InternalDeleteHistoryBranchRequest{
+		BranchInfo: types.HistoryBranch{
+			TreeID:   "530ec3d3-f74b-423f-a138-3b35494fe691",
+			BranchID: "630ec3d3-f74b-423f-a138-3b35494fe691",
+		},
+		ShardID: 1,
+	}
+
+	mockDB.EXPECT().SelectFromHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeFilter{
+		TreeID:  serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		ShardID: 1,
+	}).Return([]sqlplugin.HistoryTreeRow{
+		{
+			ShardID:      1,
+			TreeID:       serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+			BranchID:     serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691"),
+			Data:         []byte(`aaaa`),
+			DataEncoding: "json",
+		},
+	}, nil)
+	mockParser.EXPECT().HistoryTreeInfoFromBlob([]byte(`aaaa`), "json").Return(&serialization.HistoryTreeInfo{}, nil)
+
+	mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+	mockDB.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(mockTx, nil)
+	mockTx.EXPECT().DeleteFromHistoryTree(gomock.Any(), &sqlplugin.HistoryTreeFilter{
+		TreeID:   serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		BranchID: serialization.UUIDPtr(serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691")),
+		ShardID:  1,
+	}).Return(nil, nil)
+	mockTx.EXPECT().DeleteFromHistoryNode(gomock.Any(), &sqlplugin.HistoryNodeFilter{
+		TreeID:    serialization.MustParseUUID("530ec3d3-f74b-423f-a138-3b35494fe691"),
+		BranchID:  serialization.MustParseUUID("630ec3d3-f74b-423f-a138-3b35494fe691"),
+		ShardID:   1,
+		PageSize:  -100,
+		MinNodeID: common.Int64Ptr(1),
+	}).Return(&sqlResult{rowsAffected: 50}, nil)
+	mockTx.EXPECT().Commit().Return(nil)
+
+	err = store.DeleteHistoryBranch(context.Background(), req)
+	assert.NoError(t, err)
 }

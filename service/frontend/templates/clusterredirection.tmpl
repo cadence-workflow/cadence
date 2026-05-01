@@ -12,10 +12,12 @@ import (
 	frontendcfg "github.com/uber/cadence/service/frontend/config"
 )
 
-{{$nonFowradingAPIs := list "Health" "DeprecateDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution"}}
+{{$nonForwardingAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "FailoverDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "DiagnoseWorkflowExecution" "ListFailoverHistory"}}
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
+{{$startWFAPIs := list "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
+{{$nonstartWFAPIs := list "DescribeWorkflowExecutionRequest" "GetWorkflowExecutionHistory" "QueryWorkflowRequest" "RequestCancelWorkflowExecution" "ResetWorkflowExecution" "RestartWorkflowExecution" "SignalWorkflowExecution" "TerminateWorkflowExecution" }}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
-{{$specialCaseAPIs := list "QueryWorkflow"}}
+{{$readAPIsWithStrongConsistency := list "QueryWorkflow" "DescribeWorkflowExecution" "GetWorkflowExecutionHistory"}}
 
 type (
 	// ClusterRedirectionHandlerImpl is simple wrapper over frontend service, doing redirection based on policy for global domains not being active in current cluster
@@ -25,6 +27,8 @@ type (
 		currentClusterName string
 		redirectionPolicy  ClusterRedirectionPolicy
 		tokenSerializer    common.TaskTokenSerializer
+		domainCache        cache.DomainCache
+		config             *frontendcfg.Config
 		frontendHandler    api.Handler
 		callOptions        []yarpc.CallOption
 	}
@@ -40,13 +44,17 @@ func NewAPIHandler(
 	dcRedirectionPolicy := RedirectionPolicyGenerator(
 		resource.GetClusterMetadata(),
 		config,
-		resource.GetDomainCache(),
 		policy,
+		resource.GetLogger(),
+		resource.GetActiveClusterManager(),
+		resource.GetMetricsClient(),
 	)
 
 	return &clusterRedirectionHandler{
 		Resource:           resource,
 		currentClusterName: resource.GetClusterMetadata().GetCurrentClusterName(),
+		domainCache:        resource.GetDomainCache(),
+		config:             config,
 		redirectionPolicy:  dcRedirectionPolicy,
 		tokenSerializer:    common.NewJSONTaskTokenSerializer(),
 		frontendHandler:    wfHandler,
@@ -55,35 +63,44 @@ func NewAPIHandler(
 }
 
 {{range $method := .Interface.Methods}}
-{{- if not (has $method.Name $specialCaseAPIs)}}
 func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
-	{{- if has $method.Name $nonFowradingAPIs}}
+	{{- if has $method.Name $nonForwardingAPIs}}
 	return handler.frontendHandler.{{$method.Call}}
 	{{- else}}
-	var apiName = "{{$method.Name}}"
-	var cluster string
+	var (
+		apiName = "{{$method.Name}}"
+		cluster string
+		requestedConsistencyLevel types.QueryConsistencyLevel = getRequestedConsistencyLevelFromContext(ctx)
+	)
 
-    {{$policyMethod := "WithDomainNameRedirect"}}
-    {{$domain := printf "%s.GetDomain()" (index $method.Params 1).Name}}
-    {{- if has $method.Name $domainIDAPIs}}
-    token := domainIDGetter(noopdomainIDGetter{})
-    {{- end}}
+	{{- if has $method.Name $readAPIsWithStrongConsistency}}
+	// Only autoforward strong consistent queries, this is done for two reasons:
+	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
+	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
+	if {{(index $method.Params 1).Name}}.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
+		requestedConsistencyLevel = types.QueryConsistencyLevelStrong
+	}
+	{{- end}}
+
+	var domainEntry *cache.DomainCacheEntry
 	scope, startTime := handler.beforeCall(metrics.DCRedirection{{$method.Name}}Scope)
 	defer func() {
-		{{- if has $method.Name $domainIDAPIs}}
-		handler.afterCall(recover(), scope, startTime, "", token.GetDomainID(), cluster, &err)
-		{{- else}}
-		handler.afterCall(recover(), scope, startTime, {{$domain}}, "", cluster, &err)
-        {{- end}}
+		handler.afterCall(recover(), scope, startTime, domainEntry, cluster, &err)
 	}()
 
+
 	{{if has $method.Name $domainIDAPIs}}
-	{{$policyMethod = "WithDomainIDRedirect"}}
-	{{$domain = "token.GetDomainID()"}}
+	var idGetter domainIDGetter
 	{{if has $method.Name $queryTaskTokenAPIs}}
-	token, err = handler.tokenSerializer.DeserializeQueryTaskToken({{(index $method.Params 1).Name}}.TaskToken)
+	idGetter, err = handler.tokenSerializer.DeserializeQueryTaskToken({{(index $method.Params 1).Name}}.TaskToken)
 	{{- else}}
-	token, err = handler.tokenSerializer.Deserialize({{(index $method.Params 1).Name}}.TaskToken)
+	idGetter, err = handler.tokenSerializer.Deserialize({{(index $method.Params 1).Name}}.TaskToken)
+	{{- end}}
+	if err == nil {
+		domainEntry, err = handler.domainCache.GetDomainByID(idGetter.GetDomainID())
+	}
+	{{- else}}
+	domainEntry, err = handler.domainCache.GetDomain({{(index $method.Params 1).Name}}.Domain)
 	{{- end}}
 	if err != nil {
 		{{- if eq (len $method.Results) 1}}
@@ -92,15 +109,34 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 		return nil, err
 		{{- end}}
 	}
+
+	var actClSelPolicyForNewWF *types.ActiveClusterSelectionPolicy
+	var workflowExecution *types.WorkflowExecution
+	{{- if has $method.Name $startWFAPIs}}
+	if !handler.config.EnableActiveClusterSelectionPolicyInStartWorkflow(domainEntry.GetInfo().Name) {
+		{{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy = nil
+	}
+	actClSelPolicyForNewWF = {{(index $method.Params 1).Name}}.ActiveClusterSelectionPolicy
+	{{- if eq $method.Name "SignalWithStartWorkflowExecution"}}
+	workflowExecution = &types.WorkflowExecution{
+		WorkflowID: {{(index $method.Params 1).Name}}.GetWorkflowID(),
+	}
+	{{- end}}
+	{{- else if has $method.Name $nonstartWFAPIs}}
+	workflowExecution = {{(index $method.Params 1).Name}}.GetWorkflowExecution()
 	{{- end}}
 
-	err = handler.redirectionPolicy.{{$policyMethod}}(ctx, {{$domain}}, apiName, func(targetDC string) error {
+
+	err = handler.redirectionPolicy.Redirect(ctx, domainEntry, workflowExecution, actClSelPolicyForNewWF, apiName, requestedConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
 			{{$method.ResultsNames}} = handler.frontendHandler.{{$method.Call}}
 		default:
-			remoteClient := handler.GetRemoteFrontendClient(targetDC)
+			remoteClient, clientErr := handler.GetRemoteFrontendClient(targetDC)
+			if clientErr != nil {
+				return clientErr
+			}
 			{{$method.ResultsNames}} = remoteClient.{{$method.Name}}({{$method.Params.Pass}}, handler.callOptions...)
 		}
 		return err
@@ -110,38 +146,3 @@ func (handler *clusterRedirectionHandler) {{$method.Declaration}} {
 	{{- end}}
 }
 {{end}}
-{{end}}
-
-func (handler *clusterRedirectionHandler) QueryWorkflow(
-	ctx context.Context,
-	request *types.QueryWorkflowRequest,
-) (resp *types.QueryWorkflowResponse, retError error) {
-	var apiName = "QueryWorkflow"
-	var err error
-	var cluster string
-
-	// Only autoforward strong consistent queries, this is done for two reasons:
-	// 1. Query is meant to be fast, autoforwarding all queries will increase latency.
-	// 2. If eventual consistency was requested then the results from running out of local dc will be fine.
-	if request.GetQueryConsistencyLevel() == types.QueryConsistencyLevelStrong {
-		apiName = "QueryWorkflowStrongConsistency"
-	}
-	scope, startTime := handler.beforeCall(metrics.DCRedirectionQueryWorkflowScope)
-	defer func() {
-		handler.afterCall(recover(), scope, startTime, request.GetDomain(), "", cluster, &retError)
-	}()
-
-	err = handler.redirectionPolicy.WithDomainNameRedirect(ctx, request.GetDomain(), apiName, func(targetDC string) error {
-		cluster = targetDC
-		switch {
-		case targetDC == handler.currentClusterName:
-			resp, err = handler.frontendHandler.QueryWorkflow(ctx, request)
-		default:
-			remoteClient := handler.GetRemoteFrontendClient(targetDC)
-			resp, err = remoteClient.QueryWorkflow(ctx, request, handler.callOptions...)
-		}
-		return err
-	})
-
-	return resp, err
-}

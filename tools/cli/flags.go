@@ -59,6 +59,13 @@ const (
 	FlagTaskList                       = "tasklist"
 	FlagTaskListType                   = "tasklisttype"
 	FlagWorkflowIDReusePolicy          = "workflowidreusepolicy"
+	FlagScheduleID                     = "schedule_id"
+	FlagCronExpression                 = "cron_expression"
+	FlagOverlapPolicy                  = "overlap_policy"
+	FlagCatchUpPolicy                  = "catch_up_policy"
+	FlagBackfillID                     = "backfill_id"
+	FlagStartTime                      = "start_time"
+	FlagEndTime                        = "end_time"
 	FlagCronSchedule                   = "cron"
 	FlagWorkflowType                   = "workflow_type"
 	FlagWorkflowStatus                 = "status"
@@ -100,6 +107,7 @@ const (
 	FlagForce                          = "force"
 	FlagPageID                         = "page_id"
 	FlagPageSize                       = "pagesize"
+	FlagLimit                          = "limit"
 	FlagEarliestTime                   = "earliest_time"
 	FlagLatestTime                     = "latest_time"
 	FlagPrintEventVersion              = "print_event_version"
@@ -109,6 +117,7 @@ const (
 	FlagPrintDateTime                  = "print_datetime"
 	FlagPrintMemo                      = "print_memo"
 	FlagPrintSearchAttr                = "print_search_attr"
+	FlagPrintCron                      = "print_cron"
 	FlagPrintJSON                      = "print_json" // Deprecated: use --format json
 	FlagDescription                    = "description"
 	FlagOwnerEmail                     = "owner_email"
@@ -125,8 +134,11 @@ const (
 	FlagQueryConsistencyLevel          = "query_consistency_level"
 	FlagShowDetail                     = "show_detail"
 	FlagActiveClusterName              = "active_cluster"
+	FlagActiveClusters                 = "active_clusters"
+	FlagActiveClustersJSON             = "active_clusters_json"
 	FlagClusters                       = "clusters"
-	FlagIsGlobalDomain                 = "global_domain"
+	FlagFailoverReason                 = "reason"
+	FlagIsGlobalDomain                 = "global_domain" // active-passive domain
 	FlagDomainData                     = "domain_data"
 	FlagEventID                        = "event_id"
 	FlagActivityID                     = "activity_id"
@@ -193,6 +205,7 @@ const (
 	FlagFailoverDrill                  = "failover_drill"
 	FlagRetryInterval                  = "retry_interval"
 	FlagRetryAttempts                  = "retry_attempts"
+	FlagMaxActivityRetries             = "max_activity_retries"
 	FlagRetryExpiration                = "retry_expiration"
 	FlagRetryBackoff                   = "retry_backoff"
 	FlagRetryMaxInterval               = "retry_max_interval"
@@ -219,6 +232,14 @@ const (
 	FlagIsolationGroupSetDrains        = "set-drains"
 	FlagIsolationGroupsRemoveAllDrains = "remove-all-drains"
 	FlagSearchAttribute                = "search_attr"
+	FlagNumReadPartitions              = "num_read_partitions"
+	FlagNumWritePartitions             = "num_write_partitions"
+	FlagCronOverlapPolicy              = "cron_overlap_policy"
+	FlagClusterAttributeScope          = "cluster_attribute_scope"
+	FlagClusterAttributeName           = "cluster_attribute_name"
+	FlagBatchV2                        = "v2"
+
+	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"
 )
 
 var flagsForExecution = []cli.Flag{
@@ -293,6 +314,11 @@ func getFlagsForShowID() []cli.Flag {
 			Name:  FlagResetPointsOnly,
 			Usage: "Only show events that are eligible for reset",
 		},
+		&cli.StringFlag{
+			Name:    FlagQueryConsistencyLevel,
+			Aliases: []string{"qcl"},
+			Usage:   "Optional flag to set query consistency level. Valid values are \"eventual\" and \"strong\"",
+		},
 	}
 }
 
@@ -334,6 +360,12 @@ func getFlagsForStart() []cli.Flag {
 				"\t│ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday) \n" +
 				"\t│ │ │ │ │ \n" +
 				"\t* * * * *",
+		},
+		&cli.IntFlag{
+			Name:    FlagCronOverlapPolicy,
+			Aliases: []string{"cop"},
+			Usage: "Optional cron overlap policy for the workflow when a cron run overlaps with next scheduled run. " +
+				"Available options: 0: Skip running if cron run overlaps, 1: Start new run immediately if previous run overlaps and completes",
 		},
 		&cli.IntFlag{
 			Name:    FlagWorkflowIDReusePolicy,
@@ -393,11 +425,11 @@ func getFlagsForStart() []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryExpiration,
-			Usage: "Optional retry expiration in seconds. If set workflow will be retried for the specified period of time.",
+			Usage: "Optional retry expiration in seconds. If set workflow will be retried for the specified period of time. retry_attempts and retry_expiration must not both be 0.",
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryAttempts,
-			Usage: "Optional retry attempts. If set workflow will be retried the specified amount of times.",
+			Usage: "Optional retry attempts. If set workflow will be retried the specified amount of times. retry_attempts and retry_expiration must not both be 0.",
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryInterval,
@@ -407,7 +439,7 @@ func getFlagsForStart() []cli.Flag {
 		&cli.Float64Flag{
 			Name:  FlagRetryBackoff,
 			Value: 1.0,
-			Usage: "Optional retry backoff coeficient. Must be or equal or greater than 1.",
+			Usage: "Optional retry backoff coefficient. Must be or equal or greater than 1.",
 		},
 		&cli.IntFlag{
 			Name:  FlagRetryMaxInterval,
@@ -424,6 +456,16 @@ func getFlagsForStart() []cli.Flag {
 		&cli.StringFlag{
 			Name:  FirstRunAtTime,
 			Usage: "Optional workflow's first run start time in RFC3339 format, like \"1970-01-01T00:00:00Z\". If set, first run of the workflow will start at the specified time.",
+		},
+		&cli.StringFlag{
+			Name:    FlagClusterAttributeScope,
+			Usage:   "Optional cluster attribute to specify how to select the active cluster. Examples might be 'region' or 'location'",
+			Aliases: []string{"cascope"},
+		},
+		&cli.StringFlag{
+			Name:    FlagClusterAttributeName,
+			Usage:   "Optional cluster attribute name, paired with a cluster attribute scope, to specify how to select the active cluster. This specifies which attribute to tie the workflow to, for example, if the scope is 'region' and the name is 'Lisbon' or 'San Francisco'",
+			Aliases: []string{"caname"},
 		},
 	}
 }
@@ -538,6 +580,11 @@ func getCommonFlagsForVisibility() []cli.Flag {
 			Name:    FlagPrintSearchAttr,
 			Aliases: []string{"psa"},
 			Usage:   "Print search attributes",
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintCron,
+			Aliases: []string{"pcr"},
+			Usage:   "Print cron schedule and scheduled execution time",
 		},
 		&cli.BoolFlag{
 			Name:    FlagPrintFullyDetail,
@@ -740,6 +787,11 @@ func getFlagsForDescribeID() []cli.Flag {
 		&cli.BoolFlag{
 			Name:  FlagResetPointsOnly,
 			Usage: "Only show auto-reset points",
+		},
+		&cli.StringFlag{
+			Name:    FlagQueryConsistencyLevel,
+			Aliases: []string{"qcl"},
+			Usage:   "Optional flag to set query consistency level. Valid values are \"eventual\" and \"strong\"",
 		},
 	}
 }

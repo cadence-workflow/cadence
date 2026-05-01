@@ -21,6 +21,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"time"
 
@@ -81,7 +82,7 @@ func DescribeTaskList(c *cli.Context) error {
 		return commoncli.Problem(colorMagenta("No poller for tasklist: "+taskList), nil)
 	}
 
-	return printTaskListPollers(pollers, taskListType)
+	return printTaskListPollers(getDeps(c).Output(), pollers, taskListType)
 }
 
 // ListTaskListPartitions gets all the tasklist partition and host information.
@@ -98,6 +99,8 @@ func ListTaskListPartitions(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
+	taskListType := strToTaskListType(c.String(FlagTaskListType)) // default type is decision
+
 	ctx, cancel, err := newContext(c)
 	defer cancel()
 	if err != nil {
@@ -112,16 +115,19 @@ func ListTaskListPartitions(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Operation ListTaskListPartitions failed.", err)
 	}
-	if len(response.DecisionTaskListPartitions) > 0 {
-		return printTaskListPartitions("Decision", response.DecisionTaskListPartitions)
+
+	switch taskListType {
+	case types.TaskListTypeActivity:
+		return printTaskListPartitions(types.TaskListTypeActivity, response.ActivityTaskListPartitions)
+	case types.TaskListTypeDecision:
+		return printTaskListPartitions(types.TaskListTypeDecision, response.DecisionTaskListPartitions)
+	default:
+		// should never happen
+		return nil
 	}
-	if len(response.ActivityTaskListPartitions) > 0 {
-		return printTaskListPartitions("Activity", response.ActivityTaskListPartitions)
-	}
-	return nil
 }
 
-func printTaskListPollers(pollers []*types.PollerInfo, taskListType types.TaskListType) error {
+func printTaskListPollers(w io.Writer, pollers []*types.PollerInfo, taskListType types.TaskListType) error {
 	table := []TaskListPollerRow{}
 	for _, poller := range pollers {
 		table = append(table, TaskListPollerRow{
@@ -129,13 +135,13 @@ func printTaskListPollers(pollers []*types.PollerInfo, taskListType types.TaskLi
 			DecisionIdentity: poller.GetIdentity(),
 			LastAccessTime:   time.Unix(0, poller.GetLastAccessTime())})
 	}
-	return RenderTable(os.Stdout, table, RenderOptions{Color: true, PrintDateTime: true, OptionalColumns: map[string]bool{
+	return RenderTable(w, table, RenderOptions{Color: true, PrintDateTime: true, OptionalColumns: map[string]bool{
 		"Activity Poller Identity": taskListType == types.TaskListTypeActivity,
 		"Decision Poller Identity": taskListType == types.TaskListTypeDecision,
 	}})
 }
 
-func printTaskListPartitions(taskListType string, partitions []*types.TaskListPartitionMetadata) error {
+func printTaskListPartitions(taskListType types.TaskListType, partitions []*types.TaskListPartitionMetadata) error {
 	table := []TaskListPartitionRow{}
 	for _, partition := range partitions {
 		table = append(table, TaskListPartitionRow{
@@ -145,7 +151,7 @@ func printTaskListPartitions(taskListType string, partitions []*types.TaskListPa
 		})
 	}
 	return RenderTable(os.Stdout, table, RenderOptions{Color: true, OptionalColumns: map[string]bool{
-		"Activity Task List Partition": taskListType == "Activity",
-		"Decision Task List Partition": taskListType == "Decision",
+		"Activity Task List Partition": taskListType == types.TaskListTypeActivity,
+		"Decision Task List Partition": taskListType == types.TaskListTypeDecision,
 	}})
 }

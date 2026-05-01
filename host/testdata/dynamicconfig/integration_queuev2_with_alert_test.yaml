@@ -1,0 +1,59 @@
+frontend.warmupDuration:
+- value: "1s"
+  constraints: {}
+history.enableTimerQueueV2:
+- value: true
+  constraints: {}
+history.enableTransferQueueV2:
+- value: true
+  constraints: {}
+history.shardUpdateMinInterval:
+- value: 3s
+  constraints: {}
+history.timerProcessorUpdateAckInterval:
+- value: 5s
+  constraints: {}
+history.timerProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.transferProcessorUpdateAckInterval:
+- value: 5s
+  constraints: {}
+history.transferProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.queueProcessorPollBackoffInterval:
+- value: 5s
+  constraints: {}
+history.virtualSliceForceAppendInterval:
+- value: 100ms
+  constraints: {}
+# Only Enable 1 level of split, which has been verified in simulation
+history.queueMaxVirtualQueueCount:
+- value: 2
+  constraints: {}
+# Enable task rate limiter so that the number of pending tasks increases
+history.taskSchedulerEnableRateLimiter:
+- value: true
+  constraints: {}
+history.taskSchedulerEnableRateLimiterShadowMode:
+- value: false
+  constraints: {}
+history.taskSchedulerGlobalDomainRPS:
+- value: 30
+  constraints: {}
+# Enable pending task queue alert for integration test
+history.enableTransferQueueV2PendingTaskCountAlert:
+- value: true
+  constraints: {}
+history.enableTimerQueueV2PendingTaskCountAlert:
+- value: true
+  constraints: {}
+# Set a low number to trigger queue pause with load from tests
+history.queueMaxPendingTaskCount:
+- value: 20
+  constraints: {}
+# Set a low number to trigger queue split with load from tests
+history.queueCriticalPendingTaskCount:
+- value: 18
+  constraints: {}

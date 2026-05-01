@@ -23,11 +23,12 @@ package resource
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	oldgomock "github.com/golang/mock/gomock" // client library cannot change from the old gomock
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client"
@@ -35,6 +36,8 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
@@ -51,11 +54,11 @@ import (
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/taskvalidator"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -68,6 +71,7 @@ type (
 
 		DomainCache             *cache.MockDomainCache
 		DomainMetricsScopeCache cache.DomainMetricsScopeCache
+		ActiveClusterMgr        *activecluster.MockManager
 		DomainReplicationQueue  *domain.MockReplicationQueue
 		TimeSource              clock.TimeSource
 		PayloadSerializer       persistence.PayloadSerializer
@@ -82,17 +86,19 @@ type (
 
 		// internal services clients
 
-		SDKClient            *publicservicetest.MockClient
-		FrontendClient       *frontend.MockClient
-		MatchingClient       *matching.MockClient
-		HistoryClient        *history.MockClient
-		RemoteAdminClient    *admin.MockClient
-		RemoteFrontendClient *frontend.MockClient
-		ClientBean           *client.MockBean
+		SDKClient                      *publicservicetest.MockClient
+		FrontendClient                 *frontend.MockClient
+		MatchingClient                 *matching.MockClient
+		HistoryClient                  *history.MockClient
+		ShardDistributorExecutorClient *sharddistributorexecutor.MockClient
+		RemoteAdminClient              *admin.MockClient
+		RemoteFrontendClient           *frontend.MockClient
+		ClientBean                     *client.MockBean
 
 		// persistence clients
 
 		MetadataMgr     *mocks.MetadataManager
+		DomainAuditMgr  *persistence.MockDomainAuditManager
 		TaskMgr         *mocks.TaskManager
 		VisibilityMgr   *mocks.VisibilityManager
 		ShardMgr        *mocks.ShardManager
@@ -102,7 +108,6 @@ type (
 
 		IsolationGroups     *isolationgroup.MockState
 		IsolationGroupStore *configstore.MockClient
-		Partitioner         *partition.MockPartitioner
 		HostName            string
 		Logger              log.Logger
 		taskvalidator       taskvalidator.Checker
@@ -140,10 +145,12 @@ func NewTest(
 	clientBean.EXPECT().GetFrontendClient().Return(frontendClient).AnyTimes()
 	clientBean.EXPECT().GetMatchingClient(gomock.Any()).Return(matchingClient, nil).AnyTimes()
 	clientBean.EXPECT().GetHistoryClient().Return(historyClient).AnyTimes()
-	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient).AnyTimes()
-	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient).AnyTimes()
+	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
+	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
+	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(controller)
 
 	metadataMgr := &mocks.MetadataManager{}
+	domainAuditMgr := persistence.NewMockDomainAuditManager(controller)
 	taskMgr := &mocks.TaskManager{}
 	visibilityMgr := &mocks.VisibilityManager{}
 	shardMgr := &mocks.ShardManager{}
@@ -154,6 +161,7 @@ func NewTest(
 	domainReplicationQueue.EXPECT().Stop().AnyTimes()
 	persistenceBean := persistenceClient.NewMockBean(controller)
 	persistenceBean.EXPECT().GetDomainManager().Return(metadataMgr).AnyTimes()
+	persistenceBean.EXPECT().GetDomainAuditManager().Return(domainAuditMgr).AnyTimes()
 	persistenceBean.EXPECT().GetTaskManager().Return(taskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
@@ -163,13 +171,11 @@ func NewTest(
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
 
-	partitionMock := partition.NewMockPartitioner(controller)
-	mockZone := "zone1"
-	partitionMock.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(mockZone, nil)
-
 	scope := tally.NewTestScope("test", nil)
 
 	asyncWorkflowQueueProvider := queue.NewMockProvider(controller)
+
+	activeClusterMgr := activecluster.NewMockManager(controller)
 
 	return &Test{
 		MetricsScope: scope,
@@ -182,12 +188,13 @@ func NewTest(
 		DomainCache:             cache.NewMockDomainCache(controller),
 		DomainMetricsScopeCache: cache.NewDomainMetricsScopeCache(),
 		DomainReplicationQueue:  domainReplicationQueue,
+		ActiveClusterMgr:        activeClusterMgr,
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
-		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex),
+		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex, metrics.MigrationConfig{}),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
-		ArchiverProvider:        &provider.MockArchiverProvider{},
-		BlobstoreClient:         &blobstore.MockClient{},
+		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
+		BlobstoreClient:         blobstore.NewMockClient(controller),
 		MockPayloadSerializer:   persistence.NewMockPayloadSerializer(controller),
 
 		// membership infos
@@ -195,17 +202,19 @@ func NewTest(
 
 		// internal services clients
 
-		SDKClient:            publicservicetest.NewMockClient(controller),
-		FrontendClient:       frontendClient,
-		MatchingClient:       matchingClient,
-		HistoryClient:        historyClient,
-		RemoteAdminClient:    remoteAdminClient,
-		RemoteFrontendClient: remoteFrontendClient,
-		ClientBean:           clientBean,
+		SDKClient:                      publicservicetest.NewMockClient(oldgomock.NewController(t)),
+		FrontendClient:                 frontendClient,
+		MatchingClient:                 matchingClient,
+		HistoryClient:                  historyClient,
+		RemoteAdminClient:              remoteAdminClient,
+		RemoteFrontendClient:           remoteFrontendClient,
+		ClientBean:                     clientBean,
+		ShardDistributorExecutorClient: shardDistributorExecutorClient,
 
 		// persistence clients
 
 		MetadataMgr:     metadataMgr,
+		DomainAuditMgr:  domainAuditMgr,
 		TaskMgr:         taskMgr,
 		VisibilityMgr:   visibilityMgr,
 		ShardMgr:        shardMgr,
@@ -213,8 +222,6 @@ func NewTest(
 		ExecutionMgr:    executionMgr,
 		PersistenceBean: persistenceBean,
 		IsolationGroups: isolationGroupMock,
-		Partitioner:     partitionMock,
-
 		// logger
 
 		Logger: logger,
@@ -270,6 +277,10 @@ func (s *Test) GetDomainReplicationQueue() domain.ReplicationQueue {
 	return s.DomainReplicationQueue
 }
 
+func (s *Test) GetActiveClusterManager() activecluster.Manager {
+	return s.ActiveClusterMgr
+}
+
 // GetTimeSource for testing
 func (s *Test) GetTimeSource() clock.TimeSource {
 	return s.TimeSource
@@ -288,6 +299,11 @@ func (s *Test) GetTaskValidator() taskvalidator.Checker {
 // GetMetricsClient for testing
 func (s *Test) GetMetricsClient() metrics.Client {
 	return s.MetricsClient
+}
+
+// GetMetricsScope for testing
+func (s *Test) GetMetricsScope() tally.Scope {
+	return s.MetricsScope
 }
 
 // GetMessagingClient for testing
@@ -352,20 +368,24 @@ func (s *Test) GetHistoryClient() history.Client {
 	return s.HistoryClient
 }
 
+func (s *Test) GetShardDistributorExecutorClient() executorclient.Client {
+	return s.ShardDistributorExecutorClient
+}
+
 // GetRemoteAdminClient for testing
 func (s *Test) GetRemoteAdminClient(
 	cluster string,
-) admin.Client {
+) (admin.Client, error) {
 
-	return s.RemoteAdminClient
+	return s.RemoteAdminClient, nil
 }
 
 // GetRemoteFrontendClient for testing
 func (s *Test) GetRemoteFrontendClient(
 	cluster string,
-) frontend.Client {
+) (frontend.Client, error) {
 
-	return s.RemoteFrontendClient
+	return s.RemoteFrontendClient, nil
 }
 
 // GetClientBean for testing
@@ -378,6 +398,11 @@ func (s *Test) GetClientBean() client.Bean {
 // GetMetadataManager for testing
 func (s *Test) GetDomainManager() persistence.DomainManager {
 	return s.MetadataMgr
+}
+
+// GetDomainAuditManager for testing
+func (s *Test) GetDomainAuditManager() persistence.DomainAuditManager {
+	return s.DomainAuditMgr
 }
 
 // GetTaskManager for testing
@@ -440,11 +465,6 @@ func (s *Test) GetIsolationGroupState() isolationgroup.State {
 	return s.IsolationGroups
 }
 
-// GetPartitioner returns the partitioner
-func (s *Test) GetPartitioner() partition.Partitioner {
-	return s.Partitioner
-}
-
 // GetIsolationGroupStore returns the config store for their
 // isolation-group stores
 func (s *Test) GetIsolationGroupStore() configstore.Client {
@@ -464,7 +484,6 @@ func (s *Test) Finish(
 	t mock.TestingT,
 ) {
 	s.ArchivalMetadata.AssertExpectations(t)
-	s.ArchiverProvider.AssertExpectations(t)
 
 	s.MetadataMgr.AssertExpectations(t)
 	s.TaskMgr.AssertExpectations(t)

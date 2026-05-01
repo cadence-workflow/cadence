@@ -22,12 +22,14 @@
 package cassandra
 
 import (
+	"fmt"
 	"time"
 
 	cql "github.com/gocql/gocql"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -36,14 +38,20 @@ import (
 
 var _emptyUUID = cql.UUID{}
 
-func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.InternalWorkflowExecutionInfo {
+func parseWorkflowExecutionInfo(result map[string]interface{}) (*persistence.InternalWorkflowExecutionInfo, error) {
+	executionBlob, ok := result["execution"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid execution blob format: missing or invalid 'execution' field")
+	}
 	info := &persistence.InternalWorkflowExecutionInfo{}
 	var completionEventData []byte
-	var completionEventEncoding common.EncodingType
+	var completionEventEncoding constants.EncodingType
 	var autoResetPoints []byte
-	var autoResetPointsEncoding common.EncodingType
+	var autoResetPointsEncoding constants.EncodingType
+	var activeClusterSelectionPolicy []byte
+	var activeClusterSelectionPolicyEncoding constants.EncodingType
 
-	for k, v := range result {
+	for k, v := range executionBlob {
 		switch k {
 		case "domain_id":
 			info.DomainID = v.(gocql.UUID).String()
@@ -78,13 +86,15 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 		case "completion_event":
 			completionEventData = v.([]byte)
 		case "completion_event_data_encoding":
-			completionEventEncoding = common.EncodingType(v.(string))
+			completionEventEncoding = constants.EncodingType(v.(string))
 		case "auto_reset_points":
 			autoResetPoints = v.([]byte)
 		case "auto_reset_points_encoding":
-			autoResetPointsEncoding = common.EncodingType(v.(string))
+			autoResetPointsEncoding = constants.EncodingType(v.(string))
 		case "task_list":
 			info.TaskList = v.(string)
+		case "task_list_kind":
+			info.TaskListKind = types.TaskListKind(int32(v.(int)))
 		case "workflow_type_name":
 			info.WorkflowTypeName = v.(string)
 		case "workflow_timeout":
@@ -101,8 +111,6 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 			info.LastFirstEventID = v.(int64)
 		case "last_event_task_id":
 			info.LastEventTaskID = v.(int64)
-		case "next_event_id":
-			info.NextEventID = v.(int64)
 		case "last_processed_event":
 			info.LastProcessedEvent = v.(int64)
 		case "start_time":
@@ -175,11 +183,23 @@ func parseWorkflowExecutionInfo(result map[string]interface{}) *persistence.Inte
 			info.Memo = v.(map[string][]byte)
 		case "partition_config":
 			info.PartitionConfig = v.(map[string]string)
+		case "active_cluster_selection_policy":
+			activeClusterSelectionPolicy = v.([]byte)
+		case "active_cluster_selection_policy_encoding":
+			activeClusterSelectionPolicyEncoding = constants.EncodingType(v.(string))
+		case "cron_overlap_policy":
+			info.CronOverlapPolicy = types.CronOverlapPolicy(int32(v.(int)))
 		}
 	}
 	info.CompletionEvent = persistence.NewDataBlob(completionEventData, completionEventEncoding)
 	info.AutoResetPoints = persistence.NewDataBlob(autoResetPoints, autoResetPointsEncoding)
-	return info
+	info.ActiveClusterSelectionPolicy = persistence.NewDataBlob(activeClusterSelectionPolicy, activeClusterSelectionPolicyEncoding)
+
+	if nextEventID, ok := result["next_event_id"].(int64); ok {
+		info.NextEventID = nextEventID
+	}
+
+	return info, nil
 }
 
 // TODO: remove this after all 2DC workflows complete
@@ -237,7 +257,7 @@ func parseActivityInfo(
 ) *persistence.InternalActivityInfo {
 
 	info := &persistence.InternalActivityInfo{}
-	var sharedEncoding common.EncodingType
+	var sharedEncoding constants.EncodingType
 	var scheduledEventData, startedEventData []byte
 	for k, v := range result {
 		switch k {
@@ -283,6 +303,8 @@ func parseActivityInfo(
 			info.Attempt = int32(v.(int))
 		case "task_list":
 			info.TaskList = v.(string)
+		case "task_list_kind":
+			info.TaskListKind = types.TaskListKind(int32(v.(int)))
 		case "started_identity":
 			info.StartedIdentity = v.(string)
 		case "has_retry_policy":
@@ -306,7 +328,7 @@ func parseActivityInfo(
 		case "last_failure_details":
 			info.LastFailureDetails = v.([]byte)
 		case "event_data_encoding":
-			sharedEncoding = common.EncodingType(v.(string))
+			sharedEncoding = constants.EncodingType(v.(string))
 		}
 	}
 	info.DomainID = domainID
@@ -346,7 +368,7 @@ func parseChildExecutionInfo(
 ) *persistence.InternalChildExecutionInfo {
 
 	info := &persistence.InternalChildExecutionInfo{}
-	var encoding common.EncodingType
+	var encoding constants.EncodingType
 	var initiatedData []byte
 	var startedData []byte
 	for k, v := range result {
@@ -370,7 +392,7 @@ func parseChildExecutionInfo(
 		case "create_request_id":
 			info.CreateRequestID = v.(gocql.UUID).String()
 		case "event_data_encoding":
-			encoding = common.EncodingType(v.(string))
+			encoding = constants.EncodingType(v.(string))
 		case "domain_id":
 			info.DomainID = v.(gocql.UUID).String()
 			if info.DomainID == _emptyUUID.String() {
@@ -442,11 +464,11 @@ func parseHistoryEventBatchBlob(
 	result map[string]interface{},
 ) *persistence.DataBlob {
 
-	eventBatch := &persistence.DataBlob{Encoding: common.EncodingTypeJSON}
+	eventBatch := &persistence.DataBlob{Encoding: constants.EncodingTypeJSON}
 	for k, v := range result {
 		switch k {
 		case "encoding_type":
-			eventBatch.Encoding = common.EncodingType(v.(string))
+			eventBatch.Encoding = constants.EncodingType(v.(string))
 		case "data":
 			eventBatch.Data = v.([]byte)
 		}
@@ -482,6 +504,8 @@ func parseTimerTaskInfo(
 			info.ScheduleAttempt = v.(int64)
 		case "version":
 			info.Version = v.(int64)
+		case "task_list":
+			info.TaskList = v.(string)
 		}
 	}
 
@@ -533,16 +557,14 @@ func parseTransferTaskInfo(
 			info.RecordVisibility = v.(bool)
 		case "version":
 			info.Version = v.(int64)
+		case "original_task_list":
+			info.OriginalTaskList = v.(string)
+		case "original_task_list_kind":
+			info.OriginalTaskListKind = types.TaskListKind(int32(v.(int)))
 		}
 	}
 
 	return info
-}
-
-func parseCrossClusterTaskInfo(
-	result map[string]interface{},
-) *persistence.CrossClusterTaskInfo {
-	return parseTransferTaskInfo(result)
 }
 
 func parseReplicationTaskInfo(

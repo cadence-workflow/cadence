@@ -26,13 +26,14 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/Shopify/sarama/mocks"
-	"github.com/golang/mock/gomock"
+	"github.com/IBM/sarama/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/messaging/kafka"
@@ -107,34 +108,6 @@ func TestFactoryMethods(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, em)
 	})
-	t.Run("NewVisibilityManager", func(t *testing.T) {
-		fact := makeFactory(t)
-		ds := mockDatastore(t, fact, storeTypeVisibility)
-
-		// true/false does not matter, but it should be passed through.
-		// true has been chosen because it's not a zero value, so it's a bit more likely to be
-		// the intended source of `true`.
-		readFromClosed := true
-		ds.EXPECT().NewVisibilityStore(readFromClosed).Return(nil, nil).MinTimes(1)
-		vm, err := fact.NewVisibilityManager(&Params{
-			PersistenceConfig: config.Persistence{
-				// a configured VisibilityStore uses the db store, which is mockable,
-				// unlike basically every other store.
-				VisibilityStore: "fake",
-			},
-		}, &service.Config{
-			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return false // any value is fine as there are no read calls
-			},
-			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
-				return readFromClosed // any value is fine as there are no read calls
-			},
-		})
-		assert.NoError(t, err)
-		assert.NotNil(t, vm)
-	})
 	t.Run("NewVisibilityManager can be nil", func(t *testing.T) {
 		fact := makeFactory(t)
 		// no datastores are mocked as there are no calls at all expected
@@ -145,8 +118,8 @@ func TestFactoryMethods(t *testing.T) {
 				// because no "manager" is needed:
 				// ES cannot be dynamically enabled, so no dual-writing / etc is
 				// needed, so the baseline database store is sufficient.
-				EnableReadVisibilityFromES:    nil,
-				AdvancedVisibilityWritingMode: nil,
+				ReadVisibilityStoreName:  nil,
+				WriteVisibilityStoreName: nil,
 			})
 		assert.NoError(t, err)
 		assert.Nil(t, vm, "nil response is expected if advanced visibility cannot be enabled dynamically")
@@ -207,14 +180,14 @@ func TestFactoryMethods(t *testing.T) {
 			},
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return false // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicproperties.FilterOption) bool {
 				return readFromClosed // any value is fine as there are no read calls
 			},
-			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			ValidSearchAttributes: func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				return testAttributes
 			},
 		})
@@ -258,14 +231,14 @@ func TestFactoryMethods(t *testing.T) {
 			},
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return false // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicproperties.FilterOption) bool {
 				return readFromClosed // any value is fine as there are no read calls
 			},
-			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			ValidSearchAttributes: func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				return testAttributes
 			},
 		})
@@ -282,10 +255,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 	logger := testlogger.New(t)
 	var met metrics.Client
 	if withMetrics {
-		met = metrics.NewClient(
-			tally.NewTestScope("", nil),
-			service.GetMetricsServiceIdx(service.Frontend, logger),
-		)
+		met = metrics.NewClient(tally.NewTestScope("", nil), service.GetMetricsServiceIdx(service.Frontend, logger), metrics.MigrationConfig{})
 	}
 	ctrl := gomock.NewController(t)
 	dc := dynamicconfig.NewCollection(dynamicconfig.NewMockClient(ctrl), logger)
@@ -304,7 +274,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 			},
 		},
 		TransactionSizeLimit: nil,
-		ErrorInjectionRate: func(opts ...dynamicconfig.FilterOption) float64 {
+		ErrorInjectionRate: func(opts ...dynamicproperties.FilterOption) float64 {
 			return 0.5 // half errors, unused in these tests beyond "nonzero" so it wraps with the error injector
 		},
 	}
@@ -465,14 +435,14 @@ func TestVisibilityManagers(t *testing.T) {
 			OSConfig:        test.osConfig,
 		}, &service.Config{
 			// must be non-nil to create a "manager", else nil return from NewVisibilityManager is expected
-			EnableReadVisibilityFromES: func(domain string) bool {
-				return true // any value is fine as there are no read calls
+			ReadVisibilityStoreName: func(domain string) string {
+				return "es" // any value is fine as there are no read calls
 			},
 			// non-nil avoids a warning log
-			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicconfig.FilterOption) bool {
+			EnableReadDBVisibilityFromClosedExecutionV2: func(opts ...dynamicproperties.FilterOption) bool {
 				return true // any value is fine as there are no read calls
 			},
-			ValidSearchAttributes: func(opts ...dynamicconfig.FilterOption) map[string]interface{} {
+			ValidSearchAttributes: func(opts ...dynamicproperties.FilterOption) map[string]interface{} {
 				return map[string]interface{}{
 					"CustomAttribute": "test",
 				}

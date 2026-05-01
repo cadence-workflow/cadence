@@ -4,7 +4,7 @@ Author: Cadence Team
 
 Last updated: Mar 2020
 
-Reference: [#3051](https://github.com/uber/cadence/issues/3051)
+Reference: [#3051](https://github.com/cadence-workflow/cadence/issues/3051)
 
 
 ## Abstract
@@ -237,6 +237,3 @@ The purpose of the start workflow task is to regenerate the timer tasks and tran
 The purpose of the mutable state and history event is to record the workflow start event for deduplication and generate replication tasks to other clusters to sync on the workflow data.
 
 The generated history events will be replicated to all clusters. This process is required because all clusters should have the same workflow data.
-
-
-

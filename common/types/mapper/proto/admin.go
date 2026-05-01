@@ -1449,3 +1449,41 @@ func ToAdminUpdateDomainAsyncWorkflowConfiguratonResponse(in *adminv1.UpdateDoma
 	}
 	return &types.UpdateDomainAsyncWorkflowConfiguratonResponse{}
 }
+
+func FromAdminUpdateTaskListPartitionConfigRequest(in *types.UpdateTaskListPartitionConfigRequest) *adminv1.UpdateTaskListPartitionConfigRequest {
+	if in == nil {
+		return nil
+	}
+	return &adminv1.UpdateTaskListPartitionConfigRequest{
+		Domain:          in.Domain,
+		TaskList:        FromTaskList(in.TaskList),
+		TaskListType:    FromTaskListType(in.TaskListType),
+		PartitionConfig: FromAPITaskListPartitionConfig(in.PartitionConfig),
+	}
+}
+
+func ToAdminUpdateTaskListPartitionConfigRequest(in *adminv1.UpdateTaskListPartitionConfigRequest) *types.UpdateTaskListPartitionConfigRequest {
+	if in == nil {
+		return nil
+	}
+	return &types.UpdateTaskListPartitionConfigRequest{
+		Domain:          in.Domain,
+		TaskList:        ToTaskList(in.TaskList),
+		TaskListType:    ToTaskListType(in.TaskListType),
+		PartitionConfig: ToAPITaskListPartitionConfig(in.PartitionConfig),
+	}
+}
+
+func FromAdminUpdateTaskListPartitionConfigResponse(t *types.UpdateTaskListPartitionConfigResponse) *adminv1.UpdateTaskListPartitionConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.UpdateTaskListPartitionConfigResponse{}
+}
+
+func ToAdminUpdateTaskListPartitionConfigResponse(t *adminv1.UpdateTaskListPartitionConfigResponse) *types.UpdateTaskListPartitionConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.UpdateTaskListPartitionConfigResponse{}
+}

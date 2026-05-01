@@ -30,6 +30,8 @@ import (
 	"github.com/uber/cadence/common/syncmap"
 )
 
+//go:generate mockgen -package=$GOPACKAGE -destination=provider_mock.go -self_package=github.com/uber/cadence/common/archiver/provider github.com/uber/cadence/common/archiver/provider ArchiverProvider
+
 var (
 	// ErrUnknownScheme is the error for unknown archiver scheme
 	ErrUnknownScheme = errors.New("unknown archiver scheme")

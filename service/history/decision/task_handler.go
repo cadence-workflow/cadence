@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -71,8 +72,6 @@ type (
 		domainCache   cache.DomainCache
 		metricsClient metrics.Client
 		config        *config.Config
-
-		activityCountToDispatch int
 	}
 
 	decisionResult struct {
@@ -119,8 +118,6 @@ func newDecisionTaskHandler(
 		domainCache:   domainCache,
 		metricsClient: metricsClient,
 		config:        config,
-
-		activityCountToDispatch: config.MaxActivityCountDispatchByDomain(domainEntry.GetInfo().Name),
 	}
 }
 
@@ -236,7 +233,7 @@ func (handler *taskHandlerImpl) handleDecisionScheduleActivity(
 				domainID,
 				targetDomainID,
 				attr,
-				executionInfo.WorkflowTimeout,
+				executionInfo,
 				metrics.HistoryRespondDecisionTaskCompletedScope,
 			)
 		},
@@ -255,19 +252,12 @@ func (handler *taskHandlerImpl) handleDecisionScheduleActivity(
 		return nil, err
 	}
 
-	event, ai, activityDispatchInfo, dispatched, started, err := handler.mutableState.AddActivityTaskScheduledEvent(
-		ctx, handler.decisionTaskCompletedID, attr, handler.activityCountToDispatch > 0)
-	if dispatched {
-		handler.activityCountToDispatch--
-	}
+	event, ai, activityDispatchInfo, err := handler.mutableState.AddActivityTaskScheduledEvent(handler.decisionTaskCompletedID, attr)
 	switch err.(type) {
 	case nil:
-		if activityDispatchInfo != nil || started {
+		if activityDispatchInfo != nil {
 			if _, err1 := handler.mutableState.AddActivityTaskStartedEvent(ai, event.ID, uuid.New(), handler.identity); err1 != nil {
 				return nil, err1
-			}
-			if started {
-				return nil, nil
 			}
 			token := &common.TaskToken{
 				DomainID:        executionInfo.DomainID,
@@ -293,9 +283,35 @@ func (handler *taskHandlerImpl) handleDecisionScheduleActivity(
 		return nil, handler.handlerFailDecision(
 			types.DecisionTaskFailedCauseScheduleActivityDuplicateID, "",
 		)
+	case *types.InternalServiceError:
+		// Check if this is ErrTooManyPendingActivities
+		if err.Error() == execution.ErrTooManyPendingActivities.Error() {
+			return nil, handler.handleFailWorkflowError(common.FailureReasonPendingActivityExceedsLimit, err.Error())
+		}
+		return nil, err
 	default:
 		return nil, err
 	}
+}
+
+// handleFailWorkflowError handles the certain types of error by failing the workflow
+func (handler *taskHandlerImpl) handleFailWorkflowError(failReason string, failDetails string) error {
+	// Fail the workflow immediately instead of just returning the error
+	handler.stopProcessing = true
+
+	failAttributes := &types.FailWorkflowExecutionDecisionAttributes{
+		Reason:  common.StringPtr(failReason),
+		Details: []byte(failDetails),
+	}
+
+	if _, failErr := handler.mutableState.AddFailWorkflowEvent(
+		handler.decisionTaskCompletedID,
+		failAttributes,
+	); failErr != nil {
+		return failErr
+	}
+
+	return nil
 }
 
 func (handler *taskHandlerImpl) handleDecisionRequestCancelActivity(
@@ -328,7 +344,7 @@ func (handler *taskHandlerImpl) handleDecisionRequestCancelActivity(
 	)
 	switch err.(type) {
 	case nil:
-		if ai.StartedID == common.EmptyEventID {
+		if ai.StartedID == constants.EmptyEventID {
 			// We haven't started the activity yet, we can cancel the activity right away and
 			// schedule a decision task to ensure the workflow makes progress.
 			_, err = handler.mutableState.AddActivityTaskCanceledEvent(
@@ -1051,6 +1067,8 @@ func (handler *taskHandlerImpl) retryCronContinueAsNew(
 		Memo:                                attr.Memo,
 		SearchAttributes:                    attr.SearchAttributes,
 		JitterStartSeconds:                  attr.JitterStartSeconds,
+		CronOverlapPolicy:                   attr.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy:        attr.ActiveClusterSelectionPolicy,
 	}
 
 	_, newStateBuilder, err := handler.mutableState.AddContinueAsNewEvent(

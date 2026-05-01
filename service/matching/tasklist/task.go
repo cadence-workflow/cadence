@@ -21,6 +21,7 @@
 package tasklist
 
 import (
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -57,6 +58,7 @@ type (
 		ResponseC                chan error // non-nil only where there is a caller waiting for response (sync-match)
 		BacklogCountHint         int64
 		ActivityTaskDispatchInfo *types.ActivityTaskDispatchInfo
+		AutoConfigHint           *types.AutoConfigHint // worker auto-scaler hint, which includes enable auto config flag and poller wait time on the matching engine
 	}
 )
 
@@ -81,6 +83,21 @@ func newInternalTask(
 	}
 	if forSyncMatch {
 		task.ResponseC = make(chan error, 1)
+	}
+
+	// Rewrite the partitionConfig to match how we're dispatching it
+	// OriginalIsolationGroup is populated here and isn't written to the DB. If it's already
+	// present then it's a forwarded task and we should respect it.
+	if configIsolationGroup, ok := task.Event.PartitionConfig[isolationgroup.GroupKey]; ok {
+		partitionConfig := make(map[string]string, 3)
+		if originalIsolationGroup, ok := task.Event.PartitionConfig[isolationgroup.OriginalGroupKey]; ok {
+			partitionConfig[isolationgroup.OriginalGroupKey] = originalIsolationGroup
+		} else {
+			partitionConfig[isolationgroup.OriginalGroupKey] = configIsolationGroup
+		}
+		partitionConfig[isolationgroup.GroupKey] = isolationGroup
+		partitionConfig[isolationgroup.WorkflowIDKey] = task.Event.PartitionConfig[isolationgroup.WorkflowIDKey]
+		task.Event.PartitionConfig = partitionConfig
 	}
 	return task
 }

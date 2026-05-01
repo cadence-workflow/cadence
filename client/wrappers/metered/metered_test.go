@@ -27,13 +27,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -44,7 +44,7 @@ func TestWrappers(t *testing.T) {
 		clientMock := frontend.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
 		clientMock.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, nil).Times(1)
@@ -63,7 +63,7 @@ func TestWrappers(t *testing.T) {
 		clientMock := frontend.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
 		clientMock.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil, errors.New("error"))
@@ -85,7 +85,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
@@ -106,7 +106,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
 		clientMock.EXPECT().PollForDecisionTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.MatchingPollForDecisionTaskResponse{}, nil).Times(1)
@@ -129,7 +129,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
@@ -150,7 +150,7 @@ func TestMatching(t *testing.T) {
 		clientMock := matching.NewMockClient(ctrl)
 
 		testScope := tally.NewTestScope("", nil)
-		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0))
+		metricsClient := metrics.NewClient(testScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
 
 		clientMock.EXPECT().AddActivityTask(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&types.AddActivityTaskResponse{}, nil).Times(1)
@@ -161,7 +161,7 @@ func TestMatching(t *testing.T) {
 
 		_, err := retryableClient.AddActivityTask(context.Background(), &types.AddActivityTaskRequest{
 			ForwardedFrom: "",
-			TaskList:      &types.TaskList{Name: common.ReservedTaskListPrefix + "test"},
+			TaskList:      &types.TaskList{Name: constants.ReservedTaskListPrefix + "test"},
 		})
 		assert.NoError(t, err)
 		assert.Len(t, testScope.Snapshot().Counters(), 2, "there should be two counters registered, one for call and one for invalid task list")

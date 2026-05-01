@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -44,7 +44,7 @@ type (
 
 	pendingTaskSplitPolicy struct {
 		pendingTaskThreshold map[int]int // queue level -> threshold
-		enabledByDomainID    dynamicconfig.BoolPropertyFnWithDomainIDFilter
+		enabledByDomainID    dynamicproperties.BoolPropertyFnWithDomainIDFilter
 		maxNewQueueLevel     int
 		lookAheadFunc        lookAheadFunc
 
@@ -54,7 +54,7 @@ type (
 
 	stuckTaskSplitPolicy struct {
 		attemptThreshold  map[int]int // queue level -> threshold
-		enabledByDomainID dynamicconfig.BoolPropertyFnWithDomainIDFilter
+		enabledByDomainID dynamicproperties.BoolPropertyFnWithDomainIDFilter
 		maxNewQueueLevel  int
 
 		logger       log.Logger
@@ -71,7 +71,7 @@ type (
 
 	randomSplitPolicy struct {
 		splitProbability  float64
-		enabledByDomainID dynamicconfig.BoolPropertyFnWithDomainIDFilter
+		enabledByDomainID dynamicproperties.BoolPropertyFnWithDomainIDFilter
 		maxNewQueueLevel  int
 		lookAheadFunc     lookAheadFunc
 
@@ -88,7 +88,7 @@ type (
 // based on the number of pending tasks
 func NewPendingTaskSplitPolicy(
 	pendingTaskThreshold map[int]int,
-	enabledByDomainID dynamicconfig.BoolPropertyFnWithDomainIDFilter,
+	enabledByDomainID dynamicproperties.BoolPropertyFnWithDomainIDFilter,
 	lookAheadFunc lookAheadFunc,
 	maxNewQueueLevel int,
 	logger log.Logger,
@@ -108,7 +108,7 @@ func NewPendingTaskSplitPolicy(
 // based on the number of task attempts tasks
 func NewStuckTaskSplitPolicy(
 	attemptThreshold map[int]int,
-	enabledByDomainID dynamicconfig.BoolPropertyFnWithDomainIDFilter,
+	enabledByDomainID dynamicproperties.BoolPropertyFnWithDomainIDFilter,
 	maxNewQueueLevel int,
 	logger log.Logger,
 	metricsScope metrics.Scope,
@@ -142,7 +142,7 @@ func NewSelectedDomainSplitPolicy(
 // or more domains into a new processing queue
 func NewRandomSplitPolicy(
 	splitProbability float64,
-	enabledByDomainID dynamicconfig.BoolPropertyFnWithDomainIDFilter,
+	enabledByDomainID dynamicproperties.BoolPropertyFnWithDomainIDFilter,
 	maxNewQueueLevel int,
 	lookAheadFunc lookAheadFunc,
 	logger log.Logger,

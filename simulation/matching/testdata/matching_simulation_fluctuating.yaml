@@ -1,0 +1,36 @@
+enablearchival: false
+clusterno: 1
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+matchingconfig:
+  nummatchinghosts: 4
+  simulationconfig:
+    tasklistwritepartitions: 1
+    tasklistreadpartitions: 1
+    forwardermaxoutstandingpolls: 1
+    forwardermaxoutstandingtasks: 1
+    forwardermaxratepersecond: 10
+    forwardermaxchildrenpernode: 20
+    localpollwaittime: 10ms
+    localtaskwaittime: 10ms
+    tasks:
+      - numtaskgenerators: 4
+        maxtasktogenerate: 5000
+        overtime:
+        - taskspersecond: 10
+          tasksburst: 10
+          duration: 30s
+        - taskspersecond: 250
+          tasksburst: 250
+          duration: 15s
+        - taskspersecond: 10
+          tasksburst: 10
+    pollers:
+      - taskprocesstime: 1ms
+        numpollers: 8
+        polltimeout: 60s
+workerconfig:
+  enableasyncwfconsumer: false

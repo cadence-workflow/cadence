@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/frontend"
@@ -39,7 +39,7 @@ import (
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/retry"
 )
 
 const (
@@ -48,158 +48,99 @@ const (
 	timeUnit              = time.Second
 )
 
-func Test__retrieveExecutionHistory(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
-	result, err := dwtest.retrieveExecutionHistory(context.Background(), retrieveExecutionHistoryInputParams{
-		Domain: "test",
-		Execution: &types.WorkflowExecution{
-			WorkflowID: "123",
-			RunID:      "abc",
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, testWorkflowExecutionHistoryResponse(), result)
-}
-
 func Test__identifyIssues(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
-	workflowTimeoutData := timeout.ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
-		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        4,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
-				Reason:           common.StringPtr("cadenceInternal:Generic"),
-				Details:          []byte("test-activity-failure"),
-				Identity:         "localhost",
-				ScheduledEventID: 2,
-				StartedEventID:   3,
-			},
-		},
-	}
-	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
-	require.NoError(t, err)
-	actMetadata := failure.FailureMetadata{
-		Identity: "localhost",
-		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
-			ActivityID:   "101",
-			ActivityType: &types.ActivityType{Name: "test-activity"},
-		},
-		ActivityStarted: &types.ActivityTaskStartedEventAttributes{
-			Identity: "localhost",
-			Attempt:  0,
-		},
+	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponseWithMultipleIssues())
+	actMetadata := failure.FailureIssuesMetadata{
+		Identity:            "localhost",
+		ActivityType:        "test-activity",
+		ActivityScheduledID: 2,
+		ActivityStartedID:   3,
 	}
 	actMetadataInBytes, err := json.Marshal(actMetadata)
 	require.NoError(t, err)
 	expectedResult := []invariant.InvariantCheckResult{
 		{
-			InvariantType: timeout.TimeoutTypeExecution.String(),
-			Reason:        "START_TO_CLOSE",
-			Metadata:      workflowTimeoutDataInBytes,
-		},
-		{
+			IssueID:       0,
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.GenericError.String(),
 			Metadata:      actMetadataInBytes,
 		},
 	}
-	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{History: testWorkflowExecutionHistoryResponse()})
+	for i := 0; i < _maxIssuesPerInvariant; i++ {
+		retryMetadata := retry.RetryMetadata{
+			EventID: int64(i),
+			RetryPolicy: &types.RetryPolicy{
+				InitialIntervalInSeconds: 1,
+				MaximumAttempts:          1,
+			},
+		}
+		retryMetadataInBytes, err := json.Marshal(retryMetadata)
+		require.NoError(t, err)
+		expectedResult = append(expectedResult, invariant.InvariantCheckResult{
+			IssueID:       i,
+			InvariantType: retry.ActivityRetryIssue.String(),
+			Reason:        retry.RetryPolicyValidationMaxAttempts.String(),
+			Metadata:      retryMetadataInBytes,
+		})
+	}
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}})
 	require.NoError(t, err)
+	require.Equal(t, _maxIssuesPerInvariant+1, len(result)) // retry invariant returns 10 issues (capped) , failure invariant returns 1 issue
 	require.Equal(t, expectedResult, result)
 }
 
 func Test__rootCauseIssues(t *testing.T) {
-	dwtest := testDiagnosticWorkflow(t)
-	workflowTimeoutData := timeout.ExecutionTimeoutMetadata{
-		ExecutionTime:     110 * time.Second,
-		ConfiguredTimeout: 110 * time.Second,
-		LastOngoingEvent: &types.HistoryEvent{
-			ID:        1,
-			Timestamp: common.Int64Ptr(testTimeStamp),
-			WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
-			},
-		},
-		Tasklist: &types.TaskList{
-			Name: "testasklist",
-			Kind: nil,
-		},
-	}
-	workflowTimeoutDataInBytes, err := json.Marshal(workflowTimeoutData)
-	require.NoError(t, err)
-	actMetadata := failure.FailureMetadata{
-		Identity: "localhost",
-		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
-			ActivityID:   "101",
-			ActivityType: &types.ActivityType{Name: "test-activity"},
-		},
-		ActivityStarted: &types.ActivityTaskStartedEventAttributes{
-			Identity: "localhost",
-			Attempt:  0,
-		},
+	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponse())
+	actMetadata := failure.FailureIssuesMetadata{
+		Identity:            "localhost",
+		ActivityScheduledID: 1,
+		ActivityStartedID:   2,
 	}
 	actMetadataInBytes, err := json.Marshal(actMetadata)
 	require.NoError(t, err)
 	issues := []invariant.InvariantCheckResult{
 		{
-			InvariantType: timeout.TimeoutTypeExecution.String(),
-			Reason:        "START_TO_CLOSE",
-			Metadata:      workflowTimeoutDataInBytes,
-		},
-		{
+			IssueID:       0,
 			InvariantType: failure.ActivityFailed.String(),
 			Reason:        failure.CustomError.String(),
 			Metadata:      actMetadataInBytes,
 		},
 	}
-	taskListBacklog := int64(10)
-	taskListBacklogInBytes, err := json.Marshal(timeout.PollersMetadata{TaskListBacklog: taskListBacklog})
-	require.NoError(t, err)
 	expectedRootCause := []invariant.InvariantRootCauseResult{
 		{
-			RootCause: invariant.RootCauseTypePollersStatus,
-			Metadata:  taskListBacklogInBytes,
-		},
-		{
-			RootCause: invariant.RootCauseTypeServiceSideIssue,
+			IssueID:   0,
+			RootCause: invariant.RootCauseTypeServiceSideCustomError,
 			Metadata:  actMetadataInBytes,
 		},
 	}
-	result, err := dwtest.rootCauseIssues(context.Background(), rootCauseIssuesParams{History: testWorkflowExecutionHistoryResponse(), Domain: "test-domain", Issues: issues})
+	result, err := dwtest.rootCauseIssues(context.Background(), rootCauseIssuesParams{Domain: "test-domain", Issues: issues})
 	require.NoError(t, err)
 	require.Equal(t, expectedRootCause, result)
 }
 
 func Test__emit(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	dwtest := testDiagnosticWorkflow(t, testWorkflowExecutionHistoryResponse())
 	mockClient := messaging.NewMockClient(ctrl)
 	mockProducer := messaging.NewMockProducer(ctrl)
 	mockProducer.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
 	mockClient.EXPECT().NewProducer(WfDiagnosticsAppName).Return(mockProducer, nil)
-	err := emit(context.Background(), analytics.WfDiagnosticsUsageData{}, mockClient)
+	err := dwtest.emit(context.Background(), analytics.WfDiagnosticsUsageData{}, mockClient)
 	require.NoError(t, err)
 }
 
-func testDiagnosticWorkflow(t *testing.T) *dw {
+func testDiagnosticWorkflow(t *testing.T, history *types.GetWorkflowExecutionHistoryResponse) *dw {
 	ctrl := gomock.NewController(t)
 	mockClientBean := client.NewMockBean(ctrl)
 	mockFrontendClient := frontend.NewMockClient(ctrl)
 	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
-	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(testWorkflowExecutionHistoryResponse(), nil).AnyTimes()
-	mockFrontendClient.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-		Pollers: []*types.PollerInfo{
-			{
-				Identity: "dca24-xy",
-			},
-		},
-		TaskListStatus: &types.TaskListStatus{
-			BacklogCountHint: int64(10),
-		},
-	}, nil).AnyTimes()
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(history, nil).AnyTimes()
 	return &dw{
 		clientBean: mockClientBean,
+		invariants: []invariant.Invariant{failure.NewInvariant(), retry.NewInvariant()},
 	}
 }
 
@@ -217,8 +158,14 @@ func testWorkflowExecutionHistoryResponse() *types.GetWorkflowExecutionHistoryRe
 				{
 					ID: 2,
 					ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
-						ActivityID:   "101",
-						ActivityType: &types.ActivityType{Name: "test-activity"},
+						ActivityID:                 "101",
+						ActivityType:               &types.ActivityType{Name: "test-activity"},
+						StartToCloseTimeoutSeconds: common.Int32Ptr(int32(10)),
+						HeartbeatTimeoutSeconds:    common.Int32Ptr(int32(5)),
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumAttempts:          1,
+						},
 					},
 				},
 				{
@@ -247,4 +194,140 @@ func testWorkflowExecutionHistoryResponse() *types.GetWorkflowExecutionHistoryRe
 			},
 		},
 	}
+}
+
+func testWorkflowExecutionHistoryResponseWithMultipleIssues() *types.GetWorkflowExecutionHistoryResponse {
+	testResponse := &types.GetWorkflowExecutionHistoryResponse{History: &types.History{
+		Events: []*types.HistoryEvent{
+			{
+				ID:        1,
+				Timestamp: common.Int64Ptr(testTimeStamp),
+				WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(workflowTimeoutSecond),
+				},
+			},
+		},
+	}}
+	for i := 0; i <= 20; i++ {
+		testResponse.History.Events = append(testResponse.History.Events, &types.HistoryEvent{
+			ID: int64(i),
+			ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
+				ActivityID:                 string(rune(i)),
+				ActivityType:               &types.ActivityType{Name: "test-activity"},
+				StartToCloseTimeoutSeconds: common.Int32Ptr(int32(10)),
+				HeartbeatTimeoutSeconds:    common.Int32Ptr(int32(5)),
+				RetryPolicy: &types.RetryPolicy{
+					InitialIntervalInSeconds: 1,
+					MaximumAttempts:          1,
+				},
+			},
+		})
+
+	}
+	testResponse.History.Events = append(testResponse.History.Events, &types.HistoryEvent{
+		ID:        4,
+		Timestamp: common.Int64Ptr(testTimeStamp),
+		ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
+			Reason:           common.StringPtr("cadenceInternal:Generic"),
+			Details:          []byte("test-activity-failure"),
+			Identity:         "localhost",
+			ScheduledEventID: 2,
+			StartedEventID:   3,
+		},
+	})
+
+	return testResponse
+}
+
+func Test__identifyIssuesWithPaginatedHistory(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClientBean := client.NewMockBean(ctrl)
+	mockFrontendClient := frontend.NewMockClient(ctrl)
+	token := []byte("next-page-token")
+	testExecution := &types.WorkflowExecution{
+		WorkflowID: "123",
+		RunID:      "abc",
+	}
+	partialWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 1,
+					WorkflowExecutionStartedEventAttributes: &types.WorkflowExecutionStartedEventAttributes{
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumAttempts:          1,
+						},
+						Attempt: 0,
+					},
+				},
+			},
+		},
+		NextPageToken: token,
+	}
+	remainingWFHistoryResponse := &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr("cadenceInternal:Timeout START_TO_CLOSE"),
+						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
+	}
+
+	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
+	firstCall := mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Execution:              testExecution,
+		MaximumPageSize:        1000,
+		NextPageToken:          nil,
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           true,
+	}).Return(partialWFHistoryResponse, nil)
+	mockFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), &types.GetWorkflowExecutionHistoryRequest{
+		Execution:              testExecution,
+		MaximumPageSize:        1000,
+		NextPageToken:          token,
+		WaitForNewEvent:        false,
+		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+		SkipArchival:           true,
+	}).Return(remainingWFHistoryResponse, nil).After(firstCall)
+
+	retryMetadata := retry.RetryMetadata{
+		EventID: 1,
+		RetryPolicy: &types.RetryPolicy{
+			InitialIntervalInSeconds: 1,
+			MaximumAttempts:          1,
+		},
+	}
+	retryMetadataInBytes, err := json.Marshal(retryMetadata)
+	require.NoError(t, err)
+	failureMetadataInBytes, err := json.Marshal(failure.FailureIssuesMetadata{})
+	require.NoError(t, err)
+	expectedResult := []invariant.InvariantCheckResult{
+		{
+			IssueID:       0,
+			InvariantType: retry.WorkflowRetryIssue.String(),
+			Reason:        "MaximumAttempts set to 1 will not retry since maximum attempts includes the first attempt.",
+			Metadata:      retryMetadataInBytes,
+		},
+		{
+			IssueID:       0,
+			InvariantType: failure.WorkflowFailed.String(),
+			Reason:        "The failure is caused by a timeout during the execution",
+			Metadata:      failureMetadataInBytes,
+		},
+	}
+
+	dwtest := &dw{
+		clientBean: mockClientBean,
+		invariants: []invariant.Invariant{retry.NewInvariant(), failure.NewInvariant()},
+	}
+
+	result, err := dwtest.identifyIssues(context.Background(), identifyIssuesParams{Execution: testExecution})
+	require.NoError(t, err)
+	require.Equal(t, expectedResult, result)
 }

@@ -29,7 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -55,10 +55,10 @@ type (
 		logger                   log.Logger
 		stats                    stats
 		status                   int32
-		getOrphanTasksPageSizeFn dynamicconfig.IntPropertyFn
-		taskBatchSizeFn          dynamicconfig.IntPropertyFn
-		maxTasksPerJobFn         dynamicconfig.IntPropertyFn
-		cleanOrphans             dynamicconfig.BoolPropertyFn
+		getOrphanTasksPageSizeFn dynamicproperties.IntPropertyFn
+		taskBatchSizeFn          dynamicproperties.IntPropertyFn
+		maxTasksPerJobFn         dynamicproperties.IntPropertyFn
+		cleanOrphans             dynamicproperties.BoolPropertyFn
 		pollInterval             time.Duration
 		timeSource               clock.TimeSource
 
@@ -82,10 +82,10 @@ type (
 	}
 	// Options is used to customize scavenger operations
 	Options struct {
-		GetOrphanTasksPageSizeFn dynamicconfig.IntPropertyFn
-		TaskBatchSizeFn          dynamicconfig.IntPropertyFn
-		EnableCleaning           dynamicconfig.BoolPropertyFn
-		MaxTasksPerJobFn         dynamicconfig.IntPropertyFn
+		GetOrphanTasksPageSizeFn dynamicproperties.IntPropertyFn
+		TaskBatchSizeFn          dynamicproperties.IntPropertyFn
+		EnableCleaning           dynamicproperties.BoolPropertyFn
+		MaxTasksPerJobFn         dynamicproperties.IntPropertyFn
 		ExecutorPollInterval     time.Duration
 	}
 
@@ -136,29 +136,29 @@ func NewScavenger(
 
 	cleanOrphans := opts.EnableCleaning
 	if cleanOrphans == nil {
-		cleanOrphans = func(opts ...dynamicconfig.FilterOption) bool {
+		cleanOrphans = func(opts ...dynamicproperties.FilterOption) bool {
 			return false
 		}
 	}
 
 	getOrphanTasksPageSize := opts.GetOrphanTasksPageSizeFn
 	if getOrphanTasksPageSize == nil {
-		getOrphanTasksPageSize = func(opts ...dynamicconfig.FilterOption) int {
-			return dynamicconfig.ScannerGetOrphanTasksPageSize.DefaultInt()
+		getOrphanTasksPageSize = func(opts ...dynamicproperties.FilterOption) int {
+			return dynamicproperties.ScannerGetOrphanTasksPageSize.DefaultInt()
 		}
 	}
 
 	taskBatchSizeFn := opts.TaskBatchSizeFn
 	if taskBatchSizeFn == nil {
-		taskBatchSizeFn = func(opts ...dynamicconfig.FilterOption) int {
+		taskBatchSizeFn = func(opts ...dynamicproperties.FilterOption) int {
 			return taskBatchSize
 		}
 	}
 
 	maxTasksPerJobFn := opts.MaxTasksPerJobFn
 	if maxTasksPerJobFn == nil {
-		maxTasksPerJobFn = func(opts ...dynamicconfig.FilterOption) int {
-			return dynamicconfig.ScannerMaxTasksProcessedPerTasklistJob.DefaultInt()
+		maxTasksPerJobFn = func(opts ...dynamicproperties.FilterOption) int {
+			return dynamicproperties.ScannerMaxTasksProcessedPerTasklistJob.DefaultInt()
 		}
 	}
 

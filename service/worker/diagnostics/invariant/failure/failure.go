@@ -26,6 +26,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
@@ -33,57 +34,91 @@ import (
 // Failure is an invariant that will be used to identify the different failures in the workflow execution history
 type Failure invariant.Invariant
 
-type failure struct {
-	workflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	domain                   string
+type failure struct{}
+
+func NewInvariant() Failure {
+	return &failure{}
 }
 
-type Params struct {
-	WorkflowExecutionHistory *types.GetWorkflowExecutionHistoryResponse
-	Domain                   string
-}
-
-func NewInvariant(p Params) Failure {
-	return &failure{
-		workflowExecutionHistory: p.WorkflowExecutionHistory,
-		domain:                   p.Domain,
-	}
-}
-
-func (f *failure) Check(context.Context) ([]invariant.InvariantCheckResult, error) {
+func (f *failure) Check(ctx context.Context, params invariant.InvariantCheckInput) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
-	events := f.workflowExecutionHistory.GetHistory().GetEvents()
+	events := params.WorkflowExecutionHistory.GetHistory().GetEvents()
+	issueID := 0
 	for _, event := range events {
 		if event.GetWorkflowExecutionFailedEventAttributes() != nil && event.WorkflowExecutionFailedEventAttributes.Reason != nil {
 			attr := event.WorkflowExecutionFailedEventAttributes
 			reason := attr.Reason
 			identity := fetchIdentity(attr, events)
-			result = append(result, invariant.InvariantCheckResult{
-				InvariantType: WorkflowFailed.String(),
-				Reason:        errorTypeFromReason(*reason).String(),
-				Metadata:      invariant.MarshalData(FailureMetadata{Identity: identity}),
-			})
+			if *reason == common.FailureReasonDecisionBlobSizeExceedsLimit {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: DecisionCausedFailure.String(),
+					Reason:        DecisionBlobSizeLimit.String(),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
+				})
+				issueID++
+			} else {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: WorkflowFailed.String(),
+					Reason:        ErrorTypeFromReason(*reason).String(),
+					Metadata:      invariant.MarshalData(FailureIssuesMetadata{Identity: identity}),
+				})
+				issueID++
+			}
+
 		}
 		if event.GetActivityTaskFailedEventAttributes() != nil && event.ActivityTaskFailedEventAttributes.Reason != nil {
 			attr := event.ActivityTaskFailedEventAttributes
 			reason := attr.Reason
 			scheduled := fetchScheduledEvent(attr, events)
-			started := fetchStartedEvent(attr, events)
-			result = append(result, invariant.InvariantCheckResult{
-				InvariantType: ActivityFailed.String(),
-				Reason:        errorTypeFromReason(*reason).String(),
-				Metadata: invariant.MarshalData(FailureMetadata{
-					Identity:          attr.Identity,
-					ActivityScheduled: scheduled,
-					ActivityStarted:   started,
-				}),
-			})
+			if *reason == common.FailureReasonHeartbeatExceedsLimit {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: ActivityFailed.String(),
+					Reason:        HeartBeatBlobSizeLimit.String(),
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						Identity:            attr.Identity,
+						ActivityType:        scheduled.ActivityType.GetName(),
+						ActivityScheduledID: attr.ScheduledEventID,
+						ActivityStartedID:   attr.StartedEventID,
+					}),
+				})
+				issueID++
+			} else if *reason == common.FailureReasonCompleteResultExceedsLimit {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: ActivityFailed.String(),
+					Reason:        ActivityOutputBlobSizeLimit.String(),
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						Identity:            attr.Identity,
+						ActivityType:        scheduled.ActivityType.GetName(),
+						ActivityScheduledID: attr.ScheduledEventID,
+						ActivityStartedID:   attr.StartedEventID,
+					}),
+				})
+				issueID++
+			} else {
+				result = append(result, invariant.InvariantCheckResult{
+					IssueID:       issueID,
+					InvariantType: ActivityFailed.String(),
+					Reason:        ErrorTypeFromReason(*reason).String(),
+					Metadata: invariant.MarshalData(FailureIssuesMetadata{
+						Identity:            attr.Identity,
+						ActivityType:        scheduled.ActivityType.GetName(),
+						ActivityScheduledID: attr.ScheduledEventID,
+						ActivityStartedID:   attr.StartedEventID,
+					}),
+				})
+				issueID++
+			}
+
 		}
 	}
 	return result, nil
 }
 
-func errorTypeFromReason(reason string) ErrorType {
+func ErrorTypeFromReason(reason string) ErrorType {
 	if strings.Contains(reason, "Generic") {
 		return GenericError
 	}
@@ -96,15 +131,6 @@ func errorTypeFromReason(reason string) ErrorType {
 	return CustomError
 }
 
-func fetchIdentity(attr *types.WorkflowExecutionFailedEventAttributes, events []*types.HistoryEvent) string {
-	for _, event := range events {
-		if event.ID == attr.DecisionTaskCompletedEventID {
-			return event.GetDecisionTaskCompletedEventAttributes().Identity
-		}
-	}
-	return ""
-}
-
 func fetchScheduledEvent(attr *types.ActivityTaskFailedEventAttributes, events []*types.HistoryEvent) *types.ActivityTaskScheduledEventAttributes {
 	for _, event := range events {
 		if event.ID == attr.GetScheduledEventID() {
@@ -114,21 +140,35 @@ func fetchScheduledEvent(attr *types.ActivityTaskFailedEventAttributes, events [
 	return nil
 }
 
-func fetchStartedEvent(attr *types.ActivityTaskFailedEventAttributes, events []*types.HistoryEvent) *types.ActivityTaskStartedEventAttributes {
+func fetchIdentity(attr *types.WorkflowExecutionFailedEventAttributes, events []*types.HistoryEvent) string {
 	for _, event := range events {
-		if event.ID == attr.GetStartedEventID() {
-			return event.GetActivityTaskStartedEventAttributes()
+		if event.ID == attr.DecisionTaskCompletedEventID {
+			return event.GetDecisionTaskCompletedEventAttributes().Identity
 		}
 	}
-	return nil
+	return ""
 }
 
-func (f *failure) RootCause(ctx context.Context, issues []invariant.InvariantCheckResult) ([]invariant.InvariantRootCauseResult, error) {
+func (f *failure) RootCause(ctx context.Context, params invariant.InvariantRootCauseInput) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
-	for _, issue := range issues {
-		if issue.Reason == CustomError.String() || issue.Reason == PanicError.String() {
+	for _, issue := range params.Issues {
+		switch issue.Reason {
+		case GenericError.String():
 			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
 				RootCause: invariant.RootCauseTypeServiceSideIssue,
+				Metadata:  issue.Metadata,
+			})
+		case PanicError.String():
+			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
+				RootCause: invariant.RootCauseTypeServiceSidePanic,
+				Metadata:  issue.Metadata,
+			})
+		case CustomError.String():
+			result = append(result, invariant.InvariantRootCauseResult{
+				IssueID:   issue.IssueID,
+				RootCause: invariant.RootCauseTypeServiceSideCustomError,
 				Metadata:  issue.Metadata,
 			})
 		}

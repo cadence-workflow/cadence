@@ -418,10 +418,14 @@ func (v *MatchingPollForDecisionTaskRequest) GetIsolationGroup() (o string) {
 	return
 }
 
+type TaskListPartition struct {
+	IsolationGroups []string
+}
+
 type TaskListPartitionConfig struct {
-	Version            int64
-	NumReadPartitions  int32
-	NumWritePartitions int32
+	Version         int64
+	ReadPartitions  map[int]*TaskListPartition
+	WritePartitions map[int]*TaskListPartition
 }
 
 // MatchingPollForDecisionTaskResponse is an internal type (TBD...)
@@ -445,6 +449,8 @@ type MatchingPollForDecisionTaskResponse struct {
 	Queries                   map[string]*WorkflowQuery `json:"queries,omitempty"`
 	TotalHistoryBytes         int64                     `json:"currentHistorySize,omitempty"`
 	PartitionConfig           *TaskListPartitionConfig
+	LoadBalancerHints         *LoadBalancerHints
+	AutoConfigHint            *AutoConfigHint
 }
 
 // GetWorkflowExecution is an internal getter (TBD...)
@@ -514,6 +520,8 @@ type MatchingPollForActivityTaskResponse struct {
 	Header                          *Header            `json:"header,omitempty"`
 	BacklogCountHint                int64              `json:"backlogCountHint,omitempty"`
 	PartitionConfig                 *TaskListPartitionConfig
+	LoadBalancerHints               *LoadBalancerHints
+	AutoConfigHint                  *AutoConfigHint
 }
 
 // MatchingQueryWorkflowRequest is an internal type (TBD...)
@@ -552,6 +560,36 @@ func (v *MatchingQueryWorkflowRequest) GetQueryRequest() (o *QueryWorkflowReques
 func (v *MatchingQueryWorkflowRequest) GetForwardedFrom() (o string) {
 	if v != nil {
 		return v.ForwardedFrom
+	}
+	return
+}
+
+type MatchingQueryWorkflowResponse struct {
+	QueryResult     []byte
+	QueryRejected   *QueryRejected
+	PartitionConfig *TaskListPartitionConfig
+}
+
+// GetQueryResult is an internal getter (TBD...)
+func (v *MatchingQueryWorkflowResponse) GetQueryResult() (o []byte) {
+	if v != nil {
+		return v.QueryResult
+	}
+	return
+}
+
+// GetQueryRejected is an internal getter (TBD...)
+func (v *MatchingQueryWorkflowResponse) GetQueryRejected() (o *QueryRejected) {
+	if v != nil {
+		return v.QueryRejected
+	}
+	return
+}
+
+// GetPartitionConfig is an internal getter (TBD...)
+func (v *MatchingQueryWorkflowResponse) GetPartitionConfig() (o *TaskListPartitionConfig) {
+	if v != nil {
+		return v.PartitionConfig
 	}
 	return
 }
@@ -646,3 +684,40 @@ const (
 	// TaskSourceDbBacklog is an option for TaskSource
 	TaskSourceDbBacklog
 )
+
+type MatchingUpdateTaskListPartitionConfigRequest struct {
+	DomainUUID      string
+	TaskList        *TaskList
+	TaskListType    *TaskListType
+	PartitionConfig *TaskListPartitionConfig
+}
+
+func (v *MatchingUpdateTaskListPartitionConfigRequest) GetTaskListType() (o TaskListType) {
+	if v != nil && v.TaskListType != nil {
+		return *v.TaskListType
+	}
+	return
+}
+
+type MatchingUpdateTaskListPartitionConfigResponse struct{}
+
+type MatchingRefreshTaskListPartitionConfigRequest struct {
+	DomainUUID      string
+	TaskList        *TaskList
+	TaskListType    *TaskListType
+	PartitionConfig *TaskListPartitionConfig
+}
+
+func (v *MatchingRefreshTaskListPartitionConfigRequest) GetTaskListType() (o TaskListType) {
+	if v != nil && v.TaskListType != nil {
+		return *v.TaskListType
+	}
+	return
+}
+
+type MatchingRefreshTaskListPartitionConfigResponse struct{}
+
+type LoadBalancerHints struct {
+	BacklogCount  int64
+	RatePerSecond float64
+}

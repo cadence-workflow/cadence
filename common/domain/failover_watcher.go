@@ -32,7 +32,8 @@ import (
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -54,15 +55,16 @@ type (
 	failoverWatcherImpl struct {
 		status          int32
 		shutdownChan    chan struct{}
-		refreshInterval dynamicconfig.DurationPropertyFn
-		refreshJitter   dynamicconfig.FloatPropertyFn
+		refreshInterval dynamicproperties.DurationPropertyFn
+		refreshJitter   dynamicproperties.FloatPropertyFn
 		retryPolicy     backoff.RetryPolicy
 
-		domainManager persistence.DomainManager
-		domainCache   cache.DomainCache
-		timeSource    clock.TimeSource
-		scope         metrics.Scope
-		logger        log.Logger
+		clusterMetadata cluster.Metadata
+		domainManager   persistence.DomainManager
+		domainCache     cache.DomainCache
+		timeSource      clock.TimeSource
+		scope           metrics.Scope
+		logger          log.Logger
 	}
 )
 
@@ -72,9 +74,10 @@ var _ FailoverWatcher = (*failoverWatcherImpl)(nil)
 func NewFailoverWatcher(
 	domainCache cache.DomainCache,
 	domainManager persistence.DomainManager,
+	clusterMetadata cluster.Metadata,
 	timeSource clock.TimeSource,
-	refreshInterval dynamicconfig.DurationPropertyFn,
-	refreshJitter dynamicconfig.FloatPropertyFn,
+	refreshInterval dynamicproperties.DurationPropertyFn,
+	refreshJitter dynamicproperties.FloatPropertyFn,
 	metricsClient metrics.Client,
 	logger log.Logger,
 ) FailoverWatcher {
@@ -90,6 +93,7 @@ func NewFailoverWatcher(
 		refreshInterval: refreshInterval,
 		refreshJitter:   refreshJitter,
 		retryPolicy:     retryPolicy,
+		clusterMetadata: clusterMetadata,
 		domainCache:     domainCache,
 		domainManager:   domainManager,
 		timeSource:      timeSource,
@@ -105,7 +109,7 @@ func (p *failoverWatcherImpl) Start() {
 
 	go p.refreshDomainLoop()
 
-	p.logger.Info("Domain failover processor started.")
+	p.logger.Info("Domain failover processor started")
 }
 
 func (p *failoverWatcherImpl) Stop() {
@@ -114,7 +118,7 @@ func (p *failoverWatcherImpl) Stop() {
 	}
 
 	close(p.shutdownChan)
-	p.logger.Info("Domain failover processor stop.")
+	p.logger.Info("Domain failover processor stopped")
 }
 
 func (p *failoverWatcherImpl) refreshDomainLoop() {
@@ -163,9 +167,20 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 			domain.GetFailoverVersion(),
 			p.retryPolicy,
 		); err != nil {
-			p.logger.Error("Failed to update pending-active domain to active", tag.WorkflowDomainID(domainID), tag.Error(err))
+			p.logger.Error("Failed to update pending-active domain to active", tag.WorkflowDomainID(domainID), tag.WorkflowDomainName(domain.GetInfo().Name), tag.Error(err))
 			return
 		}
+		sourceCluster, err := p.clusterMetadata.ClusterNameForFailoverVersion(domain.GetPreviousFailoverVersion())
+		if err != nil {
+			p.logger.Error("Failed to resolve source cluster for graceful failover", tag.WorkflowDomainID(domainID), tag.WorkflowDomainName(domain.GetInfo().Name), tag.Error(err))
+			sourceCluster = "unknown"
+		}
+		p.logger.Info("Graceful failover completed",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowDomainName(domain.GetInfo().Name),
+			tag.PrevActiveCluster(sourceCluster),
+			tag.ActiveClusterName(domain.GetReplicationConfig().ActiveClusterName),
+		)
 		p.scope.Tagged(metrics.DomainTag(domain.GetInfo().Name)).IncCounter(metrics.GracefulFailoverFailure)
 	}
 }
@@ -207,8 +222,8 @@ func CleanPendingActiveState(
 			FailoverEndTime:             nil,
 			NotificationVersion:         metadata.NotificationVersion,
 		}
-		op := func() error {
-			return domainManager.UpdateDomain(context.Background(), updateReq)
+		op := func(ctx context.Context) error {
+			return domainManager.UpdateDomain(ctx, updateReq)
 		}
 		throttleRetry := backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(policy),

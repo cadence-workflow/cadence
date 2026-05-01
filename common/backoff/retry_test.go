@@ -49,7 +49,7 @@ func (s *RetrySuite) SetupTest() {
 
 func (s *RetrySuite) TestRetrySuccess() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 5 {
@@ -75,7 +75,7 @@ func (s *RetrySuite) TestRetrySuccess() {
 
 func (s *RetrySuite) TestRetryFailed() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 7 {
@@ -102,7 +102,7 @@ func (s *RetrySuite) TestRetryFailedReturnPreviousError() {
 	i := 0
 
 	the5thError := fmt.Errorf("this is the error of the 5th attempt(4th retry attempt)")
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		if i == 5 {
 			return the5thError
@@ -133,7 +133,7 @@ func (s *RetrySuite) TestRetryFailedReturnPreviousError() {
 
 func (s *RetrySuite) TestIsRetryableSuccess() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 5 {
@@ -167,7 +167,7 @@ func (s *RetrySuite) TestIsRetryableSuccess() {
 
 func (s *RetrySuite) TestIsRetryableFailure() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 
 		if i == 5 {
@@ -193,7 +193,7 @@ func (s *RetrySuite) TestIsRetryableFailure() {
 
 func (s *RetrySuite) TestRetryExpired() {
 	i := 0
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		time.Sleep(time.Second)
 		return &someError{}
@@ -217,7 +217,7 @@ func (s *RetrySuite) TestRetryExpired() {
 func (s *RetrySuite) TestRetryExpiredReturnPreviousError() {
 	i := 0
 	prevErr := fmt.Errorf("previousError")
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		if i == 1 {
 			return prevErr
@@ -244,7 +244,7 @@ func (s *RetrySuite) TestRetryExpiredReturnPreviousError() {
 func (s *RetrySuite) TestRetryThrottled() {
 	i := 0
 	throttleErr := fmt.Errorf("throttled")
-	op := func() error {
+	op := func(ctx context.Context) error {
 		i++
 		if i == 1 {
 			return throttleErr
@@ -313,6 +313,177 @@ func (s *RetrySuite) TestConcurrentRetrier() {
 		fmt.Printf("Duration: %d\n", val)
 		s.Equal(done, val)
 	}
+}
+
+func (s *RetrySuite) TestRetryCountInContext() {
+	retryCounts := make([]int, 0)
+	op := func(ctx context.Context) error {
+		retryCount := ctx.Value(retryCountKey).(int)
+		retryCounts = append(retryCounts, retryCount)
+		if retryCount == 2 {
+			return nil
+		}
+		return &someError{}
+	}
+
+	policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+	policy.SetMaximumInterval(5 * time.Millisecond)
+	policy.SetMaximumAttempts(10)
+
+	throttleRetry := NewThrottleRetry(
+		WithRetryPolicy(policy),
+		WithRetryableError(func(_ error) bool { return true }),
+	)
+
+	err := throttleRetry.Do(context.Background(), op)
+	s.NoError(err)
+	s.Equal([]int{0, 1, 2}, retryCounts)
+}
+
+func (s *RetrySuite) TestContextDeadline() {
+	cases := []struct {
+		name            string
+		policy          func() RetryPolicy
+		enforceDeadline bool
+		opts            []ThrottleRetryOption
+		expectedMin     time.Duration
+		expectedMax     time.Duration
+	}{
+		{
+			name: "no deadline",
+			policy: func() RetryPolicy {
+				policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+				policy.SetExpirationInterval(NoInterval)
+				return policy
+			},
+			enforceDeadline: true,
+			expectedMin:     0,
+			expectedMax:     0,
+		},
+		{
+			name: "don't enforce deadline",
+			policy: func() RetryPolicy {
+				policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+				policy.SetExpirationInterval(time.Hour)
+				return policy
+			},
+			enforceDeadline: false,
+			expectedMin:     0,
+			expectedMax:     0,
+		},
+		{
+			name: "expiration interval",
+			policy: func() RetryPolicy {
+				policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+				policy.SetExpirationInterval(time.Hour)
+				return policy
+			},
+			enforceDeadline: true,
+			expectedMin:     50 * time.Minute,
+			expectedMax:     70 * time.Minute,
+		},
+		{
+			name: "operation timeout",
+			policy: func() RetryPolicy {
+				policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+				policy.SetExpirationInterval(NoInterval)
+				return policy
+			},
+			enforceDeadline: true,
+			opts: []ThrottleRetryOption{
+				WithOperationTimeout(time.Hour),
+			},
+			expectedMin: 50 * time.Minute,
+			expectedMax: 70 * time.Minute,
+		},
+		{
+			name: "expiration interval lower, take lower",
+			policy: func() RetryPolicy {
+				policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+				policy.SetExpirationInterval(time.Hour)
+				return policy
+			},
+			enforceDeadline: true,
+			opts: []ThrottleRetryOption{
+				WithOperationTimeout(10 * time.Hour),
+			},
+			expectedMin: 50 * time.Minute,
+			expectedMax: 70 * time.Minute,
+		},
+		{
+			name: "operation timeout lower, take lower",
+			policy: func() RetryPolicy {
+				policy := NewExponentialRetryPolicy(1 * time.Millisecond)
+				policy.SetExpirationInterval(10 * time.Hour)
+				return policy
+			},
+			enforceDeadline: true,
+			opts: []ThrottleRetryOption{
+				WithOperationTimeout(time.Hour),
+			},
+			expectedMin: 50 * time.Minute,
+			expectedMax: 70 * time.Minute,
+		},
+	}
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			var opts []ThrottleRetryOption
+			opts = append(opts, WithRetryPolicy(tc.policy()))
+			if tc.enforceDeadline {
+				opts = append(opts, WithContextExpiration())
+			}
+			if len(tc.opts) > 0 {
+				opts = append(opts, tc.opts...)
+			}
+			throttleRetry := NewThrottleRetry(opts...)
+			var result time.Duration
+
+			err := throttleRetry.Do(context.Background(), func(ctx context.Context) error {
+				if deadline, ok := ctx.Deadline(); ok {
+					result = deadline.Sub(time.Now())
+				} else {
+					result = 0
+				}
+				return nil
+			})
+			s.NoError(err, "somehow failed")
+			s.GreaterOrEqual(result, tc.expectedMin)
+			s.LessOrEqual(result, tc.expectedMax)
+		})
+	}
+}
+
+func (s *RetrySuite) TestOperationTimeoutIsRetryable() {
+	attempts := 0
+	op := func(ctx context.Context) error {
+		retryCount := ctx.Value(retryCountKey).(int)
+		attempts = max(attempts, retryCount)
+		// Return nil, indicating success
+		if retryCount == 3 {
+			return nil
+		}
+		// Return the DeadlineExceeded err
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	policy := NewExponentialRetryPolicy(time.Nanosecond)
+	policy.SetMaximumInterval(time.Nanosecond)
+	policy.SetMaximumAttempts(10)
+
+	throttleRetry := NewThrottleRetry(
+		WithRetryPolicy(policy),
+		// Operation timeout is retryable anyway
+		WithRetryableError(func(_ error) bool { return false }),
+		// Set a timeout such that it will instantly be canceled every time
+		WithOperationTimeout(time.Nanosecond),
+	)
+
+	err := throttleRetry.Do(context.Background(), op)
+	s.NoError(err, "somehow failed")
+	s.Equal(3, attempts)
 }
 
 func (e *someError) Error() string {

@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/collection"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -56,18 +57,17 @@ type (
 			baseLastEventID int64,
 			baseLastEventVersion int64,
 			targetWorkflowIdentifier definition.WorkflowIdentifier,
-			targetBranchToken []byte,
+			targetBranchFn func() ([]byte, error),
 			requestID string,
 		) (MutableState, int64, error)
 	}
 
 	stateRebuilderImpl struct {
-		shard           shard.Context
-		domainCache     cache.DomainCache
-		clusterMetadata cluster.Metadata
-		historyV2Mgr    persistence.HistoryManager
-		taskRefresher   MutableStateTaskRefresher
-
+		shard              shard.Context
+		domainCache        cache.DomainCache
+		clusterMetadata    cluster.Metadata
+		historyV2Mgr       persistence.HistoryManager
+		taskRefresher      MutableStateTaskRefresher
 		rebuiltHistorySize int64
 		logger             log.Logger
 	}
@@ -92,6 +92,7 @@ func NewStateRebuilder(
 			shard.GetDomainCache(),
 			shard.GetEventsCache(),
 			shard.GetShardID(),
+			logger,
 		),
 		rebuiltHistorySize: 0,
 		logger:             logger,
@@ -106,13 +107,13 @@ func (r *stateRebuilderImpl) Rebuild(
 	baseLastEventID int64,
 	baseLastEventVersion int64,
 	targetWorkflowIdentifier definition.WorkflowIdentifier,
-	targetBranchToken []byte,
+	targetBranchFn func() ([]byte, error),
 	requestID string,
 ) (MutableState, int64, error) {
 
 	iter := collection.NewPagingIterator(r.getPaginationFn(
 		ctx,
-		common.FirstEventID,
+		constants.FirstEventID,
 		baseLastEventID+1,
 		baseBranchToken,
 		targetWorkflowIdentifier.DomainID,
@@ -151,9 +152,6 @@ func (r *stateRebuilderImpl) Rebuild(
 		}
 	}
 
-	if err := rebuiltMutableState.SetCurrentBranchToken(targetBranchToken); err != nil {
-		return nil, 0, err
-	}
 	rebuildVersionHistories := rebuiltMutableState.GetVersionHistories()
 	if rebuildVersionHistories != nil {
 		currentVersionHistory, err := rebuildVersionHistories.GetCurrentVersionHistory()
@@ -180,6 +178,15 @@ func (r *stateRebuilderImpl) Rebuild(
 		}
 	}
 
+	targetBranchToken, err := targetBranchFn()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := rebuiltMutableState.SetCurrentBranchToken(targetBranchToken); err != nil {
+		return nil, 0, err
+	}
+
 	// close rebuilt mutable state transaction clearing all generated tasks, workflow requests, etc.
 	_, _, err = rebuiltMutableState.CloseTransactionAsSnapshot(now, TransactionPolicyPassive)
 	if err != nil {
@@ -203,6 +210,7 @@ func (r *stateRebuilderImpl) initializeBuilders(
 		r.shard,
 		r.logger,
 		domainEntry,
+		constants.EmptyVersion,
 	)
 	stateBuilder := NewStateBuilder(
 		r.shard,

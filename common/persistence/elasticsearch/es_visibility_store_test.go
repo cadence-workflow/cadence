@@ -35,9 +35,9 @@ import (
 	"github.com/valyala/fastjson"
 
 	"github.com/uber/cadence/.gen/go/indexer"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	es "github.com/uber/cadence/common/elasticsearch"
 	esMocks "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/elasticsearch/query"
@@ -100,8 +100,8 @@ func (s *ESVisibilitySuite) SetupTest() {
 
 	s.mockESClient = &esMocks.GenericClient{}
 	config := &service.Config{
-		ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(esIndexMaxResultWindow),
-		ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		ESIndexMaxResultWindow: dynamicproperties.GetIntPropertyFn(esIndexMaxResultWindow),
+		ValidSearchAttributes:  dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
 	}
 
 	s.mockProducer = &mocks.KafkaProducer{}
@@ -126,8 +126,10 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionStarted() {
 	request.TaskID = int64(111)
 	request.IsCron = true
 	request.NumClusters = 2
+	request.ClusterAttributeScope = "region"
+	request.ClusterAttributeName = "us-east-1"
 	memoBytes := []byte(`test bytes`)
-	request.Memo = p.NewDataBlob(memoBytes, common.EncodingTypeThriftRW)
+	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 	request.ShardID = 1234
 
 	s.mockProducer.On("Publish", mock.Anything, mock.MatchedBy(func(input *indexer.Message) bool {
@@ -140,9 +142,11 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionStarted() {
 		s.Equal(request.StartTimestamp.UnixNano(), fields[es.StartTime].GetIntData())
 		s.Equal(request.ExecutionTimestamp.UnixNano(), fields[es.ExecutionTime].GetIntData())
 		s.Equal(memoBytes, fields[es.Memo].GetBinaryData())
-		s.Equal(string(common.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
+		s.Equal(string(constants.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
 		s.Equal(request.IsCron, fields[es.IsCron].GetBoolData())
 		s.Equal((int64)(request.NumClusters), fields[es.NumClusters].GetIntData())
+		s.Equal(request.ClusterAttributeScope, fields[es.ClusterAttributeScope].GetStringData())
+		s.Equal(request.ClusterAttributeName, fields[es.ClusterAttributeName].GetStringData())
 		s.Equal(indexer.VisibilityOperationRecordStarted, *input.VisibilityOperation)
 		s.Equal((int64)(request.ShardID), fields[es.ShardID].GetIntData())
 		return true
@@ -187,7 +191,7 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionClosed() {
 	request.ExecutionTimestamp = time.Unix(0, int64(321))
 	request.TaskID = int64(111)
 	memoBytes := []byte(`test bytes`)
-	request.Memo = p.NewDataBlob(memoBytes, common.EncodingTypeThriftRW)
+	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 	request.CloseTimestamp = time.Unix(0, int64(999))
 	request.Status = types.WorkflowExecutionCloseStatusTerminated
 	request.HistoryLength = int64(20)
@@ -205,7 +209,7 @@ func (s *ESVisibilitySuite) TestRecordWorkflowExecutionClosed() {
 		s.Equal(request.StartTimestamp.UnixNano(), fields[es.StartTime].GetIntData())
 		s.Equal(request.ExecutionTimestamp.UnixNano(), fields[es.ExecutionTime].GetIntData())
 		s.Equal(memoBytes, fields[es.Memo].GetBinaryData())
-		s.Equal(string(common.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
+		s.Equal(string(constants.EncodingTypeThriftRW), fields[es.Encoding].GetStringData())
 		s.Equal(request.CloseTimestamp.UnixNano(), fields[es.CloseTime].GetIntData())
 		s.Equal(int64(request.Status), fields[es.CloseStatus].GetIntData())
 		s.Equal(request.HistoryLength, fields[es.HistoryLength].GetIntData())
@@ -792,7 +796,7 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 		s.True(strings.Contains(input.Query, `{"match_phrase":{"CloseStatus":{"query":"5"}}}`))
 		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
 		return true
-	})).Return(testSearchResult, nil).Twice()
+	})).Return(testSearchResult, nil).Once()
 
 	request := &p.ListWorkflowExecutionsByQueryRequest{
 		DomainUUID: testDomainID,
@@ -805,16 +809,6 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 	defer cancel()
 
 	_, err := s.visibilityStore.ListWorkflowExecutions(ctx, request)
-	s.NoError(err)
-
-	requestWithLike := &p.ListWorkflowExecutionsByQueryRequest{
-		DomainUUID: testDomainID,
-		Domain:     testDomain,
-		PageSize:   10,
-		Query:      `CloseStatus like '5'`,
-	}
-
-	_, err = s.visibilityStore.ListWorkflowExecutions(ctx, requestWithLike)
 	s.NoError(err)
 
 	s.mockESClient.On("SearchByQuery", mock.Anything, mock.Anything).Return(nil, errTestESSearch).Once()
@@ -830,6 +824,27 @@ func (s *ESVisibilitySuite) TestListWorkflowExecutions() {
 	_, ok = err.(*types.BadRequestError)
 	s.True(ok)
 	s.True(strings.Contains(err.Error(), "Error when parse query"))
+}
+
+func (s *ESVisibilitySuite) TestListWorkflowExecutionsWithLike() {
+	s.mockESClient.On("SearchByQuery", mock.Anything, mock.MatchedBy(func(input *es.SearchByQueryRequest) bool {
+		s.True(strings.Contains(input.Query, `{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}}`))
+		s.Equal(esIndexMaxResultWindow, input.MaxResultWindow)
+		return true
+	})).Return(testSearchResult, nil).Once()
+
+	request := &p.ListWorkflowExecutionsByQueryRequest{
+		DomainUUID: testDomainID,
+		Domain:     testDomain,
+		PageSize:   10,
+		Query:      `WorkflowID like 'wid'`,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	_, err := s.visibilityStore.ListWorkflowExecutions(ctx, request)
+	s.NoError(err)
 }
 
 func (s *ESVisibilitySuite) TestScanWorkflowExecutions() {
@@ -1120,4 +1135,99 @@ func matchQueryData(matchQuery query.MatchQuery) (Source, error) {
 		return Source{}, err
 	}
 	return to, nil
+}
+
+func (s *ESVisibilitySuite) TestGetCustomizedDSLFromSQL() {
+	sql := "select * from dummy where WorkflowID like 'wid' LIMIT 100"
+	dsl, err := getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}}]}}]}},"from":0,"size":100}`, dsl.String())
+
+	sql = "select * from dummy where Attr.CustomizedKeywordField like 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID = 'wid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"WorkflowID":{"query":"wid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where Attr.CustomizedKeywordField = 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"test"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID like 'wid' and Attr.CustomizedKeywordField = 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"test"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID like 'like' and Attr.CustomizedKeywordField = 'like'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"like*","case_insensitive":true}}},{"match_phrase":{"Attr.CustomizedKeywordField":{"query":"like"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID like 'wid' and Attr.CustomizedKeywordField like 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID = 'wid' OR RunID = 'runid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"match_phrase":{"WorkflowID":{"query":"wid"}}},{"match_phrase":{"RunID":{"query":"runid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	sql = "select * from dummy where WorkflowID like 'wid' OR Attr.CustomizedKeywordField like 'test'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"Attr.CustomizedKeywordField":{"value":"test*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Parenthesized LIKE: grouped OR with AND
+	sql = "select * from dummy where (WorkflowID LIKE 'wid' OR RunID LIKE 'rid') AND CloseTime > 1000"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"RunID":{"value":"rid*","case_insensitive":true}}}]}},{"range":{"CloseTime":{"gt":"1000"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Parenthesized LIKE: multiple OR in parens
+	sql = "select * from dummy where (WorkflowID LIKE 'wid' OR RunID LIKE 'rid' OR WorkflowType LIKE 'wt')"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"RunID":{"value":"rid*","case_insensitive":true}}},{"wildcard":{"WorkflowType":{"value":"wt*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Parenthesized LIKE: grouped AND with OR
+	sql = "select * from dummy where (WorkflowID LIKE 'wid' AND RunID LIKE 'rid') OR WorkflowType LIKE 'wt'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"bool":{"must":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"RunID":{"value":"rid*","case_insensitive":true}}}]}},{"wildcard":{"WorkflowType":{"value":"wt*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Mixed LIKE and non-LIKE in OR: wildcard and match_phrase at the same level
+	sql = "select * from dummy where WorkflowID LIKE 'wid' OR RunID = 'rid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"match_phrase":{"RunID":{"query":"rid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Whitespace-only LIKE pattern in OR: dummy is removed, leaving only the other clause
+	sql = "select * from dummy where WorkflowID LIKE '   ' OR RunID = 'rid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"should":[{"match_phrase":{"RunID":{"query":"rid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Whitespace-only LIKE pattern in AND: dummy is removed, leaving only the other clause
+	sql = "select * from dummy where WorkflowID LIKE '   ' AND RunID = 'rid'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"match_phrase":{"RunID":{"query":"rid"}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Deeply nested parens: ((A OR B) AND C)
+	sql = "select * from dummy where ((WorkflowID LIKE 'wid' OR RunID LIKE 'rid') AND WorkflowType LIKE 'wt')"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"RunID":{"value":"rid*","case_insensitive":true}}}]}},{"wildcard":{"WorkflowType":{"value":"wt*","case_insensitive":true}}}]}}]}},"from":0,"size":1}`, dsl.String())
+
+	// Deeply nested parens with additional clause after: ((A OR B) AND C) AND D
+	sql = "select * from dummy where ((WorkflowID LIKE 'wid' OR RunID LIKE 'rid') AND WorkflowType LIKE 'wt') AND StartTime > '1000'"
+	dsl, err = getCustomizedDSLFromSQL(sql, testDomainID)
+	s.NoError(err)
+	s.Equal(`{"query":{"bool":{"must":[{"match_phrase":{"DomainID":{"query":"bfd5c907-f899-4baf-a7b2-2ab85e623ebd"}}},{"bool":{"must":[{"bool":{"should":[{"wildcard":{"WorkflowID":{"value":"wid*","case_insensitive":true}}},{"wildcard":{"RunID":{"value":"rid*","case_insensitive":true}}}]}},{"wildcard":{"WorkflowType":{"value":"wt*","case_insensitive":true}}},{"range":{"StartTime":{"gt":"1000"}}}]}}]}},"from":0,"size":1}`, dsl.String())
 }

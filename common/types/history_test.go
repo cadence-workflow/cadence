@@ -25,6 +25,7 @@ package types
 import (
 	"testing"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1530,4 +1531,14 @@ func TestGetFailoverInfoResponse_GetPendingShards(t *testing.T) {
 	var nilStruct *GetFailoverInfoResponse
 	res = nilStruct.GetPendingShards()
 	assert.Nil(t, res)
+}
+
+func TestQueueState_Copy(t *testing.T) {
+	f := fuzz.New().NilChance(0.1)
+	info := &QueueState{}
+	for i := 0; i < 1000; i++ {
+		f.Fuzz(info)
+		infoCopy := info.Copy()
+		assert.Equal(t, info, infoCopy)
+	}
 }

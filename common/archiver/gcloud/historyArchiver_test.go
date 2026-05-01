@@ -26,16 +26,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/gcloud/connector"
 	"github.com/uber/cadence/common/archiver/gcloud/connector/mocks"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
@@ -62,7 +63,7 @@ func (h *historyArchiverSuite) SetupTest() {
 	h.Assertions = require.New(h.T())
 	h.container = &archiver.HistoryBootstrapContainer{
 		Logger:        testlogger.New(h.T()),
-		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History),
+		MetricsClient: metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
 	}
 	h.testArchivalURI, _ = archiver.NewURI("gs://my-bucket-cad/cadence_archival/development")
 }
@@ -243,7 +244,7 @@ func (h *historyArchiverSuite) TestArchive_Fail_HistoryMutated() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion + 1,
 				},
@@ -322,7 +323,7 @@ func (h *historyArchiverSuite) TestArchive_Skip() {
 			{
 				Events: []*types.HistoryEvent{
 					{
-						ID:        common.FirstEventID,
+						ID:        constants.FirstEventID,
 						Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 						Version:   testCloseFailoverVersion,
 					},
@@ -365,12 +366,12 @@ func (h *historyArchiverSuite) TestArchive_Success() {
 		{
 			Events: []*types.HistoryEvent{
 				{
-					ID:        common.FirstEventID + 1,
+					ID:        constants.FirstEventID + 1,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion,
 				},
 				{
-					ID:        common.FirstEventID + 2,
+					ID:        constants.FirstEventID + 2,
 					Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 					Version:   testCloseFailoverVersion,
 				},

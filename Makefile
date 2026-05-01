@@ -61,8 +61,9 @@ $(BUILD)/lint: $(BUILD)/fmt # lint will fail if fmt fails, so fmt first
 $(BUILD)/proto-lint:
 $(BUILD)/gomod-lint:
 $(BUILD)/goversion-lint:
-$(BUILD)/fmt: $(BUILD)/copyright # formatting must occur only after all other go-file-modifications are done
-$(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
+$(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
+# $(BUILD)/copyright
+# $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
 $(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
@@ -127,6 +128,7 @@ FRESH_ALL_SRC = $(shell \
 		-o -path './.build/*' \
 		-o -path './.bin/*' \
 		-o -path './.git/*' \
+		-o -path './.worktrees/*' \
 	\) \
 	-prune \
 	-o -name '*.go' \
@@ -155,7 +157,7 @@ LINT_SRC := $(filter-out %_test.go ./.gen/%, $(ALL_SRC))
 # the good news is that you can just drop that and `cd` to the folder and it works.
 define go_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
-$Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q cd internal/tools; GOTOOLCHAIN=auto go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # same as go_build_tool, but uses our main module file, not the tools one.
@@ -167,7 +169,7 @@ endef
 define go_mod_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from go.mod..."
 $Q ./scripts/check-gomod-version.sh $(1) $(if $(verbose),-v)
-$Q go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q GOTOOLCHAIN=auto go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # utility target.
@@ -182,7 +184,7 @@ $(BIN)/thriftrw-plugin-yarpc: go.mod go.work
 	$(call go_mod_build_tool,go.uber.org/yarpc/encoding/thrift/thriftrw-plugin-yarpc)
 
 $(BIN)/mockgen: internal/tools/go.mod go.work
-	$(call go_build_tool,github.com/golang/mock/mockgen)
+	$(call go_build_tool,go.uber.org/mock/mockgen)
 
 $(BIN)/mockery: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)
@@ -204,6 +206,9 @@ $(BIN)/gowrap: go.mod go.work
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)
 
+$(BIN)/nilaway: internal/tools/go.mod go.work
+	$(call go_build_tool,go.uber.org/nilaway/cmd/nilaway,nilaway)
+
 $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,github.com/gogo/protobuf/protoc-gen-gogofast)
 
@@ -216,15 +221,15 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q touch $@
 
 # copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
-$(BIN)/copyright: cmd/tools/copyright/licensegen.go
-	$Q go build -o $@ ./cmd/tools/copyright/licensegen.go
+# $(BIN)/copyright: cmd/tools/copyright/licensegen.go
+# 	$Q go build -o $@ ./cmd/tools/copyright/licensegen.go
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
-BUF_VERSION = 0.36.0
+BUF_VERSION = 1.47.2
 OS = $(shell uname -s)
 ARCH = $(shell $(EMULATE_X86) uname -m)
-BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(ARCH)
+BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(shell uname -m)
 # use BUF_VERSION_BIN as a bin prerequisite, not "buf", so the correct version will be used.
 # otherwise this must be a .PHONY rule, or the buf bin / symlink could become out of date.
 BUF_VERSION_BIN = buf-$(BUF_VERSION)
@@ -261,19 +266,20 @@ $(STABLE_BIN)/$(PROTOC_VERSION_BIN): | $(STABLE_BIN)
 # and last but not least: this avoids using `go` to make this check take only a couple seconds in CI,
 # so the whole docker container doesn't have to be prepared.
 .idl-status:
-	branches="$$(git submodule foreach git branch master --contains HEAD)"; \
-	if ! (echo "$$branches" | grep -q master); then \
-	  >&2 echo "IDL submodule points to a commit ($$(git submodule foreach git rev-parse HEAD | tail -n 1)) that is not on master."; \
-	  >&2 echo "Make sure the IDL PR has been merged, and this PR is updated, before merging here."; \
-	  exit 1; \
-	fi
-	idlsha="$$(git ls-tree HEAD idls | awk '{print substr($$3,0,12)}')"; \
-	gosha="$$(grep github.com/uber/cadence-idl go.mod | tr '-' '\n' | tail -n1)"; \
-	if [[ "$$idlsha" != "$$gosha" ]]; then \
-	  >&2 echo "IDL submodule sha ($$idlsha) does not match go module sha ($$gosha)."; \
-	  >&2 echo "Make sure the IDL PR has been merged, and this PR is updated, before merging here."; \
-	  exit 1; \
-	fi
+	$(Q) cd idls && \
+		SUBMODULE_COMMIT=$$(git rev-parse HEAD) && \
+		BRANCH_INFO=$$(git branch -r --contains "$$SUBMODULE_COMMIT" | head -n1) && \
+		if ! git branch -r --contains "$$SUBMODULE_COMMIT" | grep -q "origin/master"; then \
+			echo "Error: Submodule commit $$SUBMODULE_COMMIT belongs to $$BRANCH_INFO, not to master branch" && \
+			exit 1; \
+		fi
+	$(Q) idlsha=$$(git ls-tree HEAD idls | awk '{print substr($$3,0,12)}') && \
+		gosha=$$(grep github.com/uber/cadence-idl go.mod | tr '-' '\n' | tail -n1) && \
+		if [[ "$$idlsha" != "$$gosha" ]]; then \
+			echo "IDL submodule sha ($$idlsha) does not match go module sha ($$gosha)." >&2 && \
+			echo "Make sure the IDL PR has been merged, and this PR is updated, before merging here." >&2 && \
+			exit 1; \
+		fi
 
 
 # ====================================
@@ -343,7 +349,7 @@ $(BUILD)/protoc: $(PROTO_FILES) $(STABLE_BIN)/$(PROTOC_VERSION_BIN) $(BIN)/proto
 		--yarpc-go_out=$(PROTO_OUT) \
 		$$(find $(PROTO_DIR) -name '*.proto');\
 	)
-	$Q # This directory exists for local/buildkite but not for docker builds.
+	$Q # This directory exists for local/github_actions but not for docker builds.
 	$Q if [ -d "$(PROTO_OUT)/uber/cadence" ]; then \
 		cp -R $(PROTO_OUT)/uber/cadence/* $(PROTO_OUT)/; \
 		rm -r $(PROTO_OUT)/uber; \
@@ -371,29 +377,40 @@ $(BUILD)/proto-lint: $(PROTO_FILES) $(STABLE_BIN)/$(BUF_VERSION_BIN) | $(BUILD)
 # lints that go modules are as expected, e.g. parent does not import submodule.
 # tool builds that need to be in sync with the parent are partially checked through go_mod_build_tool, but should probably be checked here too
 $(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod | $(BUILD)
-	$Q # this is likely impossible as it'd be a cycle
-	$Q if grep github.com/uber/cadence/common/archiver/gcloud go.mod; then echo "gcloud submodule cannot be imported by main module" >&2; exit 1; fi
-	$Q # intentionally kept separate so the server does not include tool-only dependencies
-	$Q if grep github.com/uber/cadence/internal go.mod; then echo "internal module cannot be imported by main module" >&2; exit 1; fi
+	$Q echo "checking for direct submodule dependencies in root go.mod..."
+	$Q ( \
+		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
+		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -not -path "./.worktrees/*" -exec dirname {} \; | sed 's|^\./||'); \
+		for submodule in $$SUBMODULES; do \
+			submodule_path="$$MAIN_MODULE/$$submodule"; \
+			if grep -q "$$submodule_path" go.mod; then \
+				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
+				exit 1; \
+			fi; \
+			echo "✓ No direct dependency on $$submodule"; \
+		done; \
+	)
 	$Q touch $@
 
 # note that LINT_SRC is fairly fake as a prerequisite.
 # it's a coarse "you probably don't need to re-lint" filter, nothing more.
-$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
+$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 	$Q echo "lint..."
 	$Q # non-optional vet checks.  unfortunately these are not currently included in `go test`'s default behavior.
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
-	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
+	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -exclude './.worktrees/...' -formatter stylish ./...
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
-	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
+	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' -not -path './.worktrees/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
 		  echo "$$bad" >&2; \
 		  echo 'non-directive comments must have a space after the "//"' >&2; \
 		  exit 1; \
 		fi
+	$Q echo "nilaway check..."
+	$Q GOTOOLCHAIN=go1.24.0 $(BIN)/nilaway -test=false github.com/uber/cadence/common/types/mapper/...
 	$Q touch $@
 
-$(BUILD)/goversion-lint: go.work Dockerfile docker/buildkite/Dockerfile
+$(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
 	$Q echo "checking go version..."
 	$Q # intentionally using go.work toolchain, as GOTOOLCHAIN is user-overridable
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)
@@ -416,16 +433,16 @@ MAYBE_TOUCH_COPYRIGHT=
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
 	$Q # goimports thrashes on internal/tools, sadly.  just hide it.
-	$Q $(BIN)/goimports -w $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC))
+	$Q echo $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC)) | xargs $(BIN)/goimports -w
 	$Q echo "grouping imports..."
-	$Q $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank $(FRESH_ALL_SRC)
+	$Q echo $(FRESH_ALL_SRC) | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
 	$Q touch $@
-	$Q $(MAYBE_TOUCH_COPYRIGHT)
+# 	$Q $(MAYBE_TOUCH_COPYRIGHT)
 
-$(BUILD)/copyright: $(ALL_SRC) $(BIN)/copyright | $(BUILD)
-	$(BIN)/copyright --verifyOnly
-	$Q $(eval MAYBE_TOUCH_COPYRIGHT=touch $@)
-	$Q touch $@
+# $(BUILD)/copyright: $(ALL_SRC) $(BIN)/copyright | $(BUILD)
+# 	$(BIN)/copyright --verifyOnly
+# 	$Q $(eval MAYBE_TOUCH_COPYRIGHT=touch $@)
+# 	$Q touch $@
 
 # ====================================
 # developer-oriented targets
@@ -453,22 +470,26 @@ lint: ## (Re)run the linter
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
 
 # not identical to the intermediate target, but does provide the same codegen (or more).
-copyright: $(BIN)/copyright | $(BUILD) ## Update copyright headers
-	$(BIN)/copyright
-	$Q touch $(BUILD)/copyright
+# copyright: $(BIN)/copyright | $(BUILD) ## Update copyright headers
+# 	$(BIN)/copyright
+# 	$Q touch $(BUILD)/copyright
 
 define make_quietly
 $Q echo "make $1..."
 $Q output=$$(mktemp); $(MAKE) $1 > $$output 2>&1 || ( cat $$output; echo -e '\nfailed `make $1`, check output above' >&2; exit 1)
 endef
 
+override GEN_DIR := $(patsubst %/,%,$(strip $(GEN_DIR)))
+GO_GENERATE_SCOPE ?= $(if $(GEN_DIR),./$(GEN_DIR)/...,./...)
+GO_GENERATE_MAKE_ARG = $(if $(GEN_DIR),GEN_DIR=$(GEN_DIR),)
+
 # pre-PR target to build and refresh everything
-pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests.  Recommended before opening a github PR
+pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests. Optional: GEN_DIR=path/to/package to scope go-generate
 	$Q $(if $(verbose),$(MAKE) tidy,$(call make_quietly,tidy))
-	$Q $(if $(verbose),$(MAKE) go-generate,$(call make_quietly,go-generate))
-	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
+	$Q $(if $(verbose),$(MAKE) go-generate $(GO_GENERATE_MAKE_ARG),$(call make_quietly,go-generate $(GO_GENERATE_MAKE_ARG)))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
+# 	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
 
 # ====================================
 # binaries to build
@@ -516,10 +537,21 @@ cadence-canary: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-canary with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/canary/main.go
 
+BINS += sharddistributor-canary
+sharddistributor-canary: $(BINS_DEPEND_ON)
+	$Q echo "compiling sharddistributor-canary with OS: $(GOOS), ARCH: $(GOARCH)"
+	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/sharddistributor-canary/main.go
+
 BINS += cadence-bench
 cadence-bench: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-bench with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/bench/main.go
+
+
+BINS  += cadence-releaser
+cadence-releaser: $(BINS_DEPEND_ON)
+	$Q echo "compiling cadence-releaser with OS: $(GOOS), ARCH: $(GOARCH)"
+	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/tools/releaser/releaser.go
 
 .PHONY: go-generate bins tools release clean
 
@@ -528,12 +560,12 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 tools: $(TOOLS)
 
 go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
-	$Q echo "running go generate ./..., this takes a minute or more..."
+	$Q echo "running go generate $(GO_GENERATE_SCOPE), this takes a minute or more..."
 	$Q # add our bins to PATH so `go generate` can find them
-	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
-	$Q echo "updating copyright headers"
-	$Q $(MAKE) --no-print-directory copyright
+	$Q $(BIN_PATH) go generate $(if $(verbose),-v) $(GO_GENERATE_SCOPE)
 	$Q $(MAKE) --no-print-directory fmt
+# 	$Q echo "updating copyright headers"
+# 	$Q $(MAKE) --no-print-directory copyright
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
@@ -557,9 +589,10 @@ tidy: ## `go mod tidy` all packages
 	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
 	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
 
-clean: ## Clean build products
+clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
+	rm *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)
@@ -575,7 +608,15 @@ INTEG_TEST_XDC_ROOT=./host/xdc
 INTEG_TEST_XDC_DIR=hostxdc
 INTEG_TEST_NDC_ROOT=./host/ndc
 INTEG_TEST_NDC_DIR=hostndc
-OPT_OUT_TEST=
+
+# INTEG_TEST_ROOT requires to use test flags that are not used in other sub directories
+# go test require all test package support the flags that are used in the test
+# So INTEG_TEST_DIRS contains all test directories of INTEG_TEST_ROOT that are not using test flags
+INTEG_TEST_DIRS=$$(go list $(INTEG_TEST_ROOT)/... | grep -v $(INTEG_TEST_XDC_ROOT) | grep -v $(INTEG_TEST_NDC_ROOT) | grep -v $(INTEG_TEST_ROOT)$$)
+
+# Opt out folders that shouldn't be run as part of unit tests such as integration tests, simulations.
+# Syntax: "folder1% folder2%" # space separated list of folders to opt out
+OPT_OUT_TEST_FOLDERS=./simulation%
 
 TEST_TIMEOUT ?= 20m
 TEST_ARG ?= -race $(if $(verbose),-v) -timeout $(TEST_TIMEOUT)
@@ -593,7 +634,7 @@ endif
 TEST_DIRS := $(filter-out $(INTEG_TEST_XDC_ROOT)%, $(sort $(dir $(filter %_test.go,$(ALL_SRC)))))
 # all tests other than end-to-end integration test fall into the pkg_test category.
 # ?= allows passing specific (space-separated) dirs for faster testing
-PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST), $(TEST_DIRS))
+PKG_TEST_DIRS ?= $(filter-out $(INTEG_TEST_ROOT)% $(OPT_OUT_TEST_FOLDERS), $(TEST_DIRS))
 
 # Code coverage output files
 COVER_ROOT                      := $(BUILD)/coverage
@@ -603,6 +644,7 @@ INTEG_COVER_FILE                := $(COVER_ROOT)/integ_$(PERSISTENCE_TYPE)_$(PER
 INTEG_COVER_FILE_CASS           := $(COVER_ROOT)/integ_cassandra__cover.out
 INTEG_COVER_FILE_MYSQL          := $(COVER_ROOT)/integ_sql_mysql_cover.out
 INTEG_COVER_FILE_POSTGRES       := $(COVER_ROOT)/integ_sql_postgres_cover.out
+INTEG_COVER_FILE_ETCD           := $(COVER_ROOT)/integ_etcd_cover.out
 
 INTEG_NDC_COVER_FILE            := $(COVER_ROOT)/integ_ndc_$(PERSISTENCE_TYPE)_$(PERSISTENCE_PLUGIN)_cover.out
 INTEG_NDC_COVER_FILE_CASS       := $(COVER_ROOT)/integ_ndc_cassandra__cover.out
@@ -635,6 +677,9 @@ test: ## Build and run all tests locally
 	$Q go test -v ./cmd/server/cadence/
 	$Q $(call looptest,$(PKG_TEST_DIRS))
 
+test_dirs:
+	echo $(PKG_TEST_DIRS)
+
 test_e2e:
 	$Q rm -f test
 	$Q rm -f test.log
@@ -654,11 +699,7 @@ cover_profile:
 	$Q echo Running special test cases without race detector:
 	$Q go test ./cmd/server/cadence/
 	$Q echo Running package tests:
-	$Q for dir in $(PKG_TEST_DIRS); do \
-		mkdir -p $(BUILD)/"$$dir"; \
-		go test "$$dir" $(TEST_ARG) -coverprofile=$(BUILD)/"$$dir"/coverage.out || exit 1; \
-		(cat $(BUILD)/"$$dir"/coverage.out | grep -v "^mode: \w\+" >> $(UNIT_COVER_FILE)) || true; \
-	done;
+	$Q go test $(PKG_TEST_DIRS) $(TEST_ARG) -coverprofile=$(UNIT_COVER_FILE)
 
 cover_integration_profile:
 	$Q mkdir -p $(BUILD)
@@ -667,8 +708,24 @@ cover_integration_profile:
 
 	$Q echo Running integration test with $(PERSISTENCE_TYPE) $(PERSISTENCE_PLUGIN)
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
+	$Q time go test $(INTEG_TEST_DIRS) $(TEST_ARG) $(TEST_TAG) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
+	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 	$Q time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
+
+integration_tests_etcd:
+	$Q mkdir -p $(BUILD)
+	$Q mkdir -p $(COVER_ROOT)
+	$Q echo "mode: atomic" > $(INTEG_COVER_FILE_ETCD)
+
+	$Q echo "Running integration tests with etcd"
+	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
+	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testhelper.SetupStoreTestCluster\|testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
+		echo "Found etcd test directories:"; \
+		echo "$$ETCD_TEST_DIRS"; \
+		echo "Using ETCD_ENDPOINTS='$(ETCD_ENDPOINTS)'"; \
+		ETCD=1 ETCD_ENDPOINTS="$(ETCD_ENDPOINTS)" time go test $$ETCD_TEST_DIRS $(TEST_ARG) $(TEST_TAG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1)
+	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE_ETCD)
 
 cover_ndc_profile:
 	$Q mkdir -p $(BUILD)
@@ -689,6 +746,7 @@ $(COVER_ROOT)/cover.out: $(UNIT_COVER_FILE) $(INTEG_COVER_FILE_CASS) $(INTEG_COV
 	cat $(INTEG_NDC_COVER_FILE_CASS) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 	cat $(INTEG_NDC_COVER_FILE_MYSQL) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 	cat $(INTEG_NDC_COVER_FILE_POSTGRES) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
+	cat $(INTEG_COVER_FILE_ETCD) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 
 cover: $(COVER_ROOT)/cover.out
 	go tool cover -html=$(COVER_ROOT)/cover.out;
@@ -733,6 +791,12 @@ install-schema-postgres: cadence-sql-tool
 	./cadence-sql-tool -p 5432 -u postgres -pw cadence --pl postgres --db cadence_visibility setup-schema -v 0.0
 	./cadence-sql-tool -p 5432 -u postgres -pw cadence --pl postgres --db cadence_visibility update-schema -d ./schema/postgres/visibility/versioned
 
+install-schema-sqlite: cadence-sql-tool
+	./cadence-sql-tool -pl sqlite --db cadence.db setup -v 0.0
+	./cadence-sql-tool -pl sqlite --db cadence.db update-schema -d ./schema/sqlite/cadence/versioned
+	./cadence-sql-tool -pl sqlite --db cadence_visibility.db setup -v 0.0
+	./cadence-sql-tool -pl sqlite --db cadence_visibility.db update-schema -d ./schema/sqlite/visibility/versioned
+
 install-schema-es-v7:
 	curl -X PUT "http://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/v7/visibility/index_template.json
 	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
@@ -742,8 +806,8 @@ install-schema-es-v6:
 	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
 
 install-schema-es-opensearch:
-	curl -X PUT "https://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/os2/visibility/index_template.json -u admin:DevTestInitial123! --insecure
-	curl -X PUT "https://127.0.0.1:9200/cadence-visibility-dev" -u admin:DevTestInitial123! --insecure
+	curl -X PUT "http://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/os2/visibility/index_template.json
+	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
 
 start: bins
 	./cadence-server start
@@ -784,6 +848,9 @@ start-xdc-cluster2: cadence-server
 
 start-canary: cadence-canary
 	./cadence-canary start
+
+start-sharddistributor-canary: sharddistributor-canary
+	./sharddistributor-canary start
 
 start-bench: cadence-bench
 	./cadence-bench start

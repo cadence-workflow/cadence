@@ -180,7 +180,7 @@ func getOutputFile(outputFile string) (*os.File, error) {
 	return f, nil
 }
 
-func startReader(file *os.File, readerCh chan<- []byte) error {
+func startReader(file io.Reader, readerCh chan<- []byte) error {
 	defer close(readerCh)
 	reader := bufio.NewReader(file)
 
@@ -533,7 +533,6 @@ func decodeReplicationTask(
 	task *types.ReplicationTask,
 	serializer persistence.PayloadSerializer,
 ) ([]byte, error) {
-
 	switch task.GetTaskType() {
 	case types.ReplicationTaskTypeHistoryV2:
 		historyV2 := task.GetHistoryTaskV2Attributes()

@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -191,7 +191,7 @@ func TestInsertDomain(t *testing.T) {
 				}).Times(1)
 			},
 			wantSessionQueries: []string{
-				`INSERT INTO domains (id, domain) VALUES(test-domain-id, {name: test-domain-name}) IF NOT EXISTS`,
+				`INSERT INTO domains (id, domain, created_time) VALUES(test-domain-id, {name: test-domain-name}, 2025-01-06T15:00:00Z) IF NOT EXISTS`,
 				`SELECT notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = cadence-domain-metadata `,
 			},
 			wantBatchQueries: []string{
@@ -208,13 +208,13 @@ func TestInsertDomain(t *testing.T) {
 					`previous_failover_version, ` +
 					`failover_end_time, ` +
 					`last_updated_time, ` +
-					`notification_version) ` +
+					`notification_version, created_time) ` +
 					`VALUES(` +
 					`0, ` +
 					`test-domain-name, ` +
 					`{id: test-domain-id, name: test-domain-name, status: 0, description: test-domain-description, owner_email: test-domain-owner-email, data: map[k1:v1] }, ` +
 					`{retention: 7, emit_metric: true, archival_bucket: test-archival-bucket, archival_status: ENABLED,history_archival_status: ENABLED, history_archival_uri: test-history-archival-uri, visibility_archival_status: ENABLED, visibility_archival_uri: test-visibility-archival-uri, bad_binaries: [98 97 100 45 98 105 110 97 114 105 101 115],bad_binaries_encoding: thriftrw,isolation_groups: [105 115 111 108 97 116 105 111 110 45 103 114 111 117 112],isolation_groups_encoding: thriftrw,async_workflow_config: [97 115 121 110 99 45 119 111 114 107 102 108 111 119 115 45 99 111 110 102 105 103],async_workflow_config_encoding: thriftrw}, ` +
-					`{active_cluster_name: test-active-cluster-name, clusters: [map[cluster_name:test-cluster-name]] }, ` +
+					`{active_cluster_name: test-active-cluster-name, clusters: [map[cluster_name:test-cluster-name]], active_clusters_config: [97 99 116 105 118 101 45 99 108 117 115 116 101 114 115 45 99 111 110 102 105 103], active_clusters_config_encoding: thriftrw}, ` +
 					`true, ` +
 					`3, ` +
 					`4, ` +
@@ -222,7 +222,7 @@ func TestInsertDomain(t *testing.T) {
 					`-1, ` +
 					`1712167200000000000, ` +
 					`1712167200000000000, ` +
-					`7) ` +
+					`7, 2025-01-06T15:00:00Z) ` +
 					`IF NOT EXISTS`,
 				`UPDATE domains_by_name_v2 SET notification_version = 8 WHERE domains_partition = 0 and name = cadence-domain-metadata IF notification_version = 7 `,
 			},
@@ -248,7 +248,7 @@ func TestInsertDomain(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertDomain(context.Background(), tc.row)
 
@@ -326,7 +326,7 @@ func TestUpdateDomain(t *testing.T) {
 				`UPDATE domains_by_name_v2 SET ` +
 					`domain = {id: test-domain-id, name: test-domain-name, status: 0, description: test-domain-description, owner_email: test-domain-owner-email, data: map[k1:v1] }, ` +
 					`config = {retention: 7, emit_metric: true, archival_bucket: test-archival-bucket, archival_status: ENABLED,history_archival_status: ENABLED, history_archival_uri: test-history-archival-uri, visibility_archival_status: ENABLED, visibility_archival_uri: test-visibility-archival-uri, bad_binaries: [98 97 100 45 98 105 110 97 114 105 101 115],bad_binaries_encoding: thriftrw,isolation_groups: [105 115 111 108 97 116 105 111 110 45 103 114 111 117 112],isolation_groups_encoding: thriftrw,async_workflow_config: [97 115 121 110 99 45 119 111 114 107 102 108 111 119 115 45 99 111 110 102 105 103],async_workflow_config_encoding: thriftrw}, ` +
-					`replication_config = {active_cluster_name: test-active-cluster-name, clusters: [map[cluster_name:test-cluster-name]] }, ` +
+					`replication_config = {active_cluster_name: test-active-cluster-name, clusters: [map[cluster_name:test-cluster-name]], active_clusters_config: [97 99 116 105 118 101 45 99 108 117 115 116 101 114 115 45 99 111 110 102 105 103], active_clusters_config_encoding: thriftrw}, ` +
 					`config_version = 3 ,` +
 					`failover_version = 4 ,` +
 					`failover_notification_version = 0 , ` +
@@ -349,7 +349,7 @@ func TestUpdateDomain(t *testing.T) {
 				`UPDATE domains_by_name_v2 SET ` +
 					`domain = {id: test-domain-id, name: test-domain-name, status: 0, description: test-domain-description, owner_email: test-domain-owner-email, data: map[k1:v1] }, ` +
 					`config = {retention: 7, emit_metric: true, archival_bucket: test-archival-bucket, archival_status: ENABLED,history_archival_status: ENABLED, history_archival_uri: test-history-archival-uri, visibility_archival_status: ENABLED, visibility_archival_uri: test-visibility-archival-uri, bad_binaries: [98 97 100 45 98 105 110 97 114 105 101 115],bad_binaries_encoding: thriftrw,isolation_groups: [105 115 111 108 97 116 105 111 110 45 103 114 111 117 112],isolation_groups_encoding: thriftrw,async_workflow_config: [97 115 121 110 99 45 119 111 114 107 102 108 111 119 115 45 99 111 110 102 105 103],async_workflow_config_encoding: thriftrw}, ` +
-					`replication_config = {active_cluster_name: test-active-cluster-name, clusters: [map[cluster_name:test-cluster-name]] }, ` +
+					`replication_config = {active_cluster_name: test-active-cluster-name, clusters: [map[cluster_name:test-cluster-name]], active_clusters_config: [97 99 116 105 118 101 45 99 108 117 115 116 101 114 115 45 99 111 110 102 105 103], active_clusters_config_encoding: thriftrw}, ` +
 					`config_version = 3 ,` +
 					`failover_version = 4 ,` +
 					`failover_notification_version = 0 , ` +
@@ -381,7 +381,7 @@ func TestUpdateDomain(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.UpdateDomain(context.Background(), tc.row)
 
@@ -449,7 +449,7 @@ func TestSelectDomain(t *testing.T) {
 			},
 			wantQueries: []string{
 				`SELECT domain.name FROM domains WHERE id = domain_id_1`,
-				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
+				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
 			},
 		},
 		{
@@ -486,7 +486,7 @@ func TestSelectDomain(t *testing.T) {
 				query.EXPECT().Scan(gomock.Any()).Return(nil).Times(1)
 			},
 			wantQueries: []string{
-				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
+				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
 			},
 		},
 	}
@@ -506,7 +506,7 @@ func TestSelectDomain(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotRow, err := db.SelectDomain(context.Background(), tc.domainID, tc.domainName)
 
@@ -581,6 +581,8 @@ func TestSelectAllDomains(t *testing.T) {
 						"thriftrw",
 						"test-active-cluster-name",
 						[]map[string]interface{}{},
+						[]byte("active-clusters-config"),
+						"thriftrw",
 						true,
 						int64(3),
 						int64(4),
@@ -614,9 +616,10 @@ func TestSelectAllDomains(t *testing.T) {
 						IsolationGroups:          &persistence.DataBlob{Encoding: "thriftrw", Data: []uint8("isolation-groups")},
 						AsyncWorkflowsConfig:     &persistence.DataBlob{Encoding: "thriftrw", Data: []uint8("async-workflow-config")},
 					},
-					ReplicationConfig: &persistence.DomainReplicationConfig{
-						ActiveClusterName: "test-active-cluster-name",
-						Clusters:          []*persistence.ClusterReplicationConfig{},
+					ReplicationConfig: &persistence.InternalDomainReplicationConfig{
+						ActiveClusterName:    "test-active-cluster-name",
+						Clusters:             []*persistence.ClusterReplicationConfig{},
+						ActiveClustersConfig: &persistence.DataBlob{Encoding: "thriftrw", Data: []uint8("active-clusters-config")},
 					},
 					ConfigVersion:           3,
 					FailoverVersion:         4,
@@ -628,7 +631,7 @@ func TestSelectAllDomains(t *testing.T) {
 				},
 			},
 			wantQueries: []string{
-				`SELECT name, domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, config.isolation_groups, config.isolation_groups_encoding, config.async_workflow_config, config.async_workflow_config_encoding, replication_config.active_cluster_name, replication_config.clusters, is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 `,
+				`SELECT name, domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, config.isolation_groups, config.isolation_groups_encoding, config.async_workflow_config, config.async_workflow_config_encoding, replication_config.active_cluster_name, replication_config.clusters, replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 `,
 			},
 		},
 	}
@@ -652,7 +655,7 @@ func TestSelectAllDomains(t *testing.T) {
 			client := gocql.NewMockClient(ctrl)
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, nil, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, nil, DbWithClient(client))
 
 			gotRows, _, err := db.SelectAllDomains(context.Background(), tc.pageSize, tc.pagetoken)
 
@@ -750,7 +753,7 @@ func TestSelectDomainMetadata(t *testing.T) {
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			gotNtfVer, err := db.SelectDomainMetadata(context.Background())
 
@@ -868,7 +871,7 @@ func TestDeleteDomain(t *testing.T) {
 				query.EXPECT().Exec().Return(nil).Times(1)
 			},
 			wantQueries: []string{
-				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
+				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
 				`DELETE FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
 				`DELETE FROM domains WHERE id = `, // domainID is nil, so we expect an empty string here. See the comment above inside mockQueryFn.
 			},
@@ -885,7 +888,7 @@ func TestDeleteDomain(t *testing.T) {
 				client.EXPECT().IsNotFoundError(gomock.Any()).Return(true).Times(1)
 			},
 			wantQueries: []string{
-				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
+				`SELECT domain.id, domain.name, domain.status, domain.description, domain.owner_email, domain.data, config.retention, config.emit_metric, config.archival_bucket, config.archival_status, config.history_archival_status, config.history_archival_uri, config.visibility_archival_status, config.visibility_archival_uri, config.bad_binaries, config.bad_binaries_encoding, replication_config.active_cluster_name, replication_config.clusters, replication_config.active_clusters_config, replication_config.active_clusters_config_encoding, config.isolation_groups,config.isolation_groups_encoding,config.async_workflow_config,config.async_workflow_config_encoding,is_global_domain, config_version, failover_version, failover_notification_version, previous_failover_version, failover_end_time, last_updated_time, notification_version FROM domains_by_name_v2 WHERE domains_partition = 0 and name = domain_name_1`,
 			},
 		},
 		{
@@ -920,12 +923,12 @@ func TestDeleteDomain(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 					return false
 				},
 			}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.DeleteDomain(context.Background(), tc.domainID, tc.domainName)
 

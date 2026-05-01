@@ -33,7 +33,9 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -62,13 +64,13 @@ type httpParams struct {
 }
 
 // NewParams creates parameters for rpc.Factory from the given config
-func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Collection, logger log.Logger) (Params, error) {
+func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Collection, logger log.Logger, metricsCl metrics.Client) (Params, error) {
 	serviceConfig, err := config.GetServiceConfig(serviceName)
 	if err != nil {
 		return Params{}, err
 	}
 
-	listenIP, err := getListenIP(serviceConfig.RPC)
+	listenIP, err := GetListenIP(serviceConfig.RPC)
 	if err != nil {
 		return Params{}, fmt.Errorf("get listen IP: %v", err)
 	}
@@ -89,7 +91,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		}
 	}
 
-	enableGRPCOutbound := dc.GetBoolProperty(dynamicconfig.EnableGRPCOutbound)()
+	enableGRPCOutbound := dc.GetBoolProperty(dynamicproperties.EnableGRPCOutbound)()
 
 	publicClientOutbound, err := newPublicClientOutbound(config)
 	if err != nil {
@@ -132,34 +134,43 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		}
 	}
 
-	return Params{
-		ServiceName:     serviceName,
-		HTTP:            http,
-		TChannelAddress: net.JoinHostPort(listenIP.String(), strconv.Itoa(int(serviceConfig.RPC.Port))),
-		GRPCAddress:     net.JoinHostPort(listenIP.String(), strconv.Itoa(int(serviceConfig.RPC.GRPCPort))),
-		GRPCMaxMsgSize:  serviceConfig.RPC.GRPCMaxMsgSize,
-		OutboundsBuilder: CombineOutbounds(
-			NewDirectOutboundBuilder(
-				service.History,
-				enableGRPCOutbound,
-				outboundTLS[service.History],
-				NewDirectPeerChooserFactory(service.History, logger),
-				dc.GetBoolProperty(dynamicconfig.EnableConnectionRetainingDirectChooser),
-			),
-			NewDirectOutboundBuilder(
-				service.Matching,
-				enableGRPCOutbound,
-				outboundTLS[service.Matching],
-				NewDirectPeerChooserFactory(service.Matching, logger),
-				dc.GetBoolProperty(dynamicconfig.EnableConnectionRetainingDirectChooser),
-			),
-			publicClientOutbound,
+	outboundsBuilders := []OutboundsBuilder{
+		NewDirectOutboundBuilder(
+			service.History,
+			enableGRPCOutbound,
+			outboundTLS[service.History],
+			NewDirectPeerChooserFactory(service.History, logger, metricsCl),
+			dc.GetBoolProperty(dynamicproperties.EnableConnectionRetainingDirectChooser),
 		),
-		InboundTLS:  inboundTLS,
-		OutboundTLS: outboundTLS,
+		NewDirectOutboundBuilder(
+			service.Matching,
+			enableGRPCOutbound,
+			outboundTLS[service.Matching],
+			NewDirectPeerChooserFactory(service.Matching, logger, metricsCl),
+			dc.GetBoolProperty(dynamicproperties.EnableConnectionRetainingDirectChooser),
+		),
+		publicClientOutbound,
+	}
+	if config.ShardDistributorClient.HostPort != "" {
+		outboundsBuilders = append(outboundsBuilders, NewSingleGRPCOutboundBuilder(
+			service.ShardDistributor,
+			service.ShardDistributor,
+			config.ShardDistributorClient.HostPort,
+		))
+	}
+
+	return Params{
+		ServiceName:      serviceName,
+		HTTP:             http,
+		TChannelAddress:  net.JoinHostPort(listenIP.String(), strconv.Itoa(int(serviceConfig.RPC.Port))),
+		GRPCAddress:      net.JoinHostPort(listenIP.String(), strconv.Itoa(int(serviceConfig.RPC.GRPCPort))),
+		GRPCMaxMsgSize:   serviceConfig.RPC.GRPCMaxMsgSize,
+		OutboundsBuilder: CombineOutbounds(outboundsBuilders...),
+		InboundTLS:       inboundTLS,
+		OutboundTLS:      outboundTLS,
 		InboundMiddleware: yarpc.InboundMiddleware{
 			// order matters: ForwardPartitionConfigMiddleware must be applied after ClientPartitionConfigMiddleware
-			Unary: yarpc.UnaryInboundMiddleware(&PinotComparatorMiddleware{}, &InboundMetricsMiddleware{}, &ClientPartitionConfigMiddleware{}, &ForwardPartitionConfigMiddleware{}),
+			Unary: yarpc.UnaryInboundMiddleware(&InboundMetricsMiddleware{}, &CallerInfoMiddleware{}, &ClientPartitionConfigMiddleware{}, &ForwardPartitionConfigMiddleware{}),
 		},
 		OutboundMiddleware: yarpc.OutboundMiddleware{
 			Unary: yarpc.UnaryOutboundMiddleware(&HeaderForwardingMiddleware{
@@ -171,7 +182,7 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 
 func getForwardingRules(dc *dynamicconfig.Collection) ([]config.HeaderRule, error) {
 	var forwardingRules []config.HeaderRule
-	dynForwarding := dc.GetListProperty(dynamicconfig.HeaderForwardingRules)()
+	dynForwarding := dc.GetListProperty(dynamicproperties.HeaderForwardingRules)()
 	if len(dynForwarding) > 0 {
 		for _, f := range dynForwarding {
 			switch v := f.(type) {
@@ -199,7 +210,9 @@ func getForwardingRules(dc *dynamicconfig.Collection) ([]config.HeaderRule, erro
 	return forwardingRules, nil
 }
 
-func getListenIP(config config.RPC) (net.IP, error) {
+// GetListenIP returns the IP address to bind/listen on based on RPC config
+// It respects bindOnLocalHost, bindOnIP, or falls back to auto-detection
+func GetListenIP(config config.RPC) (net.IP, error) {
 	if config.BindOnLocalHost && len(config.BindOnIP) > 0 {
 		return nil, fmt.Errorf("bindOnLocalHost and bindOnIP are mutually exclusive")
 	}

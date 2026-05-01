@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: Cadence-Basic # A uniquely identifiable name for the provider
+    folder: Cadence
+    type: file
+    options:
+      path:
+        /etc/grafana/provisioning/dashboards/

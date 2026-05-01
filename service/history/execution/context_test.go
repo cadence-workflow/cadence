@@ -28,16 +28,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -110,8 +111,10 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			updateMode: persistence.UpdateWorkflowModeUpdateCurrent,
@@ -127,8 +130,10 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{},
@@ -145,13 +150,17 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.SyncActivityTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.SyncActivityTask{},
+					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			updateMode: persistence.UpdateWorkflowModeUpdateCurrent,
@@ -167,13 +176,17 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 				ExecutionInfo: &persistence.WorkflowExecutionInfo{
 					CloseStatus: persistence.WorkflowCloseStatusContinuedAsNew,
 				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			newWorkflowSnapshot: &persistence.WorkflowSnapshot{
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 			},
 			updateMode: persistence.UpdateWorkflowModeUpdateCurrent,
@@ -183,7 +196,8 @@ func TestMergeContinueAsNewReplicationTasks(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := mergeContinueAsNewReplicationTasks(tc.updateMode, tc.currentWorkflowMutation, tc.newWorkflowSnapshot)
+			logger := log.NewNoop()
+			err := mergeContinueAsNewReplicationTasks(logger, tc.updateMode, tc.currentWorkflowMutation, tc.newWorkflowSnapshot)
 			if tc.wantErr {
 				assert.Error(t, err)
 				if tc.assertErr != nil {
@@ -226,20 +240,22 @@ func TestNotifyTasksFromWorkflowSnapshot(t *testing.T) {
 						ScheduleID: 11,
 					},
 				},
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{
-						TaskList: "test-tl",
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: {
+						&persistence.ActivityTask{
+							TaskList: "test-tl",
+						},
 					},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.ActivityTimeoutTask{
-						Attempt: 10,
+					persistence.HistoryTaskCategoryTimer: {
+						&persistence.ActivityTimeoutTask{
+							Attempt: 10,
+						},
 					},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{
-						FirstEventID: 1,
-						NextEventID:  10,
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{
+							FirstEventID: 1,
+							NextEventID:  10,
+						},
 					},
 				},
 			},
@@ -354,20 +370,22 @@ func TestNotifyTasksFromWorkflowMutation(t *testing.T) {
 						ScheduleID: 11,
 					},
 				},
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{
-						TaskList: "test-tl",
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: {
+						&persistence.ActivityTask{
+							TaskList: "test-tl",
+						},
 					},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.ActivityTimeoutTask{
-						Attempt: 10,
+					persistence.HistoryTaskCategoryTimer: {
+						&persistence.ActivityTimeoutTask{
+							Attempt: 10,
+						},
 					},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{
-						FirstEventID: 1,
-						NextEventID:  10,
+					persistence.HistoryTaskCategoryReplication: {
+						&persistence.HistoryReplicationTask{
+							FirstEventID: 1,
+							NextEventID:  10,
+						},
 					},
 				},
 			},
@@ -579,6 +597,7 @@ func TestCreateWorkflowExecutionWithRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
+			mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
 			policy.SetMaximumAttempts(1)
 			if tc.mockSetup != nil {
@@ -680,6 +699,7 @@ func TestUpdateWorkflowExecutionWithRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
+			mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
 			policy.SetMaximumAttempts(1)
 			if tc.mockSetup != nil {
@@ -1182,7 +1202,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 			mockShard.EXPECT().GetConfig().Return(&config.Config{
-				EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+				EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 			}).AnyTimes()
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 			ctx := &contextImpl{
@@ -1249,7 +1269,7 @@ func TestUpdateWorkflowExecutionTasks(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 			},
 			wantErr: true,
@@ -1484,7 +1504,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 				mockMutableState.EXPECT().CloseTransactionAsMutation(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowMutation{
 					WorkflowRequests: []*persistence.WorkflowRequest{{}},
@@ -1506,7 +1526,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1548,7 +1568,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1596,7 +1616,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1645,7 +1665,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1691,6 +1711,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 			newWorkflowTransactionPolicy:     TransactionPolicyActive.Ptr(),
 			workflowRequestMode:              persistence.CreateWorkflowRequestModeReplicated,
 			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockMutableState *MockMutableState, mockNewMutableState *MockMutableState, mockEngine *engine.MockEngine) {
+
 				mockMutableState.EXPECT().CloseTransactionAsMutation(gomock.Any(), TransactionPolicyActive).Return(&persistence.WorkflowMutation{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
 						DomainID:   "test-domain-id",
@@ -1708,6 +1729,20 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 						BranchToken: []byte{1, 2, 3},
 					},
 				}, nil)
+				mockMutableState.EXPECT().GetVersionHistories().Return(&persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("branchtoken"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 1,
+									Version: 1,
+								},
+							},
+						},
+					},
+				})
 				mockMutableState.EXPECT().GetNextEventID().Return(int64(11))
 				mockMutableState.EXPECT().SetHistorySize(int64(5))
 				mockNewMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), TransactionPolicyActive).Return(&persistence.WorkflowSnapshot{
@@ -1720,7 +1755,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -1728,7 +1763,6 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				}, nil)
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
-				mockMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{5, 6}, nil)
 				mockMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
 				mockEngine.EXPECT().NotifyNewHistoryEvent(gomock.Any())
@@ -1759,7 +1793,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 				assert.Equal(t, &persistence.WorkflowEvents{
 					Events: []*types.HistoryEvent{
 						{
-							ID: common.FirstEventID,
+							ID: constants.FirstEventID,
 						},
 					},
 					BranchToken: []byte{4},
@@ -1811,7 +1845,7 @@ func TestUpdateWorkflowExecutionWithNew(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2063,7 +2097,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 				mockResetMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{
 					WorkflowRequests: []*persistence.WorkflowRequest{
@@ -2095,7 +2129,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2133,7 +2167,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2179,7 +2213,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2213,7 +2247,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil)
 				mockShard.EXPECT().GetConfig().Return(&config.Config{
-					EnableStrongIdempotencySanityCheck: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					EnableStrongIdempotencySanityCheck: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				})
 				mockResetMutableState.EXPECT().CloseTransactionAsSnapshot(gomock.Any(), gomock.Any()).Return(&persistence.WorkflowSnapshot{}, []*persistence.WorkflowEvents{
 					{
@@ -2229,7 +2263,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2296,7 +2330,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2355,7 +2389,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2412,7 +2446,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2492,7 +2526,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2521,7 +2555,20 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 						MutableStateSize: 123,
 					},
 				}, nil)
-				mockResetMutableState.EXPECT().GetCurrentBranchToken().Return([]byte{1}, nil)
+				mockResetMutableState.EXPECT().GetVersionHistories().Return(&persistence.VersionHistories{
+					CurrentVersionHistoryIndex: 0,
+					Histories: []*persistence.VersionHistory{
+						{
+							BranchToken: []byte("123"),
+							Items: []*persistence.VersionHistoryItem{
+								{
+									EventID: 1,
+									Version: 1,
+								},
+							},
+						},
+					},
+				})
 				mockResetMutableState.EXPECT().GetWorkflowStateCloseStatus().Return(persistence.WorkflowStateCompleted, persistence.WorkflowCloseStatusCompleted)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
 				mockEngine.EXPECT().NotifyNewHistoryEvent(gomock.Any())
@@ -2568,7 +2615,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 				assert.Equal(t, &persistence.WorkflowEvents{
 					Events: []*types.HistoryEvent{
 						{
-							ID: common.FirstEventID,
+							ID: constants.FirstEventID,
 						},
 					},
 					BranchToken: []byte{4},
@@ -2595,7 +2642,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					{
 						Events: []*types.HistoryEvent{
 							{
-								ID: common.FirstEventID,
+								ID: constants.FirstEventID,
 							},
 						},
 						BranchToken: []byte{4},
@@ -2740,7 +2787,7 @@ func TestReapplyEvents(t *testing.T) {
 	testCases := []struct {
 		name         string
 		eventBatches []*persistence.WorkflowEvents
-		mockSetup    func(*shard.MockContext, *cache.MockDomainCache, *resource.Test, *engine.MockEngine)
+		mockSetup    func(*shard.MockContext, *cache.MockDomainCache, *resource.Test, *engine.MockEngine, *activecluster.MockManager)
 		wantErr      bool
 	}{
 		{
@@ -2755,7 +2802,7 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(nil, errors.New("some error"))
 			},
@@ -2768,7 +2815,7 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewDomainCacheEntryForTest(nil, nil, true, nil, 0, common.Ptr(int64(1)), 0, 0, 0), nil)
 			},
@@ -2784,7 +2831,7 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id2",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewDomainCacheEntryForTest(nil, nil, true, nil, 0, nil, 0, 0, 0), nil)
 			},
@@ -2800,11 +2847,139 @@ func TestReapplyEvents(t *testing.T) {
 					DomainID: "test-domain-id",
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, _ *engine.MockEngine, _ *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewDomainCacheEntryForTest(nil, nil, true, nil, 0, nil, 0, 0, 0), nil)
 			},
 			wantErr: false,
+		},
+		{
+			name: "lookup workflow error",
+			eventBatches: []*persistence.WorkflowEvents{
+				{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+					Events: []*types.HistoryEvent{
+						{
+							EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+						},
+					},
+				},
+			},
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(
+					cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"region1": {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   1,
+										},
+									},
+								},
+							},
+						},
+					}, 0),
+					nil)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					nil, errors.New("some error"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "success - active-active apply to current cluster",
+			eventBatches: []*persistence.WorkflowEvents{
+				{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+					Events: []*types.HistoryEvent{
+						{
+							EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+						},
+					},
+				},
+			},
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(
+					cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"region1": {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   1,
+										},
+									},
+								},
+							},
+						},
+					}, 0),
+					nil)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+					}, nil)
+				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
+				mockShard.EXPECT().GetEngine().Return(mockEngine)
+				mockEngine.EXPECT().ReapplyEvents(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id", []*types.HistoryEvent{
+					{
+						EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			name: "success - active-active apply to remote cluster",
+			eventBatches: []*persistence.WorkflowEvents{
+				{
+					DomainID:   "test-domain-id",
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+					Events: []*types.HistoryEvent{
+						{
+							EventType: types.EventTypeWorkflowExecutionSignaled.Ptr(),
+						},
+					},
+				},
+			},
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(
+					cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, &persistence.DomainReplicationConfig{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"region1": {
+											ActiveClusterName: cluster.TestCurrentClusterName,
+											FailoverVersion:   1,
+										},
+									},
+								},
+							},
+						},
+					}, 0), nil)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+					}, nil)
+				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
+				mockShard.EXPECT().GetService().Return(mockResource).Times(2)
+				mockResource.RemoteAdminClient.EXPECT().ReapplyEvents(gomock.Any(), gomock.Any()).Return(nil)
+			},
 		},
 		{
 			name: "success - apply to current cluster",
@@ -2820,10 +2995,15 @@ func TestReapplyEvents(t *testing.T) {
 					},
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, mockEngine *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, _ *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewGlobalDomainCacheEntryForTest(nil, nil, &persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestCurrentClusterName}, 0), nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestCurrentClusterName,
+					}, nil)
 				mockShard.EXPECT().GetEngine().Return(mockEngine)
 				mockEngine.EXPECT().ReapplyEvents(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id", []*types.HistoryEvent{
 					{
@@ -2847,11 +3027,16 @@ func TestReapplyEvents(t *testing.T) {
 					},
 				},
 			},
-			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine) {
+			mockSetup: func(mockShard *shard.MockContext, mockDomainCache *cache.MockDomainCache, mockResource *resource.Test, mockEngine *engine.MockEngine, mockActiveClusterManager *activecluster.MockManager) {
 				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
 				mockDomainCache.EXPECT().GetDomainByID("test-domain-id").Return(cache.NewGlobalDomainCacheEntryForTest(&persistence.DomainInfo{Name: "test-domain"}, nil, &persistence.DomainReplicationConfig{ActiveClusterName: cluster.TestAlternativeClusterName}, 0), nil)
 				mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata)
 				mockShard.EXPECT().GetService().Return(mockResource).Times(2)
+				mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterManager)
+				mockActiveClusterManager.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), "test-domain-id", "test-workflow-id", "test-run-id").Return(
+					&types.ActiveClusterInfo{
+						ActiveClusterName: cluster.TestAlternativeClusterName,
+					}, nil)
 				mockResource.RemoteAdminClient.EXPECT().ReapplyEvents(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
@@ -2864,9 +3049,10 @@ func TestReapplyEvents(t *testing.T) {
 			mockShard := shard.NewMockContext(mockCtrl)
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockEngine := engine.NewMockEngine(mockCtrl)
-			resource := resource.NewTest(t, mockCtrl, metrics.Common)
+			mockActiveClusterManager := activecluster.NewMockManager(mockCtrl)
+			testResource := resource.NewTest(t, mockCtrl, metrics.Common)
 			if tc.mockSetup != nil {
-				tc.mockSetup(mockShard, mockDomainCache, resource, mockEngine)
+				tc.mockSetup(mockShard, mockDomainCache, testResource, mockEngine, mockActiveClusterManager)
 			}
 			ctx := &contextImpl{
 				shard: mockShard,
@@ -2997,9 +3183,11 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			mockShard := shard.NewMockContext(mockCtrl)
-			mockLogger := new(log.MockLogger)
+			mockLogger := log.NewMockLogger(gomock.NewController(t))
+			mockLogger.EXPECT().Helper().Return(mockLogger)
 			timeSource := clock.NewMockedTimeSource()
 			mockShard.EXPECT().GetTimeSource().Return(timeSource).AnyTimes()
+			mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
 			policy := backoff.NewExponentialRetryPolicy(time.Millisecond)
 			policy.SetMaximumAttempts(1)
 			if tc.mockSetup != nil {
@@ -3019,11 +3207,11 @@ func TestGetWorkflowExecutionWithRetry(t *testing.T) {
 	}
 }
 
-func expectLog(mockLogger *log.MockLogger, err error) *mock.Call {
-	return mockLogger.On(
-		"Error",
+func expectLog(mockLogger *log.MockLogger, err error) *gomock.Call {
+	return mockLogger.EXPECT().Error(
 		"Persistent fetch operation failure",
 		[]tag.Tag{
+			tag.ShardID(7),
 			tag.StoreOperationGetWorkflowExecution,
 			tag.Error(err),
 		})
@@ -3033,6 +3221,7 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 	testCases := []struct {
 		name                                 string
 		mockSetup                            func(*shard.MockContext, *MockMutableState, *cache.MockDomainCache)
+		mockRepairerSetup                    func(*MockWorkflowRepairer)
 		mockGetWorkflowExecutionFn           func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error)
 		mockEmitWorkflowExecutionStatsFn     func(string, *persistence.MutableStateStats, int64)
 		mockUpdateWorkflowExecutionWithNewFn func(context.Context, time.Time, persistence.UpdateWorkflowMode, Context, MutableState, TransactionPolicy, *TransactionPolicy, persistence.CreateWorkflowRequestMode) error
@@ -3072,8 +3261,8 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 					Name: "test-domain",
 				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, errors.New("some error"))
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any())
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, errors.New("some error"))
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
 				return &persistence.GetWorkflowExecutionResponse{
@@ -3111,8 +3300,8 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 					0,
 					0,
 					0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any())
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
 				return &persistence.GetWorkflowExecutionResponse{
@@ -3141,9 +3330,9 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
 					Name: "test-domain",
 				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
-				mockMutableState.EXPECT().Load(gomock.Any()).Return(errors.New("some error"))
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(true, nil)
-				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any()).Return(false, nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any())
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
 				mockShard.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 			},
 			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
@@ -3169,6 +3358,97 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "VerifyAndRepairWorkflowIfNeeded fails",
+			mockSetup: func(mockShard *shard.MockContext, mockMutableState *MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
+					Name: "test-domain",
+				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any())
+			},
+			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
+				return &persistence.GetWorkflowExecutionResponse{
+					State: &persistence.WorkflowMutableState{
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:   "test-domain-id",
+							WorkflowID: "test-workflow-id",
+							RunID:      "test-run-id",
+						},
+						ExecutionStats: &persistence.ExecutionStats{HistorySize: 123},
+					},
+				}, nil
+			},
+			mockRepairerSetup: func(mockRepairer *MockWorkflowRepairer) {
+				mockRepairer.EXPECT().VerifyAndRepairWorkflowIfNeeded(gomock.Any(), gomock.Any()).
+					Return(false, errors.New("repair error"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "isRepaired triggers reload from DB",
+			mockSetup: func(mockShard *shard.MockContext, mockMutableState *MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
+					Name: "test-domain",
+				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Times(2)
+				mockMutableState.EXPECT().StartTransaction(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
+			},
+			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
+				return &persistence.GetWorkflowExecutionResponse{
+					State: &persistence.WorkflowMutableState{
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:   "test-domain-id",
+							WorkflowID: "test-workflow-id",
+							RunID:      "test-run-id",
+						},
+						ExecutionStats: &persistence.ExecutionStats{HistorySize: 123},
+					},
+				}, nil
+			},
+			mockRepairerSetup: func(mockRepairer *MockWorkflowRepairer) {
+				// First call: repair was performed, caller must reload state from DB
+				mockRepairer.EXPECT().VerifyAndRepairWorkflowIfNeeded(gomock.Any(), gomock.Any()).
+					Return(true, nil)
+				// Second call: no corruption on the freshly loaded state
+				mockRepairer.EXPECT().VerifyAndRepairWorkflowIfNeeded(gomock.Any(), gomock.Any()).
+					Return(false, nil)
+			},
+			mockEmitWorkflowExecutionStatsFn: func(domainName string, stats *persistence.MutableStateStats, size int64) {
+				assert.Equal(t, "test-domain", domainName)
+				assert.Equal(t, int64(123), size)
+			},
+			wantErr: false,
+		},
+		{
+			name: "repair keeps triggering until retries exhausted",
+			mockSetup: func(mockShard *shard.MockContext, mockMutableState *MockMutableState, mockDomainCache *cache.MockDomainCache) {
+				mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+				mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{
+					Name: "test-domain",
+				}, nil, true, nil, 0, nil, 0, 0, 0), nil)
+				mockMutableState.EXPECT().Load(gomock.Any(), gomock.Any()).Times(checksumErrorRetryCount)
+			},
+			mockGetWorkflowExecutionFn: func(context.Context, *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
+				return &persistence.GetWorkflowExecutionResponse{
+					State: &persistence.WorkflowMutableState{
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:   "test-domain-id",
+							WorkflowID: "test-workflow-id",
+							RunID:      "test-run-id",
+						},
+						ExecutionStats: &persistence.ExecutionStats{HistorySize: 123},
+					},
+				}, nil
+			},
+			mockRepairerSetup: func(mockRepairer *MockWorkflowRepairer) {
+				// Repair keeps reporting success on every attempt
+				mockRepairer.EXPECT().VerifyAndRepairWorkflowIfNeeded(gomock.Any(), gomock.Any()).
+					Return(true, nil).Times(checksumErrorRetryCount)
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -3177,13 +3457,21 @@ func TestLoadWorkflowExecutionWithTaskVersion(t *testing.T) {
 			mockShard := shard.NewMockContext(mockCtrl)
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockMutableState := NewMockMutableState(mockCtrl)
+			mockRepairer := NewMockWorkflowRepairer(mockCtrl)
+			if tc.mockRepairerSetup != nil {
+				tc.mockRepairerSetup(mockRepairer)
+			} else {
+				mockRepairer.EXPECT().VerifyAndRepairWorkflowIfNeeded(gomock.Any(), gomock.Any()).
+					Return(false, nil).AnyTimes()
+			}
 			if tc.mockSetup != nil {
 				tc.mockSetup(mockShard, mockMutableState, mockDomainCache)
 			}
 
 			ctx := &contextImpl{
-				shard:  mockShard,
-				logger: testlogger.New(t),
+				shard:    mockShard,
+				logger:   testlogger.New(t),
+				repairer: mockRepairer,
 				createMutableStateFn: func(shard.Context, log.Logger, *cache.DomainCacheEntry) MutableState {
 					return mockMutableState
 				},
@@ -3234,6 +3522,11 @@ func TestUpdateWorkflowExecutionAsActive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionAsActive(context.Background(), time.Now())
 			if tc.wantErr {
@@ -3277,6 +3570,11 @@ func TestUpdateWorkflowExecutionWithNewAsActive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionWithNewAsActive(context.Background(), time.Now(), &contextImpl{}, &mutableStateBuilder{})
 			if tc.wantErr {
@@ -3320,6 +3618,11 @@ func TestUpdateWorkflowExecutionAsPassive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionAsPassive(context.Background(), time.Now())
 			if tc.wantErr {
@@ -3363,6 +3666,11 @@ func TestUpdateWorkflowExecutionWithNewAsPassive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &contextImpl{
 				updateWorkflowExecutionWithNewFn: tc.mockUpdateWorkflowExecutionWithNewFn,
+				logger:                           testlogger.New(t),
+				workflowExecution: types.WorkflowExecution{
+					WorkflowID: "test-workflow-id",
+					RunID:      "test-run-id",
+				},
 			}
 			err := ctx.UpdateWorkflowExecutionWithNewAsPassive(context.Background(), time.Now(), &contextImpl{}, &mutableStateBuilder{})
 			if tc.wantErr {

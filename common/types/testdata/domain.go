@@ -35,6 +35,9 @@ const (
 	ClusterName1 = "ClusterName1"
 	ClusterName2 = "ClusterName2"
 
+	Region1 = "Region1"
+	Region2 = "Region2"
+
 	BadBinaryReason   = "BadBinaryReason"
 	BadBinaryOperator = "BadBinaryOperator"
 
@@ -47,6 +50,9 @@ const (
 	FailoverVersion2 = 302
 
 	ErrorReason = "ErrorReason"
+
+	FailoverEventID = "failover-event-123"
+	FailoverTime    = int64(1234567890000000000)
 )
 
 var (
@@ -100,6 +106,22 @@ var (
 	DomainReplicationConfiguration = types.DomainReplicationConfiguration{
 		ActiveClusterName: ClusterName1,
 		Clusters:          ClusterReplicationConfigurationArray,
+		ActiveClusters: &types.ActiveClusters{
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						Region1: {
+							ActiveClusterName: ClusterName1,
+							FailoverVersion:   FailoverVersion1,
+						},
+						Region2: {
+							ActiveClusterName: ClusterName2,
+							FailoverVersion:   FailoverVersion2,
+						},
+					},
+				},
+			},
+		},
 	}
 	ClusterReplicationConfiguration = types.ClusterReplicationConfiguration{
 		ClusterName: ClusterName1,
@@ -113,5 +135,45 @@ var (
 		FailoverExpireTimestamp: 10,
 		CompletedShardCount:     10,
 		PendingShards:           []int32{1, 2, 3},
+	}
+	ActiveClusterInfo1 = types.ActiveClusterInfo{
+		ActiveClusterName: ClusterName1,
+		FailoverVersion:   FailoverVersion1,
+	}
+	ActiveClusterInfo2 = types.ActiveClusterInfo{
+		ActiveClusterName: ClusterName2,
+		FailoverVersion:   FailoverVersion2,
+	}
+	ClusterAttributeFailover = types.ClusterAttribute{
+		Scope: "region",
+		Name:  Region1,
+	}
+	ClusterFailover = types.ClusterFailover{
+		FromCluster:      &ActiveClusterInfo1,
+		ToCluster:        &ActiveClusterInfo2,
+		ClusterAttribute: &ClusterAttributeFailover,
+	}
+	FailoverEventIDPtr = FailoverEventID
+	FailoverTimePtr    = FailoverTime
+	FailoverEvent      = types.FailoverEvent{
+		ID:               &FailoverEventIDPtr,
+		CreatedTime:      &FailoverTimePtr,
+		FailoverType:     types.FailoverTypeForce.Ptr(),
+		ClusterFailovers: []*types.ClusterFailover{&ClusterFailover},
+	}
+	ListFailoverHistoryRequestFilters = types.ListFailoverHistoryRequestFilters{
+		DomainID: DomainID,
+	}
+	PaginationOptions = types.PaginationOptions{
+		PageSize:      &[]int32{10}[0],
+		NextPageToken: []byte("next-page-token"),
+	}
+	ListFailoverHistoryRequest = types.ListFailoverHistoryRequest{
+		Filters:    &ListFailoverHistoryRequestFilters,
+		Pagination: &PaginationOptions,
+	}
+	ListFailoverHistoryResponse = types.ListFailoverHistoryResponse{
+		FailoverEvents: []*types.FailoverEvent{&FailoverEvent},
+		NextPageToken:  []byte("next-page-token"),
 	}
 )

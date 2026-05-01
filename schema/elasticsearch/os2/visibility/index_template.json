@@ -94,10 +94,25 @@
       "ShardID": {
         "type": "long"
       },
+      "CronSchedule": {
+        "type": "keyword"
+      },
+      "ExecutionStatus": {
+        "type": "integer"
+      },
+      "ScheduledExecutionTime": {
+        "type": "long"
+      },
       "StartTime": {
         "type": "long"
       },
       "TaskList": {
+        "type": "keyword"
+      },
+      "ClusterAttributeScope": {
+        "type": "keyword"
+      },
+      "ClusterAttributeName": {
         "type": "keyword"
       },
       "UpdateTime": {

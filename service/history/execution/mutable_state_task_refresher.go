@@ -29,6 +29,8 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -49,8 +51,9 @@ type (
 		domainCache     cache.DomainCache
 		eventsCache     events.Cache
 		shardID         int
+		logger          log.Logger
 
-		newMutableStateTaskGeneratorFn                 func(cluster.Metadata, cache.DomainCache, MutableState) MutableStateTaskGenerator
+		newMutableStateTaskGeneratorFn                 func(log.Logger, cluster.Metadata, cache.DomainCache, MutableState) MutableStateTaskGenerator
 		refreshTasksForWorkflowStartFn                 func(context.Context, time.Time, MutableState, MutableStateTaskGenerator) error
 		refreshTasksForWorkflowCloseFn                 func(context.Context, MutableState, MutableStateTaskGenerator, int) error
 		refreshTasksForRecordWorkflowStartedFn         func(context.Context, MutableState, MutableStateTaskGenerator) error
@@ -71,6 +74,7 @@ func NewMutableStateTaskRefresher(
 	domainCache cache.DomainCache,
 	eventsCache events.Cache,
 	shardID int,
+	logger log.Logger,
 ) MutableStateTaskRefresher {
 	return &mutableStateTaskRefresherImpl{
 		config:          config,
@@ -78,6 +82,7 @@ func NewMutableStateTaskRefresher(
 		domainCache:     domainCache,
 		eventsCache:     eventsCache,
 		shardID:         shardID,
+		logger:          logger,
 
 		newMutableStateTaskGeneratorFn:                 NewMutableStateTaskGenerator,
 		refreshTasksForWorkflowStartFn:                 refreshTasksForWorkflowStart,
@@ -99,6 +104,7 @@ func (r *mutableStateTaskRefresherImpl) RefreshTasks(
 	mutableState MutableState,
 ) error {
 	taskGenerator := r.newMutableStateTaskGeneratorFn(
+		r.logger,
 		r.clusterMetadata,
 		r.domainCache,
 		mutableState,
@@ -188,7 +194,7 @@ func (r *mutableStateTaskRefresherImpl) RefreshTasks(
 		return err
 	}
 
-	if common.IsAdvancedVisibilityWritingEnabled(r.config.AdvancedVisibilityWritingMode(), r.config.IsAdvancedVisConfigExist) {
+	if common.IsAdvancedVisibilityWritingEnabled(r.config.WriteVisibilityStoreName(), r.config.IsAdvancedVisConfigExist) {
 		if err := r.refreshTasksForWorkflowSearchAttrFn(
 			ctx,
 			mutableState,
@@ -285,7 +291,7 @@ func refreshTasksForDecision(
 	}
 
 	// decision already started
-	if decision.StartedID != common.EmptyEventID {
+	if decision.StartedID != constants.EmptyEventID {
 		return taskGenerator.GenerateDecisionStartTasks(
 			decision.ScheduleID,
 		)
@@ -320,7 +326,7 @@ func refreshTasksForActivity(
 		); err != nil {
 			return err
 		}
-		if activityInfo.StartedID != common.EmptyEventID {
+		if activityInfo.StartedID != constants.EmptyEventID {
 			continue
 		}
 		scheduleEvent, err := eventsCache.GetEvent(
@@ -393,7 +399,7 @@ func refreshTasksForChildWorkflow(
 	executionInfo := mutableState.GetExecutionInfo()
 	pendingChildWorkflowInfos := mutableState.GetPendingChildExecutionInfos()
 	for _, childWorkflowInfo := range pendingChildWorkflowInfos {
-		if childWorkflowInfo.StartedID != common.EmptyEventID {
+		if childWorkflowInfo.StartedID != constants.EmptyEventID {
 			continue
 		}
 		scheduleEvent, err := eventsCache.GetEvent(

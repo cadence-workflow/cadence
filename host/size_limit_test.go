@@ -62,7 +62,7 @@ func (s *SizeLimitIntegrationSuite) SetupSuite() {
 }
 
 func (s *SizeLimitIntegrationSuite) TearDownSuite() {
-	s.tearDownSuite()
+	s.TearDownBaseSuite()
 }
 
 func (s *SizeLimitIntegrationSuite) SetupTest() {
@@ -85,7 +85,7 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -97,7 +97,7 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -141,8 +141,8 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -169,8 +169,8 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 	ctx, cancel = createContext()
 	defer cancel()
 	// verify last event is terminated event
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.domainName,
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain: s.DomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: id,
 			RunID:      we.GetRunID(),
@@ -187,8 +187,8 @@ func (s *SizeLimitIntegrationSuite) TestTerminateWorkflowCausedBySizeLimit() {
 	isCloseCorrect := false
 	for i := 0; i < 10; i++ {
 		ctx, cancel := createContext()
-		resp, err1 := s.engine.ListClosedWorkflowExecutions(ctx, &types.ListClosedWorkflowExecutionsRequest{
-			Domain:          s.domainName,
+		resp, err1 := s.Engine.ListClosedWorkflowExecutions(ctx, &types.ListClosedWorkflowExecutionsRequest{
+			Domain:          s.DomainName,
 			MaximumPageSize: 100,
 			StartTimeFilter: &types.StartTimeFilter{
 				EarliestTime: common.Int64Ptr(0),

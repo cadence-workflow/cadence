@@ -65,9 +65,7 @@ func (v *v7BulkProcessor) Add(request *bulk.GenericBulkableAddRequest) {
 	case bulk.BulkableDeleteRequest:
 		req = elastic.NewBulkDeleteRequest().
 			Index(request.Index).
-			Id(request.ID).
-			VersionType(request.VersionType).
-			Version(request.Version)
+			Id(request.ID)
 	case bulk.BulkableIndexRequest:
 		req = elastic.NewBulkIndexRequest().
 			Index(request.Index).

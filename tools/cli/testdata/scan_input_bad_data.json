@@ -1,0 +1,2 @@
+We should error on invalid data, this is invalid data
+{"DomainID":"test-domain-id1","WorkflowID":"test-workflow-id1","RunID":"test-run-id1","DomainName":"test-domain-name1"}

@@ -25,13 +25,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
@@ -46,7 +46,7 @@ type (
 
 		queueSize int
 
-		scheduler *fifoTaskSchedulerImpl
+		scheduler *fifoTaskSchedulerImpl[PriorityTask]
 	}
 )
 
@@ -62,16 +62,16 @@ func (s *fifoTaskSchedulerSuite) SetupTest() {
 	s.mockProcessor = NewMockProcessor(s.controller)
 
 	s.queueSize = 2
-	s.scheduler = NewFIFOTaskScheduler(
+	s.scheduler = NewFIFOTaskScheduler[PriorityTask](
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&FIFOTaskSchedulerOptions{
 			QueueSize:       s.queueSize,
-			WorkerCount:     dynamicconfig.GetIntPropertyFn(1),
+			WorkerCount:     dynamicproperties.GetIntPropertyFn(1),
 			DispatcherCount: 1,
 			RetryPolicy:     backoff.NewExponentialRetryPolicy(time.Millisecond),
 		},
-	).(*fifoTaskSchedulerImpl)
+	).(*fifoTaskSchedulerImpl[PriorityTask])
 }
 
 func (s *fifoTaskSchedulerSuite) TearDownTest() {
@@ -83,7 +83,7 @@ func (s *fifoTaskSchedulerSuite) TestFIFO() {
 	tasks := []PriorityTask{}
 	var taskWG sync.WaitGroup
 
-	calls := []*gomock.Call{
+	calls := []any{
 		s.mockProcessor.EXPECT().Start(),
 	}
 	mockFn := func(_ Task) error {
@@ -124,5 +124,5 @@ func (s *fifoTaskSchedulerSuite) TestTrySubmit() {
 }
 
 func (s *fifoTaskSchedulerSuite) TestSchedulerContract() {
-	testSchedulerContract(s.Assertions, s.controller, s.scheduler)
+	testSchedulerContract(s.Assertions, s.controller, s.scheduler, nil)
 }

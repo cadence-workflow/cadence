@@ -27,14 +27,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+	"github.com/uber/cadence/common/types"
 )
 
 func TestGetShard(t *testing.T) {
@@ -71,6 +72,19 @@ func TestGetShard(t *testing.T) {
 					TimerProcessingQueueStates:            []byte(`timer`),
 					TimerProcessingQueueStatesEncoding:    "timer",
 					DomainNotificationVersion:             99,
+					PendingFailoverMarkers:                []byte(`markers`),
+					PendingFailoverMarkersEncoding:        "markers",
+					ReplicationDlqAckLevel:                map[string]int64{"active": 10},
+					ClusterReplicationLevel:               map[string]int64{"active": 1002},
+					ClusterTimerAckLevel:                  map[string]time.Time{"active": time.Unix(2, 1)},
+					ClusterTransferAckLevel:               map[string]int64{"active": 1002},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}, nil)
 			},
 			want: &persistence.InternalGetShardResponse{
@@ -86,16 +100,27 @@ func TestGetShard(t *testing.T) {
 					ClusterTransferAckLevel: map[string]int64{"active": 1002},
 					ClusterTimerAckLevel:    map[string]time.Time{"active": time.Unix(2, 1)},
 					TransferProcessingQueueStates: &persistence.DataBlob{
-						Encoding: common.EncodingType("transfer"),
+						Encoding: constants.EncodingType("transfer"),
 						Data:     []byte(`transfer`),
 					},
 					TimerProcessingQueueStates: &persistence.DataBlob{
-						Encoding: common.EncodingType("timer"),
+						Encoding: constants.EncodingType("timer"),
 						Data:     []byte(`timer`),
 					},
 					DomainNotificationVersion: 99,
-					ClusterReplicationLevel:   map[string]int64{},
-					ReplicationDLQAckLevel:    map[string]int64{},
+					ClusterReplicationLevel:   map[string]int64{"active": 1002},
+					ReplicationDLQAckLevel:    map[string]int64{"active": 10},
+					PendingFailoverMarkers: &persistence.DataBlob{
+						Encoding: constants.EncodingType("markers"),
+						Data:     []byte(`markers`),
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				},
 			},
 			wantErr: false,
@@ -181,18 +206,25 @@ func TestCreateShard(t *testing.T) {
 					ClusterTimerAckLevel:    map[string]time.Time{"b": time.Unix(8, 8)},
 					TransferProcessingQueueStates: &persistence.DataBlob{
 						Data:     []byte(`transfer`),
-						Encoding: common.EncodingType("transfer"),
+						Encoding: constants.EncodingType("transfer"),
 					},
 					TimerProcessingQueueStates: &persistence.DataBlob{
 						Data:     []byte(`timer`),
-						Encoding: common.EncodingType("timer"),
+						Encoding: constants.EncodingType("timer"),
 					},
 					DomainNotificationVersion: 101,
 					ClusterReplicationLevel:   map[string]int64{"z": 199},
 					ReplicationDLQAckLevel:    map[string]int64{"y": 1111},
 					PendingFailoverMarkers: &persistence.DataBlob{
 						Data:     []byte(`markers`),
-						Encoding: common.EncodingType("markers"),
+						Encoding: constants.EncodingType("markers"),
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
 					},
 				},
 			},
@@ -217,8 +249,15 @@ func TestCreateShard(t *testing.T) {
 					ReplicationDlqAckLevel:                map[string]int64{"y": 1111},
 					PendingFailoverMarkers:                []byte(`markers`),
 					PendingFailoverMarkersEncoding:        "markers",
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}).Return(persistence.DataBlob{
-					Encoding: common.EncodingType("shard"),
+					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),
 				}, nil)
 				mockDB.EXPECT().InsertIntoShards(gomock.Any(), &sqlplugin.ShardsRow{
@@ -269,7 +308,7 @@ func TestCreateShard(t *testing.T) {
 				mockDB.EXPECT().SelectFromShards(gomock.Any(), gomock.Any()).Return(nil, sql.ErrNoRows)
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingType("shard"),
+					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),
 				}, nil)
 				err := errors.New("some error")
@@ -330,18 +369,25 @@ func TestUpdateShard(t *testing.T) {
 					ClusterTimerAckLevel:    map[string]time.Time{"b": time.Unix(8, 8)},
 					TransferProcessingQueueStates: &persistence.DataBlob{
 						Data:     []byte(`transfer`),
-						Encoding: common.EncodingType("transfer"),
+						Encoding: constants.EncodingType("transfer"),
 					},
 					TimerProcessingQueueStates: &persistence.DataBlob{
 						Data:     []byte(`timer`),
-						Encoding: common.EncodingType("timer"),
+						Encoding: constants.EncodingType("timer"),
 					},
 					DomainNotificationVersion: 101,
 					ClusterReplicationLevel:   map[string]int64{"z": 199},
 					ReplicationDLQAckLevel:    map[string]int64{"y": 1111},
 					PendingFailoverMarkers: &persistence.DataBlob{
 						Data:     []byte(`markers`),
-						Encoding: common.EncodingType("markers"),
+						Encoding: constants.EncodingType("markers"),
+					},
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
 					},
 				},
 			},
@@ -364,8 +410,15 @@ func TestUpdateShard(t *testing.T) {
 					ReplicationDlqAckLevel:                map[string]int64{"y": 1111},
 					PendingFailoverMarkers:                []byte(`markers`),
 					PendingFailoverMarkersEncoding:        "markers",
+					QueueStates: map[int32]*types.QueueState{
+						0: &types.QueueState{
+							VirtualQueueStates: map[int64]*types.VirtualQueueState{
+								0: {},
+							},
+						},
+					},
 				}).Return(persistence.DataBlob{
-					Encoding: common.EncodingType("shard"),
+					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),
 				}, nil)
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
@@ -400,7 +453,7 @@ func TestUpdateShard(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingType("shard"),
+					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),
 				}, nil)
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
@@ -420,7 +473,7 @@ func TestUpdateShard(t *testing.T) {
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().ShardInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingType("shard"),
+					Encoding: constants.EncodingType("shard"),
 					Data:     []byte(`shard`),
 				}, nil)
 				mockDB.EXPECT().GetTotalNumDBShards().Return(1)

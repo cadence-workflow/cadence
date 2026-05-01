@@ -39,6 +39,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -56,7 +57,7 @@ type (
 
 var (
 	testContextTimeout      = 5 * time.Second
-	largeTestContextTimeout = 10 * time.Second
+	largeTestContextTimeout = 30 * time.Second
 
 	testWorkflowChecksum = checksum.Checksum{
 		Version: 22,
@@ -119,7 +120,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -136,7 +137,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				State:                       p.WorkflowStateCreated,
@@ -174,7 +175,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 
 	req.Mode = p.CreateWorkflowModeWorkflowIDReuse
 	req.PreviousRunID = runID
-	req.PreviousLastWriteVersion = common.EmptyVersion
+	req.PreviousLastWriteVersion = constants.EmptyVersion
 	_, err = s.ExecutionManager.CreateWorkflowExecution(ctx, req)
 	s.Error(err)
 	s.IsType(&p.WorkflowExecutionAlreadyStartedError{}, err)
@@ -199,7 +200,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithWorkflowRequestsD
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -216,7 +217,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithWorkflowRequestsD
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				State:                       p.WorkflowStateCreated,
@@ -276,7 +277,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionStateCloseStatus() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -290,7 +291,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionStateCloseStatus() {
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 			},
@@ -410,7 +411,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithZombieState() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -500,7 +501,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -517,7 +518,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				State:                       p.WorkflowStateCreated,
@@ -614,7 +615,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -631,7 +632,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 			},
@@ -738,7 +739,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 	req.NewWorkflowSnapshot.ExecutionInfo.FirstExecutionRunID = workflowExecutionRunning.GetRunID()
 	req.Mode = p.CreateWorkflowModeWorkflowIDReuse
 	req.PreviousRunID = workflowExecution.GetRunID()
-	req.PreviousLastWriteVersion = common.EmptyVersion
+	req.PreviousLastWriteVersion = constants.EmptyVersion
 	req.NewWorkflowSnapshot.ExecutionInfo.State = p.WorkflowStateRunning
 	req.NewWorkflowSnapshot.ExecutionInfo.CloseStatus = p.WorkflowCloseStatusNone
 	_, err = s.ExecutionManager.CreateWorkflowExecution(ctx, req)
@@ -803,7 +804,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -887,7 +888,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 	req.NewWorkflowSnapshot.ExecutionInfo.FirstExecutionRunID = workflowExecutionRunning.GetRunID()
 	req.Mode = p.CreateWorkflowModeWorkflowIDReuse
 	req.PreviousRunID = workflowExecution.GetRunID()
-	req.PreviousLastWriteVersion = common.EmptyVersion
+	req.PreviousLastWriteVersion = constants.EmptyVersion
 	req.NewWorkflowSnapshot.ExecutionInfo.State = p.WorkflowStateRunning
 	req.NewWorkflowSnapshot.ExecutionInfo.CloseStatus = p.WorkflowCloseStatusNone
 	req.NewWorkflowSnapshot.Checksum = csum
@@ -945,7 +946,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionTasks() {
 	taskD, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.Equal(1, len(taskD), "Expected 1 decision task.")
-	err = s.CompleteTransferTask(ctx, taskD[0].TaskID)
+	err = s.CompleteTransferTask(ctx, taskD[0].GetTaskID())
 	s.NoError(err)
 
 	state1, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -956,42 +957,39 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionTasks() {
 	updatedStats1 := copyExecutionStats(state1.ExecutionStats)
 
 	now := time.Now()
-	remoteClusterName := "remote-cluster"
 	transferTasks := []p.Task{
 		&p.ActivityTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              s.GetNextSequenceNumber(),
-				Version:             common.EmptyVersion,
+				Version:             constants.EmptyVersion,
 			},
-			DomainID:   domainID,
-			TaskList:   "some randome tasklist name",
-			ScheduleID: 123,
+			TargetDomainID: domainID,
+			TaskList:       "some randome tasklist name",
+			ScheduleID:     123,
 		},
 	}
 	timerTasks := []p.Task{
 		&p.UserTimerTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now.Add(time.Minute),
 				TaskID:              s.GetNextSequenceNumber(),
-				Version:             common.EmptyVersion,
+				Version:             constants.EmptyVersion,
 			},
-			EventID: 124,
+			TaskList: "some random tasklist",
+			EventID:  124,
 		},
 	}
-	crossClusterTasks := []p.Task{
-		&p.CrossClusterApplyParentClosePolicyTask{
-			ApplyParentClosePolicyTask: p.ApplyParentClosePolicyTask{
-				TaskData: p.TaskData{
-					VisibilityTimestamp: now,
-					TaskID:              s.GetNextSequenceNumber(),
-					Version:             common.EmptyVersion,
-				},
-			},
-			TargetCluster: remoteClusterName,
-		},
-	}
-
 	err = s.UpdateWorkflowExecutionTasks(
 		ctx,
 		updatedInfo1,
@@ -999,7 +997,6 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionTasks() {
 		int64(3),
 		transferTasks,
 		timerTasks,
-		crossClusterTasks,
 	)
 	s.NoError(err)
 
@@ -1031,7 +1028,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionBrandNew() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -1050,7 +1047,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionBrandNew() {
 				DecisionStartToCloseTimeout: decisionTimeout,
 				State:                       p.WorkflowStateRunning,
 				CloseStatus:                 p.WorkflowCloseStatusNone,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 			},
@@ -1094,7 +1091,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -1209,7 +1206,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionRunIDReuseWithoutRepl
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -1254,7 +1251,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionRunIDReuseWithoutRepl
 				DecisionStartToCloseTimeout: decisionTimeout,
 				State:                       p.WorkflowStateRunning,
 				CloseStatus:                 p.WorkflowCloseStatusNone,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 			},
@@ -1264,7 +1261,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionRunIDReuseWithoutRepl
 		RangeID:                  s.ShardInfo.RangeID,
 		Mode:                     p.CreateWorkflowModeWorkflowIDReuse,
 		PreviousRunID:            workflowExecution.GetRunID(),
-		PreviousLastWriteVersion: common.EmptyVersion,
+		PreviousLastWriteVersion: constants.EmptyVersion,
 	})
 	s.NoError(err3)
 }
@@ -1353,13 +1350,13 @@ func (s *ExecutionManagerSuite) TestPersistenceStartWorkflow() {
 
 	s.Equal(p.WorkflowStateRunning, startedErr.State, startedErr.Msg)
 	s.Equal(p.WorkflowCloseStatusNone, startedErr.CloseStatus, startedErr.Msg)
-	s.Equal(common.EmptyVersion, startedErr.LastWriteVersion, startedErr.Msg)
+	s.Equal(constants.EmptyVersion, startedErr.LastWriteVersion, startedErr.Msg)
 	s.Empty(task1, "Expected empty task identifier.")
 	decisionScheduleID := int64(2)
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -1379,25 +1376,33 @@ func (s *ExecutionManagerSuite) TestPersistenceStartWorkflow() {
 				ExecutionContext:            nil,
 				State:                       p.WorkflowStateRunning,
 				CloseStatus:                 p.WorkflowCloseStatusNone,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 int64(3),
 				LastProcessedEvent:          0,
 				DecisionScheduleID:          decisionScheduleID,
-				DecisionStartedID:           common.EmptyEventID,
+				DecisionStartedID:           constants.EmptyEventID,
 				DecisionTimeout:             1,
 			},
 			ExecutionStats: &p.ExecutionStats{},
-			TransferTasks: []p.Task{
-				&p.DecisionTask{
-					TaskData: p.TaskData{
-						TaskID: s.GetNextSequenceNumber(),
+			TasksByCategory: map[p.HistoryTaskCategory][]p.Task{
+				p.HistoryTaskCategoryTransfer: []p.Task{
+					&p.DecisionTask{
+						WorkflowIdentifier: p.WorkflowIdentifier{
+							DomainID:   domainID,
+							WorkflowID: workflowExecution.WorkflowID,
+							RunID:      workflowExecution.RunID,
+						},
+						TaskData: p.TaskData{
+							TaskID: s.GetNextSequenceNumber(),
+						},
+						TargetDomainID:       domainID,
+						TaskList:             "queue1",
+						ScheduleID:           int64(2),
+						OriginalTaskList:     "queue1",
+						OriginalTaskListKind: types.TaskListKindEphemeral,
 					},
-					DomainID:   domainID,
-					TaskList:   "queue1",
-					ScheduleID: int64(2),
 				},
 			},
-			TimerTasks:       nil,
 			VersionHistories: versionHistories,
 		},
 		RangeID: s.ShardInfo.RangeID - 1,
@@ -1448,7 +1453,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -1470,7 +1475,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				ExecutionContext:            []byte("test-execution-context"),
 				State:                       p.WorkflowStateRunning,
 				CloseStatus:                 p.WorkflowCloseStatusNone,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 rand.Int63(),
 				LastProcessedEvent:          int64(rand.Int31()),
 				LastUpdatedTimestamp:        now,
@@ -1489,11 +1494,16 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				MaximumAttempts:             rand.Int31(),
 				NonRetriableErrors:          []string{"badRequestError", "accessDeniedError"},
 				CronSchedule:                "* * * * *",
+				CronOverlapPolicy:           types.CronOverlapPolicySkipped,
 				ExpirationSeconds:           rand.Int31(),
 				AutoResetPoints:             &testResetPoints,
 				SearchAttributes:            testSearchAttr,
 				Memo:                        testMemo,
 				PartitionConfig:             testPartitionConfig,
+				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
+					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+					StickyRegion:                   "region1",
+				},
 			},
 			ExecutionStats: &p.ExecutionStats{
 				HistorySize: int64(rand.Int31()),
@@ -1551,6 +1561,8 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ExpirationSeconds, info.ExpirationSeconds)
 	s.EqualTimes(createReq.NewWorkflowSnapshot.ExecutionInfo.ExpirationTime, info.ExpirationTime)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.CronSchedule, info.CronSchedule)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.CronOverlapPolicy, info.CronOverlapPolicy)
+	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.ActiveClusterSelectionPolicy, info.ActiveClusterSelectionPolicy)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionInfo.NonRetriableErrors, info.NonRetriableErrors)
 	s.Equal(testResetPoints, *info.AutoResetPoints)
 	s.Equal(createReq.NewWorkflowSnapshot.ExecutionStats.HistorySize, state.ExecutionStats.HistorySize)
@@ -1604,7 +1616,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.Equal(true, s.validateTimeRange(info0.StartTimestamp, time.Minute))
 	s.Equal(int64(0), info0.DecisionVersion)
 	s.Equal(int64(2), info0.DecisionScheduleID)
-	s.Equal(common.EmptyEventID, info0.DecisionStartedID)
+	s.Equal(constants.EmptyEventID, info0.DecisionStartedID)
 	s.Equal(int32(1), info0.DecisionTimeout)
 	s.Equal(int64(0), info0.DecisionAttempt)
 	s.Equal(int64(0), info0.DecisionStartedTimestamp)
@@ -1659,7 +1671,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.NextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -1689,7 +1701,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.Equal(info0.StartTimestamp.UnixNano(), info1.StartTimestamp.UnixNano())
 	s.Equal(int64(666), info1.DecisionVersion)
 	s.Equal(int64(2), info1.DecisionScheduleID)
-	s.Equal(common.EmptyEventID, info1.DecisionStartedID)
+	s.Equal(constants.EmptyEventID, info1.DecisionStartedID)
 	s.Equal(int32(1), info1.DecisionTimeout)
 	s.Equal(int64(123), info1.DecisionAttempt)
 	s.Equal(int64(321), info1.DecisionStartedTimestamp)
@@ -1746,7 +1758,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.Equal(true, s.validateTimeRange(info2.LastUpdatedTimestamp, time.Hour))
 	s.Equal(int64(666), info2.DecisionVersion)
 	s.Equal(int64(2), info2.DecisionScheduleID)
-	s.Equal(common.EmptyEventID, info2.DecisionStartedID)
+	s.Equal(constants.EmptyEventID, info2.DecisionStartedID)
 	s.Equal(int32(1), info2.DecisionTimeout)
 	s.Equal(int64(123), info2.DecisionAttempt)
 	s.Equal(int64(321), info2.DecisionStartedTimestamp)
@@ -1795,7 +1807,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.Equal(true, s.validateTimeRange(info3.LastUpdatedTimestamp, time.Hour))
 	s.Equal(int64(666), info3.DecisionVersion)
 	s.Equal(int64(2), info3.DecisionScheduleID)
-	s.Equal(common.EmptyEventID, info3.DecisionStartedID)
+	s.Equal(constants.EmptyEventID, info3.DecisionStartedID)
 	s.Equal(int32(1), info3.DecisionTimeout)
 	s.Equal(int64(123), info3.DecisionAttempt)
 	s.Equal(int64(321), info3.DecisionStartedTimestamp)
@@ -1846,7 +1858,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflow() {
 	s.Equal(true, s.validateTimeRange(info4.LastUpdatedTimestamp, time.Hour))
 	s.Equal(int64(666), info4.DecisionVersion)
 	s.Equal(int64(2), info4.DecisionScheduleID)
-	s.Equal(common.EmptyEventID, info4.DecisionStartedID)
+	s.Equal(constants.EmptyEventID, info4.DecisionStartedID)
 	s.Equal(int32(1), info4.DecisionTimeout)
 	s.Equal(int64(123), info4.DecisionAttempt)
 	s.Equal(int64(321), info4.DecisionStartedTimestamp)
@@ -1904,7 +1916,7 @@ func (s *ExecutionManagerSuite) TestDeleteWorkflow() {
 	s.Equal(int64(0), info0.LastProcessedEvent)
 	s.Equal(true, s.validateTimeRange(info0.LastUpdatedTimestamp, time.Hour))
 	s.Equal(int64(2), info0.DecisionScheduleID)
-	s.Equal(common.EmptyEventID, info0.DecisionStartedID)
+	s.Equal(constants.EmptyEventID, info0.DecisionStartedID)
 	s.Equal(int32(1), info0.DecisionTimeout)
 
 	s.T().Logf("Workflow execution last updated: %v\n", info0.LastUpdatedTimestamp)
@@ -1953,7 +1965,7 @@ func (s *ExecutionManagerSuite) TestDeleteCurrentWorkflow() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo1.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2021,7 +2033,7 @@ func (s *ExecutionManagerSuite) TestUpdateDeleteWorkflow() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo1.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2144,7 +2156,7 @@ func (s *ExecutionManagerSuite) TestGetCurrentWorkflow() {
 	})
 	s.NoError(err)
 	s.Equal(workflowExecution.GetRunID(), response.RunID)
-	s.Equal(common.EmptyVersion, response.LastWriteVersion)
+	s.Equal(constants.EmptyVersion, response.LastWriteVersion)
 
 	info0, err2 := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
 	s.NoError(err2)
@@ -2156,7 +2168,7 @@ func (s *ExecutionManagerSuite) TestGetCurrentWorkflow() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo1.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2195,15 +2207,15 @@ func (s *ExecutionManagerSuite) TestTransferTasksThroughUpdate() {
 	tasks1, err1 := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err1)
 	s.NotNil(tasks1, "expected valid list of tasks.")
-	s.Equal(1, len(tasks1), "Expected 1 decision task.")
-	task1 := tasks1[0]
-	s.Equal(domainID, task1.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task1.RunID)
+	s.Equal(1, len(tasks1), "Expected 1 transfer task.")
+	task1, ok := tasks1[0].(*p.DecisionTask)
+	s.True(ok, "Expected a decision task.")
+	s.Equal(domainID, task1.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task1.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task1.GetRunID())
 	s.Equal("queue1", task1.TaskList)
-	s.Equal(p.TransferTaskTypeDecisionTask, task1.TaskType)
+	s.Equal(p.TransferTaskTypeDecisionTask, task1.GetTaskType())
 	s.Equal(int64(2), task1.ScheduleID)
-	s.Equal("", task1.TargetRunID)
 
 	err3 := s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err3)
@@ -2218,7 +2230,7 @@ func (s *ExecutionManagerSuite) TestTransferTasksThroughUpdate() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2228,15 +2240,15 @@ func (s *ExecutionManagerSuite) TestTransferTasksThroughUpdate() {
 	tasks2, err1 := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err1)
 	s.NotNil(tasks2, "expected valid list of tasks.")
-	s.Equal(1, len(tasks2), "Expected 1 decision task.")
-	task2 := tasks2[0]
-	s.Equal(domainID, task2.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task2.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task2.RunID)
+	s.Equal(1, len(tasks2), "Expected 1 transfer task.")
+	task2, ok := tasks2[0].(*p.ActivityTask)
+	s.True(ok, "Expected an activity task.")
+	s.Equal(domainID, task2.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task2.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task2.GetRunID())
 	s.Equal("queue1", task2.TaskList)
-	s.Equal(p.TransferTaskTypeActivityTask, task2.TaskType)
+	s.Equal(p.TransferTaskTypeActivityTask, task2.GetTaskType())
 	s.Equal(int64(4), task2.ScheduleID)
-	s.Equal("", task2.TargetRunID)
 
 	err4 := s.CompleteTransferTask(ctx, task2.TaskID)
 	s.NoError(err4)
@@ -2261,13 +2273,13 @@ func (s *ExecutionManagerSuite) TestTransferTasksThroughUpdate() {
 	tasks3, err7 := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err7)
 	s.NotNil(tasks3, "expected valid list of tasks.")
-	s.Equal(1, len(tasks3), "Expected 1 decision task.")
-	task3 := tasks3[0]
-	s.Equal(domainID, task3.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task3.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task3.RunID)
-	s.Equal(p.TransferTaskTypeCloseExecution, task3.TaskType)
-	s.Equal("", task3.TargetRunID)
+	s.Equal(1, len(tasks3), "Expected 1 transfer task.")
+	task3, ok := tasks3[0].(*p.CloseExecutionTask)
+	s.True(ok, "Expected a close execution task.")
+	s.Equal(domainID, task3.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task3.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task3.GetRunID())
+	s.Equal(p.TransferTaskTypeCloseExecution, task3.GetTaskType())
 
 	err8 := s.CompleteTransferTask(ctx, task3.TaskID)
 	s.NoError(err8)
@@ -2297,7 +2309,7 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	taskD, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.Equal(1, len(taskD), "Expected 1 decision task.")
-	err = s.CompleteTransferTask(ctx, taskD[0].TaskID)
+	err = s.CompleteTransferTask(ctx, taskD[0].GetTaskID())
 	s.NoError(err)
 
 	state1, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -2312,6 +2324,11 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	targetRunID := "0d00698f-08e1-4d36-a3e2-3bf109f5d2d6"
 	targetChildWorkflowOnly := false
 	transferTasks := []p.Task{&p.CancelExecutionTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			TaskID: s.GetNextSequenceNumber(),
 		},
@@ -2320,11 +2337,12 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: targetChildWorkflowOnly,
 		InitiatedID:             1,
+		TaskList:                "queue1",
 	}}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: 1,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2335,15 +2353,19 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	s.NoError(err)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(1, len(tasks1), "Expected 1 cancel task.")
-	task1 := tasks1[0]
-	s.Equal(p.TransferTaskTypeCancelExecution, task1.TaskType)
-	s.Equal(domainID, task1.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task1.RunID)
+	task1, ok := tasks1[0].(*p.CancelExecutionTask)
+	s.True(ok, "Expected a cancel execution task.")
+	s.Equal(p.TransferTaskTypeCancelExecution, task1.GetTaskType())
+	s.Equal(domainID, task1.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task1.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task1.GetRunID())
 	s.Equal(targetDomainID, task1.TargetDomainID)
 	s.Equal(targetWorkflowID, task1.TargetWorkflowID)
 	s.Equal(targetRunID, task1.TargetRunID)
 	s.Equal(false, task1.TargetChildWorkflowOnly)
+	s.Equal("queue1", task1.GetTaskList())
+	s.Equal("queue1", task1.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task1.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err)
@@ -2353,6 +2375,11 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	targetRunID = ""
 	targetChildWorkflowOnly = true
 	transferTasks = []p.Task{&p.CancelExecutionTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			TaskID: s.GetNextSequenceNumber(),
 		},
@@ -2361,6 +2388,7 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: targetChildWorkflowOnly,
 		InitiatedID:             3,
+		TaskList:                "queue2",
 	}}
 
 	state2, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -2377,15 +2405,18 @@ func (s *ExecutionManagerSuite) TestCancelTransferTaskTasks() {
 	s.NoError(err)
 	s.NotNil(tasks2, "expected valid list of tasks.")
 	s.Equal(1, len(tasks2), "Expected 1 cancel task.")
-	task2 := tasks2[0]
-	s.Equal(p.TransferTaskTypeCancelExecution, task2.TaskType)
-	s.Equal(domainID, task2.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task2.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task2.RunID)
+	task2, ok := tasks2[0].(*p.CancelExecutionTask)
+	s.True(ok, "Expected a cancel execution task.")
+	s.Equal(p.TransferTaskTypeCancelExecution, task2.GetTaskType())
+	s.Equal(domainID, task2.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task2.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task2.GetRunID())
 	s.Equal(targetDomainID, task2.TargetDomainID)
 	s.Equal(targetWorkflowID, task2.TargetWorkflowID)
 	s.Equal(targetRunID, task2.TargetRunID)
 	s.Equal(targetChildWorkflowOnly, task2.TargetChildWorkflowOnly)
+	s.Equal("queue2", task2.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task2.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task2.TaskID)
 	s.NoError(err)
@@ -2409,7 +2440,7 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	taskD, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.Equal(1, len(taskD), "Expected 1 decision task.")
-	err = s.CompleteTransferTask(ctx, taskD[0].TaskID)
+	err = s.CompleteTransferTask(ctx, taskD[0].GetTaskID())
 	s.NoError(err)
 
 	state1, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -2424,6 +2455,11 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	targetRunID := "0d00698f-08e1-4d36-a3e2-3bf109f5d2d6"
 	targetChildWorkflowOnly := false
 	transferTasks := []p.Task{&p.SignalExecutionTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			TaskID: s.GetNextSequenceNumber(),
 		},
@@ -2432,11 +2468,12 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: false,
 		InitiatedID:             1,
+		TaskList:                "queue1",
 	}}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: 1,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2446,16 +2483,20 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	tasks1, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.NotNil(tasks1, "expected valid list of tasks.")
-	s.Equal(1, len(tasks1), "Expected 1 cancel task.")
-	task1 := tasks1[0]
-	s.Equal(p.TransferTaskTypeSignalExecution, task1.TaskType)
-	s.Equal(domainID, task1.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task1.RunID)
+	s.Equal(1, len(tasks1), "Expected 1 transfer task.")
+	task1, ok := tasks1[0].(*p.SignalExecutionTask)
+	s.True(ok, "Expected a signal execution task.")
+	s.Equal(p.TransferTaskTypeSignalExecution, task1.GetTaskType())
+	s.Equal(domainID, task1.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task1.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task1.GetRunID())
 	s.Equal(targetDomainID, task1.TargetDomainID)
 	s.Equal(targetWorkflowID, task1.TargetWorkflowID)
 	s.Equal(targetRunID, task1.TargetRunID)
 	s.Equal(false, task1.TargetChildWorkflowOnly)
+	s.Equal("queue1", task1.GetTaskList())
+	s.Equal("queue1", task1.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task1.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err)
@@ -2465,6 +2506,11 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	targetRunID = ""
 	targetChildWorkflowOnly = true
 	transferTasks = []p.Task{&p.SignalExecutionTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			TaskID: s.GetNextSequenceNumber(),
 		},
@@ -2473,6 +2519,7 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 		TargetRunID:             targetRunID,
 		TargetChildWorkflowOnly: targetChildWorkflowOnly,
 		InitiatedID:             3,
+		TaskList:                "queue2",
 	}}
 
 	state2, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -2488,16 +2535,19 @@ func (s *ExecutionManagerSuite) TestSignalTransferTaskTasks() {
 	tasks2, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.NotNil(tasks2, "expected valid list of tasks.")
-	s.Equal(1, len(tasks2), "Expected 1 cancel task.")
-	task2 := tasks2[0]
-	s.Equal(p.TransferTaskTypeSignalExecution, task2.TaskType)
-	s.Equal(domainID, task2.DomainID)
-	s.Equal(workflowExecution.GetWorkflowID(), task2.WorkflowID)
-	s.Equal(workflowExecution.GetRunID(), task2.RunID)
+	s.Equal(1, len(tasks2), "Expected 1 transfer task.")
+	task2, ok := tasks2[0].(*p.SignalExecutionTask)
+	s.True(ok, "Expected a signal execution task.")
+	s.Equal(p.TransferTaskTypeSignalExecution, task2.GetTaskType())
+	s.Equal(domainID, task2.GetDomainID())
+	s.Equal(workflowExecution.GetWorkflowID(), task2.GetWorkflowID())
+	s.Equal(workflowExecution.GetRunID(), task2.GetRunID())
 	s.Equal(targetDomainID, task2.TargetDomainID)
 	s.Equal(targetWorkflowID, task2.TargetWorkflowID)
 	s.Equal(targetRunID, task2.TargetRunID)
 	s.Equal(targetChildWorkflowOnly, task2.TargetChildWorkflowOnly)
+	s.Equal("queue2", task2.GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, task2.GetOriginalTaskListKind())
 
 	err = s.CompleteTransferTask(ctx, task2.TaskID)
 	s.NoError(err)
@@ -2520,7 +2570,7 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 	taskD, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.Equal(1, len(taskD), "Expected 1 decision task.")
-	err = s.CompleteTransferTask(ctx, taskD[0].TaskID)
+	err = s.CompleteTransferTask(ctx, taskD[0].GetTaskID())
 	s.NoError(err)
 
 	state1, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -2532,6 +2582,11 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 
 	replicationTasks := []p.Task{
 		&p.HistoryReplicationTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				TaskID:  s.GetNextSequenceNumber(),
 				Version: 123,
@@ -2540,6 +2595,11 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 			NextEventID:  int64(3),
 		},
 		&p.HistoryReplicationTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				TaskID:  s.GetNextSequenceNumber(),
 				Version: 456,
@@ -2548,6 +2608,11 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 			NextEventID:  int64(3),
 		},
 		&p.SyncActivityTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				TaskID:  s.GetNextSequenceNumber(),
 				Version: 789,
@@ -2558,7 +2623,7 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: 3,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2570,20 +2635,8 @@ func (s *ExecutionManagerSuite) TestReplicationTasks() {
 	s.Equal(len(replicationTasks), len(respTasks))
 
 	for index := range replicationTasks {
-		s.Equal(replicationTasks[index].GetTaskID(), respTasks[index].GetTaskID())
-		s.Equal(replicationTasks[index].GetType(), respTasks[index].GetTaskType())
-		s.Equal(replicationTasks[index].GetVersion(), respTasks[index].GetVersion())
-		switch replicationTasks[index].GetType() {
-		case p.ReplicationTaskTypeHistory:
-			expected := replicationTasks[index].(*p.HistoryReplicationTask)
-			s.Equal(expected.FirstEventID, respTasks[index].FirstEventID)
-			s.Equal(expected.NextEventID, respTasks[index].NextEventID)
-			s.Equal(expected.BranchToken, respTasks[index].BranchToken)
-			s.Equal(expected.NewRunBranchToken, respTasks[index].NewRunBranchToken)
-		case p.ReplicationTaskTypeSyncActivity:
-			expected := replicationTasks[index].(*p.SyncActivityTask)
-			s.Equal(expected.ScheduledID, respTasks[index].ScheduledID)
-		}
+		respTasks[index].SetVisibilityTimestamp(replicationTasks[index].GetVisibilityTimestamp()) // ignore visibility timestamp
+		s.Equal(replicationTasks[index], respTasks[index])
 		err = s.CompleteReplicationTask(ctx, respTasks[index].GetTaskID())
 		s.NoError(err)
 	}
@@ -2609,15 +2662,14 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 	s.NoError(err1)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(1, len(tasks1), "Expected 1 decision task.")
-	task1 := tasks1[0]
+	task1, ok := tasks1[0].(*p.DecisionTask)
+	s.True(ok, "Expected a decision task.")
 	s.Equal(domainID, task1.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task1.RunID)
 	s.Equal(tasklist, task1.TaskList)
-	s.Equal(p.TransferTaskTypeDecisionTask, task1.TaskType)
+	s.Equal(p.TransferTaskTypeDecisionTask, task1.GetTaskType())
 	s.Equal(int64(2), task1.ScheduleID)
-	s.Equal(p.TransferTaskTransferTargetWorkflowID, task1.TargetWorkflowID)
-	s.Equal("", task1.TargetRunID)
 	err3 := s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err3)
 
@@ -2638,33 +2690,55 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 	now := time.Now()
 	tasks := []p.Task{
 		&p.ActivityTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10000,
 				Version:             111,
 			},
-			DomainID:   domainID,
-			TaskList:   tasklist,
-			ScheduleID: scheduleID,
+			TargetDomainID: domainID,
+			TaskList:       tasklist,
+			ScheduleID:     scheduleID,
 		},
 		&p.DecisionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10002,
 				Version:             222,
 			},
-			DomainID:         domainID,
-			TaskList:         tasklist,
-			ScheduleID:       scheduleID,
-			RecordVisibility: false,
+			TargetDomainID:       domainID,
+			TaskList:             tasklist,
+			ScheduleID:           scheduleID,
+			OriginalTaskList:     "original_tasklist",
+			OriginalTaskListKind: types.TaskListKindEphemeral,
 		},
 		&p.CloseExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
+			TaskList: tasklist,
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10003,
 				Version:             333,
 			}},
 		&p.CancelExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10004,
@@ -2675,8 +2749,14 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 			TargetRunID:             targetRunID,
 			TargetChildWorkflowOnly: true,
 			InitiatedID:             scheduleID,
+			TaskList:                tasklist,
 		},
 		&p.SignalExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10005,
@@ -2687,8 +2767,14 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 			TargetRunID:             targetRunID,
 			TargetChildWorkflowOnly: true,
 			InitiatedID:             scheduleID,
+			TaskList:                tasklist,
 		},
 		&p.StartChildExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10006,
@@ -2697,15 +2783,27 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 			TargetDomainID:   targetDomainID,
 			TargetWorkflowID: targetWorkflowID,
 			InitiatedID:      scheduleID,
+			TaskList:         tasklist,
 		},
 		&p.RecordWorkflowClosedTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10007,
 				Version:             777,
 			},
+			TaskList: tasklist,
 		},
 		&p.RecordChildExecutionCompletedTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10008,
@@ -2714,20 +2812,13 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 			TargetDomainID:   targetDomainID,
 			TargetWorkflowID: targetWorkflowID,
 			TargetRunID:      targetRunID,
-		},
-		&p.ApplyParentClosePolicyTask{
-			TaskData: p.TaskData{
-				VisibilityTimestamp: now,
-				TaskID:              currentTransferID + 10009,
-				Version:             999,
-			},
-			TargetDomainIDs: map[string]struct{}{targetDomainID: {}},
+			TaskList:         tasklist,
 		},
 	}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: scheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2739,22 +2830,45 @@ func (s *ExecutionManagerSuite) TestTransferTasksComplete() {
 	s.NotNil(txTasks, "expected valid list of tasks.")
 	s.Equal(len(tasks), len(txTasks))
 	for index := range tasks {
-		s.True(timeComparator(tasks[index].GetVisibilityTimestamp(), txTasks[index].VisibilityTimestamp, TimePrecision))
+		s.True(timeComparator(tasks[index].GetVisibilityTimestamp(), txTasks[index].GetVisibilityTimestamp(), TimePrecision))
 	}
-	s.Equal(p.TransferTaskTypeActivityTask, txTasks[0].TaskType)
-	s.Equal(p.TransferTaskTypeDecisionTask, txTasks[1].TaskType)
-	s.Equal(p.TransferTaskTypeCloseExecution, txTasks[2].TaskType)
-	s.Equal(p.TransferTaskTypeCancelExecution, txTasks[3].TaskType)
-	s.Equal(p.TransferTaskTypeSignalExecution, txTasks[4].TaskType)
-	s.Equal(p.TransferTaskTypeStartChildExecution, txTasks[5].TaskType)
-	s.Equal(p.TransferTaskTypeRecordWorkflowClosed, txTasks[6].TaskType)
-	s.Equal(p.TransferTaskTypeRecordChildExecutionCompleted, txTasks[7].TaskType)
-	s.Equal(p.TransferTaskTypeApplyParentClosePolicy, txTasks[8].TaskType)
+	s.Equal(p.TransferTaskTypeActivityTask, txTasks[0].GetTaskType())
+	s.Equal(tasklist, txTasks[0].GetTaskList())
+	s.Equal(tasklist, txTasks[0].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[0].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeDecisionTask, txTasks[1].GetTaskType())
+	s.Equal(tasklist, txTasks[1].GetTaskList())
+	s.Equal("original_tasklist", txTasks[1].GetOriginalTaskList())
+	s.Equal(types.TaskListKindEphemeral, txTasks[1].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeCloseExecution, txTasks[2].GetTaskType())
+	s.Equal(tasklist, txTasks[2].GetTaskList())
+	s.Equal(tasklist, txTasks[2].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[2].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeCancelExecution, txTasks[3].GetTaskType())
+	s.Equal(tasklist, txTasks[3].GetTaskList())
+	s.Equal(tasklist, txTasks[3].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[3].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeSignalExecution, txTasks[4].GetTaskType())
+	s.Equal(tasklist, txTasks[4].GetTaskList())
+	s.Equal(tasklist, txTasks[4].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[4].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeStartChildExecution, txTasks[5].GetTaskType())
+	s.Equal(tasklist, txTasks[5].GetTaskList())
+	s.Equal(tasklist, txTasks[5].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[5].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeRecordWorkflowClosed, txTasks[6].GetTaskType())
+	s.Equal(tasklist, txTasks[6].GetTaskList())
+	s.Equal(tasklist, txTasks[6].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[6].GetOriginalTaskListKind())
+	s.Equal(p.TransferTaskTypeRecordChildExecutionCompleted, txTasks[7].GetTaskType())
+	s.Equal(tasklist, txTasks[7].GetTaskList())
+	s.Equal(tasklist, txTasks[7].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[7].GetOriginalTaskListKind())
 
 	for idx := range txTasks {
 		// TODO: add a check similar to validateCrossClusterTasks
-		s.Equal(int64(111*(idx+1)), txTasks[idx].Version)
-		err := s.CompleteTransferTask(ctx, txTasks[idx].TaskID)
+		s.Equal(int64(111*(idx+1)), txTasks[idx].GetVersion())
+		err := s.CompleteTransferTask(ctx, txTasks[idx].GetTaskID())
 		s.NoError(err)
 	}
 
@@ -2783,15 +2897,14 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 	s.NoError(err1)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(1, len(tasks1), "Expected 1 decision task.")
-	task1 := tasks1[0]
+	task1, ok := tasks1[0].(*p.DecisionTask)
+	s.True(ok, "Expected a decision task.")
 	s.Equal(domainID, task1.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task1.RunID)
 	s.Equal(tasklist, task1.TaskList)
-	s.Equal(p.TransferTaskTypeDecisionTask, task1.TaskType)
+	s.Equal(p.TransferTaskTypeDecisionTask, task1.GetTaskType())
 	s.Equal(int64(2), task1.ScheduleID)
-	s.Equal(p.TransferTaskTransferTargetWorkflowID, task1.TargetWorkflowID)
-	s.Equal("", task1.TargetRunID)
 	err3 := s.CompleteTransferTask(ctx, task1.TaskID)
 	s.NoError(err3)
 
@@ -2812,34 +2925,56 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 	now := time.Now()
 	tasks := []p.Task{
 		&p.ActivityTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10001,
 				Version:             111,
 			},
-			DomainID:   domainID,
-			TaskList:   tasklist,
-			ScheduleID: scheduleID,
+			TargetDomainID: domainID,
+			TaskList:       tasklist,
+			ScheduleID:     scheduleID,
 		},
 		&p.DecisionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10002,
 				Version:             222,
 			},
-			DomainID:         domainID,
-			TaskList:         tasklist,
-			ScheduleID:       scheduleID,
-			RecordVisibility: false,
+			TargetDomainID:       domainID,
+			TaskList:             tasklist,
+			ScheduleID:           scheduleID,
+			OriginalTaskList:     "original_tasklist",
+			OriginalTaskListKind: types.TaskListKindEphemeral,
 		},
 		&p.CloseExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10003,
 				Version:             333,
 			},
+			TaskList: tasklist,
 		},
 		&p.CancelExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10004,
@@ -2850,8 +2985,14 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 			TargetRunID:             targetRunID,
 			TargetChildWorkflowOnly: true,
 			InitiatedID:             scheduleID,
+			TaskList:                tasklist,
 		},
 		&p.SignalExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10005,
@@ -2862,8 +3003,14 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 			TargetRunID:             targetRunID,
 			TargetChildWorkflowOnly: true,
 			InitiatedID:             scheduleID,
+			TaskList:                tasklist,
 		},
 		&p.StartChildExecutionTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              currentTransferID + 10006,
@@ -2872,12 +3019,13 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 			TargetDomainID:   targetDomainID,
 			TargetWorkflowID: targetWorkflowID,
 			InitiatedID:      scheduleID,
+			TaskList:         tasklist,
 		},
 	}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: scheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -2889,28 +3037,46 @@ func (s *ExecutionManagerSuite) TestTransferTasksRangeComplete() {
 	s.NotNil(txTasks, "expected valid list of tasks.")
 	s.Equal(len(tasks), len(txTasks))
 	for index := range tasks {
-		s.True(timeComparator(tasks[index].GetVisibilityTimestamp(), txTasks[index].VisibilityTimestamp, TimePrecision))
+		s.True(timeComparator(tasks[index].GetVisibilityTimestamp(), txTasks[index].GetVisibilityTimestamp(), TimePrecision))
 	}
-	s.Equal(p.TransferTaskTypeActivityTask, txTasks[0].TaskType)
-	s.Equal(p.TransferTaskTypeDecisionTask, txTasks[1].TaskType)
-	s.Equal(p.TransferTaskTypeCloseExecution, txTasks[2].TaskType)
-	s.Equal(p.TransferTaskTypeCancelExecution, txTasks[3].TaskType)
-	s.Equal(p.TransferTaskTypeSignalExecution, txTasks[4].TaskType)
-	s.Equal(p.TransferTaskTypeStartChildExecution, txTasks[5].TaskType)
-	s.Equal(int64(111), txTasks[0].Version)
-	s.Equal(int64(222), txTasks[1].Version)
-	s.Equal(int64(333), txTasks[2].Version)
-	s.Equal(int64(444), txTasks[3].Version)
-	s.Equal(int64(555), txTasks[4].Version)
-	s.Equal(int64(666), txTasks[5].Version)
-	s.Equal(currentTransferID+10001, txTasks[0].TaskID)
-	s.Equal(currentTransferID+10002, txTasks[1].TaskID)
-	s.Equal(currentTransferID+10003, txTasks[2].TaskID)
-	s.Equal(currentTransferID+10004, txTasks[3].TaskID)
-	s.Equal(currentTransferID+10005, txTasks[4].TaskID)
-	s.Equal(currentTransferID+10006, txTasks[5].TaskID)
+	s.Equal(p.TransferTaskTypeActivityTask, txTasks[0].GetTaskType())
+	s.Equal(p.TransferTaskTypeDecisionTask, txTasks[1].GetTaskType())
+	s.Equal(p.TransferTaskTypeCloseExecution, txTasks[2].GetTaskType())
+	s.Equal(p.TransferTaskTypeCancelExecution, txTasks[3].GetTaskType())
+	s.Equal(p.TransferTaskTypeSignalExecution, txTasks[4].GetTaskType())
+	s.Equal(p.TransferTaskTypeStartChildExecution, txTasks[5].GetTaskType())
+	s.Equal(int64(111), txTasks[0].GetVersion())
+	s.Equal(int64(222), txTasks[1].GetVersion())
+	s.Equal(int64(333), txTasks[2].GetVersion())
+	s.Equal(int64(444), txTasks[3].GetVersion())
+	s.Equal(int64(555), txTasks[4].GetVersion())
+	s.Equal(int64(666), txTasks[5].GetVersion())
+	s.Equal(currentTransferID+10001, txTasks[0].GetTaskID())
+	s.Equal(currentTransferID+10002, txTasks[1].GetTaskID())
+	s.Equal(currentTransferID+10003, txTasks[2].GetTaskID())
+	s.Equal(currentTransferID+10004, txTasks[3].GetTaskID())
+	s.Equal(currentTransferID+10005, txTasks[4].GetTaskID())
+	s.Equal(currentTransferID+10006, txTasks[5].GetTaskID())
+	s.Equal(tasklist, txTasks[0].GetTaskList())
+	s.Equal(tasklist, txTasks[1].GetTaskList())
+	s.Equal(tasklist, txTasks[2].GetTaskList())
+	s.Equal(tasklist, txTasks[3].GetTaskList())
+	s.Equal(tasklist, txTasks[4].GetTaskList())
+	s.Equal(tasklist, txTasks[5].GetTaskList())
+	s.Equal(tasklist, txTasks[0].GetOriginalTaskList())
+	s.Equal("original_tasklist", txTasks[1].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[2].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[3].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[4].GetOriginalTaskList())
+	s.Equal(tasklist, txTasks[5].GetOriginalTaskList())
+	s.Equal(types.TaskListKindNormal, txTasks[0].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindEphemeral, txTasks[1].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[2].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[3].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[4].GetOriginalTaskListKind())
+	s.Equal(types.TaskListKindNormal, txTasks[5].GetOriginalTaskListKind())
 
-	err2 = s.RangeCompleteTransferTask(ctx, txTasks[0].TaskID-1, txTasks[5].TaskID)
+	err2 = s.RangeCompleteTransferTask(ctx, txTasks[0].GetTaskID(), txTasks[5].GetTaskID()+1)
 	s.NoError(err2)
 
 	txTasks, err2 = s.GetTransferTasks(ctx, 100, false)
@@ -2931,6 +3097,11 @@ func (s *ExecutionManagerSuite) TestTimerTasksComplete() {
 
 	now := time.Now()
 	initialTasks := []p.Task{&p.DecisionTimeoutTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			VisibilityTimestamp: now.Add(1 * time.Second),
 			TaskID:              1,
@@ -2938,7 +3109,9 @@ func (s *ExecutionManagerSuite) TestTimerTasksComplete() {
 		},
 		EventID:         2,
 		ScheduleAttempt: 3,
-		TimeoutType:     int(types.TimeoutTypeStartToClose)},
+		TimeoutType:     int(types.TimeoutTypeStartToClose),
+		TaskList:        "taskList",
+	},
 	}
 
 	task0, err0 := s.CreateWorkflowExecution(ctx, domainID, workflowExecution, "taskList", "wType", 20, 13, nil, 3, 0, 2, initialTasks, nil)
@@ -2956,20 +3129,37 @@ func (s *ExecutionManagerSuite) TestTimerTasksComplete() {
 	updatedInfo.LastProcessedEvent = int64(2)
 	tasks := []p.Task{
 		&p.WorkflowTimeoutTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				Version:             12,
 				TaskID:              2,
 				VisibilityTimestamp: now.Add(2 * time.Second),
 			},
+			TaskList: "taskList",
 		},
 		&p.DeleteHistoryEventTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				Version:             13,
 				TaskID:              3,
 				VisibilityTimestamp: now.Add(2 * time.Second),
 			},
+			TaskList: "taskList",
 		},
 		&p.ActivityTimeoutTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				Version:             14,
 				TaskID:              4,
@@ -2978,20 +3168,27 @@ func (s *ExecutionManagerSuite) TestTimerTasksComplete() {
 			TimeoutType: int(types.TimeoutTypeStartToClose),
 			EventID:     7,
 			Attempt:     0,
+			TaskList:    "taskList",
 		},
 		&p.UserTimerTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				Version:             15,
 				TaskID:              5,
 				VisibilityTimestamp: now.Add(3 * time.Second),
 			},
-			EventID: 7,
+			EventID:  7,
+			TaskList: "taskList",
 		},
 	}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.NextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3002,18 +3199,23 @@ func (s *ExecutionManagerSuite) TestTimerTasksComplete() {
 	s.NoError(err1)
 	s.NotNil(timerTasks, "expected valid list of tasks.")
 	s.Equal(len(tasks)+len(initialTasks), len(timerTasks))
-	s.Equal(p.TaskTypeDecisionTimeout, timerTasks[0].TaskType)
-	s.Equal(p.TaskTypeWorkflowTimeout, timerTasks[1].TaskType)
-	s.Equal(p.TaskTypeDeleteHistoryEvent, timerTasks[2].TaskType)
-	s.Equal(p.TaskTypeActivityTimeout, timerTasks[3].TaskType)
-	s.Equal(p.TaskTypeUserTimer, timerTasks[4].TaskType)
-	s.Equal(int64(11), timerTasks[0].Version)
-	s.Equal(int64(12), timerTasks[1].Version)
-	s.Equal(int64(13), timerTasks[2].Version)
-	s.Equal(int64(14), timerTasks[3].Version)
-	s.Equal(int64(15), timerTasks[4].Version)
+	s.Equal(p.TaskTypeDecisionTimeout, timerTasks[0].GetTaskType())
+	s.Equal(p.TaskTypeWorkflowTimeout, timerTasks[1].GetTaskType())
+	s.Equal(p.TaskTypeDeleteHistoryEvent, timerTasks[2].GetTaskType())
+	s.Equal(p.TaskTypeActivityTimeout, timerTasks[3].GetTaskType())
+	s.Equal(p.TaskTypeUserTimer, timerTasks[4].GetTaskType())
+	s.Equal(int64(11), timerTasks[0].GetVersion())
+	s.Equal(int64(12), timerTasks[1].GetVersion())
+	s.Equal(int64(13), timerTasks[2].GetVersion())
+	s.Equal(int64(14), timerTasks[3].GetVersion())
+	s.Equal(int64(15), timerTasks[4].GetVersion())
+	s.Equal("taskList", timerTasks[0].GetTaskList())
+	s.Equal("taskList", timerTasks[1].GetTaskList())
+	s.Equal("taskList", timerTasks[2].GetTaskList())
+	s.Equal("taskList", timerTasks[3].GetTaskList())
+	s.Equal("taskList", timerTasks[4].GetTaskList())
 
-	err2 = s.RangeCompleteTimerTask(ctx, timerTasks[0].VisibilityTimestamp, timerTasks[4].VisibilityTimestamp.Add(1*time.Second))
+	err2 = s.RangeCompleteTimerTask(ctx, timerTasks[0].GetVisibilityTimestamp(), timerTasks[4].GetVisibilityTimestamp().Add(1*time.Second))
 	s.NoError(err2)
 
 	timerTasks2, err2 := s.GetTimerIndexTasks(ctx, 100, false)
@@ -3048,13 +3250,18 @@ func (s *ExecutionManagerSuite) TestTimerTasksRangeComplete() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.NextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
 	now := time.Now().UTC()
 	tasks := []p.Task{
 		&p.DecisionTimeoutTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              1,
@@ -3063,22 +3270,40 @@ func (s *ExecutionManagerSuite) TestTimerTasksRangeComplete() {
 			EventID:         2,
 			ScheduleAttempt: 3,
 			TimeoutType:     int(types.TimeoutTypeStartToClose),
+			TaskList:        "taskList",
 		},
 		&p.WorkflowTimeoutTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              2,
 				Version:             12,
 			},
+			TaskList: "taskList",
 		},
 		&p.DeleteHistoryEventTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              3,
 				Version:             13,
 			},
+			TaskList: "taskList",
 		},
 		&p.ActivityTimeoutTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              4,
@@ -3087,14 +3312,21 @@ func (s *ExecutionManagerSuite) TestTimerTasksRangeComplete() {
 			TimeoutType: int(types.TimeoutTypeStartToClose),
 			EventID:     7,
 			Attempt:     0,
+			TaskList:    "taskList",
 		},
 		&p.UserTimerTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				VisibilityTimestamp: now,
 				TaskID:              5,
 				Version:             15,
 			},
-			EventID: 7,
+			EventID:  7,
+			TaskList: "taskList",
 		},
 	}
 	err2 := s.UpdateWorkflowExecution(ctx, updatedInfo, updatedStats, versionHistories, []int64{int64(4)}, nil, int64(3), tasks, nil, nil, nil, nil)
@@ -3104,33 +3336,38 @@ func (s *ExecutionManagerSuite) TestTimerTasksRangeComplete() {
 	s.NoError(err1)
 	s.NotNil(timerTasks, "expected valid list of tasks.")
 	s.Equal(len(tasks), len(timerTasks))
-	s.Equal(p.TaskTypeDecisionTimeout, timerTasks[0].TaskType)
-	s.Equal(p.TaskTypeWorkflowTimeout, timerTasks[1].TaskType)
-	s.Equal(p.TaskTypeDeleteHistoryEvent, timerTasks[2].TaskType)
-	s.Equal(p.TaskTypeActivityTimeout, timerTasks[3].TaskType)
-	s.Equal(p.TaskTypeUserTimer, timerTasks[4].TaskType)
-	s.Equal(int64(11), timerTasks[0].Version)
-	s.Equal(int64(12), timerTasks[1].Version)
-	s.Equal(int64(13), timerTasks[2].Version)
-	s.Equal(int64(14), timerTasks[3].Version)
-	s.Equal(int64(15), timerTasks[4].Version)
+	s.Equal(p.TaskTypeDecisionTimeout, timerTasks[0].GetTaskType())
+	s.Equal(p.TaskTypeWorkflowTimeout, timerTasks[1].GetTaskType())
+	s.Equal(p.TaskTypeDeleteHistoryEvent, timerTasks[2].GetTaskType())
+	s.Equal(p.TaskTypeActivityTimeout, timerTasks[3].GetTaskType())
+	s.Equal(p.TaskTypeUserTimer, timerTasks[4].GetTaskType())
+	s.Equal(int64(11), timerTasks[0].GetVersion())
+	s.Equal(int64(12), timerTasks[1].GetVersion())
+	s.Equal(int64(13), timerTasks[2].GetVersion())
+	s.Equal(int64(14), timerTasks[3].GetVersion())
+	s.Equal(int64(15), timerTasks[4].GetVersion())
+	s.Equal("taskList", timerTasks[0].GetTaskList())
+	s.Equal("taskList", timerTasks[1].GetTaskList())
+	s.Equal("taskList", timerTasks[2].GetTaskList())
+	s.Equal("taskList", timerTasks[3].GetTaskList())
+	s.Equal("taskList", timerTasks[4].GetTaskList())
 
 	err2 = s.UpdateWorkflowExecution(ctx, updatedInfo, updatedStats, versionHistories, nil, nil, int64(5), nil, nil, nil, nil, nil)
 	s.NoError(err2)
 
-	err2 = s.CompleteTimerTask(ctx, timerTasks[0].VisibilityTimestamp, timerTasks[0].TaskID)
+	err2 = s.CompleteTimerTask(ctx, timerTasks[0].GetVisibilityTimestamp(), timerTasks[0].GetTaskID())
 	s.NoError(err2)
 
-	err2 = s.CompleteTimerTask(ctx, timerTasks[1].VisibilityTimestamp, timerTasks[1].TaskID)
+	err2 = s.CompleteTimerTask(ctx, timerTasks[1].GetVisibilityTimestamp(), timerTasks[1].GetTaskID())
 	s.NoError(err2)
 
-	err2 = s.CompleteTimerTask(ctx, timerTasks[2].VisibilityTimestamp, timerTasks[2].TaskID)
+	err2 = s.CompleteTimerTask(ctx, timerTasks[2].GetVisibilityTimestamp(), timerTasks[2].GetTaskID())
 	s.NoError(err2)
 
-	err2 = s.CompleteTimerTask(ctx, timerTasks[3].VisibilityTimestamp, timerTasks[3].TaskID)
+	err2 = s.CompleteTimerTask(ctx, timerTasks[3].GetVisibilityTimestamp(), timerTasks[3].GetTaskID())
 	s.NoError(err2)
 
-	err2 = s.CompleteTimerTask(ctx, timerTasks[4].VisibilityTimestamp, timerTasks[4].TaskID)
+	err2 = s.CompleteTimerTask(ctx, timerTasks[4].GetVisibilityTimestamp(), timerTasks[4].GetTaskID())
 	s.NoError(err2)
 
 	timerTasks2, err2 := s.GetTimerIndexTasks(ctx, 100, false)
@@ -3162,24 +3399,23 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 	updatedStats := copyExecutionStats(state0.ExecutionStats)
 	updatedInfo.NextEventID = int64(5)
 	updatedInfo.LastProcessedEvent = int64(2)
-	currentTime := time.Now()
 	activityInfos := []*p.ActivityInfo{{
 		Version:                  7789,
 		ScheduleID:               1,
 		ScheduledEventBatchID:    1,
 		ScheduledEvent:           &types.HistoryEvent{ID: 1},
-		ScheduledTime:            currentTime,
+		ScheduledTime:            time.UnixMilli(1755030646000).UTC(),
 		ActivityID:               uuid.New(),
 		RequestID:                uuid.New(),
 		Details:                  []byte(uuid.New()),
 		StartedID:                2,
 		StartedEvent:             &types.HistoryEvent{ID: 2},
-		StartedTime:              currentTime,
+		StartedTime:              time.UnixMilli(1755030646001).UTC(),
 		ScheduleToCloseTimeout:   1,
 		ScheduleToStartTimeout:   2,
 		StartToCloseTimeout:      3,
 		HeartbeatTimeout:         4,
-		LastHeartBeatUpdatedTime: currentTime,
+		LastHeartBeatUpdatedTime: time.UnixMilli(1755030646002).UTC(),
 		TimerTaskStatus:          1,
 		CancelRequested:          true,
 		CancelRequestID:          math.MaxInt64,
@@ -3187,12 +3423,13 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 		DomainID:                 domainID,
 		StartedIdentity:          uuid.New(),
 		TaskList:                 uuid.New(),
+		TaskListKind:             types.TaskListKindEphemeral,
 		HasRetryPolicy:           true,
 		InitialInterval:          math.MaxInt32,
 		MaximumInterval:          math.MaxInt32,
 		MaximumAttempts:          math.MaxInt32,
 		BackoffCoefficient:       5.55,
-		ExpirationTime:           currentTime,
+		ExpirationTime:           time.UnixMilli(1755030646003).UTC(),
 		NonRetriableErrors:       []string{"accessDenied", "badRequest"},
 		LastFailureReason:        "some random error",
 		LastWorkerIdentity:       uuid.New(),
@@ -3201,7 +3438,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.NextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3216,39 +3453,12 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 	ai, ok := state.ActivityInfos[1]
 	s.True(ok)
 	s.NotNil(ai)
-	s.Equal(int64(7789), ai.Version)
-	s.Equal(int64(1), ai.ScheduleID)
-	s.Equal(int64(1), ai.ScheduledEventBatchID)
-	s.Equal(int64(1), ai.ScheduledEvent.ID)
-	s.EqualTimes(currentTime, ai.ScheduledTime)
-	s.Equal(activityInfos[0].ActivityID, ai.ActivityID)
-	s.Equal(activityInfos[0].RequestID, ai.RequestID)
-	s.Equal(activityInfos[0].Details, ai.Details)
-	s.Equal(int64(2), ai.StartedID)
-	s.Equal(int64(2), ai.StartedEvent.ID)
-	s.EqualTimes(currentTime, ai.StartedTime)
-	s.Equal(int32(1), ai.ScheduleToCloseTimeout)
-	s.Equal(int32(2), ai.ScheduleToStartTimeout)
-	s.Equal(int32(3), ai.StartToCloseTimeout)
-	s.Equal(int32(4), ai.HeartbeatTimeout)
-	s.EqualTimes(currentTime, ai.LastHeartBeatUpdatedTime)
-	s.Equal(int32(1), ai.TimerTaskStatus)
-	s.Equal(activityInfos[0].CancelRequested, ai.CancelRequested)
-	s.Equal(activityInfos[0].CancelRequestID, ai.CancelRequestID)
-	s.Equal(activityInfos[0].Attempt, ai.Attempt)
-	s.Equal(activityInfos[0].DomainID, ai.DomainID)
-	s.Equal(activityInfos[0].StartedIdentity, ai.StartedIdentity)
-	s.Equal(activityInfos[0].TaskList, ai.TaskList)
-	s.Equal(activityInfos[0].HasRetryPolicy, ai.HasRetryPolicy)
-	s.Equal(activityInfos[0].InitialInterval, ai.InitialInterval)
-	s.Equal(activityInfos[0].MaximumInterval, ai.MaximumInterval)
-	s.Equal(activityInfos[0].MaximumAttempts, ai.MaximumAttempts)
-	s.Equal(activityInfos[0].BackoffCoefficient, ai.BackoffCoefficient)
-	s.EqualTimes(activityInfos[0].ExpirationTime, ai.ExpirationTime)
-	s.Equal(activityInfos[0].NonRetriableErrors, ai.NonRetriableErrors)
-	s.Equal(activityInfos[0].LastFailureReason, ai.LastFailureReason)
-	s.Equal(activityInfos[0].LastWorkerIdentity, ai.LastWorkerIdentity)
-	s.Equal(activityInfos[0].LastFailureDetails, ai.LastFailureDetails)
+	// Various persistence layers are inconsistent with assigning the location value, so normalize them first
+	ai.ScheduledTime = ai.ScheduledTime.UTC()
+	ai.StartedTime = ai.StartedTime.UTC()
+	ai.LastHeartBeatUpdatedTime = ai.LastHeartBeatUpdatedTime.UTC()
+	ai.ExpirationTime = ai.ExpirationTime.UTC()
+	s.Equal(activityInfos[0], ai)
 
 	err2 = s.UpdateWorkflowExecution(ctx, updatedInfo, updatedStats, versionHistories, nil, nil, int64(5), nil, nil, []int64{1}, nil, nil)
 	s.NoError(err2)
@@ -3295,7 +3505,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateTimers() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.NextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3373,7 +3583,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateChildExecutions() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3431,7 +3641,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateRequestCancel() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3493,7 +3703,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateSignalInfo() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3548,7 +3758,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateSignalRequested() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3599,7 +3809,7 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateInfo() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3680,7 +3890,7 @@ func (s *ExecutionManagerSuite) TestContinueAsNew() {
 	s.Equal(p.WorkflowStateCreated, newExecutionInfo.State)
 	s.Equal(p.WorkflowCloseStatusNone, newExecutionInfo.CloseStatus)
 	s.Equal(int64(3), newExecutionInfo.NextEventID)
-	s.Equal(common.EmptyEventID, newExecutionInfo.LastProcessedEvent)
+	s.Equal(constants.EmptyEventID, newExecutionInfo.LastProcessedEvent)
 	s.Equal(int64(2), newExecutionInfo.DecisionScheduleID)
 	s.Equal(testResetPoints, *newExecutionInfo.AutoResetPoints)
 	s.Equal(partitionConfig, newExecutionInfo.PartitionConfig)
@@ -3708,7 +3918,7 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskTasks() {
 	taskD, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.Equal(1, len(taskD), "Expected 1 decision task.")
-	err = s.CompleteTransferTask(ctx, taskD[0].TaskID)
+	err = s.CompleteTransferTask(ctx, taskD[0].GetTaskID())
 	s.NoError(err)
 
 	state1, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -3719,6 +3929,11 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskTasks() {
 	updatedStats1 := copyExecutionStats(state1.ExecutionStats)
 
 	replicationTasks := []p.Task{&p.HistoryReplicationTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
 		TaskData: p.TaskData{
 			TaskID:  s.GetNextSequenceNumber(),
 			Version: 9,
@@ -3729,7 +3944,7 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskTasks() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: 3,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3740,8 +3955,8 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskTasks() {
 	s.NoError(err)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(1, len(tasks1), "Expected 1 replication task.")
-	task1 := tasks1[0]
-	s.Equal(p.ReplicationTaskTypeHistory, task1.TaskType)
+	task1, ok := tasks1[0].(*p.HistoryReplicationTask)
+	s.True(ok, "expected a history replication task")
 	s.Equal(domainID, task1.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task1.RunID)
@@ -3774,7 +3989,7 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	taskD, err := s.GetTransferTasks(ctx, 1, false)
 	s.NoError(err)
 	s.Equal(1, len(taskD), "Expected 1 decision task.")
-	err = s.CompleteTransferTask(ctx, taskD[0].TaskID)
+	err = s.CompleteTransferTask(ctx, taskD[0].GetTaskID())
 	s.NoError(err)
 
 	state1, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
@@ -3786,6 +4001,11 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 
 	replicationTasks := []p.Task{
 		&p.HistoryReplicationTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				TaskID:  s.GetNextSequenceNumber(),
 				Version: 9,
@@ -3794,6 +4014,11 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 			NextEventID:  3,
 		},
 		&p.HistoryReplicationTask{
+			WorkflowIdentifier: p.WorkflowIdentifier{
+				DomainID:   domainID,
+				WorkflowID: workflowExecution.WorkflowID,
+				RunID:      workflowExecution.RunID,
+			},
 			TaskData: p.TaskData{
 				TaskID:  s.GetNextSequenceNumber(),
 				Version: 9,
@@ -3805,7 +4030,7 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: 3,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -3822,8 +4047,8 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	s.NoError(err)
 	s.NotNil(tasks1, "expected valid list of tasks.")
 	s.Equal(2, len(tasks1), "Expected 2 replication tasks.")
-	task1 := tasks1[0]
-	s.Equal(p.ReplicationTaskTypeHistory, task1.TaskType)
+	task1, ok := tasks1[0].(*p.HistoryReplicationTask)
+	s.True(ok, "expected a history replication task")
 	s.Equal(domainID, task1.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task1.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task1.RunID)
@@ -3831,15 +4056,15 @@ func (s *ExecutionManagerSuite) TestReplicationTransferTaskRangeComplete() {
 	s.Equal(int64(3), task1.NextEventID)
 	s.Equal(int64(9), task1.Version)
 
-	task2 := tasks1[1]
-	s.Equal(p.ReplicationTaskTypeHistory, task2.TaskType)
+	task2, ok := tasks1[1].(*p.HistoryReplicationTask)
+	s.True(ok, "expected a history replication task")
 	s.Equal(domainID, task2.DomainID)
 	s.Equal(workflowExecution.GetWorkflowID(), task2.WorkflowID)
 	s.Equal(workflowExecution.GetRunID(), task2.RunID)
 	s.Equal(int64(4), task2.FirstEventID)
 	s.Equal(int64(5), task2.NextEventID)
 	s.Equal(int64(9), task2.Version)
-	err = s.RangeCompleteReplicationTask(ctx, task2.TaskID)
+	err = s.RangeCompleteReplicationTask(ctx, task2.TaskID+1)
 	s.NoError(err)
 	tasks2, err := s.GetReplicationTasks(ctx, 1, false)
 	s.NoError(err)
@@ -3905,7 +4130,7 @@ func (s *ExecutionManagerSuite) TestUpdateAndClearBufferedEvents() {
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: eventsBatch2[0].ID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -4053,7 +4278,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionCurrentIsSel
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: updatedInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -4551,7 +4776,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithCASMisma
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: currentInfo.LastProcessedEvent,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -4574,10 +4799,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithCASMisma
 		WorkflowTimeout:             1112,
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateRunning,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          111,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -4726,10 +4951,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateCompleted,
 		CloseStatus:                 p.WorkflowCloseStatusCompleted,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          111,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -4740,7 +4965,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: resetExecutionInfo.DecisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -4883,7 +5108,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -4903,10 +5128,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateCompleted,
 		CloseStatus:                 p.WorkflowCloseStatusContinuedAsNew,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          decisionScheduleID,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -5061,10 +5286,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateRunning,
 		CloseStatus:                 p.WorkflowCloseStatusNone,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          111,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -5075,7 +5300,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: resetExecutionInfo.DecisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -5167,7 +5392,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -5186,10 +5411,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateCompleted,
 		CloseStatus:                 p.WorkflowCloseStatusContinuedAsNew,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          decisionScheduleID,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -5351,10 +5576,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateCompleted,
 		CloseStatus:                 p.WorkflowCloseStatusCompleted,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          111,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -5365,7 +5590,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: resetExecutionInfo.DecisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -5480,7 +5705,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{
 			EventID: decisionScheduleID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
@@ -5499,10 +5724,10 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 		DecisionStartToCloseTimeout: 14,
 		State:                       p.WorkflowStateCompleted,
 		CloseStatus:                 p.WorkflowCloseStatusContinuedAsNew,
-		LastFirstEventID:            common.FirstEventID,
+		LastFirstEventID:            constants.FirstEventID,
 		NextEventID:                 123,
 		CreateRequestID:             uuid.New(),
-		DecisionVersion:             common.EmptyVersion,
+		DecisionVersion:             constants.EmptyVersion,
 		DecisionScheduleID:          decisionScheduleID,
 		DecisionStartedID:           222,
 		DecisionRequestID:           uuid.New(),
@@ -5595,12 +5820,12 @@ func (s *ExecutionManagerSuite) TestReplicationDLQ() {
 	}
 	err := s.PutReplicationTaskToDLQ(ctx, sourceCluster, taskInfo)
 	s.NoError(err)
-	resp, err := s.GetReplicationTasksFromDLQ(ctx, sourceCluster, -1, 0, 1, nil)
+	resp, err := s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 1, 1, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 1)
 	err = s.DeleteReplicationTaskFromDLQ(ctx, sourceCluster, 0)
 	s.NoError(err)
-	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, -1, 0, 1, nil)
+	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 1, 1, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 0)
 
@@ -5622,15 +5847,15 @@ func (s *ExecutionManagerSuite) TestReplicationDLQ() {
 	s.NoError(err)
 	err = s.PutReplicationTaskToDLQ(ctx, sourceCluster, taskInfo2)
 	s.NoError(err)
-	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 2, 2, nil)
+	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 1, 3, 2, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 2)
 	sizeResp, err := s.GetReplicationDLQSize(ctx, sourceCluster)
 	s.NoError(err)
 	s.Equal(int64(2), sizeResp.Size)
-	err = s.RangeDeleteReplicationTaskFromDLQ(ctx, sourceCluster, 0, 2)
+	err = s.RangeDeleteReplicationTaskFromDLQ(ctx, sourceCluster, 1, 3)
 	s.NoError(err)
-	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 0, 2, 2, nil)
+	resp, err = s.GetReplicationTasksFromDLQ(ctx, sourceCluster, 1, 3, 2, nil)
 	s.NoError(err)
 	s.Len(resp.Tasks, 0)
 }
@@ -5657,10 +5882,10 @@ func (s *ExecutionManagerSuite) TestCreateFailoverMarkerTasks() {
 	tasks, err := s.GetReplicationTasks(ctx, 1, true)
 	s.NoError(err)
 	s.Equal(len(tasks), 1)
-	s.Equal(tasks[0].Version, int64(1))
-	s.Equal(tasks[0].TaskID, int64(1))
-	s.Equal(tasks[0].DomainID, domainID)
-	s.Equal(tasks[0].TaskType, p.ReplicationTaskTypeFailoverMarker)
+	s.Equal(tasks[0].GetVersion(), int64(1))
+	s.Equal(tasks[0].GetTaskID(), int64(1))
+	s.Equal(tasks[0].GetDomainID(), domainID)
+	s.Equal(tasks[0].GetTaskType(), p.ReplicationTaskTypeFailoverMarker)
 }
 
 func copyWorkflowExecutionInfo(sourceInfo *p.WorkflowExecutionInfo) *p.WorkflowExecutionInfo {
@@ -5675,6 +5900,7 @@ func copyWorkflowExecutionInfo(sourceInfo *p.WorkflowExecutionInfo) *p.WorkflowE
 		InitiatedID:                 sourceInfo.InitiatedID,
 		CompletionEvent:             sourceInfo.CompletionEvent,
 		TaskList:                    sourceInfo.TaskList,
+		TaskListKind:                sourceInfo.TaskListKind,
 		WorkflowTypeName:            sourceInfo.WorkflowTypeName,
 		WorkflowTimeout:             sourceInfo.WorkflowTimeout,
 		DecisionStartToCloseTimeout: sourceInfo.DecisionStartToCloseTimeout,

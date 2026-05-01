@@ -30,10 +30,9 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/service"
@@ -73,10 +72,10 @@ func (s *DBVisibilityPersistenceSuite) SetupSuite() {
 			},
 		},
 		&service.Config{
-			EnableReadVisibilityFromES:                  dynamicconfig.GetBoolPropertyFnFilteredByDomain(false),
-			AdvancedVisibilityWritingMode:               dynamicconfig.GetStringPropertyFn(common.AdvancedVisibilityWritingModeOff),
-			EnableReadDBVisibilityFromClosedExecutionV2: dynamicconfig.GetBoolPropertyFn(false),
-			EnableDBVisibilitySampling:                  dynamicconfig.GetBoolPropertyFn(false),
+			ReadVisibilityStoreName:                     dynamicproperties.GetStringPropertyFnFilteredByDomain("db"),
+			WriteVisibilityStoreName:                    dynamicproperties.GetStringPropertyFn("db"),
+			EnableReadDBVisibilityFromClosedExecutionV2: dynamicproperties.GetBoolPropertyFn(false),
+			EnableDBVisibilitySampling:                  dynamicproperties.GetBoolPropertyFn(false),
 		},
 	)
 	if err != nil {
@@ -425,13 +424,15 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByType() {
 	s.Equal(1, len(resp.Executions))
 	s.Equal(workflowExecution1.WorkflowID, resp.Executions[0].Execution.WorkflowID)
 
+	stopTime := time.Now().UnixNano()
+
 	// Close both executions
 	err3 := s.VisibilityMgr.RecordWorkflowExecutionClosed(ctx, &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution1,
 		WorkflowTypeName: "visibility-workflow-1",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		ShardID:          1234,
 	})
 	s.Nil(err3)
@@ -441,7 +442,7 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByType() {
 		Execution:        workflowExecution2,
 		WorkflowTypeName: "visibility-workflow-2",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -512,13 +513,15 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByWorkflowID() {
 	s.Equal(1, len(resp.Executions))
 	s.Equal(workflowExecution1.WorkflowID, resp.Executions[0].Execution.WorkflowID)
 
+	stopTime := time.Now().UnixNano()
+
 	// Close both executions
 	err3 := s.VisibilityMgr.RecordWorkflowExecutionClosed(ctx, &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution1,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 	})
 	s.Nil(err3)
 
@@ -527,7 +530,7 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByWorkflowID() {
 		Execution:        workflowExecution2,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -584,13 +587,15 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByCloseStatus() {
 	})
 	s.Nil(err1)
 
+	stopTime := time.Now().UnixNano()
+
 	// Close both executions with different status
 	err2 := s.VisibilityMgr.RecordWorkflowExecutionClosed(ctx, &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution1,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		Status:           types.WorkflowExecutionCloseStatusCompleted,
 		ShardID:          1234,
 	})
@@ -602,7 +607,7 @@ func (s *DBVisibilityPersistenceSuite) TestFilteringByCloseStatus() {
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
 		Status:           types.WorkflowExecutionCloseStatusFailed,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -655,13 +660,15 @@ func (s *DBVisibilityPersistenceSuite) TestGetClosedExecution() {
 	s.True(ok, "EntityNotExistsError")
 	s.Nil(closedResp)
 
+	stopTime := time.Now().UnixNano()
+
 	closeReq := &p.RecordWorkflowExecutionClosedRequest{
 		DomainUUID:       testDomainUUID,
 		Execution:        workflowExecution,
 		WorkflowTypeName: "visibility-workflow",
 		StartTimestamp:   startTime,
 		Status:           types.WorkflowExecutionCloseStatusFailed,
-		CloseTimestamp:   time.Now().UnixNano(),
+		CloseTimestamp:   stopTime,
 		HistoryLength:    3,
 		ShardID:          1234,
 	}
@@ -873,12 +880,19 @@ func (s *DBVisibilityPersistenceSuite) TestUpsertWorkflowExecution() {
 				SearchAttributes:   nil,
 				ShardID:            1234,
 			},
-			expected: p.ErrVisibilityOperationNotSupported,
+			expected: &types.InternalServiceError{
+				Message: "Error writing to visibility: Operation is not supported",
+			},
 		},
 	}
 
 	for _, test := range tests {
-		s.Equal(test.expected, s.VisibilityMgr.UpsertWorkflowExecution(ctx, test.request))
+		err := s.VisibilityMgr.UpsertWorkflowExecution(ctx, test.request)
+		if test.expected == nil {
+			s.Equal(test.expected, err)
+		} else {
+			s.Equal(test.expected.Error(), err.Error())
+		}
 	}
 }
 

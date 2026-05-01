@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
@@ -58,11 +59,9 @@ func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 ) (isolationgroup.State, error) {
 	stopChan := make(chan struct{})
 
-	allIsolationGroups := getIsolationGroups()
-
 	config := defaultConfig{
-		IsolationGroupEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicconfig.EnableTasklistIsolation),
-		AllIsolationGroups:    allIsolationGroups,
+		IsolationGroupEnabled: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		AllIsolationGroups:    getIsolationGroups,
 	}
 
 	return &defaultIsolationGroupStateHandler{
@@ -74,16 +73,6 @@ func NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
 		config:                     config,
 		metricsClient:              metricsClient,
 	}, nil
-}
-
-func (z *defaultIsolationGroupStateHandler) AvailableIsolationGroupsByDomainID(ctx context.Context, domainID string, availablePollerIsolationGroups []string) (types.IsolationGroupConfiguration, error) {
-	state, err := z.getByDomainID(ctx, domainID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get isolation group state: %w", err)
-	}
-	availableIsolationGroupsCfg := isolationGroupHealthyListToConfig(availablePollerIsolationGroups)
-	scope := z.createAvailableisolationGroupMetricsScope(domainID)
-	return availableIG(z.config.AllIsolationGroups, availableIsolationGroupsCfg, state.Global, state.Domain, scope), nil
 }
 
 func (z *defaultIsolationGroupStateHandler) IsDrained(ctx context.Context, domain string, isolationGroup string) (bool, error) {
@@ -119,14 +108,6 @@ func (z *defaultIsolationGroupStateHandler) Stop() {
 	close(z.done)
 }
 
-func (z *defaultIsolationGroupStateHandler) getByDomainID(ctx context.Context, domainID string) (*isolationGroups, error) {
-	domain, err := z.domainCache.GetDomainByID(domainID)
-	if err != nil {
-		return nil, fmt.Errorf("could not resolve domain in isolationGroup handler: %w", err)
-	}
-	return z.get(ctx, domain.GetInfo().Name)
-}
-
 // Get the statue of a isolationGroup, with respect to both domain and global drains. Domain-specific drains override global config
 // will return nil, nil when it is not enabled
 func (z *defaultIsolationGroupStateHandler) get(ctx context.Context, domain string) (*isolationGroups, error) {
@@ -149,7 +130,7 @@ func (z *defaultIsolationGroupStateHandler) get(ctx context.Context, domain stri
 	}
 
 	if z.globalIsolationGroupDrains != nil {
-		globalCfg, err := z.globalIsolationGroupDrains.GetListValue(dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping, nil)
+		globalCfg, err := z.globalIsolationGroupDrains.GetListValue(dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping, nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve global drains in %w", err)
 		}
@@ -162,50 +143,6 @@ func (z *defaultIsolationGroupStateHandler) get(ctx context.Context, domain stri
 	}
 
 	return ig, nil
-}
-
-func (z *defaultIsolationGroupStateHandler) createAvailableisolationGroupMetricsScope(domainID string) metrics.Scope {
-	domainName, _ := z.domainCache.GetDomainName(domainID)
-	return z.metricsClient.Scope(metrics.GetAvailableIsolationGroupsScope).Tagged(metrics.DomainTag(domainName))
-}
-
-// A simple explicit deny-based isolation group implementation
-func availableIG(
-	allIsolationGroups []string,
-	availablePollers types.IsolationGroupConfiguration,
-	global types.IsolationGroupConfiguration,
-	domain types.IsolationGroupConfiguration,
-	scope metrics.Scope,
-) types.IsolationGroupConfiguration {
-	out := types.IsolationGroupConfiguration{}
-	for _, isolationGroup := range allIsolationGroups {
-		_, hasAvailablePollers := availablePollers[isolationGroup]
-		globalCfg, hasGlobalConfig := global[isolationGroup]
-		domainCfg, hasDomainConfig := domain[isolationGroup]
-		if hasGlobalConfig {
-			if globalCfg.State == types.IsolationGroupStateDrained {
-				scope.Tagged(metrics.PollerIsolationGroupTag(isolationGroup)).IncCounter(metrics.IsolationGroupStateDrained)
-				continue
-			}
-		}
-		if hasDomainConfig {
-			if domainCfg.State == types.IsolationGroupStateDrained {
-				scope.Tagged(metrics.PollerIsolationGroupTag(isolationGroup)).IncCounter(metrics.IsolationGroupStateDrained)
-				continue
-			}
-		}
-		if !hasAvailablePollers {
-			// we don't attempt to dispatch tasks to isolation groups where there are no pollers
-			scope.Tagged(metrics.PollerIsolationGroupTag(isolationGroup)).IncCounter(metrics.IsolationGroupStatePollerUnavailable)
-			continue
-		}
-		scope.Tagged(metrics.PollerIsolationGroupTag(isolationGroup)).IncCounter(metrics.IsolationGroupStateHealthy)
-		out[isolationGroup] = types.IsolationGroupPartition{
-			Name:  isolationGroup,
-			State: types.IsolationGroupStateHealthy,
-		}
-	}
-	return out
 }
 
 func isDrained(isolationGroup string, global types.IsolationGroupConfiguration, domain types.IsolationGroupConfiguration) bool {
@@ -222,15 +159,4 @@ func isDrained(isolationGroup string, global types.IsolationGroupConfiguration, 
 		}
 	}
 	return false
-}
-
-func isolationGroupHealthyListToConfig(igs []string) types.IsolationGroupConfiguration {
-	out := make(types.IsolationGroupConfiguration, len(igs))
-	for _, ig := range igs {
-		out[ig] = types.IsolationGroupPartition{
-			Name:  ig,
-			State: types.IsolationGroupStateHealthy,
-		}
-	}
-	return out
 }

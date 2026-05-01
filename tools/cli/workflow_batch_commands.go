@@ -32,6 +32,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/batcher"
 	"github.com/uber/cadence/tools/common/commoncli"
@@ -41,11 +42,11 @@ import (
 func TerminateBatchJob(c *cli.Context) error {
 	jobID, err := getRequiredOption(c, FlagJobID)
 	if err != nil {
-		return err
+		return commoncli.Problem("Required flag not found: ", err)
 	}
 	reason, err := getRequiredOption(c, FlagReason)
 	if err != nil {
-		return err
+		return commoncli.Problem("Required flag not found: ", err)
 	}
 	svcClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
@@ -60,7 +61,7 @@ func TerminateBatchJob(c *cli.Context) error {
 	err = svcClient.TerminateWorkflowExecution(
 		tcCtx,
 		&types.TerminateWorkflowExecutionRequest{
-			Domain: common.BatcherLocalDomainName,
+			Domain: constants.BatcherLocalDomainName,
 			WorkflowExecution: &types.WorkflowExecution{
 				WorkflowID: jobID,
 				RunID:      "",
@@ -82,7 +83,9 @@ func TerminateBatchJob(c *cli.Context) error {
 // DescribeBatchJob describe the status of the batch job
 func DescribeBatchJob(c *cli.Context) error {
 	jobID, err := getRequiredOption(c, FlagJobID)
-
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
 	svcClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
 		return err
@@ -96,7 +99,7 @@ func DescribeBatchJob(c *cli.Context) error {
 	wf, err := svcClient.DescribeWorkflowExecution(
 		tcCtx,
 		&types.DescribeWorkflowExecutionRequest{
-			Domain: common.BatcherLocalDomainName,
+			Domain: constants.BatcherLocalDomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: jobID,
 				RunID:      "",
@@ -151,7 +154,7 @@ func ListBatchJobs(c *cli.Context) error {
 	resp, err := svcClient.ListWorkflowExecutions(
 		tcCtx,
 		&types.ListWorkflowExecutionsRequest{
-			Domain:   common.BatcherLocalDomainName,
+			Domain:   constants.BatcherLocalDomainName,
 			PageSize: int32(pageSize),
 			Query:    fmt.Sprintf("CustomDomain = '%v'", domain),
 		},
@@ -163,14 +166,14 @@ func ListBatchJobs(c *cli.Context) error {
 	for _, wf := range resp.Executions {
 		job := map[string]string{
 			"jobID":     wf.Execution.GetWorkflowID(),
-			"startTime": convertTime(wf.GetStartTime(), false),
+			"startTime": timestampToString(wf.GetStartTime(), false),
 			"reason":    string(wf.Memo.Fields["Reason"]),
 			"operator":  string(wf.SearchAttributes.IndexedFields["Operator"]),
 		}
 
 		if wf.CloseStatus != nil {
 			job["status"] = wf.CloseStatus.String()
-			job["closeTime"] = convertTime(wf.GetCloseTime(), false)
+			job["closeTime"] = timestampToString(wf.GetCloseTime(), false)
 		} else {
 			job["status"] = "RUNNING"
 		}
@@ -230,6 +233,7 @@ func StartBatchJob(c *cli.Context) error {
 	concurrency := c.Int(FlagConcurrency)
 	retryAttempt := c.Int(FlagRetryAttempts)
 	heartBeatTimeout := time.Duration(c.Int(FlagActivityHeartBeatTimeout)) * time.Second
+	maxActivityRetries := c.Int(FlagMaxActivityRetries)
 
 	svcClient, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
@@ -293,6 +297,7 @@ func StartBatchJob(c *cli.Context) error {
 		PageSize:                 pageSize,
 		AttemptsOnRetryableError: retryAttempt,
 		ActivityHeartBeatTimeout: heartBeatTimeout,
+		MaxActivityRetries:       maxActivityRetries,
 	}
 	input, err := json.Marshal(params)
 	if err != nil {
@@ -311,9 +316,14 @@ func StartBatchJob(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Failed to encode batch job search attributes", err)
 	}
+	wfTypeName := batcher.BatchWFTypeName
+	if c.Bool(FlagBatchV2) {
+		wfTypeName = batcher.BatchWFV2TypeName
+	}
+
 	workflowID := uuid.NewRandom().String()
 	request := &types.StartWorkflowExecutionRequest{
-		Domain:                              common.BatcherLocalDomainName,
+		Domain:                              constants.BatcherLocalDomainName,
 		RequestID:                           uuid.New(),
 		WorkflowID:                          workflowID,
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(batcher.InfiniteDuration.Seconds())),
@@ -321,7 +331,8 @@ func StartBatchJob(c *cli.Context) error {
 		TaskList:                            &types.TaskList{Name: batcher.BatcherTaskListName},
 		Memo:                                memo,
 		SearchAttributes:                    searchAttributes,
-		WorkflowType:                        &types.WorkflowType{Name: batcher.BatchWFTypeName},
+		RetryPolicy:                         copyRetryPolicyFromWorkflow(),
+		WorkflowType:                        &types.WorkflowType{Name: wfTypeName},
 		Input:                               input,
 	}
 	_, err = svcClient.StartWorkflowExecution(tcCtx, request)
@@ -334,6 +345,16 @@ func StartBatchJob(c *cli.Context) error {
 	}
 	prettyPrintJSONObject(getDeps(c).Output(), output)
 	return nil
+}
+
+func copyRetryPolicyFromWorkflow() *types.RetryPolicy {
+	return &types.RetryPolicy{
+		InitialIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.InitialInterval.Seconds()),
+		BackoffCoefficient:          batcher.BatchActivityRetryPolicy.BackoffCoefficient,
+		MaximumIntervalInSeconds:    int32(batcher.BatchActivityRetryPolicy.MaximumInterval.Seconds()),
+		NonRetriableErrorReasons:    batcher.BatchActivityRetryPolicy.NonRetriableErrorReasons,
+		ExpirationIntervalInSeconds: int32(batcher.BatchActivityRetryPolicy.ExpirationInterval.Seconds()),
+	}
 }
 
 func validateBatchType(bt string) bool {

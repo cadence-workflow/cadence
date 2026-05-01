@@ -21,6 +21,8 @@
 package testing
 
 import (
+	"testing"
+
 	"github.com/pborman/uuid"
 
 	"github.com/uber/cadence/common"
@@ -33,6 +35,17 @@ import (
 
 // StartWorkflow setup a workflow for testing purpose
 func StartWorkflow(
+	t *testing.T,
+	mockShard *shard.TestContext,
+	sourceDomainID string,
+) (types.WorkflowExecution, execution.MutableState, error) {
+	return StartWorkflowWithTaskList(&types.TaskList{
+		Name: "some random task list",
+	}, mockShard, sourceDomainID)
+}
+
+func StartWorkflowWithTaskList(
+	tl *types.TaskList,
 	mockShard *shard.TestContext,
 	sourceDomainID string,
 ) (types.WorkflowExecution, execution.MutableState, error) {
@@ -41,7 +54,6 @@ func StartWorkflow(
 		RunID:      constants.TestRunID,
 	}
 	workflowType := "some random workflow type"
-	taskListName := "some random task list"
 
 	entry, err := mockShard.GetDomainCache().GetDomainByID(sourceDomainID)
 	if err != nil {
@@ -61,7 +73,7 @@ func StartWorkflow(
 			DomainUUID: sourceDomainID,
 			StartRequest: &types.StartWorkflowExecutionRequest{
 				WorkflowType:                        &types.WorkflowType{Name: workflowType},
-				TaskList:                            &types.TaskList{Name: taskListName},
+				TaskList:                            tl,
 				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(2),
 				TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(1),
 				Header: &types.Header{Fields: map[string][]byte{
@@ -82,10 +94,11 @@ func StartWorkflow(
 
 // SetupWorkflowWithCompletedDecision setup a workflow with a completed decision task for testing purpose
 func SetupWorkflowWithCompletedDecision(
+	t *testing.T,
 	mockShard *shard.TestContext,
 	sourceDomainID string,
 ) (types.WorkflowExecution, execution.MutableState, int64, error) {
-	workflowExecution, mutableState, err := StartWorkflow(mockShard, sourceDomainID)
+	workflowExecution, mutableState, err := StartWorkflow(t, mockShard, sourceDomainID)
 	if err != nil {
 		return types.WorkflowExecution{}, nil, 0, err
 	}
@@ -101,6 +114,7 @@ func SetupWorkflowWithCompletedDecision(
 // CreatePersistenceMutableState generated a persistence representation of the mutable state
 // a based on the in memory version
 func CreatePersistenceMutableState(
+	t *testing.T,
 	ms execution.MutableState,
 	lastEventID int64,
 	lastEventVersion int64,
@@ -121,5 +135,5 @@ func CreatePersistenceMutableState(
 		}
 	}
 
-	return execution.CreatePersistenceMutableState(ms), nil
+	return execution.CreatePersistenceMutableState(t, ms), nil
 }

@@ -62,7 +62,7 @@ type PeerProvider interface {
 	Subscribe(name string, handler func(ChangedEvent)) error
 }
 
-type ring struct {
+type Ring struct {
 	status       int32
 	service      string
 	peerProvider PeerProvider
@@ -87,21 +87,21 @@ type ring struct {
 	}
 }
 
-func newHashring(
+func NewHashring(
 	service string,
 	provider PeerProvider,
 	timeSource clock.TimeSource,
 	logger log.Logger,
 	scope metrics.Scope,
-) *ring {
-	r := &ring{
+) *Ring {
+	r := &Ring{
 		status:       common.DaemonStatusInitialized,
 		service:      service,
 		peerProvider: provider,
 		shutdownCh:   make(chan struct{}),
 		refreshChan:  make(chan struct{}, 1),
 		timeSource:   timeSource,
-		logger:       logger,
+		logger:       logger.WithTags(tag.ComponentHashring),
 		scope:        scope,
 	}
 
@@ -117,7 +117,7 @@ func emptyHashring() *hashring.HashRing {
 }
 
 // Start starts the hashring
-func (r *ring) Start() {
+func (r *Ring) Start() {
 	if !atomic.CompareAndSwapInt32(
 		&r.status,
 		common.DaemonStatusInitialized,
@@ -125,11 +125,15 @@ func (r *ring) Start() {
 	) {
 		return
 	}
+
+	r.logger.Info("Starting hashring", tag.ComponentHashring)
+	defer r.logger.Info("Started hashring", tag.ComponentHashring)
+
 	if err := r.peerProvider.Subscribe(r.service, r.handleUpdates); err != nil {
 		r.logger.Fatal("subscribing to peer provider", tag.Error(err))
 	}
 
-	if err := r.refresh(); err != nil {
+	if err := r.Refresh(); err != nil {
 		r.logger.Fatal("failed to start service resolver", tag.Error(err))
 	}
 
@@ -138,7 +142,7 @@ func (r *ring) Start() {
 }
 
 // Stop stops the resolver
-func (r *ring) Stop() {
+func (r *Ring) Stop() {
 	if !atomic.CompareAndSwapInt32(
 		&r.status,
 		common.DaemonStatusStarted,
@@ -146,6 +150,9 @@ func (r *ring) Stop() {
 	) {
 		return
 	}
+
+	r.logger.Info("Stopping hashring", tag.ComponentHashring)
+	defer r.logger.Info("Stopped hashring", tag.ComponentHashring)
 
 	r.peerProvider.Stop()
 	r.value.Store(emptyHashring())
@@ -160,16 +167,46 @@ func (r *ring) Stop() {
 	}
 }
 
-// Lookup finds the host in the ring responsible for serving the given key
-func (r *ring) Lookup(
-	key string,
-) (HostInfo, error) {
+// LookupRaw finds the host address in the ring responsible for serving the given key
+// without converting it to HostInfo
+func (r *Ring) LookupRaw(key string) (string, error) {
 	addr, found := r.ring().Lookup(key)
 	if !found {
 		r.signalSelf()
-		return HostInfo{}, ErrInsufficientHosts
+		return "", ErrInsufficientHosts
+	}
+	return addr, nil
+}
+
+// Lookup finds the host in the ring responsible for serving the given key
+func (r *Ring) Lookup(key string) (HostInfo, error) {
+	addr, err := r.LookupRaw(key)
+	if err != nil {
+		return HostInfo{}, err
 	}
 
+	return r.AddressToHost(addr)
+}
+
+// LookupN returns up to n hosts from the ring for the given key. This can be
+// used to assign the same key to multiple hosts for redundancy purposes.
+func (r *Ring) LookupN(key string, n int) ([]HostInfo, error) {
+	addrs := r.ring().LookupN(key, n)
+	if len(addrs) == 0 {
+		return nil, ErrInsufficientHosts
+	}
+	hosts := make([]HostInfo, 0, len(addrs))
+	for _, addr := range addrs {
+		host, err := r.AddressToHost(addr)
+		if err != nil {
+			return nil, fmt.Errorf("LookupN: address %q returned by ring but not found in members: %w", addr, err)
+		}
+		hosts = append(hosts, host)
+	}
+	return hosts, nil
+}
+
+func (r *Ring) AddressToHost(addr string) (HostInfo, error) {
 	r.members.RLock()
 	defer r.members.RUnlock()
 	host, ok := r.members.keys[addr]
@@ -180,7 +217,7 @@ func (r *ring) Lookup(
 }
 
 // Subscribe registers callback watcher. Services can use this to be informed about membership changes
-func (r *ring) Subscribe(watcher string, notifyChannel chan<- *ChangedEvent) error {
+func (r *Ring) Subscribe(watcher string, notifyChannel chan<- *ChangedEvent) error {
 	r.subscribers.Lock()
 	defer r.subscribers.Unlock()
 
@@ -193,11 +230,11 @@ func (r *ring) Subscribe(watcher string, notifyChannel chan<- *ChangedEvent) err
 	return nil
 }
 
-func (r *ring) handleUpdates(event ChangedEvent) {
+func (r *Ring) handleUpdates(event ChangedEvent) {
 	r.signalSelf()
 }
 
-func (r *ring) signalSelf() {
+func (r *Ring) signalSelf() {
 	var event struct{}
 	select {
 	case r.refreshChan <- event:
@@ -205,7 +242,7 @@ func (r *ring) signalSelf() {
 	}
 }
 
-func (r *ring) notifySubscribers(msg ChangedEvent) {
+func (r *Ring) notifySubscribers(msg ChangedEvent) {
 	r.subscribers.Lock()
 	defer r.subscribers.Unlock()
 
@@ -219,7 +256,7 @@ func (r *ring) notifySubscribers(msg ChangedEvent) {
 }
 
 // Unsubscribe removes subscriber
-func (r *ring) Unsubscribe(name string) error {
+func (r *Ring) Unsubscribe(name string) error {
 	r.subscribers.Lock()
 	defer r.subscribers.Unlock()
 	delete(r.subscribers.keys, name)
@@ -227,11 +264,11 @@ func (r *ring) Unsubscribe(name string) error {
 }
 
 // MemberCount returns number of hosts in a ring
-func (r *ring) MemberCount() int {
+func (r *Ring) MemberCount() int {
 	return r.ring().ServerCount()
 }
 
-func (r *ring) Members() []HostInfo {
+func (r *Ring) Members() []HostInfo {
 	servers := r.ring().Servers()
 
 	var hosts = make([]HostInfo, 0, len(servers))
@@ -249,7 +286,7 @@ func (r *ring) Members() []HostInfo {
 	return hosts
 }
 
-func (r *ring) refresh() error {
+func (r *Ring) Refresh() error {
 	if r.members.refreshed.After(r.timeSource.Now().Add(-minRefreshInternal)) {
 		// refreshed too frequently
 		r.logger.Debug("refresh skipped, refreshed too frequently")
@@ -280,10 +317,12 @@ func (r *ring) refresh() error {
 	r.emitHashIdentifier()
 	r.notifySubscribers(diff)
 
+	r.logger.Info("notified subscribers", tag.Service(r.service))
+
 	return nil
 }
 
-func (r *ring) updateMembersMap(newMembers map[string]HostInfo) {
+func (r *Ring) updateMembersMap(newMembers map[string]HostInfo) {
 	r.members.Lock()
 	defer r.members.Unlock()
 
@@ -291,7 +330,7 @@ func (r *ring) updateMembersMap(newMembers map[string]HostInfo) {
 	r.members.refreshed = r.timeSource.Now()
 }
 
-func (r *ring) refreshRingWorker() {
+func (r *Ring) refreshRingWorker() {
 	defer r.shutdownWG.Done()
 
 	refreshTicker := r.timeSource.NewTicker(defaultRefreshInterval)
@@ -302,7 +341,7 @@ func (r *ring) refreshRingWorker() {
 		case <-r.shutdownCh:
 			return
 		case <-r.refreshChan: // local signal or signal from provider
-			if err := r.refresh(); err != nil {
+			if err := r.Refresh(); err != nil {
 				r.logger.Error("failed to refresh ring", tag.Error(err))
 			}
 		case <-refreshTicker.Chan(): // periodically force refreshing membership
@@ -311,11 +350,11 @@ func (r *ring) refreshRingWorker() {
 	}
 }
 
-func (r *ring) ring() *hashring.HashRing {
+func (r *Ring) ring() *hashring.HashRing {
 	return r.value.Load().(*hashring.HashRing)
 }
 
-func (r *ring) emitHashIdentifier() float64 {
+func (r *Ring) emitHashIdentifier() float64 {
 	members := r.Members()
 	self, err := r.peerProvider.WhoAmI()
 	if err != nil {
@@ -353,7 +392,7 @@ func (r *ring) emitHashIdentifier() float64 {
 	return trimmedForMetric
 }
 
-func (r *ring) makeMembersMap(members []HostInfo) map[string]HostInfo {
+func (r *Ring) makeMembersMap(members []HostInfo) map[string]HostInfo {
 	membersMap := make(map[string]HostInfo, len(members))
 	for _, m := range members {
 		membersMap[m.GetAddress()] = m
@@ -361,7 +400,7 @@ func (r *ring) makeMembersMap(members []HostInfo) map[string]HostInfo {
 	return membersMap
 }
 
-func (r *ring) diffMembers(newMembers map[string]HostInfo) ChangedEvent {
+func (r *Ring) diffMembers(newMembers map[string]HostInfo) ChangedEvent {
 	r.members.RLock()
 	defer r.members.RUnlock()
 

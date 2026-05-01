@@ -116,6 +116,10 @@ func NewCache(shard shard.Context) Cache {
 	opts.TTL = config.HistoryCacheTTL()
 	opts.Pin = true
 	opts.MaxCount = config.HistoryCacheMaxSize()
+	opts.MetricsScope = shard.GetMetricsClient().Scope(metrics.HistoryExecutionCacheScope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	opts.Logger = shard.GetLogger().WithTags(tag.ComponentHistoryCache)
+	opts.IsSizeBased = config.EnableSizeBasedHistoryExecutionCache
+	opts.MaxSize = config.ExecutionCacheMaxByteSize
 
 	return &cacheImpl{
 		Cache:            cache.New(opts),
@@ -250,7 +254,7 @@ func (c *cacheImpl) getOrCreateWorkflowExecutionInternal(
 	ctx context.Context,
 	domainID string,
 	execution types.WorkflowExecution,
-	scope int,
+	scope metrics.ScopeIdx,
 	forceClearContext bool,
 ) (Context, ReleaseFunc, error) {
 
@@ -306,6 +310,7 @@ func (c *cacheImpl) validateWorkflowExecutionInfo(
 			DomainID:   domainID,
 			WorkflowID: execution.GetWorkflowID(),
 			DomainName: domainName,
+			ShardID:    common.Ptr(c.shard.GetShardID()),
 		})
 
 		if err != nil {
@@ -357,7 +362,7 @@ func (c *cacheImpl) getCurrentExecutionWithRetry(
 	defer sw.Stop()
 
 	var response *persistence.GetCurrentExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		response, err = c.executionManager.GetCurrentExecution(ctx, request)
 

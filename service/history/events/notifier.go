@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/collection"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -56,9 +57,9 @@ type (
 		NextEventID            int64
 		PreviousStartedEventID int64
 		Timestamp              time.Time
-		CurrentBranchToken     []byte
 		WorkflowState          int
 		WorkflowCloseState     int
+		VersionHistories       *persistence.VersionHistories
 	}
 
 	notifierImpl struct {
@@ -90,9 +91,9 @@ func NewNotification(
 	lastFirstEventID int64,
 	nextEventID int64,
 	previousStartedEventID int64,
-	currentBranchToken []byte,
 	workflowState int,
 	workflowCloseState int,
+	versionHistories *persistence.VersionHistories,
 ) *Notification {
 
 	return &Notification{
@@ -104,9 +105,9 @@ func NewNotification(
 		LastFirstEventID:       lastFirstEventID,
 		NextEventID:            nextEventID,
 		PreviousStartedEventID: previousStartedEventID,
-		CurrentBranchToken:     currentBranchToken,
 		WorkflowState:          workflowState,
 		WorkflowCloseState:     workflowCloseState,
+		VersionHistories:       versionHistories,
 	}
 }
 
@@ -196,8 +197,12 @@ func (notifier *notifierImpl) UnwatchHistoryEvent(
 func (notifier *notifierImpl) dispatchHistoryEventNotification(event *Notification) {
 	identifier := event.ID
 
+	fanoutStart := time.Now()
 	timer := notifier.metrics.StartTimer(metrics.HistoryEventNotificationScope, metrics.HistoryEventNotificationFanoutLatency)
-	defer timer.Stop()
+	defer func() {
+		timer.Stop()
+		notifier.metrics.Scope(metrics.HistoryEventNotificationScope).RecordHistogramDuration(metrics.HistoryEventNotificationFanoutLatencyHistogram, time.Since(fanoutStart))
+	}()
 	notifier.eventsPubsubs.GetAndDo(identifier, func(key interface{}, value interface{}) error { //nolint:errcheck
 		subscribers := value.(map[string]chan *Notification)
 
@@ -237,6 +242,7 @@ func (notifier *notifierImpl) dequeueHistoryEventNotifications() {
 			timeelapsed := time.Since(event.Timestamp)
 			notifier.metrics.RecordTimer(metrics.HistoryEventNotificationScope,
 				metrics.HistoryEventNotificationQueueingLatency, timeelapsed)
+			notifier.metrics.Scope(metrics.HistoryEventNotificationScope).RecordHistogramDuration(metrics.HistoryEventNotificationQueueingLatencyHistogram, timeelapsed)
 
 			notifier.dispatchHistoryEventNotification(event)
 		case <-notifier.closeChan:

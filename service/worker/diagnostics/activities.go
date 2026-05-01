@@ -24,113 +24,142 @@ package diagnostics
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
-	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/analytics"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
-	"github.com/uber/cadence/service/worker/diagnostics/invariant/timeout"
 )
 
 const (
 	linkToTimeoutsRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/timeouts/"
+	linkToFailuresRunbook = "https://cadenceworkflow.io/docs/workflow-troubleshooting/activity-failures/"
+	linkToRetriesRunbook  = "https://cadenceworkflow.io/docs/workflow-troubleshooting/retries"
 	WfDiagnosticsAppName  = "workflow-diagnostics"
+
+	_maxPageSize           = 1000            // current maximum page size for fetching workflow history
+	_contextTimeout        = 1 * time.Minute // timeout to fetch the whole execution history
+	_maxIssuesPerInvariant = 10              // maximum number of issues to return per invariant check
 )
 
-type retrieveExecutionHistoryInputParams struct {
-	Domain    string
-	Execution *types.WorkflowExecution
-}
-
-func (w *dw) retrieveExecutionHistory(ctx context.Context, info retrieveExecutionHistoryInputParams) (*types.GetWorkflowExecutionHistoryResponse, error) {
-	frontendClient := w.clientBean.GetFrontendClient()
-	return frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    info.Domain,
-		Execution: info.Execution,
-	})
-}
-
 type identifyIssuesParams struct {
-	History *types.GetWorkflowExecutionHistoryResponse
-	Domain  string
+	Execution *types.WorkflowExecution
+	Domain    string
 }
 
 func (w *dw) identifyIssues(ctx context.Context, info identifyIssuesParams) ([]invariant.InvariantCheckResult, error) {
 	result := make([]invariant.InvariantCheckResult, 0)
 
-	timeoutInvariant := timeout.NewInvariant(timeout.NewTimeoutParams{
-		WorkflowExecutionHistory: info.History,
-		Domain:                   info.Domain,
-		ClientBean:               w.clientBean,
-	})
-	timeoutIssues, err := timeoutInvariant.Check(ctx)
+	history, err := w.getWorkflowExecutionHistory(ctx, info.Execution, info.Domain)
 	if err != nil {
 		return nil, err
 	}
-	result = append(result, timeoutIssues...)
 
-	failureInvariant := failure.NewInvariant(failure.Params{
-		WorkflowExecutionHistory: info.History,
-		Domain:                   info.Domain,
-	})
-	failureIssues, err := failureInvariant.Check(ctx)
-	if err != nil {
-		return nil, err
+	for _, inv := range w.invariants {
+		issues, err := inv.Check(ctx, invariant.InvariantCheckInput{
+			WorkflowExecutionHistory: history,
+			Domain:                   info.Domain,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, capNumberOfIssues(issues)...)
 	}
-	result = append(result, failureIssues...)
 
 	return result, nil
 }
 
+func (w *dw) getWorkflowExecutionHistory(ctx context.Context, execution *types.WorkflowExecution, domain string) (*types.GetWorkflowExecutionHistoryResponse, error) {
+	frontendClient := w.clientBean.GetFrontendClient()
+	var nextPageToken []byte
+	var history []*types.HistoryEvent
+
+	ctx, cancel := context.WithTimeout(ctx, _contextTimeout)
+	defer cancel()
+
+	for {
+
+		response, err := frontendClient.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain:                 domain,
+			Execution:              execution,
+			MaximumPageSize:        _maxPageSize,
+			NextPageToken:          nextPageToken,
+			WaitForNewEvent:        false,
+			HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
+			SkipArchival:           true,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get history: %w", err)
+		}
+
+		for _, event := range response.GetHistory().GetEvents() {
+			if event != nil {
+				history = append(history, event)
+			}
+		}
+
+		if response.NextPageToken == nil {
+			return &types.GetWorkflowExecutionHistoryResponse{
+				History: &types.History{
+					Events: history,
+				}}, nil
+		}
+
+		nextPageToken = response.NextPageToken
+	}
+}
+
 type rootCauseIssuesParams struct {
-	History *types.GetWorkflowExecutionHistoryResponse
-	Domain  string
-	Issues  []invariant.InvariantCheckResult
+	Domain string
+	Issues []invariant.InvariantCheckResult
 }
 
 func (w *dw) rootCauseIssues(ctx context.Context, info rootCauseIssuesParams) ([]invariant.InvariantRootCauseResult, error) {
 	result := make([]invariant.InvariantRootCauseResult, 0)
-	timeoutInvariant := timeout.NewInvariant(timeout.NewTimeoutParams{
-		WorkflowExecutionHistory: info.History,
-		ClientBean:               w.clientBean,
-		Domain:                   info.Domain,
-	})
-	timeoutRC, err := timeoutInvariant.RootCause(ctx, info.Issues)
-	if err != nil {
-		return nil, err
+
+	for _, inv := range w.invariants {
+		rootCause, err := inv.RootCause(ctx, invariant.InvariantRootCauseInput{
+			Domain: info.Domain,
+			Issues: info.Issues,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, rootCause...)
 	}
-	result = append(result, timeoutRC...)
-	failureInvariant := failure.NewInvariant(failure.Params{
-		WorkflowExecutionHistory: info.History,
-		Domain:                   info.Domain,
-	})
-	failureRC, err := failureInvariant.RootCause(ctx, info.Issues)
-	if err != nil {
-		return nil, err
-	}
-	result = append(result, failureRC...)
 
 	return result, nil
 }
 
 func (w *dw) emitUsageLogs(ctx context.Context, info analytics.WfDiagnosticsUsageData) error {
-	client := w.newMessagingClient()
-	return emit(ctx, info, client)
+	if w.messagingClient == nil {
+		// skip emitting logs if messaging client is not provided since it is optional
+		w.logger.Error("messaging client is not provided, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
+	}
+	return w.emit(ctx, info, w.messagingClient)
 }
 
-func (w *dw) newMessagingClient() messaging.Client {
-	return kafka.NewKafkaClient(&w.kafkaCfg, w.metricsClient, w.logger, w.tallyScope, true)
-}
-
-func emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
+func (w *dw) emit(ctx context.Context, info analytics.WfDiagnosticsUsageData, client messaging.Client) error {
 	producer, err := client.NewProducer(WfDiagnosticsAppName)
 	if err != nil {
-		return err
+		// skip emitting logs if producer cannot be created since it is optional
+		w.logger.Error("producer creation failed, skipping emitting wf-diagnostics usage logs", tag.WorkflowDomainName(info.Domain))
+		return nil
 	}
 	emitter := analytics.NewEmitter(analytics.EmitterParams{
 		Producer: producer,
 	})
 	return emitter.EmitUsageData(ctx, info)
+}
+
+// capNumberOfIssues limits the number of issues to avoid overwhelming the result with too many issues.
+func capNumberOfIssues(issues []invariant.InvariantCheckResult) []invariant.InvariantCheckResult {
+	if len(issues) > _maxIssuesPerInvariant {
+		return issues[:_maxIssuesPerInvariant]
+	}
+	return issues
 }

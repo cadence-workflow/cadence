@@ -25,13 +25,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	commonconstants "github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/execution"
@@ -48,11 +50,11 @@ func TestUpdateHelper(t *testing.T) {
 			msg: "stale mutable state",
 			mockSetupFn: func(mockContext *execution.MockContext, mockMutableState *execution.MockMutableState) {
 				mockContext.EXPECT().Clear().Times(1)
-				mockMutableState.EXPECT().GetNextEventID().Return(common.FirstEventID).Times(1)
-				mockMutableState.EXPECT().GetNextEventID().Return(common.FirstEventID + 1).Times(1)
+				mockMutableState.EXPECT().GetNextEventID().Return(commonconstants.FirstEventID).Times(1)
+				mockMutableState.EXPECT().GetNextEventID().Return(commonconstants.FirstEventID + 1).Times(1)
 			},
 			actionFn: func(context execution.Context, mutableState execution.MutableState) (*UpdateAction, error) {
-				if mutableState.GetNextEventID() == common.FirstEventID {
+				if mutableState.GetNextEventID() == commonconstants.FirstEventID {
 					return nil, ErrStaleState
 				}
 				return &UpdateAction{Noop: true}, nil
@@ -94,12 +96,18 @@ func TestUpdateHelper(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			controller := gomock.NewController(t)
 			mockMutableState := execution.NewMockMutableState(controller)
+			mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
+				DomainID:   constants.TestDomainID,
+				WorkflowID: constants.TestWorkflowID,
+				RunID:      constants.TestRunID,
+				State:      persistence.WorkflowStateRunning,
+			}).AnyTimes()
 			mockContext := execution.NewMockContext(controller)
 			mockContext.EXPECT().LoadWorkflowExecution(gomock.Any()).Return(mockMutableState, nil).AnyTimes()
 			workflowContext := NewContext(mockContext, nil, mockMutableState)
 
 			tc.mockSetupFn(mockContext, mockMutableState)
-			err := updateHelper(context.Background(), workflowContext, time.Now(), tc.actionFn)
+			err := updateHelper(context.Background(), testlogger.New(t), workflowContext, time.Now(), tc.actionFn)
 			require.NoError(t, err)
 		})
 	}
@@ -132,6 +140,7 @@ func TestWorkflowLoad(t *testing.T) {
 					},
 					nil,
 				).Times(1)
+				mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 			},
 		},
 		{
@@ -145,6 +154,7 @@ func TestWorkflowLoad(t *testing.T) {
 					},
 					nil,
 				).Times(1)
+				mockShard.Resource.ActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: "test-active-cluster"}, nil).AnyTimes()
 				mockShard.Resource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(
 					&persistence.GetCurrentExecutionResponse{
 						RunID: constants.TestRunID,

@@ -36,7 +36,7 @@ flowchart TD
 
 ### Cassandra Notes:
 
-In order to leverage [Cassandra Light Weight Transactions](https://www.yugabyte.com/blog/apache-cassandra-lightweight-transactions-secondary-indexes-tunable-consistency/), Cadence stores multiple types of records in the same `executions` table. ([ref](https://github.com/uber/cadence/blob/51758676ce9d9609e736c64f94dc387ed2c75b7c/schema/cassandra/cadence/schema.cql#L338))
+In order to leverage [Cassandra Light Weight Transactions](https://www.yugabyte.com/blog/apache-cassandra-lightweight-transactions-secondary-indexes-tunable-consistency/), Cadence stores multiple types of records in the same `executions` table. ([ref](https://github.com/cadence-workflow/cadence/blob/51758676ce9d9609e736c64f94dc387ed2c75b7c/schema/cassandra/cadence/schema.cql#L338))
 - **Shards Store**: Shard records are stored in `executions` table with type=0.
 - **Executions Store**: Execution records are stored in `executions` table with type=1
 - **Tasks Store**: Task records are stored in `executions` table with type={2,3,4,5}

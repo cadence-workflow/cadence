@@ -29,6 +29,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -89,7 +90,7 @@ func (e *mutableStateBuilder) ReplicateActivityInfo(
 	ai.ScheduledTime = time.Unix(0, request.GetScheduledTime())
 	ai.StartedID = request.GetStartedID()
 	ai.LastHeartBeatUpdatedTime = time.Unix(0, request.GetLastHeartbeatTime())
-	if ai.StartedID == common.EmptyEventID {
+	if ai.StartedID == constants.EmptyEventID {
 		ai.StartedTime = time.Time{}
 	} else {
 		ai.StartedTime = time.Unix(0, request.GetStartedTime())
@@ -203,15 +204,13 @@ func (e *mutableStateBuilder) GetActivityScheduledEvent(
 }
 
 func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
-	ctx context.Context,
 	decisionCompletedEventID int64,
 	attributes *types.ScheduleActivityTaskDecisionAttributes,
-	dispatch bool,
-) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo, bool, bool, error) {
+) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo, error) {
 
 	opTag := tag.WorkflowActionActivityTaskScheduled
 	if err := e.checkMutability(opTag); err != nil {
-		return nil, nil, nil, false, false, err
+		return nil, nil, nil, err
 	}
 
 	_, ok := e.GetActivityByActivityID(attributes.GetActivityID())
@@ -219,7 +218,7 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		e.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction)
-		return nil, nil, nil, false, false, e.createCallerError(opTag)
+		return nil, nil, nil, e.createCallerError(opTag)
 	}
 
 	pendingActivitiesCount := len(e.pendingActivityInfoIDs)
@@ -232,7 +231,7 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 			tag.Number(int64(pendingActivitiesCount)))
 
 		if e.config.PendingActivityValidationEnabled() {
-			return nil, nil, nil, false, false, ErrTooManyPendingActivities
+			return nil, nil, nil, ErrTooManyPendingActivities
 		}
 	} else if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitWarn() && !e.pendingActivityWarningSent {
 		e.logger.Warn("Pending activity count exceeds warn limit",
@@ -257,63 +256,19 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 
 	ai, err := e.ReplicateActivityTaskScheduledEvent(decisionCompletedEventID, event, true)
 	if err != nil {
-		return nil, nil, nil, false, false, err
+		return nil, nil, nil, err
 	}
 	activityStartedScope := e.metricsClient.Scope(metrics.HistoryRecordActivityTaskStartedScope)
 	if e.config.EnableActivityLocalDispatchByDomain(e.domainEntry.GetInfo().Name) && attributes.RequestLocalDispatch {
 		activityStartedScope.IncCounter(metrics.CadenceRequests)
-		return event, ai, &types.ActivityLocalDispatchInfo{ActivityID: ai.ActivityID}, false, false, nil
-	}
-	started := false
-	if dispatch {
-		started = e.tryDispatchActivityTask(ctx, event, ai)
-	}
-	if started {
-		activityStartedScope.IncCounter(metrics.CadenceRequests)
-		return event, ai, nil, true, true, nil
+		return event, ai, &types.ActivityLocalDispatchInfo{ActivityID: ai.ActivityID}, nil
 	}
 
 	if err := e.taskGenerator.GenerateActivityTransferTasks(event); err != nil {
-		return nil, nil, nil, dispatch, false, err
+		return nil, nil, nil, err
 	}
 
-	return event, ai, nil, dispatch, false, err
-}
-
-func (e *mutableStateBuilder) tryDispatchActivityTask(
-	ctx context.Context,
-	scheduledEvent *types.HistoryEvent,
-	ai *persistence.ActivityInfo,
-) bool {
-	taggedScope := e.metricsClient.Scope(metrics.HistoryScheduleDecisionTaskScope).Tagged(
-		metrics.DomainTag(e.domainEntry.GetInfo().Name),
-		metrics.WorkflowTypeTag(e.GetWorkflowType().Name),
-		metrics.TaskListTag(ai.TaskList))
-	taggedScope.IncCounter(metrics.DecisionTypeScheduleActivityDispatchCounter)
-	_, err := e.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
-		DomainUUID:       e.executionInfo.DomainID,
-		SourceDomainUUID: e.domainEntry.GetInfo().ID,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: e.executionInfo.WorkflowID,
-			RunID:      e.executionInfo.RunID,
-		},
-		TaskList:                      &types.TaskList{Name: ai.TaskList},
-		ScheduleID:                    scheduledEvent.ID,
-		ScheduleToStartTimeoutSeconds: common.Int32Ptr(ai.ScheduleToStartTimeout),
-		ActivityTaskDispatchInfo: &types.ActivityTaskDispatchInfo{
-			ScheduledEvent:                  scheduledEvent,
-			StartedTimestamp:                common.Int64Ptr(e.timeSource.Now().UnixNano()),
-			WorkflowType:                    e.GetWorkflowType(),
-			WorkflowDomain:                  e.GetDomainEntry().GetInfo().Name,
-			ScheduledTimestampOfThisAttempt: common.Int64Ptr(ai.ScheduledTime.UnixNano()),
-		},
-		PartitionConfig: e.executionInfo.PartitionConfig,
-	})
-	if err == nil {
-		taggedScope.IncCounter(metrics.DecisionTypeScheduleActivityDispatchSucceedCounter)
-		return true
-	}
-	return false
+	return event, ai, nil, err
 }
 
 func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
@@ -340,7 +295,7 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 		ScheduleID:               scheduleEventID,
 		ScheduledEventBatchID:    firstEventID,
 		ScheduledTime:            time.Unix(0, event.GetTimestamp()),
-		StartedID:                common.EmptyEventID,
+		StartedID:                constants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               attributes.ActivityID,
 		DomainID:                 targetDomainID,
@@ -349,10 +304,11 @@ func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(
 		StartToCloseTimeout:      attributes.GetStartToCloseTimeoutSeconds(),
 		HeartbeatTimeout:         attributes.GetHeartbeatTimeoutSeconds(),
 		CancelRequested:          false,
-		CancelRequestID:          common.EmptyEventID,
+		CancelRequestID:          constants.EmptyEventID,
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusNone,
 		TaskList:                 attributes.TaskList.GetName(),
+		TaskListKind:             attributes.TaskList.GetKind(),
 		HasRetryPolicy:           attributes.RetryPolicy != nil,
 	}
 
@@ -383,7 +339,7 @@ func (e *mutableStateBuilder) addTransientActivityStartedEvent(
 ) error {
 
 	ai, ok := e.GetActivityInfo(scheduleEventID)
-	if !ok || ai.StartedID != common.TransientEventID {
+	if !ok || ai.StartedID != constants.TransientEventID {
 		return nil
 	}
 
@@ -421,7 +377,7 @@ func (e *mutableStateBuilder) AddActivityTaskStartedEvent(
 	// we might need to retry, so do not append started event just yet,
 	// instead update mutable state and will record started event when activity task is closed
 	ai.Version = e.GetCurrentVersion()
-	ai.StartedID = common.TransientEventID
+	ai.StartedID = constants.TransientEventID
 	ai.RequestID = requestID
 	ai.StartedTime = e.timeSource.Now()
 	ai.LastHeartBeatUpdatedTime = ai.StartedTime
@@ -557,7 +513,7 @@ func (e *mutableStateBuilder) AddActivityTaskTimedOutEvent(
 
 	ai, ok := e.GetActivityInfo(scheduleEventID)
 	if !ok || ai.StartedID != startedEventID || ((timeoutType == types.TimeoutTypeStartToClose ||
-		timeoutType == types.TimeoutTypeHeartbeat) && ai.StartedID == common.EmptyEventID) {
+		timeoutType == types.TimeoutTypeHeartbeat) && ai.StartedID == constants.EmptyEventID) {
 		e.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
@@ -753,7 +709,7 @@ func (e *mutableStateBuilder) RetryActivity(
 	ai.Version = e.GetCurrentVersion()
 	ai.Attempt++
 	ai.ScheduledTime = now.Add(backoffInterval) // update to next schedule time
-	ai.StartedID = common.EmptyEventID
+	ai.StartedID = constants.EmptyEventID
 	ai.RequestID = ""
 	ai.StartedTime = time.Time{}
 	ai.TimerTaskStatus = TimerTaskStatusNone

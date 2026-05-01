@@ -23,23 +23,26 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/isolationgroup"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
@@ -49,6 +52,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
@@ -98,14 +102,16 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
-			logger := loggerimpl.NewNopLogger()
+			logger := log.NewNoop()
 
 			mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 			taskManager := tasklist.NewTestTaskManager(t, logger, mockTimeSource)
 			mockHistoryClient := history.NewMockClient(ctrl)
+			mockMatchingClient := matching.NewMockClient(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
+			mockShardDistributorExecutorClient := executorclient.NewMockClient(ctrl)
 
 			// this is only if the call goes through
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
@@ -114,23 +120,41 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 
 			config := defaultTestConfig()
 			taskListEnabled := tc.tasklistGuardEnabled
-			config.EnableTasklistOwnershipGuard = func(opts ...dynamicconfig.FilterOption) bool {
+			config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool {
 				return taskListEnabled
 			}
+			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
+			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
+			// testing. With PercentageOnboardedToShardManager=0, no task list name is below the
+			// percentage threshold, so every name is considered excluded regardless of whether it
+			// contains a UUID.
+			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+			config.PercentageOnboardedToShardManager = func(opts ...dynamicproperties.FilterOption) int { return 0 }
 
 			matchingEngine := NewEngine(
 				taskManager,
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
-				nil,
+				mockMatchingClient,
 				config,
 				logger,
-				metrics.NewClient(tally.NoopScope, metrics.Matching),
+				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+				tally.NoopScope,
 				mockDomainCache,
 				resolverMock,
-				nil,
+				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
+				mockShardDistributorExecutorClient,
+				defaultSDExecutorConfig(),
+				nil,
 			).(*matchingEngineImpl)
+
+			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
+			// never called. Only Start/Stop are needed for lifecycle management.
+			mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+			mockExec.EXPECT().Start(gomock.Any()).AnyTimes()
+			mockExec.EXPECT().Stop().AnyTimes()
+			matchingEngine.executor = mockExec
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
 				membership.NewDetailedHostInfo("", tc.lookUpResult, make(membership.PortMap)), tc.lookUpErr,
@@ -139,11 +163,9 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				membership.NewDetailedHostInfo("", tc.whoAmIResult, make(membership.PortMap)), tc.whoAmIErr,
 			).AnyTimes()
 
-			taskListKind := types.TaskListKindNormal
-
-			_, err := matchingEngine.getTaskListManager(
+			_, err := matchingEngine.getOrCreateTaskListManager(context.Background(),
 				tasklist.NewTestTaskListID(t, "domain", "tasklist", persistence.TaskListTypeActivity),
-				&taskListKind,
+				types.TaskListKindNormal,
 			)
 			if tc.expectedError != nil {
 				assert.ErrorAs(t, err, &tc.expectedError)
@@ -154,31 +176,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 	}
 }
 
-func TestMembershipSubscriptionShutdown(t *testing.T) {
-	assert.NotPanics(t, func() {
-		ctrl := gomock.NewController(t)
-		m := membership.NewMockResolver(ctrl)
-
-		m.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).Times(1)
-
-		e := matchingEngineImpl{
-			membershipResolver: m,
-			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
-			},
-			shutdown: make(chan struct{}),
-			logger:   loggerimpl.NewNopLogger(),
-		}
-
-		go func() {
-			time.Sleep(time.Second)
-			close(e.shutdown)
-		}()
-		e.subscribeToMembershipChanges()
-	})
-}
-
-func TestMembershipSubscriptionPanicHandling(t *testing.T) {
+func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 	assert.NotPanics(t, func() {
 		ctrl := gomock.NewController(t)
 
@@ -187,78 +185,84 @@ func TestMembershipSubscriptionPanicHandling(t *testing.T) {
 			panic("a panic has occurred")
 		})
 
-		e := matchingEngineImpl{
+		engine := matchingEngineImpl{
 			membershipResolver: r.MembershipResolver,
 			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
-			logger:   loggerimpl.NewNopLogger(),
+			logger:   log.NewNoop(),
 			shutdown: make(chan struct{}),
 		}
 
-		e.subscribeToMembershipChanges()
+		engine.runMembershipChangeLoop()
 	})
 }
 
 func TestSubscriptionAndShutdown(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	m := membership.NewMockResolver(ctrl)
-
-	shutdownWG := &sync.WaitGroup{}
-	shutdownWG.Add(1)
-
-	e := matchingEngineImpl{
-		shutdownCompletion: shutdownWG,
-		membershipResolver: m,
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
-		},
-		shutdown: make(chan struct{}),
-		logger:   loggerimpl.NewNopLogger(),
-	}
-
-	// anytimes here because this is quite a racy test and the actual assertions for the unsubscription logic will be separated out
-	m.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("host2", "host2", nil), nil).AnyTimes()
-	m.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).Do(
-		func(service string, name string, inc chan<- *membership.ChangedEvent) {
-			m := membership.ChangedEvent{
-				HostsAdded:   nil,
-				HostsUpdated: nil,
-				HostsRemoved: []string{"host123"},
-			}
-			inc <- &m
-		})
-
-	go func() {
-		// then call stop so the test can finish
-		time.Sleep(time.Second)
-		e.Stop()
-	}()
-
-	e.subscribeToMembershipChanges()
-}
-
-func TestSubscriptionAndErrorReturned(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	m := membership.NewMockResolver(ctrl)
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(1)
 
-	e := matchingEngineImpl{
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
-		membershipResolver: m,
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
-		},
-		shutdown: make(chan struct{}),
-		logger:   loggerimpl.NewNopLogger(),
+		membershipResolver: mockResolver,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
+		shutdown:           make(chan struct{}),
+		logger:             log.NewNoop(),
+		domainCache:        mockDomainCache,
+		executor:           mockExecutor,
+	}
+
+	mockResolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("host2", "host2", nil), nil).AnyTimes()
+	mockResolver.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any())
+	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
+
+	go engine.runMembershipChangeLoop()
+
+	engine.Stop()
+	assert.True(t, common.AwaitWaitGroup(&shutdownWG, 10*time.Second), "runMembershipChangeLoop has to be shut down")
+}
+
+func TestSubscriptionAndErrorReturned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+	shutdownWG := sync.WaitGroup{}
+	shutdownWG.Add(1)
+
+	membershipChangeHandledWG := sync.WaitGroup{}
+	membershipChangeHandledWG.Add(1)
+
+	engine := matchingEngineImpl{
+		shutdownCompletion: &shutdownWG,
+		membershipResolver: mockResolver,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
+		shutdown:           make(chan struct{}),
+		logger:             log.NewNoop(),
+		domainCache:        mockDomainCache,
+		executor:           mockExecutor,
 	}
 
 	// this should trigger the error case on a membership event
-	m.EXPECT().WhoAmI().Return(membership.HostInfo{}, assert.AnError).AnyTimes()
+	// unfortunately, this is purely for code-coverage, no checks are involved
+	mockResolver.EXPECT().WhoAmI().DoAndReturn(func() (membership.HostInfo, error) {
+		membershipChangeHandledWG.Done()
+		return membership.HostInfo{}, errors.New("failure")
+	}).MinTimes(1)
 
-	m.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).Do(
+	mockResolver.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).Do(
 		func(service string, name string, inc chan<- *membership.ChangedEvent) {
 			m := membership.ChangedEvent{
 				HostsAdded:   nil,
@@ -268,85 +272,99 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 			inc <- &m
 		})
 
-	go func() {
-		// then call stop so the test can finish
-		time.Sleep(time.Second)
-		e.Stop()
-	}()
+	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
 
-	e.subscribeToMembershipChanges()
+	go engine.runMembershipChangeLoop()
+
+	assert.True(t,
+		common.AwaitWaitGroup(&membershipChangeHandledWG, 10*time.Second),
+		"membership event is not handled",
+	)
+
+	engine.Stop()
+	assert.True(t,
+		common.AwaitWaitGroup(&shutdownWG, 10*time.Second),
+		"runMembershipChangeLoop has to be shut down",
+	)
 }
 
 func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	m := membership.NewMockResolver(ctrl)
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
 	logger, logs := testlogger.NewObserved(t)
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(1)
 
-	e := matchingEngineImpl{
+	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
-		membershipResolver: m,
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
-		},
-		shutdown: make(chan struct{}),
-		logger:   logger,
+		membershipResolver: mockResolver,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
+		shutdown:           make(chan struct{}),
+		logger:             logger,
+		domainCache:        mockDomainCache,
 	}
 
-	// this should trigger the error case on a membership event
-	m.EXPECT().WhoAmI().Return(membership.HostInfo{}, assert.AnError).AnyTimes()
+	mockResolver.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).
+		Return(errors.New("failed to subscribe"))
 
-	m.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).
-		Return(errors.New("matching-engine is already subscribed to updates"))
+	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).AnyTimes()
 
-	go func() {
-		// then call stop so the test can finish
-		time.Sleep(time.Second)
-		e.Stop()
-	}()
-
-	e.subscribeToMembershipChanges()
-	// check we emitted error-message
-	filteredLogs := logs.FilterMessage("Failed to subscribe to membership updates")
-	assert.Equal(t, 1, filteredLogs.Len(), "error-message should be produced")
+	go engine.runMembershipChangeLoop()
+	// we do not stop `engine` here - it has to shut down after failing to Subscribe
 
 	assert.True(
 		t,
 		common.AwaitWaitGroup(&shutdownWG, 10*time.Second),
-		"subscribeToMembershipChanges should immediately shut down because of critical error",
+		"runMembershipChangeLoop should immediately shut down because of critical error",
 	)
+
+	// check we emitted error-message
+	filteredLogs := logs.FilterMessage("Failed to subscribe to membership updates")
+	assert.Equal(t, 1, filteredLogs.Len(), "error-message should be produced")
 }
 
 func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	m := membership.NewMockResolver(ctrl)
+	mockResolver := membership.NewMockResolver(ctrl)
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
 	self := membership.NewDetailedHostInfo("self", "self", nil)
 
-	m.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
+	mockResolver.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
+	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
+
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
 
-	e := matchingEngineImpl{
+	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
-		membershipResolver: m,
+		membershipResolver: mockResolver,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicconfig.FilterOption) bool { return true },
+			EnableTasklistOwnershipGuard:               func(opts ...dynamicproperties.FilterOption) bool { return true },
+			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 		},
-		shutdown: make(chan struct{}),
-		logger:   loggerimpl.NewNopLogger(),
+		shutdown:    make(chan struct{}),
+		logger:      log.NewNoop(),
+		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
-	// set this engine to be shutting down so as to trigger the tasklistGetTasklistByID guard
-	e.Stop()
+	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard
+	engine.Stop()
 
 	tl, _ := tasklist.NewIdentifier("domainid", "tl", 0)
-	kind := types.TaskListKindNormal
-	res, err := e.getTaskListManager(tl, &kind)
+	res, err := engine.getOrCreateTaskListManager(context.Background(), tl, types.TaskListKindNormal)
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)

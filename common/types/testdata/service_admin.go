@@ -262,5 +262,12 @@ var (
 			nil,
 		},
 	}
-	AdminUpdateGlobalIsolationGroupsResponse = types.UpdateGlobalIsolationGroupsResponse{}
+	AdminUpdateGlobalIsolationGroupsResponse  = types.UpdateGlobalIsolationGroupsResponse{}
+	AdminUpdateTaskListPartitionConfigRequest = types.UpdateTaskListPartitionConfigRequest{
+		Domain:          DomainName,
+		TaskList:        &TaskList,
+		TaskListType:    &TaskListType,
+		PartitionConfig: &TaskListPartitionConfig,
+	}
+	AdminUpdateTaskListPartitionConfigResponse = types.UpdateTaskListPartitionConfigResponse{}
 )

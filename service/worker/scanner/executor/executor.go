@@ -58,7 +58,7 @@ type (
 		outstanding int64
 		status      int32
 		metrics     metrics.Client
-		metricScope int
+		metricScope metrics.ScopeIdx
 		stopC       chan struct{}
 		stopWG      sync.WaitGroup
 	}
@@ -81,7 +81,7 @@ const (
 // to be deferred for fairness. To defer processing of a task, simply return TaskStatsDefer
 // from your task.Run method. When a task is deferred, it will be added to the tail of a
 // deferredTaskQ which in turn will be processed after the current runQ is drained
-func NewFixedSizePoolExecutor(size int, maxDeferred int, metrics metrics.Client, scope int) Executor {
+func NewFixedSizePoolExecutor(size int, maxDeferred int, metrics metrics.Client, scope metrics.ScopeIdx) Executor {
 	stopC := make(chan struct{})
 	return &fixedPoolExecutor{
 		size:        size,

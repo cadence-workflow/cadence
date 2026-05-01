@@ -53,7 +53,7 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout() {
 	}
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -66,7 +66,7 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout() {
 	now := time.Now()
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -74,8 +74,8 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.domainName,
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain: s.DomainName,
 		Execution: &types.WorkflowExecution{
 			WorkflowID: id,
 		},
@@ -119,7 +119,7 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyContinueAsNewAsRetry() {
 	}
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -132,7 +132,7 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyContinueAsNewAsRetry() {
 	now := time.Now()
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -147,8 +147,8 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyContinueAsNewAsRetry() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -167,8 +167,8 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyContinueAsNewAsRetry() {
 GetHistoryLoop:
 	for i := 0; i < 20; i++ {
 		ctx, cancel := createContext()
-		historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: s.domainName,
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.DomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 			},

@@ -70,4 +70,5 @@ type Handler interface {
 	UpdateDomainIsolationGroups(ctx context.Context, request *types.UpdateDomainIsolationGroupsRequest) (*types.UpdateDomainIsolationGroupsResponse, error)
 	GetDomainAsyncWorkflowConfiguraton(context.Context, *types.GetDomainAsyncWorkflowConfiguratonRequest) (*types.GetDomainAsyncWorkflowConfiguratonResponse, error)
 	UpdateDomainAsyncWorkflowConfiguraton(context.Context, *types.UpdateDomainAsyncWorkflowConfiguratonRequest) (*types.UpdateDomainAsyncWorkflowConfiguratonResponse, error)
+	UpdateTaskListPartitionConfig(context.Context, *types.UpdateTaskListPartitionConfigRequest) (*types.UpdateTaskListPartitionConfigResponse, error)
 }

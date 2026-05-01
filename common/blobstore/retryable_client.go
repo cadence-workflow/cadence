@@ -49,7 +49,7 @@ func NewRetryableClient(client Client, policy backoff.RetryPolicy) Client {
 func (c *retryableClient) Put(ctx context.Context, req *PutRequest) (*PutResponse, error) {
 	var resp *PutResponse
 	var err error
-	op := func() error {
+	op := func(ctx context.Context) error {
 		resp, err = c.client.Put(ctx, req)
 		return err
 	}
@@ -63,7 +63,7 @@ func (c *retryableClient) Put(ctx context.Context, req *PutRequest) (*PutRespons
 func (c *retryableClient) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
 	var resp *GetResponse
 	var err error
-	op := func() error {
+	op := func(ctx context.Context) error {
 		resp, err = c.client.Get(ctx, req)
 		return err
 	}
@@ -77,7 +77,7 @@ func (c *retryableClient) Get(ctx context.Context, req *GetRequest) (*GetRespons
 func (c *retryableClient) Exists(ctx context.Context, req *ExistsRequest) (*ExistsResponse, error) {
 	var resp *ExistsResponse
 	var err error
-	op := func() error {
+	op := func(ctx context.Context) error {
 		resp, err = c.client.Exists(ctx, req)
 		return err
 	}
@@ -91,7 +91,7 @@ func (c *retryableClient) Exists(ctx context.Context, req *ExistsRequest) (*Exis
 func (c *retryableClient) Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error) {
 	var resp *DeleteResponse
 	var err error
-	op := func() error {
+	op := func(ctx context.Context) error {
 		resp, err = c.client.Delete(ctx, req)
 		return err
 	}

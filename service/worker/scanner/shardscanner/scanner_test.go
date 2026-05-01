@@ -28,9 +28,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/metrics"
@@ -113,7 +113,7 @@ func (s *ScannerSuite) TestScan_Failure_NonFirstError() {
 		invariantManager: mockInvariantManager,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := scanner.Scan(context.Background())
 	s.Equal(ScanReport{
@@ -157,7 +157,7 @@ func (s *ScannerSuite) TestScan_Failure_CorruptedWriterError() {
 		corruptedWriter:  corruptedWriter,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := scanner.Scan(context.Background())
 	s.Equal(ScanReport{
@@ -201,7 +201,7 @@ func (s *ScannerSuite) TestScan_Failure_FailedWriterError() {
 		failedWriter:     failedWriter,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := scanner.Scan(context.Background())
 	s.Equal(ScanReport{
@@ -457,7 +457,7 @@ func (s *ScannerSuite) TestScan_Success() {
 		itr:              mockItr,
 		progressReportFn: func() {},
 		domainCache:      domainCache,
-		scope:            metrics.NoopScope(metrics.Worker),
+		scope:            metrics.NoopScope,
 	}
 	result := scanner.Scan(context.Background())
 	s.Equal(ScanReport{

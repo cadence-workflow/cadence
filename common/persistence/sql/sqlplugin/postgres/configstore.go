@@ -25,7 +25,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
@@ -54,7 +54,7 @@ func (pdb *db) SelectLatestConfig(ctx context.Context, rowType int) (*persistenc
 		Timestamp: pdb.converter.FromPostgresDateTime(row.Timestamp),
 		Values: &persistence.DataBlob{
 			Data:     row.Data,
-			Encoding: common.EncodingType(row.DataEncoding),
+			Encoding: constants.EncodingType(row.DataEncoding),
 		},
 	}, nil
 }

@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination indexer_mock.go github.com/uber/cadence/service/worker/indexer ESProcessor
+
 package indexer
 
 import (
@@ -30,8 +32,9 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	es "github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	"github.com/uber/cadence/common/log"
@@ -42,8 +45,9 @@ import (
 )
 
 const (
-	versionTypeExternal = "external"
-	processorName       = "visibility-processor"
+	versionTypeExternal    = "external"
+	processorName          = "visibility-processor"
+	migrationProcessorName = "migration-visibility-processor"
 )
 
 var (
@@ -72,15 +76,20 @@ type (
 		shutdownCh chan struct{}
 	}
 
+	DualIndexer struct {
+		SourceIndexer *Indexer
+		DestIndexer   *Indexer
+	}
+
 	// Config contains all configs for indexer
 	Config struct {
-		IndexerConcurrency             dynamicconfig.IntPropertyFn
-		ESProcessorNumOfWorkers        dynamicconfig.IntPropertyFn
-		ESProcessorBulkActions         dynamicconfig.IntPropertyFn // max number of requests in bulk
-		ESProcessorBulkSize            dynamicconfig.IntPropertyFn // max total size of bytes in bulk
-		ESProcessorFlushInterval       dynamicconfig.DurationPropertyFn
-		ValidSearchAttributes          dynamicconfig.MapPropertyFn
-		EnableQueryAttributeValidation dynamicconfig.BoolPropertyFn
+		IndexerConcurrency             dynamicproperties.IntPropertyFn
+		ESProcessorNumOfWorkers        dynamicproperties.IntPropertyFn
+		ESProcessorBulkActions         dynamicproperties.IntPropertyFn // max number of requests in bulk
+		ESProcessorBulkSize            dynamicproperties.IntPropertyFn // max total size of bytes in bulk
+		ESProcessorFlushInterval       dynamicproperties.DurationPropertyFn
+		ValidSearchAttributes          dynamicproperties.MapPropertyFn
+		EnableQueryAttributeValidation dynamicproperties.BoolPropertyFn
 	}
 )
 
@@ -90,6 +99,7 @@ func NewIndexer(
 	client messaging.Client,
 	visibilityClient es.GenericClient,
 	visibilityName string,
+	consumerName string,
 	logger log.Logger,
 	metricsClient metrics.Client,
 ) *Indexer {
@@ -100,7 +110,11 @@ func NewIndexer(
 		logger.Fatal("Index ES processor state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}
 
-	consumer, err := client.NewConsumer(common.VisibilityAppName, getConsumerName(visibilityName))
+	if consumerName == "" {
+		consumerName = getConsumerName(visibilityName)
+	}
+
+	consumer, err := client.NewConsumer(constants.VisibilityAppName, consumerName)
 	if err != nil {
 		logger.Fatal("Index consumer state changed", tag.LifeCycleStartFailed, tag.Error(err))
 	}

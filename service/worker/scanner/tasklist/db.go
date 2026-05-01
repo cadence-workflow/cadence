@@ -38,8 +38,8 @@ func (s *Scavenger) completeTasks(info *p.TaskListInfo, taskID int64, limit int)
 	if errorDomain != nil {
 		return 0, errorDomain
 	}
-	err = s.retryForever(func() error {
-		resp, err = s.db.CompleteTasksLessThan(s.ctx, &p.CompleteTasksLessThanRequest{
+	err = s.retryForever(func(ctx context.Context) error {
+		resp, err = s.db.CompleteTasksLessThan(ctx, &p.CompleteTasksLessThanRequest{
 			DomainID:     info.DomainID,
 			TaskListName: info.Name,
 			TaskType:     info.TaskType,
@@ -58,8 +58,8 @@ func (s *Scavenger) completeTasks(info *p.TaskListInfo, taskID int64, limit int)
 func (s *Scavenger) getOrphanTasks(limit int) (*p.GetOrphanTasksResponse, error) {
 	var tasks *p.GetOrphanTasksResponse
 	var err error
-	err = s.retryForever(func() error {
-		tasks, err = s.db.GetOrphanTasks(s.ctx, &p.GetOrphanTasksRequest{
+	err = s.retryForever(func(ctx context.Context) error {
+		tasks, err = s.db.GetOrphanTasks(ctx, &p.GetOrphanTasksRequest{
 			Limit: limit,
 		})
 		return err
@@ -73,8 +73,8 @@ func (s *Scavenger) completeTask(info *p.TaskListInfo, taskid int64) error {
 	if errorDomain != nil {
 		return errorDomain
 	}
-	err = s.retryForever(func() error {
-		err = s.db.CompleteTask(s.ctx, &p.CompleteTaskRequest{
+	err = s.retryForever(func(ctx context.Context) error {
+		err = s.db.CompleteTask(ctx, &p.CompleteTaskRequest{
 			TaskList:   info,
 			TaskID:     taskid,
 			DomainName: domainName,
@@ -91,8 +91,8 @@ func (s *Scavenger) getTasks(info *p.TaskListInfo, batchSize int) (*p.GetTasksRe
 	if errorDomain != nil {
 		return nil, errorDomain
 	}
-	err = s.retryForever(func() error {
-		resp, err = s.db.GetTasks(s.ctx, &p.GetTasksRequest{
+	err = s.retryForever(func(ctx context.Context) error {
+		resp, err = s.db.GetTasks(ctx, &p.GetTasksRequest{
 			DomainID:   info.DomainID,
 			TaskList:   info.Name,
 			TaskType:   info.TaskType,
@@ -108,8 +108,8 @@ func (s *Scavenger) getTasks(info *p.TaskListInfo, batchSize int) (*p.GetTasksRe
 func (s *Scavenger) listTaskList(pageSize int, pageToken []byte) (*p.ListTaskListResponse, error) {
 	var err error
 	var resp *p.ListTaskListResponse
-	err = s.retryForever(func() error {
-		resp, err = s.db.ListTaskList(s.ctx, &p.ListTaskListRequest{
+	err = s.retryForever(func(ctx context.Context) error {
+		resp, err = s.db.ListTaskList(ctx, &p.ListTaskListRequest{
 			PageSize:  pageSize,
 			PageToken: pageToken,
 		})
@@ -123,8 +123,8 @@ func (s *Scavenger) deleteTaskList(info *p.TaskListInfo) error {
 	if errorDomain != nil {
 		return errorDomain
 	}
-	op := func() error {
-		return s.db.DeleteTaskList(s.ctx, &p.DeleteTaskListRequest{
+	op := func(ctx context.Context) error {
+		return s.db.DeleteTaskList(ctx, &p.DeleteTaskListRequest{
 			DomainID:     info.DomainID,
 			TaskListName: info.Name,
 			TaskListType: info.TaskType,
@@ -140,15 +140,15 @@ func (s *Scavenger) deleteTaskList(info *p.TaskListInfo) error {
 			return ok
 		}),
 	)
-	return throttleRetry.Do(context.Background(), op)
+	return throttleRetry.Do(s.ctx, op)
 }
 
-func (s *Scavenger) retryForever(op func() error) error {
+func (s *Scavenger) retryForever(op func(ctx context.Context) error) error {
 	throttleRetry := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(retryForeverPolicy),
 		backoff.WithRetryableError(s.isRetryable),
 	)
-	return throttleRetry.Do(context.Background(), op)
+	return throttleRetry.Do(s.ctx, op)
 }
 
 func newRetryForeverPolicy() backoff.RetryPolicy {

@@ -23,9 +23,11 @@ package nosql
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -43,10 +45,11 @@ type nosqlQueueStore struct {
 func newNoSQLQueueStore(
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	queueType persistence.QueueType,
 	dc *persistence.DynamicConfiguration,
-) (persistence.Queue, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, dc)
+) (persistence.QueueStore, error) {
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -54,80 +57,85 @@ func newNoSQLQueueStore(
 		nosqlStore: shardedStore.GetDefaultShard(),
 		queueType:  queueType,
 	}
-	if err := queue.createQueueMetadataEntryIfNotExist(); err != nil {
-		return nil, fmt.Errorf("failed to check and create queue metadata entry: %v", err)
-	}
 
 	return queue, nil
 }
 
-func (q *nosqlQueueStore) createQueueMetadataEntryIfNotExist() error {
-	queueMetadata, err := q.getQueueMetadata(context.Background(), q.queueType)
+func (q *nosqlQueueStore) ensureQueueMetadata(
+	ctx context.Context,
+	queueType persistence.QueueType,
+	currentTimestamp time.Time,
+) (*nosqlplugin.QueueMetadataRow, error) {
+	queueMetadata, err := q.getQueueMetadata(ctx, queueType)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	if queueMetadata == nil {
-		if err := q.insertInitialQueueMetadataRecord(context.Background(), q.queueType); err != nil {
-			return err
+		insertErr := q.insertInitialQueueMetadataRecord(ctx, queueType, currentTimestamp)
+		if insertErr != nil {
+			// If insert fails (likely because another thread just created it),
+			// it attempts to read the metadata one more time.
+			queueMetadata, err = q.getQueueMetadata(ctx, queueType)
+			if err != nil {
+				return nil, err
+			}
+			if queueMetadata == nil {
+				return nil, insertErr
+			}
+		} else {
+			queueMetadata, err = q.getQueueMetadata(ctx, queueType)
+			if err != nil {
+				return nil, err
+			}
+			if queueMetadata == nil {
+				return nil, &types.InternalServiceError{
+					Message: fmt.Sprintf("queue metadata not found for queue type %v", queueType),
+				}
+			}
 		}
 	}
-
-	dlqMetadata, err := q.getQueueMetadata(context.Background(), q.getDLQTypeFromQueueType())
-	if err != nil {
-		return err
+	if queueMetadata.ClusterAckLevels == nil {
+		queueMetadata.ClusterAckLevels = map[string]int64{}
 	}
-
-	if dlqMetadata == nil {
-		return q.insertInitialQueueMetadataRecord(context.Background(), q.getDLQTypeFromQueueType())
-	}
-
-	return nil
+	return queueMetadata, nil
 }
 
 // Warning: This is not a safe concurrent operation in its current state.
 // It's only used for domain replication at the moment, but needs a conditional write guard
 // for concurrent use
-func (q *nosqlQueueStore) EnqueueMessage(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *nosqlQueueStore) EnqueueMessage(ctx context.Context, request *persistence.InternalEnqueueMessageRequest) error {
+	queueMetadata, err := q.ensureQueueMetadata(ctx, q.queueType, request.CurrentTimeStamp)
+	if err != nil {
+		return err
+	}
 	lastMessageID, err := q.getLastMessageID(ctx, q.queueType)
 	if err != nil {
 		return err
 	}
-	ackLevels, err := q.GetAckLevels(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = q.tryEnqueue(ctx, q.queueType, getNextID(ackLevels, lastMessageID), messagePayload)
+	_, err = q.tryEnqueue(ctx, q.queueType, getNextID(queueMetadata.ClusterAckLevels, lastMessageID), request.MessagePayload, request.CurrentTimeStamp)
 	return err
 }
 
-func (q *nosqlQueueStore) EnqueueMessageToDLQ(
-	ctx context.Context,
-	messagePayload []byte,
-) error {
+func (q *nosqlQueueStore) EnqueueMessageToDLQ(ctx context.Context, request *persistence.InternalEnqueueMessageToDLQRequest) error {
+	if _, err := q.ensureQueueMetadata(ctx, q.getDLQTypeFromQueueType(), request.CurrentTimeStamp); err != nil {
+		return err
+	}
 	// Use negative queue type as the dlq type
 	lastMessageID, err := q.getLastMessageID(ctx, q.getDLQTypeFromQueueType())
 	if err != nil {
 		return err
 	}
 
-	_, err = q.tryEnqueue(ctx, q.getDLQTypeFromQueueType(), lastMessageID+1, messagePayload)
+	_, err = q.tryEnqueue(ctx, q.getDLQTypeFromQueueType(), lastMessageID+1, request.MessagePayload, request.CurrentTimeStamp)
 	return err
 }
 
-func (q *nosqlQueueStore) tryEnqueue(
-	ctx context.Context,
-	queueType persistence.QueueType,
-	messageID int64,
-	messagePayload []byte,
-) (int64, error) {
+func (q *nosqlQueueStore) tryEnqueue(ctx context.Context, queueType persistence.QueueType, messageID int64, messagePayload []byte, currentTimeStamp time.Time) (int64, error) {
 	err := q.db.InsertIntoQueue(ctx, &nosqlplugin.QueueMessageRow{
-		QueueType: queueType,
-		ID:        messageID,
-		Payload:   messagePayload,
+		QueueType:        queueType,
+		ID:               messageID,
+		Payload:          messagePayload,
+		CurrentTimeStamp: currentTimeStamp,
 	})
 	if err != nil {
 		if _, ok := err.(*nosqlplugin.ConditionFailure); ok {
@@ -159,10 +167,9 @@ func (q *nosqlQueueStore) getLastMessageID(
 
 func (q *nosqlQueueStore) ReadMessages(
 	ctx context.Context,
-	lastMessageID int64,
-	maxCount int,
-) ([]*persistence.InternalQueueMessage, error) {
-	messages, err := q.db.SelectMessagesFrom(ctx, q.queueType, lastMessageID, maxCount)
+	request *persistence.InternalReadMessagesRequest,
+) (*persistence.InternalReadMessagesResponse, error) {
+	messages, err := q.db.SelectMessagesFrom(ctx, q.queueType, request.LastMessageID, request.MaxCount)
 	if err != nil {
 		return nil, convertCommonErrors(q.db, "ReadMessages", err)
 	}
@@ -175,25 +182,22 @@ func (q *nosqlQueueStore) ReadMessages(
 		})
 	}
 
-	return result, nil
+	return &persistence.InternalReadMessagesResponse{Messages: result}, nil
 }
 
 func (q *nosqlQueueStore) ReadMessagesFromDLQ(
 	ctx context.Context,
-	firstMessageID int64,
-	lastMessageID int64,
-	pageSize int,
-	pageToken []byte,
-) ([]*persistence.InternalQueueMessage, []byte, error) {
+	request *persistence.InternalReadMessagesFromDLQRequest,
+) (*persistence.InternalReadMessagesFromDLQResponse, error) {
 	response, err := q.db.SelectMessagesBetween(ctx, nosqlplugin.SelectMessagesBetweenRequest{
 		QueueType:               q.getDLQTypeFromQueueType(),
-		ExclusiveBeginMessageID: firstMessageID,
-		InclusiveEndMessageID:   lastMessageID,
-		PageSize:                pageSize,
-		NextPageToken:           pageToken,
+		ExclusiveBeginMessageID: request.FirstMessageID,
+		InclusiveEndMessageID:   request.LastMessageID,
+		PageSize:                request.PageSize,
+		NextPageToken:           request.PageToken,
 	})
 	if err != nil {
-		return nil, nil, convertCommonErrors(q.db, "ReadMessagesFromDLQ", err)
+		return nil, convertCommonErrors(q.db, "ReadMessagesFromDLQ", err)
 	}
 	var result []*persistence.InternalQueueMessage
 	for _, msg := range response.Rows {
@@ -204,14 +208,17 @@ func (q *nosqlQueueStore) ReadMessagesFromDLQ(
 		})
 	}
 
-	return result, response.NextPageToken, nil
+	return &persistence.InternalReadMessagesFromDLQResponse{
+		Messages:      result,
+		NextPageToken: response.NextPageToken,
+	}, nil
 }
 
 func (q *nosqlQueueStore) DeleteMessagesBefore(
 	ctx context.Context,
-	messageID int64,
+	request *persistence.InternalDeleteMessagesBeforeRequest,
 ) error {
-	if err := q.db.DeleteMessagesBefore(ctx, q.queueType, messageID); err != nil {
+	if err := q.db.DeleteMessagesBefore(ctx, q.queueType, request.MessageID); err != nil {
 		return convertCommonErrors(q.db, "DeleteMessagesBefore", err)
 	}
 
@@ -220,10 +227,10 @@ func (q *nosqlQueueStore) DeleteMessagesBefore(
 
 func (q *nosqlQueueStore) DeleteMessageFromDLQ(
 	ctx context.Context,
-	messageID int64,
+	request *persistence.InternalDeleteMessageFromDLQRequest,
 ) error {
 	// Use negative queue type as the dlq type
-	if err := q.db.DeleteMessage(ctx, q.getDLQTypeFromQueueType(), messageID); err != nil {
+	if err := q.db.DeleteMessage(ctx, q.getDLQTypeFromQueueType(), request.MessageID); err != nil {
 		return convertCommonErrors(q.db, "DeleteMessageFromDLQ", err)
 	}
 
@@ -232,80 +239,81 @@ func (q *nosqlQueueStore) DeleteMessageFromDLQ(
 
 func (q *nosqlQueueStore) RangeDeleteMessagesFromDLQ(
 	ctx context.Context,
-	firstMessageID int64,
-	lastMessageID int64,
+	request *persistence.InternalRangeDeleteMessagesFromDLQRequest,
 ) error {
 	// Use negative queue type as the dlq type
-	if err := q.db.DeleteMessagesInRange(ctx, q.getDLQTypeFromQueueType(), firstMessageID, lastMessageID); err != nil {
+	if err := q.db.DeleteMessagesInRange(ctx, q.getDLQTypeFromQueueType(), request.FirstMessageID, request.LastMessageID); err != nil {
 		return convertCommonErrors(q.db, "RangeDeleteMessagesFromDLQ", err)
 	}
 
 	return nil
 }
 
-func (q *nosqlQueueStore) insertInitialQueueMetadataRecord(
-	ctx context.Context,
-	queueType persistence.QueueType,
-) error {
+func (q *nosqlQueueStore) insertInitialQueueMetadataRecord(ctx context.Context, queueType persistence.QueueType, currentTimeStamp time.Time) error {
 	version := int64(0)
-	if err := q.db.InsertQueueMetadata(ctx, queueType, version); err != nil {
+
+	row := nosqlplugin.QueueMetadataRow{
+		Version:          version,
+		QueueType:        queueType,
+		CurrentTimeStamp: currentTimeStamp,
+	}
+	if err := q.db.InsertQueueMetadata(ctx, row); err != nil {
 		return convertCommonErrors(q.db, fmt.Sprintf("InsertInitialQueueMetadataRecord, Type: %v", queueType), err)
 	}
 
 	return nil
 }
 
-func (q *nosqlQueueStore) UpdateAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
-
-	return q.updateAckLevel(ctx, messageID, clusterName, q.queueType)
+func (q *nosqlQueueStore) UpdateAckLevel(ctx context.Context, request *persistence.InternalUpdateAckLevelRequest) error {
+	return q.updateAckLevel(ctx, request.MessageID, request.ClusterName, q.queueType, request.CurrentTimeStamp)
 }
 
 func (q *nosqlQueueStore) GetAckLevels(
 	ctx context.Context,
-) (map[string]int64, error) {
+	_ *persistence.InternalGetAckLevelsRequest,
+) (*persistence.InternalGetAckLevelsResponse, error) {
 	queueMetadata, err := q.getQueueMetadata(ctx, q.queueType)
 	if err != nil {
 		return nil, err
 	}
+	if queueMetadata == nil {
+		return &persistence.InternalGetAckLevelsResponse{AckLevels: map[string]int64{}}, nil
+	}
 
-	return queueMetadata.ClusterAckLevels, nil
+	return &persistence.InternalGetAckLevelsResponse{AckLevels: queueMetadata.ClusterAckLevels}, nil
 }
 
-func (q *nosqlQueueStore) UpdateDLQAckLevel(
-	ctx context.Context,
-	messageID int64,
-	clusterName string,
-) error {
-
-	return q.updateAckLevel(ctx, messageID, clusterName, q.getDLQTypeFromQueueType())
+func (q *nosqlQueueStore) UpdateDLQAckLevel(ctx context.Context, request *persistence.InternalUpdateDLQAckLevelRequest) error {
+	return q.updateAckLevel(ctx, request.MessageID, request.ClusterName, q.getDLQTypeFromQueueType(), request.CurrentTimeStamp)
 }
 
 func (q *nosqlQueueStore) GetDLQAckLevels(
 	ctx context.Context,
-) (map[string]int64, error) {
+	_ *persistence.InternalGetDLQAckLevelsRequest,
+) (*persistence.InternalGetDLQAckLevelsResponse, error) {
 
 	// Use negative queue type as the dlq type
 	queueMetadata, err := q.getQueueMetadata(ctx, q.getDLQTypeFromQueueType())
 	if err != nil {
 		return nil, err
 	}
+	if queueMetadata == nil {
+		return &persistence.InternalGetDLQAckLevelsResponse{AckLevels: map[string]int64{}}, nil
+	}
 
-	return queueMetadata.ClusterAckLevels, nil
+	return &persistence.InternalGetDLQAckLevelsResponse{AckLevels: queueMetadata.ClusterAckLevels}, nil
 }
 
 func (q *nosqlQueueStore) GetDLQSize(
 	ctx context.Context,
-) (int64, error) {
+	_ *persistence.InternalGetDLQSizeRequest,
+) (*persistence.InternalGetDLQSizeResponse, error) {
 
 	size, err := q.db.GetQueueSize(ctx, q.getDLQTypeFromQueueType())
 	if err != nil {
-		return 0, convertCommonErrors(q.db, "GetDLQSize", err)
+		return nil, convertCommonErrors(q.db, "GetDLQSize", err)
 	}
-	return size, err
+	return &persistence.InternalGetDLQSizeResponse{Size: size}, nil
 }
 
 func (q *nosqlQueueStore) getQueueMetadata(
@@ -352,9 +360,9 @@ func (q *nosqlQueueStore) updateAckLevel(
 	messageID int64,
 	clusterName string,
 	queueType persistence.QueueType,
+	currentTimestamp time.Time,
 ) error {
-
-	queueMetadata, err := q.getQueueMetadata(ctx, queueType)
+	queueMetadata, err := q.ensureQueueMetadata(ctx, queueType, currentTimestamp)
 	if err != nil {
 		return err
 	}
@@ -366,6 +374,7 @@ func (q *nosqlQueueStore) updateAckLevel(
 
 	queueMetadata.ClusterAckLevels[clusterName] = messageID
 	queueMetadata.Version++
+	queueMetadata.CurrentTimeStamp = currentTimestamp
 
 	// Use negative queue type as the dlq type
 	err = q.updateQueueMetadata(ctx, queueMetadata)

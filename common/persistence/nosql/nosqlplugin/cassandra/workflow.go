@@ -27,56 +27,57 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/common/types"
 )
 
-var _ nosqlplugin.WorkflowCRUD = (*cdb)(nil)
+var _ nosqlplugin.WorkflowCRUD = (*CDB)(nil)
 
-func (db *cdb) InsertWorkflowExecutionWithTasks(
+func (db *CDB) InsertWorkflowExecutionWithTasks(
 	ctx context.Context,
 	requests *nosqlplugin.WorkflowRequestsWriteRequest,
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	execution *nosqlplugin.WorkflowExecutionRequest,
-	transferTasks []*nosqlplugin.TransferTask,
-	crossClusterTasks []*nosqlplugin.CrossClusterTask,
-	replicationTasks []*nosqlplugin.ReplicationTask,
-	timerTasks []*nosqlplugin.TimerTask,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
+	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	shardID := shardCondition.ShardID
 	domainID := execution.DomainID
 	workflowID := execution.WorkflowID
+	timeStamp := execution.CurrentTimeStamp
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
-	err := insertOrUpsertWorkflowRequestRow(batch, requests)
+	err := insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest)
+	err = insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
+	if err != nil {
+		return err
+	}
+	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp)
 	if err != nil {
 		return err
 	}
 
-	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution)
+	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, timeStamp)
 	if err != nil {
 		return err
 	}
 
-	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks)
-	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks)
-	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks)
-	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks)
-	assertShardRangeID(batch, shardID, shardCondition.RangeID)
+	createTasksByCategory(batch, shardID, domainID, workflowID, timeStamp, tasksByCategory)
+
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	return executeCreateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, execution, shardCondition)
 }
 
-func (db *cdb) SelectCurrentWorkflow(
+func (db *CDB) SelectCurrentWorkflow(
 	ctx context.Context,
 	shardID int, domainID, workflowID string,
 ) (*nosqlplugin.CurrentWorkflowRow, error) {
@@ -96,8 +97,11 @@ func (db *cdb) SelectCurrentWorkflow(
 	}
 
 	currentRunID := result["current_run_id"].(gocql.UUID).String()
-	executionInfo := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
-	lastWriteVersion := common.EmptyVersion
+	executionInfo, err := parseWorkflowExecutionInfo(result)
+	if err != nil {
+		return nil, err
+	}
+	lastWriteVersion := constants.EmptyVersion
 	if result["workflow_last_write_version"] != nil {
 		lastWriteVersion = result["workflow_last_write_version"].(int64)
 	}
@@ -113,76 +117,81 @@ func (db *cdb) SelectCurrentWorkflow(
 	}, nil
 }
 
-func (db *cdb) UpdateWorkflowExecutionWithTasks(
+func (db *CDB) UpdateWorkflowExecutionWithTasks(
 	ctx context.Context,
 	requests *nosqlplugin.WorkflowRequestsWriteRequest,
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	mutatedExecution *nosqlplugin.WorkflowExecutionRequest,
 	insertedExecution *nosqlplugin.WorkflowExecutionRequest,
+	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	resetExecution *nosqlplugin.WorkflowExecutionRequest,
-	transferTasks []*nosqlplugin.TransferTask,
-	crossClusterTasks []*nosqlplugin.CrossClusterTask,
-	replicationTasks []*nosqlplugin.ReplicationTask,
-	timerTasks []*nosqlplugin.TimerTask,
+	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	shardID := shardCondition.ShardID
 	var domainID, workflowID string
 	var previousNextEventIDCondition int64
+	var timeStamp time.Time
 	if mutatedExecution != nil {
 		domainID = mutatedExecution.DomainID
 		workflowID = mutatedExecution.WorkflowID
 		previousNextEventIDCondition = *mutatedExecution.PreviousNextEventIDCondition
+		timeStamp = mutatedExecution.CurrentTimeStamp
 	} else if resetExecution != nil {
 		domainID = resetExecution.DomainID
 		workflowID = resetExecution.WorkflowID
 		previousNextEventIDCondition = *resetExecution.PreviousNextEventIDCondition
+		timeStamp = resetExecution.CurrentTimeStamp
 	} else {
 		return fmt.Errorf("at least one of mutatedExecution and resetExecution should be provided")
 	}
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
-	err := insertOrUpsertWorkflowRequestRow(batch, requests)
+	err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest)
+	err = createOrUpdateCurrentWorkflow(batch, shardID, domainID, workflowID, currentWorkflowRequest, timeStamp)
 	if err != nil {
 		return err
 	}
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution)
+		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
 	if insertedExecution != nil {
-		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution)
+		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, timeStamp)
 		if err != nil {
 			return err
 		}
+
+		err = insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	if resetExecution != nil {
-		err = resetWorkflowExecutionAndMapsAndEventBuffer(batch, shardID, domainID, workflowID, resetExecution)
+		err = resetWorkflowExecutionAndMapsAndEventBuffer(batch, shardID, domainID, workflowID, resetExecution, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
-	createTransferTasks(batch, shardID, domainID, workflowID, transferTasks)
-	createReplicationTasks(batch, shardID, domainID, workflowID, replicationTasks)
-	createCrossClusterTasks(batch, shardID, domainID, workflowID, crossClusterTasks)
-	createTimerTasks(batch, shardID, domainID, workflowID, timerTasks)
-	assertShardRangeID(batch, shardID, shardCondition.RangeID)
+	createTasksByCategory(batch, shardID, domainID, workflowID, timeStamp, tasksByCategory)
+
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	return executeUpdateWorkflowBatchTransaction(ctx, db.session, batch, currentWorkflowRequest, previousNextEventIDCondition, shardCondition)
 }
 
-func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) (*nosqlplugin.WorkflowExecution, error) {
+func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) (*nosqlplugin.WorkflowExecution, error) {
 	query := db.session.Query(templateGetWorkflowExecutionQuery,
 		shardID,
 		rowTypeExecution,
@@ -199,9 +208,12 @@ func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	}
 
 	state := &nosqlplugin.WorkflowExecution{}
-	info := parseWorkflowExecutionInfo(result["execution"].(map[string]interface{}))
+	info, err := parseWorkflowExecutionInfo(result)
+	if err != nil {
+		return nil, err
+	}
 	state.ExecutionInfo = info
-	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), common.EncodingType(result["version_histories_encoding"].(string)))
+	state.VersionHistories = persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string)))
 	// TODO: remove this after all 2DC workflows complete
 	replicationState := parseReplicationState(result["replication_state"].(map[string]interface{}))
 	state.ReplicationState = replicationState
@@ -265,7 +277,7 @@ func (db *cdb) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	return state, nil
 }
 
-func (db *cdb) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID, currentRunIDCondition string) error {
+func (db *CDB) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID, currentRunIDCondition string) error {
 	query := db.session.Query(templateDeleteWorkflowExecutionCurrentRowQuery,
 		shardID,
 		rowTypeExecution,
@@ -280,7 +292,7 @@ func (db *cdb) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID,
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) DeleteWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+func (db *CDB) DeleteWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
 	query := db.session.Query(templateDeleteWorkflowExecutionMutableStateQuery,
 		shardID,
 		rowTypeExecution,
@@ -294,7 +306,7 @@ func (db *cdb) DeleteWorkflowExecution(ctx context.Context, shardID int, domainI
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectAllCurrentWorkflows(ctx context.Context, shardID int, pageToken []byte, pageSize int) ([]*persistence.CurrentWorkflowExecution, []byte, error) {
+func (db *CDB) SelectAllCurrentWorkflows(ctx context.Context, shardID int, pageToken []byte, pageSize int) ([]*persistence.CurrentWorkflowExecution, []byte, error) {
 	query := db.session.Query(
 		templateListCurrentExecutionsQuery,
 		shardID,
@@ -329,7 +341,7 @@ func (db *cdb) SelectAllCurrentWorkflows(ctx context.Context, shardID int, pageT
 	return executions, nextPageToken, iter.Close()
 }
 
-func (db *cdb) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pageToken []byte, pageSize int) ([]*persistence.InternalListConcreteExecutionsEntity, []byte, error) {
+func (db *CDB) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pageToken []byte, pageSize int) ([]*persistence.InternalListConcreteExecutionsEntity, []byte, error) {
 	query := db.session.Query(
 		templateListWorkflowExecutionQuery,
 		shardID,
@@ -351,9 +363,13 @@ func (db *cdb) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pag
 			result = make(map[string]interface{})
 			continue
 		}
+		executionInfo, err := parseWorkflowExecutionInfo(result)
+		if err != nil {
+			return nil, nil, err
+		}
 		executions = append(executions, &persistence.InternalListConcreteExecutionsEntity{
-			ExecutionInfo:    parseWorkflowExecutionInfo(result["execution"].(map[string]interface{})),
-			VersionHistories: persistence.NewDataBlob(result["version_histories"].([]byte), common.EncodingType(result["version_histories_encoding"].(string))),
+			ExecutionInfo:    executionInfo,
+			VersionHistories: persistence.NewDataBlob(result["version_histories"].([]byte), constants.EncodingType(result["version_histories_encoding"].(string))),
 		})
 		result = make(map[string]interface{})
 	}
@@ -362,7 +378,7 @@ func (db *cdb) SelectAllWorkflowExecutions(ctx context.Context, shardID int, pag
 	return executions, nextPageToken, iter.Close()
 }
 
-func (db *cdb) IsWorkflowExecutionExists(ctx context.Context, shardID int, domainID, workflowID, runID string) (bool, error) {
+func (db *CDB) IsWorkflowExecutionExists(ctx context.Context, shardID int, domainID, workflowID, runID string) (bool, error) {
 	query := db.session.Query(templateIsWorkflowExecutionExistsQuery,
 		shardID,
 		rowTypeExecution,
@@ -384,7 +400,7 @@ func (db *cdb) IsWorkflowExecutionExists(ctx context.Context, shardID int, domai
 	return true, nil
 }
 
-func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.TransferTask, []byte, error) {
+func (db *CDB) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading transfer tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetTransferTasksQuery,
 		shardID,
@@ -393,8 +409,8 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 		rowTypeTransferWorkflowID,
 		rowTypeTransferRunID,
 		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
 
 	iter := query.Iter()
@@ -404,14 +420,23 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 		}
 	}
 
-	var tasks []*nosqlplugin.TransferTask
+	var tasks []*nosqlplugin.HistoryMigrationTask
 	task := make(map[string]interface{})
 	for iter.MapScan(task) {
 		t := parseTransferTaskInfo(task["transfer"].(map[string]interface{}))
+		taskID := task["task_id"].(int64)
+		data := task["data"].([]byte)
+		encoding := task["data_encoding"].(string)
+		taskBlob := persistence.NewDataBlob(data, constants.EncodingType(encoding))
+
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})
 
-		tasks = append(tasks, t)
+		tasks = append(tasks, &nosqlplugin.HistoryMigrationTask{
+			Transfer: t,
+			Task:     taskBlob,
+			TaskID:   taskID,
+		})
 	}
 	nextPageToken := getNextPageToken(iter)
 
@@ -419,7 +444,7 @@ func (db *cdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 	return tasks, nextPageToken, err
 }
 
-func (db *cdb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (db *CDB) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
 	query := db.session.Query(templateCompleteTransferTaskQuery,
 		shardID,
 		rowTypeTransferTask,
@@ -433,7 +458,7 @@ func (db *cdb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *CDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
 	query := db.session.Query(templateRangeCompleteTransferTaskQuery,
 		shardID,
 		rowTypeTransferTask,
@@ -448,7 +473,7 @@ func (db *cdb) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclus
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.TimerTask, []byte, error) {
+func (db *CDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading timer tasks need to be quorum level consistent, otherwise we could loose task
 	minTimestamp := persistence.UnixNanoToDBTimestamp(inclusiveMinTime.UnixNano())
 	maxTimestamp := persistence.UnixNanoToDBTimestamp(exclusiveMaxTime.UnixNano())
@@ -469,14 +494,25 @@ func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 		}
 	}
 
-	var timers []*nosqlplugin.TimerTask
+	var timers []*nosqlplugin.HistoryMigrationTask
 	task := make(map[string]interface{})
 	for iter.MapScan(task) {
 		t := parseTimerTaskInfo(task["timer"].(map[string]interface{}))
+		taskID := task["task_id"].(int64)
+		scheduledTime := task["visibility_ts"].(time.Time)
+		data := task["data"].([]byte)
+		encoding := task["data_encoding"].(string)
+		taskBlob := persistence.NewDataBlob(data, constants.EncodingType(encoding))
+
 		// Reset task map to get it ready for next scan
 		task = make(map[string]interface{})
 
-		timers = append(timers, t)
+		timers = append(timers, &nosqlplugin.HistoryMigrationTask{
+			Timer:         t,
+			Task:          taskBlob,
+			TaskID:        taskID,
+			ScheduledTime: scheduledTime,
+		})
 	}
 	nextPageToken := getNextPageToken(iter)
 
@@ -484,7 +520,7 @@ func (db *cdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 	return timers, nextPageToken, err
 }
 
-func (db *cdb) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
 	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
 	query := db.session.Query(templateCompleteTimerTaskQuery,
 		shardID,
@@ -499,7 +535,7 @@ func (db *cdb) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, v
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error {
+func (db *CDB) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error {
 	start := persistence.UnixNanoToDBTimestamp(inclusiveMinTime.UnixNano())
 	end := persistence.UnixNanoToDBTimestamp(exclusiveMaxTime.UnixNano())
 	query := db.session.Query(templateRangeCompleteTimerTaskQuery,
@@ -515,7 +551,7 @@ func (db *cdb) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusive
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *CDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetReplicationTasksQuery,
 		shardID,
@@ -524,13 +560,13 @@ func (db *cdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID,
 		rowTypeReplicationWorkflowID,
 		rowTypeReplicationRunID,
 		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
 	return populateGetReplicationTasks(query)
 }
 
-func (db *cdb) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (db *CDB) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
 	query := db.session.Query(templateCompleteReplicationTaskQuery,
 		shardID,
 		rowTypeReplicationTask,
@@ -544,7 +580,7 @@ func (db *cdb) DeleteReplicationTask(ctx context.Context, shardID int, taskID in
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
+func (db *CDB) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {
 	query := db.session.Query(templateCompleteReplicationTaskBeforeQuery,
 		shardID,
 		rowTypeReplicationTask,
@@ -558,44 +594,7 @@ func (db *cdb) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inc
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) SelectCrossClusterTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, targetCluster string, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.CrossClusterTask, []byte, error) {
-	// Reading cross-cluster tasks need to be quorum level consistent, otherwise we could loose task
-	query := db.session.Query(templateGetCrossClusterTasksQuery,
-		shardID,
-		rowTypeCrossClusterTask,
-		rowTypeCrossClusterDomainID,
-		targetCluster, // workflowID field is used to store target cluster
-		rowTypeCrossClusterRunID,
-		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
-	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
-
-	iter := query.Iter()
-	if iter == nil {
-		return nil, nil, &types.InternalServiceError{
-			Message: "SelectCrossClusterTasksOrderByTaskID operation failed.  Not able to create query iterator.",
-		}
-	}
-
-	var tasks []*nosqlplugin.CrossClusterTask
-	task := make(map[string]interface{})
-	for iter.MapScan(task) {
-		t := parseCrossClusterTaskInfo(task["cross_cluster"].(map[string]interface{}))
-		// Reset task map to get it ready for next scan
-		task = make(map[string]interface{})
-
-		tasks = append(tasks, &nosqlplugin.CrossClusterTask{
-			TransferTask:  *t,
-			TargetCluster: targetCluster,
-		})
-	}
-	nextPageToken := getNextPageToken(iter)
-	err := iter.Close()
-	return tasks, nextPageToken, err
-}
-
-func (db *cdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error {
+func (db *CDB) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error {
 	query := db.session.Query(templateCompleteCrossClusterTaskQuery,
 		shardID,
 		rowTypeCrossClusterTask,
@@ -609,23 +608,10 @@ func (db *cdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCl
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) RangeDeleteCrossClusterTasks(ctx context.Context, shardID int, targetCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
-	query := db.session.Query(templateRangeCompleteCrossClusterTaskQuery,
-		shardID,
-		rowTypeCrossClusterTask,
-		rowTypeCrossClusterDomainID,
-		targetCluster,
-		rowTypeCrossClusterRunID,
-		defaultVisibilityTimestamp,
-		exclusiveBeginTaskID,
-		inclusiveEndTaskID,
-	).WithContext(ctx)
-
-	return query.Exec()
-}
-
-func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, task nosqlplugin.ReplicationTask) error {
+func (db *CDB) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, replicationTask *nosqlplugin.HistoryMigrationTask) error {
 	// Use source cluster name as the workflow id for replication dlq
+	task := replicationTask.Replication
+	taskBlob, taskEncoding := persistence.FromDataBlob(replicationTask.Task)
 	query := db.session.Query(templateCreateReplicationTaskQuery,
 		shardID,
 		rowTypeDLQ,
@@ -646,14 +632,17 @@ func (db *cdb) InsertReplicationDLQTask(ctx context.Context, shardID int, source
 		persistence.EventStoreVersion,
 		task.NewRunBranchToken,
 		defaultVisibilityTimestamp,
+		taskBlob,
+		taskEncoding,
 		defaultVisibilityTimestamp,
 		task.TaskID,
+		task.CurrentTimeStamp,
 	).WithContext(ctx)
 
 	return query.Exec()
 }
 
-func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, exclusiveMinTaskID, inclusiveMaxTaskID int64) ([]*nosqlplugin.ReplicationTask, []byte, error) {
+func (db *CDB) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shardID int, sourceCluster string, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*nosqlplugin.HistoryMigrationTask, []byte, error) {
 	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetReplicationTasksQuery,
 		shardID,
@@ -662,14 +651,14 @@ func (db *cdb) SelectReplicationDLQTasksOrderByTaskID(ctx context.Context, shard
 		sourceCluster,
 		rowTypeDLQRunID,
 		defaultVisibilityTimestamp,
-		exclusiveMinTaskID,
-		inclusiveMaxTaskID,
+		inclusiveMinTaskID,
+		exclusiveMaxTaskID,
 	).PageSize(pageSize).PageState(pageToken).WithContext(ctx)
 
 	return populateGetReplicationTasks(query)
 }
 
-func (db *cdb) SelectReplicationDLQTasksCount(ctx context.Context, shardID int, sourceCluster string) (int64, error) {
+func (db *CDB) SelectReplicationDLQTasksCount(ctx context.Context, shardID int, sourceCluster string) (int64, error) {
 	// Reading replication tasks need to be quorum level consistent, otherwise we could loose task
 	query := db.session.Query(templateGetDLQSizeQuery,
 		shardID,
@@ -688,7 +677,7 @@ func (db *cdb) SelectReplicationDLQTasksCount(ctx context.Context, shardID int, 
 	return queueSize, nil
 }
 
-func (db *cdb) DeleteReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, taskID int64) error {
+func (db *CDB) DeleteReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, taskID int64) error {
 	query := db.session.Query(templateCompleteReplicationTaskQuery,
 		shardID,
 		rowTypeDLQ,
@@ -702,7 +691,7 @@ func (db *cdb) DeleteReplicationDLQTask(ctx context.Context, shardID int, source
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
+func (db *CDB) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, sourceCluster string, inclusiveBeginTaskID, exclusiveEndTaskID int64) error {
 	query := db.session.Query(templateRangeCompleteReplicationTaskQuery,
 		shardID,
 		rowTypeDLQ,
@@ -710,25 +699,26 @@ func (db *cdb) RangeDeleteReplicationDLQTasks(ctx context.Context, shardID int, 
 		sourceCluster,
 		rowTypeDLQRunID,
 		defaultVisibilityTimestamp,
-		exclusiveBeginTaskID,
-		inclusiveEndTaskID,
+		inclusiveBeginTaskID,
+		exclusiveEndTaskID,
 	).WithContext(ctx)
 
 	return db.executeWithConsistencyAll(query)
 }
 
-func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.ReplicationTask, shardCondition nosqlplugin.ShardCondition) error {
+func (db *CDB) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.HistoryMigrationTask, shardCondition nosqlplugin.ShardCondition) error {
 	if len(tasks) == 0 {
 		return nil
 	}
 
 	shardID := shardCondition.ShardID
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	timeStamp := tasks[0].Replication.CurrentTimeStamp
 	for _, task := range tasks {
-		createReplicationTasks(batch, shardID, task.DomainID, task.WorkflowID, []*nosqlplugin.ReplicationTask{task})
+		createReplicationTasks(batch, shardID, task.Replication.DomainID, task.Replication.WorkflowID, []*nosqlplugin.HistoryMigrationTask{task}, timeStamp)
 	}
 
-	assertShardRangeID(batch, shardID, shardCondition.RangeID)
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, timeStamp)
 
 	previous := make(map[string]interface{})
 	applied, iter, err := db.session.MapExecuteBatchCAS(batch, previous)
@@ -769,4 +759,47 @@ func (db *cdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.R
 		}
 	}
 	return nil
+}
+
+func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*nosqlplugin.ActiveClusterSelectionPolicyRow, error) {
+	query := db.session.Query(templateGetActiveClusterSelectionPolicyQuery,
+		shardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		domainID,
+		wfID,
+		rID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+	).WithContext(ctx)
+
+	result := make(map[string]interface{})
+	if err := query.MapScan(result); err != nil {
+		if db.client.IsNotFoundError(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
+		ShardID:    shardID,
+		DomainID:   domainID,
+		WorkflowID: wfID,
+		RunID:      rID,
+		Policy:     persistence.NewDataBlob(result["data"].([]byte), constants.EncodingType(result["data_encoding"].(string))),
+	}, nil
+}
+
+func (db *CDB) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+	query := db.session.Query(templateDeleteActiveClusterSelectionPolicyQuery,
+		shardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+	).WithContext(ctx)
+
+	return db.executeWithConsistencyAll(query)
 }

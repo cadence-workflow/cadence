@@ -112,6 +112,7 @@ func (domainReplicator *domainReplicatorImpl) HandleTransmissionTask(
 		ReplicationConfig: &types.DomainReplicationConfiguration{
 			ActiveClusterName: replicationConfig.ActiveClusterName,
 			Clusters:          domainReplicator.convertClusterReplicationConfigToThrift(replicationConfig.Clusters),
+			ActiveClusters:    replicationConfig.ActiveClusters,
 		},
 		ConfigVersion:           configVersion,
 		FailoverVersion:         failoverVersion,

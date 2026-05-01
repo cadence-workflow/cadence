@@ -31,9 +31,9 @@ import (
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -43,7 +43,7 @@ type (
 
 	// Config defines the configuration for failover
 	Config struct {
-		AdminOperationToken dynamicconfig.StringPropertyFn
+		AdminOperationToken dynamicproperties.StringPropertyFn
 		// ClusterMetadata contains the metadata for this cluster
 		ClusterMetadata cluster.Metadata
 	}
@@ -96,7 +96,7 @@ func (s *FailoverManager) Start() error {
 		BackgroundActivityContext: ctx,
 		Tracer:                    opentracing.GlobalTracer(),
 	}
-	failoverWorker := worker.New(s.svcClient, common.SystemLocalDomainName, TaskListName, workerOpts)
+	failoverWorker := worker.New(s.svcClient, constants.SystemLocalDomainName, TaskListName, workerOpts)
 	failoverWorker.RegisterWorkflowWithOptions(FailoverWorkflow, workflow.RegisterOptions{Name: FailoverWorkflowTypeName})
 	failoverWorker.RegisterWorkflowWithOptions(RebalanceWorkflow, workflow.RegisterOptions{Name: RebalanceWorkflowTypeName})
 	failoverWorker.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})

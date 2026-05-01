@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/events"
@@ -44,6 +45,7 @@ type (
 
 	transactionManagerForNewWorkflowImpl struct {
 		transactionManager transactionManager
+		logger             log.Logger
 	}
 )
 
@@ -51,10 +53,12 @@ var _ transactionManagerForNewWorkflow = (*transactionManagerForNewWorkflowImpl)
 
 func newTransactionManagerForNewWorkflow(
 	transactionManager transactionManager,
+	logger log.Logger,
 ) transactionManagerForNewWorkflow {
 
 	return &transactionManagerForNewWorkflowImpl{
 		transactionManager: transactionManager,
+		logger:             logger,
 	}
 }
 
@@ -181,7 +185,7 @@ func (r *transactionManagerForNewWorkflowImpl) createAsCurrent(
 		// current workflow exists, need to do compare and swap
 		createMode := persistence.CreateWorkflowModeWorkflowIDReuse
 		prevRunID := currentWorkflow.GetMutableState().GetExecutionInfo().RunID
-		prevLastWriteVersion, _, err := currentWorkflow.GetVectorClock()
+		prevVectorClock, err := currentWorkflow.GetVectorClock()
 		if err != nil {
 			return err
 		}
@@ -191,7 +195,7 @@ func (r *transactionManagerForNewWorkflowImpl) createAsCurrent(
 			targetWorkflowHistoryBlob,
 			createMode,
 			prevRunID,
-			prevLastWriteVersion,
+			prevVectorClock.LastWriteVersion,
 			persistence.CreateWorkflowRequestModeReplicated,
 		)
 	}
@@ -308,6 +312,11 @@ func (r *transactionManagerForNewWorkflowImpl) suppressCurrentAndCreateAsCurrent
 		return err
 	}
 
+	r.logger.Debugf("suppressCurrentAndCreateAsCurrent calling UpdateWorkflowExecutionWithNew for wfID %s, current policy %v, new policy %v",
+		currentWorkflow.GetMutableState().GetExecutionInfo().WorkflowID,
+		currentWorkflowPolicy,
+		execution.TransactionPolicyPassive,
+	)
 	return currentWorkflow.GetContext().UpdateWorkflowExecutionWithNew(
 		ctx,
 		now,

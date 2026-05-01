@@ -95,7 +95,11 @@ CREATE TYPE workflow_execution (
   auto_reset_points_encoding       text, -- encoding for auto_reset_points_data
   search_attributes                map<text, blob>,
   memo                             map<text, blob>,
-  partition_config                 map<text, text>
+  partition_config                 map<text, text>,
+  cron_overlap_policy              int, -- enum CronOverlapPolicy {Skip, BufferOne}
+  task_list_kind                   int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
+  active_cluster_selection_policy blob, -- active cluster selection policy applicable to active-active domains
+  active_cluster_selection_policy_encoding text, -- encoding for active_cluster_selection_policy
 );
 
 -- Replication information for each cluster
@@ -130,6 +134,8 @@ CREATE TYPE transfer_task (
   schedule_id                bigint,
   version                    bigint,       -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
+  original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
+  original_task_list_kind    int,          -- enum TaskListKind {Normal, Sticky, Ephemeral},
 );
 
 CREATE TYPE replication_task (
@@ -162,6 +168,7 @@ CREATE TYPE timer_task (
   event_id         bigint, -- Corresponds to event ID in history that is responsible for this timer.
   schedule_attempt bigint, -- Used to retry failed decision tasks using mutable state
   version          bigint, -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
+  task_list        text, -- the task list associated with the timer task
 );
 
 -- Workflow activity in progress mutable state
@@ -199,6 +206,7 @@ CREATE TYPE activity_info (
   last_worker_identity      text, -- Worker that returns the last failure reason
   last_failure_details      blob,
   event_data_encoding       text, -- Protocol used for history serialization
+  task_list_kind            int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
 );
 
 -- User timer details
@@ -260,10 +268,16 @@ CREATE TYPE task (
   partition_config map<text, text>
 );
 
+CREATE TYPE task_list_partition (
+    isolation_groups set<text>
+);
+
 CREATE TYPE task_list_partition_config (
   version              bigint,
   num_read_partitions  int,
-  num_write_partitions int
+  num_write_partitions int,
+  read_partitions map<int, frozen<task_list_partition>>,
+  write_partitions map<int, frozen<task_list_partition>>
 );
 
 
@@ -309,7 +323,9 @@ CREATE TYPE cluster_replication_config (
 
 CREATE TYPE domain_replication_config (
   active_cluster_name text,
-  clusters            list<frozen<cluster_replication_config>>
+  clusters            list<frozen<cluster_replication_config>>,
+  active_clusters_config blob,
+  active_clusters_config_encoding text,
 );
 
 CREATE TYPE serialized_event_batch (
@@ -350,6 +366,8 @@ CREATE TABLE executions (
   current_run_id                 uuid,
   visibility_ts                  timestamp, -- unique identifier for timer tasks for an execution
   task_id                        bigint, -- unique identifier for transfer and timer tasks for an execution
+  data                           blob, -- this column will be used by Shard, Execution, TransferTask, TimerTask, ReplicationTask row types
+  data_encoding                  text,
   shard                          frozen<shard>,
   execution                      frozen<workflow_execution>,
   transfer                       frozen<transfer_task>,
@@ -372,6 +390,8 @@ CREATE TABLE executions (
   version_histories              blob, -- the metadata of history branching
   version_histories_encoding     text,
   checksum                       frozen<checksum>,
+  created_time                   timestamp,
+  last_updated_time              timestamp,
   PRIMARY KEY  (shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id)
 ) WITH COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -384,6 +404,7 @@ CREATE TABLE history_node (
   txn_id            bigint, -- for override the same node_id: bigger txn_id wins
   data                blob, -- Batch of workflow execution history events as a blob
   data_encoding       text, -- Protocol used for history serialization
+  created_time      timestamp,
   PRIMARY KEY ((tree_id), branch_id, node_id, txn_id )
   ) WITH CLUSTERING ORDER BY (branch_id ASC, node_id ASC, txn_id DESC)
     AND COMPACTION = {
@@ -396,6 +417,7 @@ CREATE TABLE history_tree (
   ancestors         list<frozen<branch_range>>,
   fork_time         timestamp, -- For fork operation to prevent race condition to leak event data when forking branches
   info              text, -- For background cleanup when fork operation cannot finish self cleanup due to crash
+  created_time      timestamp,
   PRIMARY KEY ((tree_id), branch_id )
 ) WITH COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -411,6 +433,8 @@ CREATE TABLE tasks (
   range_id         bigint, -- Used to ensure that only one process can write to the table
   task             frozen<task>,
   task_list        frozen<task_list>,
+  created_time       timestamp,
+  last_updated_time  timestamp,
   PRIMARY KEY ((domain_id, task_list_name, task_list_type), type, task_id)
 ) WITH COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -421,6 +445,7 @@ CREATE TABLE domains (
   id     uuid,
   domain frozen<domain>,
   config frozen<domain_config>,
+  created_time       timestamp,
   PRIMARY KEY (id)
 ) WITH COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -440,6 +465,7 @@ CREATE TABLE domains_by_name_v2 (
   failover_end_time             bigint, -- indicating domain failover state
   last_updated_time             bigint, -- indicating the domain last update timestamp
   notification_version          bigint,
+  created_time                  timestamp,
   PRIMARY KEY (domains_partition, name)
 )  WITH COMPACTION = {
      'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -489,6 +515,7 @@ CREATE TABLE queue (
   queue_type      int,
   message_id      bigint,
   message_payload blob,
+  created_time    timestamp,
   PRIMARY KEY  (queue_type, message_id)
 ) WITH COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -498,6 +525,8 @@ CREATE TABLE queue_metadata (
   queue_type        int,
   cluster_ack_level map<text, bigint>,
   version           bigint,
+  created_time      timestamp,
+  last_updated_time timestamp,
 PRIMARY KEY (queue_type)
 )  WITH COMPACTION = {
      'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
@@ -511,3 +540,29 @@ CREATE TABLE cluster_config (
   encoding text,
 PRIMARY KEY (row_type, version)
 ) WITH CLUSTERING ORDER BY (version DESC);
+
+CREATE TABLE domain_audit_log (
+    domain_id uuid,
+    event_id uuid, -- event_id is the unique identifier for this change to the domain
+
+    state_before blob, -- state_before stores the domain state before the request
+    state_before_encoding text, -- the encoding type used for state_before
+
+    state_after blob, -- state_after stores the domain state after the request
+    state_after_encoding text, -- the encoding type used for state_after
+
+    operation_type int, -- operation_type stores the type of operation that was performed. It is deserialized as an enum and can be used to customize the serialization/deserialization strategy.
+
+    created_time timestamp, -- created_time the time this row was inserted
+    last_updated_time timestamp,
+
+    identity text, -- the unique identifier of the user that made the change
+    identity_type text, -- identity_type can be used to delineate between service, user, or other identities
+
+    comment text, -- comment can be used when manual updates or creates are performed on the database as an audit trail
+
+    PRIMARY KEY ((domain_id, operation_type), created_time, event_id)
+) WITH CLUSTERING ORDER BY (created_time DESC, event_id ASC)
+  AND COMPACTION = {
+      'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+  };

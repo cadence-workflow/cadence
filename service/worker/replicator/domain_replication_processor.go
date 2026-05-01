@@ -25,12 +25,14 @@ package replicator
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -62,7 +64,10 @@ type (
 		throttleRetry          *backoff.ThrottleRetry
 		lastProcessedMessageID int64
 		lastRetrievedMessageID int64
-		done                   chan struct{}
+		ctx                    context.Context
+		cancelFn               context.CancelFunc
+		wg                     sync.WaitGroup
+		timeSource             clock.TimeSource
 		domainReplicationQueue domain.ReplicationQueue
 	}
 )
@@ -78,6 +83,7 @@ func newDomainReplicationProcessor(
 	resolver membership.Resolver,
 	domainReplicationQueue domain.ReplicationQueue,
 	replicationMaxRetry time.Duration,
+	timeSource clock.TimeSource,
 ) *domainReplicationProcessor {
 	retryPolicy := backoff.NewExponentialRetryPolicy(taskProcessorErrorRetryWait)
 	retryPolicy.SetBackoffCoefficient(taskProcessorErrorRetryBackoffCoefficient)
@@ -87,6 +93,7 @@ func newDomainReplicationProcessor(
 		backoff.WithRetryableError(isTransientRetryableError),
 	)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &domainReplicationProcessor{
 		hostInfo:               hostInfo,
 		membershipResolver:     resolver,
@@ -100,7 +107,9 @@ func newDomainReplicationProcessor(
 		throttleRetry:          throttleRetry,
 		lastProcessedMessageID: -1,
 		lastRetrievedMessageID: -1,
-		done:                   make(chan struct{}),
+		ctx:                    ctx,
+		cancelFn:               cancel,
+		timeSource:             timeSource,
 		domainReplicationQueue: domainReplicationQueue,
 	}
 }
@@ -110,19 +119,23 @@ func (p *domainReplicationProcessor) Start() {
 		return
 	}
 
+	p.wg.Add(1)
 	go p.processorLoop()
+	p.logger.Info("Domain replication processor started.")
 }
 
 func (p *domainReplicationProcessor) processorLoop() {
-	timer := time.NewTimer(getWaitDuration())
+	defer p.wg.Done()
+	dur := getWaitDuration()
+	timer := p.timeSource.NewTimer(dur)
+	defer timer.Stop()
 
 	for {
 		select {
-		case <-timer.C:
+		case <-timer.Chan():
 			p.fetchDomainReplicationTasks()
 			timer.Reset(getWaitDuration())
-		case <-p.done:
-			timer.Stop()
+		case <-p.ctx.Done():
 			return
 		}
 	}
@@ -145,7 +158,7 @@ func (p *domainReplicationProcessor) fetchDomainReplicationTasks() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), fetchTaskRequestTimeout)
+	ctx, cancel := context.WithTimeout(p.ctx, fetchTaskRequestTimeout)
 	request := &types.GetDomainReplicationMessagesRequest{
 		LastRetrievedMessageID: common.Int64Ptr(p.lastRetrievedMessageID),
 		LastProcessedMessageID: common.Int64Ptr(p.lastProcessedMessageID),
@@ -163,13 +176,13 @@ func (p *domainReplicationProcessor) fetchDomainReplicationTasks() {
 
 	for taskIndex := range response.Messages.ReplicationTasks {
 		task := response.Messages.ReplicationTasks[taskIndex]
-		err := p.throttleRetry.Do(context.Background(), func() error {
+		err := p.throttleRetry.Do(p.ctx, func(ctx context.Context) error {
 			return p.handleDomainReplicationTask(task)
 		})
 
 		if err != nil {
 			p.logger.Error("Failed to apply domain replication tasks", tag.Error(err))
-			dlqErr := p.throttleRetry.Do(context.Background(), func() error {
+			dlqErr := p.throttleRetry.Do(context.Background(), func(ctx context.Context) error {
 				return p.putDomainReplicationTaskToDLQ(task)
 			})
 			if dlqErr != nil {
@@ -184,10 +197,7 @@ func (p *domainReplicationProcessor) fetchDomainReplicationTasks() {
 	p.lastRetrievedMessageID = response.Messages.GetLastRetrievedMessageID()
 }
 
-func (p *domainReplicationProcessor) putDomainReplicationTaskToDLQ(
-	task *types.ReplicationTask,
-) error {
-
+func (p *domainReplicationProcessor) putDomainReplicationTaskToDLQ(task *types.ReplicationTask) error {
 	domainAttribute := task.GetDomainTaskAttributes()
 	if domainAttribute == nil {
 		return &types.InternalServiceError{
@@ -216,7 +226,10 @@ func (p *domainReplicationProcessor) handleDomainReplicationTask(
 }
 
 func (p *domainReplicationProcessor) Stop() {
-	close(p.done)
+	p.logger.Info("Domain replication processor stopping.")
+	p.cancelFn()
+	p.wg.Wait()
+	p.logger.Info("Domain replication processor stopped.")
 }
 
 func getWaitDuration() time.Duration {

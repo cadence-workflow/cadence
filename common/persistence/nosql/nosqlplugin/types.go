@@ -39,6 +39,7 @@ type (
 		VersionHistories *persistence.DataBlob
 		Checksums        *checksum.Checksum
 		LastWriteVersion int64
+		CurrentTimeStamp time.Time
 		// condition checking for updating execution info
 		PreviousNextEventIDCondition *int64
 
@@ -87,6 +88,15 @@ type (
 
 	// TransferTask is for regular transfer task
 	TransferTask = persistence.TransferTaskInfo
+
+	HistoryMigrationTask struct {
+		Transfer      *TransferTask
+		Timer         *TimerTask
+		Replication   *ReplicationTask
+		Task          *persistence.DataBlob
+		TaskID        int64
+		ScheduledTime time.Time
+	}
 
 	// ShardCondition is the condition for making changes within a shard
 	ShardCondition struct {
@@ -141,6 +151,14 @@ type (
 		WriteMode WorkflowRequestWriteMode
 	}
 
+	ActiveClusterSelectionPolicyRow struct {
+		ShardID    int
+		DomainID   string
+		WorkflowID string
+		RunID      string
+		Policy     *persistence.DataBlob
+	}
+
 	// TasksFilter is for filtering tasks
 	TasksFilter struct {
 		TaskListFilter
@@ -168,6 +186,7 @@ type (
 		WorkflowID      string
 		RunID           string
 		ScheduledID     int64
+		Expiry          time.Time
 		CreatedTime     time.Time
 		PartitionConfig map[string]string
 	}
@@ -188,6 +207,7 @@ type (
 		RangeID                 int64
 		TaskListKind            int
 		AckLevel                int64
+		CurrentTimeStamp        time.Time
 		LastUpdatedTime         time.Time
 		AdaptivePartitionConfig *persistence.TaskListPartitionConfig
 	}
@@ -200,7 +220,11 @@ type (
 
 	// ShardRow is the same as persistence.InternalShardInfo
 	// Separate them later when there is a need.
-	ShardRow = persistence.InternalShardInfo
+	ShardRow struct {
+		*persistence.InternalShardInfo
+		Data         []byte
+		DataEncoding string
+	}
 
 	// ConflictedShardRow contains the partial information about a shard returned when a conditional write fails
 	ConflictedShardRow struct {
@@ -215,7 +239,7 @@ type (
 	DomainRow struct {
 		Info                        *persistence.DomainInfo
 		Config                      *persistence.InternalDomainConfig
-		ReplicationConfig           *persistence.DomainReplicationConfig
+		ReplicationConfig           *persistence.InternalDomainReplicationConfig
 		ConfigVersion               int64
 		FailoverVersion             int64
 		FailoverNotificationVersion int64
@@ -224,6 +248,36 @@ type (
 		NotificationVersion         int64
 		LastUpdatedTime             time.Time
 		IsGlobalDomain              bool
+		CurrentTimeStamp            time.Time
+	}
+
+	// DomainAuditLogRow defines the row struct for domain audit log
+	DomainAuditLogRow struct {
+		DomainID            string
+		EventID             string
+		StateBefore         []byte
+		StateBeforeEncoding string
+		StateAfter          []byte
+		StateAfterEncoding  string
+		OperationType       persistence.DomainAuditOperationType
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		Identity            string
+		IdentityType        string
+		Comment             string
+		TTLSeconds          int64 // TTL for the audit log entry in seconds
+	}
+
+	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
+	DomainAuditLogFilter struct {
+		DomainID      string
+		OperationType persistence.DomainAuditOperationType
+		// MinCreatedTime is inclusive
+		MinCreatedTime *time.Time
+		// MaxCreatedTime is exclusive
+		MaxCreatedTime *time.Time
+		PageSize       int
+		NextPageToken  []byte
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
@@ -243,9 +297,10 @@ type (
 
 	// QueueMessageRow defines the row struct for queue message
 	QueueMessageRow struct {
-		QueueType persistence.QueueType
-		ID        int64
-		Payload   []byte
+		QueueType        persistence.QueueType
+		ID               int64
+		Payload          []byte
+		CurrentTimeStamp time.Time
 	}
 
 	// QueueMetadataRow defines the row struct for metadata
@@ -253,6 +308,7 @@ type (
 		QueueType        persistence.QueueType
 		ClusterAckLevels map[string]int64
 		Version          int64
+		CurrentTimeStamp time.Time
 	}
 
 	// HistoryNodeRow represents a row in history_node table
@@ -262,9 +318,10 @@ type (
 		BranchID string
 		NodeID   int64
 		// Note: use pointer so that it's easier to multiple by -1 if needed
-		TxnID        *int64
-		Data         []byte
-		DataEncoding string
+		TxnID           *int64
+		Data            []byte
+		DataEncoding    string
+		CreateTimestamp time.Time
 	}
 
 	// HistoryNodeFilter contains the column names within history_node table that

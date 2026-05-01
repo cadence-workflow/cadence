@@ -35,8 +35,9 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -119,9 +120,10 @@ func TestPublicClientOutbound(t *testing.T) {
 	require.NotNil(t, builder.authMiddleware)
 	require.True(t, builder.isGRPC)
 
-	grpc := &grpc.Transport{}
-	tchannel := &tchannel.Transport{}
-	o, err := builder.Build(grpc, tchannel)
+	grpcTransport := grpc.NewTransport()
+	tchannelTransport, err := tchannel.NewTransport(tchannel.ServiceName("test"))
+	require.NoError(t, err)
+	o, err := builder.Build(grpcTransport, tchannelTransport)
 	require.NoError(t, err)
 	outbounds := o.Outbounds
 	assert.Equal(t, outbounds[OutboundPublicClient].ServiceName, service.Frontend)
@@ -129,19 +131,20 @@ func TestPublicClientOutbound(t *testing.T) {
 }
 
 func TestCrossDCOutbounds(t *testing.T) {
-	grpc := &grpc.Transport{}
-	tchannel := &tchannel.Transport{}
+	grpcTransport := grpc.NewTransport()
+	tchannelTransport, err := tchannel.NewTransport(tchannel.ServiceName("test"))
+	require.NoError(t, err)
 
 	clusterGroup := map[string]config.ClusterInformation{
 		"cluster-A": {Enabled: true, RPCName: "cadence-frontend", RPCTransport: "invalid"},
 	}
-	_, err := NewCrossDCOutbounds(clusterGroup, &fakePeerChooserFactory{}).Build(grpc, tchannel)
+	_, err = NewCrossDCOutbounds(clusterGroup, &fakePeerChooserFactory{}).Build(grpcTransport, tchannelTransport)
 	assert.EqualError(t, err, "unknown cross DC transport type: invalid")
 
 	clusterGroup = map[string]config.ClusterInformation{
 		"cluster-A": {Enabled: true, RPCName: "cadence-frontend", RPCTransport: "grpc", AuthorizationProvider: config.AuthorizationProvider{Enable: true, PrivateKey: "invalid path"}},
 	}
-	_, err = NewCrossDCOutbounds(clusterGroup, &fakePeerChooserFactory{}).Build(grpc, tchannel)
+	_, err = NewCrossDCOutbounds(clusterGroup, &fakePeerChooserFactory{}).Build(grpcTransport, tchannelTransport)
 	assert.EqualError(t, err, "create AuthProvider: invalid private key path invalid path")
 
 	clusterGroup = map[string]config.ClusterInformation{
@@ -149,7 +152,7 @@ func TestCrossDCOutbounds(t *testing.T) {
 		"cluster-B": {Enabled: true, RPCName: "cadence-frontend", RPCAddress: "address-B", RPCTransport: "tchannel"},
 		"cluster-C": {Enabled: false},
 	}
-	o, err := NewCrossDCOutbounds(clusterGroup, &fakePeerChooserFactory{}).Build(grpc, tchannel)
+	o, err := NewCrossDCOutbounds(clusterGroup, &fakePeerChooserFactory{}).Build(grpcTransport, tchannelTransport)
 	assert.NoError(t, err)
 	outbounds := o.Outbounds
 	assert.Equal(t, 2, len(outbounds))
@@ -160,27 +163,46 @@ func TestCrossDCOutbounds(t *testing.T) {
 }
 
 func TestDirectOutbound(t *testing.T) {
-	grpc := &grpc.Transport{}
-	tchannel := &tchannel.Transport{}
+	grpcTransport := grpc.NewTransport()
+	tchannelTransport, err := tchannel.NewTransport(tchannel.ServiceName("test"))
+	require.NoError(t, err)
 	logger := testlogger.New(t)
-	falseFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	metricCl := metrics.NewNoopMetricsClient()
+	falseFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 
-	o, err := NewDirectOutboundBuilder("cadence-history", false, nil, NewDirectPeerChooserFactory("cadence-history", logger), falseFn).Build(grpc, tchannel)
+	o, err := NewDirectOutboundBuilder("cadence-history", false, nil, NewDirectPeerChooserFactory("cadence-history", logger, metricCl), falseFn).Build(grpcTransport, tchannelTransport)
 	assert.NoError(t, err)
 	outbounds := o.Outbounds
 	assert.Equal(t, "cadence-history", outbounds["cadence-history"].ServiceName)
 	assert.NotNil(t, outbounds["cadence-history"].Unary)
 
-	o, err = NewDirectOutboundBuilder("cadence-history", true, nil, NewDirectPeerChooserFactory("cadence-history", logger), falseFn).Build(grpc, tchannel)
+	o, err = NewDirectOutboundBuilder("cadence-history", true, nil, NewDirectPeerChooserFactory("cadence-history", logger, metricCl), falseFn).Build(grpcTransport, tchannelTransport)
 	assert.NoError(t, err)
 	outbounds = o.Outbounds
 	assert.Equal(t, "cadence-history", outbounds["cadence-history"].ServiceName)
 	assert.NotNil(t, outbounds["cadence-history"].Unary)
 }
 
+func TestSingleGRPCOutbound(t *testing.T) {
+	grpcTransport := grpc.NewTransport()
+	tchannelTransport, err := tchannel.NewTransport(tchannel.ServiceName("test"))
+	require.NoError(t, err)
+
+	builder := NewSingleGRPCOutboundBuilder("grpc-only-out", "grpc-service-name", "http://example.com:1234")
+
+	outBound, err := builder.Build(grpcTransport, tchannelTransport)
+	assert.NoError(t, err)
+	assert.Equal(t, "grpc-service-name", outBound.Outbounds["grpc-only-out"].ServiceName)
+	assert.NotNil(t, outBound.Outbounds["grpc-only-out"].Unary)
+}
+
 func TestIsGRPCOutboud(t *testing.T) {
-	assert.True(t, IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: (&grpc.Transport{}).NewSingleOutbound("localhost:1234")}}))
-	assert.False(t, IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: (&tchannel.Transport{}).NewSingleOutbound("localhost:1234")}}))
+	grpcTransport := grpc.NewTransport()
+	tchannelTransport, err := tchannel.NewTransport(tchannel.ServiceName("test"))
+	require.NoError(t, err)
+
+	assert.True(t, IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: grpcTransport.NewSingleOutbound("localhost:1234")}}))
+	assert.False(t, IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: tchannelTransport.NewSingleOutbound("localhost:1234")}}))
 	assert.Panics(t, func() {
 		IsGRPCOutbound(&transport.OutboundConfig{Outbounds: transport.Outbounds{Unary: fakeOutbound{}}})
 	})
@@ -215,5 +237,5 @@ func (f fakePeerChooserFactory) CreatePeerChooser(transport peer.Transport, opts
 	if err != nil {
 		return nil, err
 	}
-	return &defaultPeerChooser{Chooser: chooser}, nil
+	return &defaultPeerChooser{actual: chooser}, nil
 }

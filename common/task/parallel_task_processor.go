@@ -30,7 +30,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -40,7 +40,7 @@ type (
 	// ParallelTaskProcessorOptions configs PriorityTaskProcessor
 	ParallelTaskProcessorOptions struct {
 		QueueSize   int
-		WorkerCount dynamicconfig.IntPropertyFn
+		WorkerCount dynamicproperties.IntPropertyFn
 		RetryPolicy backoff.RetryPolicy
 	}
 
@@ -119,8 +119,12 @@ func (p *parallelTaskProcessorImpl) Stop() {
 
 func (p *parallelTaskProcessorImpl) Submit(task Task) error {
 	p.metricsScope.IncCounter(metrics.ParallelTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := p.metricsScope.StartTimer(metrics.ParallelTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		p.metricsScope.RecordHistogramDuration(metrics.ParallelTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	if p.isStopped() {
 		return ErrTaskProcessorClosed
@@ -151,18 +155,22 @@ func (p *parallelTaskProcessorImpl) taskWorker(shutdownCh chan struct{}) {
 }
 
 func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struct{}) {
+	processStart := time.Now()
 	sw := p.metricsScope.StartTimer(metrics.ParallelTaskTaskProcessingLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		p.metricsScope.RecordHistogramDuration(metrics.ParallelTaskTaskProcessingLatencyHistogram, time.Since(processStart))
+	}()
 
 	defer func() {
 		if r := recover(); r != nil {
 			p.logger.Error("recovered panic in task execution", tag.Dynamic("recovered-panic", r))
 			task.HandleErr(fmt.Errorf("recovered panic: %v", r))
-			task.Nack()
+			task.Nack(nil)
 		}
 	}()
 
-	op := func() error {
+	op := func(ctx context.Context) error {
 		if err := task.Execute(); err != nil {
 			return task.HandleErr(err)
 		}
@@ -185,7 +193,7 @@ func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struc
 
 	if err := throttleRetry.Do(context.Background(), op); err != nil {
 		// non-retryable error or exhausted all retries or worker shutdown
-		task.Nack()
+		task.Nack(err)
 		return
 	}
 
@@ -245,7 +253,7 @@ func (p *parallelTaskProcessorImpl) drainAndNackTasks() {
 	for {
 		select {
 		case task := <-p.tasksCh:
-			task.Nack()
+			task.Nack(nil)
 		default:
 			return
 		}

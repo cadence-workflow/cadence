@@ -45,6 +45,12 @@
       "NumClusters": {
         "type": "long"
       },
+      "ClusterAttributeScope": {
+        "type": "keyword"
+      },
+      "ClusterAttributeName": {
+        "type": "keyword"
+      },
       "KafkaKey": {
         "type": "keyword"
       },

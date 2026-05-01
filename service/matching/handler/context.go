@@ -44,7 +44,7 @@ func newHandlerContext(
 	domainName string,
 	taskList *types.TaskList,
 	metricsClient metrics.Client,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	logger log.Logger,
 ) *handlerContext {
 	return &handlerContext{
@@ -67,10 +67,12 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 		return nil
 	}
 
+	logger := reqCtx.logger.Helper()
+
 	switch {
 	case errors.As(err, new(*types.InternalServiceError)):
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)
-		reqCtx.logger.Error("Internal service error", tag.Error(err))
+		logger.Error("Internal service error", tag.Error(err))
 		return err
 	case errors.As(err, new(*types.BadRequestError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrBadRequestPerTaskListCounter)
@@ -102,12 +104,15 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 	case errors.As(err, new(*types.StickyWorkerUnavailableError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrStickyWorkerUnavailablePerTaskListCounter)
 		return err
+	case errors.As(err, new(*types.ReadOnlyPartitionError)):
+		reqCtx.scope.IncCounter(metrics.CadenceErrReadOnlyPartitionPerTaskListCounter)
+		return err
 	case errors.As(err, new(*cadence_errors.TaskListNotOwnedByHostError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrTaskListNotOwnedByHostPerTaskListCounter)
 		return err
 	default:
 		reqCtx.scope.IncCounter(metrics.CadenceFailuresPerTaskList)
-		reqCtx.logger.Error("Uncategorized error", tag.Error(err))
+		logger.Error("Uncategorized error", tag.Error(err))
 		return &types.InternalServiceError{Message: err.Error()}
 	}
 }

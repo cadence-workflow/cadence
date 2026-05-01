@@ -57,7 +57,7 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -72,7 +72,7 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -116,8 +116,8 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -127,8 +127,8 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow() {
 
 	for i := 0; i < 10; i++ {
 		ctx, cancel := createContext()
-		descResp, err := s.engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
-			Domain: s.domainName,
+		descResp, err := s.Engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+			Domain: s.DomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 			},
@@ -167,7 +167,7 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow_Timeout() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -179,7 +179,7 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow_Timeout() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -216,8 +216,8 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow_Timeout() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -237,8 +237,8 @@ func (s *IntegrationSuite) TestContinueAsNewWorkflow_Timeout() {
 GetHistoryLoop:
 	for i := 0; i < 20; i++ {
 		ctx, cancel := createContext()
-		historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-			Domain: s.domainName,
+		historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+			Domain: s.DomainName,
 			Execution: &types.WorkflowExecution{
 				WorkflowID: id,
 			},
@@ -276,7 +276,7 @@ func (s *IntegrationSuite) TestWorkflowContinueAsNew_TaskID() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -288,7 +288,7 @@ func (s *IntegrationSuite) TestWorkflowContinueAsNew_TaskID() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
@@ -325,8 +325,8 @@ func (s *IntegrationSuite) TestWorkflowContinueAsNew_TaskID() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -337,7 +337,7 @@ func (s *IntegrationSuite) TestWorkflowContinueAsNew_TaskID() {
 	minTaskID := int64(0)
 	_, err := poller.PollAndProcessDecisionTask(false, false)
 	s.Nil(err)
-	events := s.getHistory(s.domainName, executions[0])
+	events := s.getHistory(s.DomainName, executions[0])
 	s.True(len(events) != 0)
 	for _, event := range events {
 		s.True(event.TaskID > minTaskID)
@@ -346,7 +346,7 @@ func (s *IntegrationSuite) TestWorkflowContinueAsNew_TaskID() {
 
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.Nil(err)
-	events = s.getHistory(s.domainName, executions[1])
+	events = s.getHistory(s.DomainName, executions[1])
 	s.True(len(events) != 0)
 	for _, event := range events {
 		s.True(event.TaskID > minTaskID)
@@ -373,7 +373,7 @@ func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          parentID,
 		WorkflowType:                        parentWorkflowType,
 		TaskList:                            taskList,
@@ -385,7 +385,7 @@ func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	we, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	we, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 	s.Logger.Info("StartWorkflowExecution", tag.WorkflowRunID(we.RunID))
 
@@ -436,7 +436,7 @@ func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew() {
 				return nil, []*types.Decision{{
 					DecisionType: types.DecisionTypeStartChildWorkflowExecution.Ptr(),
 					StartChildWorkflowExecutionDecisionAttributes: &types.StartChildWorkflowExecutionDecisionAttributes{
-						Domain:       s.domainName,
+						Domain:       s.DomainName,
 						WorkflowID:   childID,
 						WorkflowType: childWorkflowType,
 						Input:        buf.Bytes(),
@@ -466,8 +466,8 @@ func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew() {
 	}
 
 	poller := &TaskPoller{
-		Engine:          s.engine,
-		Domain:          s.domainName,
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
@@ -504,7 +504,7 @@ func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew() {
 	s.Nil(err)
 	s.NotNil(completedEvent)
 	completedAttributes := completedEvent.ChildWorkflowExecutionCompletedEventAttributes
-	s.Equal(s.domainName, completedAttributes.Domain)
+	s.Equal(s.DomainName, completedAttributes.Domain)
 	s.Equal(childID, completedAttributes.WorkflowExecution.WorkflowID)
 	s.NotEqual(startedEvent.ChildWorkflowExecutionStartedEventAttributes.WorkflowExecution.RunID,
 		completedAttributes.WorkflowExecution.RunID)

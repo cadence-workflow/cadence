@@ -41,8 +41,8 @@ type Retryer interface {
 	DeleteWorkflowExecution(context.Context, *DeleteWorkflowExecutionRequest) error
 	DeleteCurrentWorkflowExecution(context.Context, *DeleteCurrentWorkflowExecutionRequest) error
 	GetShardID() int
-	GetTimerIndexTasks(context.Context, *GetTimerIndexTasksRequest) (*GetTimerIndexTasksResponse, error)
-	CompleteTimerTask(ctx context.Context, request *CompleteTimerTaskRequest) error
+	GetHistoryTasks(context.Context, *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
+	CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 }
 
 type (
@@ -75,7 +75,7 @@ func (pr *persistenceRetryer) ListConcreteExecutions(
 	req *ListConcreteExecutionsRequest,
 ) (*ListConcreteExecutionsResponse, error) {
 	var resp *ListConcreteExecutionsResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = pr.execManager.ListConcreteExecutions(ctx, req)
 		return err
@@ -93,7 +93,7 @@ func (pr *persistenceRetryer) GetWorkflowExecution(
 	req *GetWorkflowExecutionRequest,
 ) (*GetWorkflowExecutionResponse, error) {
 	var resp *GetWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = pr.execManager.GetWorkflowExecution(ctx, req)
 		return err
@@ -111,7 +111,7 @@ func (pr *persistenceRetryer) GetCurrentExecution(
 	req *GetCurrentExecutionRequest,
 ) (*GetCurrentExecutionResponse, error) {
 	var resp *GetCurrentExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = pr.execManager.GetCurrentExecution(ctx, req)
 		return err
@@ -129,7 +129,7 @@ func (pr *persistenceRetryer) ListCurrentExecutions(
 	req *ListCurrentExecutionsRequest,
 ) (*ListCurrentExecutionsResponse, error) {
 	var resp *ListCurrentExecutionsResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = pr.execManager.ListCurrentExecutions(ctx, req)
 		return err
@@ -147,7 +147,7 @@ func (pr *persistenceRetryer) IsWorkflowExecutionExists(
 	req *IsWorkflowExecutionExistsRequest,
 ) (*IsWorkflowExecutionExistsResponse, error) {
 	var resp *IsWorkflowExecutionExistsResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = pr.execManager.IsWorkflowExecutionExists(ctx, req)
 		return err
@@ -165,7 +165,7 @@ func (pr *persistenceRetryer) ReadHistoryBranch(
 	req *ReadHistoryBranchRequest,
 ) (*ReadHistoryBranchResponse, error) {
 	var resp *ReadHistoryBranchResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = pr.historyManager.ReadHistoryBranch(ctx, req)
 		return err
@@ -182,7 +182,7 @@ func (pr *persistenceRetryer) DeleteWorkflowExecution(
 	ctx context.Context,
 	req *DeleteWorkflowExecutionRequest,
 ) error {
-	op := func() error {
+	op := func(ctx context.Context) error {
 		return pr.execManager.DeleteWorkflowExecution(ctx, req)
 	}
 	return pr.throttleRetry.Do(ctx, op)
@@ -193,7 +193,7 @@ func (pr *persistenceRetryer) DeleteCurrentWorkflowExecution(
 	ctx context.Context,
 	req *DeleteCurrentWorkflowExecutionRequest,
 ) error {
-	op := func() error {
+	op := func(ctx context.Context) error {
 		return pr.execManager.DeleteCurrentWorkflowExecution(ctx, req)
 	}
 	return pr.throttleRetry.Do(ctx, op)
@@ -204,15 +204,15 @@ func (pr *persistenceRetryer) GetShardID() int {
 	return pr.execManager.GetShardID()
 }
 
-// GetTimerIndexTasks retries GetTimerIndexTasks
-func (pr *persistenceRetryer) GetTimerIndexTasks(
+// GetHistoryTasks retries GetHistoryTasks
+func (pr *persistenceRetryer) GetHistoryTasks(
 	ctx context.Context,
-	req *GetTimerIndexTasksRequest,
-) (*GetTimerIndexTasksResponse, error) {
-	var resp *GetTimerIndexTasksResponse
-	op := func() error {
+	req *GetHistoryTasksRequest,
+) (*GetHistoryTasksResponse, error) {
+	var resp *GetHistoryTasksResponse
+	op := func(ctx context.Context) error {
 		var err error
-		resp, err = pr.execManager.GetTimerIndexTasks(ctx, req)
+		resp, err = pr.execManager.GetHistoryTasks(ctx, req)
 		return err
 	}
 	err := pr.throttleRetry.Do(ctx, op)
@@ -223,13 +223,13 @@ func (pr *persistenceRetryer) GetTimerIndexTasks(
 	return resp, nil
 }
 
-// CompleteTimerTask is a retryable version of CompleteTimerTask method
-func (pr *persistenceRetryer) CompleteTimerTask(
+// CompleteHistoryTask is a retryable version of CompleteHistoryTask method
+func (pr *persistenceRetryer) CompleteHistoryTask(
 	ctx context.Context,
-	request *CompleteTimerTaskRequest,
+	request *CompleteHistoryTaskRequest,
 ) error {
-	op := func() error {
-		return pr.execManager.CompleteTimerTask(ctx, request)
+	op := func(ctx context.Context) error {
+		return pr.execManager.CompleteHistoryTask(ctx, request)
 	}
 
 	return pr.throttleRetry.Do(ctx, op)

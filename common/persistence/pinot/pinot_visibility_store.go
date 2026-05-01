@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -41,27 +42,26 @@ import (
 )
 
 const (
-	pinotPersistenceName = "pinot"
-	DescendingOrder      = "DESC"
-	AscendingOrder       = "ASC"
-	DomainID             = "DomainID"
-	WorkflowID           = "WorkflowID"
-	RunID                = "RunID"
-	WorkflowType         = "WorkflowType"
-	CloseStatus          = "CloseStatus"
-	HistoryLength        = "HistoryLength"
-	TaskList             = "TaskList"
-	IsCron               = "IsCron"
-	NumClusters          = "NumClusters"
-	ShardID              = "ShardID"
-	Attr                 = "Attr"
-	StartTime            = "StartTime"
-	CloseTime            = "CloseTime"
-	UpdateTime           = "UpdateTime"
-	ExecutionTime        = "ExecutionTime"
-	IsDeleted            = "IsDeleted"   // used for Pinot deletion/rolling upsert only, not visible to user
-	EventTimeMs          = "EventTimeMs" // used for Pinot deletion/rolling upsert only, not visible to user
-	Memo                 = "Memo"
+	DescendingOrder = "DESC"
+	AscendingOrder  = "ASC"
+	DomainID        = "DomainID"
+	WorkflowID      = "WorkflowID"
+	RunID           = "RunID"
+	WorkflowType    = "WorkflowType"
+	CloseStatus     = "CloseStatus"
+	HistoryLength   = "HistoryLength"
+	TaskList        = "TaskList"
+	IsCron          = "IsCron"
+	NumClusters     = "NumClusters"
+	ShardID         = "ShardID"
+	Attr            = "Attr"
+	StartTime       = "StartTime"
+	CloseTime       = "CloseTime"
+	UpdateTime      = "UpdateTime"
+	ExecutionTime   = "ExecutionTime"
+	IsDeleted       = "IsDeleted"   // used for Pinot deletion/rolling upsert only, not visible to user
+	EventTimeMs     = "EventTimeMs" // used for Pinot deletion/rolling upsert only, not visible to user
+	Memo            = "Memo"
 
 	// used to be micro second
 	oneMicroSecondInNano = int64(time.Microsecond / time.Nanosecond)
@@ -94,7 +94,7 @@ func NewPinotVisibilityStore(
 		producer:            producer,
 		logger:              logger.WithTags(tag.ComponentPinotVisibilityManager),
 		config:              config,
-		pinotQueryValidator: pnt.NewPinotQueryValidator(config.ValidSearchAttributes),
+		pinotQueryValidator: pnt.NewPinotQueryValidator(config.ValidSearchAttributes, config.PinotOptimizedQueryColumns),
 	}
 }
 
@@ -103,7 +103,7 @@ func (v *pinotVisibilityStore) Close() {
 }
 
 func (v *pinotVisibilityStore) GetName() string {
-	return pinotPersistenceName
+	return constants.PinotPersistenceName
 }
 
 func (v *pinotVisibilityStore) RecordWorkflowExecutionStarted(
@@ -967,7 +967,7 @@ func getListWorkflowExecutionsQuery(tableName string, request *p.InternalListWor
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
@@ -994,7 +994,7 @@ func getListWorkflowExecutionsByTypeQuery(tableName string, request *p.InternalL
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 
@@ -1029,7 +1029,7 @@ func getListWorkflowExecutionsByWorkflowIDQuery(tableName string, request *p.Int
 		query.filters.addGte(CloseStatus, 0)
 	} else {
 		query.filters.addTimeRange(StartTime, earliest, latest) // convert Unix Time to miliseconds
-		query.filters.addLt(CloseStatus, 0)
+		query.filters.addEqual(CloseStatus, -1)
 		query.filters.addEqual(CloseTime, -1)
 	}
 

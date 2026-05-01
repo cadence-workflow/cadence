@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -90,7 +91,8 @@ func NewGlobalCache(
 	historyManager persistence.HistoryManager,
 	logger log.Logger,
 	metricsClient metrics.Client,
-	maxSize uint64,
+	enableSizeBasedCache dynamicproperties.BoolPropertyFn,
+	maxSize dynamicproperties.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) Cache {
 	return newCacheWithOption(
@@ -102,6 +104,7 @@ func NewGlobalCache(
 		false,
 		logger,
 		metricsClient,
+		enableSizeBasedCache,
 		maxSize,
 		domainCache,
 	)
@@ -125,7 +128,8 @@ func NewCache(
 		false,
 		logger,
 		metricsClient,
-		0,
+		config.EnableSizeBasedHistoryEventCache,
+		config.EventsCacheMaxSize,
 		domainCache,
 	)
 }
@@ -138,28 +142,31 @@ func newCacheWithOption(
 	historyManager persistence.HistoryManager,
 	disabled bool,
 	logger log.Logger,
-	metrics metrics.Client,
-	maxSize uint64,
+	metricsClient metrics.Client,
+	enableSizeBasedCache dynamicproperties.BoolPropertyFn,
+	maxSize dynamicproperties.IntPropertyFn,
 	domainCache cache.DomainCache,
 ) *cacheImpl {
 	opts := &cache.Options{}
 	opts.InitialCapacity = initialCount
 	opts.TTL = ttl
 	opts.MaxCount = maxCount
-
-	if maxSize > 0 {
-		opts.MaxSize = maxSize
-		opts.GetCacheItemSizeFunc = func(event interface{}) uint64 {
-			return common.GetSizeOfHistoryEvent(event.(*types.HistoryEvent))
-		}
+	opts.MetricsScope = metricsClient.Scope(metrics.EventsCacheGetEventScope)
+	if shardID != nil {
+		opts.MetricsScope = opts.MetricsScope.Tagged(metrics.ShardIDTag(*shardID))
 	}
+
+	opts.MaxSize = maxSize
+	opts.Logger = logger.WithTags(tag.ComponentEventsCache)
+	opts.IsSizeBased = enableSizeBasedCache
+
 	return &cacheImpl{
 		Cache:          cache.New(opts),
 		domainCache:    domainCache,
 		historyManager: historyManager,
 		disabled:       disabled,
 		logger:         logger.WithTags(tag.ComponentEventsCache),
-		metricsClient:  metrics,
+		metricsClient:  metricsClient,
 		shardID:        shardID,
 	}
 }
@@ -206,12 +213,15 @@ func (e *cacheImpl) GetEvent(
 
 	if err != nil {
 		e.metricsClient.IncCounter(metrics.EventsCacheGetEventScope, metrics.CacheFailures)
-		e.logger.Error("EventsCache unable to retrieve event from store",
+		logTags := []tag.Tag{
+			tag.ShardID(shardID),
 			tag.Error(err),
 			tag.WorkflowID(workflowID),
 			tag.WorkflowRunID(runID),
 			tag.WorkflowDomainID(domainID),
-			tag.WorkflowEventID(eventID))
+			tag.WorkflowEventID(eventID),
+		}
+		e.logger.Error("EventsCache unable to retrieve event from store", logTags...)
 		return nil, err
 	}
 

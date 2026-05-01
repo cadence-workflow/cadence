@@ -21,12 +21,11 @@
 package proto
 
 import (
-	"errors"
-
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/yarpc/encoding/protobuf"
 	"go.uber.org/yarpc/yarpcerrors"
 
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
@@ -86,6 +85,12 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromStickyWorkerUnavailableErr); ok {
 		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromReadOnlyPartitionErr); ok {
+		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromNamespaceNotFoundErr); ok {
+		return typedErr
+	} else if ok, typedErr = errorutils.ConvertError(err, fromShardNotFoundErr); ok {
+		return typedErr
 	}
 
 	return protobuf.NewError(yarpcerrors.CodeUnknown, err.Error())
@@ -109,14 +114,33 @@ func ToError(err error) error {
 	case yarpcerrors.CodeNotFound:
 		switch details := getErrorDetails(err).(type) {
 		case *apiv1.EntityNotExistsError:
+			if details != nil {
+				return &types.EntityNotExistsError{
+					Message:        status.Message(),
+					CurrentCluster: details.CurrentCluster,
+					ActiveCluster:  details.ActiveCluster,
+					ActiveClusters: details.ActiveClusters,
+				}
+			}
 			return &types.EntityNotExistsError{
-				Message:        status.Message(),
-				CurrentCluster: details.CurrentCluster,
-				ActiveCluster:  details.ActiveCluster,
+				Message: status.Message(),
 			}
 		case *apiv1.WorkflowExecutionAlreadyCompletedError:
 			return &types.WorkflowExecutionAlreadyCompletedError{
 				Message: status.Message(),
+			}
+		case *sharddistributorv1.NamespaceNotFoundError:
+			if details != nil {
+				return &types.NamespaceNotFoundError{
+					Namespace: details.Namespace,
+				}
+			}
+		case *sharddistributorv1.ShardNotFoundError:
+			if details != nil {
+				return &types.ShardNotFoundError{
+					Namespace: details.Namespace,
+					ShardKey:  details.ShardKey,
+				}
 			}
 		}
 	case yarpcerrors.CodeInvalidArgument:
@@ -133,31 +157,43 @@ func ToError(err error) error {
 	case yarpcerrors.CodeAborted:
 		switch details := getErrorDetails(err).(type) {
 		case *sharedv1.ShardOwnershipLostError:
-			return &types.ShardOwnershipLostError{
-				Message: status.Message(),
-				Owner:   details.Owner,
+			if details != nil {
+				return &types.ShardOwnershipLostError{
+					Message: status.Message(),
+					Owner:   details.Owner,
+				}
 			}
 		case *sharedv1.TaskListNotOwnedByHostError:
-			return &cadence_errors.TaskListNotOwnedByHostError{
-				OwnedByIdentity: details.OwnedByIdentity,
-				MyIdentity:      details.MyIdentity,
-				TasklistName:    details.TaskListName,
+			if details != nil {
+				return &cadence_errors.TaskListNotOwnedByHostError{
+					OwnedByIdentity: details.OwnedByIdentity,
+					MyIdentity:      details.MyIdentity,
+					TasklistName:    details.TaskListName,
+				}
 			}
 		case *sharedv1.CurrentBranchChangedError:
-			return &types.CurrentBranchChangedError{
-				Message:            status.Message(),
-				CurrentBranchToken: details.CurrentBranchToken,
+			if details != nil {
+				return &types.CurrentBranchChangedError{
+					Message:            status.Message(),
+					CurrentBranchToken: details.CurrentBranchToken,
+				}
 			}
 		case *sharedv1.RetryTaskV2Error:
-			return &types.RetryTaskV2Error{
-				Message:           status.Message(),
-				DomainID:          details.DomainId,
-				WorkflowID:        ToWorkflowID(details.WorkflowExecution),
-				RunID:             ToRunID(details.WorkflowExecution),
-				StartEventID:      ToEventID(details.StartEvent),
-				StartEventVersion: ToEventVersion(details.StartEvent),
-				EndEventID:        ToEventID(details.EndEvent),
-				EndEventVersion:   ToEventVersion(details.EndEvent),
+			if details != nil {
+				return &types.RetryTaskV2Error{
+					Message:           status.Message(),
+					DomainID:          details.DomainId,
+					WorkflowID:        ToWorkflowID(details.WorkflowExecution),
+					RunID:             ToRunID(details.WorkflowExecution),
+					StartEventID:      ToEventID(details.StartEvent),
+					StartEventVersion: ToEventVersion(details.StartEvent),
+					EndEventID:        ToEventID(details.EndEvent),
+					EndEventVersion:   ToEventVersion(details.EndEvent),
+				}
+			}
+		case *apiv1.ReadOnlyPartitionError:
+			return &types.ReadOnlyPartitionError{
+				Message: status.Message(),
 			}
 		}
 	case yarpcerrors.CodeAlreadyExists:
@@ -175,10 +211,12 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		case *apiv1.WorkflowExecutionAlreadyStartedError:
-			return &types.WorkflowExecutionAlreadyStartedError{
-				Message:        status.Message(),
-				StartRequestID: details.StartRequestId,
-				RunID:          details.RunId,
+			if details != nil {
+				return &types.WorkflowExecutionAlreadyStartedError{
+					Message:        status.Message(),
+					StartRequestID: details.StartRequestId,
+					RunID:          details.RunId,
+				}
 			}
 		}
 	case yarpcerrors.CodeDataLoss:
@@ -188,21 +226,28 @@ func ToError(err error) error {
 	case yarpcerrors.CodeFailedPrecondition:
 		switch details := getErrorDetails(err).(type) {
 		case *apiv1.ClientVersionNotSupportedError:
-			return &types.ClientVersionNotSupportedError{
-				FeatureVersion:    details.FeatureVersion,
-				ClientImpl:        details.ClientImpl,
-				SupportedVersions: details.SupportedVersions,
+			if details != nil {
+				return &types.ClientVersionNotSupportedError{
+					FeatureVersion:    details.FeatureVersion,
+					ClientImpl:        details.ClientImpl,
+					SupportedVersions: details.SupportedVersions,
+				}
 			}
 		case *apiv1.FeatureNotEnabledError:
-			return &types.FeatureNotEnabledError{
-				FeatureFlag: details.FeatureFlag,
+			if details != nil {
+				return &types.FeatureNotEnabledError{
+					FeatureFlag: details.FeatureFlag,
+				}
 			}
 		case *apiv1.DomainNotActiveError:
-			return &types.DomainNotActiveError{
-				Message:        status.Message(),
-				DomainName:     details.Domain,
-				CurrentCluster: details.CurrentCluster,
-				ActiveCluster:  details.ActiveCluster,
+			if details != nil {
+				return &types.DomainNotActiveError{
+					Message:        status.Message(),
+					DomainName:     details.Domain,
+					CurrentCluster: details.CurrentCluster,
+					ActiveCluster:  details.ActiveCluster,
+					ActiveClusters: details.ActiveClusters,
+				}
 			}
 		}
 	case yarpcerrors.CodeResourceExhausted:
@@ -212,9 +257,11 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		case *apiv1.ServiceBusyError:
-			return &types.ServiceBusyError{
-				Message: status.Message(),
-				Reason:  details.Reason,
+			if details != nil {
+				return &types.ServiceBusyError{
+					Message: status.Message(),
+					Reason:  details.Reason,
+				}
 			}
 		}
 	case yarpcerrors.CodeUnavailable:
@@ -228,8 +275,6 @@ func ToError(err error) error {
 				Message: status.Message(),
 			}
 		}
-	case yarpcerrors.CodeUnknown:
-		return errors.New(status.Message())
 	}
 
 	// If error does not match anything, return raw yarpc status error
@@ -257,6 +302,7 @@ func fromEntityNotExistsError(e *types.EntityNotExistsError) error {
 	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Message, protobuf.WithErrorDetails(&apiv1.EntityNotExistsError{
 		CurrentCluster: e.CurrentCluster,
 		ActiveCluster:  e.ActiveCluster,
+		ActiveClusters: e.ActiveClusters,
 	}))
 }
 
@@ -339,6 +385,7 @@ func fromDomainNotActive(e *types.DomainNotActiveError) error {
 		Domain:         e.DomainName,
 		CurrentCluster: e.CurrentCluster,
 		ActiveCluster:  e.ActiveCluster,
+		ActiveClusters: e.ActiveClusters,
 	}))
 }
 
@@ -362,4 +409,21 @@ func fromRemoteSyncMatchedErr(e *types.RemoteSyncMatchedError) error {
 
 func fromStickyWorkerUnavailableErr(e *types.StickyWorkerUnavailableError) error {
 	return protobuf.NewError(yarpcerrors.CodeUnavailable, e.Message, protobuf.WithErrorDetails(&apiv1.StickyWorkerUnavailableError{}))
+}
+
+func fromReadOnlyPartitionErr(e *types.ReadOnlyPartitionError) error {
+	return protobuf.NewError(yarpcerrors.CodeAborted, e.Message, protobuf.WithErrorDetails(&apiv1.ReadOnlyPartitionError{}))
+}
+
+func fromNamespaceNotFoundErr(e *types.NamespaceNotFoundError) error {
+	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.NamespaceNotFoundError{
+		Namespace: e.Namespace,
+	}))
+}
+
+func fromShardNotFoundErr(e *types.ShardNotFoundError) error {
+	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.ShardNotFoundError{
+		Namespace: e.Namespace,
+		ShardKey:  e.ShardKey,
+	}))
 }

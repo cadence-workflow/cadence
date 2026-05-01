@@ -4,7 +4,7 @@ ARG TARGET=server
 ARG GOPROXY
 
 # Build Cadence binaries
-FROM golang:1.22.3-alpine3.18 AS builder
+FROM golang:1.24.5-alpine3.21 AS builder
 
 ARG RELEASE_VERSION
 
@@ -35,12 +35,15 @@ RUN CGO_ENABLED=0 make cadence-cassandra-tool cadence-sql-tool cadence cadence-s
 # Download dockerize
 FROM alpine:3.18 AS dockerize
 
+# appears to require `docker buildx` or an explicit `--platform` at build time
+ARG TARGETARCH
+
 RUN apk add --no-cache openssl
 
-ENV DOCKERIZE_VERSION v0.6.1
-RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
-    && tar -C /usr/local/bin -xzvf dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
-    && rm dockerize-alpine-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
+ENV DOCKERIZE_VERSION=v0.9.3
+RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-$TARGETARCH-$DOCKERIZE_VERSION.tar.gz \
+    && tar -C /usr/local/bin -xzvf dockerize-linux-$TARGETARCH-$DOCKERIZE_VERSION.tar.gz \
+    && rm dockerize-linux-$TARGETARCH-$DOCKERIZE_VERSION.tar.gz \
     && echo "**** fix for host id mapping error ****" \
     && chown root:root /usr/local/bin/dockerize
 
@@ -60,7 +63,7 @@ SHELL ["/bin/bash", "-c"]
 # Cadence server
 FROM alpine AS cadence-server
 
-ENV CADENCE_HOME /etc/cadence
+ENV CADENCE_HOME=/etc/cadence
 RUN mkdir -p /etc/cadence
 
 COPY --from=dockerize /usr/local/bin/dockerize /usr/local/bin
@@ -89,9 +92,11 @@ CMD /start-cadence.sh
 FROM cadence-server AS cadence-auto-setup
 
 RUN apk add --update --no-cache ca-certificates py3-pip mysql-client
-RUN pip3 install cqlsh && cqlsh --version
+RUN pip3 install setuptools wheel
+RUN pip3 install cassandra-driver==3.29.3 && pip3 install cqlsh==6.2.1 && cqlsh --version
 
 COPY docker/start.sh /start.sh
+COPY docker/domain /etc/cadence/domain
 
 CMD /start.sh
 

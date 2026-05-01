@@ -42,7 +42,7 @@ type (
 
 	testSequentialTaskQueueImpl struct {
 		id        uint32
-		taskQueue collection.Queue
+		taskQueue collection.Queue[Task]
 	}
 
 	testSequentialTaskImpl struct {
@@ -68,7 +68,7 @@ func (s *SequentialTaskProcessorSuite) SetupTest() {
 			return key.(uint32)
 		},
 		func(task Task) SequentialTaskQueue {
-			taskQueue := collection.NewConcurrentPriorityQueue(func(this interface{}, other interface{}) bool {
+			taskQueue := collection.NewConcurrentPriorityQueue(func(this Task, other Task) bool {
 				return this.(*testSequentialTaskImpl).taskID < other.(*testSequentialTaskImpl).taskID
 			})
 
@@ -77,7 +77,7 @@ func (s *SequentialTaskProcessorSuite) SetupTest() {
 				taskQueue: taskQueue,
 			}
 		},
-		metrics.NewClient(tally.NoopScope, metrics.Common),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		logger,
 	)
 }
@@ -258,10 +258,6 @@ func (t *testSequentialTaskImpl) State() State {
 		return TaskStateAcked
 	}
 
-	if t.nacked > 0 {
-		return TaskStateNacked
-	}
-
 	return TaskStatePending
 }
 
@@ -280,12 +276,15 @@ func (t *testSequentialTaskImpl) NumAcked() int {
 	return t.acked
 }
 
-func (t *testSequentialTaskImpl) Nack() {
+func (t *testSequentialTaskImpl) Nack(err error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
 	t.nacked++
 	t.waitgroup.Done()
+}
+
+func (t *testSequentialTaskImpl) Cancel() {
 }
 
 func (t *testSequentialTaskImpl) NumNcked() int {
@@ -304,7 +303,8 @@ func (t *testSequentialTaskQueueImpl) Add(task Task) {
 }
 
 func (t *testSequentialTaskQueueImpl) Remove() Task {
-	return t.taskQueue.Remove().(Task)
+	item, _ := t.taskQueue.Remove()
+	return item.(Task)
 }
 
 func (t *testSequentialTaskQueueImpl) IsEmpty() bool {

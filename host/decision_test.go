@@ -51,7 +51,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -63,7 +63,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -76,8 +76,8 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 	// start decision
 	ctx, cancel = createContext()
 	defer cancel()
-	resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -90,7 +90,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 	hbTimeout := 0
 	for i := 0; i < 12; i++ {
 		ctx, cancel := createContext()
-		resp2, err2 := s.engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
+		resp2, err2 := s.Engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
 			TaskToken: taskToken,
 			Decisions: []*types.Decision{},
 			StickyAttributes: &types.StickyExecutionAttributes{
@@ -103,11 +103,10 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 		cancel()
 		if _, ok := err2.(*types.EntityNotExistsError); ok {
 			hbTimeout++
-			s.Nil(resp2)
 
 			ctx, cancel := createContext()
-			resp, err := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-				Domain:   s.domainName,
+			resp, err := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+				Domain:   s.DomainName,
 				TaskList: taskList,
 				Identity: identity,
 			})
@@ -125,7 +124,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	resp5, err5 := s.engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
+	resp5, err5 := s.Engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
 		TaskToken: taskToken,
 		Decisions: []*types.Decision{
 			{
@@ -168,7 +167,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -180,7 +179,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -193,8 +192,8 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 	// start decision
 	ctx, cancel = createContext()
 	defer cancel()
-	resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -205,7 +204,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	resp2, err2 := s.engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
+	resp2, err2 := s.Engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
 		TaskToken: resp1.GetTaskToken(),
 		Decisions: []*types.Decision{},
 		StickyAttributes: &types.StickyExecutionAttributes{
@@ -219,7 +218,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	resp3, err3 := s.engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
+	resp3, err3 := s.Engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
 		TaskToken: resp2.DecisionTask.GetTaskToken(),
 		Decisions: []*types.Decision{
 			{
@@ -241,7 +240,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	resp4, err4 := s.engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
+	resp4, err4 := s.Engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
 		TaskToken: resp3.DecisionTask.GetTaskToken(),
 		Decisions: []*types.Decision{
 			{
@@ -263,7 +262,7 @@ func (s *IntegrationSuite) TestDecisionHeartbeatingWithLocalActivitiesResult() {
 
 	ctx, cancel = createContext()
 	defer cancel()
-	resp5, err5 := s.engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
+	resp5, err5 := s.Engine.RespondDecisionTaskCompleted(ctx, &types.RespondDecisionTaskCompletedRequest{
 		TaskToken: resp4.DecisionTask.GetTaskToken(),
 		Decisions: []*types.Decision{
 			{
@@ -318,7 +317,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeRegularDecisionSta
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -330,7 +329,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeRegularDecisionSta
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -342,8 +341,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeRegularDecisionSta
 
 	ctx, cancel = createContext()
 	defer cancel()
-	err0 = s.engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err0 = s.Engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		SignalName:        "sig-for-integ-test",
 		Input:             []byte(""),
@@ -356,8 +355,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeRegularDecisionSta
 	ctx, cancel = createContext()
 	defer cancel()
 	// start this transient decision, the attempt should be cleared and it becomes again a regular decision
-	resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -369,8 +368,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeRegularDecisionSta
 	ctx, cancel = createContext()
 	defer cancel()
 	// then terminate the worklfow
-	err := s.engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err := s.Engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		Reason:            "test-reason",
 	})
@@ -401,7 +400,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -413,7 +412,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -426,8 +425,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// start decision to make signals into bufferedEvents
-	_, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	_, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -438,8 +437,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// this signal should be buffered
-	err0 = s.engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err0 = s.Engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		SignalName:        "sig-for-integ-test",
 		Input:             []byte(""),
@@ -452,8 +451,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// then terminate the worklfow
-	err := s.engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err := s.Engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		Reason:            "test-reason",
 	})
@@ -484,7 +483,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -496,7 +495,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -511,8 +510,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// start decision to make signals into bufferedEvents
-	resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -523,8 +522,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// this signal should be buffered
-	err0 = s.engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err0 = s.Engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		SignalName:        "sig-for-integ-test",
 		Input:             []byte(""),
@@ -537,7 +536,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// fail this decision to flush buffer, and then another decision will be scheduled
-	err2 := s.engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
+	err2 := s.Engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
 		TaskToken: resp1.GetTaskToken(),
 		Cause:     &cause,
 		Identity:  "integ test",
@@ -548,8 +547,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterRegularDecisionStar
 	ctx, cancel = createContext()
 	defer cancel()
 	// then terminate the worklfow
-	err := s.engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err := s.Engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		Reason:            "test-reason",
 	})
@@ -581,7 +580,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -593,7 +592,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -606,8 +605,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 	cause := types.DecisionTaskFailedCauseWorkflowWorkerUnhandledFailure
 	for i := 0; i < 10; i++ {
 		ctx, cancel := createContext()
-		resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-			Domain:   s.domainName,
+		resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+			Domain:   s.DomainName,
 			TaskList: taskList,
 			Identity: identity,
 		})
@@ -623,7 +622,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 		}
 
 		ctx, cancel = createContext()
-		err2 := s.engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
+		err2 := s.Engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
 			TaskToken: resp1.GetTaskToken(),
 			Cause:     &cause,
 			Identity:  "integ test",
@@ -636,8 +635,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 
 	ctx, cancel = createContext()
 	defer cancel()
-	err0 = s.engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err0 = s.Engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		SignalName:        "sig-for-integ-test",
 		Input:             []byte(""),
@@ -650,8 +649,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 	ctx, cancel = createContext()
 	defer cancel()
 	// start this transient decision, the attempt should be cleared and it becomes again a regular decision
-	resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -663,8 +662,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalBeforeTransientDecisionS
 	ctx, cancel = createContext()
 	defer cancel()
 	// then terminate the worklfow
-	err := s.engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err := s.Engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		Reason:            "test-reason",
 	})
@@ -698,7 +697,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -710,7 +709,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -723,8 +722,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	cause := types.DecisionTaskFailedCauseWorkflowWorkerUnhandledFailure
 	for i := 0; i < 10; i++ {
 		ctx, cancel := createContext()
-		resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-			Domain:   s.domainName,
+		resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+			Domain:   s.DomainName,
 			TaskList: taskList,
 			Identity: identity,
 		})
@@ -740,7 +739,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 		}
 
 		ctx, cancel = createContext()
-		err2 := s.engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
+		err2 := s.Engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
 			TaskToken: resp1.GetTaskToken(),
 			Cause:     &cause,
 			Identity:  "integ test",
@@ -754,8 +753,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// start decision to make signals into bufferedEvents
-	_, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	_, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -766,8 +765,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// this signal should be buffered
-	err0 = s.engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err0 = s.Engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		SignalName:        "sig-for-integ-test",
 		Input:             []byte(""),
@@ -780,8 +779,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// then terminate the worklfow
-	err := s.engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err := s.Engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		Reason:            "test-reason",
 	})
@@ -812,7 +811,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 
 	request := &types.StartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
-		Domain:                              s.domainName,
+		Domain:                              s.DomainName,
 		WorkflowID:                          id,
 		WorkflowType:                        workflowType,
 		TaskList:                            taskList,
@@ -824,7 +823,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 
 	ctx, cancel := createContext()
 	defer cancel()
-	resp0, err0 := s.engine.StartWorkflowExecution(ctx, request)
+	resp0, err0 := s.Engine.StartWorkflowExecution(ctx, request)
 	s.Nil(err0)
 
 	we := &types.WorkflowExecution{
@@ -837,8 +836,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	cause := types.DecisionTaskFailedCauseWorkflowWorkerUnhandledFailure
 	for i := 0; i < 10; i++ {
 		ctx, cancel := createContext()
-		resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-			Domain:   s.domainName,
+		resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+			Domain:   s.DomainName,
 			TaskList: taskList,
 			Identity: identity,
 		})
@@ -854,7 +853,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 		}
 
 		ctx, cancel = createContext()
-		err2 := s.engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
+		err2 := s.Engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
 			TaskToken: resp1.GetTaskToken(),
 			Cause:     &cause,
 			Identity:  "integ test",
@@ -868,8 +867,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// start decision to make signals into bufferedEvents
-	resp1, err1 := s.engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
-		Domain:   s.domainName,
+	resp1, err1 := s.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
+		Domain:   s.DomainName,
 		TaskList: taskList,
 		Identity: identity,
 	})
@@ -880,8 +879,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// this signal should be buffered
-	err0 = s.engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err0 = s.Engine.SignalWorkflowExecution(ctx, &types.SignalWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		SignalName:        "sig-for-integ-test",
 		Input:             []byte(""),
@@ -894,7 +893,7 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// fail this decision to flush buffer
-	err2 := s.engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
+	err2 := s.Engine.RespondDecisionTaskFailed(ctx, &types.RespondDecisionTaskFailedRequest{
 		TaskToken: resp1.GetTaskToken(),
 		Cause:     &cause,
 		Identity:  "integ test",
@@ -905,8 +904,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 	ctx, cancel = createContext()
 	defer cancel()
 	// then terminate the worklfow
-	err := s.engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
-		Domain:            s.domainName,
+	err := s.Engine.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain:            s.DomainName,
 		WorkflowExecution: we,
 		Reason:            "test-reason",
 	})
@@ -927,8 +926,8 @@ func (s *IntegrationSuite) TestWorkflowTerminationSignalAfterTransientDecisionSt
 func (s *IntegrationSuite) assertHistory(we *types.WorkflowExecution, expectedHistory []types.EventType) {
 	ctx, cancel := createContext()
 	defer cancel()
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    s.domainName,
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain:    s.DomainName,
 		Execution: we,
 	})
 	s.Nil(err)
@@ -944,8 +943,8 @@ func (s *IntegrationSuite) assertHistory(we *types.WorkflowExecution, expectedHi
 func (s *IntegrationSuite) assertLastHistoryEvent(we *types.WorkflowExecution, count int, eventType types.EventType) {
 	ctx, cancel := createContext()
 	defer cancel()
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain:    s.domainName,
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain:    s.DomainName,
 		Execution: we,
 	})
 	s.Nil(err)

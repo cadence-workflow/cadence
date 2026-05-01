@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.40",
+  "MinCompatibleVersion": "0.40",
+  "Description": "Adding an explicit list of task list partitions to support isolation group assignment",
+  "SchemaUpdateCqlFiles": [
+    "isolation_partition_config.cql"
+  ]
+}

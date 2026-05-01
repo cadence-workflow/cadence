@@ -29,14 +29,15 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/pborman/uuid"
+	guuid "github.com/google/uuid"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -52,6 +53,10 @@ var (
 type (
 	// Handler is the domain operation handler
 	Handler interface {
+		DeleteDomain(
+			ctx context.Context,
+			deleteRequest *types.DeleteDomainRequest,
+		) error
 		DeprecateDomain(
 			ctx context.Context,
 			deprecateRequest *types.DeprecateDomainRequest,
@@ -72,6 +77,10 @@ type (
 			ctx context.Context,
 			updateRequest *types.UpdateDomainRequest,
 		) (*types.UpdateDomainResponse, error)
+		FailoverDomain(
+			ctx context.Context,
+			failoverRequest *types.FailoverDomainRequest,
+		) (*types.FailoverDomainResponse, error)
 		UpdateIsolationGroups(
 			ctx context.Context,
 			updateRequest types.UpdateDomainIsolationGroupsRequest,
@@ -85,6 +94,7 @@ type (
 	// handlerImpl is the domain operation handler implementation
 	handlerImpl struct {
 		domainManager       persistence.DomainManager
+		domainAuditManager  persistence.DomainAuditManager
 		clusterMetadata     cluster.Metadata
 		domainReplicator    Replicator
 		domainAttrValidator *AttrValidatorImpl
@@ -97,20 +107,24 @@ type (
 
 	// Config is the domain config for domain handler
 	Config struct {
-		MinRetentionDays       dynamicconfig.IntPropertyFn
-		MaxRetentionDays       dynamicconfig.IntPropertyFn
-		RequiredDomainDataKeys dynamicconfig.MapPropertyFn
-		MaxBadBinaryCount      dynamicconfig.IntPropertyFnWithDomainFilter
-		FailoverCoolDown       dynamicconfig.DurationPropertyFnWithDomainFilter
-		FailoverHistoryMaxSize dynamicconfig.IntPropertyFnWithDomainFilter
+		MinRetentionDays         dynamicproperties.IntPropertyFn
+		MaxRetentionDays         dynamicproperties.IntPropertyFn
+		RequiredDomainDataKeys   dynamicproperties.MapPropertyFn
+		MaxBadBinaryCount        dynamicproperties.IntPropertyFnWithDomainFilter
+		FailoverCoolDown         dynamicproperties.DurationPropertyFnWithDomainFilter
+		FailoverHistoryMaxSize   dynamicproperties.IntPropertyFnWithDomainFilter
+		EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
 	}
 
 	// FailoverEvent is the failover information to be stored for each failover event in domain data
 	FailoverEvent struct {
-		EventTime    time.Time `json:"eventTime"`
-		FromCluster  string    `json:"fromCluster"`
-		ToCluster    string    `json:"toCluster"`
-		FailoverType string    `json:"failoverType"`
+		EventTime time.Time `json:"eventTime"`
+
+		// active-passive domain failover
+		FromCluster  string `json:"fromCluster,omitempty"`
+		ToCluster    string `json:"toCluster,omitempty"`
+		FailoverType string `json:"failoverType,omitempty"`
+		Reason       string `json:"reason,omitempty"`
 	}
 
 	// FailoverHistory is the history of failovers for a domain limited by the FailoverHistoryMaxSize config
@@ -126,6 +140,7 @@ func NewHandler(
 	config Config,
 	logger log.Logger,
 	domainManager persistence.DomainManager,
+	domainAuditManager persistence.DomainAuditManager,
 	clusterMetadata cluster.Metadata,
 	domainReplicator Replicator,
 	archivalMetadata archiver.ArchivalMetadata,
@@ -135,6 +150,7 @@ func NewHandler(
 	return &handlerImpl{
 		logger:              logger,
 		domainManager:       domainManager,
+		domainAuditManager:  domainAuditManager,
 		clusterMetadata:     clusterMetadata,
 		domainReplicator:    domainReplicator,
 		domainAttrValidator: newAttrValidator(clusterMetadata, int32(config.MinRetentionDays())),
@@ -230,8 +246,13 @@ func (d *handlerImpl) RegisterDomain(
 		}
 	}
 
+	eventID, err := guuid.NewV7()
+	if err != nil {
+		return err
+	}
+
 	info := &persistence.DomainInfo{
-		ID:          uuid.New(),
+		ID:          eventID.String(),
 		Name:        registerRequest.GetName(),
 		Status:      persistence.DomainStatusRegistered,
 		OwnerEmail:  registerRequest.GetOwnerEmail(),
@@ -247,9 +268,16 @@ func (d *handlerImpl) RegisterDomain(
 		VisibilityArchivalURI:    nextVisibilityArchivalState.URI,
 		BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
 	}
+
+	activeClusters, err := d.activeClustersFromRegisterRequest(registerRequest)
+	if err != nil {
+		return err
+	}
+
 	replicationConfig := &persistence.DomainReplicationConfig{
 		ActiveClusterName: activeClusterName,
 		Clusters:          clusters,
+		ActiveClusters:    activeClusters,
 	}
 	isGlobalDomain := registerRequest.GetIsGlobalDomain()
 
@@ -270,7 +298,7 @@ func (d *handlerImpl) RegisterDomain(
 		}
 	}
 
-	failoverVersion := common.EmptyVersion
+	failoverVersion := constants.EmptyVersion
 	if registerRequest.GetIsGlobalDomain() {
 		failoverVersion = d.clusterMetadata.GetNextFailoverVersion(activeClusterName, 0, registerRequest.Name)
 	}
@@ -299,7 +327,7 @@ func (d *handlerImpl) RegisterDomain(
 			domainRequest.ReplicationConfig,
 			domainRequest.ConfigVersion,
 			domainRequest.FailoverVersion,
-			common.InitialPreviousFailoverVersion,
+			constants.InitialPreviousFailoverVersion,
 			domainRequest.IsGlobalDomain,
 		)
 		if err != nil {
@@ -311,6 +339,22 @@ func (d *handlerImpl) RegisterDomain(
 		tag.WorkflowDomainName(registerRequest.GetName()),
 		tag.WorkflowDomainID(domainResponse.ID),
 	)
+
+	// Construct GetDomainResponse for audit log
+	domainStateAfterCreate := &persistence.GetDomainResponse{
+		Info:              domainRequest.Info,
+		Config:            domainRequest.Config,
+		ReplicationConfig: domainRequest.ReplicationConfig,
+		IsGlobalDomain:    domainRequest.IsGlobalDomain,
+		ConfigVersion:     domainRequest.ConfigVersion,
+		FailoverVersion:   domainRequest.FailoverVersion,
+		LastUpdatedTime:   domainRequest.LastUpdatedTime,
+	}
+
+	err = d.updateDomainAuditLog(ctx, nil, domainStateAfterCreate, persistence.DomainAuditOperationTypeCreate, "domain created")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -400,22 +444,306 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 	notificationVersion := metadata.NotificationVersion
-	getResponse, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()})
+	currentDomainState, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()})
 	if err != nil {
 		return nil, err
 	}
 
-	info := getResponse.Info
-	config := getResponse.Config
-	replicationConfig := getResponse.ReplicationConfig
-	configVersion := getResponse.ConfigVersion
-	failoverVersion := getResponse.FailoverVersion
-	failoverNotificationVersion := getResponse.FailoverNotificationVersion
-	isGlobalDomain := getResponse.IsGlobalDomain
-	gracefulFailoverEndTime := getResponse.FailoverEndTime
-	currentActiveCluster := replicationConfig.ActiveClusterName
-	previousFailoverVersion := getResponse.PreviousFailoverVersion
-	lastUpdatedTime := time.Unix(0, getResponse.LastUpdatedTime)
+	isGlobalDomain := currentDomainState.IsGlobalDomain
+
+	if !isGlobalDomain {
+		return d.updateLocalDomain(ctx, updateRequest, currentDomainState, notificationVersion)
+	}
+
+	if updateRequest.IsAFailoverRequest() {
+		return d.handleFailoverRequest(ctx, updateRequest, currentDomainState, notificationVersion)
+	}
+
+	return d.updateGlobalDomainConfiguration(ctx, updateRequest, currentDomainState, notificationVersion)
+}
+
+// All domain updates are throttled by the cool down time (incorrecty called 'failover' cool down).
+// The guard is an anti-flapping measure.
+func (d *handlerImpl) ensureUpdateOrFailoverCooldown(currentDomainState *persistence.GetDomainResponse) error {
+	lastUpdatedTime := time.Unix(0, currentDomainState.LastUpdatedTime)
+	now := d.timeSource.Now()
+	if lastUpdatedTime.Add(d.config.FailoverCoolDown(currentDomainState.Info.Name)).After(now) {
+		d.logger.Debugf("Domain was last updated at %v, failoverCoolDown: %v, current time: %v.", lastUpdatedTime, d.config.FailoverCoolDown(currentDomainState.Info.Name), now)
+		return errDomainUpdateTooFrequent
+	}
+	return nil
+}
+
+// For global domains only, this is assumed to be invoked when
+// the incoming request is either specifying an active-cluster parameter to update
+// or active_clusters in the case of a AA domain
+func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
+	updateRequest *types.UpdateDomainRequest,
+	currentState *persistence.GetDomainResponse,
+	notificationVersion int64,
+) (*types.UpdateDomainResponse, error) {
+
+	// intendedDomainState will be modified
+	// into the intended shape by the functions here
+	intendedDomainState := currentState.DeepCopy()
+
+	isGlobalDomain := currentState.IsGlobalDomain
+
+	currentActiveCluster := currentState.ReplicationConfig.ActiveClusterName
+	wasActiveActive := currentState.ReplicationConfig.IsActiveActive()
+	now := d.timeSource.Now()
+
+	d.logger.Info("Failover request started",
+		tag.WorkflowDomainName(currentState.Info.Name),
+		tag.WorkflowDomainID(currentState.Info.ID),
+		tag.PrevActiveCluster(currentActiveCluster),
+		tag.ActiveClusterName(common.StringDefault(updateRequest.ActiveClusterName)),
+	)
+
+	// by default, we assume failovers are of type force
+	failoverType := constants.FailoverTypeForce
+
+	var activeClusterChanged bool
+	var configurationChanged bool
+
+	// will be set to the domain notification version after the update
+	intendedDomainState.FailoverNotificationVersion = types.UndefinedFailoverVersion
+	// not used except for graceful failover requests, but specifically set to -1
+	// so as to be explicitly undefined
+	intendedDomainState.PreviousFailoverVersion = constants.InitialPreviousFailoverVersion
+
+	// by default, we assume a force failover and that any preexisting graceful failover state is invalidated
+	// if there's a duration of failover time to occur (such as in graceful failover) this will be re-set.
+	// But if there's an existing graceful failover and a subsequent force
+	// we want to ensure that it'll be ended immmediately.
+	intendedDomainState.FailoverEndTime = nil
+
+	// Update replication config
+	replicationCfg, replicationConfigChanged, activeClusterChanged, err := d.updateReplicationConfig(
+		currentState.Info.Name,
+		intendedDomainState.ReplicationConfig,
+		updateRequest,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !activeClusterChanged && !replicationConfigChanged {
+		return nil, errInvalidFailoverNoChangeDetected
+	}
+	intendedDomainState.ReplicationConfig = replicationCfg
+
+	err = d.ensureUpdateOrFailoverCooldown(currentState)
+	if err != nil {
+		return nil, err
+	}
+
+	// if the failover 'graceful' - as indicated as having a FailoverTimeoutInSeconds,
+	// then we set some additional parameters for the graceful failover
+	if updateRequest.FailoverTimeoutInSeconds != nil {
+		gracefulFailoverEndTime, previousFailoverVersion, err := d.handleGracefulFailover(
+			updateRequest,
+			intendedDomainState.ReplicationConfig,
+			currentActiveCluster,
+			currentState.FailoverEndTime,
+			currentState.FailoverVersion,
+			activeClusterChanged,
+			isGlobalDomain,
+		)
+		if err != nil {
+			return nil, err
+		}
+		failoverType = constants.FailoverTypeGrace
+		intendedDomainState.FailoverEndTime = gracefulFailoverEndTime
+		intendedDomainState.PreviousFailoverVersion = previousFailoverVersion
+	}
+
+	// replication config is a subset of config,
+	configurationChanged = replicationConfigChanged
+
+	if err = d.domainAttrValidator.validateDomainConfig(intendedDomainState.Config); err != nil {
+		return nil, err
+	}
+
+	err = d.validateDomainReplicationConfigForFailover(intendedDomainState.ReplicationConfig, configurationChanged, activeClusterChanged)
+	if err != nil {
+		return nil, err
+	}
+
+	// increment the in the configuration fencing token to ensure that configurations
+	// are applied in order
+	if configurationChanged {
+		intendedDomainState.ConfigVersion++
+	}
+
+	intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
+		intendedDomainState.ReplicationConfig.ActiveClusterName,
+		currentState.FailoverVersion,
+		updateRequest.Name,
+	)
+
+	// this is an intended failover step, to capture the current cluster's domain configuration
+	// (represented by the notification-version counter) and set it when running failover to allow
+	// systems like graceful failover to dedup failover processes and callbacks
+	intendedDomainState.FailoverNotificationVersion = notificationVersion
+
+	isActiveActive := intendedDomainState.ReplicationConfig.IsActiveActive()
+
+	if wasActiveActive || isActiveActive {
+		// if the domain was ever active-active, we bump the failover-version at the domain level
+		// to ensure that it gets incremented every single time, even though the failover may be only
+		// at the cluster-attribute level (ie the FailoverVersion may just go up by the failover-increment
+		// but otherwise be a noop - the actual active cluster may not have changed)).
+		//
+		// The reason for this is caution and simplicity at the time of writing:
+		// It's harmless to bump and this simplifies thinking about failover events
+		// through out the rest of the Cadence codebase. We can reliably assume that every failover
+		// event that has meaningful changes only needs to subscribe to this fencing token.
+		// to detect changes.
+		//
+		// Any parts of the system (domain-callbacks, domain cache etc) that watch for
+		// failover events and may trigger some action or cache invalidation will be watching
+		// the domain-level failver counter for changes. Therefore, by bumping it even for
+		// cases where it isn't changing, we ensure all these other subprocesses will
+		// take
+		intendedDomainState.FailoverVersion = d.clusterMetadata.GetNextFailoverVersion(
+			intendedDomainState.ReplicationConfig.ActiveClusterName,
+			currentState.FailoverVersion+1,
+			updateRequest.Name,
+		)
+	}
+
+	// the domain-data table is only updated for active-passive domain failovers
+	// as a historical backwards compatibility measure.
+	// Going forward, any history use-cases should rely on the FailoverHistory endpoint which
+	// supports all failover types and more than a handful of entries.
+	if !wasActiveActive && !isActiveActive {
+		err = updateFailoverHistoryInDomainData(intendedDomainState.Info, d.config, NewFailoverEvent(
+			now,
+			failoverType,
+			&currentActiveCluster,
+			updateRequest.ActiveClusterName,
+			updateRequest.FailoverReason,
+		))
+		if err != nil {
+			d.logger.Warn("failed to update failover history", tag.Error(err))
+		}
+	}
+
+	updateReq := createUpdateRequest(
+		intendedDomainState.Info,
+		intendedDomainState.Config,
+		intendedDomainState.ReplicationConfig,
+		intendedDomainState.ConfigVersion,
+		intendedDomainState.FailoverVersion,
+		intendedDomainState.FailoverNotificationVersion,
+		intendedDomainState.FailoverEndTime,
+		intendedDomainState.PreviousFailoverVersion,
+		now,
+		notificationVersion,
+	)
+
+	err = d.domainManager.UpdateDomain(ctx, &updateReq)
+	if err != nil {
+		return nil, err
+	}
+	if err = d.domainReplicator.HandleTransmissionTask(
+		ctx,
+		types.DomainOperationUpdate,
+		intendedDomainState.Info,
+		intendedDomainState.Config,
+		intendedDomainState.ReplicationConfig,
+		intendedDomainState.ConfigVersion,
+		intendedDomainState.FailoverVersion,
+		intendedDomainState.PreviousFailoverVersion,
+		isGlobalDomain,
+	); err != nil {
+		return nil, err
+	}
+	response := &types.UpdateDomainResponse{
+		IsGlobalDomain:  isGlobalDomain,
+		FailoverVersion: intendedDomainState.FailoverVersion,
+	}
+	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(intendedDomainState.Info, intendedDomainState.Config, intendedDomainState.ReplicationConfig)
+
+	err = d.updateDomainAuditLog(ctx, currentState, intendedDomainState, persistence.DomainAuditOperationTypeFailover, "domain failover")
+	if err != nil {
+		return nil, err
+	}
+
+	d.logger.Info("Failover request succeeded",
+		tag.WorkflowDomainName(intendedDomainState.Info.Name),
+		tag.WorkflowDomainID(intendedDomainState.Info.ID),
+		tag.PrevActiveCluster(currentActiveCluster),
+		tag.ActiveClusterName(intendedDomainState.ReplicationConfig.ActiveClusterName),
+		tag.Dynamic("failover-type", failoverType.String()),
+	)
+	return response, nil
+}
+
+func (d *handlerImpl) updateDomainAuditLog(ctx context.Context,
+	currentState *persistence.GetDomainResponse,
+	intendedDomainState *persistence.GetDomainResponse,
+	operationType persistence.DomainAuditOperationType,
+	comment string,
+) error {
+
+	if d.domainAuditManager == nil {
+		return nil
+	}
+
+	if !d.config.EnableDomainAuditLogging() {
+		return nil
+	}
+
+	// Must be a UUID v7, since we need a time value as well
+	eventID, err := guuid.NewV7()
+	if err != nil {
+		return err
+	}
+	// the creation time is used in the database as a partition but passed around
+	// embedded in the eventUUID for ergonomics. This means that users wishing
+	// to get an audit entry by ID do not need to know the creation time in advance
+	// since it's embedded in the sorting-values of the UUID.
+	creationTime := time.Unix(eventID.Time().UnixTime())
+
+	_, err = d.domainAuditManager.CreateDomainAuditLog(ctx, &persistence.CreateDomainAuditLogRequest{
+		DomainID:      intendedDomainState.GetInfo().GetID(),
+		EventID:       eventID.String(),
+		CreatedTime:   creationTime,
+		StateBefore:   currentState,
+		StateAfter:    intendedDomainState,
+		OperationType: operationType,
+		Comment:       comment,
+	})
+	if err != nil {
+		d.logger.Error("Failed to create domain audit log",
+			tag.WorkflowDomainID(intendedDomainState.GetInfo().GetID()),
+			tag.Error(err),
+		)
+		// Log the error but don't fail the operation - audit logging is best effort
+		// to avoid breaking critical domain operations
+	}
+	return nil
+}
+
+// updateGlobalDomainConfiguration handles the update of a global domain configuration
+// this excludes failover/active_cluster/active_clusters updates. They are grouped under
+// forms of failover
+func (d *handlerImpl) updateGlobalDomainConfiguration(ctx context.Context,
+	updateRequest *types.UpdateDomainRequest,
+	currentDomainState *persistence.GetDomainResponse,
+	notificationVersion int64,
+) (*types.UpdateDomainResponse, error) {
+
+	// intendedDomainState will be modified
+	// into the intended shape by the functions here
+	intendedDomainState := currentDomainState.DeepCopy()
+
+	configVersion := currentDomainState.ConfigVersion
+	failoverVersion := currentDomainState.FailoverVersion
+	isGlobalDomain := currentDomainState.IsGlobalDomain
+
+	now := d.timeSource.Now()
 
 	// whether history archival config changed
 	historyArchivalConfigChanged := false
@@ -427,13 +755,13 @@ func (d *handlerImpl) UpdateDomain(
 	configurationChanged := false
 
 	// Update history archival state
-	historyArchivalConfigChanged, err = d.updateHistoryArchivalState(config, updateRequest)
+	historyArchivalConfigChanged, err := d.updateHistoryArchivalState(intendedDomainState.Config, updateRequest)
 	if err != nil {
 		return nil, err
 	}
 
 	// Update visibility archival state
-	visibilityArchivalConfigChanged, err = d.updateVisibilityArchivalState(config, updateRequest)
+	visibilityArchivalConfigChanged, err = d.updateVisibilityArchivalState(intendedDomainState.Config, updateRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -441,13 +769,13 @@ func (d *handlerImpl) UpdateDomain(
 	// Update domain info
 	info, domainInfoChanged := d.updateDomainInfo(
 		updateRequest,
-		info,
+		intendedDomainState.Info,
 	)
 
 	// Update domain config
 	config, domainConfigChanged, err := d.updateDomainConfiguration(
 		updateRequest.GetName(),
-		config,
+		intendedDomainState.Config,
 		updateRequest,
 	)
 	if err != nil {
@@ -465,27 +793,12 @@ func (d *handlerImpl) UpdateDomain(
 
 	// Update replication config
 	replicationConfig, replicationConfigChanged, activeClusterChanged, err := d.updateReplicationConfig(
-		replicationConfig,
+		intendedDomainState.Info.Name,
+		intendedDomainState.ReplicationConfig,
 		updateRequest,
 	)
 	if err != nil {
 		return nil, err
-	}
-
-	// Handle graceful failover request
-	if updateRequest.FailoverTimeoutInSeconds != nil {
-		gracefulFailoverEndTime, previousFailoverVersion, err = d.handleGracefulFailover(
-			updateRequest,
-			replicationConfig,
-			currentActiveCluster,
-			gracefulFailoverEndTime,
-			failoverVersion,
-			activeClusterChanged,
-			isGlobalDomain,
-		)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	configurationChanged = historyArchivalConfigChanged || visibilityArchivalConfigChanged || domainInfoChanged || domainConfigChanged || deleteBinaryChanged || replicationConfigChanged
@@ -494,48 +807,22 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 
-	err = d.validateDomainReplicationConfigForUpdateDomain(replicationConfig, isGlobalDomain, configurationChanged, activeClusterChanged)
+	err = d.validateGlobalDomainReplicationConfigForUpdateDomain(replicationConfig, configurationChanged, activeClusterChanged)
+	if err != nil {
+		return nil, err
+	}
 
+	err = d.ensureUpdateOrFailoverCooldown(currentDomainState)
 	if err != nil {
 		return nil, err
 	}
 
 	if configurationChanged || activeClusterChanged {
-		now := d.timeSource.Now()
-		// Check the failover cool down time
-		if lastUpdatedTime.Add(d.config.FailoverCoolDown(info.Name)).After(now) {
-			return nil, errDomainUpdateTooFrequent
-		}
 
 		// set the versions
 		if configurationChanged {
 			configVersion++
 		}
-
-		if activeClusterChanged && isGlobalDomain {
-			var failoverType common.FailoverType = common.FailoverTypeGrace
-
-			// Force failover cleans graceful failover state
-			if updateRequest.FailoverTimeoutInSeconds == nil {
-				failoverType = common.FailoverTypeForce
-
-				// force failover cleanup graceful failover state
-				gracefulFailoverEndTime = nil
-				previousFailoverVersion = common.InitialPreviousFailoverVersion
-			}
-			failoverVersion = d.clusterMetadata.GetNextFailoverVersion(
-				replicationConfig.ActiveClusterName,
-				failoverVersion,
-				updateRequest.Name,
-			)
-			err = updateFailoverHistory(info, d.config, now, currentActiveCluster, *updateRequest.ActiveClusterName, failoverType)
-			if err != nil {
-				d.logger.Warn("failed to update failover history", tag.Error(err))
-			}
-
-			failoverNotificationVersion = notificationVersion
-		}
-		lastUpdatedTime = now
 
 		updateReq := createUpdateRequest(
 			info,
@@ -543,10 +830,10 @@ func (d *handlerImpl) UpdateDomain(
 			replicationConfig,
 			configVersion,
 			failoverVersion,
-			failoverNotificationVersion,
-			gracefulFailoverEndTime,
-			previousFailoverVersion,
-			lastUpdatedTime,
+			currentDomainState.FailoverNotificationVersion,
+			intendedDomainState.FailoverEndTime,
+			intendedDomainState.PreviousFailoverVersion,
+			now,
 			notificationVersion,
 		)
 
@@ -555,34 +842,245 @@ func (d *handlerImpl) UpdateDomain(
 			return nil, err
 		}
 	}
-
-	if isGlobalDomain {
-		if err = d.domainReplicator.HandleTransmissionTask(
-			ctx,
-			types.DomainOperationUpdate,
-			info,
-			config,
-			replicationConfig,
-			configVersion,
-			failoverVersion,
-			previousFailoverVersion,
-			isGlobalDomain,
-		); err != nil {
-			return nil, err
-		}
+	if err = d.domainReplicator.HandleTransmissionTask(
+		ctx,
+		types.DomainOperationUpdate,
+		info,
+		config,
+		replicationConfig,
+		configVersion,
+		failoverVersion,
+		intendedDomainState.PreviousFailoverVersion,
+		isGlobalDomain,
+	); err != nil {
+		return nil, err
 	}
-
 	response := &types.UpdateDomainResponse{
 		IsGlobalDomain:  isGlobalDomain,
 		FailoverVersion: failoverVersion,
 	}
 	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(info, config, replicationConfig)
 
+	// Construct GetDomainResponse for audit log with the final updated values
+	domainStateAfterUpdate := &persistence.GetDomainResponse{
+		Info:                        info,
+		Config:                      config,
+		ReplicationConfig:           replicationConfig,
+		IsGlobalDomain:              isGlobalDomain,
+		ConfigVersion:               configVersion,
+		FailoverVersion:             failoverVersion,
+		FailoverNotificationVersion: intendedDomainState.FailoverNotificationVersion,
+		PreviousFailoverVersion:     intendedDomainState.PreviousFailoverVersion,
+		FailoverEndTime:             intendedDomainState.FailoverEndTime,
+		LastUpdatedTime:             now.UnixNano(),
+		NotificationVersion:         notificationVersion,
+	}
+
+	err = d.updateDomainAuditLog(ctx, currentDomainState, domainStateAfterUpdate, persistence.DomainAuditOperationTypeUpdate, "domain updated")
+	if err != nil {
+		return nil, err
+	}
+
 	d.logger.Info("Update domain succeeded",
 		tag.WorkflowDomainName(info.Name),
 		tag.WorkflowDomainID(info.ID),
 	)
 	return response, nil
+}
+
+func (d *handlerImpl) updateLocalDomain(ctx context.Context,
+	updateRequest *types.UpdateDomainRequest,
+	currentState *persistence.GetDomainResponse,
+	notificationVersion int64,
+) (*types.UpdateDomainResponse, error) {
+
+	err := d.domainAttrValidator.validateLocalDomainUpdateRequest(updateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// whether history archival config changed
+	historyArchivalConfigChanged := false
+	// whether visibility archival config changed
+	visibilityArchivalConfigChanged := false
+	// whether anything other than active cluster is changed
+	configurationChanged := false
+
+	intendedDomainState := currentState.DeepCopy()
+
+	configVersion := currentState.ConfigVersion
+
+	now := d.timeSource.Now()
+
+	// Update history archival state
+	historyArchivalConfigChanged, err = d.updateHistoryArchivalState(intendedDomainState.Config, updateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update visibility archival state
+	visibilityArchivalConfigChanged, err = d.updateVisibilityArchivalState(intendedDomainState.Config, updateRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update domain info
+	info, domainInfoChanged := d.updateDomainInfo(
+		updateRequest,
+		intendedDomainState.Info,
+	)
+
+	// Update domain config
+	config, domainConfigChanged, err := d.updateDomainConfiguration(
+		updateRequest.GetName(),
+		intendedDomainState.Config,
+		updateRequest,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update domain bad binary
+	config, deleteBinaryChanged, err := d.updateDeleteBadBinary(
+		config,
+		updateRequest.DeleteBadBinary,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	configurationChanged = historyArchivalConfigChanged || visibilityArchivalConfigChanged || domainInfoChanged || domainConfigChanged || deleteBinaryChanged
+
+	if err = d.domainAttrValidator.validateDomainConfig(config); err != nil {
+		return nil, err
+	}
+
+	if err = d.domainAttrValidator.validateDomainReplicationConfigForLocalDomain(
+		intendedDomainState.ReplicationConfig,
+	); err != nil {
+		return nil, err
+	}
+
+	if configurationChanged {
+		// set the versions
+		if configurationChanged {
+			configVersion = intendedDomainState.ConfigVersion + 1
+		}
+
+		updateReq := createUpdateRequest(
+			info,
+			config,
+			intendedDomainState.ReplicationConfig,
+			configVersion,
+			intendedDomainState.FailoverVersion,
+			intendedDomainState.FailoverNotificationVersion,
+			intendedDomainState.FailoverEndTime,
+			intendedDomainState.PreviousFailoverVersion,
+			now,
+			notificationVersion,
+		)
+
+		err = d.domainManager.UpdateDomain(ctx, &updateReq)
+		if err != nil {
+			return nil, err
+		}
+
+		err = d.updateDomainAuditLog(ctx, currentState, intendedDomainState, persistence.DomainAuditOperationTypeUpdate, "domain updated")
+		if err != nil {
+			return nil, err
+		}
+	}
+	response := &types.UpdateDomainResponse{
+		IsGlobalDomain:  false,
+		FailoverVersion: intendedDomainState.FailoverVersion,
+	}
+	response.DomainInfo, response.Configuration, response.ReplicationConfiguration = d.createResponse(info, config, intendedDomainState.ReplicationConfig)
+
+	return response, nil
+}
+
+// FailoverDomain handles failover of the domain to a different cluster
+func (d *handlerImpl) FailoverDomain(
+	ctx context.Context,
+	failoverRequest *types.FailoverDomainRequest,
+) (*types.FailoverDomainResponse, error) {
+
+	metadata, err := d.domainManager.GetMetadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+	notificationVersion := metadata.NotificationVersion
+
+	currentDomainState, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: failoverRequest.GetDomainName()})
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.validateDomainFailoverRequest(failoverRequest, currentDomainState)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := d.handleFailoverRequest(
+		ctx,
+		failoverRequest.ToUpdateDomainRequest(),
+		currentDomainState,
+		notificationVersion,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return response.ToFailoverDomainResponse(), nil
+}
+
+// DeleteDomain deletes a domain
+func (d *handlerImpl) DeleteDomain(
+	ctx context.Context,
+	deleteRequest *types.DeleteDomainRequest,
+) error {
+	getResponse, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{Name: deleteRequest.GetName()})
+	if err != nil {
+		return err
+	}
+	isGlobalDomain := getResponse.IsGlobalDomain
+	if isGlobalDomain && !d.clusterMetadata.IsPrimaryCluster() {
+		return errNotPrimaryCluster
+	}
+
+	deleteReq := &persistence.DeleteDomainByNameRequest{
+		Name: getResponse.Info.Name,
+	}
+	err = d.domainManager.DeleteDomainByName(ctx, deleteReq)
+	if err != nil {
+		return err
+	}
+
+	if isGlobalDomain {
+		if err := d.domainReplicator.HandleTransmissionTask(
+			ctx,
+			types.DomainOperationDelete,
+			getResponse.Info,
+			getResponse.Config,
+			getResponse.ReplicationConfig,
+			getResponse.ConfigVersion,
+			getResponse.FailoverVersion,
+			getResponse.PreviousFailoverVersion,
+			isGlobalDomain,
+		); err != nil {
+			return fmt.Errorf("unable to delete a domain in replica cluster: %v", err)
+		}
+	}
+
+	err = d.updateDomainAuditLog(ctx, getResponse, nil, persistence.DomainAuditOperationTypeDelete, "domain deleted")
+	if err != nil {
+		return err
+	}
+
+	d.logger.Info("Delete domain succeeded",
+		tag.WorkflowDomainName(getResponse.Info.Name),
+		tag.WorkflowDomainID(getResponse.Info.ID),
+	)
+	return nil
 }
 
 // DeprecateDomain deprecates a domain
@@ -650,6 +1148,14 @@ func (d *handlerImpl) DeprecateDomain(
 		tag.WorkflowDomainName(getResponse.Info.Name),
 		tag.WorkflowDomainID(getResponse.Info.ID),
 	)
+
+	domainStateAfterDeprecate := &persistence.GetDomainResponse{
+		Info: getResponse.Info,
+	}
+	err = d.updateDomainAuditLog(ctx, getResponse, domainStateAfterDeprecate, persistence.DomainAuditOperationTypeDeprecate, "domain deprecated")
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -824,16 +1330,6 @@ func (d *handlerImpl) UpdateAsyncWorkflowConfiguraton(
 	}
 
 	if currentDomainConfig.IsGlobalDomain {
-		// One might reasonably wonder what value there is in replication of isolation-group information - info which is
-		// regional and therefore of no value to the other region?
-		// Probably not a lot, in and of itself, however, the isolation-group information is stored
-		// in the domain configuration fields in the domain tables. Access and updates to those records is
-		// done through a replicated mechanism with explicit versioning and conflict resolution.
-		// Therefore, in order to avoid making an already complex mechanisim much more difficult to understand,
-		// the data is replicated in the same way so as to try and make things less confusing when both codepaths
-		// are updating the table:
-		// - versions like the confiugration version are updated in the same manner
-		// - the last-updated timestamps are updated in the same manner
 		if err := d.domainReplicator.HandleTransmissionTask(
 			ctx,
 			types.DomainOperationUpdate,
@@ -847,6 +1343,11 @@ func (d *handlerImpl) UpdateAsyncWorkflowConfiguraton(
 		); err != nil {
 			return err
 		}
+	}
+
+	err = d.updateDomainAuditLog(ctx, currentDomainConfig, currentDomainConfig, persistence.DomainAuditOperationTypeUpdate, "async workflow queue config update")
+	if err != nil {
+		return err
 	}
 
 	d.logger.Info("async workflow queue config update succeeded",
@@ -893,6 +1394,7 @@ func (d *handlerImpl) createResponse(
 	replicationConfigResult := &types.DomainReplicationConfiguration{
 		ActiveClusterName: replicationConfig.ActiveClusterName,
 		Clusters:          clusters,
+		ActiveClusters:    replicationConfig.ActiveClusters,
 	}
 
 	return infoResult, configResult, replicationConfigResult
@@ -1149,15 +1651,23 @@ func (d *handlerImpl) updateDeleteBadBinary(
 	return config, false, nil
 }
 
+// updateReplicationConfig is the function which takes the input request and current state and edits and returns it
+// to the desired state by merging the request values with the current state.
+// replicationConfigChanged being turned on will trigger an increment in the configVersion.
+// activeClusterChanged indicates a failover is happening and a failover version is to be incremented
 func (d *handlerImpl) updateReplicationConfig(
+	domainName string,
 	config *persistence.DomainReplicationConfig,
 	updateRequest *types.UpdateDomainRequest,
-) (*persistence.DomainReplicationConfig, bool, bool, error) {
+) (
+	mutatedCfg *persistence.DomainReplicationConfig,
+	replicationConfigChanged bool,
+	activeClusterChanged bool,
+	err error,
+) {
 
-	clusterUpdated := false
-	activeClusterUpdated := false
 	if len(updateRequest.Clusters) != 0 {
-		clusterUpdated = true
+		replicationConfigChanged = true
 		clustersNew := []*persistence.ClusterReplicationConfig{}
 		for _, clusterConfig := range updateRequest.Clusters {
 			clustersNew = append(clustersNew, &persistence.ClusterReplicationConfig{
@@ -1175,10 +1685,32 @@ func (d *handlerImpl) updateReplicationConfig(
 	}
 
 	if updateRequest.ActiveClusterName != nil {
-		activeClusterUpdated = true
+		activeClusterChanged = true
 		config.ActiveClusterName = *updateRequest.ActiveClusterName
 	}
-	return config, clusterUpdated, activeClusterUpdated, nil
+
+	err = d.domainAttrValidator.validateActiveActiveDomainReplicationConfig(updateRequest.ActiveClusters)
+	if err != nil {
+		return nil, false, false, err
+	}
+
+	if updateRequest != nil && updateRequest.ActiveClusters != nil && updateRequest.ActiveClusters.AttributeScopes != nil {
+		result, isCh := d.buildActiveActiveClusterScopesFromUpdateRequest(updateRequest, config, domainName)
+		if isCh {
+
+			if config.ActiveClusters == nil {
+				config.ActiveClusters = &types.ActiveClusters{
+					AttributeScopes: result.AttributeScopes,
+				}
+			}
+
+			config.ActiveClusters.AttributeScopes = result.AttributeScopes
+			activeClusterChanged = true
+			replicationConfigChanged = true
+		}
+	}
+
+	return config, replicationConfigChanged, activeClusterChanged, nil
 }
 
 func (d *handlerImpl) handleGracefulFailover(
@@ -1191,7 +1723,7 @@ func (d *handlerImpl) handleGracefulFailover(
 	isGlobalDomain bool,
 ) (*int64, int64, error) {
 	// must update active cluster on a global domain
-	if !activeClusterChanged || !isGlobalDomain {
+	if !activeClusterChanged || !isGlobalDomain || replicationConfig.IsActiveActive() {
 		return nil, 0, errInvalidGracefulFailover
 	}
 	// must start with the passive -> active cluster
@@ -1206,42 +1738,108 @@ func (d *handlerImpl) handleGracefulFailover(
 		return nil, 0, errOngoingGracefulFailover
 	}
 	endTime := d.timeSource.Now().Add(time.Duration(updateRequest.GetFailoverTimeoutInSeconds()) * time.Second).UnixNano()
-	gracefulFailoverEndTime = &endTime
 	previousFailoverVersion := failoverVersion
 
-	return gracefulFailoverEndTime, previousFailoverVersion, nil
+	return &endTime, previousFailoverVersion, nil
 }
 
-func (d *handlerImpl) validateDomainReplicationConfigForUpdateDomain(
+func (d *handlerImpl) validateGlobalDomainReplicationConfigForUpdateDomain(
 	replicationConfig *persistence.DomainReplicationConfig,
-	isGlobalDomain bool,
 	configurationChanged bool,
 	activeClusterChanged bool,
 ) error {
 	var err error
-	if isGlobalDomain {
-		if err = d.domainAttrValidator.validateDomainReplicationConfigForGlobalDomain(
-			replicationConfig,
-		); err != nil {
-			return err
-		}
+	if err = d.domainAttrValidator.validateDomainReplicationConfigForGlobalDomain(
+		replicationConfig,
+	); err != nil {
+		return err
+	}
 
-		if configurationChanged && activeClusterChanged {
-			return errCannotDoDomainFailoverAndUpdate
-		}
+	if configurationChanged && activeClusterChanged && !replicationConfig.IsActiveActive() {
+		return errCannotDoDomainFailoverAndUpdate
+	}
 
-		if !activeClusterChanged && !d.clusterMetadata.IsPrimaryCluster() {
-			return errNotPrimaryCluster
-		}
-	} else {
-		if err = d.domainAttrValidator.validateDomainReplicationConfigForLocalDomain(
-			replicationConfig,
-		); err != nil {
-			return err
+	if !activeClusterChanged && !d.clusterMetadata.IsPrimaryCluster() {
+		return errNotPrimaryCluster
+	}
+	return nil
+}
+
+// validateDomainFailoverRequest is the handler method for the FailoverDomain
+// handler. It can receive request to failover domains in a variety of combinations
+// including invalid ones.
+func (d *handlerImpl) validateDomainFailoverRequest(
+	request *types.FailoverDomainRequest,
+	currentDomainState *persistence.GetDomainResponse,
+) error {
+	if request == nil {
+		return &types.BadRequestError{Message: "Request cannot be nil"}
+	}
+
+	if request.DomainName == "" {
+		return &types.BadRequestError{Message: "DomainName cannot be empty"}
+	}
+
+	if !currentDomainState.IsGlobalDomain {
+		return errLocalDomainsCannotFailover
+	}
+
+	if request.ActiveClusters == nil && request.DomainActiveClusterName == nil {
+		return &types.BadRequestError{Message: "Domain's ActiveClusterName or ActiveClusters must be set to failover the domain"}
+	}
+	return nil
+}
+
+// validateDomainReplicationConfigForFailover is to check if the replication config
+// is valid and sane for failovers. It is only for global domains
+func (d *handlerImpl) validateDomainReplicationConfigForFailover(
+	replicationConfig *persistence.DomainReplicationConfig,
+	configurationChanged bool,
+	activeClusterChanged bool,
+) error {
+	// todo (add any additional failover validation here)
+	return d.validateGlobalDomainReplicationConfigForUpdateDomain(replicationConfig, configurationChanged, activeClusterChanged)
+}
+
+func (d *handlerImpl) activeClustersFromRegisterRequest(registerRequest *types.RegisterDomainRequest) (*types.ActiveClusters, error) {
+	if !registerRequest.GetIsGlobalDomain() || registerRequest.ActiveClusters == nil {
+		// local or active-passive domain
+		return nil, nil
+	}
+
+	clusters := d.clusterMetadata.GetAllClusterInfo()
+
+	activeClustersScopes := make(map[string]types.ClusterAttributeScope)
+
+	// Handle AttributeScopes from the request
+	if registerRequest.ActiveClusters != nil && registerRequest.ActiveClusters.AttributeScopes != nil {
+		for scope, scopeData := range registerRequest.ActiveClusters.AttributeScopes {
+			newScopeData := types.ClusterAttributeScope{
+				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
+			}
+			for attribute, clusterInfo := range scopeData.ClusterAttributes {
+				clusterMetadata, ok := clusters[clusterInfo.ActiveClusterName]
+				if !ok {
+					return nil, &types.BadRequestError{
+						Message: fmt.Sprintf("Cluster %v not found. Domain cannot be registered in this cluster for scope %q and attribute %q", clusterInfo.ActiveClusterName, scope, attribute),
+					}
+				}
+				newScopeData.ClusterAttributes[attribute] = types.ActiveClusterInfo{
+					ActiveClusterName: clusterInfo.ActiveClusterName,
+					FailoverVersion:   clusterMetadata.InitialFailoverVersion,
+				}
+			}
+			activeClustersScopes[scope] = newScopeData
 		}
 	}
 
-	return nil
+	if len(activeClustersScopes) == 0 {
+		return nil, nil
+	}
+
+	return &types.ActiveClusters{
+		AttributeScopes: activeClustersScopes,
+	}, nil
 }
 
 func getDomainStatus(info *persistence.DomainInfo) *types.DomainStatus {
@@ -1288,34 +1886,94 @@ func createUpdateRequest(
 	}
 }
 
-func updateFailoverHistory(
+func updateFailoverHistoryInDomainData(
 	info *persistence.DomainInfo,
 	config Config,
-	eventTime time.Time,
-	fromCluster string,
-	toCluster string,
-	failoverType common.FailoverType,
+	failoverEvent FailoverEvent,
 ) error {
 	data := info.Data
 	if info.Data == nil {
 		data = make(map[string]string)
 	}
 
-	newFailoverEvent := FailoverEvent{EventTime: eventTime, FromCluster: fromCluster, ToCluster: toCluster, FailoverType: failoverType.String()}
-
 	var failoverHistory []FailoverEvent
-	_ = json.Unmarshal([]byte(data[common.DomainDataKeyForFailoverHistory]), &failoverHistory)
+	_ = json.Unmarshal([]byte(data[constants.DomainDataKeyForFailoverHistory]), &failoverHistory)
 
-	failoverHistory = append([]FailoverEvent{newFailoverEvent}, failoverHistory...)
+	failoverHistory = append([]FailoverEvent{failoverEvent}, failoverHistory...)
 
 	// Truncate the history to the max size
-	failoverHistoryJSON, err := json.Marshal(failoverHistory[:common.MinInt(config.FailoverHistoryMaxSize(info.Name), len(failoverHistory))])
+	failoverHistoryJSON, err := json.Marshal(failoverHistory[:min(config.FailoverHistoryMaxSize(info.Name), len(failoverHistory))])
 	if err != nil {
 		return err
 	}
-	data[common.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
+	data[constants.DomainDataKeyForFailoverHistory] = string(failoverHistoryJSON)
 
 	info.Data = data
 
 	return nil
+}
+
+func NewFailoverEvent(
+	eventTime time.Time,
+	failoverType constants.FailoverType,
+	fromCluster *string,
+	toCluster *string,
+	reason *string,
+) FailoverEvent {
+	res := FailoverEvent{
+		EventTime:    eventTime,
+		FailoverType: failoverType.String(),
+	}
+	if fromCluster != nil {
+		res.FromCluster = *fromCluster
+	}
+	if toCluster != nil {
+		res.ToCluster = *toCluster
+	}
+	if reason != nil {
+		res.Reason = *reason
+	}
+	return res
+}
+
+func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequest *types.UpdateDomainRequest, config *persistence.DomainReplicationConfig, domainName string) (out *types.ActiveClusters, isChanged bool) {
+	var existing *types.ActiveClusters
+	if config != nil && config.ActiveClusters != nil {
+		existing = config.ActiveClusters
+	}
+
+	if updateRequest.ActiveClusters == nil || updateRequest.ActiveClusters.AttributeScopes == nil {
+		return existing, false
+	}
+
+	// ensure a failover version is set for the incoming request
+	for scope, scopeData := range updateRequest.ActiveClusters.AttributeScopes {
+		for attribute, activeCluster := range scopeData.ClusterAttributes {
+
+			currentFailoverVersion := types.UndefinedFailoverVersion
+			if config != nil && config.ActiveClusters != nil {
+				fo, err := config.ActiveClusters.GetFailoverVersionForAttribute(scope, attribute)
+				if err == nil {
+					currentFailoverVersion = fo
+				}
+			}
+			nextFailoverVersion := d.clusterMetadata.GetNextFailoverVersion(activeCluster.ActiveClusterName, currentFailoverVersion, domainName)
+
+			activeCluster.FailoverVersion = nextFailoverVersion
+			scopeData.ClusterAttributes[attribute] = activeCluster
+		}
+	}
+
+	// if there's no existing active cluster info, use what's in the request
+	if existing == nil {
+		return updateRequest.ActiveClusters, true
+	}
+
+	// if, on the other hand, there are existing active clusters, merge them with the incoming request
+	result, isChanged := mergeActiveActiveScopes(config.ActiveClusters, updateRequest.ActiveClusters)
+	if isChanged {
+		return result, isChanged
+	}
+
+	return config.ActiveClusters, false
 }

@@ -29,9 +29,10 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	"github.com/uber/cadence/common/elasticsearch/client"
 	"github.com/uber/cadence/common/elasticsearch/query"
@@ -141,6 +142,20 @@ func (c *ESClient) ScanByQuery(ctx context.Context, request *ScanByQueryRequest)
 		if err := c.Client.ClearScroll(ctx, searchResult.ScrollID); err != nil {
 			c.Logger.Warn("scroll clear failed", tag.Error(err))
 		}
+	} else if err != nil && isNodeUnavailableError(err) { // scroll ID is no longer valid and points to a node that is unavailable. Query with fresh scroll
+		c.Logger.Warn("scroll node not available for id, retrying with fresh scroll",
+			tag.Dynamic("scrollID", token.ScrollID),
+			tag.Error(err))
+		// fresh scroll
+		res, scrollErr := c.Client.Scroll(ctx, request.Index, request.Query, "")
+		if scrollErr != nil {
+			return nil, &types.InternalServiceError{
+				Message: fmt.Sprintf("ScanByQuery failed after fresh scroll. Error: %v", err),
+			}
+		}
+		// set fresh scroll result to search result
+		searchResult = res
+
 	} else if err != nil {
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf("ScanByQuery failed. Error: %v", err),
@@ -268,18 +283,23 @@ func (c *ESClient) convertSearchResultToVisibilityRecord(hit *client.SearchHit) 
 	}
 
 	record := &p.InternalVisibilityWorkflowExecutionInfo{
-		DomainID:         source.DomainID,
-		WorkflowType:     source.WorkflowType,
-		WorkflowID:       source.WorkflowID,
-		RunID:            source.RunID,
-		TypeName:         source.WorkflowType,
-		StartTime:        time.Unix(0, source.StartTime),
-		ExecutionTime:    time.Unix(0, source.ExecutionTime),
-		Memo:             p.NewDataBlob(source.Memo, common.EncodingType(source.Encoding)),
-		TaskList:         source.TaskList,
-		IsCron:           source.IsCron,
-		NumClusters:      source.NumClusters,
-		SearchAttributes: source.Attr,
+		DomainID:               source.DomainID,
+		WorkflowType:           source.WorkflowType,
+		WorkflowID:             source.WorkflowID,
+		RunID:                  source.RunID,
+		TypeName:               source.WorkflowType,
+		StartTime:              time.Unix(0, source.StartTime),
+		ExecutionTime:          time.Unix(0, source.ExecutionTime),
+		Memo:                   p.NewDataBlob(source.Memo, constants.EncodingType(source.Encoding)),
+		TaskList:               source.TaskList,
+		IsCron:                 source.IsCron,
+		NumClusters:            source.NumClusters,
+		ClusterAttributeScope:  source.ClusterAttributeScope,
+		ClusterAttributeName:   source.ClusterAttributeName,
+		SearchAttributes:       source.Attr,
+		CronSchedule:           source.CronSchedule,
+		ExecutionStatus:        types.WorkflowExecutionStatus(source.ExecutionStatus),
+		ScheduledExecutionTime: time.Unix(0, source.ScheduledExecutionTime),
 	}
 	if source.UpdateTime != 0 {
 		record.UpdateTime = time.Unix(0, source.UpdateTime)
@@ -373,4 +393,13 @@ func buildPutMappingBody(root, key, valueType string) map[string]interface{} {
 		}
 	}
 	return body
+}
+
+// Helper to check if error is node unavailable error from OpenSearch
+func isNodeUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "node") && strings.Contains(errMsg, "not available")
 }

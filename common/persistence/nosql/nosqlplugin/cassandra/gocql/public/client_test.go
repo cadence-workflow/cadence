@@ -111,41 +111,61 @@ func TestClient_IsThrottlingError(t *testing.T) {
 func TestClient_IsDBUnavailableError(t *testing.T) {
 	client := client{}
 	tests := []struct {
-		name               string
-		mockMessage        string
-		mockErrorCode      int
-		expectedResult     bool
-		nonCompatibleError error
+		name           string
+		err            error
+		expectedResult bool
 	}{
 		{
-			name:           "With DB Unavailable Error",
-			mockMessage:    "Cannot perform LWT operation",
-			mockErrorCode:  0x1000,
-			expectedResult: true,
-		},
-		{
-			name:           "With Non-DB Unavailable Error",
-			mockMessage:    "Cannot perform LWT operation",
-			mockErrorCode:  0x0001,
+			name:           "nil error returns false",
+			err:            nil,
 			expectedResult: false,
 		},
 		{
-			name:               "With Non-compatible Error",
-			mockErrorCode:      0x0001,
-			expectedResult:     false,
-			nonCompatibleError: fmt.Errorf("with Non-compatible Error"),
+			name:           "non-compatible error returns false",
+			err:            fmt.Errorf("some generic error"),
+			expectedResult: false,
+		},
+		{
+			name:           "UNAVAILABLE error with LWT message returns true",
+			err:            MockError{code: 0x1000, message: "Cannot perform LWT operation"},
+			expectedResult: true,
+		},
+		{
+			name:           "UNAVAILABLE error with consistency level message returns true",
+			err:            MockError{code: 0x1000, message: "Cannot achieve consistency level QUORUM"},
+			expectedResult: true,
+		},
+		{
+			name:           "UNAVAILABLE error without matching message returns false",
+			err:            MockError{code: 0x1000, message: "some other unavailable error"},
+			expectedResult: false,
+		},
+		{
+			name:           "wrong error code with LWT message returns false",
+			err:            MockError{code: 0x0001, message: "Cannot perform LWT operation"},
+			expectedResult: false,
+		},
+		{
+			name:           "wrong error code with consistency level message returns false",
+			err:            MockError{code: 0x1001, message: "Cannot achieve consistency level QUORUM"},
+			expectedResult: false,
+		},
+		{
+			name:           "wrapped UNAVAILABLE error with LWT message returns true",
+			err:            fmt.Errorf("wrapped: %w", MockError{code: 0x1000, message: "Cannot perform LWT operation"}),
+			expectedResult: true,
+		},
+		{
+			name:           "wrapped UNAVAILABLE error with consistency level message returns true",
+			err:            fmt.Errorf("wrapped: %w", MockError{code: 0x1000, message: "cannot achieve consistency level QUORUM"}),
+			expectedResult: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.nonCompatibleError != nil {
-				result := client.IsDBUnavailableError(tt.nonCompatibleError)
-				assert.False(t, result)
-			}
-			err := MockError{code: tt.mockErrorCode, message: tt.mockMessage}
-			result := client.IsDBUnavailableError(err)
-			assert.Equal(t, tt.expectedResult, result)
+			result := client.IsDBUnavailableError(tt.err)
+			assert.Equal(t, tt.expectedResult, result, "IsDBUnavailableError(%v) = %v, want %v", tt.err, result, tt.expectedResult)
 		})
 	}
 }

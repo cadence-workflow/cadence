@@ -25,7 +25,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
@@ -53,7 +53,7 @@ func TestPublish(t *testing.T) {
 					Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
 
-				sw := metrics.NoopScope(metrics.MessagingClientPublishScope).StartTimer(-1)
+				sw := metrics.NoopScope.StartTimer(-1)
 				metricsScope.On("StartTimer", metrics.CadenceClientLatency).Return(sw).Once()
 				return metricsClient
 			},
@@ -74,7 +74,7 @@ func TestPublish(t *testing.T) {
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientFailures).Once()
 
-				sw := metrics.NoopScope(metrics.MessagingClientPublishScope).StartTimer(-1)
+				sw := metrics.NoopScope.StartTimer(-1)
 				metricsScope.On("StartTimer", metrics.CadenceClientLatency).Return(sw).Once()
 				return metricsClient
 			},

@@ -29,8 +29,10 @@ import (
 
 	workflow "github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -60,17 +62,18 @@ type (
 		persistence            HistoryStore
 		logger                 log.Logger
 		thriftEncoder          codec.BinaryEncoder
-		transactionSizeLimit   dynamicconfig.IntPropertyFn
+		transactionSizeLimit   dynamicproperties.IntPropertyFn
 		serializeTokenFn       func(*historyV2PagingToken) ([]byte, error)
 		deserializeTokenFn     func([]byte, int64) (*historyV2PagingToken, error)
 		readRawHistoryBranchFn func(context.Context, *ReadHistoryBranchRequest) ([]*DataBlob, *historyV2PagingToken, int, log.Logger, error)
 		readHistoryBranchFn    func(context.Context, bool, *ReadHistoryBranchRequest) ([]*types.HistoryEvent, []*types.History, []byte, int, int64, error)
+		timeSrc                clock.TimeSource
 	}
 )
 
 const (
 	notStartedIndex          = -1
-	defaultLastNodeID        = common.FirstEventID - 1
+	defaultLastNodeID        = constants.FirstEventID - 1
 	defaultLastTransactionID = int64(0)
 )
 
@@ -86,7 +89,7 @@ func NewHistoryV2ManagerImpl(
 	logger log.Logger,
 	historySerializer PayloadSerializer,
 	binaryEncoder codec.BinaryEncoder,
-	transactionSizeLimit dynamicconfig.IntPropertyFn,
+	transactionSizeLimit dynamicproperties.IntPropertyFn,
 ) HistoryManager {
 	hm := &historyV2ManagerImpl{
 		historySerializer:    historySerializer,
@@ -96,6 +99,7 @@ func NewHistoryV2ManagerImpl(
 		transactionSizeLimit: transactionSizeLimit,
 		serializeTokenFn:     serializeToken,
 		deserializeTokenFn:   deserializeToken,
+		timeSrc:              clock.NewRealTimeSource(),
 	}
 	hm.readRawHistoryBranchFn = hm.readRawHistoryBranch
 	hm.readHistoryBranchFn = hm.readHistoryBranch
@@ -129,11 +133,12 @@ func (m *historyV2ManagerImpl) ForkHistoryBranch(
 		return nil, err
 	}
 	req := &InternalForkHistoryBranchRequest{
-		ForkBranchInfo: *thrift.ToHistoryBranch(&forkBranch),
-		ForkNodeID:     request.ForkNodeID,
-		NewBranchID:    uuid.New(),
-		Info:           request.Info,
-		ShardID:        shardID,
+		ForkBranchInfo:   *thrift.ToHistoryBranch(&forkBranch),
+		ForkNodeID:       request.ForkNodeID,
+		NewBranchID:      uuid.New(),
+		Info:             request.Info,
+		ShardID:          shardID,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	resp, err := m.persistence.ForkHistoryBranch(ctx, req)
@@ -265,13 +270,14 @@ func (m *historyV2ManagerImpl) AppendHistoryNodes(
 		}
 	}
 	req := &InternalAppendHistoryNodesRequest{
-		IsNewBranch:   request.IsNewBranch,
-		Info:          request.Info,
-		BranchInfo:    *thrift.ToHistoryBranch(&branch),
-		NodeID:        nodeID,
-		Events:        blob,
-		TransactionID: request.TransactionID,
-		ShardID:       shardID,
+		IsNewBranch:      request.IsNewBranch,
+		Info:             request.Info,
+		BranchInfo:       *thrift.ToHistoryBranch(&branch),
+		NodeID:           nodeID,
+		Events:           blob,
+		TransactionID:    request.TransactionID,
+		ShardID:          shardID,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 
 	err = m.persistence.AppendHistoryNodes(ctx, req)
@@ -383,7 +389,7 @@ func (m *historyV2ManagerImpl) readRawHistoryBranch(
 
 	allBRs := branch.Ancestors
 	// We may also query the current branch from beginNodeID
-	beginNodeID := common.FirstEventID
+	beginNodeID := constants.FirstEventID
 	if len(branch.Ancestors) > 0 {
 		beginNodeID = *branch.Ancestors[len(branch.Ancestors)-1].EndNodeID
 	}
@@ -477,7 +483,7 @@ func (m *historyV2ManagerImpl) readHistoryBranch(
 	historyEvents := make([]*types.HistoryEvent, 0, request.PageSize)
 	historyEventBatches := make([]*types.History, 0, request.PageSize)
 	// first_event_id of the last batch
-	lastFirstEventID := common.EmptyEventID
+	lastFirstEventID := constants.EmptyEventID
 
 	for _, batch := range dataBlobs {
 		events, err := m.historySerializer.DeserializeBatchEvents(batch)
@@ -556,7 +562,7 @@ func deserializeToken(
 	if len(data) == 0 {
 		return &historyV2PagingToken{
 			LastEventID:       defaultLastEventID,
-			LastEventVersion:  common.EmptyVersion,
+			LastEventVersion:  constants.EmptyVersion,
 			CurrentRangeIndex: notStartedIndex,
 			LastNodeID:        defaultLastNodeID,
 			LastTransactionID: defaultLastTransactionID,

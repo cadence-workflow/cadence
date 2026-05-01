@@ -102,6 +102,11 @@ func Test_Error(t *testing.T) {
 			},
 		},
 		{
+			err: ReadOnlyPartitionError{
+				Message: errMessage,
+			},
+		},
+		{
 			err: InternalServiceError{
 				Message: errMessage,
 			},

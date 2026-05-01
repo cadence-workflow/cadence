@@ -24,12 +24,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-func (db *cdb) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
+func (db *CDB) InsertConfig(ctx context.Context, row *persistence.InternalConfigStoreEntry) error {
 	query := db.session.Query(templateInsertConfig, row.RowType, row.Version, row.Timestamp, row.Values.Data, row.Values.Encoding).WithContext(ctx)
 	applied, err := query.MapScanCAS(make(map[string]interface{}))
 	if err != nil {
@@ -41,11 +41,11 @@ func (db *cdb) InsertConfig(ctx context.Context, row *persistence.InternalConfig
 	return nil
 }
 
-func (db *cdb) SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error) {
+func (db *CDB) SelectLatestConfig(ctx context.Context, rowType int) (*persistence.InternalConfigStoreEntry, error) {
 	var version int64
 	var timestamp time.Time
 	var data []byte
-	var encoding common.EncodingType
+	var encoding constants.EncodingType
 
 	query := db.session.Query(templateSelectLatestConfig, rowType).WithContext(ctx)
 	err := query.Scan(&rowType, &version, &timestamp, &data, &encoding)

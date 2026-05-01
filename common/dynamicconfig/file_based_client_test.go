@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 )
 
@@ -62,107 +63,107 @@ func (s *fileBasedClientSuite) SetupTest() {
 }
 
 func (s *fileBasedClientSuite) TestGetValue() {
-	v, err := s.client.GetValue(TestGetBoolPropertyKey)
+	v, err := s.client.GetValue(dynamicproperties.TestGetBoolPropertyKey)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *fileBasedClientSuite) TestGetValue_NonExistKey() {
-	v, err := s.client.GetValue(EnableVisibilitySampling)
+	v, err := s.client.GetValue(dynamicproperties.EnableVisibilitySampling)
 	s.Error(err)
-	s.Equal(EnableVisibilitySampling.DefaultBool(), v)
+	s.Equal(dynamicproperties.EnableVisibilitySampling.DefaultBool(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetValueWithFilters() {
-	filters := map[Filter]interface{}{
-		DomainName: "global-samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "global-samples-domain",
 	}
-	v, err := s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err := s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(true, v)
 
-	filters = map[Filter]interface{}{
-		DomainName: "non-exist-domain",
+	filters = map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "non-exist-domain",
 	}
-	v, err = s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err = s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(false, v)
 
-	filters = map[Filter]interface{}{
-		DomainName:   "samples-domain",
-		TaskListName: "non-exist-tasklist",
+	filters = map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName:   "samples-domain",
+		dynamicproperties.TaskListName: "non-exist-tasklist",
 	}
-	v, err = s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err = s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(true, v)
 }
 
 func (s *fileBasedClientSuite) TestGetValueWithFilters_UnknownFilter() {
-	filters := map[Filter]interface{}{
-		DomainName:    "global-samples-domain1",
-		UnknownFilter: "unknown-filter1",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName:    "global-samples-domain1",
+		dynamicproperties.UnknownFilter: "unknown-filter1",
 	}
-	v, err := s.client.GetValueWithFilters(TestGetBoolPropertyKey, filters)
+	v, err := s.client.GetValueWithFilters(dynamicproperties.TestGetBoolPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *fileBasedClientSuite) TestGetIntValue() {
-	v, err := s.client.GetIntValue(TestGetIntPropertyKey, nil)
+	v, err := s.client.GetIntValue(dynamicproperties.TestGetIntPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(1000, v)
 }
 
 func (s *fileBasedClientSuite) TestGetIntValue_FilterNotMatch() {
-	filters := map[Filter]interface{}{
-		DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetIntValue(TestGetIntPropertyKey, filters)
+	v, err := s.client.GetIntValue(dynamicproperties.TestGetIntPropertyKey, filters)
 	s.NoError(err)
 	s.Equal(1000, v)
 }
 
 func (s *fileBasedClientSuite) TestGetIntValue_WrongType() {
-	filters := map[Filter]interface{}{
-		DomainName: "global-samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "global-samples-domain",
 	}
-	v, err := s.client.GetIntValue(TestGetIntPropertyKey, filters)
+	v, err := s.client.GetIntValue(dynamicproperties.TestGetIntPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetIntPropertyKey.DefaultInt(), v)
+	s.Equal(dynamicproperties.TestGetIntPropertyKey.DefaultInt(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetFloatValue() {
-	v, err := s.client.GetFloatValue(TestGetFloat64PropertyKey, nil)
+	v, err := s.client.GetFloatValue(dynamicproperties.TestGetFloat64PropertyKey, nil)
 	s.NoError(err)
 	s.Equal(12.0, v)
 }
 
 func (s *fileBasedClientSuite) TestGetFloatValue_WrongType() {
-	filters := map[Filter]interface{}{
-		DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetFloatValue(TestGetFloat64PropertyKey, filters)
+	v, err := s.client.GetFloatValue(dynamicproperties.TestGetFloat64PropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetFloat64PropertyKey.DefaultFloat(), v)
+	s.Equal(dynamicproperties.TestGetFloat64PropertyKey.DefaultFloat(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetBoolValue() {
-	v, err := s.client.GetBoolValue(TestGetBoolPropertyKey, nil)
+	v, err := s.client.GetBoolValue(dynamicproperties.TestGetBoolPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(false, v)
 }
 
 func (s *fileBasedClientSuite) TestGetStringValue() {
-	filters := map[Filter]interface{}{
-		TaskListName: "random tasklist",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.TaskListName: "random tasklist",
 	}
-	v, err := s.client.GetStringValue(TestGetStringPropertyKey, filters)
+	v, err := s.client.GetStringValue(dynamicproperties.TestGetStringPropertyKey, filters)
 	s.NoError(err)
 	s.Equal("constrained-string", v)
 }
 
 func (s *fileBasedClientSuite) TestGetMapValue() {
-	v, err := s.client.GetMapValue(TestGetMapPropertyKey, nil)
+	v, err := s.client.GetMapValue(dynamicproperties.TestGetMapPropertyKey, nil)
 	s.NoError(err)
 	expectedVal := map[string]interface{}{
 		"key1": "1",
@@ -179,37 +180,37 @@ func (s *fileBasedClientSuite) TestGetMapValue() {
 }
 
 func (s *fileBasedClientSuite) TestGetMapValue_WrongType() {
-	filters := map[Filter]interface{}{
-		TaskListName: "random tasklist",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.TaskListName: "random tasklist",
 	}
-	v, err := s.client.GetMapValue(TestGetMapPropertyKey, filters)
+	v, err := s.client.GetMapValue(dynamicproperties.TestGetMapPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetMapPropertyKey.DefaultMap(), v)
+	s.Equal(dynamicproperties.TestGetMapPropertyKey.DefaultMap(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetDurationValue() {
-	v, err := s.client.GetDurationValue(TestGetDurationPropertyKey, nil)
+	v, err := s.client.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, nil)
 	s.NoError(err)
 	s.Equal(time.Minute, v)
 }
 
 func (s *fileBasedClientSuite) TestGetDurationValue_NotStringRepresentation() {
-	filters := map[Filter]interface{}{
-		DomainName: "samples-domain",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName: "samples-domain",
 	}
-	v, err := s.client.GetDurationValue(TestGetDurationPropertyKey, filters)
+	v, err := s.client.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetDurationPropertyKey.DefaultDuration(), v)
+	s.Equal(dynamicproperties.TestGetDurationPropertyKey.DefaultDuration(), v)
 }
 
 func (s *fileBasedClientSuite) TestGetDurationValue_ParseFailed() {
-	filters := map[Filter]interface{}{
-		DomainName:   "samples-domain",
-		TaskListName: "longIdleTimeTasklist",
+	filters := map[dynamicproperties.Filter]interface{}{
+		dynamicproperties.DomainName:   "samples-domain",
+		dynamicproperties.TaskListName: "longIdleTimeTasklist",
 	}
-	v, err := s.client.GetDurationValue(TestGetDurationPropertyKey, filters)
+	v, err := s.client.GetDurationValue(dynamicproperties.TestGetDurationPropertyKey, filters)
 	s.Error(err)
-	s.Equal(TestGetDurationPropertyKey.DefaultDuration(), v)
+	s.Equal(dynamicproperties.TestGetDurationPropertyKey.DefaultDuration(), v)
 }
 
 func (s *fileBasedClientSuite) TestValidateConfig_ConfigNotExist() {
@@ -239,15 +240,15 @@ func (s *fileBasedClientSuite) TestValidateConfig_ShortPollInterval() {
 func (s *fileBasedClientSuite) TestMatch() {
 	testCases := []struct {
 		v       *constrainedValue
-		filters map[Filter]interface{}
+		filters map[dynamicproperties.Filter]interface{}
 		matched bool
 	}{
 		{
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{},
 			},
-			filters: map[Filter]interface{}{
-				DomainName: "some random domain",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: "some random domain",
 			},
 			matched: true,
 		},
@@ -255,15 +256,15 @@ func (s *fileBasedClientSuite) TestMatch() {
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{"some key": "some value"},
 			},
-			filters: map[Filter]interface{}{},
+			filters: map[dynamicproperties.Filter]interface{}{},
 			matched: false,
 		},
 		{
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{"domainName": "samples-domain"},
 			},
-			filters: map[Filter]interface{}{
-				DomainName: "some random domain",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: "some random domain",
 			},
 			matched: false,
 		},
@@ -274,9 +275,9 @@ func (s *fileBasedClientSuite) TestMatch() {
 					"taskListName": "sample-task-list",
 				},
 			},
-			filters: map[Filter]interface{}{
-				DomainName:   "samples-domain",
-				TaskListName: "sample-task-list",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName:   "samples-domain",
+				dynamicproperties.TaskListName: "sample-task-list",
 			},
 			matched: true,
 		},
@@ -287,9 +288,9 @@ func (s *fileBasedClientSuite) TestMatch() {
 					"some-other-filter": "sample-task-list",
 				},
 			},
-			filters: map[Filter]interface{}{
-				DomainName:   "samples-domain",
-				TaskListName: "sample-task-list",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName:   "samples-domain",
+				dynamicproperties.TaskListName: "sample-task-list",
 			},
 			matched: false,
 		},
@@ -299,8 +300,8 @@ func (s *fileBasedClientSuite) TestMatch() {
 					"domainName": "samples-domain",
 				},
 			},
-			filters: map[Filter]interface{}{
-				TaskListName: "sample-task-list",
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.TaskListName: "sample-task-list",
 			},
 			matched: false,
 		},
@@ -314,7 +315,7 @@ func (s *fileBasedClientSuite) TestMatch() {
 
 func (s *fileBasedClientSuite) TestUpdateConfig() {
 	client := s.client.(*fileBasedClient)
-	key := ValidSearchAttributes
+	key := dynamicproperties.ValidSearchAttributes
 
 	// pre-check existing config
 	current, err := client.GetMapValue(key, nil)

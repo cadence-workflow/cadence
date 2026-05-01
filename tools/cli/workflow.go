@@ -46,6 +46,13 @@ func newWorkflowCommands() []*cli.Command {
 			Action:  DiagnoseWorkflow,
 		},
 		{
+			Name:    "refresh-tasks",
+			Aliases: []string{"rt"},
+			Usage:   "refreshes all the workflow tasks to resume progress",
+			Flags:   flagsForExecution,
+			Action:  RefreshWorkflowTasks,
+		},
+		{
 			Name:        "activity",
 			Aliases:     []string{"act"},
 			Usage:       "operate activities of workflow",
@@ -77,9 +84,16 @@ func newWorkflowCommands() []*cli.Command {
 			Action: RunWorkflow,
 		},
 		{
+			Name:    "terminate",
+			Aliases: []string{"term"},
+			Usage:   "force-stop a workflow execution (no cleanup)",
+			Flags:   getFlagsForTerminate(),
+			Action:  TerminateWorkflow,
+		},
+		{
 			Name:    "cancel",
 			Aliases: []string{"c"},
-			Usage:   "cancel a workflow execution",
+			Usage:   "gracefully stop a workflow execution (similar to terminate, but allows to cleanup)",
 			Flags:   getFlagsForCancel(),
 			Action:  CancelWorkflow,
 		},
@@ -95,13 +109,6 @@ func newWorkflowCommands() []*cli.Command {
 			Usage:  "signal the current open workflow if exists, or attempt to start a new run based on IDResuePolicy and signals it",
 			Flags:  getFlagsForSignalWithStart(),
 			Action: SignalWithStartWorkflowExecution,
-		},
-		{
-			Name:    "terminate",
-			Aliases: []string{"term"},
-			Usage:   "terminate a new workflow execution",
-			Flags:   getFlagsForTerminate(),
-			Action:  TerminateWorkflow,
 		},
 		{
 			Name:        "list",
@@ -535,6 +542,15 @@ func newBatchCommands() []*cli.Command {
 					Name:  FlagConcurrency,
 					Value: batcher.DefaultConcurrency,
 					Usage: "Concurrency of batch activity",
+				},
+				&cli.IntFlag{
+					Name:  FlagMaxActivityRetries,
+					Value: batcher.DefaultMaxActivityRetries,
+					Usage: "Max retries of batch activity, before retrying the whole workflow (0 means unlimited)",
+				},
+				&cli.BoolFlag{
+					Name:  FlagBatchV2,
+					Usage: "Use V2 batch workflow with runtime signal-based tuning support",
 				},
 			},
 			Action: StartBatchJob,

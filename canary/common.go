@@ -29,13 +29,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func maxInt64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func absDurationDiff(d1, d2 time.Duration) time.Duration {
 	if d1 > d2 {
 		return d1 - d2

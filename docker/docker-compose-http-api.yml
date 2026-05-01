@@ -1,4 +1,3 @@
-version: '3'
 services:
   cassandra:
     image: cassandra:4.1.1
@@ -54,7 +53,8 @@ services:
   cadence-web:
     image: ubercadence/web:latest
     environment:
-      - "CADENCE_TCHANNEL_PEERS=cadence:7933"
+      - "CADENCE_GRPC_PEERS=cadence:7833"
+      - "CADENCE_HISTORY_PAGE_V2_ENABLED=OPT_OUT"
     ports:
       - "8088:8088"
     depends_on:

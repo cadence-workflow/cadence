@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.44",
+  "MinCompatibleVersion": "0.44",
+  "Description": "Adding domain_audit_log table to track domain update and failover history",
+  "SchemaUpdateCqlFiles": [
+    "domain_audit_log.cql"
+  ]
+}

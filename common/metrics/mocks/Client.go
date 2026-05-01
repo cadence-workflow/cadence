@@ -36,27 +36,27 @@ type Client struct {
 }
 
 // AddCounter provides a mock function with given fields: scope, counter, delta
-func (_m *Client) AddCounter(scope int, counter int, delta int64) {
+func (_m *Client) AddCounter(scope metrics.ScopeIdx, counter metrics.MetricIdx, delta int64) {
 	_m.Called(scope, counter, delta)
 }
 
 // IncCounter provides a mock function with given fields: scope, counter
-func (_m *Client) IncCounter(scope int, counter int) {
+func (_m *Client) IncCounter(scope metrics.ScopeIdx, counter metrics.MetricIdx) {
 	_m.Called(scope, counter)
 }
 
 // RecordHistogramDuration provides a mock function with given fields: scope, timer, d
-func (_m *Client) RecordHistogramDuration(scope int, timer int, d time.Duration) {
+func (_m *Client) RecordHistogramDuration(scope metrics.ScopeIdx, timer metrics.MetricIdx, d time.Duration) {
 	_m.Called(scope, timer, d)
 }
 
 // RecordTimer provides a mock function with given fields: scope, timer, d
-func (_m *Client) RecordTimer(scope int, timer int, d time.Duration) {
+func (_m *Client) RecordTimer(scope metrics.ScopeIdx, timer metrics.MetricIdx, d time.Duration) {
 	_m.Called(scope, timer, d)
 }
 
 // Scope provides a mock function with given fields: scope, tags
-func (_m *Client) Scope(scope int, tags ...metrics.Tag) metrics.Scope {
+func (_m *Client) Scope(scope metrics.ScopeIdx, tags ...metrics.Tag) metrics.Scope {
 	_va := make([]interface{}, len(tags))
 	for _i := range tags {
 		_va[_i] = tags[_i]
@@ -67,7 +67,7 @@ func (_m *Client) Scope(scope int, tags ...metrics.Tag) metrics.Scope {
 	ret := _m.Called(_ca...)
 
 	var r0 metrics.Scope
-	if rf, ok := ret.Get(0).(func(int, ...metrics.Tag) metrics.Scope); ok {
+	if rf, ok := ret.Get(0).(func(metrics.ScopeIdx, ...metrics.Tag) metrics.Scope); ok {
 		r0 = rf(scope, tags...)
 	} else {
 		if ret.Get(0) != nil {
@@ -79,11 +79,11 @@ func (_m *Client) Scope(scope int, tags ...metrics.Tag) metrics.Scope {
 }
 
 // StartTimer provides a mock function with given fields: scope, timer
-func (_m *Client) StartTimer(scope int, timer int) tally.Stopwatch {
+func (_m *Client) StartTimer(scope metrics.ScopeIdx, timer metrics.MetricIdx) tally.Stopwatch {
 	ret := _m.Called(scope, timer)
 
 	var r0 tally.Stopwatch
-	if rf, ok := ret.Get(0).(func(int, int) tally.Stopwatch); ok {
+	if rf, ok := ret.Get(0).(func(metrics.ScopeIdx, metrics.MetricIdx) tally.Stopwatch); ok {
 		r0 = rf(scope, timer)
 	} else {
 		r0 = ret.Get(0).(tally.Stopwatch)
@@ -93,6 +93,6 @@ func (_m *Client) StartTimer(scope int, timer int) tally.Stopwatch {
 }
 
 // UpdateGauge provides a mock function with given fields: scope, gauge, value
-func (_m *Client) UpdateGauge(scope int, gauge int, value float64) {
+func (_m *Client) UpdateGauge(scope metrics.ScopeIdx, gauge metrics.MetricIdx, value float64) {
 	_m.Called(scope, gauge, value)
 }

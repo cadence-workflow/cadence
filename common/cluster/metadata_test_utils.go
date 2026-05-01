@@ -22,7 +22,7 @@ package cluster
 
 import (
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	commonMetrics "github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/service"
 )
@@ -42,6 +42,10 @@ const (
 	TestAlternativeClusterName = "standby"
 	// TestDisabledClusterName is disabled cluster used for test
 	TestDisabledClusterName = "disabled"
+	// TestRegion1 is region1 used for test
+	TestRegion1 = "region1"
+	// TestRegion2 is region2 used for test
+	TestRegion2 = "region2"
 	// TestCurrentClusterFrontendAddress is the ip port address of current cluster
 	TestCurrentClusterFrontendAddress = "127.0.0.1:7104"
 	// TestAlternativeClusterFrontendAddress is the ip port address of alternative cluster
@@ -90,24 +94,28 @@ var (
 
 	// TestActiveClusterMetadata is metadata for an active cluster
 	TestActiveClusterMetadata = NewMetadata(
-		TestFailoverVersionIncrement,
-		TestCurrentClusterName,
-		TestCurrentClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       TestCurrentClusterName,
+			CurrentClusterName:       TestCurrentClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 
 	// TestPassiveClusterMetadata is metadata for a passive cluster
 	TestPassiveClusterMetadata = NewMetadata(
-		TestFailoverVersionIncrement,
-		TestCurrentClusterName,
-		TestAlternativeClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       TestCurrentClusterName,
+			CurrentClusterName:       TestAlternativeClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 )
 
@@ -119,12 +127,14 @@ func GetTestClusterMetadata(isPrimaryCluster bool) Metadata {
 	}
 
 	return NewMetadata(
-		TestFailoverVersionIncrement,
-		primaryClusterName,
-		TestCurrentClusterName,
-		TestAllClusterInfo,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: TestFailoverVersionIncrement,
+			PrimaryClusterName:       primaryClusterName,
+			CurrentClusterName:       TestCurrentClusterName,
+			ClusterGroup:             TestAllClusterInfo,
+		},
 		func(d string) bool { return false },
 		commonMetrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 }

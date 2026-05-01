@@ -25,11 +25,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
@@ -56,7 +56,7 @@ func TestInsertVisibility(t *testing.T) {
 				query.EXPECT().Exec().Return(nil)
 			},
 			wantQueries: []string{
-				`INSERT INTO open_executions (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, test-type-name, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1) using TTL 1000`,
+				`INSERT INTO open_executions (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, test-type-name, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1, PENDING, , -6795364578871) using TTL 1000`,
 			},
 			wantErr: false,
 		},
@@ -70,7 +70,7 @@ func TestInsertVisibility(t *testing.T) {
 				query.EXPECT().Exec().Return(nil)
 			},
 			wantQueries: []string{
-				`INSERT INTO open_executions(domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, test-type-name, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1)`,
+				`INSERT INTO open_executions(domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, test-type-name, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1, PENDING, , -6795364578871)`,
 			},
 			wantErr: false,
 		},
@@ -89,7 +89,7 @@ func TestInsertVisibility(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.InsertVisibility(context.Background(), test.ttlSeconds, test.row)
 			if test.wantErr {
@@ -117,8 +117,8 @@ func TestUpdateVisibility(t *testing.T) {
 			ttlSeconds: int64(100),
 			wantQueries: []string{
 				`DELETE FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time = 1712009321000 AND run_id = test-run-id`,
-				`INSERT INTO closed_executions (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1) using TTL 100`,
-				`INSERT INTO closed_executions_v2 (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1) using TTL 100`,
+				`INSERT INTO closed_executions (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1, PENDING, , -6795364578871) using TTL 100`,
+				`INSERT INTO closed_executions_v2 (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1, PENDING, , -6795364578871) using TTL 100`,
 			},
 			wantErr:   false,
 			wantPanic: false,
@@ -129,8 +129,8 @@ func TestUpdateVisibility(t *testing.T) {
 			ttlSeconds: maxCassandraTTL + 1,
 			wantQueries: []string{
 				`DELETE FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time = 1712009321000 AND run_id = test-run-id`,
-				`INSERT INTO closed_executions (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1)`,
-				`INSERT INTO closed_executions_v2 (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1)`,
+				`INSERT INTO closed_executions (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1, PENDING, , -6795364578871)`,
+				`INSERT INTO closed_executions_v2 (domain_id, domain_partition,  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time )VALUES (test-domain-id, 0, test-workflow-id, test-run-id, 1712009321000, 1712009321000, 1712009261000, test-type-name, COMPLETED, 1, [], json, test-task-list, false, 1, 2024-04-01T22:08:41Z, 1, PENDING, , -6795364578871)`,
 			},
 			wantErr:   false,
 			wantPanic: false,
@@ -159,7 +159,7 @@ func TestUpdateVisibility(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			err := db.UpdateVisibility(context.Background(), test.ttlSeconds, test.row)
 			if test.wantErr {
 				assert.Error(t, err)
@@ -189,7 +189,7 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			runID:       testdata.RunID,
 			itrMockFunc: nil,
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
 			},
 			wantError:  true,
 			wantResult: false,
@@ -200,10 +200,10 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			workflowID: testdata.WorkflowID,
 			runID:      testdata.RunID,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
 			},
 			wantError:  false,
 			wantResult: false,
@@ -214,11 +214,11 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			workflowID: testdata.WorkflowID,
 			runID:      testdata.RunID,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(true)
 				itr.EXPECT().Close().Return(errors.New("close error"))
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
 			},
 			wantError:  true,
 			wantResult: false,
@@ -229,11 +229,11 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			workflowID: testdata.WorkflowID,
 			runID:      testdata.RunID,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND workflow_id = test-workflow-id AND run_id = test-run-id ALLOW FILTERING `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -258,7 +258,7 @@ func TestSelectOneClosedWorkflow(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			result, err := db.SelectOneClosedWorkflow(context.Background(), test.domainID, test.workflowID, test.runID)
 			if test.wantError {
 				assert.Error(t, err)
@@ -317,7 +317,7 @@ func TestDeleteVisibility(t *testing.T) {
 			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
 			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
-			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
+			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
 			wantError:      true,
 		},
 		{
@@ -327,7 +327,7 @@ func TestDeleteVisibility(t *testing.T) {
 			runID:      testdata.RunID,
 			mockItr:    true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
 			},
 			queryMockFunc: func(query *gocql.MockQuery) {
 				query.EXPECT().WithContext(gomock.Any()).Return(query)
@@ -335,7 +335,7 @@ func TestDeleteVisibility(t *testing.T) {
 			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
 			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
-			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
+			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
 			wantError:      false,
 		},
 		{
@@ -345,7 +345,7 @@ func TestDeleteVisibility(t *testing.T) {
 			runID:      testdata.RunID,
 			mockItr:    true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(errors.New("close error"))
 			},
 			queryMockFunc: func(query *gocql.MockQuery) {
@@ -354,7 +354,7 @@ func TestDeleteVisibility(t *testing.T) {
 			context:        context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
 			dc:             &persistence.DynamicConfiguration{},
 			clientMockFunc: nil,
-			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
+			wantQueries:    []string{`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`},
 			wantError:      true,
 		},
 		{
@@ -364,7 +364,7 @@ func TestDeleteVisibility(t *testing.T) {
 			runID:      testdata.RunID,
 			mockItr:    true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
 			queryMockFunc: func(query *gocql.MockQuery) {
@@ -375,7 +375,7 @@ func TestDeleteVisibility(t *testing.T) {
 			dc:             nil,
 			clientMockFunc: nil,
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
 				`DELETE FROM open_executions WHERE domain_id = test-domain-id and domain_partition = 0 and start_time = 0001-01-01T00:00:00Z and run_id = test-run-id `,
 			},
 			wantError: false,
@@ -387,7 +387,7 @@ func TestDeleteVisibility(t *testing.T) {
 			runID:      testdata.RunID,
 			mockItr:    true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
 			queryMockFunc: func(query *gocql.MockQuery) {
@@ -396,12 +396,12 @@ func TestDeleteVisibility(t *testing.T) {
 				query.EXPECT().Exec().Return(nil)
 			},
 			context: context.WithValue(context.Background(), persistence.VisibilityAdminDeletionKey("visibilityAdminDelete"), true),
-			dc: &persistence.DynamicConfiguration{EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+			dc: &persistence.DynamicConfiguration{EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 				return true
 			}},
 			clientMockFunc: nil,
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
 				`DELETE FROM open_executions WHERE domain_id = test-domain-id and domain_partition = 0 and start_time = 0001-01-01T00:00:00Z and run_id = test-run-id `,
 			},
 			wantError: false,
@@ -421,17 +421,17 @@ func TestDeleteVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
 			dc: &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
 			clientMockFunc: func(client *gocql.MockClient) {
 				client.EXPECT().IsCassandraConsistencyError(gomock.Any()).Return(true)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
 				`DELETE FROM open_executions WHERE domain_id = test-domain-id and domain_partition = 0 and start_time = 0001-01-01T00:00:00Z and run_id = test-run-id `,
 			},
 			wantError: false,
@@ -449,17 +449,17 @@ func TestDeleteVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
 				itr.EXPECT().Close().Return(nil)
 			},
 			dc: &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool { return true },
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool { return true },
 			},
 			clientMockFunc: func(client *gocql.MockClient) {
 				client.EXPECT().IsCassandraConsistencyError(gomock.Any()).Return(false)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND run_id = test-run-id ALLOW FILTERING`,
 				`DELETE FROM open_executions WHERE domain_id = test-domain-id and domain_partition = 0 and start_time = 0001-01-01T00:00:00Z and run_id = test-run-id `,
 			},
 			wantError: true,
@@ -488,7 +488,7 @@ func TestDeleteVisibility(t *testing.T) {
 			}
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
-			db := newCassandraDBFromSession(cfg, session, logger, test.dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, test.dc, DbWithClient(client))
 			err := db.DeleteVisibility(test.context, test.domainID, test.workflowID, test.runID)
 			if test.wantError {
 				assert.Error(t, err)
@@ -536,7 +536,7 @@ func TestSelectVisibility(t *testing.T) {
 			mockItr:     true,
 			itrMockFunc: nil,
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
 			},
 			wantError:  true,
 			wantResult: false,
@@ -553,13 +553,13 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(errors.New("close error"))
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
 			},
 			wantError:  true,
 			wantResult: false,
@@ -576,13 +576,13 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -599,12 +599,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition IN (0) AND start_time >= 1712009321000 AND start_time <= 1712009321000 `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -621,12 +621,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition IN (0) AND close_time >= 1712009321000 AND close_time <= 1712009321000 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition IN (0) AND close_time >= 1712009321000 AND close_time <= 1712009321000 `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -655,13 +655,13 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_type_name = test-workflow-type `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_type_name = test-workflow-type `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -678,12 +678,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_type_name = test-workflow-type `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_type_name = test-workflow-type `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -700,12 +700,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition = 0 AND close_time >= 1712009321000 AND close_time <= 1712009321000 AND workflow_type_name = test-workflow-type `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition = 0 AND close_time >= 1712009321000 AND close_time <= 1712009321000 AND workflow_type_name = test-workflow-type `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -733,13 +733,13 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(true)
-				itr.EXPECT().Scan(generateMockParams(12)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(true)
+				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_id = test-workflow-id `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, workflow_type_name, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM open_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_id = test-workflow-id `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -756,12 +756,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_id = test-workflow-id `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND workflow_id = test-workflow-id `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -778,12 +778,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition = 0 AND close_time >= 1712009321000 AND close_time <= 1712009321000 AND workflow_id = test-workflow-id `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition = 0 AND close_time >= 1712009321000 AND close_time <= 1712009321000 AND workflow_id = test-workflow-id `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -811,12 +811,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND status = 0 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions WHERE domain_id = test-domain-id AND domain_partition = 0 AND start_time >= 1712009321000 AND start_time <= 1712009321000 AND status = 0 `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -833,12 +833,12 @@ func TestSelectVisibility(t *testing.T) {
 			},
 			mockItr: true,
 			itrMockFunc: func(itr *gocql.MockIter) {
-				itr.EXPECT().Scan(generateMockParams(15)...).Return(false)
+				itr.EXPECT().Scan(generateMockParams(18)...).Return(false)
 				itr.EXPECT().PageState().Return([]byte("test"))
 				itr.EXPECT().Close().Return(nil)
 			},
 			wantQueries: []string{
-				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition = 0 AND close_time >= 1712009321000 AND close_time <= 1712009321000 AND status = 0 `,
+				`SELECT  workflow_id, run_id, start_time, execution_time, close_time, workflow_type_name, status, history_length, memo, encoding, task_list, is_cron, num_clusters, update_time, shard_id, execution_status, cron_schedule, scheduled_execution_time FROM closed_executions_v2 WHERE domain_id = test-domain-id AND domain_partition = 0 AND close_time >= 1712009321000 AND close_time <= 1712009321000 AND status = 0 `,
 			},
 			wantError:  false,
 			wantResult: true,
@@ -884,7 +884,7 @@ func TestSelectVisibility(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{}
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 			result, err := db.SelectVisibility(context.Background(), test.filter)
 			if test.wantError {
 				assert.Error(t, err)

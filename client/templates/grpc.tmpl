@@ -18,6 +18,41 @@ import (
 {{range $method := .Interface.Methods}}
 {{$Request := printf "%sRequest" $method.Name}}
 {{$Response := printf "%sResponse" $method.Name}}
+{{- $isStreaming := false}}
+{{- range $method.Results}}
+	{{- if contains "Client" .Type}}
+		{{- $isStreaming = true}}
+	{{- end}}
+{{- end}}
+{{- if $isStreaming}}
+func (g {{$decorator}}) {{$method.Declaration}} {
+	stream, {{(index $method.Results 1).Name}} := g.c.{{$method.Name}}({{(index $method.Params 0).Name}}, proto.From{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}), {{(index $method.Params 2).Pass}})
+	if {{(index $method.Results 1).Name}} != nil {
+		return nil, proto.ToError({{(index $method.Results 1).Name}})
+	}
+	return &{{lower $method.Name}}Client{stream: stream}, nil
+}
+
+type {{lower $method.Name}}Client struct {
+	stream {{$package}}.{{$prefix}}APIService{{$method.Name}}YARPCClient
+}
+
+func (c *{{lower $method.Name}}Client) Context() context.Context {
+	return c.stream.Context()
+}
+
+func (c *{{lower $method.Name}}Client) Recv(options ...yarpc.StreamOption) (*types.{{$Response}}, error) {
+	response, err := c.stream.Recv(options...)
+	if err != nil {
+		return nil, proto.ToError(err)
+	}
+	return proto.To{{$prefix}}{{$Response}}(response), nil
+}
+
+func (c *{{lower $method.Name}}Client) CloseSend(options ...yarpc.StreamOption) error {
+	return proto.ToError(c.stream.CloseSend(options...))
+}
+{{- else}}
 func (g {{$decorator}}) {{$method.Declaration}} {
 	{{- if eq (len $method.Params) 2}}
 	{{- if eq (len $method.Results) 1}}
@@ -39,4 +74,5 @@ func (g {{$decorator}}) {{$method.Declaration}} {
 	return proto.To{{$prefix}}{{$Response}}(response), proto.ToError({{(index $method.Results 1).Name}})
 	{{- end}}
 }
+{{- end}}
 {{end}}

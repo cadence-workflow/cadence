@@ -87,6 +87,12 @@ func (m *TestTaskManager) LeaseTaskList(
 	tlm := m.getTaskListManager(NewTestTaskListID(m.t, request.DomainID, request.TaskList, request.TaskType))
 	tlm.Lock()
 	defer tlm.Unlock()
+	if request.RangeID > 0 && request.RangeID != tlm.rangeID {
+		return nil, &persistence.ConditionFailedError{
+			Msg: fmt.Sprintf("leaseTaskList:renew failed: taskList:%v, taskListType:%v, haveRangeID:%v, gotRangeID:%v",
+				request.TaskList, request.TaskType, request.RangeID, tlm.rangeID),
+		}
+	}
 	tlm.rangeID++
 	tlm.kind = request.TaskListKind
 	m.logger.Debug(fmt.Sprintf("testTaskManager.LeaseTaskList rangeID=%v", tlm.rangeID))

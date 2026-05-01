@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // DLQType is an internal type (TBD...)
@@ -93,8 +94,18 @@ func (e DomainOperation) String() string {
 		return "Create"
 	case 1:
 		return "Update"
+	case 2:
+		return "Delete"
 	}
 	return fmt.Sprintf("DomainOperation(%d)", w)
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (e *DomainOperation) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
 }
 
 // UnmarshalText parses enum value from string representation
@@ -105,6 +116,9 @@ func (e *DomainOperation) UnmarshalText(value []byte) error {
 		return nil
 	case "UPDATE":
 		*e = DomainOperationUpdate
+		return nil
+	case "DELETE":
+		*e = DomainOperationDelete
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -126,6 +140,8 @@ const (
 	DomainOperationCreate DomainOperation = iota
 	// DomainOperationUpdate is an option for DomainOperation
 	DomainOperationUpdate
+	// DomainOperationDelete is an option for DomainOperation
+	DomainOperationDelete
 )
 
 // DomainTaskAttributes is an internal type (TBD...)
@@ -188,6 +204,22 @@ func (v *DomainTaskAttributes) GetPreviousFailoverVersion() (o int64) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *DomainTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.DomainOperation.ByteSize()
+	size += uint64(len(v.ID))
+	size += v.Info.ByteSize()
+	size += v.Config.ByteSize()
+	size += v.ReplicationConfig.ByteSize()
+
+	return size
+}
+
 // FailoverMarkerAttributes is an internal type (TBD...)
 type FailoverMarkerAttributes struct {
 	DomainID        string `json:"domainID,omitempty"`
@@ -219,6 +251,21 @@ func (v *FailoverMarkerAttributes) GetCreationTime() (o int64) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *FailoverMarkerAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	if v.CreationTime != nil {
+		size += uint64(unsafe.Sizeof(*v.CreationTime))
+	}
+
+	return size
+}
+
 // FailoverMarkers is an internal type (TBD...)
 type FailoverMarkers struct {
 	FailoverMarkers []*FailoverMarkerAttributes `json:"failoverMarkers,omitempty"`
@@ -227,13 +274,6 @@ type FailoverMarkers struct {
 // GetDLQReplicationMessagesRequest is an internal type (TBD...)
 type GetDLQReplicationMessagesRequest struct {
 	TaskInfos []*ReplicationTaskInfo `json:"taskInfos,omitempty"`
-}
-
-func (v *GetDLQReplicationMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetTaskInfos is an internal getter (TBD...)
@@ -254,13 +294,6 @@ type GetDomainReplicationMessagesRequest struct {
 	LastRetrievedMessageID *int64 `json:"lastRetrievedMessageId,omitempty"`
 	LastProcessedMessageID *int64 `json:"lastProcessedMessageId,omitempty"`
 	ClusterName            string `json:"clusterName,omitempty"`
-}
-
-func (v *GetDomainReplicationMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetLastRetrievedMessageID is an internal getter (TBD...)
@@ -298,13 +331,6 @@ type GetReplicationMessagesRequest struct {
 	ClusterName string              `json:"clusterName,omitempty"`
 }
 
-func (v *GetReplicationMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetClusterName is an internal getter (TBD...)
 func (v *GetReplicationMessagesRequest) GetClusterName() (o string) {
 	if v != nil {
@@ -324,6 +350,35 @@ func (v *GetReplicationMessagesResponse) GetMessagesByShard() (o map[int32]*Repl
 		return v.MessagesByShard
 	}
 	return
+}
+
+// GetEarliestCreationTime returns the earliest creation time of replication tasks if it exists, otherwise return nil
+func (v *GetReplicationMessagesResponse) GetEarliestCreationTime() *int64 {
+	if v == nil {
+		return nil
+	}
+
+	var earliestTime *int64
+	for _, messages := range v.MessagesByShard {
+
+		creationTime := messages.GetEarliestCreationTime()
+		if creationTime == nil {
+			continue
+		}
+
+		if earliestTime == nil || *creationTime < *earliestTime {
+			earliestTime = creationTime
+		}
+	}
+
+	if earliestTime == nil {
+		return nil
+	}
+
+	// avoid returning a pointer to the internal value
+	// for immutability
+	result := *earliestTime
+	return &result
 }
 
 // HistoryTaskV2Attributes is an internal type (TBD...)
@@ -384,17 +439,32 @@ func (v *HistoryTaskV2Attributes) GetNewRunEvents() (o *DataBlob) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *HistoryTaskV2Attributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	size += uint64(len(v.WorkflowID))
+	size += uint64(len(v.RunID))
+
+	size += uint64(len(v.VersionHistoryItems)) * uint64(unsafe.Sizeof((*VersionHistoryItem)(nil)))
+	for _, item := range v.VersionHistoryItems {
+		size += item.ByteSize()
+	}
+
+	size += v.Events.ByteSize()
+	size += v.NewRunEvents.ByteSize()
+
+	return size
+}
+
 type CountDLQMessagesRequest struct {
 	// ForceFetch will force fetching current values from DB
 	// instead of using cached values used for emitting metrics.
 	ForceFetch bool
-}
-
-func (v *CountDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 type CountDLQMessagesResponse struct {
@@ -419,13 +489,6 @@ type MergeDLQMessagesRequest struct {
 	InclusiveEndMessageID *int64   `json:"inclusiveEndMessageID,omitempty"`
 	MaximumPageSize       int32    `json:"maximumPageSize,omitempty"`
 	NextPageToken         []byte   `json:"nextPageToken,omitempty"`
-}
-
-func (v *MergeDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetType is an internal getter (TBD...)
@@ -489,13 +552,6 @@ type PurgeDLQMessagesRequest struct {
 	InclusiveEndMessageID *int64   `json:"inclusiveEndMessageID,omitempty"`
 }
 
-func (v *PurgeDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetType is an internal getter (TBD...)
 func (v *PurgeDLQMessagesRequest) GetType() (o DLQType) {
 	if v != nil && v.Type != nil {
@@ -536,13 +592,6 @@ type ReadDLQMessagesRequest struct {
 	InclusiveEndMessageID *int64   `json:"inclusiveEndMessageID,omitempty"`
 	MaximumPageSize       int32    `json:"maximumPageSize,omitempty"`
 	NextPageToken         []byte   `json:"nextPageToken,omitempty"`
-}
-
-func (v *ReadDLQMessagesRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetType is an internal getter (TBD...)
@@ -641,6 +690,40 @@ func (v *ReplicationMessages) GetSyncShardStatus() (o *SyncShardStatus) {
 	return
 }
 
+// GetEarliestCreationTime returns the earliest message time in the replication tasks if it exists
+// otherwise return nil
+func (v *ReplicationMessages) GetEarliestCreationTime() *int64 {
+	if v == nil {
+		return nil
+	}
+
+	var earliestTime *int64
+	for _, task := range v.GetReplicationTasks() {
+		if task.CreationTime == nil {
+			continue
+		}
+
+		if earliestTime == nil || *task.CreationTime < *earliestTime {
+			earliestTime = task.CreationTime
+		}
+	}
+
+	if earliestTime == nil {
+		return nil
+	}
+
+	// avoid returning a pointer to the internal value
+	// for immutability
+	result := *earliestTime
+	return &result
+}
+
+// ReplicationMessagesSizeFn is a function type to calculate the size of ReplicationMessages
+type ReplicationMessagesSizeFn func(v *ReplicationMessages) int
+
+// ReplicationTaskSizeFn is a function type to calculate the size of a single ReplicationTask
+type ReplicationTaskSizeFn func(v *ReplicationTask) int
+
 // ReplicationTask is an internal type (TBD...)
 type ReplicationTask struct {
 	TaskType                      *ReplicationTaskType           `json:"taskType,omitempty"`
@@ -667,6 +750,11 @@ func (v *ReplicationTask) GetSourceTaskID() (o int64) {
 		return v.SourceTaskID
 	}
 	return
+}
+
+// GetSequenceID implements cache.AckCacheItem interface by delegating to GetSourceTaskID
+func (v *ReplicationTask) GetSequenceID() int64 {
+	return v.GetSourceTaskID()
 }
 
 // GetDomainTaskAttributes is an internal getter (TBD...)
@@ -707,6 +795,26 @@ func (v *ReplicationTask) GetCreationTime() (o int64) {
 		return *v.CreationTime
 	}
 	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *ReplicationTask) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += v.TaskType.ByteSize()
+	size += v.DomainTaskAttributes.ByteSize()
+	size += v.SyncShardStatusTaskAttributes.ByteSize()
+	size += v.SyncActivityTaskAttributes.ByteSize()
+	size += v.HistoryTaskV2Attributes.ByteSize()
+	size += v.FailoverMarkerAttributes.ByteSize()
+	if v.CreationTime != nil {
+		size += uint64(unsafe.Sizeof(*v.CreationTime))
+	}
+
+	return size
 }
 
 // ReplicationTaskInfo is an internal type (TBD...)
@@ -880,6 +988,14 @@ const (
 	ReplicationTaskTypeFailoverMarker
 )
 
+// ByteSize returns the approximate memory used in bytes
+func (e *ReplicationTaskType) ByteSize() uint64 {
+	if e == nil {
+		return 0
+	}
+	return uint64(unsafe.Sizeof(*e))
+}
+
 // ReplicationToken is an internal type (TBD...)
 type ReplicationToken struct {
 	ShardID                int32 `json:"shardID,omitempty"`
@@ -1010,6 +1126,37 @@ func (v *SyncActivityTaskAttributes) GetVersionHistory() (o *VersionHistory) {
 	return
 }
 
+// ByteSize returns the approximate memory used in bytes
+func (v *SyncActivityTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.DomainID))
+	size += uint64(len(v.WorkflowID))
+	size += uint64(len(v.RunID))
+	if v.ScheduledTime != nil {
+		size += uint64(unsafe.Sizeof(*v.ScheduledTime))
+	}
+	if v.StartedTime != nil {
+		size += uint64(unsafe.Sizeof(*v.StartedTime))
+	}
+	if v.LastHeartbeatTime != nil {
+		size += uint64(unsafe.Sizeof(*v.LastHeartbeatTime))
+	}
+	size += uint64(len(v.Details))
+	if v.LastFailureReason != nil {
+		size += uint64(unsafe.Sizeof(*v.LastFailureReason))
+		size += uint64(len(*v.LastFailureReason))
+	}
+	size += uint64(len(v.LastWorkerIdentity))
+	size += uint64(len(v.LastFailureDetails))
+	size += v.VersionHistory.ByteSize()
+
+	return size
+}
+
 // SyncShardStatus is an internal type (TBD...)
 type SyncShardStatus struct {
 	Timestamp *int64 `json:"timestamp,omitempty"`
@@ -1028,4 +1175,19 @@ type SyncShardStatusTaskAttributes struct {
 	SourceCluster string `json:"sourceCluster,omitempty"`
 	ShardID       int64  `json:"shardId,omitempty"`
 	Timestamp     *int64 `json:"timestamp,omitempty"`
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *SyncShardStatusTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.SourceCluster))
+	if v.Timestamp != nil {
+		size += uint64(unsafe.Sizeof(*v.Timestamp))
+	}
+
+	return size
 }

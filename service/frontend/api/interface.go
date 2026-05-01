@@ -21,6 +21,7 @@
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go -self_package github.com/uber/cadence/service/frontend/api
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/accesscontrolled.tmpl -o ../wrappers/accesscontrolled/api_generated.go -v handler=API
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/clusterredirection.tmpl -o ../wrappers/clusterredirection/api_generated.go
+//go:generate gowrap gen -g -p . -i Handler -t ../templates/versioncheck.tmpl -o ../wrappers/versioncheck/api_generated.go
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/metered.tmpl -o ../wrappers/metered/api_generated.go -v handler=API
 //go:generate gowrap gen -g -p . -i Handler -t ../templates/ratelimited.tmpl -o ../wrappers/ratelimited/api_generated.go -v handler=API
 //go:generate gowrap gen -g -p . -i Handler -t ../../templates/grpc.tmpl -o ../wrappers/grpc/api_generated.go -v handler=API -v package=apiv1 -v path=github.com/uber/cadence-idl/go/proto/api/v1 -v prefix=
@@ -39,6 +40,7 @@ type (
 	Handler interface {
 		Health(context.Context) (*types.HealthStatus, error)
 		CountWorkflowExecutions(context.Context, *types.CountWorkflowExecutionsRequest) (*types.CountWorkflowExecutionsResponse, error)
+		DeleteDomain(context.Context, *types.DeleteDomainRequest) error
 		DeprecateDomain(context.Context, *types.DeprecateDomainRequest) error
 		DescribeDomain(context.Context, *types.DescribeDomainRequest) (*types.DescribeDomainResponse, error)
 		DescribeTaskList(context.Context, *types.DescribeTaskListRequest) (*types.DescribeTaskListResponse, error)
@@ -82,5 +84,16 @@ type (
 		StartWorkflowExecutionAsync(context.Context, *types.StartWorkflowExecutionAsyncRequest) (*types.StartWorkflowExecutionAsyncResponse, error)
 		TerminateWorkflowExecution(context.Context, *types.TerminateWorkflowExecutionRequest) error
 		UpdateDomain(context.Context, *types.UpdateDomainRequest) (*types.UpdateDomainResponse, error)
+		FailoverDomain(context.Context, *types.FailoverDomainRequest) (*types.FailoverDomainResponse, error)
+		ListFailoverHistory(context.Context, *types.ListFailoverHistoryRequest) (*types.ListFailoverHistoryResponse, error)
+
+		CreateSchedule(context.Context, *types.CreateScheduleRequest) (*types.CreateScheduleResponse, error)
+		DescribeSchedule(context.Context, *types.DescribeScheduleRequest) (*types.DescribeScheduleResponse, error)
+		UpdateSchedule(context.Context, *types.UpdateScheduleRequest) (*types.UpdateScheduleResponse, error)
+		DeleteSchedule(context.Context, *types.DeleteScheduleRequest) (*types.DeleteScheduleResponse, error)
+		PauseSchedule(context.Context, *types.PauseScheduleRequest) (*types.PauseScheduleResponse, error)
+		UnpauseSchedule(context.Context, *types.UnpauseScheduleRequest) (*types.UnpauseScheduleResponse, error)
+		BackfillSchedule(context.Context, *types.BackfillScheduleRequest) (*types.BackfillScheduleResponse, error)
+		ListSchedules(context.Context, *types.ListSchedulesRequest) (*types.ListSchedulesResponse, error)
 	}
 )

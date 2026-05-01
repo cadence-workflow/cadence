@@ -39,21 +39,16 @@ const (
 )
 
 func Test__Check(t *testing.T) {
-	metadata := FailureMetadata{
+	metadata := FailureIssuesMetadata{
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
 	require.NoError(t, err)
-	actMetadata := FailureMetadata{
-		Identity: "localhost",
-		ActivityScheduled: &types.ActivityTaskScheduledEventAttributes{
-			ActivityID:   "101",
-			ActivityType: &types.ActivityType{Name: "test-activity"},
-		},
-		ActivityStarted: &types.ActivityTaskStartedEventAttributes{
-			Identity: "localhost",
-			Attempt:  0,
-		},
+	actMetadata := FailureIssuesMetadata{
+		Identity:            "localhost",
+		ActivityType:        "test-activity",
+		ActivityScheduledID: 1,
+		ActivityStartedID:   2,
 	}
 	actMetadataInBytes, err := json.Marshal(actMetadata)
 	require.NoError(t, err)
@@ -68,21 +63,25 @@ func Test__Check(t *testing.T) {
 			testData: failedWfHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        GenericError.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       1,
 					InvariantType: ActivityFailed.String(),
 					Reason:        PanicError.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       2,
 					InvariantType: ActivityFailed.String(),
 					Reason:        CustomError.String(),
 					Metadata:      actMetadataInBytes,
 				},
 				{
+					IssueID:       3,
 					InvariantType: WorkflowFailed.String(),
 					Reason:        TimeoutError.String(),
 					Metadata:      metadataInBytes,
@@ -90,13 +89,32 @@ func Test__Check(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name:     "blob size limit exceeded",
+			testData: blobSizeLimitExceededHistory(),
+			expectedResult: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityFailed.String(),
+					Reason:        ActivityOutputBlobSizeLimit.String(),
+					Metadata:      actMetadataInBytes,
+				},
+				{
+					IssueID:       1,
+					InvariantType: DecisionCausedFailure.String(),
+					Reason:        DecisionBlobSizeLimit.String(),
+					Metadata:      metadataInBytes,
+				},
+			},
+			err: nil,
+		},
 	}
 	for _, tc := range testCases {
-		inv := NewInvariant(Params{
+		inv := NewInvariant()
+		result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
 			WorkflowExecutionHistory: tc.testData,
 			Domain:                   testDomain,
 		})
-		result, err := inv.Check(context.Background())
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		require.ElementsMatch(t, tc.expectedResult, result)
@@ -166,8 +184,53 @@ func failedWfHistory() *types.GetWorkflowExecutionHistoryResponse {
 	}
 }
 
+func blobSizeLimitExceededHistory() *types.GetWorkflowExecutionHistoryResponse {
+	return &types.GetWorkflowExecutionHistoryResponse{
+		History: &types.History{
+			Events: []*types.HistoryEvent{
+				{
+					ID: 1,
+					ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
+						ActivityID:   "101",
+						ActivityType: &types.ActivityType{Name: "test-activity"},
+					},
+				},
+				{
+					ID: 2,
+					ActivityTaskStartedEventAttributes: &types.ActivityTaskStartedEventAttributes{
+						Identity: "localhost",
+						Attempt:  0,
+					},
+				},
+				{
+					ActivityTaskFailedEventAttributes: &types.ActivityTaskFailedEventAttributes{
+						Reason:           common.StringPtr("COMPLETE_RESULT_EXCEEDS_LIMIT"),
+						Details:          []byte("test-activity-failure"),
+						Identity:         "localhost",
+						ScheduledEventID: 1,
+						StartedEventID:   2,
+					},
+				},
+				{
+					ID: 10,
+					DecisionTaskCompletedEventAttributes: &types.DecisionTaskCompletedEventAttributes{
+						Identity: "localhost",
+					},
+				},
+				{
+					WorkflowExecutionFailedEventAttributes: &types.WorkflowExecutionFailedEventAttributes{
+						Reason:                       common.StringPtr("DECISION_BLOB_SIZE_EXCEEDS_LIMIT"),
+						Details:                      []byte("test-wf-failure"),
+						DecisionTaskCompletedEventID: 10,
+					},
+				},
+			},
+		},
+	}
+}
+
 func Test__RootCause(t *testing.T) {
-	metadata := FailureMetadata{
+	metadata := FailureIssuesMetadata{
 		Identity: "localhost",
 	}
 	metadataInBytes, err := json.Marshal(metadata)
@@ -179,23 +242,59 @@ func Test__RootCause(t *testing.T) {
 		err            error
 	}{
 		{
-			name: "customer side failure",
+			name: "customer side known failure",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: ActivityFailed.String(),
 					Reason:        CustomError.String(),
 					Metadata:      metadataInBytes,
 				}},
 			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
+				RootCause: invariant.RootCauseTypeServiceSideCustomError,
+				Metadata:  metadataInBytes,
+			}},
+			err: nil,
+		},
+		{
+			name: "customer side error",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityFailed.String(),
+					Reason:        GenericError.String(),
+					Metadata:      metadataInBytes,
+				}},
+			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
 				RootCause: invariant.RootCauseTypeServiceSideIssue,
 				Metadata:  metadataInBytes,
 			}},
 			err: nil,
 		},
+		{
+			name: "customer side panic",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: ActivityFailed.String(),
+					Reason:        PanicError.String(),
+					Metadata:      metadataInBytes,
+				}},
+			expectedResult: []invariant.InvariantRootCauseResult{{
+				IssueID:   0,
+				RootCause: invariant.RootCauseTypeServiceSidePanic,
+				Metadata:  metadataInBytes,
+			}},
+			err: nil,
+		},
 	}
-	inv := NewInvariant(Params{})
+	inv := NewInvariant()
 	for _, tc := range testCases {
-		result, err := inv.RootCause(context.Background(), tc.input)
+		result, err := inv.RootCause(context.Background(), invariant.InvariantRootCauseInput{
+			Issues: tc.input,
+		})
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		require.ElementsMatch(t, tc.expectedResult, result)

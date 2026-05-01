@@ -38,6 +38,10 @@ type (
 		*IntegrationBase
 	}
 
+	IntegrationQueueV2Suite struct {
+		*IntegrationSuite
+	}
+
 	SizeLimitIntegrationSuite struct {
 		// override suite.Suite.Assertions with require.Assertions; this means that s.NotNil(nil) will stop the test,
 		// not merely log an error
@@ -61,17 +65,29 @@ type (
 		*IntegrationBase
 	}
 
-	MatchingSimulationSuite struct {
-		*require.Assertions
-		*IntegrationBase
-	}
-
 	WorkflowIDRateLimitIntegrationSuite struct {
 		*require.Assertions
 		*IntegrationBase
 	}
 
 	WorkflowIDInternalRateLimitIntegrationSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
+
+	TaskListIntegrationSuite struct {
+		*require.Assertions
+		*IntegrationBase
+
+		TaskListName string
+	}
+
+	TaskListIsolationIntegrationSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
+
+	DecisionTimeoutMaxAttemptsIntegrationSuite struct {
 		*require.Assertions
 		*IntegrationBase
 	}

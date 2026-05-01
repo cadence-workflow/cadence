@@ -27,13 +27,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/locks"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -49,6 +49,7 @@ import (
 const (
 	defaultRemoteCallTimeout = 30 * time.Second
 	checksumErrorRetryCount  = 3
+	maxLockDuration          = 1 * time.Second
 )
 
 type conflictError struct {
@@ -114,6 +115,8 @@ type (
 			persistedHistory events.PersistedBlob,
 			createMode persistence.CreateWorkflowMode,
 			prevRunID string,
+			// TODO(active-active): only passing prevLastWriteVersion might not be enough for active-active workflows, we may consider passing ActiveClusterSelectionPolicy as well
+			// and include ActiveClusterSelectionPolicy in conditional update of current execution record
 			prevLastWriteVersion int64,
 			workflowRequestMode persistence.CreateWorkflowRequestMode,
 		) error
@@ -162,6 +165,8 @@ type (
 			ctx context.Context,
 			now time.Time,
 		) error
+
+		cache.Sizeable
 	}
 )
 
@@ -174,9 +179,13 @@ type (
 		logger            log.Logger
 		metricsClient     metrics.Client
 
-		mutex        locks.Mutex
-		mutableState MutableState
-		stats        *persistence.ExecutionStats
+		mutex           locks.Mutex
+		lockTime        time.Time
+		maxLockDuration time.Duration
+		mutableState    MutableState
+		stats           *persistence.ExecutionStats
+
+		repairer WorkflowRepairer
 
 		appendHistoryNodesFn                  func(context.Context, string, types.WorkflowExecution, *persistence.AppendHistoryNodesRequest) (*persistence.AppendHistoryNodesResponse, error)
 		persistStartWorkflowBatchEventsFn     func(context.Context, *persistence.WorkflowEvents) (events.PersistedBlob, error)
@@ -210,14 +219,17 @@ func NewContext(
 	logger log.Logger,
 ) Context {
 	logger = logger.WithTags(tag.WorkflowDomainID(domainID), tag.WorkflowID(execution.GetWorkflowID()), tag.WorkflowRunID(execution.GetRunID()))
+	metricsClient := shard.GetMetricsClient()
 	ctx := &contextImpl{
 		domainID:          domainID,
 		workflowExecution: execution,
 		shard:             shard,
 		executionManager:  executionManager,
 		logger:            logger,
-		metricsClient:     shard.GetMetricsClient(),
+		metricsClient:     metricsClient,
+		repairer:          NewWorkflowRepairer(shard, logger, metricsClient),
 		mutex:             locks.NewMutex(),
+		maxLockDuration:   maxLockDuration,
 		stats: &persistence.ExecutionStats{
 			HistorySize: 0,
 		},
@@ -226,13 +238,13 @@ func NewContext(
 			return appendHistoryV2EventsWithRetry(ctx, shard, common.CreatePersistenceRetryPolicy(), domainID, workflowExecution, request)
 		},
 		getWorkflowExecutionFn: func(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
-			return getWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return getWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		createWorkflowExecutionFn: func(ctx context.Context, request *persistence.CreateWorkflowExecutionRequest) (*persistence.CreateWorkflowExecutionResponse, error) {
-			return createWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return createWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		updateWorkflowExecutionFn: func(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (*persistence.UpdateWorkflowExecutionResponse, error) {
-			return updateWorkflowExecutionWithRetry(ctx, shard, logger, common.CreatePersistenceRetryPolicy(), request)
+			return updateWorkflowExecutionWithRetry(ctx, shard, logger.Helper(), common.CreatePersistenceRetryPolicy(), request)
 		},
 		notifyTasksFromWorkflowSnapshotFn: func(snapshot *persistence.WorkflowSnapshot, blobs events.PersistedBlobs, persistentError bool) {
 			notifyTasksFromWorkflowSnapshot(shard.GetEngine(), snapshot, blobs, persistentError)
@@ -247,13 +259,15 @@ func NewContext(
 			emitWorkflowHistoryStats(shard.GetMetricsClient(), domainName, historySize, eventCount)
 		},
 		emitWorkflowCompletionStatsFn: func(domainName, workflowType, workflowID, runID, taskList string, event *types.HistoryEvent) {
-			emitWorkflowCompletionStats(shard.GetMetricsClient(), logger, domainName, workflowType, workflowID, runID, taskList, event)
+			emitWorkflowCompletionStats(shard.GetMetricsClient(), logger.Helper(), domainName, workflowType, workflowID, runID, taskList, event)
 		},
 		emitWorkflowExecutionStatsFn: func(domainName string, stats *persistence.MutableStateStats, historySize int64) {
 			emitWorkflowExecutionStats(shard.GetMetricsClient(), domainName, stats, historySize)
 		},
-		mergeContinueAsNewReplicationTasksFn: mergeContinueAsNewReplicationTasks,
-		createMutableStateFn:                 NewMutableStateBuilder,
+		mergeContinueAsNewReplicationTasksFn: func(updateMode persistence.UpdateWorkflowMode, mutation *persistence.WorkflowMutation, snapshot *persistence.WorkflowSnapshot) error {
+			return mergeContinueAsNewReplicationTasks(logger, updateMode, mutation, snapshot)
+		},
+		createMutableStateFn: NewMutableStateBuilder,
 	}
 	ctx.persistStartWorkflowBatchEventsFn = ctx.PersistStartWorkflowBatchEvents
 	ctx.persistNonStartWorkflowBatchEventsFn = ctx.PersistNonStartWorkflowBatchEvents
@@ -265,11 +279,26 @@ func NewContext(
 }
 
 func (c *contextImpl) Lock(ctx context.Context) error {
-	return c.mutex.Lock(ctx)
+	err := c.mutex.Lock(ctx)
+	if err != nil {
+		return err
+	}
+	c.lockTime = time.Now()
+	return nil
 }
 
 func (c *contextImpl) Unlock() {
-	c.mutex.Unlock()
+	defer c.mutex.Unlock()
+
+	if c.lockTime.IsZero() { // skip logging if the lock is never acquired
+		return
+	}
+	elapsed := time.Since(c.lockTime)
+	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
+	if elapsed > c.maxLockDuration {
+		c.maxLockDuration = elapsed
+		c.logger.Info("workflow context lock is released. this is logged only when it's longer than maxLockDuration", tag.WorkflowContextLockLatency(elapsed))
+	}
 }
 
 func (c *contextImpl) Clear() {
@@ -317,13 +346,6 @@ func (c *contextImpl) LoadExecutionStats(
 	return c.stats, nil
 }
 
-func isChecksumError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "checksum mismatch error")
-}
-
 func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 	ctx context.Context,
 	incomingVersion int64,
@@ -335,7 +357,8 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 
 	if c.mutableState == nil {
 		var response *persistence.GetWorkflowExecutionResponse
-		for i := 0; i < checksumErrorRetryCount; i++ {
+		var attempt int
+		for attempt = 0; attempt < checksumErrorRetryCount; attempt++ {
 			response, err = c.getWorkflowExecutionFn(ctx, &persistence.GetWorkflowExecutionRequest{
 				DomainID:   c.domainID,
 				Execution:  c.workflowExecution,
@@ -345,19 +368,27 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 				return nil, err
 			}
 			c.mutableState = c.createMutableStateFn(c.shard, c.logger, domainEntry)
-			err = c.mutableState.Load(response.State)
-			if err == nil {
-				break
-			} else if !isChecksumError(err) {
-				c.logger.Error("failed to load mutable state", tag.Error(err))
+			c.mutableState.Load(ctx, response.State)
+			var isRepaired bool
+			isRepaired, err = c.repairer.VerifyAndRepairWorkflowIfNeeded(ctx, c.mutableState)
+			if err != nil {
 				break
 			}
-			// backoff before retry
-			c.shard.GetTimeSource().Sleep(time.Millisecond * 100)
+			if isRepaired {
+				// Repair succeeded — reload fresh state from DB
+				continue
+			}
+			// No corruption detected — state is clean
+			break
 		}
-		if isChecksumError(err) {
-			c.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.StaleMutableStateCounter)
-			c.logger.Error("encounter stale mutable state after retry", tag.Error(err))
+
+		if err != nil {
+			return nil, err
+		}
+		if attempt == checksumErrorRetryCount {
+			return nil, &types.InternalServiceError{
+				Message: "mutable state could not be loaded after multiple attempts",
+			}
 		}
 
 		c.stats = response.State.ExecutionStats
@@ -365,17 +396,18 @@ func (c *contextImpl) LoadWorkflowExecutionWithTaskVersion(
 		// finally emit execution and session stats
 		c.emitWorkflowExecutionStatsFn(domainEntry.GetInfo().Name, response.MutableStateStats, c.stats.HistorySize)
 	}
-	flushBeforeReady, err := c.mutableState.StartTransaction(domainEntry, incomingVersion)
+	flushBeforeReady, err := c.mutableState.StartTransaction(ctx, domainEntry, incomingVersion)
 	if err != nil {
 		return nil, err
 	}
 	if !flushBeforeReady {
 		return c.mutableState, nil
 	}
+	c.logger.Debug("LoadWorkflowExecutionWithTaskVersion calling UpdateWorkflowExecutionAsActive", tag.WorkflowID(c.workflowExecution.GetWorkflowID()))
 	if err = c.UpdateWorkflowExecutionAsActive(ctx, c.shard.GetTimeSource().Now()); err != nil {
 		return nil, err
 	}
-	flushBeforeReady, err = c.mutableState.StartTransaction(domainEntry, incomingVersion)
+	flushBeforeReady, err = c.mutableState.StartTransaction(ctx, domainEntry, incomingVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -400,9 +432,8 @@ func (c *contextImpl) SetWorkflowExecution(mutableState MutableState) {
 func (c *contextImpl) LoadWorkflowExecution(
 	ctx context.Context,
 ) (MutableState, error) {
-
 	// Use empty version to skip incoming task version validation
-	return c.LoadWorkflowExecutionWithTaskVersion(ctx, common.EmptyVersion)
+	return c.LoadWorkflowExecutionWithTaskVersion(ctx, constants.EmptyVersion)
 }
 
 func (c *contextImpl) CreateWorkflowExecution(
@@ -545,6 +576,7 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 				currentContext.Clear()
 			}
 		}()
+		c.logger.Debug("ConflictResolveWorkflowExecution calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()), tag.Dynamic("policy", *currentTransactionPolicy))
 		currentWorkflow, currentWorkflowEventsSeq, err = currentMutableState.CloseTransactionAsMutation(now, *currentTransactionPolicy)
 		if err != nil {
 			return err
@@ -597,11 +629,6 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		return err
 	}
 
-	currentBranchToken, err := resetMutableState.GetCurrentBranchToken()
-	if err != nil {
-		return err
-	}
-
 	workflowState, workflowCloseState := resetMutableState.GetWorkflowStateCloseStatus()
 	// Current branch changed and notify the watchers
 	c.shard.GetEngine().NotifyNewHistoryEvent(events.NewNotification(
@@ -610,9 +637,9 @@ func (c *contextImpl) ConflictResolveWorkflowExecution(
 		resetMutableState.GetLastFirstEventID(),
 		resetMutableState.GetNextEventID(),
 		resetMutableState.GetPreviousStartedEventID(),
-		currentBranchToken,
 		workflowState,
 		workflowCloseState,
+		resetMutableState.GetVersionHistories().Duplicate(),
 	))
 
 	c.notifyTasksFromWorkflowSnapshotFn(resetWorkflow, persistedBlobs, false)
@@ -637,6 +664,11 @@ func (c *contextImpl) UpdateWorkflowExecutionAsActive(
 	ctx context.Context,
 	now time.Time,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionAsActive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyActive),
+		tag.Dynamic("new policy", nil),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyActive, nil, persistence.CreateWorkflowRequestModeNew)
 }
 
@@ -646,6 +678,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsActive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionWithNewAsActive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyActive),
+		tag.Dynamic("new policy", TransactionPolicyActive),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyActive, TransactionPolicyActive.Ptr(), persistence.CreateWorkflowRequestModeNew)
 }
 
@@ -653,6 +690,11 @@ func (c *contextImpl) UpdateWorkflowExecutionAsPassive(
 	ctx context.Context,
 	now time.Time,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionAsPassive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", nil),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, nil, nil, TransactionPolicyPassive, nil, persistence.CreateWorkflowRequestModeReplicated)
 }
 
@@ -662,6 +704,11 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNewAsPassive(
 	newContext Context,
 	newMutableState MutableState,
 ) error {
+	c.logger.Debug("UpdateWorkflowExecutionWithNewAsPassive calling UpdateWorkflowExecutionWithNew",
+		tag.WorkflowID(c.workflowExecution.GetWorkflowID()),
+		tag.Dynamic("current policy", TransactionPolicyPassive),
+		tag.Dynamic("new policy", TransactionPolicyPassive),
+	)
 	return c.updateWorkflowExecutionWithNewFn(ctx, now, persistence.UpdateWorkflowModeUpdateCurrent, newContext, newMutableState, TransactionPolicyPassive, TransactionPolicyPassive.Ptr(), persistence.CreateWorkflowRequestModeReplicated)
 }
 
@@ -675,6 +722,7 @@ func (c *contextImpl) UpdateWorkflowExecutionTasks(
 		}
 	}()
 
+	c.logger.Debug("UpdateWorkflowExecutionTask calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()))
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, TransactionPolicyPassive)
 	if err != nil {
 		return err
@@ -732,6 +780,8 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 			c.Clear()
 		}
 	}()
+
+	c.logger.Debug("UpdateWorkflowExecutionWithNew calling CloseTransactionAsMutation", tag.WorkflowID(c.workflowExecution.GetWorkflowID()), tag.Dynamic("policy", currentWorkflowTransactionPolicy))
 
 	currentWorkflow, currentWorkflowEventsSeq, err := c.mutableState.CloseTransactionAsMutation(now, currentWorkflowTransactionPolicy)
 	if err != nil {
@@ -800,7 +850,7 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		startEvents := newWorkflowEventsSeq[0]
 		firstEventID := startEvents.Events[0].ID
 		var blob events.PersistedBlob
-		if firstEventID == common.FirstEventID {
+		if firstEventID == constants.FirstEventID {
 			blob, err = c.persistStartWorkflowBatchEventsFn(ctx, startEvents)
 			if err != nil {
 				return err
@@ -846,10 +896,6 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 	}
 
 	// for any change in the workflow, send a event
-	currentBranchToken, err := c.mutableState.GetCurrentBranchToken()
-	if err != nil {
-		return err
-	}
 	workflowState, workflowCloseState := c.mutableState.GetWorkflowStateCloseStatus()
 	c.shard.GetEngine().NotifyNewHistoryEvent(events.NewNotification(
 		c.domainID,
@@ -857,9 +903,9 @@ func (c *contextImpl) UpdateWorkflowExecutionWithNew(
 		c.mutableState.GetLastFirstEventID(),
 		c.mutableState.GetNextEventID(),
 		c.mutableState.GetPreviousStartedEventID(),
-		currentBranchToken,
 		workflowState,
 		workflowCloseState,
+		c.mutableState.GetVersionHistories().Duplicate(),
 	))
 
 	// notify current workflow tasks
@@ -898,9 +944,7 @@ func notifyTasksFromWorkflowSnapshot(
 		workflowSnapShot.ExecutionInfo,
 		workflowSnapShot.VersionHistories,
 		workflowSnapShot.ActivityInfos,
-		workflowSnapShot.TransferTasks,
-		workflowSnapShot.TimerTasks,
-		workflowSnapShot.ReplicationTasks,
+		workflowSnapShot.TasksByCategory,
 		history,
 		persistenceError,
 	)
@@ -921,9 +965,7 @@ func notifyTasksFromWorkflowMutation(
 		workflowMutation.ExecutionInfo,
 		workflowMutation.VersionHistories,
 		workflowMutation.UpsertActivityInfos,
-		workflowMutation.TransferTasks,
-		workflowMutation.TimerTasks,
-		workflowMutation.ReplicationTasks,
+		workflowMutation.TasksByCategory,
 		history,
 		persistenceError,
 	)
@@ -942,37 +984,37 @@ func notifyTasks(
 	executionInfo *persistence.WorkflowExecutionInfo,
 	versionHistories *persistence.VersionHistories,
 	activities []*persistence.ActivityInfo,
-	transferTasks []persistence.Task,
-	timerTasks []persistence.Task,
-	replicationTasks []persistence.Task,
+	tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task,
 	history events.PersistedBlobs,
 	persistenceError bool,
 ) {
 	transferTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
-		Tasks:            transferTasks,
+		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTransfer],
 		PersistenceError: persistenceError,
 	}
 	timerTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
-		Tasks:            timerTasks,
+		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTimer],
 		PersistenceError: persistenceError,
 	}
 	replicationTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
-		Tasks:            replicationTasks,
+		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryReplication],
 		VersionHistories: versionHistories,
 		Activities:       activityInfosToMap(activities),
 		History:          history,
 		PersistenceError: persistenceError,
 	}
 
+	// TODO: unify these methods
 	engine.NotifyNewTransferTasks(transferTaskInfo)
 	engine.NotifyNewTimerTasks(timerTaskInfo)
 	engine.NotifyNewReplicationTasks(replicationTaskInfo)
 }
 
 func mergeContinueAsNewReplicationTasks(
+	logger log.Logger,
 	updateMode persistence.UpdateWorkflowMode,
 	currentWorkflowMutation *persistence.WorkflowMutation,
 	newWorkflowSnapshot *persistence.WorkflowSnapshot,
@@ -989,11 +1031,16 @@ func mergeContinueAsNewReplicationTasks(
 	// current workflow is doing continue as new
 
 	// it is possible that continue as new is done as part of passive logic
-	if len(currentWorkflowMutation.ReplicationTasks) == 0 {
+	if len(currentWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryReplication]) == 0 {
+		logger.Debug("mergeContinueAsNewReplicationTasks: no replication task",
+			tag.WorkflowDomainID(currentWorkflowMutation.ExecutionInfo.DomainID),
+			tag.WorkflowID(currentWorkflowMutation.ExecutionInfo.WorkflowID),
+			tag.WorkflowRunID(currentWorkflowMutation.ExecutionInfo.RunID),
+		)
 		return nil
 	}
 
-	if newWorkflowSnapshot == nil || len(newWorkflowSnapshot.ReplicationTasks) != 1 {
+	if newWorkflowSnapshot == nil || len(newWorkflowSnapshot.TasksByCategory[persistence.HistoryTaskCategoryReplication]) != 1 {
 		return &types.InternalServiceError{
 			Message: "unable to find replication task from new workflow for continue as new replication",
 		}
@@ -1001,15 +1048,23 @@ func mergeContinueAsNewReplicationTasks(
 
 	// merge the new run first event batch replication task
 	// to current event batch replication task
-	newRunTask := newWorkflowSnapshot.ReplicationTasks[0].(*persistence.HistoryReplicationTask)
-	newWorkflowSnapshot.ReplicationTasks = nil
+	newRunTask := newWorkflowSnapshot.TasksByCategory[persistence.HistoryTaskCategoryReplication][0].(*persistence.HistoryReplicationTask)
+	newWorkflowSnapshot.TasksByCategory[persistence.HistoryTaskCategoryReplication] = nil
 
 	newRunBranchToken := newRunTask.BranchToken
 	taskUpdated := false
-	for _, replicationTask := range currentWorkflowMutation.ReplicationTasks {
+	for _, replicationTask := range currentWorkflowMutation.TasksByCategory[persistence.HistoryTaskCategoryReplication] {
 		if task, ok := replicationTask.(*persistence.HistoryReplicationTask); ok {
 			taskUpdated = true
 			task.NewRunBranchToken = newRunBranchToken
+			logger.Debug("mergeContinueAsNewReplicationTasks: updated replication task",
+				tag.WorkflowDomainID(currentWorkflowMutation.ExecutionInfo.DomainID),
+				tag.WorkflowID(currentWorkflowMutation.ExecutionInfo.WorkflowID),
+				tag.WorkflowRunID(currentWorkflowMutation.ExecutionInfo.RunID),
+				tag.Dynamic("taskid", task.TaskID),
+				tag.Dynamic("version", task.Version),
+				tag.Dynamic("visibility_ts", task.VisibilityTimestamp.Format(time.RFC3339)),
+			)
 		}
 	}
 	if !taskUpdated {
@@ -1117,7 +1172,7 @@ func appendHistoryV2EventsWithRetry(
 ) (*persistence.AppendHistoryNodesResponse, error) {
 
 	var resp *persistence.AppendHistoryNodesResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.AppendHistoryV2Events(ctx, request, domainID, execution)
 		return err
@@ -1137,9 +1192,10 @@ func createWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.CreateWorkflowExecutionRequest,
 ) (*persistence.CreateWorkflowExecutionResponse, error) {
+	logger = logger.Helper()
 
 	var resp *persistence.CreateWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.CreateWorkflowExecution(ctx, request)
 		return err
@@ -1169,6 +1225,7 @@ func createWorkflowExecutionWithRetry(
 	default:
 		logger.Error(
 			"Persistent store operation failure",
+			tag.ShardID(shardContext.GetShardID()),
 			tag.StoreOperationCreateWorkflowExecution,
 			tag.Error(err),
 		)
@@ -1183,8 +1240,10 @@ func getWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.GetWorkflowExecutionRequest,
 ) (*persistence.GetWorkflowExecutionResponse, error) {
+	logger.Helper()
+
 	var resp *persistence.GetWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.GetWorkflowExecution(ctx, request)
 		return err
@@ -1206,7 +1265,10 @@ func getWorkflowExecutionWithRetry(
 		// otherwise always log
 		var shardClosedError *shard.ErrShardClosed
 		if !errors.As(err, &shardClosedError) || shardContext.GetTimeSource().Since(shardClosedError.ClosedAt) > shard.TimeBeforeShardClosedIsError {
-			logger.Error("Persistent fetch operation failure", tag.StoreOperationGetWorkflowExecution, tag.Error(err))
+			logger.Error("Persistent fetch operation failure",
+				tag.ShardID(shardContext.GetShardID()),
+				tag.StoreOperationGetWorkflowExecution,
+				tag.Error(err))
 		}
 
 		return nil, err
@@ -1220,9 +1282,10 @@ func updateWorkflowExecutionWithRetry(
 	retryPolicy backoff.RetryPolicy,
 	request *persistence.UpdateWorkflowExecutionRequest,
 ) (*persistence.UpdateWorkflowExecutionResponse, error) {
+	logger.Helper()
 
 	var resp *persistence.UpdateWorkflowExecutionResponse
-	op := func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		resp, err = shardContext.UpdateWorkflowExecution(ctx, request)
 		return err
@@ -1256,6 +1319,7 @@ func updateWorkflowExecutionWithRetry(
 	default:
 		logger.Error(
 			"Persistent store operation failure",
+			tag.ShardID(shardContext.GetShardID()),
 			tag.StoreOperationUpdateWorkflowExecution,
 			tag.Error(err),
 			tag.Number(request.UpdateWorkflowMutation.Condition),
@@ -1352,8 +1416,12 @@ func (c *contextImpl) ReapplyEvents(
 	ctx, cancel := context.WithTimeout(context.Background(), defaultRemoteCallTimeout)
 	defer cancel()
 
-	activeCluster := domainEntry.GetReplicationConfig().ActiveClusterName
-	if activeCluster == c.shard.GetClusterMetadata().GetCurrentClusterName() {
+	activeClusterInfo, err := c.shard.GetActiveClusterManager().GetActiveClusterInfoByWorkflow(ctx, domainID, workflowID, runID)
+	if err != nil {
+		return err
+	}
+
+	if activeClusterInfo.ActiveClusterName == c.shard.GetClusterMetadata().GetCurrentClusterName() {
 		return c.shard.GetEngine().ReapplyEvents(
 			ctx,
 			domainID,
@@ -1375,7 +1443,7 @@ func (c *contextImpl) ReapplyEvents(
 	// Use the history from the same cluster to reapply events
 	reapplyEventsDataBlob, err := serializer.SerializeBatchEvents(
 		reapplyEvents,
-		common.EncodingTypeThriftRW,
+		constants.EncodingTypeThriftRW,
 	)
 	if err != nil {
 		return err
@@ -1383,10 +1451,10 @@ func (c *contextImpl) ReapplyEvents(
 	// The active cluster of the domain is differ from the current cluster
 	// Use frontend client to route this request to the active cluster
 	// Reapplication only happens in active cluster
-	sourceCluster := clientBean.GetRemoteAdminClient(activeCluster)
-	if sourceCluster == nil {
+	sourceCluster, err := clientBean.GetRemoteAdminClient(activeClusterInfo.ActiveClusterName)
+	if err != nil {
 		return &types.InternalServiceError{
-			Message: fmt.Sprintf("cannot find cluster config %v to do reapply", activeCluster),
+			Message: err.Error(),
 		}
 	}
 	return sourceCluster.ReapplyEvents(
@@ -1397,6 +1465,26 @@ func (c *contextImpl) ReapplyEvents(
 			Events:            reapplyEventsDataBlob.ToInternal(),
 		},
 	)
+}
+
+func (c *contextImpl) ByteSize() uint64 {
+
+	var size int
+	// Estimate size of strings
+	size += len(c.domainID)
+
+	size += len(c.workflowExecution.GetWorkflowID()) + len(c.workflowExecution.GetRunID())
+	size += 3 * constants.StringSizeOverheadBytes
+
+	size += 3 * 8 // logger
+	size += 512   // MetricsClient estimation
+	size += 256   // ExecutionManager estimation
+	size += 8     // Mutex
+	size += 1024  // Mutable-state estimation
+	size += 8     // stats pointer
+
+	size += 18 * 8 // 18 function pointers with 8 bytes each
+	return uint64(size)
 }
 
 func isOperationPossiblySuccessfulError(err error) bool {

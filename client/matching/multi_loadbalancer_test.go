@@ -26,8 +26,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -105,18 +105,50 @@ func TestMultiLoadBalancer_PickWritePartition(t *testing.T) {
 			loadbalancerStrategy: "invalid-enum",
 			expectedPartition:    "random-partition",
 		},
+		{
+			name:                 "cannot repartition - forwarded",
+			domainID:             "valid-domain",
+			taskList:             types.TaskList{Name: "test-tasklist"},
+			taskListType:         1,
+			forwardedFrom:        "somewhere",
+			loadbalancerStrategy: "random",
+			expectedPartition:    "test-tasklist",
+		},
+		{
+			name:                 "cannot repartition - sticky",
+			domainID:             "valid-domain",
+			taskList:             types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindSticky.Ptr()},
+			taskListType:         1,
+			forwardedFrom:        "",
+			loadbalancerStrategy: "random",
+			expectedPartition:    "test-tasklist",
+		},
+		{
+			name:                 "cannot repartition - partition",
+			domainID:             "valid-domain",
+			taskList:             types.TaskList{Name: "/__cadence_sys/test-tasklist"},
+			taskListType:         1,
+			forwardedFrom:        "",
+			loadbalancerStrategy: "random",
+			expectedPartition:    "/__cadence_sys/test-tasklist",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    tt.domainID,
+				TaskList:      &tt.taskList,
+				ForwardedFrom: tt.forwardedFrom,
+			}
 			// Mock behavior for random and round robin load balancers
 			ctrl := gomock.NewController(t)
 
 			// Mock the LoadBalancer interface
 			randomMock := NewMockLoadBalancer(ctrl)
 			roundRobinMock := NewMockLoadBalancer(ctrl)
-			randomMock.EXPECT().PickWritePartition(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom).Return("random-partition").AnyTimes()
-			roundRobinMock.EXPECT().PickWritePartition(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom).Return("roundrobin-partition").AnyTimes()
+			randomMock.EXPECT().PickWritePartition(tt.taskListType, req).Return("random-partition").AnyTimes()
+			roundRobinMock.EXPECT().PickWritePartition(tt.taskListType, req).Return("roundrobin-partition").AnyTimes()
 
 			loadbalancerStrategyFn := func(domainName, taskListName string, taskListType int) string {
 				return tt.loadbalancerStrategy
@@ -134,7 +166,7 @@ func TestMultiLoadBalancer_PickWritePartition(t *testing.T) {
 			}
 
 			// Call PickWritePartition and assert result
-			partition := lb.PickWritePartition(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom)
+			partition := lb.PickWritePartition(tt.taskListType, req)
 			assert.Equal(t, tt.expectedPartition, partition)
 		})
 	}
@@ -187,18 +219,50 @@ func TestMultiLoadBalancer_PickReadPartition(t *testing.T) {
 			loadbalancerStrategy: "invalid-enum",
 			expectedPartition:    "random-partition",
 		},
+		{
+			name:                 "cannot repartition - forwarded",
+			domainID:             "valid-domain",
+			taskList:             types.TaskList{Name: "test-tasklist"},
+			taskListType:         1,
+			forwardedFrom:        "somewhere",
+			loadbalancerStrategy: "random",
+			expectedPartition:    "test-tasklist",
+		},
+		{
+			name:                 "cannot repartition - sticky",
+			domainID:             "valid-domain",
+			taskList:             types.TaskList{Name: "test-tasklist", Kind: types.TaskListKindSticky.Ptr()},
+			taskListType:         1,
+			forwardedFrom:        "",
+			loadbalancerStrategy: "random",
+			expectedPartition:    "test-tasklist",
+		},
+		{
+			name:                 "cannot repartition - partition",
+			domainID:             "valid-domain",
+			taskList:             types.TaskList{Name: "/__cadence_sys/test-tasklist"},
+			taskListType:         1,
+			forwardedFrom:        "",
+			loadbalancerStrategy: "random",
+			expectedPartition:    "/__cadence_sys/test-tasklist",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    tt.domainID,
+				TaskList:      &tt.taskList,
+				ForwardedFrom: tt.forwardedFrom,
+			}
 			// Mock behavior for random and round robin load balancers
 			ctrl := gomock.NewController(t)
 
 			// Mock the LoadBalancer interface
 			randomMock := NewMockLoadBalancer(ctrl)
 			roundRobinMock := NewMockLoadBalancer(ctrl)
-			randomMock.EXPECT().PickReadPartition(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom).Return("random-partition").AnyTimes()
-			roundRobinMock.EXPECT().PickReadPartition(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom).Return("roundrobin-partition").AnyTimes()
+			randomMock.EXPECT().PickReadPartition(tt.taskListType, req, "").Return("random-partition").AnyTimes()
+			roundRobinMock.EXPECT().PickReadPartition(tt.taskListType, req, "").Return("roundrobin-partition").AnyTimes()
 
 			// Mock dynamic config for loadbalancer strategy
 			loadbalancerStrategyFn := func(domainName, taskListName string, taskListType int) string {
@@ -217,7 +281,7 @@ func TestMultiLoadBalancer_PickReadPartition(t *testing.T) {
 			}
 
 			// Call PickReadPartition and assert result
-			partition := lb.PickReadPartition(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom)
+			partition := lb.PickReadPartition(tt.taskListType, req, "")
 			assert.Equal(t, tt.expectedPartition, partition)
 		})
 	}
@@ -240,40 +304,49 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 		taskListType         int
 		forwardedFrom        string
 		partition            string
-		weight               int64
+		loadBalancerHints    *types.LoadBalancerHints
 		loadbalancerStrategy string
 		shouldUpdate         bool
 	}{
 		{
-			name:                 "do nothing when domainIDToName fails",
-			domainID:             "invalid-domain",
-			taskList:             types.TaskList{Name: "test-tasklist"},
-			taskListType:         1,
-			forwardedFrom:        "",
-			partition:            "partition-1",
-			weight:               10,
+			name:          "do nothing when domainIDToName fails",
+			domainID:      "invalid-domain",
+			taskList:      types.TaskList{Name: "test-tasklist"},
+			taskListType:  1,
+			forwardedFrom: "",
+			partition:     "partition-1",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount:  10,
+				RatePerSecond: 1,
+			},
 			loadbalancerStrategy: "random",
 			shouldUpdate:         false,
 		},
 		{
-			name:                 "update weight with round-robin load balancer",
-			domainID:             "valid-domain",
-			taskList:             types.TaskList{Name: "test-tasklist"},
-			taskListType:         1,
-			forwardedFrom:        "",
-			partition:            "partition-2",
-			weight:               20,
+			name:          "update weight with round-robin load balancer",
+			domainID:      "valid-domain",
+			taskList:      types.TaskList{Name: "test-tasklist"},
+			taskListType:  1,
+			forwardedFrom: "",
+			partition:     "partition-2",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount:  20,
+				RatePerSecond: 2,
+			},
 			loadbalancerStrategy: "round-robin",
 			shouldUpdate:         true,
 		},
 		{
-			name:                 "do nothing when strategy is unsupported",
-			domainID:             "valid-domain",
-			taskList:             types.TaskList{Name: "test-tasklist"},
-			taskListType:         1,
-			forwardedFrom:        "",
-			partition:            "partition-3",
-			weight:               30,
+			name:          "do nothing when strategy is unsupported",
+			domainID:      "valid-domain",
+			taskList:      types.TaskList{Name: "test-tasklist"},
+			taskListType:  1,
+			forwardedFrom: "",
+			partition:     "partition-3",
+			loadBalancerHints: &types.LoadBalancerHints{
+				BacklogCount:  30,
+				RatePerSecond: 3,
+			},
 			loadbalancerStrategy: "invalid-strategy",
 			shouldUpdate:         false,
 		},
@@ -281,6 +354,11 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			req := &types.AddDecisionTaskRequest{
+				DomainUUID:    tt.domainID,
+				TaskList:      &tt.taskList,
+				ForwardedFrom: tt.forwardedFrom,
+			}
 			// Mock behavior for random and round-robin load balancers
 			ctrl := gomock.NewController(t)
 
@@ -289,9 +367,9 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 			roundRobinMock := NewMockLoadBalancer(ctrl)
 
 			if tt.shouldUpdate {
-				roundRobinMock.EXPECT().UpdateWeight(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom, tt.partition, tt.weight).Times(1)
+				roundRobinMock.EXPECT().UpdateWeight(tt.taskListType, req, tt.partition, tt.loadBalancerHints).Times(1)
 			} else {
-				roundRobinMock.EXPECT().UpdateWeight(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				roundRobinMock.EXPECT().UpdateWeight(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 			}
 
 			loadbalancerStrategyFn := func(domainName, taskListName string, taskListType int) string {
@@ -310,7 +388,7 @@ func TestMultiLoadBalancer_UpdateWeight(t *testing.T) {
 			}
 
 			// Call UpdateWeight
-			lb.UpdateWeight(tt.domainID, tt.taskList, tt.taskListType, tt.forwardedFrom, tt.partition, tt.weight)
+			lb.UpdateWeight(tt.taskListType, req, tt.partition, tt.loadBalancerHints)
 		})
 	}
 }

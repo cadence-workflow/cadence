@@ -29,14 +29,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/.gen/go/indexer"
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/mocks"
 	p "github.com/uber/cadence/common/persistence"
@@ -67,7 +67,7 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 	// test non-empty request fields match
 	errorRequest := &p.InternalRecordWorkflowExecutionStartedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": []byte("test string"),
 			"CustomTimeField":   []byte("2020-01-01T00:00:00Z"),
@@ -76,14 +76,14 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 
 	request := &p.InternalRecordWorkflowExecutionStartedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 	}
 
 	customStringField, err := json.Marshal("test string")
 	assert.NoError(t, err)
 	requestWithSearchAttributes := &p.InternalRecordWorkflowExecutionStartedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": customStringField,
 		},
@@ -131,8 +131,9 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -152,7 +153,7 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 	// test non-empty request fields match
 	errorRequest := &p.InternalRecordWorkflowExecutionClosedRequest{
 		WorkflowID: "error-wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": []byte("test string"),
 			"CustomTimeField":   []byte("2020-01-01T00:00:00Z"),
@@ -160,7 +161,7 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 	}
 	request := &p.InternalRecordWorkflowExecutionClosedRequest{
 		WorkflowID: "wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 	}
 
 	tests := map[string]struct {
@@ -195,8 +196,9 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -240,8 +242,9 @@ func TestRecordWorkflowExecutionUninitialized(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -257,7 +260,7 @@ func TestUpsertWorkflowExecution(t *testing.T) {
 	// test non-empty request fields match
 	errorRequest := &p.InternalUpsertWorkflowExecutionRequest{
 		WorkflowID: "error-wid",
-		Memo:       p.NewDataBlob([]byte(`test bytes`), common.EncodingTypeThriftRW),
+		Memo:       p.NewDataBlob([]byte(`test bytes`), constants.EncodingTypeThriftRW),
 		SearchAttributes: map[string][]byte{
 			"CustomStringField": []byte("test string"),
 			"CustomTimeField":   []byte("2020-01-01T00:00:00Z"),
@@ -266,7 +269,7 @@ func TestUpsertWorkflowExecution(t *testing.T) {
 	request := &p.InternalUpsertWorkflowExecutionRequest{}
 	request.WorkflowID = "wid"
 	memoBytes := []byte(`test bytes`)
-	request.Memo = p.NewDataBlob(memoBytes, common.EncodingTypeThriftRW)
+	request.Memo = p.NewDataBlob(memoBytes, constants.EncodingTypeThriftRW)
 
 	tests := map[string]struct {
 		request                *p.InternalUpsertWorkflowExecutionRequest
@@ -300,8 +303,9 @@ func TestUpsertWorkflowExecution(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -345,8 +349,9 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -391,8 +396,9 @@ func TestDeleteUninitializedWorkflowExecution(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -448,8 +454,9 @@ func TestListOpenWorkflowExecutions(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -507,8 +514,9 @@ func TestListClosedWorkflowExecutions(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -567,8 +575,9 @@ func TestListOpenWorkflowExecutionsByType(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -626,8 +635,9 @@ func TestListClosedWorkflowExecutionsByType(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -684,8 +694,9 @@ func TestListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -742,8 +753,9 @@ func TestListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -800,8 +812,9 @@ func TestListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -866,8 +879,9 @@ func TestGetClosedWorkflowExecution(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -920,8 +934,9 @@ func TestListWorkflowExecutions(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -975,8 +990,9 @@ func TestScanWorkflowExecutions(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -1037,8 +1053,9 @@ func TestCountWorkflowExecutions(t *testing.T) {
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -1060,8 +1077,9 @@ func TestGetName(t *testing.T) {
 	mockPinotClient := pnt.NewMockGenericClient(ctrl)
 	mockProducer := &mocks.KafkaProducer{}
 	mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-		ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-		ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+		ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+		PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 	}, mockProducer, log.NewNoop())
 	visibilityStore := mgr.(*pinotVisibilityStore)
 	assert.NotEmpty(t, visibilityStore.GetName())
@@ -1071,7 +1089,7 @@ func TestNewPinotVisibilityStore(t *testing.T) {
 	mockPinotClient := &pnt.MockGenericClient{}
 	assert.NotPanics(t, func() {
 		NewPinotVisibilityStore(mockPinotClient, &service.Config{
-			ValidSearchAttributes: dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+			ValidSearchAttributes: dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
 		}, nil, log.NewNoop())
 	})
 }
@@ -1132,8 +1150,9 @@ AND WorkflowID = 'wfid'
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -1295,12 +1314,12 @@ LIMIT 0, 10
 				Domain:        testDomain,
 				PageSize:      testPageSize,
 				NextPageToken: serializedToken,
-				Query:         "CloseStatus < 0 and CustomKeywordField = 'keywordCustomized' AND CustomIntField<=10 and CustomStringField = 'String field is for text' Order by DomainID Desc",
+				Query:         "CloseStatus = -1 and CustomKeywordField = 'keywordCustomized' AND CustomIntField<=10 and CustomStringField = 'String field is for text' Order by DomainID Desc",
 			},
 			expectedOutput: fmt.Sprintf(`SELECT *
 FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
-AND CloseStatus < 0 and (JSON_MATCH(Attr, '"$.CustomKeywordField"=''keywordCustomized''') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]"=''keywordCustomized''')) and (JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10) and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*String field is for text.*'')')
+AND CloseStatus = -1 and (JSON_MATCH(Attr, '"$.CustomKeywordField"=''keywordCustomized''') or JSON_MATCH(Attr, '"$.CustomKeywordField[*]"=''keywordCustomized''')) and (JSON_MATCH(Attr, '"$.CustomIntField" is not null') AND CAST(JSON_EXTRACT_SCALAR(Attr, '$.CustomIntField') AS INT) <= 10) and JSON_MATCH(Attr, '"$.CustomStringField" is not null') AND JSON_MATCH(Attr, 'REGEXP_LIKE("$.CustomStringField", ''.*String field is for text.*'')')
 Order by DomainID Desc
 LIMIT 11, 10
 `, testTableName),
@@ -1392,8 +1411,9 @@ LIMIT 0, 0
 			mockPinotClient := pnt.NewMockGenericClient(ctrl)
 			mockProducer := &mocks.KafkaProducer{}
 			mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-				ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-				ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+				ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+				ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+				PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 			}, mockProducer, log.NewNoop())
 			visibilityStore := mgr.(*pinotVisibilityStore)
 
@@ -1433,7 +1453,7 @@ LIMIT 0, 10
 FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
 AND StartTime BETWEEN 1547596871371 AND 2547596873371
-AND CloseStatus < 0
+AND CloseStatus = -1
 AND CloseTime = -1
 Order BY StartTime DESC
 LIMIT 0, 10
@@ -1478,7 +1498,7 @@ FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
 AND WorkflowType = 'test-wf-type'
 AND StartTime BETWEEN 1547596871371 AND 2547596873371
-AND CloseStatus < 0
+AND CloseStatus = -1
 AND CloseTime = -1
 Order BY StartTime DESC
 LIMIT 0, 10
@@ -1523,7 +1543,7 @@ FROM %s
 WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
 AND WorkflowID = 'test-wid'
 AND StartTime BETWEEN 1547596871371 AND 2547596873371
-AND CloseStatus < 0
+AND CloseStatus = -1
 AND CloseTime = -1
 Order BY StartTime DESC
 LIMIT 0, 10
@@ -1940,8 +1960,9 @@ func TestClose(t *testing.T) {
 	mockPinotClient := pnt.NewMockGenericClient(ctrl)
 	mockProducer := &mocks.KafkaProducer{}
 	mgr := NewPinotVisibilityStore(mockPinotClient, &service.Config{
-		ValidSearchAttributes:  dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-		ESIndexMaxResultWindow: dynamicconfig.GetIntPropertyFn(3),
+		ValidSearchAttributes:      dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		ESIndexMaxResultWindow:     dynamicproperties.GetIntPropertyFn(3),
+		PinotOptimizedQueryColumns: dynamicproperties.GetMapPropertyFn(map[string]interface{}{}),
 	}, mockProducer, log.NewNoop())
 	visibilityStore := mgr.(*pinotVisibilityStore)
 

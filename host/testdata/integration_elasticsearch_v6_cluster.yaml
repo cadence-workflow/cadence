@@ -31,3 +31,6 @@ esconfig:
     host: "${ES_SEEDS}:9200"
   indices:
     visibility: test-visibility-
+dynamicclientconfig:
+  filepath: "testdata/dynamicconfig/integration_test.yaml"
+  pollInterval: "10s"

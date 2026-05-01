@@ -23,41 +23,104 @@ package tasklist
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 
+	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/stats"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/poller"
 )
 
+type mockDeps struct {
+	mockDomainCache    *cache.MockDomainCache
+	mockTaskManager    *persistence.MockTaskManager
+	mockIsolationState *isolationgroup.MockState
+	mockMatchingClient *matching.MockClient
+	mockTimeSource     clock.MockedTimeSource
+	dynamicClient      dynamicconfig.Client
+}
+
+var (
+	testIsolationGroups = []string{"datacenterA", "datacenterB"}
+)
+
+func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskListKind types.TaskListKind) (*taskListManagerImpl, *mockDeps) {
+	ctrl := gomock.NewController(t)
+	dynamicClient := dynamicconfig.NewInMemoryClient()
+	logger := testlogger.New(t)
+	metricsClient := metrics.NewNoopMetricsClient()
+	clusterMetadata := cluster.GetTestClusterMetadata(true)
+	deps := &mockDeps{
+		mockDomainCache:    cache.NewMockDomainCache(ctrl),
+		mockTaskManager:    persistence.NewMockTaskManager(ctrl),
+		mockIsolationState: isolationgroup.NewMockState(ctrl),
+		mockMatchingClient: matching.NewMockClient(ctrl),
+		mockTimeSource:     clock.NewMockedTimeSource(),
+		dynamicClient:      dynamicClient,
+	}
+	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
+	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	mockHistoryService := history.NewMockClient(ctrl)
+	mockRegistry := NewMockTaskListRegistry(ctrl)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
+	params := ManagerParams{
+		DomainCache:     deps.mockDomainCache,
+		Logger:          logger,
+		MetricsClient:   metricsClient,
+		TaskManager:     deps.mockTaskManager,
+		ClusterMetadata: clusterMetadata,
+		IsolationState:  deps.mockIsolationState,
+		MatchingClient:  deps.mockMatchingClient,
+		Registry:        mockRegistry,
+		TaskList:        taskListID,
+		TaskListKind:    taskListKind,
+		Cfg:             config,
+		TimeSource:      deps.mockTimeSource,
+		CreateTime:      deps.mockTimeSource.Now(),
+		HistoryService:  mockHistoryService,
+	}
+	tlm, err := NewManager(params)
+	require.NoError(t, err)
+	return tlm.(*taskListManagerImpl), deps
+}
+
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
-	config.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(1)
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
+	config.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(1)
 	config.AllIsolationGroups = getIsolationgroupsHelper
-	config.GetTasksBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(10)
-	config.AsyncTaskDispatchTimeout = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
-	config.LocalTaskWaitTime = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
+	config.GetTasksBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(10)
+	config.AsyncTaskDispatchTimeout = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	config.LocalTaskWaitTime = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(time.Millisecond)
 	return config
 }
 
@@ -68,8 +131,7 @@ func TestDeliverBufferTasks(t *testing.T) {
 	tests := []func(tlm *taskListManagerImpl){
 		func(tlm *taskListManagerImpl) { tlm.taskReader.cancelFunc() },
 		func(tlm *taskListManagerImpl) {
-			rps := 0.1
-			tlm.matcher.UpdateRatelimit(&rps)
+			tlm.limiter.ReportLimit(0.1)
 			tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup] <- &persistence.TaskInfo{}
 			err := tlm.matcher.(*taskMatcherImpl).ratelimit(context.Background()) // consume the token
 			assert.NoError(t, err)
@@ -163,97 +225,284 @@ func TestReadLevelForAllExpiredTasksInBatch(t *testing.T) {
 }
 
 func createTestTaskListManager(t *testing.T, logger log.Logger, controller *gomock.Controller) *taskListManagerImpl {
-	return createTestTaskListManagerWithConfig(t, logger, controller, defaultTestConfig())
+	return createTestTaskListManagerWithConfig(t, logger, controller, defaultTestConfig(), clock.NewMockedTimeSource())
 }
 
-func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, controller *gomock.Controller, cfg *config.Config) *taskListManagerImpl {
-	tm := NewTestTaskManager(t, logger, clock.NewRealTimeSource())
-	mockPartitioner := partition.NewMockPartitioner(controller)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+func createTestTaskListManagerWithConfig(t *testing.T, logger log.Logger, controller *gomock.Controller, cfg *config.Config, timeSource clock.TimeSource) *taskListManagerImpl {
+	tm := NewTestTaskManager(t, logger, timeSource)
+	mockIsolationState := isolationgroup.NewMockState(controller)
+	mockIsolationState.EXPECT().IsDrained(gomock.Any(), "domainName", gomock.Any()).Return(false, nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockMatchingClient := matching.NewMockClient(controller)
+	mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockHistoryService := history.NewMockClient(controller)
+	mockRegistry := NewMockTaskListRegistry(controller)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
 	tl := "tl"
 	dID := "domain"
 	tlID, err := NewIdentifier(dID, tl, persistence.TaskListTypeActivity)
 	if err != nil {
 		panic(err)
 	}
-	tlKind := types.TaskListKindNormal
-	tlMgr, err := NewManager(mockDomainCache, logger, metrics.NewClient(tally.NoopScope, metrics.Matching), tm, cluster.GetTestClusterMetadata(true), mockPartitioner, nil, func(Manager) {}, tlID, &tlKind, cfg, clock.NewRealTimeSource(), time.Now())
+	params := ManagerParams{
+		DomainCache:     mockDomainCache,
+		Logger:          logger,
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+		TaskManager:     tm,
+		ClusterMetadata: cluster.GetTestClusterMetadata(true),
+		IsolationState:  mockIsolationState,
+		MatchingClient:  mockMatchingClient,
+		Registry:        mockRegistry,
+		TaskList:        tlID,
+		TaskListKind:    types.TaskListKindNormal,
+		Cfg:             cfg,
+		TimeSource:      timeSource,
+		CreateTime:      timeSource.Now(),
+		HistoryService:  mockHistoryService,
+	}
+	tlMgr, err := NewManager(params)
 	if err != nil {
 		logger.Fatal("error when createTestTaskListManager", tag.Error(err))
 	}
 	return tlMgr.(*taskListManagerImpl)
 }
 
+func TestTaskListManagerRegistryNotification(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockRegistry := NewMockTaskListRegistry(ctrl)
+
+	// Create a minimal task list manager for testing
+	taskListID := NewTestTaskListID(t, uuid.New(), "test-tasklist", 0)
+	tlm, deps := setupMocksForTaskListManager(t, taskListID, types.TaskListKindNormal)
+
+	// Set up expectations for Start/Stop
+	deps.mockTaskManager.EXPECT().LeaseTaskList(gomock.Any(), gomock.Any()).Return(&persistence.LeaseTaskListResponse{TaskListInfo: &persistence.TaskListInfo{}}, nil).AnyTimes()
+	deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any()).Return(&persistence.UpdateTaskListResponse{}, nil).AnyTimes()
+
+	// Replace the registry with our mock
+	tlm.registry = mockRegistry
+
+	// Expect Unregister to be called exactly once with the manager instance
+	mockRegistry.EXPECT().Unregister(tlm).Times(1)
+
+	// Start the manager
+	err := tlm.Start(context.Background())
+	require.NoError(t, err)
+
+	// Stop should call Unregister
+	tlm.Stop()
+	// Verify the manager stopped
+	require.Equal(t, int32(1), tlm.stopped)
+
+	// Second call should be a no-op
+	tlm.Stop()
+	require.Equal(t, int32(1), tlm.stopped)
+}
+
 func TestDescribeTaskList(t *testing.T) {
-	controller := gomock.NewController(t)
-	logger := testlogger.New(t)
-
-	startTaskID := int64(1)
-	taskCount := int64(3)
-	PollerIdentity := "test-poll"
-
-	// Create taskList Manager and set taskList state
-	tlm := createTestTaskListManager(t, logger, controller)
-	tlm.db.rangeID = int64(1)
-	tlm.taskAckManager.SetAckLevel(0)
-
-	for i := int64(0); i < taskCount; i++ {
-		err := tlm.taskAckManager.ReadItem(startTaskID + i)
-		assert.Nil(t, err)
+	// Magic values hardcoded in matching/config.go. Not much of a config :(
+	defaultRps := 100000.0
+	defaultRangeSize := 100000
+	startedID := int64(1)
+	firstIDBlock := &types.TaskIDBlock{
+		StartID: startedID,
+		EndID:   int64(defaultRangeSize),
 	}
 
-	includeTaskStatus := false
-	descResp := tlm.DescribeTaskList(includeTaskStatus)
-	require.Equal(t, 0, len(descResp.GetPollers()))
-	require.Nil(t, descResp.GetTaskListStatus())
-
-	includeTaskStatus = true
-	taskListStatus := tlm.DescribeTaskList(includeTaskStatus).GetTaskListStatus()
-	require.NotNil(t, taskListStatus)
-	require.Zero(t, taskListStatus.GetAckLevel())
-	require.Equal(t, taskCount, taskListStatus.GetReadLevel())
-	require.Equal(t, int64(0), taskListStatus.GetBacklogCountHint())
-	require.InDelta(t, taskListStatus.GetRatePerSecond(), tlm.config.TaskDispatchRPS, 1.0)
-	taskIDBlock := taskListStatus.GetTaskIDBlock()
-	require.Equal(t, int64(1), taskIDBlock.GetStartID())
-	require.Equal(t, tlm.config.RangeSize, taskIDBlock.GetEndID())
-
-	// Add a poller and complete all tasks
-	tlm.pollerHistory.UpdatePollerInfo(poller.Identity(PollerIdentity), poller.Info{RatePerSecond: tlm.config.TaskDispatchRPS})
-	for i := int64(0); i < taskCount; i++ {
-		tlm.taskAckManager.AckItem(startTaskID + i)
+	cases := []struct {
+		name           string
+		includeStatus  bool
+		pollers        map[string]poller.Info
+		allowance      func(ctrl *gomock.Controller, impl *taskListManagerImpl)
+		expectedStatus *types.TaskListStatus
+		expectedConfig *types.TaskListPartitionConfig
+	}{
+		{
+			name: "no status, pollers, or config",
+		},
+		{
+			name: "no status, with config",
+			allowance: func(_ *gomock.Controller, impl *taskListManagerImpl) {
+				err := impl.RefreshTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{
+					Version:         1,
+					ReadPartitions:  partitions(3),
+					WritePartitions: partitions(2),
+				})
+				require.NoError(t, err)
+			},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(2),
+			},
+		},
+		{
+			name: "no status, with pollers",
+			pollers: map[string]poller.Info{
+				"pollerID": {
+					Identity:       "pollerIdentity",
+					RatePerSecond:  1.0,
+					IsolationGroup: "a",
+				},
+			},
+		},
+		{
+			name:          "with status",
+			includeStatus: true,
+			expectedStatus: &types.TaskListStatus{
+				RatePerSecond: defaultRps,
+				TaskIDBlock:   firstIDBlock,
+				IsolationGroupMetrics: map[string]*types.IsolationGroupMetrics{
+					"datacenterA": {},
+					"datacenterB": {},
+				},
+				Empty: true,
+			},
+		},
+		{
+			name:          "with status, tasks completed",
+			includeStatus: true,
+			allowance: func(_ *gomock.Controller, tlm *taskListManagerImpl) {
+				for i := startedID; i < 11; i++ {
+					err := tlm.taskAckManager.ReadItem(i)
+					require.NoError(t, err)
+				}
+				for i := startedID; i < 5; i++ {
+					tlm.taskAckManager.AckItem(i)
+				}
+			},
+			expectedStatus: &types.TaskListStatus{
+				BacklogCountHint: 6,
+				ReadLevel:        10,
+				AckLevel:         4,
+				RatePerSecond:    defaultRps,
+				TaskIDBlock:      firstIDBlock,
+				IsolationGroupMetrics: map[string]*types.IsolationGroupMetrics{
+					"datacenterA": {},
+					"datacenterB": {},
+				},
+				Empty: false,
+			},
+		},
+		{
+			name:          "with status, pollers and metrics",
+			includeStatus: true,
+			pollers: map[string]poller.Info{
+				"a-1": {
+					Identity:       "a1Identity",
+					RatePerSecond:  1.0,
+					IsolationGroup: "datacenterA",
+				},
+			},
+			allowance: func(ctrl *gomock.Controller, impl *taskListManagerImpl) {
+				mockQPS := stats.NewMockQPSTrackerGroup(ctrl)
+				mockQPS.EXPECT().GroupQPS("datacenterA").Return(float64(75.0))
+				mockQPS.EXPECT().GroupQPS("datacenterB").Return(float64(25.0))
+				mockQPS.EXPECT().QPS().Return(float64(100.0))
+				impl.qpsTracker = mockQPS
+				impl.limiter.ReportLimit(1.0)
+			},
+			expectedStatus: &types.TaskListStatus{
+				RatePerSecond:     1.0, // From poller
+				TaskIDBlock:       firstIDBlock,
+				NewTasksPerSecond: 100,
+				IsolationGroupMetrics: map[string]*types.IsolationGroupMetrics{
+					"datacenterA": {
+						PollerCount:       1,
+						NewTasksPerSecond: 75.0,
+					},
+					"datacenterB": {
+						PollerCount:       0,
+						NewTasksPerSecond: 25.0,
+					},
+				},
+				Empty: true,
+			},
+		},
 	}
 
-	descResp = tlm.DescribeTaskList(includeTaskStatus)
-	require.Equal(t, 1, len(descResp.GetPollers()))
-	require.Equal(t, PollerIdentity, descResp.Pollers[0].GetIdentity())
-	require.NotEmpty(t, descResp.Pollers[0].GetLastAccessTime())
-	require.InDelta(t, descResp.Pollers[0].GetRatePerSecond(), tlm.config.TaskDispatchRPS, 1.0)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expectedTl := &types.TaskList{Name: "tl", Kind: types.TaskListKindNormal.Ptr()}
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+			tlm := createTestTaskListManager(t, logger, controller)
+			tlm.db.rangeID = int64(1)
+			tlm.taskAckManager.SetAckLevel(0)
+			tlm.startWG.Done()
 
-	rps := 5.0
-	tlm.pollerHistory.UpdatePollerInfo(poller.Identity(PollerIdentity), poller.Info{RatePerSecond: rps})
-	descResp = tlm.DescribeTaskList(includeTaskStatus)
-	require.Equal(t, 1, len(descResp.GetPollers()))
-	require.Equal(t, PollerIdentity, descResp.Pollers[0].GetIdentity())
-	require.InDelta(t, descResp.Pollers[0].GetRatePerSecond(), rps, 1.0)
+			expectedPollers := make([]*types.PollerInfo, 0, len(tc.pollers))
+			for id, info := range tc.pollers {
+				tlm.pollers.StartPoll(id, func() {}, &info)
+				expectedPollers = append(expectedPollers, &types.PollerInfo{
+					LastAccessTime: common.Int64Ptr(tlm.timeSource.Now().UnixNano()),
+					Identity:       info.Identity,
+					RatePerSecond:  info.RatePerSecond,
+				})
+			}
+			if tc.allowance != nil {
+				tc.allowance(controller, tlm)
+			}
+			result := tlm.DescribeTaskList(tc.includeStatus)
+			assert.Equal(t, expectedTl, result.TaskList)
+			assert.Equal(t, tc.expectedStatus, result.TaskListStatus)
+			assert.Equal(t, tc.expectedConfig, result.PartitionConfig)
+			assert.ElementsMatch(t, expectedPollers, result.Pollers)
+		})
+	}
+}
 
-	taskListStatus = descResp.GetTaskListStatus()
-	require.NotNil(t, taskListStatus)
-	require.Equal(t, taskCount, taskListStatus.GetAckLevel())
-	require.Zero(t, taskListStatus.GetBacklogCountHint())
+func TestQueriesPerSecond(t *testing.T) {
+	testCases := []struct {
+		name        string
+		mockSetup   func(ctrl *gomock.Controller, tlm *taskListManagerImpl)
+		expectedQPS float64
+	}{
+		{
+			name: "returns QPS from tracker",
+			mockSetup: func(ctrl *gomock.Controller, tlm *taskListManagerImpl) {
+				mockQPS := stats.NewMockQPSTrackerGroup(ctrl)
+				mockQPS.EXPECT().QPS().Return(float64(42.5))
+				tlm.qpsTracker = mockQPS
+			},
+			expectedQPS: 42.5,
+		},
+		{
+			name: "returns zero QPS",
+			mockSetup: func(ctrl *gomock.Controller, tlm *taskListManagerImpl) {
+				mockQPS := stats.NewMockQPSTrackerGroup(ctrl)
+				mockQPS.EXPECT().QPS().Return(float64(0))
+				tlm.qpsTracker = mockQPS
+			},
+			expectedQPS: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			tlm := createTestTaskListManager(t, logger, ctrl)
+
+			tc.mockSetup(ctrl, tlm)
+
+			actualQPS := tlm.QueriesPerSecond()
+			assert.Equal(t, tc.expectedQPS, actualQPS)
+		})
+	}
 }
 
 func TestCheckIdleTaskList(t *testing.T) {
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	defer goleak.VerifyNone(t)
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg)
-		require.NoError(t, tlm.Start())
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
+		require.NoError(t, tlm.Start(context.Background()))
 
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped), "idle check interval had not passed yet")
 		time.Sleep(20 * time.Millisecond)
@@ -262,10 +511,9 @@ func TestCheckIdleTaskList(t *testing.T) {
 
 	t.Run("Active poll-er", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg)
-		require.NoError(t, tlm.Start())
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
+		require.NoError(t, tlm.Start(context.Background()))
 
-		time.Sleep(8 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, _ = tlm.GetTask(ctx, nil)
 		cancel()
@@ -296,8 +544,8 @@ func TestCheckIdleTaskList(t *testing.T) {
 		}
 
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg)
-		require.NoError(t, tlm.Start())
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
+		require.NoError(t, tlm.Start(context.Background()))
 
 		time.Sleep(8 * time.Millisecond)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -319,11 +567,11 @@ func TestAddTaskStandby(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg)
-	require.NoError(t, tlm.Start())
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
+	require.NoError(t, tlm.Start(context.Background()))
 
 	// stop taskWriter so that we can check if there's any call to it
 	// otherwise the task persist process is async and hard to test
@@ -369,52 +617,6 @@ func TestAddTaskStandby(t *testing.T) {
 	require.False(t, syncMatch)
 }
 
-func TestGetPollerIsolationGroup(t *testing.T) {
-	controller := gomock.NewController(t)
-	logger := testlogger.New(t)
-
-	config := defaultTestConfig()
-	config.LongPollExpirationInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(30 * time.Second)
-	config.EnableTasklistIsolation = dynamicconfig.GetBoolPropertyFnFilteredByDomainID(true)
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
-
-	bgCtx := ContextWithPollerID(context.Background(), "poller0")
-	bgCtx = ContextWithIdentity(bgCtx, "id0")
-	bgCtx = ContextWithIsolationGroup(bgCtx, getIsolationgroupsHelper()[0])
-	ctx, cancel := context.WithTimeout(bgCtx, time.Second)
-	_, err := tlm.GetTask(ctx, nil)
-	cancel()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), ErrNoTasks.Error())
-
-	// we should get isolation groups that showed up within last 10 seconds
-	groups := tlm.getPollerIsolationGroups()
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
-
-	// after 10s, the poller from that isolation group are cleared from the poller history
-	time.Sleep(10 * time.Second)
-	groups = tlm.getPollerIsolationGroups()
-	assert.Equal(t, 0, len(groups))
-
-	// we should get isolation groups of outstanding pollers
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ctx, cancel := context.WithTimeout(bgCtx, time.Second*20)
-		_, err := tlm.GetTask(ctx, nil)
-		cancel()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), ErrNoTasks.Error())
-	}()
-	time.Sleep(11 * time.Second)
-	groups = tlm.getPollerIsolationGroups()
-	wg.Wait()
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, getIsolationgroupsHelper()[0], groups[0])
-}
-
 // return a client side tasklist throttle error from the rate limiter.
 // The expected behaviour is to retry
 func TestRateLimitErrorsFromTasklistDispatch(t *testing.T) {
@@ -423,63 +625,18 @@ func TestRateLimitErrorsFromTasklistDispatch(t *testing.T) {
 
 	config := defaultTestConfig()
 	config.EnableTasklistIsolation = func(domain string) bool { return true }
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
 
 	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
 		return ErrTasklistThrottled
 	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, error) { return "datacenterA", nil }
+	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+		return "datacenterA", -1
+	}
 
-	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
+	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
 	assert.False(t, breakDispatcher)
 	assert.False(t, breakRetryLoop)
-}
-
-// The intent of this test: SingleTaskDispatch is one of two places where tasks are written to
-// the taskreader.taskBuffers channels. As such, it needs to take care to not accidentally
-// hit the channel when it's full, as it'll block, causing a deadlock (due to both this dispatch
-// and the async task pump blocking trying to read to the channel)
-func TestSingleTaskDispatchDoesNotDeadlock(t *testing.T) {
-	controller := gomock.NewController(t)
-	logger := testlogger.New(t)
-
-	config := defaultTestConfig()
-	config.EnableTasklistIsolation = func(domain string) bool { return true }
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
-
-	// mock a timeout to cause tasks to be rerouted
-	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
-		return context.DeadlineExceeded
-	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, error) {
-		// force this, on the second read, to always reroute to the other DC
-		return "datacenterB", nil
-	}
-
-	maxBufferSize := config.GetTasksBatchSize("", "", 0) - 1
-
-	tlm.taskReader.logger = testlogger.New(t)
-
-	for i := 0; i < maxBufferSize; i++ {
-		breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
-		assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-		assert.True(t, breakRetryLoop, "should be able to successfully dispatch all these tasks to the other isolation group")
-	}
-	// We should see them all being redirected
-	assert.Len(t, tlm.taskReader.taskBuffers["datacenterB"], maxBufferSize)
-	// we should see none in DC A (they're not being redirected here)
-	assert.Len(t, tlm.taskReader.taskBuffers["datacenterA"], 0)
-
-	// ok, and here we try and ensure that this *does not block
-	// and instead complains and live-retries
-	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
-	assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-	assert.False(t, breakRetryLoop, "in the event of a task being unable to be cross-dispatched, the expectation is that it'll keep retrying")
-
-	// and to be certain and avoid any accidental off-by-one errors, one more time to just be sure
-	breakDispatcher, breakRetryLoop = tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
-	assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-	assert.False(t, breakRetryLoop, "in the event of a task being unable to be cross-dispatched, the expectation is that it'll keep retrying")
 }
 
 // This is a bit of a strange unit-test as it's
@@ -493,40 +650,277 @@ func TestMisconfiguredZoneDoesNotBlock(t *testing.T) {
 
 	config := defaultTestConfig()
 	config.EnableTasklistIsolation = func(domain string) bool { return true }
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
+	invalidIsolationGroup := "invalid"
+	dispatched := make(map[string]int)
 
-	// mock a timeout to cause tasks to be rerouted
+	// record dispatched isolation group
 	tlm.taskReader.dispatchTask = func(ctx context.Context, task *InternalTask) error {
-		return context.DeadlineExceeded
+		dispatched[task.isolationGroup] = dispatched[task.isolationGroup] + 1
+		return nil
 	}
-	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, error) {
-		return "a misconfigured isolation group", nil
+	tlm.taskReader.getIsolationGroupForTask = func(ctx context.Context, info *persistence.TaskInfo) (string, time.Duration) {
+		return invalidIsolationGroup, -1
 	}
 
 	maxBufferSize := config.GetTasksBatchSize("", "", 0) - 1
 
 	for i := 0; i < maxBufferSize; i++ {
-		breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
+		breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
 		assert.False(t, breakDispatcher, "dispatch isn't shutting down")
 		assert.True(t, breakRetryLoop, "should be able to successfully dispatch all these tasks to the default isolation group")
 	}
 	// We should see them all being redirected
-	assert.Len(t, tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup], maxBufferSize)
-	// we should see none in DC A (they're not being redirected here)
-	assert.Len(t, tlm.taskReader.taskBuffers["datacenterA"], 0)
+	assert.Equal(t, dispatched[""], maxBufferSize)
+	// we should see none in the returned isolation group
+	assert.Equal(t, dispatched[invalidIsolationGroup], 0)
 
 	// ok, and here we try and ensure that this *does not block
 	// and instead complains and live-retries
-	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer("datacenterA", &persistence.TaskInfo{})
+	breakDispatcher, breakRetryLoop := tlm.taskReader.dispatchSingleTaskFromBuffer(&persistence.TaskInfo{})
 	assert.False(t, breakDispatcher, "dispatch isn't shutting down")
-	assert.False(t, breakRetryLoop, "in the event of a task being unable to be cross-dispatched, the expectation is that it'll keep retrying")
+	assert.True(t, breakRetryLoop, "task should be dispatched to default channel")
+}
+
+func TestGetIsolationGroupForTask(t *testing.T) {
+	defaultAvailableIsolationGroups := []string{
+		"a", "b", "c",
+	}
+	taskIsolationPollerWindow := time.Second * 10
+	testCases := []struct {
+		name                     string
+		taskIsolationGroup       string
+		taskIsolationDuration    time.Duration
+		taskLatency              time.Duration
+		availableIsolationGroups []string
+		recentPollers            []string
+		expectedGroup            string
+		expectedDuration         time.Duration
+		drainedGroups            map[string]bool
+		isolationStateErr        error
+		disableTaskIsolation     bool
+		partitionConfig          *types.TaskListPartition
+	}{
+		{
+			name:                     "success - recent poller allows group",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "a",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+		},
+		{
+			name:                     "success - with isolation duration",
+			taskIsolationGroup:       "b",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "b",
+			expectedDuration:         time.Second,
+			recentPollers:            []string{"b"},
+		},
+		{
+			name:                     "success - low task latency",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			taskLatency:              time.Millisecond * 300,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "a",
+			expectedDuration:         time.Second - (time.Millisecond * 300),
+			recentPollers:            []string{"a"},
+		},
+		{
+			name:                     "success - other group drained",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "a",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+			drainedGroups: map[string]bool{
+				"b": true,
+			},
+		},
+		{
+			name:                     "success - right partition",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "a",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+			partitionConfig:          &types.TaskListPartition{IsolationGroups: []string{"a", "b", "c", "d"}},
+		},
+		{
+			name:                     "leak - no recent pollers",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "",
+			expectedDuration:         0,
+			recentPollers:            nil,
+		},
+		{
+			name:                     "leak - no matching recent poller",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "",
+			expectedDuration:         0,
+			recentPollers:            []string{"b"},
+		},
+		{
+			name:                     "leak - unknown group",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: []string{"b"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+		},
+		{
+			name:                     "leak - unknown group even with recent poller",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: []string{"b"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+		},
+		{
+			name:                     "leak - task latency",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			taskLatency:              time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+		},
+		{
+			name:                     "leak - task latency close to taskIsolationDuration",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			taskLatency:              time.Second - minimumIsolationDuration,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+		},
+		{
+			name:                     "leak - group drained",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+			drainedGroups: map[string]bool{
+				"a": true,
+			},
+		},
+		{
+			name:                     "leak - state error",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			isolationStateErr:        errors.New(">:("),
+			expectedGroup:            "",
+			expectedDuration:         0,
+		},
+		{
+			name:                     "leak - task isolation disabled",
+			taskIsolationGroup:       "a",
+			taskIsolationDuration:    time.Second,
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			recentPollers:            []string{"a"},
+			expectedGroup:            "",
+			expectedDuration:         0,
+			disableTaskIsolation:     true,
+		},
+		{
+			name:                     "leak - wrong partition",
+			taskIsolationGroup:       "a",
+			availableIsolationGroups: defaultAvailableIsolationGroups,
+			expectedGroup:            "",
+			expectedDuration:         0,
+			recentPollers:            []string{"a"},
+			partitionConfig:          &types.TaskListPartition{IsolationGroups: []string{"b", "c", "d"}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+
+			config := defaultTestConfig()
+			config.EnableTasklistIsolation = func(domain string) bool { return !tc.disableTaskIsolation }
+			config.TaskIsolationDuration = func(domain string, taskList string, taskType int) time.Duration {
+				return tc.taskIsolationDuration
+			}
+			config.TaskIsolationPollerWindow = func(domain string, taskList string, taskType int) time.Duration {
+				return taskIsolationPollerWindow
+			}
+			config.AllIsolationGroups = func() []string {
+				return tc.availableIsolationGroups
+			}
+			mockClock := clock.NewMockedTimeSource()
+			tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, mockClock)
+
+			if tc.partitionConfig != nil {
+				tlm.startWG.Done()
+				// Add a partition and update the root to the specified config.
+				// If we're not adding a new partition it is treated as a no-op since the default is 1 partition
+				err := tlm.UpdateTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{
+					ReadPartitions: map[int]*types.TaskListPartition{
+						0: tc.partitionConfig,
+						1: {},
+					},
+					WritePartitions: map[int]*types.TaskListPartition{
+						0: tc.partitionConfig,
+						1: {},
+					},
+				})
+				require.NoError(t, err)
+			}
+
+			mockIsolationGroupState := isolationgroup.NewMockState(controller)
+			if tc.isolationStateErr != nil {
+				mockIsolationGroupState.EXPECT().IsDrained(gomock.Any(), "domainName", gomock.Any()).Return(false, tc.isolationStateErr).AnyTimes()
+			} else {
+				mockIsolationGroupState.EXPECT().IsDrained(gomock.Any(), "domainName", gomock.Any()).DoAndReturn(func(ctx context.Context, domainName, group string) (bool, error) {
+					return tc.drainedGroups[group], nil
+				}).AnyTimes()
+			}
+			tlm.isolationState = mockIsolationGroupState
+
+			for i, pollerGroup := range tc.recentPollers {
+				tlm.pollers.StartPoll(strconv.Itoa(i), func() {}, &poller.Info{Identity: pollerGroup, IsolationGroup: pollerGroup})
+			}
+
+			taskInfo := &persistence.TaskInfo{
+				DomainID:                      "domainId",
+				RunID:                         "run1",
+				WorkflowID:                    "workflow1",
+				ScheduleID:                    5,
+				ScheduleToStartTimeoutSeconds: 1,
+				PartitionConfig: map[string]string{
+					isolationgroup.GroupKey:      tc.taskIsolationGroup,
+					isolationgroup.WorkflowIDKey: "workflow1",
+				},
+				CreatedTime: mockClock.Now().Add(-1 * tc.taskLatency),
+			}
+
+			actual, actualDuration := tlm.getIsolationGroupForTask(context.Background(), taskInfo)
+
+			assert.Equal(t, tc.expectedGroup, actual)
+			assert.Equal(t, tc.expectedDuration, actualDuration)
+		})
+	}
 }
 
 func TestTaskWriterShutdown(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 	tlm := createTestTaskListManager(t, logger, controller)
-	err := tlm.Start()
+	err := tlm.Start(context.Background())
 	assert.NoError(t, err)
 
 	// stop the task writer explicitly
@@ -557,35 +951,41 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	const taskCount = 1200
 	const rangeSize = 10
 	controller := gomock.NewController(t)
-	mockPartitioner := partition.NewMockPartitioner(controller)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	mockIsolationState := isolationgroup.NewMockState(controller)
+	mockIsolationState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockHistoryService := history.NewMockClient(controller)
 	logger := testlogger.New(t)
 	timeSource := clock.NewRealTimeSource()
 	tm := NewTestTaskManager(t, logger, timeSource)
 	taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
-	tlMgr, err := NewManager(
-		mockDomainCache,
-		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
-		tm,
-		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
-		nil,
-		func(Manager) {},
-		taskListID,
-		types.TaskListKindNormal.Ptr(),
-		cfg,
-		timeSource,
-		timeSource.Now(),
-	)
+	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
+	mockRegistry := NewMockTaskListRegistry(controller)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
+	params := ManagerParams{
+		DomainCache:     mockDomainCache,
+		Logger:          logger,
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+		TaskManager:     tm,
+		ClusterMetadata: cluster.GetTestClusterMetadata(true),
+		IsolationState:  mockIsolationState,
+		MatchingClient:  matching.NewMockClient(controller),
+		Registry:        mockRegistry,
+		TaskList:        taskListID,
+		TaskListKind:    types.TaskListKindNormal,
+		Cfg:             cfg,
+		TimeSource:      timeSource,
+		CreateTime:      timeSource.Now(),
+		HistoryService:  mockHistoryService,
+	}
+	tlMgr, err := NewManager(params)
 	assert.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
-	err = tlm.Start()
+	err = tlm.Start(context.Background())
 	assert.NoError(t, err)
 
 	// add taskCount tasks
@@ -607,7 +1007,7 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 
 	// wait until all tasks are read by the task pump and enqeued into the in-memory buffer
 	// at the end of this step, ackManager readLevel will also be equal to the buffer size
-	expectedBufSize := common.MinInt(cap(tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup]), taskCount)
+	expectedBufSize := min(cap(tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup]), taskCount)
 	assert.True(t, awaitCondition(func() bool {
 		return len(tlm.taskReader.taskBuffers[defaultTaskBufferIsolationGroup]) == expectedBufSize
 	}, 10*time.Second))
@@ -628,8 +1028,8 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlm.taskAckManager.SetReadLevel(0)
 	tasks, readLevel, isReadBatchDone, err = tlm.taskReader.getTaskBatch(tlm.taskAckManager.GetReadLevel(), tlm.taskWriter.GetMaxReadLevel())
 	assert.NoError(t, err)
-	assert.Equal(t, rangeSize, len(tasks))
-	assert.Equal(t, rangeSize, int(readLevel))
+	assert.Equal(t, rangeSize/2, len(tasks))
+	assert.Equal(t, rangeSize/2, int(readLevel))
 	assert.True(t, isReadBatchDone)
 
 	// reset the ackManager readLevel to the buffer size and consume
@@ -638,30 +1038,33 @@ func TestTaskListManagerGetTaskBatch(t *testing.T) {
 	tlm.taskAckManager.SetReadLevel(int64(expectedBufSize))
 
 	// complete rangeSize events
-	tlMgr, err = NewManager(
-		mockDomainCache,
-		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
-		tm,
-		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
-		nil,
-		func(Manager) {},
-		taskListID,
-		types.TaskListKindNormal.Ptr(),
-		cfg,
-		timeSource,
-		timeSource.Now(),
-	)
+	newParams := ManagerParams{
+		DomainCache:     mockDomainCache,
+		Logger:          logger,
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+		TaskManager:     tm,
+		ClusterMetadata: cluster.GetTestClusterMetadata(true),
+		IsolationState:  mockIsolationState,
+		MatchingClient:  matching.NewMockClient(controller),
+		Registry:        mockRegistry,
+		TaskList:        taskListID,
+		TaskListKind:    types.TaskListKindNormal,
+		Cfg:             cfg,
+		TimeSource:      timeSource,
+		CreateTime:      timeSource.Now(),
+		HistoryService:  mockHistoryService,
+	}
+	tlMgr, err = NewManager(newParams)
 	assert.NoError(t, err)
 	tlm = tlMgr.(*taskListManagerImpl)
-	err = tlm.Start()
+	err = tlm.Start(context.Background())
 	assert.NoError(t, err)
 	for i := int64(0); i < rangeSize; i++ {
 		task, err := tlm.GetTask(context.Background(), nil)
 		if errors.Is(err, ErrNoTasks) {
 			continue
 		}
+		assert.NotNil(t, task.AutoConfigHint)
 		assert.NoError(t, err)
 		assert.NotNil(t, task)
 		task.Finish(nil)
@@ -680,11 +1083,12 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	const nLeaseRenewals = 15
 
 	controller := gomock.NewController(t)
-	mockPartitioner := partition.NewMockPartitioner(controller)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+	mockIsolationState := isolationgroup.NewMockState(controller)
+	mockIsolationState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	mockDomainCache := cache.NewMockDomainCache(controller)
 	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+	mockHistoryService := history.NewMockClient(controller)
 
 	logger := testlogger.New(t)
 	timeSource := clock.NewRealTimeSource()
@@ -692,22 +1096,27 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 	taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 	cfg := defaultTestConfig()
 	cfg.RangeSize = rangeSize
+	cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 
-	tlMgr, err := NewManager(
-		mockDomainCache,
-		logger,
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
-		tm,
-		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
-		nil,
-		func(Manager) {},
-		taskListID,
-		types.TaskListKindNormal.Ptr(),
-		cfg,
-		timeSource,
-		timeSource.Now(),
-	)
+	mockRegistry := NewMockTaskListRegistry(controller)
+	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
+	params := ManagerParams{
+		DomainCache:     mockDomainCache,
+		Logger:          logger,
+		MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+		TaskManager:     tm,
+		ClusterMetadata: cluster.GetTestClusterMetadata(true),
+		IsolationState:  mockIsolationState,
+		MatchingClient:  matching.NewMockClient(controller),
+		Registry:        mockRegistry,
+		TaskList:        taskListID,
+		TaskListKind:    types.TaskListKindNormal,
+		Cfg:             cfg,
+		TimeSource:      timeSource,
+		CreateTime:      timeSource.Now(),
+		HistoryService:  mockHistoryService,
+	}
+	tlMgr, err := NewManager(params)
 	require.NoError(t, err)
 	tlm := tlMgr.(*taskListManagerImpl)
 
@@ -716,7 +1125,7 @@ func TestTaskListReaderPumpAdvancesAckLevelAfterEmptyReads(t *testing.T) {
 		tlm.taskWriter.renewLeaseWithRetry()
 	}
 
-	err = tlm.Start() // this call will also renew lease
+	err = tlm.Start(context.Background()) // this call will also renew lease
 	require.NoError(t, err)
 	defer tlm.Stop()
 
@@ -765,15 +1174,24 @@ func TestTaskListManagerGetTaskBatch_ReadBatchDone(t *testing.T) {
 	const maxReadLevel = int64(120)
 	config := defaultTestConfig()
 	config.RangeSize = rangeSize
+	config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
-	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config)
+	tlm := createTestTaskListManagerWithConfig(t, logger, controller, config, clock.NewMockedTimeSource())
 
 	tlm.taskAckManager.SetReadLevel(0)
 	atomic.StoreInt64(&tlm.taskWriter.maxReadLevel, maxReadLevel)
 	tasks, readLevel, isReadBatchDone, err := tlm.taskReader.getTaskBatch(tlm.taskAckManager.GetReadLevel(), tlm.taskWriter.GetMaxReadLevel())
 	assert.Empty(t, tasks)
-	assert.Equal(t, int64(rangeSize*10), readLevel)
+	assert.Equal(t, int64(rangeSize/2*10), readLevel)
+	assert.False(t, isReadBatchDone)
+	assert.NoError(t, err)
+
+	tlm.taskAckManager.SetReadLevel(readLevel)
+	atomic.StoreInt64(&tlm.taskWriter.maxReadLevel, maxReadLevel)
+	tasks, readLevel, isReadBatchDone, err = tlm.taskReader.getTaskBatch(tlm.taskAckManager.GetReadLevel(), tlm.taskWriter.GetMaxReadLevel())
+	assert.Empty(t, tasks)
+	assert.Equal(t, 2*int64(rangeSize/2*10), readLevel)
 	assert.False(t, isReadBatchDone)
 	assert.NoError(t, err)
 
@@ -812,40 +1230,46 @@ func TestTaskExpiryAndCompletion(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
 			controller := gomock.NewController(t)
-			mockPartitioner := partition.NewMockPartitioner(controller)
-			mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+			mockIsolationState := isolationgroup.NewMockState(controller)
+			mockIsolationState.EXPECT().IsDrained(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 			mockDomainCache := cache.NewMockDomainCache(controller)
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+			mockHistoryService := history.NewMockClient(controller)
 			logger := testlogger.New(t)
 			timeSource := clock.NewRealTimeSource()
 			tm := NewTestTaskManager(t, logger, timeSource)
 			taskListID := NewTestTaskListID(t, "domainId", "tl", 0)
 			cfg := defaultTestConfig()
 			cfg.RangeSize = rangeSize
-			cfg.MaxTaskDeleteBatchSize = dynamicconfig.GetIntPropertyFilteredByTaskListInfo(tc.batchSize)
+			cfg.ReadRangeSize = dynamicproperties.GetIntPropertyFn(rangeSize / 2)
+			cfg.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(tc.batchSize)
 			cfg.MaxTimeBetweenTaskDeletes = tc.maxTimeBtwnDeletes
 			// set idle timer check to a really small value to assert that we don't accidentally drop tasks while blocking
 			// on enqueuing a task to task buffer
-			cfg.IdleTasklistCheckInterval = dynamicconfig.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
-			tlMgr, err := NewManager(
-				mockDomainCache,
-				logger,
-				metrics.NewClient(tally.NoopScope, metrics.Matching),
-				tm,
-				cluster.GetTestClusterMetadata(true),
-				mockPartitioner,
-				nil,
-				func(Manager) {},
-				taskListID,
-				types.TaskListKindNormal.Ptr(),
-				cfg,
-				timeSource,
-				timeSource.Now(),
-			)
+			cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(20 * time.Millisecond)
+			mockRegistry := NewMockTaskListRegistry(controller)
+			mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
+			params := ManagerParams{
+				DomainCache:     mockDomainCache,
+				Logger:          logger,
+				MetricsClient:   metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+				TaskManager:     tm,
+				ClusterMetadata: cluster.GetTestClusterMetadata(true),
+				IsolationState:  mockIsolationState,
+				MatchingClient:  matching.NewMockClient(controller),
+				Registry:        mockRegistry,
+				TaskList:        taskListID,
+				TaskListKind:    types.TaskListKindNormal,
+				Cfg:             cfg,
+				TimeSource:      timeSource,
+				CreateTime:      timeSource.Now(),
+				HistoryService:  mockHistoryService,
+			}
+			tlMgr, err := NewManager(params)
 			assert.NoError(t, err)
 			tlm := tlMgr.(*taskListManagerImpl)
-			err = tlm.Start()
+			err = tlm.Start(context.Background())
 			assert.NoError(t, err)
 			for i := int64(0); i < taskCount; i++ {
 				scheduleID := i * 3
@@ -899,13 +1323,13 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 	}{
 		"has_outstanding_pollers": {
 			prepareManager: func(tlm *taskListManagerImpl) {
-				tlm.addOutstandingPoller("poller1", "group1", func() {})
-				tlm.addOutstandingPoller("poller2", "group2", func() {})
+				tlm.pollers.StartPoll("poller1", func() {}, &poller.Info{Identity: "foo"})
 			},
 		},
 		"no_outstanding_pollers": {
 			prepareManager: func(tlm *taskListManagerImpl) {
-				tlm.pollerHistory.UpdatePollerInfo("identity", poller.Info{RatePerSecond: 1.0, IsolationGroup: "isolationGroup"})
+				tlm.pollers.StartPoll("poller1", func() {}, &poller.Info{Identity: "foo"})
+				tlm.pollers.EndPoll("poller1")
 			},
 		},
 	} {
@@ -913,7 +1337,7 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 			controller := gomock.NewController(t)
 			logger := testlogger.New(t)
 			tlm := createTestTaskListManager(t, logger, controller)
-			err := tlm.Start()
+			err := tlm.Start(context.Background())
 			assert.NoError(t, err)
 
 			if tc.prepareManager != nil {
@@ -926,58 +1350,713 @@ func TestTaskListManagerImpl_HasPollerAfter(t *testing.T) {
 }
 
 func getIsolationgroupsHelper() []string {
-	return []string{"datacenterA", "datacenterB"}
+	return testIsolationGroups
 }
 
-func TestLoadTaskListPartitionConfig(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockPartitioner := partition.NewMockPartitioner(ctrl)
-	mockPartitioner.EXPECT().GetIsolationGroupByDomainID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
-	mockDomainCache := cache.NewMockDomainCache(ctrl)
-	mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry("domainName"), nil).AnyTimes()
-	mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).AnyTimes()
+func TestRefreshTaskListPartitionConfig(t *testing.T) {
+	testCases := []struct {
+		name           string
+		req            *types.TaskListPartitionConfig
+		originalConfig *types.TaskListPartitionConfig
+		setupMocks     func(*mockDeps)
+		expectedConfig *types.TaskListPartitionConfig
+		expectError    bool
+		expectedError  string
+	}{
+		{
+			name: "success - refresh from request",
+			req: &types.TaskListPartitionConfig{
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			setupMocks: func(m *mockDeps) {},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+		},
+		{
+			name: "success - ignore older version",
+			req: &types.TaskListPartitionConfig{
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
+			},
+			setupMocks: func(m *mockDeps) {},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
+			},
+		},
+		{
+			name: "success - refresh from database",
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockTaskManager.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
+					DomainID:   "domain-id",
+					DomainName: "domainName",
+					TaskList:   "tl",
+					TaskType:   persistence.TaskListTypeDecision,
+				}).Return(&persistence.GetTaskListResponse{
+					TaskListInfo: &persistence.TaskListInfo{
+						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+							Version:         4,
+							ReadPartitions:  persistencePartitions(10),
+							WritePartitions: persistencePartitions(10),
+						},
+					},
+				}, nil)
+			},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         4,
+				ReadPartitions:  partitions(10),
+				WritePartitions: partitions(10),
+			},
+		},
+		{
+			name: "failed to refresh from database",
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockTaskManager.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
+					DomainID:   "domain-id",
+					DomainName: "domainName",
+					TaskList:   "tl",
+					TaskType:   persistence.TaskListTypeDecision,
+				}).Return(nil, errors.New("some error"))
+			},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         3,
+				ReadPartitions:  partitions(2),
+				WritePartitions: partitions(2),
+			},
+			expectError:   true,
+			expectedError: "some error",
+		},
+	}
 
-	mockTm := persistence.NewMockTaskManager(ctrl)
-	mockTm.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
-		DomainID:   "domain",
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+			require.NoError(t, err)
+			tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+			tc.setupMocks(deps)
+			tlm.partitionConfig = tc.originalConfig
+			tlm.startWG.Done()
+
+			err = tlm.RefreshTaskListPartitionConfig(context.Background(), tc.req)
+			if tc.expectError {
+				assert.ErrorContains(t, err, tc.expectedError)
+				assert.Equal(t, tc.expectedConfig, tlm.TaskListPartitionConfig())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedConfig, tlm.TaskListPartitionConfig())
+			}
+		})
+	}
+}
+
+func TestUpdateTaskListPartitionConfig(t *testing.T) {
+	testCases := []struct {
+		name           string
+		req            *types.TaskListPartitionConfig
+		originalConfig *types.TaskListPartitionConfig
+		setupMocks     func(*mockDeps)
+		expectedConfig *types.TaskListPartitionConfig
+		expectError    bool
+		expectedError  string
+	}{
+		{
+			name: "success - no op",
+			req: &types.TaskListPartitionConfig{
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			setupMocks: func(m *mockDeps) {},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+		},
+		{
+			name: "success - no op, nil pointer",
+			req: &types.TaskListPartitionConfig{
+				ReadPartitions:  partitions(1),
+				WritePartitions: partitions(1),
+			},
+			originalConfig: nil,
+			setupMocks:     func(m *mockDeps) {},
+			expectedConfig: nil,
+		},
+		{
+			name: "success - update",
+			req: &types.TaskListPartitionConfig{
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
+			},
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), &persistence.UpdateTaskListRequest{
+					DomainName: "domainName",
+					TaskListInfo: &persistence.TaskListInfo{
+						DomainID: "domain-id",
+						Name:     "tl",
+						AckLevel: 0,
+						RangeID:  0,
+						Kind:     persistence.TaskListKindNormal,
+						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+							Version:         2,
+							ReadPartitions:  persistencePartitions(3),
+							WritePartitions: persistencePartitions(1),
+						},
+					},
+				}).Return(&persistence.UpdateTaskListResponse{}, nil)
+				deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
+					DomainUUID:   "domain-id",
+					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/1", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
+					},
+				}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
+				deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
+					DomainUUID:   "domain-id",
+					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/2", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
+					},
+				}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
+			},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
+			},
+		},
+		{
+			name: "success - push failures are ignored",
+			req: &types.TaskListPartitionConfig{
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
+			},
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), &persistence.UpdateTaskListRequest{
+					DomainName: "domainName",
+					TaskListInfo: &persistence.TaskListInfo{
+						DomainID: "domain-id",
+						Name:     "tl",
+						AckLevel: 0,
+						RangeID:  0,
+						Kind:     persistence.TaskListKindNormal,
+						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+							Version:         2,
+							ReadPartitions:  persistencePartitions(3),
+							WritePartitions: persistencePartitions(1),
+						},
+					},
+				}).Return(&persistence.UpdateTaskListResponse{}, nil)
+				deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
+					DomainUUID:   "domain-id",
+					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/1", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
+					},
+				}).Return(nil, errors.New("matching client error"))
+				deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
+					DomainUUID:   "domain-id",
+					TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/2", Kind: types.TaskListKindNormal.Ptr()},
+					TaskListType: types.TaskListTypeDecision.Ptr(),
+					PartitionConfig: &types.TaskListPartitionConfig{
+						Version:         2,
+						ReadPartitions:  partitions(3),
+						WritePartitions: partitions(1),
+					},
+				}).Return(nil, errors.New("matching client error"))
+			},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         2,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
+			},
+		},
+		{
+			name: "failed to update",
+			req: &types.TaskListPartitionConfig{
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(1),
+			},
+			originalConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), &persistence.UpdateTaskListRequest{
+					DomainName: "domainName",
+					TaskListInfo: &persistence.TaskListInfo{
+						DomainID: "domain-id",
+						Name:     "tl",
+						AckLevel: 0,
+						RangeID:  0,
+						Kind:     persistence.TaskListKindNormal,
+						AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+							Version:         2,
+							ReadPartitions:  persistencePartitions(3),
+							WritePartitions: persistencePartitions(1),
+						},
+					},
+				}).Return(nil, errors.New("some error"))
+			},
+			expectedConfig: &types.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  partitions(3),
+				WritePartitions: partitions(3),
+			},
+			expectError:   true,
+			expectedError: "some error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+			require.NoError(t, err)
+			tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+			tc.setupMocks(deps)
+			tlm.partitionConfig = tc.originalConfig
+			tlm.startWG.Done()
+
+			err = tlm.UpdateTaskListPartitionConfig(context.Background(), tc.req)
+			if tc.expectError {
+				assert.ErrorContains(t, err, tc.expectedError)
+				assert.Equal(t, int32(1), tlm.stopped)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expectedConfig, tlm.TaskListPartitionConfig())
+		})
+	}
+}
+
+func TestRefreshTaskListPartitionConfigConcurrency(t *testing.T) {
+	tlID, err := NewIdentifier("domain-id", "/__cadence_sys/tl/1", persistence.TaskListTypeDecision)
+	require.NoError(t, err)
+	tlm, _ := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+	tlm.startWG.Done()
+
+	var g errgroup.Group
+	for i := 0; i < 100; i++ {
+		v := i
+		g.Go(func() error {
+			return tlm.RefreshTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{Version: int64(v), ReadPartitions: partitions(v), WritePartitions: partitions(v)})
+		})
+	}
+	require.NoError(t, g.Wait())
+	assert.Equal(t, int64(99), tlm.TaskListPartitionConfig().Version)
+}
+
+func TestUpdateTaskListPartitionConfigConcurrency(t *testing.T) {
+	tlID, err := NewIdentifier("domain-id", "/__cadence_sys/tl/1", persistence.TaskListTypeDecision)
+	require.NoError(t, err)
+	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+	deps.mockTaskManager.EXPECT().UpdateTaskList(gomock.Any(), gomock.Any()).Return(&persistence.UpdateTaskListResponse{}, nil).AnyTimes()
+	deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), gomock.Any()).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil).AnyTimes()
+	tlm.startWG.Done()
+
+	var g errgroup.Group
+	for i := 2; i < 102; i++ {
+		v := i
+		g.Go(func() error {
+			return tlm.UpdateTaskListPartitionConfig(context.Background(), &types.TaskListPartitionConfig{ReadPartitions: partitions(v), WritePartitions: partitions(v)})
+		})
+	}
+	require.NoError(t, g.Wait())
+	assert.Equal(t, int64(100), tlm.TaskListPartitionConfig().Version)
+}
+
+func TestManagerStart_RootPartition(t *testing.T) {
+	tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+	require.NoError(t, err)
+	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+	deps.mockTaskManager.EXPECT().LeaseTaskList(gomock.Any(), &persistence.LeaseTaskListRequest{
+		DomainID:   "domain-id",
 		DomainName: "domainName",
-		TaskList:   "tasklist",
-		TaskType:   persistence.TaskListTypeActivity,
-	}).Return(nil, errors.New("error")).Times(1)
-	mockTm.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
-		DomainID:   "domain",
+		TaskList:   "tl",
+		TaskType:   persistence.TaskListTypeDecision,
+	}).Return(&persistence.LeaseTaskListResponse{
+		TaskListInfo: &persistence.TaskListInfo{
+			DomainID: "domain-id",
+			Name:     "tl",
+			Kind:     persistence.TaskListKindNormal,
+			AckLevel: 0,
+			RangeID:  0,
+			AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  persistencePartitions(2),
+				WritePartitions: persistencePartitions(2),
+			},
+		},
+	}, nil)
+	deps.mockMatchingClient.EXPECT().RefreshTaskListPartitionConfig(gomock.Any(), &types.MatchingRefreshTaskListPartitionConfigRequest{
+		DomainUUID:   "domain-id",
+		TaskList:     &types.TaskList{Name: "/__cadence_sys/tl/1", Kind: types.TaskListKindNormal.Ptr()},
+		TaskListType: types.TaskListTypeDecision.Ptr(),
+		PartitionConfig: &types.TaskListPartitionConfig{
+			Version:         1,
+			ReadPartitions:  partitions(2),
+			WritePartitions: partitions(2),
+		},
+	}).Return(&types.MatchingRefreshTaskListPartitionConfigResponse{}, nil)
+	assert.NoError(t, tlm.Start(context.Background()))
+	assert.Equal(t, &types.TaskListPartitionConfig{Version: 1, ReadPartitions: partitions(2), WritePartitions: partitions(2)}, tlm.TaskListPartitionConfig())
+	tlm.stopWG.Wait()
+}
+
+func TestManagerStart_NonRootPartition(t *testing.T) {
+	tlID, err := NewIdentifier("domain-id", "/__cadence_sys/tl/1", persistence.TaskListTypeDecision)
+	require.NoError(t, err)
+	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+	deps.mockTaskManager.EXPECT().GetTaskList(gomock.Any(), &persistence.GetTaskListRequest{
+		DomainID:   "domain-id",
 		DomainName: "domainName",
-		TaskList:   "tasklist",
-		TaskType:   persistence.TaskListTypeActivity,
+		TaskList:   "tl",
+		TaskType:   persistence.TaskListTypeDecision,
 	}).Return(&persistence.GetTaskListResponse{
 		TaskListInfo: &persistence.TaskListInfo{
-			AdaptivePartitionConfig: nil,
+			DomainID: "domain-id",
+			Name:     "tl",
+			Kind:     persistence.TaskListKindNormal,
+			AckLevel: 0,
+			RangeID:  0,
+			AdaptivePartitionConfig: &persistence.TaskListPartitionConfig{
+				Version:         1,
+				ReadPartitions:  persistencePartitions(3),
+				WritePartitions: persistencePartitions(3),
+			},
 		},
-	}, nil).Times(1)
+	}, nil)
+	deps.mockTaskManager.EXPECT().LeaseTaskList(gomock.Any(), &persistence.LeaseTaskListRequest{
+		DomainID:   "domain-id",
+		DomainName: "domainName",
+		TaskList:   "/__cadence_sys/tl/1",
+		TaskType:   persistence.TaskListTypeDecision,
+	}).Return(&persistence.LeaseTaskListResponse{
+		TaskListInfo: &persistence.TaskListInfo{
+			DomainID: "domain-id",
+			Name:     "/__cadence_sys/tl/1",
+			Kind:     persistence.TaskListKindNormal,
+			AckLevel: 0,
+			RangeID:  0,
+		},
+	}, nil)
+	assert.NoError(t, tlm.Start(context.Background()))
+	assert.Equal(t, &types.TaskListPartitionConfig{
+		Version:         1,
+		ReadPartitions:  partitions(3),
+		WritePartitions: partitions(3),
+	}, tlm.TaskListPartitionConfig())
+}
 
-	tlID, err := NewIdentifier("domain", "/__cadence_sys/tasklist/1", persistence.TaskListTypeActivity)
+func TestDispatchTask(t *testing.T) {
+	testCases := []struct {
+		name                        string
+		mockSetup                   func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask)
+		enableStandByTaskCompletion bool
+		activeClusterName           string
+		err                         error
+	}{
+		{
+			name: "active cluster - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
+			},
+			activeClusterName: cluster.TestCurrentClusterName,
+			err:               nil,
+		},
+		{
+			name: "active cluster - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("no-task-completion-must-offer-error")).Times(1)
+			},
+			activeClusterName: cluster.TestCurrentClusterName,
+			err:               errors.New("no-task-completion-must-offer-error"),
+		},
+		{
+			name: "active cluster - enabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestCurrentClusterName,
+			err:                         nil,
+		},
+		{
+			name: "active cluster - enabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("task-completion-must-offer-error")).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestCurrentClusterName,
+			err:                         errors.New("task-completion-must-offer-error"),
+		},
+		{
+			name: "standby cluster - disabled StandByTaskCompletion - task sent to MustOffer and no error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(nil).Times(1)
+			},
+			activeClusterName: cluster.TestAlternativeClusterName,
+			err:               nil,
+		},
+		{
+			name: "standby cluster - disabled StandByTaskCompletion - task sent to MustOffer and error returned",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				matcher.EXPECT().MustOffer(ctx, task).Return(errors.New("no-task-completion-must-offer-error")).Times(1)
+			},
+			activeClusterName: cluster.TestAlternativeClusterName,
+			err:               errors.New("no-task-completion-must-offer-error"),
+		},
+		{
+			name: "standby cluster - enabled StandByTaskCompletion - task completed",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(nil).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestAlternativeClusterName,
+			err:                         nil,
+		},
+		{
+			name: "standby cluster - enabled StandByTaskCompletion - task completion error",
+			mockSetup: func(matcher *MockTaskMatcher, taskCompleter *MockTaskCompleter, ctx context.Context, task *InternalTask) {
+				taskCompleter.EXPECT().CompleteTaskIfStarted(ctx, task).Return(errTaskNotStarted).Times(1)
+			},
+			enableStandByTaskCompletion: true,
+			activeClusterName:           cluster.TestAlternativeClusterName,
+			err:                         errTaskNotStarted,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+			tlm := createTestTaskListManager(t, logger, controller)
+
+			task := &InternalTask{
+				Event: &genericTaskInfo{
+					TaskInfo: &persistence.TaskInfo{
+						DomainID:   constants.TestDomainID,
+						WorkflowID: constants.TestWorkflowID,
+						RunID:      constants.TestRunID,
+					},
+				},
+			}
+
+			taskMatcher := NewMockTaskMatcher(controller)
+			taskCompleter := NewMockTaskCompleter(controller)
+			tlm.matcher = taskMatcher
+			tlm.taskCompleter = taskCompleter
+			tlm.config.EnableStandbyTaskCompletion = func() bool {
+				return tc.enableStandByTaskCompletion
+			}
+
+			mockDomainCache := cache.NewMockDomainCache(controller)
+			cacheEntry := cache.NewGlobalDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: constants.TestDomainID, Name: constants.TestDomainName},
+				&persistence.DomainConfig{Retention: 1},
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: tc.activeClusterName,
+					Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+				},
+				1,
+			)
+
+			mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(cacheEntry, nil).AnyTimes()
+			tlm.domainCache = mockDomainCache
+
+			ctx := context.Background()
+			tc.mockSetup(taskMatcher, taskCompleter, ctx, task)
+
+			err := tlm.DispatchTask(ctx, task)
+
+			if tc.err != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tc.err, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetNumPartitions(t *testing.T) {
+	tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
 	require.NoError(t, err)
+	tlm, deps := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+	require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, true))
+	assert.NotPanics(t, func() { tlm.limiter.ReportLimit(float64(100)) })
+}
 
-	tlMgr, err := NewManager(
-		mockDomainCache,
-		testlogger.New(t),
-		metrics.NewClient(tally.NoopScope, metrics.Matching),
-		mockTm,
-		cluster.GetTestClusterMetadata(true),
-		mockPartitioner,
-		nil,
-		func(Manager) {},
-		tlID,
-		types.TaskListKindNormal.Ptr(),
-		defaultTestConfig(),
-		clock.NewRealTimeSource(),
-		time.Now())
+func TestDisconnectBlockedPollers(t *testing.T) {
+	tests := []struct {
+		name                 string
+		newActiveClusterName *string
+		mockSetup            func(mockMatcher *MockTaskMatcher)
+		stopped              int32
+		expectedErr          error
+	}{
+		{
+			name:                 "disconnect blocked pollers and refresh cancel context",
+			newActiveClusterName: common.StringPtr("new-active-cluster"),
+			mockSetup: func(mockMatcher *MockTaskMatcher) {
+				mockMatcher.EXPECT().DisconnectBlockedPollers().Times(1)
+				mockMatcher.EXPECT().RefreshCancelContext().Times(1)
+			},
+			expectedErr: nil,
+		},
+		{
+			name:                 "tasklist manager is shutting down, noop",
+			newActiveClusterName: common.StringPtr("new-active-cluster"),
+			mockSetup:            func(mockMatcher *MockTaskMatcher) {},
+			stopped:              int32(1),
+			expectedErr:          errShutdown,
+		},
+	}
 
-	tlm := tlMgr.(*taskListManagerImpl)
-	tlm.loadTaskListPartitionConfig()
-	assert.Nil(t, tlm.TaskListPartitionConfig())
-	tlm.loadTaskListPartitionConfig()
-	assert.Equal(t, &types.TaskListPartitionConfig{NumReadPartitions: 1, NumWritePartitions: 1}, tlm.TaskListPartitionConfig())
-	tlm.loadTaskListPartitionConfig()
-	assert.Equal(t, &types.TaskListPartitionConfig{NumReadPartitions: 1, NumWritePartitions: 1}, tlm.TaskListPartitionConfig())
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tlID, err := NewIdentifier("domain-id", "tl", persistence.TaskListTypeDecision)
+			require.NoError(t, err)
+
+			tlm, _ := setupMocksForTaskListManager(t, tlID, types.TaskListKindNormal)
+
+			mockMatcher := NewMockTaskMatcher(gomock.NewController(t))
+			tlm.matcher = mockMatcher
+
+			tc.mockSetup(mockMatcher)
+
+			tlm.stopped = tc.stopped
+
+			err = tlm.ReleaseBlockedPollers()
+
+			assert.Equal(t, tc.expectedErr, err)
+		})
+	}
+}
+
+func partitions(num int) map[int]*types.TaskListPartition {
+	result := make(map[int]*types.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &types.TaskListPartition{}
+	}
+	return result
+}
+
+func persistencePartitions(num int) map[int]*persistence.TaskListPartition {
+	result := make(map[int]*persistence.TaskListPartition, num)
+	for i := 0; i < num; i++ {
+		result[i] = &persistence.TaskListPartition{}
+	}
+	return result
+}
+
+func TestTaskListUsesOverrideRPS(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		overrideRPS          float64
+		maxDispatchPerSecond *float64
+		expectedRPS          float64
+	}{
+		{
+			name:                 "Uses maxDispatchPerSecond when overrideRPS is zero",
+			overrideRPS:          0.0,
+			maxDispatchPerSecond: common.Float64Ptr(75.0),
+			expectedRPS:          75.0,
+		},
+		{
+			name:                 "Uses maxDispatchPerSecond when overrideRPS is negative",
+			overrideRPS:          -1.0,
+			maxDispatchPerSecond: common.Float64Ptr(60.0),
+			expectedRPS:          60.0,
+		},
+		{
+			name:                 "OverrideRPS takes precedence when higher than maxDispatchPerSecond",
+			overrideRPS:          200.0,
+			maxDispatchPerSecond: common.Float64Ptr(50.0),
+			expectedRPS:          200.0,
+		},
+		{
+			name:                 "OverrideRPS takes precedence when lower than maxDispatchPerSecond",
+			overrideRPS:          25.0,
+			maxDispatchPerSecond: common.Float64Ptr(100.0),
+			expectedRPS:          25.0,
+		},
+		{
+			name:                 "No maxDispatchPerSecond and no overrideRPS",
+			overrideRPS:          0.0,
+			maxDispatchPerSecond: nil,
+			expectedRPS:          100000.0,
+		},
+		{
+			name:                 "OverrideRPS only, with no maxDispatchPerSecond",
+			overrideRPS:          150.0,
+			maxDispatchPerSecond: nil,
+			expectedRPS:          150.0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			logger := testlogger.New(t)
+
+			cfg := defaultTestConfig()
+			cfg.OverrideTaskListRPS = func(domain, taskList string, taskType int) float64 {
+				return tc.overrideRPS
+			}
+
+			tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())
+
+			_, _ = tlm.GetTask(context.Background(), tc.maxDispatchPerSecond)
+
+			assert.Equal(t, rate.Limit(tc.expectedRPS), tlm.limiter.Limit())
+		})
+	}
 }

@@ -1721,3 +1721,63 @@ func TestTaskSource_MarshalText(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchingUpdateTaskListPartitionConfigRequest_GetTaskListType(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *MatchingUpdateTaskListPartitionConfigRequest
+		want TaskListType
+	}{
+		{
+			name: "nil request",
+			req:  nil,
+			want: TaskListTypeDecision,
+		},
+		{
+			name: "empty request",
+			req:  &MatchingUpdateTaskListPartitionConfigRequest{},
+			want: TaskListTypeDecision,
+		},
+		{
+			name: "non empty request",
+			req:  &MatchingUpdateTaskListPartitionConfigRequest{TaskListType: TaskListTypeActivity.Ptr()},
+			want: TaskListTypeActivity,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.req.GetTaskListType()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMatchingRefreshTaskListPartitionConfigRequest_GetTaskListType(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *MatchingRefreshTaskListPartitionConfigRequest
+		want TaskListType
+	}{
+		{
+			name: "nil request",
+			req:  nil,
+			want: TaskListTypeDecision,
+		},
+		{
+			name: "empty request",
+			req:  &MatchingRefreshTaskListPartitionConfigRequest{},
+			want: TaskListTypeDecision,
+		},
+		{
+			name: "non empty request",
+			req:  &MatchingRefreshTaskListPartitionConfigRequest{TaskListType: TaskListTypeActivity.Ptr()},
+			want: TaskListTypeActivity,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.req.GetTaskListType()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

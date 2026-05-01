@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
@@ -56,7 +57,14 @@ func shouldForwardCallToPersistence(
 
 func generateFakeError(
 	errorRate float64,
+	starttime time.Time,
 ) error {
+	// don't inject errors before 30 seconds of startup to avoid overwhelming the system
+	// on startup
+	if time.Since(starttime) < 30*time.Second {
+		return nil
+	}
+
 	randFl := rand.Float64()
 	if randFl < errorRate {
 		return fakeErrors[rand.Intn(len(fakeErrors))]
@@ -224,16 +232,16 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetReplicationTasks
 	case "ExecutionManager.CompleteTransferTask":
 		return &tag.StoreOperationCompleteTransferTask
-	case "ExecutionManager.RangeCompleteTransferTask":
-		return &tag.StoreOperationRangeCompleteTransferTask
+	case "ExecutionManager.GetHistoryTasks":
+		return &tag.StoreOperationGetHistoryTasks
+	case "ExecutionManager.CompleteHistoryTask":
+		return &tag.StoreOperationCompleteHistoryTask
+	case "ExecutionManager.RangeCompleteHistoryTask":
+		return &tag.StoreOperationRangeCompleteHistoryTask
 	case "ExecutionManager.CompleteCrossClusterTask":
 		return &tag.StoreOperationCompleteCrossClusterTask
-	case "ExecutionManager.RangeCompleteCrossClusterTask":
-		return &tag.StoreOperationRangeCompleteCrossClusterTask
 	case "ExecutionManager.CompleteReplicationTask":
 		return &tag.StoreOperationCompleteReplicationTask
-	case "ExecutionManager.RangeCompleteReplicationTask":
-		return &tag.StoreOperationRangeCompleteReplicationTask
 	case "ExecutionManager.PutReplicationTaskToDLQ":
 		return &tag.StoreOperationPutReplicationTaskToDLQ
 	case "ExecutionManager.GetReplicationTasksFromDLQ":
@@ -248,10 +256,12 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetTimerIndexTasks
 	case "ExecutionManager.CompleteTimerTask":
 		return &tag.StoreOperationCompleteTimerTask
-	case "ExecutionManager.RangeCompleteTimerTask":
-		return &tag.StoreOperationRangeCompleteTimerTask
 	case "ExecutionManager.CreateFailoverMarkerTasks":
 		return &tag.StoreOperationCreateFailoverMarkerTasks
+	case "ExecutionManager.GetActiveClusterSelectionPolicy":
+		return &tag.StoreOperationGetActiveClusterSelectionPolicy
+	case "ExecutionManager.DeleteActiveClusterSelectionPolicy":
+		return &tag.StoreOperationDeleteActiveClusterSelectionPolicy
 	}
 	return nil
 }

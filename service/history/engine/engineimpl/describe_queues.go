@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/queue"
 )
@@ -33,21 +34,25 @@ func (e *historyEngineImpl) DescribeTransferQueue(
 	ctx context.Context,
 	clusterName string,
 ) (*types.DescribeQueueResponse, error) {
-	return e.describeQueue(ctx, e.txProcessor, clusterName)
+	return e.describeQueue(ctx, persistence.HistoryTaskCategoryTransfer, clusterName)
 }
 
 func (e *historyEngineImpl) DescribeTimerQueue(
 	ctx context.Context,
 	clusterName string,
 ) (*types.DescribeQueueResponse, error) {
-	return e.describeQueue(ctx, e.timerProcessor, clusterName)
+	return e.describeQueue(ctx, persistence.HistoryTaskCategoryTimer, clusterName)
 }
 
 func (e *historyEngineImpl) describeQueue(
 	ctx context.Context,
-	queueProcessor queue.Processor,
+	category persistence.HistoryTaskCategory,
 	clusterName string,
 ) (*types.DescribeQueueResponse, error) {
+	queueProcessor, ok := e.queueProcessors[category]
+	if !ok {
+		return nil, fmt.Errorf("queue processor not found for category %v", category)
+	}
 	resp, err := queueProcessor.HandleAction(ctx, clusterName, queue.NewGetStateAction())
 	if err != nil {
 		return nil, err

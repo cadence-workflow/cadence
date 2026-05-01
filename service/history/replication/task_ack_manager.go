@@ -24,15 +24,19 @@ package replication
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/config"
 )
 
 type (
@@ -45,16 +49,25 @@ type (
 
 		reader taskReader
 		store  *TaskStore
+
+		// replicationMessagesSizeFn is the function to calculate the size of types.ReplicationMessages
+		replicationMessagesSizeFn types.ReplicationMessagesSizeFn
+
+		// maxReplicationMessagesSize is the max size of types.ReplicationMessages
+		// that can be sent in a single RPC call
+		maxReplicationMessagesSize int
+
+		dynamicTaskBatchSizer DynamicTaskBatchSizer
+		timeSource            clock.TimeSource
 	}
 
 	ackLevelStore interface {
-		GetTransferMaxReadLevel() int64
-
-		GetClusterReplicationLevel(cluster string) int64
-		UpdateClusterReplicationLevel(cluster string, lastTaskID int64) error
+		UpdateIfNeededAndGetQueueMaxReadLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
+		GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
+		UpdateQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string, ackLevel persistence.HistoryTaskKey) error
 	}
 	taskReader interface {
-		Read(ctx context.Context, readLevel int64, maxReadLevel int64) ([]*persistence.ReplicationTaskInfo, bool, error)
+		Read(ctx context.Context, readLevel int64, maxReadLevel int64, batchSize int) ([]persistence.Task, bool, error)
 	}
 )
 
@@ -66,6 +79,10 @@ func NewTaskAckManager(
 	logger log.Logger,
 	reader taskReader,
 	store *TaskStore,
+	timeSource clock.TimeSource,
+	config *config.Config,
+	replicationMessagesSizeFn types.ReplicationMessagesSizeFn,
+	dynamicTaskBatchSizer DynamicTaskBatchSizer,
 ) TaskAckManager {
 
 	return TaskAckManager{
@@ -74,64 +91,206 @@ func NewTaskAckManager(
 			metrics.ReplicatorQueueProcessorScope,
 			metrics.InstanceTag(strconv.Itoa(shardID)),
 		),
-		logger: logger.WithTags(tag.ComponentReplicationAckManager),
-		reader: reader,
-		store:  store,
+		logger:     logger.WithTags(tag.ComponentReplicationAckManager),
+		reader:     reader,
+		store:      store,
+		timeSource: timeSource,
+
+		maxReplicationMessagesSize: config.MaxResponseSize,
+		replicationMessagesSizeFn:  replicationMessagesSizeFn,
+		dynamicTaskBatchSizer:      dynamicTaskBatchSizer,
 	}
 }
 
-func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, lastReadTaskID int64) (*types.ReplicationMessages, error) {
-	if lastReadTaskID == common.EmptyMessageID {
-		lastReadTaskID = t.ackLevels.GetClusterReplicationLevel(pollingCluster)
-	}
-
-	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskLatency)
-
-	tasks, hasMore, err := t.reader.Read(ctx, lastReadTaskID, t.ackLevels.GetTransferMaxReadLevel())
+func (t *TaskAckManager) GetTasks(ctx context.Context, pollingCluster string, lastReadTaskID int64) (_ *types.ReplicationMessages, err error) {
+	result, err := t.getTasks(ctx, pollingCluster, lastReadTaskID)
+	t.dynamicTaskBatchSizer.analyse(err, result)
 	if err != nil {
 		return nil, err
 	}
 
-	var replicationTasks []*types.ReplicationTask
-	readLevel := lastReadTaskID
-TaskInfoLoop:
-	for _, task := range tasks {
-		replicationTask, err := t.store.Get(ctx, pollingCluster, *task)
+	return result.msgs, nil
+}
 
-		switch err.(type) {
-		case nil:
-			// No action
-		case *types.BadRequestError, *types.InternalDataInconsistencyError, *types.EntityNotExistsError:
-			t.logger.Warn("Failed to get replication task.", tag.Error(err))
-		default:
-			t.logger.Error("Failed to get replication task. Return what we have so far.", tag.Error(err))
-			hasMore = true
-			break TaskInfoLoop
+// getTasksResult contains the result of a TaskAckManager.getTasks
+// It is used to adjust the task batch size by DynamicTaskBatchSizer
+type getTasksResult struct {
+	previousReadTaskID int64
+	lastReadTaskID     int64
+	msgs               *types.ReplicationMessages
+	taskInfos          []persistence.Task
+	isShrunk           bool
+}
+
+func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, lastReadTaskID int64) (*getTasksResult, error) {
+	var oldestUnprocessedTaskID int64
+	var oldestUnprocessedTaskTimestamp int64
+	previousReadTaskID := t.ackLevels.GetQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()
+
+	if lastReadTaskID == constants.EmptyMessageID {
+		lastReadTaskID = previousReadTaskID
+	}
+
+	taskGeneratedStart := t.timeSource.Now()
+	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskLatency)
+	defer taskGeneratedTimer.Stop()
+	defer func() {
+		t.scope.ExponentialHistogram(metrics.TaskLatencyHistogram, t.timeSource.Since(taskGeneratedStart))
+	}()
+
+	batchSize := t.dynamicTaskBatchSizer.value()
+	t.scope.UpdateGauge(metrics.ReplicationTasksBatchSize, float64(batchSize))
+
+	taskInfos, hasMore, err := t.reader.Read(ctx, lastReadTaskID, t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID(), batchSize)
+	if err != nil {
+		return nil, err
+	}
+	tasksFetched := len(taskInfos)
+	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(tasksFetched))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksFetchedHistogram, float64(tasksFetched))
+	t.scope.AddCounter(metrics.ReplicationTasksFetchedCounter, int64(tasksFetched))
+
+	// Happy path assumption - we will push all tasks to replication tasks.
+	msgs := &types.ReplicationMessages{
+		ReplicationTasks:       make([]*types.ReplicationTask, 0, len(taskInfos)),
+		LastRetrievedMessageID: lastReadTaskID,
+		HasMore:                hasMore,
+	}
+
+	if len(taskInfos) > 0 {
+		// it does not matter if we can process task or not, but we need to know what was the oldest task information we have read.
+		// tasks must be ordered by taskID/time.
+		oldestUnprocessedTaskID = taskInfos[0].GetTaskID()
+		oldestUnprocessedTaskTimestamp = taskInfos[0].GetVisibilityTimestamp().UnixNano()
+	} else {
+		// if there are no replication tasks, use the max read level as the oldest unprocessed task
+		// this means there are no tasks to process, so the lag is 0
+		oldestUnprocessedTaskID = t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()
+		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
+	}
+
+	lagRaw := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - oldestUnprocessedTaskID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(lagRaw))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksLagRawHistogram, float64(lagRaw))
+	t.scope.UpdateGauge(metrics.ReplicationTasksLagRawGauge, float64(lagRaw))
+	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(t.timeSource.Now().UnixNano()-oldestUnprocessedTaskTimestamp))
+
+	// hydrate the tasks
+	for _, info := range taskInfos {
+		task, err := t.store.Get(ctx, pollingCluster, info)
+		if err != nil {
+			if errors.As(err, new(*types.BadRequestError)) ||
+				errors.As(err, new(*types.InternalDataInconsistencyError)) ||
+				errors.As(err, new(*types.EntityNotExistsError)) {
+				t.logger.Warn("Failed to get replication task.", tag.Error(err))
+			} else {
+				t.logger.Error("Failed to get replication task. Return what we have so far.", tag.Error(err))
+				msgs.HasMore = true
+				break
+			}
 		}
-		readLevel = task.TaskID
-		if replicationTask != nil {
-			replicationTasks = append(replicationTasks, replicationTask)
+
+		msgs.LastRetrievedMessageID = info.GetTaskID()
+		if task != nil {
+			msgs.ReplicationTasks = append(msgs.ReplicationTasks, task)
 		}
 	}
-	taskGeneratedTimer.Stop()
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.GetTransferMaxReadLevel()-readLevel))
-	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(len(tasks)))
-	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(replicationTasks)))
-	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(tasks)-len(replicationTasks)))
+	// Sometimes the total size of replication tasks can be larger than the max response size
+	// It caused the replication lag until history.replicatorTaskBatchSize is not adjusted to a smaller value
+	// To prevent the lag and manual actions, we stop adding more tasks to the batch if the total size exceeds the limit
+	isShrunk, err := t.shrinkMessagesBySize(msgs)
+	if err != nil {
+		return nil, err
+	}
 
-	if err := t.ackLevels.UpdateClusterReplicationLevel(pollingCluster, lastReadTaskID); err != nil {
+	replicationLag := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - msgs.LastRetrievedMessageID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(replicationLag))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksLagHistogram, float64(replicationLag))
+	t.scope.UpdateGauge(metrics.ReplicationTasksLagGauge, float64(replicationLag))
+
+	tasksReturned := len(msgs.ReplicationTasks)
+	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(tasksReturned))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksReturnedHistogram, float64(tasksReturned))
+	t.scope.AddCounter(metrics.ReplicationTasksReturnedCounter, int64(tasksReturned))
+
+	tasksReturnedDiff := len(taskInfos) - len(msgs.ReplicationTasks)
+	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(tasksReturnedDiff))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksReturnedDiffHistogram, float64(tasksReturnedDiff))
+	t.scope.AddCounter(metrics.ReplicationTasksReturnedDiffCounter, int64(tasksReturnedDiff))
+
+	t.ackLevel(pollingCluster, lastReadTaskID)
+
+	t.logger.Debug(
+		"Get replication tasks",
+		tag.SourceCluster(pollingCluster),
+		tag.ShardReplicationAck(msgs.LastRetrievedMessageID),
+		tag.ReadLevel(msgs.LastRetrievedMessageID),
+	)
+
+	return &getTasksResult{
+		previousReadTaskID: previousReadTaskID,
+		lastReadTaskID:     lastReadTaskID,
+		msgs:               msgs,
+		taskInfos:          taskInfos,
+		isShrunk:           isShrunk,
+	}, nil
+}
+
+// ackLevel updates the ack level for the given cluster
+func (t *TaskAckManager) ackLevel(pollingCluster string, lastReadTaskID int64) {
+	if err := t.ackLevels.UpdateQueueClusterAckLevel(persistence.HistoryTaskCategoryReplication, pollingCluster, persistence.NewImmediateTaskKey(lastReadTaskID)); err != nil {
 		t.logger.Error("error updating replication level for shard", tag.Error(err), tag.OperationFailed)
 	}
 
 	if err := t.store.Ack(pollingCluster, lastReadTaskID); err != nil {
 		t.logger.Error("error updating replication level for hydrated task store", tag.Error(err), tag.OperationFailed)
 	}
+}
 
-	t.logger.Debug("Get replication tasks", tag.SourceCluster(pollingCluster), tag.ShardReplicationAck(lastReadTaskID), tag.ReadLevel(readLevel))
-	return &types.ReplicationMessages{
-		ReplicationTasks:       replicationTasks,
-		HasMore:                hasMore,
-		LastRetrievedMessageID: readLevel,
-	}, nil
+// shrinkMessagesBySize shrinks the replication messages by removing the last replication task until the total size is allowed
+func (t *TaskAckManager) shrinkMessagesBySize(msgs *types.ReplicationMessages) (bool, error) {
+	// if there are no replication tasks, do nothing
+	if len(msgs.ReplicationTasks) == 0 {
+		return false, nil
+	}
+
+	maxSize := t.maxReplicationMessagesSize
+	isShrunk := false
+
+	for {
+		totalSize := t.replicationMessagesSizeFn(msgs)
+
+		// if the total size is allowed, return the replication messages
+		if totalSize < maxSize {
+			return isShrunk, nil
+		}
+
+		lastTask := msgs.ReplicationTasks[len(msgs.ReplicationTasks)-1]
+		t.logger.Warn("Replication messages size is too large. Shrinking the messages by removing the last replication task",
+			tag.ReplicationMessagesTotalSize(totalSize),
+			tag.ReplicationMessagesMaxSize(maxSize),
+			tag.ReplicationTaskID(lastTask.SourceTaskID),
+			tag.ReplicationTaskCreationTime(lastTask.CreationTime),
+		)
+
+		// change HasMore to true to indicate that there are more tasks to be fetched
+		msgs.HasMore = true
+
+		// remove the last replication task
+		msgs.ReplicationTasks = msgs.ReplicationTasks[:len(msgs.ReplicationTasks)-1]
+
+		// set isShrunk to true to indicate that the replication messages have been shrunk
+		isShrunk = true
+
+		// should never happen, but just in case
+		// if there are no more replication tasks, return an error
+		if len(msgs.ReplicationTasks) == 0 {
+			return isShrunk, fmt.Errorf("replication messages size is too large and cannot be shrunk anymore, shard will be stuck until the message size is reduced or max size is increased")
+
+		}
+
+		// update the last retrieved message ID to the new last task ID
+		msgs.LastRetrievedMessageID = msgs.ReplicationTasks[len(msgs.ReplicationTasks)-1].SourceTaskID
+	}
 }

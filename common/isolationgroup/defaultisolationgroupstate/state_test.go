@@ -26,301 +26,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
-
-func TestAvailableIsolationGroupsHandler(t *testing.T) {
-
-	validInputNormal := types.IsolationGroupConfiguration{
-		"zone-1": types.IsolationGroupPartition{
-			Name:  "zone-1",
-			State: types.IsolationGroupStateHealthy,
-		},
-		"zone-2": types.IsolationGroupPartition{
-			Name:  "zone-2",
-			State: types.IsolationGroupStateHealthy,
-		},
-	}
-
-	validInputDrains := types.IsolationGroupConfiguration{
-		"zone-1": types.IsolationGroupPartition{
-			Name:  "zone-1",
-			State: types.IsolationGroupStateDrained,
-		},
-	}
-
-	validCfgNormal, _ := isolationgroupapi.MapUpdateGlobalIsolationGroupsRequest(validInputNormal)
-	validCfgDrained, _ := isolationgroupapi.MapUpdateGlobalIsolationGroupsRequest(validInputDrains)
-
-	validCfgDataNormal := validCfgNormal[0].Value.GetData()
-	dynamicConfigResponseNormal := []interface{}{}
-	json.Unmarshal(validCfgDataNormal, &dynamicConfigResponseNormal)
-
-	validCfgDataDrained := validCfgDrained[0].Value.GetData()
-	dynamicConfigResponseDrained := []interface{}{}
-	json.Unmarshal(validCfgDataDrained, &dynamicConfigResponseDrained)
-
-	tests := map[string]struct {
-		availablePollerIsolationGroups []string
-		dcAffordance                   func(client *dynamicconfig.MockClient)
-		domainAffordance               func(mock *cache.MockDomainCache)
-		cfg                            defaultConfig
-		expected                       types.IsolationGroupConfiguration
-		expectedErr                    error
-	}{
-		"normal case - feature is disabled": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return false },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomainName("domain-id").Return("domain", nil)
-			},
-			expected: types.IsolationGroupConfiguration{
-				"zone-1": {
-					Name:  "zone-1",
-					State: types.IsolationGroupStateHealthy,
-				},
-				"zone-2": {
-					Name:  "zone-2",
-					State: types.IsolationGroupStateHealthy,
-				},
-			},
-		},
-
-		"normal case - no drains present - no configuration specifying a drain - feature is enabled": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
-					gomock.Any(), // covering the mapping in the mapper unit-test instead
-				).Return(dynamicConfigResponseNormal, nil)
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomainName("domain-id").Return("domain", nil)
-				mock.EXPECT().GetDomain("domain").Return(domainResponse, nil).AnyTimes()
-			},
-			expected: types.IsolationGroupConfiguration{
-				"zone-1": {
-					Name:  "zone-1",
-					State: types.IsolationGroupStateHealthy,
-				},
-				"zone-2": {
-					Name:  "zone-2",
-					State: types.IsolationGroupStateHealthy,
-				},
-			},
-		},
-
-		"normal case - one drain present - no configuration specifying a drain - feature is enabled": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
-					gomock.Any(), // covering the mapping in the mapper unit-test instead
-				).Return(dynamicConfigResponseDrained, nil)
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomainName("domain-id").Return("domain", nil)
-				mock.EXPECT().GetDomain("domain").Return(domainResponse, nil).AnyTimes()
-			},
-			expected: types.IsolationGroupConfiguration{
-				"zone-2": {
-					Name:  "zone-2",
-					State: types.IsolationGroupStateHealthy,
-				},
-			},
-		},
-		"expected case - no global drain data configured": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
-					gomock.Any(),
-				).Return(nil, nil)
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomainName("domain-id").Return("domain", nil)
-				mock.EXPECT().GetDomain("domain").Return(domainResponse, nil).AnyTimes()
-			},
-			expected: types.IsolationGroupConfiguration{
-				"zone-1": {
-					Name:  "zone-1",
-					State: types.IsolationGroupStateHealthy,
-				},
-				"zone-2": {
-					Name:  "zone-2",
-					State: types.IsolationGroupStateHealthy,
-				},
-			},
-		},
-		"pathological case - problems with global drain data - 1": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
-					gomock.Any(),
-				).Return(nil, fmt.Errorf("an error"))
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomain("domain").Return(domainResponse, nil).AnyTimes()
-			},
-			expected:    nil,
-			expectedErr: errors.New("unable to get isolation group state: could not resolve global drains in an error"),
-		},
-		"pathological case - problems with domain drain data - cannot resolve domain": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				mock.EXPECT().GetDomainByID("domain-id").Return(nil, errors.New("could not find domain"))
-			},
-			expected:    nil,
-			expectedErr: errors.New("unable to get isolation group state: could not resolve domain in isolationGroup handler: could not find domain"),
-		},
-
-		"pathological case - problems with global drain data - malformed data returned 1": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
-					gomock.Any(),
-				).Return(nil, fmt.Errorf("an error"))
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomain("domain").Return(domainResponse, nil).AnyTimes()
-			},
-			expected:    nil,
-			expectedErr: errors.New("unable to get isolation group state: could not resolve global drains in an error"),
-		},
-		"pathological case - problems with domain drain data - malformed data returned 1": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomain("domain").Return(nil, errors.New("a failure")).AnyTimes()
-			},
-			expected:    nil,
-			expectedErr: errors.New("unable to get isolation group state: could not resolve domain in isolationGroup handler: a failure"),
-		},
-		"pathological case - problems with domain drain data - malformed data returned 2": {
-			availablePollerIsolationGroups: []string{"zone-1", "zone-2"},
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomain("domain").Return(nil, nil).AnyTimes()
-			},
-			expected:    nil,
-			expectedErr: errors.New("unable to get isolation group state: could not resolve domain in isolationGroup handler: %!w(<nil>)"),
-		},
-		"pathological case - no available pollers": {
-			availablePollerIsolationGroups: nil,
-			cfg: defaultConfig{
-				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
-			},
-			dcAffordance: func(client *dynamicconfig.MockClient) {
-				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
-					gomock.Any(),
-				).Return(nil, nil)
-			},
-			domainAffordance: func(mock *cache.MockDomainCache) {
-				domainResponse := cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{ID: "domain-id", Name: "domain"}, &persistence.DomainConfig{}, true, nil, 0, nil, 0, 0, 0)
-				mock.EXPECT().GetDomainByID("domain-id").Return(domainResponse, nil)
-				mock.EXPECT().GetDomainName("domain-id").Return("domain", nil)
-				mock.EXPECT().GetDomain("domain").Return(domainResponse, nil).AnyTimes()
-			},
-			expected: types.IsolationGroupConfiguration{},
-		},
-	}
-
-	for name, td := range tests {
-		t.Run(name, func(t *testing.T) {
-			mockCtl := gomock.NewController(t)
-			dcMock := dynamicconfig.NewMockClient(mockCtl)
-			domaincacheMock := cache.NewMockDomainCache(mockCtl)
-			td.dcAffordance(dcMock)
-			td.domainAffordance(domaincacheMock)
-			handler := defaultIsolationGroupStateHandler{
-				log:                        testlogger.New(t),
-				globalIsolationGroupDrains: dcMock,
-				domainCache:                domaincacheMock,
-				config:                     td.cfg,
-				metricsClient:              metrics.NewNoopMetricsClient(),
-			}
-			res, err := handler.AvailableIsolationGroupsByDomainID(context.TODO(), "domain-id", td.availablePollerIsolationGroups)
-			assert.Equal(t, td.expected, res)
-			if td.expectedErr != nil {
-				assert.Equal(t, td.expectedErr.Error(), err.Error())
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
 
 func TestIsDrainedHandler(t *testing.T) {
 
@@ -353,11 +73,11 @@ func TestIsDrainedHandler(t *testing.T) {
 			requestIsolationgroup: "zone-3", // no config specified for this
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(), // covering the mapping in the mapper unit-test instead
 				).Return(dynamicConfigResponse, nil)
 			},
@@ -372,11 +92,11 @@ func TestIsDrainedHandler(t *testing.T) {
 			requestIsolationgroup: "zone-2", // no config specified for this
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return true },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {
 				client.EXPECT().GetListValue(
-					dynamicconfig.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
+					dynamicproperties.DefaultIsolationGroupConfigStoreManagerGlobalMapping,
 					gomock.Any(), // covering the mapping in the mapper unit-test instead
 				).Return(dynamicConfigResponse, nil)
 			},
@@ -391,7 +111,7 @@ func TestIsDrainedHandler(t *testing.T) {
 			requestIsolationgroup: "zone-2", // no config specified for this
 			cfg: defaultConfig{
 				IsolationGroupEnabled: func(string) bool { return false },
-				AllIsolationGroups:    []string{"zone-1", "zone-2", "zone-3"},
+				AllIsolationGroups:    func() []string { return []string{"zone-1", "zone-2", "zone-3"} },
 			},
 			dcAffordance: func(client *dynamicconfig.MockClient) {},
 			domainAffordance: func(mock *cache.MockDomainCache) {
@@ -418,96 +138,6 @@ func TestIsDrainedHandler(t *testing.T) {
 			res, err := handler.IsDrainedByDomainID(context.Background(), "domain-id", td.requestIsolationgroup)
 			assert.Equal(t, td.expected, res)
 			assert.Equal(t, td.expectedErr, err)
-		})
-	}
-}
-
-func TestAvailableIsolationGroups(t *testing.T) {
-
-	igA := string("isolationGroupA")
-	igB := string("isolationGroupB")
-	igC := string("isolationGroupC")
-
-	all := []string{igA, igB, igC}
-
-	isolationGroupsAllHealthy := types.IsolationGroupConfiguration{
-		igA: {
-			Name:  igA,
-			State: types.IsolationGroupStateHealthy,
-		},
-		igB: {
-			Name:  igB,
-			State: types.IsolationGroupStateHealthy,
-		},
-		igC: {
-			Name:  igC,
-			State: types.IsolationGroupStateHealthy,
-		},
-	}
-
-	isolationGroupsSetB := types.IsolationGroupConfiguration{
-		igA: {
-			Name:  igA,
-			State: types.IsolationGroupStateHealthy,
-		},
-		igB: {
-			Name:  igB,
-			State: types.IsolationGroupStateHealthy,
-		},
-	}
-
-	isolationGroupsSetC := types.IsolationGroupConfiguration{
-		igC: {
-			Name:  igC,
-			State: types.IsolationGroupStateDrained,
-		},
-	}
-
-	tests := map[string]struct {
-		globalIGCfg      types.IsolationGroupConfiguration
-		domainIGCfg      types.IsolationGroupConfiguration
-		availablePollers types.IsolationGroupConfiguration
-		expected         types.IsolationGroupConfiguration
-	}{
-		"default behaviour - no drains - everything should be healthy": {
-			globalIGCfg:      types.IsolationGroupConfiguration{},
-			domainIGCfg:      types.IsolationGroupConfiguration{},
-			availablePollers: isolationGroupsAllHealthy,
-			expected:         isolationGroupsAllHealthy,
-		},
-		"default behaviour - no drains - only one zone is healthy in terms of pollers, should only return that": {
-			globalIGCfg: types.IsolationGroupConfiguration{},
-			domainIGCfg: types.IsolationGroupConfiguration{},
-			availablePollers: types.IsolationGroupConfiguration{
-				igC: types.IsolationGroupPartition{
-					Name:  igC,
-					State: types.IsolationGroupStateHealthy,
-				},
-			},
-			expected: types.IsolationGroupConfiguration{
-				igC: types.IsolationGroupPartition{
-					Name:  igC,
-					State: types.IsolationGroupStateHealthy,
-				},
-			},
-		},
-		"default behaviour - one is drained - should return remaining 1/2": {
-			globalIGCfg:      types.IsolationGroupConfiguration{},
-			availablePollers: isolationGroupsAllHealthy,
-			domainIGCfg:      isolationGroupsSetC, // C is drained
-			expected:         isolationGroupsSetB, // A and B
-		},
-		"default behaviour - one is drained - should return remaining 2/2": {
-			globalIGCfg:      isolationGroupsSetC, // C is drained
-			availablePollers: isolationGroupsAllHealthy,
-			domainIGCfg:      types.IsolationGroupConfiguration{},
-			expected:         isolationGroupsSetB, // A and B
-		},
-	}
-
-	for name, td := range tests {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, td.expected, availableIG(all, td.availablePollers, td.globalIGCfg, td.domainIGCfg, metrics.NewNoopMetricsClient().Scope(0)))
 		})
 	}
 }
@@ -697,7 +327,7 @@ func TestNewDefaultIsolationGroupStateWatcherWithConfigStoreClient(t *testing.T)
 	client := metrics.NewNoopMetricsClient()
 	ig := func() []string { return nil }
 	NewDefaultIsolationGroupStateWatcherWithConfigStoreClient(
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 		dc,
 		domainCache,
 		nil,

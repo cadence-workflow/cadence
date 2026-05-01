@@ -29,10 +29,12 @@ import (
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	cclient "go.uber.org/cadence/client"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 )
+
+//go:generate mockgen -package=$GOPACKAGE -destination=client_mock.go -self_package=github.com/uber/cadence/service/worker/parentclosepolicy github.com/uber/cadence/service/worker/parentclosepolicy Client
 
 type (
 
@@ -66,7 +68,7 @@ func NewClient(
 	return &clientImpl{
 		metricsClient: metricsClient,
 		logger:        logger,
-		cadenceClient: cclient.NewClient(publicClient, common.SystemLocalDomainName, &cclient.Options{}),
+		cadenceClient: cclient.NewClient(publicClient, constants.SystemLocalDomainName, &cclient.Options{}),
 		numWorkflows:  numWorkflows,
 	}
 }

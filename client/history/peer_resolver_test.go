@@ -26,10 +26,10 @@ import (
 	"testing"
 
 	"github.com/dgryski/go-farm"
-	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/ringpop-go/hashring"
+	gomock "go.uber.org/mock/gomock"
 	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"

@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -36,6 +35,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client"
@@ -44,8 +44,11 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -75,13 +78,14 @@ type (
 		taskFetcher        *fakeTaskFetcher
 		taskExecutor       *MockTaskExecutor
 		taskProcessor      *taskProcessorImpl
+		clock              clock.MockedTimeSource
 	}
 )
 
 type fakeTaskFetcher struct {
 	sourceCluster string
 	requestChan   chan *request
-	rateLimiter   *quotas.DynamicRateLimiter
+	rateLimiter   quotas.Limiter
 }
 
 func (f fakeTaskFetcher) Start() {}
@@ -89,10 +93,10 @@ func (f fakeTaskFetcher) Stop()  {}
 func (f fakeTaskFetcher) GetSourceCluster() string {
 	return f.sourceCluster
 }
-func (f fakeTaskFetcher) GetRequestChan() chan<- *request {
+func (f fakeTaskFetcher) GetRequestChan(shardID int) chan<- *request {
 	return f.requestChan
 }
-func (f fakeTaskFetcher) GetRateLimiter() *quotas.DynamicRateLimiter {
+func (f fakeTaskFetcher) GetRateLimiter() quotas.Limiter {
 	return f.rateLimiter
 }
 
@@ -130,11 +134,12 @@ func (s *taskProcessorSuite) SetupTest() {
 	s.mockFrontendClient = s.mockShard.Resource.RemoteFrontendClient
 	s.adminClient = s.mockShard.Resource.RemoteAdminClient
 	s.executionManager = s.mockShard.Resource.ExecutionMgr
+	s.clock = clock.NewMockedTimeSource()
 
 	s.mockEngine = engine.NewMockEngine(s.controller)
 	s.config = config.NewForTest()
-	s.config.ReplicationTaskProcessorNoTaskRetryWait = dynamicconfig.GetDurationPropertyFnFilteredByShardID(1 * time.Millisecond)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	s.config.ReplicationTaskProcessorNoTaskRetryWait = dynamicproperties.GetDurationPropertyFnFilteredByShardID(1 * time.Millisecond)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.requestChan = make(chan *request, 10)
 
 	s.taskFetcher = &fakeTaskFetcher{
@@ -152,6 +157,7 @@ func (s *taskProcessorSuite) SetupTest() {
 		metricsClient,
 		s.taskFetcher,
 		s.taskExecutor,
+		s.clock,
 	).(*taskProcessorImpl)
 }
 
@@ -215,7 +221,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_RespChanClosed() {
 func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteSuccess() {
 	// taskExecutor will fail to execute the task
 	// returning a non-retriable task to keep mocking simpler
-	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(0, nil).Times(1)
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), nil).Times(1)
 
 	// domain name will be fetched
 	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
@@ -250,7 +256,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteSuccess() {
 func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess() {
 	// taskExecutor will fail to execute the task
 	// returning a non-retriable task to keep mocking simpler
-	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(0, &types.BadRequestError{}).Times(1)
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), &types.BadRequestError{}).Times(1)
 
 	// domain name will be fetched
 	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
@@ -267,6 +273,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess()
 			ScheduledID: testScheduleID,
 		},
 		DomainName: testDomainName,
+		ShardID:    common.Ptr(0),
 	}
 	s.mockShard.Resource.ExecutionMgr.On("PutReplicationTaskToDLQ", mock.Anything, dlqReq).Return(nil).Times(1)
 
@@ -300,7 +307,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQSuccess()
 func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQFailed() {
 	// taskExecutor will fail to execute the task
 	// returning a non-retriable task to keep mocking simpler
-	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(0, &types.BadRequestError{}).Times(1)
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), &types.BadRequestError{}).Times(1)
 
 	// domain name will be fetched
 	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
@@ -320,6 +327,7 @@ func (s *taskProcessorSuite) TestProcessorLoop_TaskExecuteFailed_PutDLQFailed() 
 			ScheduledID: testScheduleID,
 		},
 		DomainName: testDomainName,
+		ShardID:    common.Ptr(0),
 	}
 	s.mockShard.Resource.ExecutionMgr.
 		On("PutReplicationTaskToDLQ", mock.Anything, dlqReq).
@@ -413,7 +421,7 @@ func (s *taskProcessorSuite) TestGenerateDLQRequest_ReplicationTaskTypeHistoryV2
 		},
 	}
 	serializer := s.mockShard.GetPayloadSerializer()
-	data, err := serializer.SerializeBatchEvents(events, common.EncodingTypeThriftRW)
+	data, err := serializer.SerializeBatchEvents(events, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 	task := &types.ReplicationTask{
 		TaskType: types.ReplicationTaskTypeHistoryV2.Ptr(),
@@ -476,7 +484,7 @@ func (s *taskProcessorSuite) TestGenerateDLQRequest_InvalidTaskType() {
 		},
 	}
 	serializer := s.mockShard.GetPayloadSerializer()
-	data, err := serializer.SerializeBatchEvents(events, common.EncodingTypeThriftRW)
+	data, err := serializer.SerializeBatchEvents(events, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 	taskType := types.ReplicationTaskType(-1)
 	task := &types.ReplicationTask{
@@ -520,7 +528,7 @@ func (s *taskProcessorSuite) TestTriggerDataInconsistencyScan_Success() {
 	s.NoError(err)
 	s.mockFrontendClient.EXPECT().SignalWithStartWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, request *types.SignalWithStartWorkflowExecutionRequest, option ...yarpc.CallOption) {
-			s.Equal(common.SystemLocalDomainName, request.GetDomain())
+			s.Equal(constants.SystemLocalDomainName, request.GetDomain())
 			s.Equal(reconciliation.CheckDataCorruptionWorkflowID, request.GetWorkflowID())
 			s.Equal(reconciliation.CheckDataCorruptionWorkflowType, request.GetWorkflowType().GetName())
 			s.Equal(reconciliation.CheckDataCorruptionWorkflowTaskList, request.GetTaskList().GetName())
@@ -534,16 +542,18 @@ func (s *taskProcessorSuite) TestTriggerDataInconsistencyScan_Success() {
 }
 
 func (s *taskProcessorSuite) TestCleanupReplicationTaskLoop() {
-	req := &persistence.RangeCompleteReplicationTaskRequest{
+	req := &persistence.RangeCompleteHistoryTaskRequest{
 		// this is min ack level of remote clusters. there's only one remote cluster in this test "standby".
-		// its replication ack level is set to 350 in SetupTest()
-		InclusiveEndTaskID: 350,
-		PageSize:           50, // this comes from test config
+		// its replication ack level is set to 350 in SetupTest(), and since the max key is exclusive, set the task id to 351
+		TaskCategory:        persistence.HistoryTaskCategoryReplication,
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(351),
+		PageSize:            50, // this comes from test config
+		ShardID:             common.Ptr(0),
 	}
-	s.executionManager.On("RangeCompleteReplicationTask", mock.Anything, req).Return(&persistence.RangeCompleteReplicationTaskResponse{
+	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 50, // if this number equals to page size the loop continues
 	}, nil).Times(1)
-	s.executionManager.On("RangeCompleteReplicationTask", mock.Anything, req).Return(&persistence.RangeCompleteReplicationTaskResponse{
+	s.executionManager.On("RangeCompleteHistoryTask", mock.Anything, req).Return(&persistence.RangeCompleteHistoryTaskResponse{
 		TasksCompleted: 15, // if this number is different than page size the loop breaks
 	}, nil)
 
@@ -631,7 +641,7 @@ func TestProcessorLoop_TaskExecuteFailed_ShardChangeErr(t *testing.T) {
 	}
 
 	mockEngine := engine.NewMockEngine(ctrl)
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 
 	taskExecutor := NewMockTaskExecutor(ctrl)
 
@@ -642,6 +652,7 @@ func TestProcessorLoop_TaskExecuteFailed_ShardChangeErr(t *testing.T) {
 		metricsClient,
 		taskFetcher,
 		taskExecutor,
+		clock.NewMockedTimeSource(),
 	).(*taskProcessorImpl)
 
 	// start the process loop
@@ -703,4 +714,28 @@ func TestIsShuttingDown(t *testing.T) {
 	assert.False(t, taskProcessor.isShuttingDown())
 	close(taskProcessor.done)
 	assert.True(t, taskProcessor.isShuttingDown())
+}
+
+func (s *taskProcessorSuite) TestProcessTaskOnce_OverThreshold_WithNoopLogger() {
+	s.taskExecutor.EXPECT().execute(gomock.Any(), false).Return(metrics.ScopeIdx(0), nil).Times(1)
+	// Domain cache is called for tagging
+	s.mockDomainCache.EXPECT().GetDomainName(testDomainID).Return(testDomainName, nil).AnyTimes()
+
+	// Use noop logger (no capturing, just to exercise the path)
+	s.taskProcessor.logger = log.NewNoop()
+
+	// Make e2e latency > threshold (e.g., 26 minutes)
+	creation := time.Now().Add(-26 * time.Minute).UnixNano()
+	task := &types.ReplicationTask{
+		TaskType: types.ReplicationTaskTypeHistoryV2.Ptr(),
+		HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{
+			DomainID:   testDomainID,
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+		CreationTime: common.Int64Ptr(creation),
+	}
+
+	err := s.taskProcessor.processTaskOnce(task)
+	s.NoError(err)
 }

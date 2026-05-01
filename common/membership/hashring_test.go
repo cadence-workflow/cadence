@@ -31,11 +31,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common"
@@ -107,7 +106,7 @@ func TestDiffMemberMakesCorrectDiff(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := &ring{}
+			r := &Ring{}
 			currMembers := r.makeMembersMap(tt.curr)
 			r.members.keys = currMembers
 
@@ -121,7 +120,7 @@ type hashringTestData struct {
 	t                *testing.T
 	mockPeerProvider *MockPeerProvider
 	mockTimeSource   clock.MockedTimeSource
-	hashRing         *ring
+	hashRing         *Ring
 	observedLogs     *observer.ObservedLogs
 }
 
@@ -136,12 +135,12 @@ func newHashringTestData(t *testing.T) *hashringTestData {
 	logger, observedLogs := testlogger.NewObserved(t)
 	td.observedLogs = observedLogs
 
-	td.hashRing = newHashring(
+	td.hashRing = NewHashring(
 		"test-service",
 		td.mockPeerProvider,
 		td.mockTimeSource,
 		logger,
-		metrics.NoopScope(0),
+		metrics.NoopScope,
 	)
 
 	return &td
@@ -188,15 +187,17 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 	td := newHashringTestData(t)
 
 	// we need to intercept logger calls, use mock
-	mockLogger := &log.MockLogger{}
+	mockLogger := log.NewMockLogger(gomock.NewController(t))
 	td.hashRing.logger = mockLogger
 
-	mockLogger.On("Fatal", mock.Anything, mock.Anything).Run(
-		func(arguments mock.Arguments) {
+	mockLogger.EXPECT().Fatal(gomock.Any(), gomock.Any()).Do(
+		func(msg string, args ...any) {
 			// we need to stop goroutine like log.Fatal() does with an entire program
 			runtime.Goexit()
 		},
 	).Times(1)
+
+	mockLogger.EXPECT().Info(gomock.Any(), gomock.Any()).Times(2)
 
 	td.mockPeerProvider.EXPECT().
 		Subscribe(gomock.Any(), gomock.Any()).
@@ -211,7 +212,6 @@ func TestFailingToSubscribeIsFatal(t *testing.T) {
 	}()
 
 	require.True(t, common.AwaitWaitGroup(&wg, maxTestDuration), "must be finished - failed to subscribe")
-	require.True(t, mockLogger.AssertExpectations(t), "log.Fatal must be called")
 }
 
 func TestHandleUpdatesNeverBlocks(t *testing.T) {
@@ -288,11 +288,11 @@ func TestRefreshUpdatesRingOnlyWhenRingHasChanged(t *testing.T) {
 	td.mockPeerProvider.EXPECT().GetMembers("test-service").Times(1).Return(randomHostInfo(3), nil)
 	td.mockPeerProvider.EXPECT().WhoAmI().AnyTimes()
 
-	// Start will also call .refresh()
+	// Start will also call .Refresh()
 	td.startHashRing()
 	updatedAt := td.hashRing.members.refreshed
 
-	assert.NoError(t, td.hashRing.refresh())
+	assert.NoError(t, td.hashRing.Refresh())
 	assert.Equal(t, updatedAt, td.hashRing.members.refreshed)
 }
 
@@ -419,7 +419,7 @@ func TestErrorIsPropagatedWhenProviderFails(t *testing.T) {
 
 	td.mockPeerProvider.EXPECT().GetMembers(gomock.Any()).Return(nil, errors.New("provider failure"))
 
-	assert.ErrorContains(t, td.hashRing.refresh(), "provider failure")
+	assert.ErrorContains(t, td.hashRing.Refresh(), "provider failure")
 }
 
 func TestStopWillStopProvider(t *testing.T) {
@@ -452,7 +452,7 @@ func TestLookupAndRefreshRaceCondition(t *testing.T) {
 	go func() {
 		for i := 0; i < 50; i++ {
 			td.bypassRefreshRatelimiter()
-			assert.NoError(t, td.hashRing.refresh())
+			assert.NoError(t, td.hashRing.Refresh())
 		}
 		wg.Done()
 	}()
@@ -509,7 +509,7 @@ func TestEmitHashringView(t *testing.T) {
 				return testInput.selfInfo, testInput.selfErr
 			}).AnyTimes()
 
-			require.NoError(t, td.hashRing.refresh())
+			require.NoError(t, td.hashRing.Refresh())
 			assert.Equal(t, testInput.expectedResult, td.hashRing.emitHashIdentifier())
 		})
 	}

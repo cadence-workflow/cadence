@@ -24,9 +24,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -54,9 +55,9 @@ type (
 
 	archivalConfig struct {
 		staticClusterStatus  ArchivalStatus
-		dynamicClusterStatus dynamicconfig.StringPropertyFn
+		dynamicClusterStatus dynamicproperties.StringPropertyFn
 		staticEnableRead     bool
-		dynamicEnableRead    dynamicconfig.BoolPropertyFn
+		dynamicEnableRead    dynamicproperties.BoolPropertyFn
 		domainDefaultStatus  types.ArchivalStatus
 		domainDefaultURI     string
 	}
@@ -86,18 +87,18 @@ func NewArchivalMetadata(
 ) ArchivalMetadata {
 	historyConfig := NewArchivalConfig(
 		historyStatus,
-		dc.GetStringProperty(dynamicconfig.HistoryArchivalStatus),
+		dc.GetStringProperty(dynamicproperties.HistoryArchivalStatus),
 		historyReadEnabled,
-		dc.GetBoolProperty(dynamicconfig.EnableReadFromHistoryArchival),
+		dc.GetBoolProperty(dynamicproperties.EnableReadFromHistoryArchival),
 		domainDefaults.History.Status,
 		domainDefaults.History.URI,
 	)
 
 	visibilityConfig := NewArchivalConfig(
 		visibilityStatus,
-		dc.GetStringProperty(dynamicconfig.VisibilityArchivalStatus),
+		dc.GetStringProperty(dynamicproperties.VisibilityArchivalStatus),
 		visibilityReadEnabled,
-		dc.GetBoolProperty(dynamicconfig.EnableReadFromVisibilityArchival),
+		dc.GetBoolProperty(dynamicproperties.EnableReadFromVisibilityArchival),
 		domainDefaults.Visibility.Status,
 		domainDefaults.Visibility.URI,
 	)
@@ -119,9 +120,9 @@ func (metadata *archivalMetadata) GetVisibilityConfig() ArchivalConfig {
 // NewArchivalConfig constructs a new valid ArchivalConfig
 func NewArchivalConfig(
 	staticClusterStatusStr string,
-	dynamicClusterStatus dynamicconfig.StringPropertyFn,
+	dynamicClusterStatus dynamicproperties.StringPropertyFn,
 	staticEnableRead bool,
-	dynamicEnableRead dynamicconfig.BoolPropertyFn,
+	dynamicEnableRead dynamicproperties.BoolPropertyFn,
 	domainDefaultStatusStr string,
 	domainDefaultURI string,
 ) ArchivalConfig {
@@ -197,11 +198,11 @@ func (a *archivalConfig) GetDomainDefaultURI() string {
 func getClusterArchivalStatus(str string) (ArchivalStatus, error) {
 	str = strings.TrimSpace(strings.ToLower(str))
 	switch str {
-	case "", common.ArchivalDisabled:
+	case "", constants.ArchivalDisabled:
 		return ArchivalDisabled, nil
-	case common.ArchivalPaused:
+	case constants.ArchivalPaused:
 		return ArchivalPaused, nil
-	case common.ArchivalEnabled:
+	case constants.ArchivalEnabled:
 		return ArchivalEnabled, nil
 	}
 	return ArchivalDisabled, fmt.Errorf("invalid archival status of %v for cluster, valid status are: {\"\", \"disabled\", \"paused\", \"enabled\"}", str)
@@ -210,9 +211,9 @@ func getClusterArchivalStatus(str string) (ArchivalStatus, error) {
 func getDomainArchivalStatus(str string) (types.ArchivalStatus, error) {
 	str = strings.TrimSpace(strings.ToLower(str))
 	switch str {
-	case "", common.ArchivalDisabled:
+	case "", constants.ArchivalDisabled:
 		return types.ArchivalStatusDisabled, nil
-	case common.ArchivalEnabled:
+	case constants.ArchivalEnabled:
 		return types.ArchivalStatusEnabled, nil
 	}
 	return types.ArchivalStatusDisabled, fmt.Errorf("invalid archival status of %v for domain, valid status are: {\"\", \"disabled\", \"enabled\"}", str)

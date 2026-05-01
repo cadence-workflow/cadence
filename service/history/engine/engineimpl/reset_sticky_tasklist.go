@@ -47,7 +47,7 @@ func (e *historyEngineImpl) ResetStickyTaskList(
 	}
 	domainID := resetRequest.DomainUUID
 
-	err := workflow.UpdateWithAction(ctx, e.executionCache, domainID, *resetRequest.Execution, false, e.timeSource.Now(),
+	err := workflow.UpdateWithAction(ctx, e.logger, e.executionCache, domainID, *resetRequest.Execution, false, e.timeSource.Now(),
 		func(wfContext execution.Context, mutableState execution.MutableState) error {
 			if !mutableState.IsWorkflowExecutionRunning() {
 				return workflow.ErrAlreadyCompleted

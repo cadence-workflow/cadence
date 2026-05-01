@@ -56,6 +56,7 @@ func (e *historyEngineImpl) RefreshWorkflowTasks(
 		e.shard.GetDomainCache(),
 		e.shard.GetEventsCache(),
 		e.shard.GetShardID(),
+		e.logger,
 	)
 
 	err = mutableStateTaskRefresher.RefreshTasks(ctx, mutableState.GetExecutionInfo().StartTimestamp, mutableState)

@@ -17,18 +17,29 @@ The partitions are organized in a tree-structure. The number of child nodes is c
 # Configuration
 The number of partitions of a tasklist is configured by 2 dynamicconfigs:
 
-1. [matching.numTasklistReadPartitions](https://github.com/uber/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3350)
-2. [matching.numTasklistWritePartitions](https://github.com/uber/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3344)
+1. [matching.numTasklistReadPartitions](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3350)
+2. [matching.numTasklistWritePartitions](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3344)
+
+We're migrating this configuration from dynamicconfig to database. The following dynamicconfig is used to control where to read the number of partitions from:
+- [matching.enableGetNumberOfPartitionsFromCache](https://github.com/cadence-workflow/cadence/blob/v1.2.15-prerelease02/common/dynamicconfig/constants.go#L4008)
+To update the number of partitions, use the following CLI command:
+```
+cadence admin tasklist update-partition -h
+```
+To get the number of partitions from database, use the following CLI command:
+```
+cadence admin tasklist describe -h
+```
 
 The tree-structure and forwarding mechanism is configured by these dynamicconfigs:
 
-1. [matching.forwarderMaxChildrenPerNode](https://github.com/uber/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3374)
-2. [matching.forwarderMaxOutstandingPolls](https://github.com/uber/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3356)
-3. [matching.forwarderMaxOutstandingTasks](https://github.com/uber/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3362)
-4. [matching.forwarderMaxRatePerSecond](https://github.com/uber/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3368)
+1. [matching.forwarderMaxChildrenPerNode](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3374)
+2. [matching.forwarderMaxOutstandingPolls](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3356)
+3. [matching.forwarderMaxOutstandingTasks](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3362)
+4. [matching.forwarderMaxRatePerSecond](https://github.com/cadence-workflow/cadence/blob/v1.2.13/common/dynamicconfig/constants.go#L3368)
 
 # Selection Algorithms
-The selection algorithms are implemented as a LoadBalancer in [client/matching package](https://github.com/uber/cadence/blob/v1.2.13/client/matching/loadbalancer.go#L37).
+The selection algorithms are implemented as a LoadBalancer in [client/matching package](https://github.com/cadence-workflow/cadence/blob/v1.2.13/client/matching/loadbalancer.go#L37).
 
 ## Random Selection
 This is the first algorithm and it's been widely adopted in production. It's completely stateless and uses a shared nothing architecture. The probabilistic model of discrete uniform distribution guarantees the fairness of the distribution of requests. And the utilization is improved by the tree-structure. For example, as shown in the diagram, if a task is produced to partition-5, but a poller is assigned to partition-3, we don't want the poller to wait at partition-3 for 60s and retry the poll request. And the retry has a 5/6 probability of not hitting partition-5. With the tree-structure and forwarding mechanism, the poller request and task are forwarded to root partition. So an idle poller waiting at partition-3 is utilized in this case.

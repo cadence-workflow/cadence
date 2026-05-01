@@ -53,13 +53,14 @@ func NewDomainRow(ts time.Time) *nosqlplugin.DomainRow {
 			IsolationGroups:          &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("isolation-group")},
 			AsyncWorkflowsConfig:     &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("async-workflows-config")},
 		},
-		ReplicationConfig: &persistence.DomainReplicationConfig{
+		ReplicationConfig: &persistence.InternalDomainReplicationConfig{
 			ActiveClusterName: "test-active-cluster-name",
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{
 					ClusterName: "test-cluster-name",
 				},
 			},
+			ActiveClustersConfig: &persistence.DataBlob{Encoding: "thriftrw", Data: []byte("active-clusters-config")},
 		},
 		IsGlobalDomain:      true,
 		ConfigVersion:       3,
@@ -67,5 +68,6 @@ func NewDomainRow(ts time.Time) *nosqlplugin.DomainRow {
 		FailoverEndTime:     &ts,
 		LastUpdatedTime:     ts,
 		NotificationVersion: 5,
+		CurrentTimeStamp:    time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC),
 	}
 }

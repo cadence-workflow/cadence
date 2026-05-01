@@ -27,7 +27,9 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -43,9 +45,10 @@ func newNoSQLDomainStore(
 	cfg config.ShardedNoSQL,
 	currentClusterName string,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.DomainStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +74,11 @@ func (m *nosqlDomainStore) CreateDomain(
 		ConfigVersion:               request.ConfigVersion,
 		FailoverVersion:             request.FailoverVersion,
 		FailoverNotificationVersion: persistence.InitialFailoverNotificationVersion,
-		PreviousFailoverVersion:     common.InitialPreviousFailoverVersion,
+		PreviousFailoverVersion:     constants.InitialPreviousFailoverVersion,
 		FailoverEndTime:             nil,
 		IsGlobalDomain:              request.IsGlobalDomain,
 		LastUpdatedTime:             request.LastUpdatedTime,
+		CurrentTimeStamp:            request.CurrentTimeStamp,
 	}
 
 	err := m.db.InsertDomain(ctx, row)
@@ -157,7 +161,12 @@ func (m *nosqlDomainStore) GetDomain(
 	if row.Info.Data == nil {
 		row.Info.Data = map[string]string{}
 	}
-	row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+
+	// for active-active domains, do not populate active cluster name with current cluster name if it is not set
+	if row.ReplicationConfig.ActiveClustersConfig == nil {
+		row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+	}
+
 	row.ReplicationConfig.Clusters = cluster.GetOrUseDefaultClusters(m.currentClusterName, row.ReplicationConfig.Clusters)
 
 	return &persistence.InternalGetDomainResponse{
@@ -188,7 +197,12 @@ func (m *nosqlDomainStore) ListDomains(
 		if row.Info.Data == nil {
 			row.Info.Data = map[string]string{}
 		}
-		row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+
+		// for active-active domains, do not populate active cluster name with current cluster name if it is not set
+		if row.ReplicationConfig.ActiveClustersConfig == nil {
+			row.ReplicationConfig.ActiveClusterName = cluster.GetOrUseDefaultActiveCluster(m.currentClusterName, row.ReplicationConfig.ActiveClusterName)
+		}
+
 		row.ReplicationConfig.Clusters = cluster.GetOrUseDefaultClusters(m.currentClusterName, row.ReplicationConfig.Clusters)
 
 		domains = append(domains, &persistence.InternalGetDomainResponse{

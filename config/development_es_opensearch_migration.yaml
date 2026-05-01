@@ -25,6 +25,7 @@ persistence:
           visibility: cadence-visibility-dev
         migration:
           enabled: true
+        consumerName: "cadence-visibility-dev-os-consumer"
 
 kafka:
   tls:

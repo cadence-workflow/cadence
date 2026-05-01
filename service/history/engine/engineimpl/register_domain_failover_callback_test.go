@@ -26,15 +26,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/log/loggerimpl"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -75,7 +76,7 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 		1,
 		nil,
 		2,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		15,
 	)
 
@@ -86,7 +87,7 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 		10,
 		nil,
 		3,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		15,
 	)
 
@@ -158,30 +159,32 @@ func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 
 			cluster := cluster.NewMetadata(
-				10,
-				"cluster0",
-				"cluster0",
-				map[string]config.ClusterInformation{
-					"cluster0": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 1,
-					},
-					"cluster1": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 0,
-					},
-					"cluster2": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 2,
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"cluster0": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
 					},
 				},
 				func(string) bool { return false },
 				metrics.NewNoopMetricsClient(),
-				loggerimpl.NewNopLogger(),
+				log.NewNoop(),
 			)
 
 			he := historyEngineImpl{
-				logger:             loggerimpl.NewNopLogger(),
+				logger:             log.NewNoop(),
 				clusterMetadata:    cluster,
 				currentClusterName: "cluster0",
 				metricsClient:      metrics.NewNoopMetricsClient(),
@@ -324,7 +327,7 @@ func TestDomainCallback(t *testing.T) {
 		1,
 		nil,
 		0,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		2,
 	)
 
@@ -346,7 +349,7 @@ func TestDomainCallback(t *testing.T) {
 		2,
 		nil,
 		3,
-		common.InitialPreviousFailoverVersion,
+		constants.InitialPreviousFailoverVersion,
 		3,
 	)
 
@@ -383,6 +386,37 @@ func TestDomainCallback(t *testing.T) {
 
 	failoverUpdateT3 := []*cache.DomainCacheEntry{
 		t3,
+	}
+
+	failoverUpdateActiveActive := []*cache.DomainCacheEntry{
+		cache.NewDomainCacheEntryForTest(&domainInfo,
+			&domainConfig,
+			true,
+			&persistence.DomainReplicationConfig{
+				Clusters: clusters,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region0": {
+									ActiveClusterName: "cluster0",
+									FailoverVersion:   1,
+								},
+								"region1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   2,
+								},
+							},
+						},
+					},
+				},
+			},
+			-1,
+			nil,
+			4,
+			5,
+			5,
+		),
 	}
 
 	invalidDomainUpdate := []*cache.DomainCacheEntry{
@@ -575,32 +609,54 @@ func TestDomainCallback(t *testing.T) {
 				timerProcessor.EXPECT().UnlockTaskProcessing()
 			},
 		},
+		"active active domain failover update. cluster0 POV": {
+			domainUpdates: failoverUpdateActiveActive,
+			asCluster:     "cluster0",
+			affordances: func(
+				shardCtx *shard.MockContext,
+				txProcessor *queue.MockProcessor,
+				timerProcessor *queue.MockProcessor,
+				taskProcessor *task.MockProcessor) {
+
+				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
+				shardCtx.EXPECT().GetTimeSource().Return(timeSource)
+				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(6))
+
+				txProcessor.EXPECT().UnlockTaskProcessing()
+				txProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+
+				timerProcessor.EXPECT().UnlockTaskProcessing()
+				timerProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+			},
+		},
 	}
 
 	for name, td := range tests {
 		t.Run(name, func(t *testing.T) {
 
 			cluster := cluster.NewMetadata(
-				10,
-				"cluster0",
-				"cluster0",
-				map[string]config.ClusterInformation{
-					"cluster0": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 1,
-					},
-					"cluster1": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 0,
-					},
-					"cluster2": config.ClusterInformation{
-						Enabled:                true,
-						InitialFailoverVersion: 2,
+				config.ClusterGroupMetadata{
+					FailoverVersionIncrement: 10,
+					PrimaryClusterName:       "cluster0",
+					CurrentClusterName:       "cluster0",
+					ClusterGroup: map[string]config.ClusterInformation{
+						"cluster0": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 1,
+						},
+						"cluster1": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 0,
+						},
+						"cluster2": config.ClusterInformation{
+							Enabled:                true,
+							InitialFailoverVersion: 2,
+						},
 					},
 				},
 				func(string) bool { return false },
 				metrics.NewNoopMetricsClient(),
-				loggerimpl.NewNopLogger(),
+				log.NewNoop(),
 			)
 
 			ctrl := gomock.NewController(t)
@@ -613,14 +669,15 @@ func TestDomainCallback(t *testing.T) {
 			td.affordances(shardCtx, txProcessor, timeProcessor, queueTaskProcessor)
 
 			he := historyEngineImpl{
-				logger:             loggerimpl.NewNopLogger(),
+				logger:             log.NewNoop(),
 				clusterMetadata:    cluster,
 				currentClusterName: td.asCluster,
 				metricsClient:      metrics.NewNoopMetricsClient(),
-				timerProcessor:     timeProcessor,
-				queueTaskProcessor: queueTaskProcessor,
-				txProcessor:        txProcessor,
-				shard:              shardCtx,
+				queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+					persistence.HistoryTaskCategoryTransfer: txProcessor,
+					persistence.HistoryTaskCategoryTimer:    timeProcessor,
+				},
+				shard: shardCtx,
 			}
 			he.domainChangeCB(td.domainUpdates)
 		})
@@ -630,23 +687,24 @@ func TestDomainCallback(t *testing.T) {
 func TestDomainLocking(t *testing.T) {
 
 	cluster := cluster.NewMetadata(
-		10,
-		"cluster0",
-		"cluster0",
-		map[string]config.ClusterInformation{
-			"cluster0": config.ClusterInformation{
-				Enabled:                true,
-				InitialFailoverVersion: 1,
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 10,
+			PrimaryClusterName:       "cluster0",
+			CurrentClusterName:       "cluster0",
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": config.ClusterInformation{
+					Enabled:                true,
+					InitialFailoverVersion: 1,
+				},
 			},
 		},
 		func(string) bool { return false },
 		metrics.NewNoopMetricsClient(),
-		loggerimpl.NewNopLogger(),
+		log.NewNoop(),
 	)
 
 	ctrl := gomock.NewController(t)
 	timeProcessor := queue.NewMockProcessor(ctrl)
-	queueTaskProcessor := task.NewMockProcessor(ctrl)
 	txProcessor := queue.NewMockProcessor(ctrl)
 	shardCtx := shard.NewMockContext(ctrl)
 
@@ -657,16 +715,235 @@ func TestDomainLocking(t *testing.T) {
 	txProcessor.EXPECT().UnlockTaskProcessing()
 
 	he := historyEngineImpl{
-		logger:             loggerimpl.NewNopLogger(),
+		logger:             log.NewNoop(),
 		clusterMetadata:    cluster,
 		currentClusterName: "cluster0",
 		metricsClient:      metrics.NewNoopMetricsClient(),
-		timerProcessor:     timeProcessor,
-		queueTaskProcessor: queueTaskProcessor,
-		txProcessor:        txProcessor,
-		shard:              shardCtx,
+		queueProcessors: map[persistence.HistoryTaskCategory]queue.Processor{
+			persistence.HistoryTaskCategoryTransfer: txProcessor,
+			persistence.HistoryTaskCategoryTimer:    timeProcessor,
+		},
+		shard: shardCtx,
 	}
 
-	he.lockProcessingForFailover()
-	he.unlockProcessingForFailover()
+	he.lockTaskProcessingForDomainUpdate()
+	he.unlockProcessingForDomainUpdate()
+}
+
+func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+	// Define the initial shard notification version
+	initialShardVersion := int64(5)
+	mockShard.EXPECT().GetDomainNotificationVersion().Return(initialShardVersion)
+	mockShard.EXPECT().GetShardID().Return(456).Times(1)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+
+	// Capture the registered catchUpFn
+	var registeredCatchUpFn func(cache.DomainCache, cache.PrepareCallbackFn, cache.CallbackFn)
+	mockDomainCache.EXPECT().RegisterDomainChangeCallback(
+		createShardNameFromShardID(456), // id of the callback
+		gomock.Any(),                    // catchUpFn
+		gomock.Any(),                    // lockTaskProcessingForDomainUpdate
+		gomock.Any(),                    // domainChangeCB
+	).Do(func(_ string, catchUpFn, _, _ interface{}) {
+		if fn, ok := catchUpFn.(cache.CatchUpFn); ok {
+			registeredCatchUpFn = fn
+		} else {
+			t.Fatalf("Failed to convert catchUpFn to cache.CatchUpFn: got type %T", catchUpFn)
+		}
+	}).Times(1)
+
+	cluster := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 10,
+			PrimaryClusterName:       "cluster0",
+			CurrentClusterName:       "cluster0",
+			ClusterGroup: map[string]config.ClusterInformation{
+				"cluster0": config.ClusterInformation{
+					Enabled:                true,
+					InitialFailoverVersion: 1,
+				},
+				"cluster1": config.ClusterInformation{
+					Enabled:                true,
+					InitialFailoverVersion: 0,
+				},
+				"cluster2": config.ClusterInformation{
+					Enabled:                true,
+					InitialFailoverVersion: 2,
+				},
+			},
+		},
+		func(string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+	)
+
+	// Create the history engine instance
+	engine := &historyEngineImpl{
+		shard:              mockShard,
+		logger:             log.NewNoop(),
+		clusterMetadata:    cluster,    // Or a specific mock if needed
+		currentClusterName: "cluster0", // Or a specific value
+		metricsClient:      metrics.NewNoopMetricsClient(),
+	}
+
+	// Call the method under test to register the callback
+	engine.registerDomainFailoverCallback()
+
+	// --- Test the behavior of the registered catchUpFn ---
+
+	t.Run("catchUpFn - No updated domains", func(t *testing.T) {
+		mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{
+			"uuid-domain1": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain1", Name: "domain1"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				1,
+			),
+			"uuid-domain2": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain2", Name: "domain2"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				4,
+			),
+		})
+
+		prepareCalled := false
+		callbackCalled := false
+		prepare := func() { prepareCalled = true }
+		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+
+		if registeredCatchUpFn != nil {
+			registeredCatchUpFn(mockDomainCache, prepare, callback)
+			assert.False(t, prepareCalled, "prepareCallback should not be called")
+			assert.False(t, callbackCalled, "callback should not be called")
+		} else {
+			assert.Fail(t, "catchUpFn was not registered")
+		}
+	})
+
+	t.Run("catchUpFn - Some updated domains", func(t *testing.T) {
+		mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{
+			"uuid-domain1": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain1", Name: "domain1"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				7,
+			),
+			"uuid-domain2": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain2", Name: "domain2"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				4,
+			),
+		})
+
+		prepareCalled := false
+		callbackCalled := false
+		var actualUpdatedEntries []*cache.DomainCacheEntry
+		prepare := func() { prepareCalled = true }
+		callback := func(entries []*cache.DomainCacheEntry) {
+			callbackCalled = true
+			actualUpdatedEntries = entries
+		}
+
+		if registeredCatchUpFn != nil {
+			registeredCatchUpFn(mockDomainCache, prepare, callback)
+			assert.True(t, prepareCalled, "prepareCallback should be called")
+			assert.True(t, callbackCalled, "callback should be called")
+			assert.Len(t, actualUpdatedEntries, 1, "should have one updated entry")
+			assert.Equal(t, int64(7), actualUpdatedEntries[0].GetNotificationVersion())
+		} else {
+			assert.Fail(t, "catchUpFn was not registered")
+		}
+	})
+
+	t.Run("catchUpFn - All domains should be updated", func(t *testing.T) {
+		mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{
+			"uuid-domain1": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain1", Name: "domain1"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				7,
+			),
+			"uuid-domain2": cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: "uuid-domain2", Name: "domain2"},
+				nil,
+				true,
+				&persistence.DomainReplicationConfig{ActiveClusterName: "A"},
+				0,
+				nil,
+				0,
+				0,
+				5,
+			),
+		})
+
+		prepareCalled := false
+		callbackCalled := false
+		var actualUpdatedEntries []*cache.DomainCacheEntry
+		prepare := func() { prepareCalled = true }
+		callback := func(entries []*cache.DomainCacheEntry) {
+			callbackCalled = true
+			actualUpdatedEntries = entries
+		}
+
+		if registeredCatchUpFn != nil {
+			registeredCatchUpFn(mockDomainCache, prepare, callback)
+			assert.True(t, prepareCalled, "prepareCallback should be called")
+			assert.True(t, callbackCalled, "callback should be called")
+			assert.Len(t, actualUpdatedEntries, 2, "should have two updated entries")
+			assert.Equal(t, int64(5), actualUpdatedEntries[0].GetNotificationVersion())
+			assert.Equal(t, int64(7), actualUpdatedEntries[1].GetNotificationVersion())
+		} else {
+			assert.Fail(t, "catchUpFn was not registered")
+		}
+	})
+
+	t.Run("catchUpFn - Empty domain cache", func(t *testing.T) {
+		mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{})
+
+		prepareCalled := false
+		callbackCalled := false
+		prepare := func() { prepareCalled = true }
+		callback := func([]*cache.DomainCacheEntry) { callbackCalled = true }
+
+		if registeredCatchUpFn != nil {
+			registeredCatchUpFn(mockDomainCache, prepare, callback)
+			assert.False(t, prepareCalled, "prepareCallback should not be called")
+			assert.False(t, callbackCalled, "callback should not be called")
+		} else {
+			assert.Fail(t, "catchUpFn was not registered")
+		}
+	})
 }

@@ -23,9 +23,8 @@ package history
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"slices"
 	"sync"
-	"time"
 
 	"go.uber.org/yarpc"
 	"golang.org/x/sync/errgroup"
@@ -54,6 +53,9 @@ type (
 		response *types.GetReplicationMessagesResponse
 		size     int
 		peer     string
+
+		// earliestCreationTime of replication tasks of response
+		earliestCreationTime *int64
 	}
 )
 
@@ -774,9 +776,10 @@ func (c *clientImpl) GetReplicationMessages(
 			}
 			responseMutex.Lock()
 			peerResponses = append(peerResponses, &getReplicationMessagesWithSize{
-				response: resp,
-				size:     responseInfo.Size,
-				peer:     peer,
+				response:             resp,
+				size:                 responseInfo.Size,
+				peer:                 peer,
+				earliestCreationTime: resp.GetEarliestCreationTime(),
 			})
 			responseMutex.Unlock()
 			return nil
@@ -787,16 +790,20 @@ func (c *clientImpl) GetReplicationMessages(
 		return nil, err
 	}
 
-	// Peers with largest responses can be slowest to return data.
-	// They end up in the end of array and have a possibility of not fitting in the response message.
-	// Skipped peers grow their responses even more and next they will be even slower and end up in the end again.
-	// This can lead to starving peers.
-	// Shuffle the slice of responses to prevent such scenario. All peer will have equal chance to be pick up first.
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := range peerResponses {
-		j := r.Intn(i + 1)
-		peerResponses[i], peerResponses[j] = peerResponses[j], peerResponses[i]
-	}
+	return c.buildGetReplicationMessagesResponse(peerResponses), nil
+}
+
+// buildGetReplicationMessagesResponse builds a new GetReplicationMessagesResponse from peer responses
+// The response can be partial if the total size of the response exceeds the max size.
+// In this case, responses with oldest replication tasks will be returned
+func (c *clientImpl) buildGetReplicationMessagesResponse(peerResponses []*getReplicationMessagesWithSize) *types.GetReplicationMessagesResponse {
+	// Peers with large response can cause the response to exceed the max size.
+	// In this case, we need to skip some peer responses to make sure the result response size is within the limit.
+	// To prevent a replication lag in the future, we should return the response with the oldest replication task.
+	// So we sort the peer responses by the earliest creation time of the replication task.
+	// If the earliest creation time is the same, we compare the size of the response.
+	// This will sure that shards with the oldest replication tasks will be processed first.
+	sortGetReplicationMessageWithSize(peerResponses)
 
 	response := &types.GetReplicationMessagesResponse{MessagesByShard: make(map[int32]*types.ReplicationMessages)}
 	responseTotalSize := 0
@@ -825,7 +832,50 @@ func (c *clientImpl) GetReplicationMessages(
 			response.MessagesByShard[shardID] = tasks
 		}
 	}
-	return response, nil
+
+	return response
+}
+
+// sortGetReplicationMessageWithSize sorts the peer responses by the earliest creation time of the replication tasks
+func sortGetReplicationMessageWithSize(peerResponses []*getReplicationMessagesWithSize) {
+	slices.SortStableFunc(peerResponses, cmpGetReplicationMessagesWithSize)
+}
+
+// cmpGetReplicationMessagesWithSize compares
+// two getReplicationMessagesWithSize objects by earliest creation time
+// it can be used as a comparison func for slices.SortStableFunc
+// if a, b, or their earliestCreationTime is nil, slices.SortStableFunc will put them to the end of a slice
+// otherwise it will compare the earliestCreationTime of the replication tasks
+// if earliestCreationTime is equal, it will compare the size of the response
+func cmpGetReplicationMessagesWithSize(a, b *getReplicationMessagesWithSize) int {
+	// a > b
+	if a == nil || a.earliestCreationTime == nil {
+		return 1
+	}
+	// a < b
+	if b == nil || b.earliestCreationTime == nil {
+		return -1
+	}
+
+	// if both are not nil, compare the creation time
+	if *a.earliestCreationTime < *b.earliestCreationTime {
+		return -1
+	}
+
+	if *a.earliestCreationTime > *b.earliestCreationTime {
+		return 1
+	}
+
+	// if both equal, compare the size
+	if a.size < b.size {
+		return -1
+	}
+
+	if a.size > b.size {
+		return 1
+	}
+
+	return 0
 }
 
 func (c *clientImpl) GetDLQReplicationMessages(

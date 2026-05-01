@@ -60,11 +60,13 @@ var (
 		DomainName:     DomainName,
 		CurrentCluster: ClusterName1,
 		ActiveCluster:  ClusterName2,
+		ActiveClusters: []string{ClusterName2},
 	}
 	EntityNotExistsError = types.EntityNotExistsError{
 		Message:        ErrorMessage,
 		CurrentCluster: ClusterName1,
 		ActiveCluster:  ClusterName2,
+		ActiveClusters: []string{ClusterName2},
 	}
 	WorkflowExecutionAlreadyCompletedError = types.WorkflowExecutionAlreadyCompletedError{
 		Message: ErrorMessage,
@@ -113,10 +115,20 @@ var (
 	StickyWorkerUnavailableError = types.StickyWorkerUnavailableError{
 		Message: ErrorMessage,
 	}
+	ReadOnlyPartitionError = types.ReadOnlyPartitionError{
+		Message: ErrorMessage,
+	}
 	TaskListNotOwnedByHostError = cadence_errors.TaskListNotOwnedByHostError{
 		OwnedByIdentity: HostName,
 		MyIdentity:      HostName2,
 		TasklistName:    TaskListName,
+	}
+	NamespaceNotFoundError = types.NamespaceNotFoundError{
+		Namespace: Namespace,
+	}
+	ShardNotFoundError = types.ShardNotFoundError{
+		Namespace: Namespace,
+		ShardKey:  ShardKey,
 	}
 )
 
@@ -142,5 +154,8 @@ var Errors = []error{
 	&ShardOwnershipLostError,
 	&WorkflowExecutionAlreadyStartedError,
 	&StickyWorkerUnavailableError,
+	&ReadOnlyPartitionError,
 	&TaskListNotOwnedByHostError,
+	&NamespaceNotFoundError,
+	&ShardNotFoundError,
 }

@@ -65,6 +65,9 @@
           topic: other
           dlq-topic: other-dlq
       applications: { }
+  dynamicclientconfig:
+    filepath: "../testdata/dynamicconfig/integration_test.yaml"
+    pollInterval: "10s"
 - persistence:
     dbname: integration_standby
   clustergroupmetadata:
@@ -175,3 +178,6 @@
         test:
           brokers:
             - "${KAFKA_SEEDS}:9092"
+  dynamicclientconfig:
+    filepath: "../testdata/dynamicconfig/integration_test.yaml"
+    pollInterval: "10s"

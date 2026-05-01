@@ -21,6 +21,7 @@
 package client
 
 import (
+	"fmt"
 	"time"
 
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
@@ -33,21 +34,25 @@ import (
 	"github.com/uber/cadence/.gen/go/matching/matchingserviceclient"
 	historyv1 "github.com/uber/cadence/.gen/proto/history/v1"
 	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/errorinjectors"
 	"github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/metered"
 	"github.com/uber/cadence/client/wrappers/thrift"
 	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -61,6 +66,10 @@ type (
 
 		NewAdminClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, largeTimeout time.Duration) (admin.Client, error)
 		NewFrontendClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, longPollTimeout time.Duration) (frontend.Client, error)
+
+		NewShardDistributorClient() (sharddistributor.Client, error)
+		NewShardDistributorClientWithTimeout(timeout time.Duration) (sharddistributor.Client, error)
+		NewShardDistributorExecutorClient() (executorclient.Client, error)
 	}
 
 	// DomainIDToNameFunc maps a domainID to domain name. Returns error when mapping is not possible.
@@ -72,6 +81,7 @@ type (
 		metricsClient         metrics.Client
 		dynConfig             *dynamicconfig.Collection
 		numberOfHistoryShards int
+		allIsolationGroups    func() []string
 		logger                log.Logger
 	}
 )
@@ -83,6 +93,7 @@ func NewRPCClientFactory(
 	metricsClient metrics.Client,
 	dc *dynamicconfig.Collection,
 	numberOfHistoryShards int,
+	allIsolationGroups func() []string,
 	logger log.Logger,
 ) Factory {
 	return &rpcClientFactory{
@@ -91,6 +102,7 @@ func NewRPCClientFactory(
 		metricsClient:         metricsClient,
 		dynConfig:             dc,
 		numberOfHistoryShards: numberOfHistoryShards,
+		allIsolationGroups:    allIsolationGroups,
 		logger:                logger,
 	}
 }
@@ -124,7 +136,7 @@ func (cf *rpcClientFactory) NewHistoryClientWithTimeout(timeout time.Duration) (
 		peerResolver,
 		cf.logger,
 	)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.HistoryErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.HistoryErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewHistoryClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -151,21 +163,25 @@ func (cf *rpcClientFactory) NewMatchingClientWithTimeout(
 
 	peerResolver := matching.NewPeerResolver(cf.resolver, namedPort)
 
-	defaultLoadBalancer := matching.NewLoadBalancer(domainIDToName, cf.dynConfig)
-	roundRobinLoadBalancer := matching.NewRoundRobinLoadBalancer(domainIDToName, cf.dynConfig)
-	weightedLoadBalancer := matching.NewWeightedLoadBalancer(roundRobinLoadBalancer, domainIDToName, cf.dynConfig, cf.logger)
+	partitionConfigProvider := matching.NewPartitionConfigProvider(cf.logger, cf.metricsClient, domainIDToName, cf.dynConfig)
+	defaultLoadBalancer := matching.NewLoadBalancer(partitionConfigProvider)
+	roundRobinLoadBalancer := matching.NewRoundRobinLoadBalancer(partitionConfigProvider)
+	weightedLoadBalancer := matching.NewWeightedLoadBalancer(roundRobinLoadBalancer, partitionConfigProvider, cf.logger)
+	igLoadBalancer := matching.NewIsolationLoadBalancer(weightedLoadBalancer, partitionConfigProvider, domainIDToName, cf.dynConfig)
 	loadBalancers := map[string]matching.LoadBalancer{
 		"random":      defaultLoadBalancer,
 		"round-robin": roundRobinLoadBalancer,
 		"weighted":    weightedLoadBalancer,
+		"isolation":   igLoadBalancer,
 	}
 	client := matching.NewClient(
 		rawClient,
 		peerResolver,
 		matching.NewMultiLoadBalancer(defaultLoadBalancer, loadBalancers, domainIDToName, cf.dynConfig, cf.logger),
+		partitionConfigProvider,
 	)
 	client = timeoutwrapper.NewMatchingClient(client, longPollTimeout, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.MatchingErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.MatchingErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewMatchingClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -187,7 +203,7 @@ func (cf *rpcClientFactory) NewAdminClientWithTimeoutAndConfig(
 	}
 
 	client = timeoutwrapper.NewAdminClient(client, largeTimeout, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.AdminErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.AdminErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewAdminClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
@@ -208,17 +224,74 @@ func (cf *rpcClientFactory) NewFrontendClientWithTimeoutAndConfig(
 			apiv1.NewWorkflowAPIYARPCClient(config),
 			apiv1.NewWorkerAPIYARPCClient(config),
 			apiv1.NewVisibilityAPIYARPCClient(config),
+			apiv1.NewScheduleAPIYARPCClient(config),
 		)
 	} else {
 		client = thrift.NewFrontendClient(workflowserviceclient.New(config))
 	}
 
 	client = timeoutwrapper.NewFrontendClient(client, longPollTimeout, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicconfig.FrontendErrorInjectionRate)(); errorRate != 0 {
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.FrontendErrorInjectionRate)(); errorRate != 0 {
 		client = errorinjectors.NewFrontendClient(client, errorRate, cf.logger)
 	}
 	if cf.metricsClient != nil {
 		client = metered.NewFrontendClient(client, cf.metricsClient)
 	}
+	return client, nil
+}
+
+func (cf *rpcClientFactory) NewShardDistributorClient() (sharddistributor.Client, error) {
+	return cf.NewShardDistributorClientWithTimeout(timeoutwrapper.ShardDistributorDefaultTimeout)
+}
+
+func (cf *rpcClientFactory) NewShardDistributorClientWithTimeout(
+	timeout time.Duration,
+) (sharddistributor.Client, error) {
+	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
+	// break existing configs.
+	if !ok {
+		return nil, nil
+	}
+
+	if !rpc.IsGRPCOutbound(outboundConfig) {
+		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
+	}
+
+	client := grpc.NewShardDistributorClient(
+		sharddistributorv1.NewShardDistributorAPIYARPCClient(outboundConfig),
+	)
+
+	client = timeoutwrapper.NewShardDistributorClient(client, timeout)
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+		client = errorinjectors.NewShardDistributorClient(client, errorRate, cf.logger)
+	}
+	if cf.metricsClient != nil {
+		client = metered.NewShardDistributorClient(client, cf.metricsClient)
+	}
+
+	return client, nil
+}
+
+func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (executorclient.Client, error) {
+	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
+	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
+	// break existing configs.
+	if !ok {
+		return nil, nil
+	}
+
+	if !rpc.IsGRPCOutbound(outboundConfig) {
+		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
+	}
+
+	client := grpc.NewShardDistributorExecutorClient(sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(outboundConfig))
+	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
+		client = errorinjectors.NewShardDistributorExecutorClient(client, errorRate, cf.logger)
+	}
+	if cf.metricsClient != nil {
+		client = metered.NewShardDistributorExecutorClient(client, cf.metricsClient)
+	}
+
 	return client, nil
 }

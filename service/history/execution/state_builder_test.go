@@ -24,14 +24,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -51,8 +52,7 @@ type (
 		mockEventsCache  *events.MockCache
 		mockDomainCache  *cache.MockDomainCache
 		mockMutableState *MockMutableState
-
-		logger log.Logger
+		logger           log.Logger
 
 		sourceCluster string
 		stateBuilder  *stateBuilderImpl
@@ -96,6 +96,7 @@ func (s *stateBuilderSuite) SetupTest() {
 	s.logger = s.mockShard.GetLogger()
 
 	s.mockMutableState.EXPECT().GetVersionHistories().Return(persistence.NewVersionHistories(&persistence.VersionHistory{})).AnyTimes()
+
 	s.stateBuilder = NewStateBuilder(
 		s.mockShard,
 		s.logger,
@@ -114,7 +115,7 @@ func (s *stateBuilderSuite) mockUpdateVersion(events ...*types.HistoryEvent) {
 	for _, event := range events {
 		s.mockMutableState.EXPECT().UpdateCurrentVersion(event.Version, true).Times(1)
 	}
-	s.mockMutableState.EXPECT().SetHistoryBuilder(NewHistoryBuilderFromEvents(events)).Times(1)
+	s.mockMutableState.EXPECT().SetHistoryBuilder(NewHistoryBuilderFromEvents(events, s.mockMutableState)).Times(1)
 }
 
 func (s *stateBuilderSuite) toHistory(events ...*types.HistoryEvent) []*types.HistoryEvent {
@@ -180,7 +181,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeWorkflowExecutionStarted_Wi
 
 	now := time.Now()
 	evenType := types.EventTypeWorkflowExecutionStarted
-	next, err := backoff.GetBackoffForNextSchedule(parsedSchedule, now, now, 0)
+	next, err := backoff.GetBackoffForNextSchedule(parsedSchedule, now, now, 0, types.CronOverlapPolicySkipped)
 	require.NoError(s.T(), err)
 	startWorkflowAttribute := &types.WorkflowExecutionStartedEventAttributes{
 		ParentWorkflowDomainID: common.StringPtr(constants.TestDomainID),
@@ -618,8 +619,8 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeDecisionTaskScheduled() {
 	di := &DecisionInfo{
 		Version:         event.Version,
 		ScheduleID:      event.ID,
-		StartedID:       common.EmptyEventID,
-		RequestID:       common.EmptyUUID,
+		StartedID:       commonconstants.EmptyEventID,
+		RequestID:       commonconstants.EmptyUUID,
 		DecisionTimeout: timeoutSecond,
 		TaskList:        tasklist,
 		Attempt:         decisionAttempt,
@@ -949,7 +950,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeActivityTaskScheduled() {
 		ScheduledEventBatchID:    event.ID,
 		ScheduledEvent:           event,
 		ScheduledTime:            time.Unix(0, event.GetTimestamp()),
-		StartedID:                common.EmptyEventID,
+		StartedID:                commonconstants.EmptyEventID,
 		StartedTime:              time.Time{},
 		ActivityID:               activityID,
 		ScheduleToStartTimeout:   timeoutSecond,
@@ -957,7 +958,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeActivityTaskScheduled() {
 		StartToCloseTimeout:      timeoutSecond,
 		HeartbeatTimeout:         timeoutSecond,
 		CancelRequested:          false,
-		CancelRequestID:          common.EmptyEventID,
+		CancelRequestID:          commonconstants.EmptyEventID,
 		LastHeartBeatUpdatedTime: time.Time{},
 		TimerTaskStatus:          TimerTaskStatusNone,
 		TaskList:                 tasklist,
@@ -1223,7 +1224,7 @@ func (s *stateBuilderSuite) TestApplyEvents_EventTypeStartChildWorkflowExecution
 		Version:               event.Version,
 		InitiatedID:           event.ID,
 		InitiatedEventBatchID: event.ID,
-		StartedID:             common.EmptyEventID,
+		StartedID:             commonconstants.EmptyEventID,
 		CreateRequestID:       createRequestID,
 		DomainID:              constants.TestDomainID,
 		DomainNameDEPRECATED:  constants.TestDomainName,

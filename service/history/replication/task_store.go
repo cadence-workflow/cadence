@@ -30,6 +30,7 @@ import (
 
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -51,11 +52,12 @@ var ErrUnknownCluster = errors.New("unknown cluster")
 // A cache stores only a pointer to the message. It is hydrates once and shared across caches. Cluster acknowledging the message will remove it from that corresponding cache.
 // Once all clusters acknowledge it, no more references will be held, and GC will eventually pick it up.
 type TaskStore struct {
-	clusters      map[string]*Cache
+	clusters      map[string]cache.AckCache[*types.ReplicationTask]
 	domains       domainCache
 	hydrator      taskHydrator
-	rateLimiter   *quotas.DynamicRateLimiter
+	rateLimiter   quotas.Limiter
 	throttleRetry *backoff.ThrottleRetry
+	timeSource    clock.TimeSource
 
 	scope  metrics.Scope
 	logger log.Logger
@@ -68,7 +70,7 @@ type (
 		GetDomainByID(id string) (*cache.DomainCacheEntry, error)
 	}
 	taskHydrator interface {
-		Hydrate(ctx context.Context, task persistence.ReplicationTaskInfo) (*types.ReplicationTask, error)
+		Hydrate(ctx context.Context, task persistence.Task) (*types.ReplicationTask, error)
 	}
 )
 
@@ -80,11 +82,15 @@ func NewTaskStore(
 	metricsClient metrics.Client,
 	logger log.Logger,
 	hydrator taskHydrator,
+	budgetManager cache.Manager,
+	shardID int,
+	timeSource clock.TimeSource,
 ) *TaskStore {
+	cacheName := fmt.Sprintf("replication-cache-%d", shardID)
 
-	clusters := map[string]*Cache{}
+	clusters := map[string]cache.AckCache[*types.ReplicationTask]{}
 	for clusterName := range clusterMetadata.GetRemoteClusterInfo() {
-		clusters[clusterName] = NewCache(config.ReplicatorCacheCapacity)
+		clusters[clusterName] = cache.NewBoundedAckCache[*types.ReplicationTask](config.ReplicatorCacheCapacity, config.ReplicatorCacheMaxSize, logger, budgetManager, cacheName)
 	}
 
 	retryPolicy := backoff.NewExponentialRetryPolicy(100 * time.Millisecond)
@@ -102,6 +108,7 @@ func NewTaskStore(
 		scope:       metricsClient.Scope(metrics.ReplicatorCacheManagerScope),
 		logger:      logger.WithTags(tag.ComponentReplicationCacheManager),
 		rateLimiter: quotas.NewDynamicRateLimiter(config.ReplicationTaskGenerationQPS.AsFloat64()),
+		timeSource:  timeSource,
 	}
 }
 
@@ -110,13 +117,13 @@ func NewTaskStore(
 //
 // Returned task may be nil. This may be due domain not existing in a given cluster or replication message is not longer relevant.
 // Either case is valid and such replication message should be ignored and not returned in the response.
-func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.ReplicationTaskInfo) (*types.ReplicationTask, error) {
-	cache, ok := m.clusters[cluster]
+func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Task) (*types.ReplicationTask, error) {
+	cacheForTargetCluster, ok := m.clusters[cluster]
 	if !ok {
 		return nil, ErrUnknownCluster
 	}
 
-	domain, err := m.domains.GetDomainByID(info.DomainID)
+	domain, err := m.domains.GetDomainByID(info.GetDomainID())
 	if err != nil {
 		return nil, fmt.Errorf("resolving domain: %w", err)
 	}
@@ -129,10 +136,16 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Re
 	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
 
 	scope.IncCounter(metrics.CacheRequests)
+	// Keep timer (backwards compatible), dual-emit exponential histogram for migration.
+	cacheLatencyStart := m.timeSource.Now()
 	sw := scope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
+	defer func() {
+		scope.ExponentialHistogram(metrics.ExponentialCacheLatency, m.timeSource.Since(cacheLatencyStart))
+	}()
 
-	task := cache.Get(info.TaskID)
+	task := cacheForTargetCluster.Get(info.GetTaskID())
+
 	if task != nil {
 		scope.IncCounter(metrics.CacheHitCounter)
 		return task, nil
@@ -143,11 +156,13 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Re
 	// Rate limit to not kill the database
 	m.rateLimiter.Wait(ctx)
 
-	err = m.throttleRetry.Do(ctx, func() error {
+	op := func(ctx context.Context) error {
 		var err error
 		task, err = m.hydrator.Hydrate(ctx, info)
 		return err
-	})
+	}
+
+	err = m.throttleRetry.Do(ctx, op)
 
 	if err != nil {
 		m.scope.IncCounter(metrics.CacheFailures)
@@ -161,8 +176,8 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Re
 
 // Put will try to store hydrated replication to all cluster caches.
 // Tasks may not be relevant, as domain is not enabled in some clusters. Ignore task for that cluster.
-// Some clusters may be already have full cache. Ignore task, it will be fetched and hydrated again later.
-// Some clusters may already acknowledged such task. Ignore task, it is no longer relevant for such cluster.
+// Some clusters may already have full cache. Ignore the task, it will be fetched and hydrated again later.
+// Some clusters may have already acknowledged such task. Ignore task, it is no longer relevant for such cluster.
 func (m *TaskStore) Put(task *types.ReplicationTask) {
 	// Do not store nil tasks
 	if task == nil {
@@ -175,30 +190,33 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 		return
 	}
 
-	for cluster, cache := range m.clusters {
-		if domain != nil && !domain.HasReplicationCluster(cluster) {
+	for targetCluster, cacheByCluster := range m.clusters {
+		if domain != nil && !domain.HasReplicationCluster(targetCluster) {
 			continue
 		}
 
-		scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
+		scope := m.scope.Tagged(metrics.SourceClusterTag(targetCluster))
 
-		err := cache.Put(task)
-		switch err {
-		case errCacheFull:
+		err = cacheByCluster.Put(task, task.ByteSize())
+		switch {
+		case errors.Is(err, cache.ErrAckCacheFull):
 			scope.IncCounter(metrics.CacheFullCounter)
 
 			// This will help debug which shard is full. Logger already has ShardID tag attached.
 			// Log only once a minute to not flood the logs.
-			if time.Since(m.lastLogTime) > time.Minute {
+			if m.timeSource.Since(m.lastLogTime) > time.Minute {
 				m.logger.Warn("Replication cache is full")
-				m.lastLogTime = time.Now()
+				m.lastLogTime = m.timeSource.Now()
 			}
-		case errAlreadyAcked:
+		case errors.Is(err, cache.ErrAlreadyAcked):
 			// No action, this is expected.
 			// Some cluster(s) may be already past this, due to different fetch rates.
 		}
 
-		scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Size()))
+		count := cacheByCluster.Count()
+		scope.RecordTimer(metrics.CacheSize, time.Duration(count))
+		scope.RecordHistogramValue(metrics.CacheSizeHistogram, float64(count))
+		scope.UpdateGauge(metrics.CacheSizeGauge, float64(count))
 	}
 }
 
@@ -210,10 +228,13 @@ func (m *TaskStore) Ack(cluster string, lastTaskID int64) error {
 		return ErrUnknownCluster
 	}
 
-	cache.Ack(lastTaskID)
+	_, _ = cache.Ack(lastTaskID)
 
 	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
-	scope.RecordTimer(metrics.CacheSize, time.Duration(cache.Size()))
+	count := cache.Count()
+	scope.RecordTimer(metrics.CacheSize, time.Duration(count))
+	scope.RecordHistogramValue(metrics.CacheSizeHistogram, float64(count))
+	scope.UpdateGauge(metrics.CacheSizeGauge, float64(count))
 
 	return nil
 }

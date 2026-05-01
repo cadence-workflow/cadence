@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/types"
@@ -48,9 +49,10 @@ func newNoSQLVisibilityStore(
 	listClosedOrderingByCloseTime bool,
 	cfg config.ShardedNoSQL,
 	logger log.Logger,
+	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.VisibilityStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -69,17 +71,20 @@ func (v *nosqlVisibilityStore) RecordWorkflowExecutionStarted(
 	err := v.db.InsertVisibility(ctx, ttl, &nosqlplugin.VisibilityRowForInsert{
 		DomainID: request.DomainUUID,
 		VisibilityRow: nosqlplugin.VisibilityRow{
-			WorkflowID:    request.WorkflowID,
-			RunID:         request.RunID,
-			TypeName:      request.WorkflowTypeName,
-			StartTime:     request.StartTimestamp,
-			ExecutionTime: request.ExecutionTimestamp,
-			Memo:          request.Memo,
-			TaskList:      request.TaskList,
-			IsCron:        request.IsCron,
-			NumClusters:   request.NumClusters,
-			UpdateTime:    request.UpdateTimestamp,
-			ShardID:       request.ShardID,
+			WorkflowID:             request.WorkflowID,
+			RunID:                  request.RunID,
+			TypeName:               request.WorkflowTypeName,
+			StartTime:              request.StartTimestamp,
+			ExecutionTime:          request.ExecutionTimestamp,
+			Memo:                   request.Memo,
+			TaskList:               request.TaskList,
+			IsCron:                 request.IsCron,
+			NumClusters:            request.NumClusters,
+			UpdateTime:             request.UpdateTimestamp,
+			ShardID:                request.ShardID,
+			ExecutionStatus:        request.ExecutionStatus,
+			CronSchedule:           request.CronSchedule,
+			ScheduledExecutionTime: request.ScheduledExecutionTime,
 		},
 	})
 	if err != nil {
@@ -113,10 +118,13 @@ func (v *nosqlVisibilityStore) RecordWorkflowExecutionClosed(
 			IsCron:        request.IsCron,
 			NumClusters:   request.NumClusters,
 			// closed workflow attributes
-			Status:        &request.Status,
-			CloseTime:     request.CloseTimestamp,
-			HistoryLength: request.HistoryLength,
-			UpdateTime:    request.UpdateTimestamp,
+			Status:                 &request.Status,
+			CloseTime:              request.CloseTimestamp,
+			HistoryLength:          request.HistoryLength,
+			UpdateTime:             request.UpdateTimestamp,
+			CronSchedule:           request.CronSchedule,
+			ExecutionStatus:        request.ExecutionStatus,
+			ScheduledExecutionTime: request.ScheduledExecutionTime,
 		},
 	})
 

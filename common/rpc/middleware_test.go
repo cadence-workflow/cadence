@@ -36,8 +36,9 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/partition"
+	"github.com/uber/cadence/common/types"
 )
 
 func TestAuthOubboundMiddleware(t *testing.T) {
@@ -203,7 +204,7 @@ func TestForwardPartitionConfigMiddleware(t *testing.T) {
 					With(common.PartitionConfigHeaderName, string(blob)).
 					With(common.IsolationGroupHeaderName, "abc").
 					With(common.AutoforwardingClusterHeaderName, "cluster0"),
-				ctx:                     partition.ContextWithIsolationGroup(partition.ContextWithConfig(context.Background(), map[string]string{"z": "x"}), "fff"),
+				ctx:                     isolationgroup.ContextWithIsolationGroup(isolationgroup.ContextWithConfig(context.Background(), map[string]string{"z": "x"}), "fff"),
 				expectedPartitionConfig: partitionConfig,
 				expectedIsolationGroup:  "abc",
 			},
@@ -211,7 +212,7 @@ func TestForwardPartitionConfigMiddleware(t *testing.T) {
 				message: "it overwrites the existing partition config in the context with nil config",
 				headers: transport.NewHeaders().
 					With(common.AutoforwardingClusterHeaderName, "cluster0"),
-				ctx:                     partition.ContextWithIsolationGroup(partition.ContextWithConfig(context.Background(), map[string]string{"z": "x"}), "fff"),
+				ctx:                     isolationgroup.ContextWithIsolationGroup(isolationgroup.ContextWithConfig(context.Background(), map[string]string{"z": "x"}), "fff"),
 				expectedPartitionConfig: nil,
 				expectedIsolationGroup:  "",
 			},
@@ -232,8 +233,8 @@ func TestForwardPartitionConfigMiddleware(t *testing.T) {
 				h := &fakeHandler{}
 				err := m.Handle(tt.ctx, &transport.Request{Headers: tt.headers}, nil, h)
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedPartitionConfig, partition.ConfigFromContext(h.ctx))
-				assert.Equal(t, tt.expectedIsolationGroup, partition.IsolationGroupFromContext(h.ctx))
+				assert.Equal(t, tt.expectedPartitionConfig, isolationgroup.ConfigFromContext(h.ctx))
+				assert.Equal(t, tt.expectedIsolationGroup, isolationgroup.IsolationGroupFromContext(h.ctx))
 			})
 		}
 	})
@@ -253,7 +254,7 @@ func TestForwardPartitionConfigMiddleware(t *testing.T) {
 				message: "it retrieves partition config from the context and sets it in the request header",
 				headers: transport.NewHeaders().
 					With(common.AutoforwardingClusterHeaderName, "cluster0"),
-				ctx:                               partition.ContextWithIsolationGroup(partition.ContextWithConfig(context.Background(), partitionConfig), "abc"),
+				ctx:                               isolationgroup.ContextWithIsolationGroup(isolationgroup.ContextWithConfig(context.Background(), partitionConfig), "abc"),
 				expectedSerializedPartitionConfig: string(blob),
 				expectedIsolationGroup:            "abc",
 			},
@@ -263,7 +264,7 @@ func TestForwardPartitionConfigMiddleware(t *testing.T) {
 					With(common.IsolationGroupHeaderName, "lll").
 					With(common.PartitionConfigHeaderName, "asdfasf").
 					With(common.AutoforwardingClusterHeaderName, "cluster0"),
-				ctx:                               partition.ContextWithIsolationGroup(partition.ContextWithConfig(context.Background(), partitionConfig), "abc"),
+				ctx:                               isolationgroup.ContextWithIsolationGroup(isolationgroup.ContextWithConfig(context.Background(), partitionConfig), "abc"),
 				expectedSerializedPartitionConfig: string(blob),
 				expectedIsolationGroup:            "abc",
 			},
@@ -282,7 +283,7 @@ func TestForwardPartitionConfigMiddleware(t *testing.T) {
 				headers: transport.NewHeaders().
 					With(common.IsolationGroupHeaderName, "lll").
 					With(common.PartitionConfigHeaderName, "asdfasf"),
-				ctx:                               partition.ContextWithIsolationGroup(partition.ContextWithConfig(context.Background(), partitionConfig), "abc"),
+				ctx:                               isolationgroup.ContextWithIsolationGroup(isolationgroup.ContextWithConfig(context.Background(), partitionConfig), "abc"),
 				expectedSerializedPartitionConfig: "asdfasf",
 				expectedIsolationGroup:            "lll",
 			},
@@ -312,8 +313,8 @@ func TestClientPartitionConfigMiddleware(t *testing.T) {
 			With(common.ClientIsolationGroupHeaderName, "dca1")
 		err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
 		assert.NoError(t, err)
-		assert.Equal(t, map[string]string{partition.IsolationGroupKey: "dca1"}, partition.ConfigFromContext(h.ctx))
-		assert.Equal(t, "dca1", partition.IsolationGroupFromContext(h.ctx))
+		assert.Equal(t, map[string]string{isolationgroup.GroupKey: "dca1"}, isolationgroup.ConfigFromContext(h.ctx))
+		assert.Equal(t, "dca1", isolationgroup.IsolationGroupFromContext(h.ctx))
 	})
 
 	t.Run("noop when header is empty", func(t *testing.T) {
@@ -323,9 +324,107 @@ func TestClientPartitionConfigMiddleware(t *testing.T) {
 		ctx := context.Background()
 		err := m.Handle(ctx, &transport.Request{Headers: headers}, nil, h)
 		assert.NoError(t, err)
-		assert.Nil(t, partition.ConfigFromContext(h.ctx))
-		assert.Equal(t, "", partition.IsolationGroupFromContext(h.ctx))
+		assert.Nil(t, isolationgroup.ConfigFromContext(h.ctx))
+		assert.Equal(t, "", isolationgroup.IsolationGroupFromContext(h.ctx))
 		assert.Equal(t, ctx, h.ctx)
+	})
+}
+
+func TestCallerInfoMiddleware(t *testing.T) {
+	t.Run("extracts caller type from header", func(t *testing.T) {
+		m := &CallerInfoMiddleware{}
+		h := &fakeHandler{}
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "cli")
+		err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+		assert.NoError(t, err)
+
+		callerInfo := types.GetCallerInfoFromContext(h.ctx)
+		assert.Equal(t, types.CallerTypeCLI, callerInfo.GetCallerType())
+	})
+
+	t.Run("sets unknown caller type when header is missing", func(t *testing.T) {
+		m := &CallerInfoMiddleware{}
+		h := &fakeHandler{}
+		headers := transport.NewHeaders()
+		err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+		assert.NoError(t, err)
+
+		callerInfo := types.GetCallerInfoFromContext(h.ctx)
+		assert.Equal(t, types.CallerTypeUnknown, callerInfo.GetCallerType())
+	})
+
+	t.Run("extracts different caller types", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			headerValue    string
+			expectedCaller types.CallerType
+		}{
+			{"CLI", "cli", types.CallerTypeCLI},
+			{"UI", "ui", types.CallerTypeUI},
+			{"SDK", "sdk", types.CallerTypeSDK},
+			{"Internal", "internal", types.CallerTypeInternal},
+			{"Empty", "", types.CallerTypeUnknown},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				m := &CallerInfoMiddleware{}
+				h := &fakeHandler{}
+				headers := transport.NewHeaders().With(types.CallerTypeHeaderName, tt.headerValue)
+				err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+				assert.NoError(t, err)
+
+				callerInfo := types.GetCallerInfoFromContext(h.ctx)
+				assert.Equal(t, tt.expectedCaller, callerInfo.GetCallerType())
+			})
+		}
+	})
+}
+
+func TestCallerInfoOutboundMiddleware(t *testing.T) {
+	t.Run("sets internal caller type when no inbound call and header is missing", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		_, err := m.Call(context.Background(), &transport.Request{}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, string(types.CallerTypeInternal), callerType)
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not set header when inbound call exists without header", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		ctxWithInbound := yarpctest.ContextWithCall(context.Background(), &yarpctest.Call{})
+		_, err := m.Call(ctxWithInbound, &transport.Request{}, &fakeOutbound{verify: func(r *transport.Request) {
+			_, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.False(t, ok, "header should not be set for external requests without header")
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not override existing caller type header", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "cli")
+		_, err := m.Call(context.Background(), &transport.Request{Headers: headers}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, "cli", callerType)
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not override header forwarded from inbound call", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		ctxWithInbound := yarpctest.ContextWithCall(context.Background(), &yarpctest.Call{
+			Headers: map[string]string{types.CallerTypeHeaderName: "ui"},
+		})
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "ui")
+		_, err := m.Call(ctxWithInbound, &transport.Request{Headers: headers}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, "ui", callerType, "should preserve forwarded header")
+		}})
+		assert.NoError(t, err)
 	})
 }
 

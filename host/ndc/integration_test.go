@@ -28,16 +28,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	adminClient "github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -97,12 +98,17 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.clusterConfigs[0])
 	dc := persistence.DynamicConfiguration{
-		EnableSQLAsyncTransaction:                dynamicconfig.GetBoolPropertyFn(false),
-		EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
+		EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
+		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
+		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
 	}
 	params := pt.TestBaseParams{
 		DefaultTestCluster:    s.defaultTestCluster,
-		VisibilityTestCluster: s.visibilityTestCluster,
+		VisibilityTestCluster: s.VisibilityTestCluster,
 		ClusterMetadata:       clusterMetadata,
 		DynamicConfiguration:  dc,
 	}
@@ -110,7 +116,7 @@ func (s *NDCIntegrationTestSuite) SetupSuite() {
 	s.Require().NoError(err)
 	s.active = cluster
 
-	s.registerDomain()
+	s.RegisterDomain()
 
 	s.version = s.clusterConfigs[1].ClusterGroupMetadata.ClusterGroup[s.clusterConfigs[1].ClusterGroupMetadata.CurrentClusterName].InitialFailoverVersion
 	s.versionIncrement = s.clusterConfigs[0].ClusterGroupMetadata.FailoverVersionIncrement
@@ -2226,7 +2232,7 @@ func (s *NDCIntegrationTestSuite) TestWorkflowStartTime() {
 	)
 }
 
-func (s *NDCIntegrationTestSuite) registerDomain() {
+func (s *NDCIntegrationTestSuite) RegisterDomain() {
 	s.domainName = "test-simple-workflow-ndc-" + common.GenerateRandomString(5)
 	client1 := s.active.GetFrontendClient() // active
 	ctx, cancel := s.createContext()
@@ -2277,7 +2283,7 @@ func (s *NDCIntegrationTestSuite) generateNewRunHistory(
 
 	firstScheduleTime := time.Unix(0, 100)
 	newRunFirstEvent := &types.HistoryEvent{
-		ID:        common.FirstEventID,
+		ID:        constants.FirstEventID,
 		Timestamp: common.Int64Ptr(time.Now().UnixNano()),
 		EventType: types.EventTypeWorkflowExecutionStarted.Ptr(),
 		Version:   version,
@@ -2307,7 +2313,7 @@ func (s *NDCIntegrationTestSuite) generateNewRunHistory(
 		},
 	}
 
-	eventBlob, err := s.serializer.SerializeBatchEvents([]*types.HistoryEvent{newRunFirstEvent}, common.EncodingTypeThriftRW)
+	eventBlob, err := s.serializer.SerializeBatchEvents([]*types.HistoryEvent{newRunFirstEvent}, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 
 	return eventBlob
@@ -2323,12 +2329,12 @@ func (s *NDCIntegrationTestSuite) toInternalDataBlob(
 
 	var encodingType types.EncodingType
 	switch blob.GetEncoding() {
-	case common.EncodingTypeThriftRW:
+	case constants.EncodingTypeThriftRW:
 		encodingType = types.EncodingTypeThriftRW
-	case common.EncodingTypeJSON,
-		common.EncodingTypeGob,
-		common.EncodingTypeUnknown,
-		common.EncodingTypeEmpty:
+	case constants.EncodingTypeJSON,
+		constants.EncodingTypeGob,
+		constants.EncodingTypeUnknown,
+		constants.EncodingTypeEmpty:
 		panic(fmt.Sprintf("unsupported encoding type: %v", blob.GetEncoding()))
 	default:
 		panic(fmt.Sprintf("unknown encoding type: %v", blob.GetEncoding()))
@@ -2355,7 +2361,7 @@ func (s *NDCIntegrationTestSuite) generateEventBlobs(
 	)
 	// must serialize events batch after attempt on continue as new as generateNewRunHistory will
 	// modify the NewExecutionRunID attr
-	eventBlob, err := s.serializer.SerializeBatchEvents(batch.Events, common.EncodingTypeThriftRW)
+	eventBlob, err := s.serializer.SerializeBatchEvents(batch.Events, constants.EncodingTypeThriftRW)
 	s.NoError(err)
 	return eventBlob, newRunEventBlob
 }

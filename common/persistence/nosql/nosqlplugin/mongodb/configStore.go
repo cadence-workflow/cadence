@@ -28,7 +28,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/schema/mongodb/cadence"
@@ -65,6 +65,6 @@ func (db *mdb) SelectLatestConfig(ctx context.Context, rowType int) (*persistenc
 		RowType:   rowType,
 		Version:   result.Version,
 		Timestamp: time.Unix(result.UnixTimestampSeconds, 0),
-		Values:    persistence.NewDataBlob(result.Data, common.EncodingType(result.DataEncoding)),
+		Values:    persistence.NewDataBlob(result.Data, constants.EncodingType(result.DataEncoding)),
 	}, nil
 }

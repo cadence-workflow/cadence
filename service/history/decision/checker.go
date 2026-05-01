@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/elasticsearch/validator"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -162,11 +163,14 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 
 	// metricsScope already has domainName and operation: "RespondDecisionTaskCompleted"
 	c.metricsScope.RecordTimer(metrics.HistorySize, time.Duration(historySize))
+	c.metricsScope.IntExponentialHistogram(metrics.HistorySizeHistogram, historySize)
 	c.metricsScope.RecordTimer(metrics.HistoryCount, time.Duration(historyCount))
+	c.metricsScope.IntExponentialHistogram(metrics.HistoryCountHistogram, historyCount)
 
 	if historySize > c.historySizeLimitError || historyCount > c.historyCountLimitError {
 		executionInfo := c.mutableState.GetExecutionInfo()
 		c.logger.Error("history size exceeds error limit.",
+			tag.WorkflowDomainName(c.domainName),
 			tag.WorkflowDomainID(executionInfo.DomainID),
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),
@@ -187,6 +191,7 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 	if historySize > c.historySizeLimitWarn || historyCount > c.historyCountLimitWarn {
 		executionInfo := c.mutableState.GetExecutionInfo()
 		c.logger.Warn("history size exceeds warn limit.",
+			tag.WorkflowDomainName(c.domainName),
 			tag.WorkflowDomainID(executionInfo.DomainID),
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),
@@ -202,8 +207,8 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 	domainID string,
 	targetDomainID string,
 	attributes *types.ScheduleActivityTaskDecisionAttributes,
-	wfTimeout int32,
-	metricsScope int,
+	executionInfo *persistence.WorkflowExecutionInfo,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -217,10 +222,11 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 		return &types.BadRequestError{Message: "ScheduleActivityTaskDecisionAttributes is not set on decision."}
 	}
 
-	defaultTaskListName := ""
-	if _, err := v.validatedTaskList(attributes.TaskList, defaultTaskListName, metricsScope, attributes.GetDomain()); err != nil {
+	taskList, err := v.validatedTaskList(attributes.TaskList, &types.TaskList{Name: executionInfo.TaskList, Kind: executionInfo.TaskListKind.Ptr()}, metricsScope, attributes.GetDomain())
+	if err != nil {
 		return err
 	}
+	attributes.TaskList = taskList
 
 	if attributes.GetActivityID() == "" {
 		return &types.BadRequestError{Message: "ActivityId is not set on decision."}
@@ -276,6 +282,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 		attributes.GetStartToCloseTimeoutSeconds() < 0 || attributes.GetHeartbeatTimeoutSeconds() < 0 {
 		return &types.BadRequestError{Message: "A valid timeout may not be negative."}
 	}
+	wfTimeout := executionInfo.WorkflowTimeout
 
 	// ensure activity timeout never larger than workflow timeout
 	if attributes.GetScheduleToCloseTimeoutSeconds() > wfTimeout {
@@ -343,7 +350,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 
 			domainName, _ := v.domainCache.GetDomainName(domainID) // if this call returns an error, we will just used the default value for max timeout
 			maximumScheduleToStartTimeoutForRetryInSeconds := int32(v.config.ActivityMaxScheduleToStartTimeoutForRetry(domainName).Seconds())
-			scheduleToStartExpiration := common.MinInt32(expiration, maximumScheduleToStartTimeoutForRetryInSeconds)
+			scheduleToStartExpiration := min(expiration, maximumScheduleToStartTimeoutForRetryInSeconds)
 			if attributes.GetScheduleToStartTimeoutSeconds() < scheduleToStartExpiration {
 				attributes.ScheduleToStartTimeoutSeconds = common.Int32Ptr(scheduleToStartExpiration)
 			}
@@ -366,7 +373,7 @@ func (v *attrValidator) validateActivityScheduleAttributes(
 
 func (v *attrValidator) validateTimerScheduleAttributes(
 	attributes *types.StartTimerDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -397,7 +404,7 @@ func (v *attrValidator) validateTimerScheduleAttributes(
 
 func (v *attrValidator) validateActivityCancelAttributes(
 	attributes *types.RequestCancelActivityTaskDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -424,7 +431,7 @@ func (v *attrValidator) validateActivityCancelAttributes(
 
 func (v *attrValidator) validateTimerCancelAttributes(
 	attributes *types.CancelTimerDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -450,7 +457,7 @@ func (v *attrValidator) validateTimerCancelAttributes(
 
 func (v *attrValidator) validateRecordMarkerAttributes(
 	attributes *types.RecordMarkerDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -512,7 +519,7 @@ func (v *attrValidator) validateCancelExternalWorkflowExecutionAttributes(
 	domainID string,
 	targetDomainID string,
 	attributes *types.RequestCancelExternalWorkflowExecutionDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -565,7 +572,7 @@ func (v *attrValidator) validateSignalExternalWorkflowExecutionAttributes(
 	domainID string,
 	targetDomainID string,
 	attributes *types.SignalExternalWorkflowExecutionDecisionAttributes,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -644,7 +651,7 @@ func (v *attrValidator) validateUpsertWorkflowSearchAttributes(
 func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	attributes *types.ContinueAsNewWorkflowExecutionDecisionAttributes,
 	executionInfo *persistence.WorkflowExecutionInfo,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) error {
 
@@ -670,7 +677,7 @@ func (v *attrValidator) validateContinueAsNewWorkflowExecutionAttributes(
 	}
 
 	// Inherit Tasklist from previous execution if not provided on decision
-	taskList, err := v.validatedTaskList(attributes.TaskList, executionInfo.TaskList, metricsScope, domain)
+	taskList, err := v.validatedTaskList(attributes.TaskList, &types.TaskList{Name: executionInfo.TaskList, Kind: executionInfo.TaskListKind.Ptr()}, metricsScope, domain)
 	if err != nil {
 		return err
 	}
@@ -703,7 +710,7 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 	targetDomainID string,
 	attributes *types.StartChildWorkflowExecutionDecisionAttributes,
 	parentInfo *persistence.WorkflowExecutionInfo,
-	metricsScope int,
+	metricsScope metrics.ScopeIdx,
 ) error {
 
 	if err := v.validateCrossDomainCall(
@@ -772,7 +779,7 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 	}
 
 	// Inherit tasklist from parent workflow execution if not provided on decision
-	taskList, err := v.validatedTaskList(attributes.TaskList, parentInfo.TaskList, metricsScope, attributes.GetDomain())
+	taskList, err := v.validatedTaskList(attributes.TaskList, &types.TaskList{Name: parentInfo.TaskList, Kind: parentInfo.TaskListKind.Ptr()}, metricsScope, attributes.GetDomain())
 	if err != nil {
 		return err
 	}
@@ -793,8 +800,8 @@ func (v *attrValidator) validateStartChildExecutionAttributes(
 
 func (v *attrValidator) validatedTaskList(
 	taskList *types.TaskList,
-	defaultVal string,
-	metricsScope int,
+	defaultVal *types.TaskList,
+	metricsScope metrics.ScopeIdx,
 	domain string,
 ) (*types.TaskList, error) {
 
@@ -803,11 +810,15 @@ func (v *attrValidator) validatedTaskList(
 	}
 
 	if taskList.GetName() == "" {
-		if defaultVal == "" {
+		if defaultVal.GetName() == "" {
 			return taskList, &types.BadRequestError{Message: "missing task list name"}
 		}
-		taskList.Name = defaultVal
+		taskList.Name = defaultVal.GetName()
+		taskList.Kind = defaultVal.Kind
 		return taskList, nil
+	}
+	if taskList.GetKind() == types.TaskListKindNormal && defaultVal.GetKind() == types.TaskListKindEphemeral {
+		taskList.Kind = defaultVal.Kind
 	}
 
 	name := taskList.GetName()
@@ -825,9 +836,9 @@ func (v *attrValidator) validatedTaskList(
 		}
 	}
 
-	if strings.HasPrefix(name, common.ReservedTaskListPrefix) {
+	if strings.HasPrefix(name, constants.ReservedTaskListPrefix) {
 		return taskList, &types.BadRequestError{
-			Message: fmt.Sprintf("task list name cannot start with reserved prefix %v", common.ReservedTaskListPrefix),
+			Message: fmt.Sprintf("task list name cannot start with reserved prefix %v", constants.ReservedTaskListPrefix),
 		}
 	}
 

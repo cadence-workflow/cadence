@@ -25,7 +25,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -44,9 +44,14 @@ func (e *historyEngineImpl) NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
 	if err == nil {
-		e.txProcessor.NotifyNewTask(clusterName, info)
+		transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
+		if !ok {
+			e.logger.Error("transfer processor not found", tag.Error(err))
+			return
+		}
+		transferProcessor.NotifyNewTask(clusterName, info)
 	}
 }
 
@@ -56,9 +61,14 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 	}
 
 	task := info.Tasks[0]
-	clusterName, err := e.clusterMetadata.ClusterNameForFailoverVersion(task.GetVersion())
+	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
 	if err == nil {
-		e.timerProcessor.NotifyNewTask(clusterName, info)
+		timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
+		if !ok {
+			e.logger.Error("timer processor not found", tag.Error(err))
+			return
+		}
+		timerProcessor.NotifyNewTask(clusterName, info)
 	}
 }
 
@@ -84,7 +94,7 @@ func hydrateReplicationTask(
 		DomainID:     exec.DomainID,
 		WorkflowID:   exec.WorkflowID,
 		RunID:        exec.RunID,
-		TaskType:     task.GetType(),
+		TaskType:     task.GetTaskType(),
 		CreationTime: task.GetVisibilityTimestamp().UnixNano(),
 		TaskID:       task.GetTaskID(),
 		Version:      task.GetVersion(),
@@ -109,8 +119,8 @@ func hydrateReplicationTask(
 		versionHistories,
 		activities,
 		history.Find(info.BranchToken, info.FirstEventID),
-		history.Find(info.NewRunBranchToken, common.FirstEventID),
+		history.Find(info.NewRunBranchToken, constants.FirstEventID),
 	)
 
-	return hydrator.Hydrate(context.Background(), info)
+	return hydrator.Hydrate(context.Background(), task)
 }

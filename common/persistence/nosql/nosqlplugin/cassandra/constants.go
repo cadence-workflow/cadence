@@ -67,6 +67,7 @@ const (
 	rowTypeWorkflowRequestSignal
 	rowTypeWorkflowRequestCancel
 	rowTypeWorkflowRequestReset
+	rowTypeWorkflowActiveClusterSelectionPolicy
 )
 
 // Guidelines for creating new special UUID constants
@@ -104,9 +105,10 @@ const (
 	rowTypeDLQDomainID = "10000000-6000-f000-f000-000000000000"
 	rowTypeDLQRunID    = "30000000-6000-f000-f000-000000000000"
 	// Special TaskId constants
-	rowTypeExecutionTaskID      = int64(-10)
-	rowTypeShardTaskID          = int64(-11)
-	emptyInitiatedID            = int64(-7)
-	emptyWorkflowRequestVersion = int64(-1000)
-	workflowRequestTTLInSeconds = 10800
+	rowTypeExecutionTaskID                       = int64(-10)
+	rowTypeShardTaskID                           = int64(-11)
+	emptyInitiatedID                             = int64(-7)
+	emptyWorkflowRequestVersion                  = int64(-1000)
+	rowTypeWorkflowActiveClusterSelectionVersion = int64(-1001)
+	workflowRequestTTLInSeconds                  = 10800
 )

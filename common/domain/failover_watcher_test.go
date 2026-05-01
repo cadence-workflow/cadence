@@ -27,17 +27,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -86,13 +87,14 @@ func (s *failoverWatcherSuite) SetupTest() {
 
 	logger := testlogger.New(s.T())
 	scope := tally.NewTestScope("failover_test", nil)
-	metricsClient := metrics.NewClient(scope, metrics.Frontend)
+	metricsClient := metrics.NewClient(scope, metrics.Frontend, metrics.MigrationConfig{})
 	s.watcher = NewFailoverWatcher(
 		s.mockDomainCache,
 		s.mockMetadataMgr,
+		cluster.GetTestClusterMetadata(true),
 		s.timeSource,
-		dynamicconfig.GetDurationPropertyFn(10*time.Second),
-		dynamicconfig.GetFloatPropertyFn(0.2),
+		dynamicproperties.GetDurationPropertyFn(10*time.Second),
+		dynamicproperties.GetFloatPropertyFn(0.2),
 		metricsClient,
 		logger,
 	).(*failoverWatcherImpl)

@@ -21,7 +21,6 @@
 package metrics
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 )
@@ -41,8 +40,10 @@ const (
 	sourceCluster             = "source_cluster"
 	targetCluster             = "target_cluster"
 	activeCluster             = "active_cluster"
+	isActiveActiveDomain      = "is_active_active_domain"
 	taskList                  = "tasklist"
 	taskListType              = "tasklistType"
+	taskListRootPartition     = "tasklist_root_partition"
 	workflowType              = "workflowType"
 	activityType              = "activityType"
 	decisionType              = "decisionType"
@@ -53,6 +54,7 @@ const (
 	transport                 = "transport"
 	caller                    = "caller"
 	service                   = "service"
+	destService               = "dest_service"
 	signalName                = "signalName"
 	workflowVersion           = "workflow_version"
 	shardID                   = "shard_id"
@@ -62,15 +64,25 @@ const (
 	asyncWFRequestType        = "async_wf_request_type"
 	workflowTerminationReason = "workflow_termination_reason"
 	workflowCloseStatus       = "workflow_close_status"
+	corruptionType            = "corruption_type"
 	isolationEnabled          = "isolation_enabled"
+	isolationGroup            = "isolation_group"
+	leakCause                 = "leak_cause"
 	topic                     = "topic"
 	mode                      = "mode"
+	isRetry                   = "is_retry"
+	queryConsistencyLevel     = "query_consistency_level"
+	budgetManagerName         = "budget_manager_name"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
 	globalRatelimitType           = "global_ratelimit_type"
 	globalRatelimitIsPrimary      = "is_primary"
 	globalRatelimitCollectionName = "global_ratelimit_collection"
+
+	// scheduler-specific tags
+	overlapPolicy = "overlap_policy"
+	triggerSource = "trigger_source"
 
 	allValue     = "all"
 	unknownValue = "_unknown_"
@@ -156,6 +168,11 @@ func ActiveClusterTag(value string) Tag {
 	return metricWithUnknown(activeCluster, value)
 }
 
+// IsActiveActiveDomainTag returns a new is active active domain tag.
+func IsActiveActiveDomainTag(value bool) Tag {
+	return simpleMetric{key: isActiveActiveDomain, value: strconv.FormatBool(value)}
+}
+
 // TaskListTag returns a new task list tag.
 func TaskListTag(value string) Tag {
 	if len(value) == 0 {
@@ -172,6 +189,14 @@ func TaskListUnknownTag() Tag {
 // TaskListTypeTag returns a new task list type tag.
 func TaskListTypeTag(value string) Tag {
 	return metricWithUnknown(taskListType, value)
+}
+
+// TaskListRootPartition returns a new task list root partition tag.
+func TaskListRootPartitionTag(value string) Tag {
+	if len(value) == 0 {
+		value = unknownValue
+	}
+	return simpleMetric{key: taskListRootPartition, value: sanitizer.Value(value)}
 }
 
 // WorkflowTypeTag returns a new workflow type tag.
@@ -219,9 +244,14 @@ func CallerTag(value string) Tag {
 	return simpleMetric{key: caller, value: value}
 }
 
-// CallerTag returns a new RPC Caller type tag.
+// ServiceTag returns a new service tag.
 func ServiceTag(value string) Tag {
 	return simpleMetric{key: service, value: value}
+}
+
+// DestServiceTag returns a new destination service tag.
+func DestServiceTag(value string) Tag {
+	return simpleMetric{key: destService, value: value}
 }
 
 // Hosttag emits the host identifier
@@ -272,11 +302,7 @@ func GlobalRatelimiterTypeTag(value string) Tag {
 }
 
 func GlobalRatelimiterIsPrimary(isPrimary bool) Tag {
-	value := "false"
-	if isPrimary {
-		value = "true"
-	}
-	return simpleMetric{key: globalRatelimitIsPrimary, value: value}
+	return simpleMetric{key: globalRatelimitIsPrimary, value: strconv.FormatBool(isPrimary)}
 }
 
 // GlobalRatelimiterCollectionName is a namespacing tag to uniquely identify metrics
@@ -297,28 +323,22 @@ func WorkflowCloseStatusTag(value string) Tag {
 	return simpleMetric{key: workflowCloseStatus, value: value}
 }
 
-// PartitionConfigTags returns a list of partition config tags
-func PartitionConfigTags(partitionConfig map[string]string) []Tag {
-	tags := make([]Tag, 0, len(partitionConfig))
-	for k, v := range partitionConfig {
-		if len(k) == 0 {
-			continue
-		}
-		if len(v) == 0 {
-			v = unknownValue
-		}
-		tags = append(tags, simpleMetric{key: sanitizer.Value(fmt.Sprintf("pk_%s", k)), value: sanitizer.Value(v)})
-	}
-	return tags
+// CorruptionTypeTag reports the type of corruption detected
+func CorruptionTypeTag(value string) Tag {
+	return simpleMetric{key: corruptionType, value: value}
+}
+
+func IsolationGroupTag(group string) Tag {
+	return simpleMetric{key: isolationGroup, value: sanitizer.Value(group)}
+}
+
+func IsolationLeakCause(cause string) Tag {
+	return simpleMetric{key: leakCause, value: sanitizer.Value(cause)}
 }
 
 // IsolationEnabledTag returns whether isolation is enabled
 func IsolationEnabledTag(enabled bool) Tag {
-	v := "false"
-	if enabled {
-		v = "true"
-	}
-	return simpleMetric{key: isolationEnabled, value: v}
+	return simpleMetric{key: isolationEnabled, value: strconv.FormatBool(enabled)}
 }
 
 func TopicTag(value string) Tag {
@@ -327,4 +347,73 @@ func TopicTag(value string) Tag {
 
 func ModeTag(value string) Tag {
 	return metricWithUnknown(mode, value)
+}
+
+// IsRetryTag returns a new is_retry tag.
+func IsRetryTag(retry bool) Tag {
+	return simpleMetric{key: isRetry, value: strconv.FormatBool(retry)}
+}
+
+func NamespaceTag(namespace string) Tag {
+	return metricWithUnknown("namespace", namespace)
+}
+
+func NamespaceTypeTag(namespaceType string) Tag {
+	return metricWithUnknown("namespace_type", namespaceType)
+}
+
+func HandoverTypeTag(handoverType string) Tag {
+	return metricWithUnknown("handover_type", handoverType)
+}
+
+func ExecutorStatusTag(status string) Tag {
+	return metricWithUnknown("executor_status", status)
+}
+
+func ShardDistributorWatchTypeTag(watchType string) Tag {
+	return metricWithUnknown("watch_type", watchType)
+}
+
+func TaskCategoryTag(category string) Tag {
+	return metricWithUnknown("task_category", category)
+}
+
+// ReasonTag returns a new reason tag
+func ReasonTag(reason string) Tag {
+	return metricWithUnknown("reason", reason)
+}
+
+// DecisionTag returns a new decision tag
+func DecisionTag(decision string) Tag {
+	return metricWithUnknown("decision", decision)
+}
+
+// ActiveClusterLookupFnTag returns a new active cluster lookup function tag.
+func ActiveClusterLookupFnTag(fn string) Tag {
+	return metricWithUnknown("fn", fn)
+}
+
+// ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
+func ActiveClusterSelectionStrategyTag(strategy string) Tag {
+	return metricWithUnknown("strategy", strategy)
+}
+
+// OverlapPolicyTag returns a new overlap_policy tag for scheduler metrics.
+func OverlapPolicyTag(value string) Tag {
+	return metricWithUnknown(overlapPolicy, value)
+}
+
+// TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
+func TriggerSourceTag(value string) Tag {
+	return metricWithUnknown(triggerSource, value)
+}
+
+// QueryConsistencyLevelTag returns a new query consistency level tag.
+func QueryConsistencyLevelTag(level string) Tag {
+	return metricWithUnknown(queryConsistencyLevel, level)
+}
+
+// BudgetManagerNameTag returns a new budget manager name tag.
+func BudgetManagerNameTag(name string) Tag {
+	return metricWithUnknown(budgetManagerName, name)
 }

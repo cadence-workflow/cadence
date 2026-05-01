@@ -47,6 +47,21 @@ func ClusterName(clusterName string) Tag {
 	return newStringTag("cluster-name", clusterName)
 }
 
+// Region returns tag for Region
+func Region(region string) Tag {
+	return newStringTag("region", region)
+}
+
+// ActiveClusterName returns tag for ActiveClusterName.
+func ActiveClusterName(activeClusterName string) Tag {
+	return newStringTag("active-cluster-name", activeClusterName)
+}
+
+// ActiveClusterChangeType returns tag for ActiveClusterChangeType.
+func ActiveClusterChangeType(changeType string) Tag {
+	return newStringTag("active-active-change-type", changeType)
+}
+
 // Timestamp returns tag for Timestamp
 func Timestamp(timestamp time.Time) Tag {
 	return newTimeTag("timestamp", timestamp)
@@ -219,6 +234,10 @@ func WorkflowTerminationReason(reason string) Tag {
 	return newStringTag("wf-termination-reason", reason)
 }
 
+func Duration(duration time.Duration) Tag {
+	return newDurationTag("duration", duration)
+}
+
 // domain related
 
 // WorkflowDomainID returns tag for WorkflowDomainID
@@ -273,6 +292,11 @@ func WorkflowFirstEventID(firstEventID int64) Tag {
 	return newInt64("wf-first-event-id", firstEventID)
 }
 
+// WorkflowLastEventID returns tag for WorkflowLastEventID
+func WorkflowLastEventID(lastEventID int64) Tag {
+	return newInt64("wf-last-event-id", lastEventID)
+}
+
 // WorkflowNextEventID returns tag for WorkflowNextEventID
 func WorkflowNextEventID(nextEventID int64) Tag {
 	return newInt64("wf-next-event-id", nextEventID)
@@ -281,6 +305,14 @@ func WorkflowNextEventID(nextEventID int64) Tag {
 // WorkflowResetNextEventID returns tag for WorkflowResetNextEventID
 func WorkflowResetNextEventID(resetNextEventID int64) Tag {
 	return newInt64("wf-reset-next-event-id", resetNextEventID)
+}
+
+func WorkflowExternalEntityType(externalEntityType string) Tag {
+	return newStringTag("wf-external-entity-type", externalEntityType)
+}
+
+func WorkflowExternalEntityKey(externalEntityKey string) Tag {
+	return newStringTag("wf-external-entity-key", externalEntityKey)
 }
 
 // history tree
@@ -401,11 +433,21 @@ func idType(idType string) Tag {
 	return newPredefinedStringTag("id-type", idType)
 }
 
+// queueType returns tag for queueType
+func queueType(queueType string) Tag {
+	return newPredefinedStringTag("queue-type", queueType)
+}
+
 // general
 
 // Service returns tag for Service
 func Service(sv string) Tag {
 	return newStringTag("service", sv)
+}
+
+// DestService returns tag for destination service
+func DestService(sv string) Tag {
+	return newStringTag("dest-service", sv)
 }
 
 // Addresses returns tag for Addresses
@@ -446,6 +488,11 @@ func Mode(mode string) Tag {
 // Value returns tag for Value
 func Value(v interface{}) Tag {
 	return newObjectTag("value", v)
+}
+
+// Reason returns tag for Reason
+func Reason(reason string) Tag {
+	return newStringTag("reason", reason)
 }
 
 // ValueType returns tag for ValueType
@@ -525,6 +572,11 @@ func RequestCaller(callerName string) Tag {
 	return newStringTag("request-caller", callerName)
 }
 
+// ActorType returns type of the actor (service or user) making this request
+func ActorType(actorType string) Tag {
+	return newStringTag("actor-type", actorType)
+}
+
 // ActorID returns tag for the actor ID
 func ActorID(actorID string) Tag {
 	return newStringTag("actor-id", actorID)
@@ -533,6 +585,10 @@ func ActorID(actorID string) Tag {
 // ActorEmail returns tag for the actor's email address
 func ActorEmail(actorEmail string) Tag {
 	return newStringTag("actor-email", actorEmail)
+}
+
+func IsShadowModeEnabled(isShadow bool) Tag {
+	return newBoolTag("is-shadow-mode-enabled", isShadow)
 }
 
 // HandlerCall returns tag for the API name of a request
@@ -845,6 +901,39 @@ func ResponseMaxSize(size int) Tag {
 	return newInt("response-max-size", size)
 }
 
+// ReplicationMessagesTotalSize returns tag for ReplicationMessagesTotalSize
+// Should be used to indicate the final size of types.ReplicationMessages
+func ReplicationMessagesTotalSize(size int) Tag {
+	return newInt("replication-messages-total-size", size)
+}
+
+// ReplicationMessagesMaxSize returns tag for ReplicationMessagesMaxSize
+// Should be used to indicate maximum allowed size of types.ReplicationMessages
+func ReplicationMessagesMaxSize(size int) Tag {
+	return newInt("replication-messages-max-size", size)
+}
+
+// ReplicationTaskID returns tag for ReplicationTaskID
+// Should be used to indicate id of a types.ReplicationTask
+func ReplicationTaskID(id int64) Tag {
+	return newInt64("replication-task-id", id)
+}
+
+// ReplicationTaskCreationTime returns tag for ReplicationTaskCreationTime
+// Should be used to indicate CreationTime of a types.ReplicationTask
+func ReplicationTaskCreationTime(creationTime *int64) Tag {
+	if creationTime == nil {
+		return newStringTag("replication-task-creation-time", "nil")
+	}
+	return newInt64("replication-task-creation-time", *creationTime)
+}
+
+// ReplicationTaskBatchSize returns tag for task batch size
+// Should be used to indicate used batch size for replication task processing
+func ReplicationTaskBatchSize(batchSize int) Tag {
+	return newInt("replication-task-batch-size", batchSize)
+}
+
 // /////////////////  Archival tags defined here: archival- ///////////////////
 // archival request tags
 
@@ -977,6 +1066,14 @@ func IsolationGroup(group string) Tag {
 	return newStringTag("isolation-group", group)
 }
 
+func TaskLatency(duration time.Duration) Tag {
+	return newDurationTag("task-latency", duration)
+}
+
+func IsolationDuration(duration time.Duration) Tag {
+	return newDurationTag("isolation-duration", duration)
+}
+
 func PartitionConfig(p map[string]string) Tag {
 	return newObjectTag("partition-config", p)
 }
@@ -1001,6 +1098,10 @@ func AsyncWFQueueID(queueID string) Tag {
 	return newStringTag("async-wf-queue-id", queueID)
 }
 
+func AsyncWFRequestType(requestType string) Tag {
+	return newStringTag("async-wf-request-type", requestType)
+}
+
 func GlobalRatelimiterKey(globalKey string) Tag {
 	return newStringTag("global-ratelimit-key", globalKey)
 }
@@ -1015,4 +1116,141 @@ func GlobalRatelimiterCollectionName(name string) Tag {
 }
 func GlobalRatelimiterPeer(peer string) Tag {
 	return newStringTag("global-ratelimit-peer", peer)
+}
+
+func CurrentQPS(qps float64) Tag {
+	return newFloat64Tag("current-qps", qps)
+}
+
+func NumReadPartitions(n int) Tag {
+	return newInt("num-read-partitions", n)
+}
+
+func NumWritePartitions(n int) Tag {
+	return newInt("num-write-partitions", n)
+}
+
+func ReadChanged(b bool) Tag {
+	return newBoolTag("read-changed", b)
+}
+
+func WriteChanged(b bool) Tag {
+	return newBoolTag("write-changed", b)
+}
+
+func IsolationChanged(b bool) Tag {
+	return newBoolTag("isolation-changed", b)
+}
+
+func CurrentNumReadPartitions(n int) Tag {
+	return newInt("current-num-read-partitions", n)
+}
+
+func CurrentNumWritePartitions(n int) Tag {
+	return newInt("current-num-write-partitions", n)
+}
+
+func PartitionUpscaleThreshold(qps float64) Tag {
+	return newFloat64Tag("partition-upscale-threshold", qps)
+}
+
+func PartitionDownscaleThreshold(qps float64) Tag {
+	return newFloat64Tag("partition-downscale-threshold", qps)
+}
+
+func PartitionDownscaleFactor(qps float64) Tag {
+	return newFloat64Tag("partition-downscale-factor", qps)
+}
+
+func MatchingTaskID(id int64) Tag {
+	return newInt64("matching-task-id", id)
+}
+
+func MatchingTaskScheduleID(id int64) Tag {
+	return newInt64("matching-task-schedule-id", id)
+}
+
+func DecisionTaskState(state int32) Tag {
+	return newInt32("decision-task-state", state)
+}
+
+func ActivityTaskState(state int32) Tag {
+	return newInt32("activity-task-state", state)
+}
+
+func ShardNamespace(name string) Tag {
+	return newStringTag("shard-namespace", name)
+}
+
+func ShardExecutor(ID string) Tag {
+	return newStringTag("shard-executor", ID)
+}
+
+func ShardExecutors(executorIDs []string) Tag {
+	return newStringsTag("shard-executors", executorIDs)
+}
+
+func ShardKey(shardKey string) Tag {
+	return newStringTag("shard-key", shardKey)
+}
+
+func ShardStatus(status string) Tag {
+	return newStringTag("shard-status", status)
+}
+func ShardLoad(load string) Tag {
+	return newStringTag("shard-load", load)
+}
+
+func ElectionDelay(t time.Duration) Tag {
+	return newDurationTag("election-delay", t)
+}
+
+func WorkflowContextLockLatency(duration time.Duration) Tag {
+	return newDurationTag("workflow-context-lock-latency", duration)
+}
+
+// DynamicConfigLinearIteratorSpec is a predefined tag to log dynamic config linear iterator spec
+func DynamicConfigLinearIteratorSpec(spec interface{}) Tag {
+	return newObjectTag("dynamic-config-linear-iterator-spec", spec)
+}
+
+func HashRingResult(addr string) Tag {
+	return newStringTag("hashring-result", addr)
+}
+
+func ShardDistributorResult(addr string) Tag {
+	return newStringTag("shard-distributor-result", addr)
+}
+
+// PeerHostname returns a tag for peer hostname
+func PeerHostname(hostname string) Tag {
+	return newStringTag("peer-hostname", hostname)
+}
+
+// PendingTaskCount returns a tag for pending task count
+func PendingTaskCount(count int) Tag {
+	return newInt("pending-task-count", count)
+}
+
+// MaxTaskCount returns a tag for max task count
+func MaxTaskCount(count int) Tag {
+	return newInt("max-task-count", count)
+}
+
+// VirtualQueueID returns a tag for virtual queue id
+func VirtualQueueID(id int64) Tag {
+	return newInt64("virtual-queue-id", id)
+}
+
+func AlertType(alertType int) Tag {
+	return newInt("alert-type", alertType)
+}
+
+// CacheID returns a tag for cache identifier
+func CacheID(cacheID string) Tag {
+	return newStringTag("cache-id", cacheID)
+}
+
+func DomainAuditOperationType(operationType fmt.Stringer) Tag {
+	return newStringTag("domain-audit-operation-type", operationType.String())
 }

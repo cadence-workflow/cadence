@@ -23,7 +23,11 @@
 package matching
 
 import (
+	"strings"
+
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -34,7 +38,7 @@ type (
 		defaultLoadBalancer  LoadBalancer
 		loadBalancers        map[string]LoadBalancer
 		domainIDToName       func(string) (string, error)
-		loadbalancerStrategy dynamicconfig.StringPropertyFnWithTaskListInfoFilters
+		loadbalancerStrategy dynamicproperties.StringPropertyFnWithTaskListInfoFilters
 		logger               log.Logger
 	}
 )
@@ -50,66 +54,74 @@ func NewMultiLoadBalancer(
 		defaultLoadBalancer:  defaultLoadBalancer,
 		loadBalancers:        loadBalancers,
 		domainIDToName:       domainIDToName,
-		loadbalancerStrategy: dc.GetStringPropertyFilteredByTaskListInfo(dynamicconfig.TasklistLoadBalancerStrategy),
+		loadbalancerStrategy: dc.GetStringPropertyFilteredByTaskListInfo(dynamicproperties.TasklistLoadBalancerStrategy),
 		logger:               logger,
 	}
 }
 
 func (lb *multiLoadBalancer) PickWritePartition(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req WriteRequest,
 ) string {
-	domainName, err := lb.domainIDToName(domainID)
-	if err != nil {
-		return lb.defaultLoadBalancer.PickWritePartition(domainID, taskList, taskListType, forwardedFrom)
+	if !lb.canRedirectToPartition(req) {
+		return req.GetTaskList().GetName()
 	}
-	strategy := lb.loadbalancerStrategy(domainName, taskList.GetName(), taskListType)
+	domainName, err := lb.domainIDToName(req.GetDomainUUID())
+	if err != nil {
+		return lb.defaultLoadBalancer.PickWritePartition(taskListType, req)
+	}
+	strategy := lb.loadbalancerStrategy(domainName, req.GetTaskList().GetName(), taskListType)
 	loadBalancer, ok := lb.loadBalancers[strategy]
 	if !ok {
 		lb.logger.Warn("unsupported load balancer strategy", tag.Value(strategy))
-		return lb.defaultLoadBalancer.PickWritePartition(domainID, taskList, taskListType, forwardedFrom)
+		return lb.defaultLoadBalancer.PickWritePartition(taskListType, req)
 	}
-	return loadBalancer.PickWritePartition(domainID, taskList, taskListType, forwardedFrom)
+	return loadBalancer.PickWritePartition(taskListType, req)
 }
 
 func (lb *multiLoadBalancer) PickReadPartition(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req ReadRequest,
+	isolationGroup string,
 ) string {
-	domainName, err := lb.domainIDToName(domainID)
-	if err != nil {
-		return lb.defaultLoadBalancer.PickReadPartition(domainID, taskList, taskListType, forwardedFrom)
+	if !lb.canRedirectToPartition(req) {
+		return req.GetTaskList().GetName()
 	}
-	strategy := lb.loadbalancerStrategy(domainName, taskList.GetName(), taskListType)
+	domainName, err := lb.domainIDToName(req.GetDomainUUID())
+	if err != nil {
+		return lb.defaultLoadBalancer.PickReadPartition(taskListType, req, isolationGroup)
+	}
+	strategy := lb.loadbalancerStrategy(domainName, req.GetTaskList().GetName(), taskListType)
 	loadBalancer, ok := lb.loadBalancers[strategy]
 	if !ok {
 		lb.logger.Warn("unsupported load balancer strategy", tag.Value(strategy))
-		return lb.defaultLoadBalancer.PickReadPartition(domainID, taskList, taskListType, forwardedFrom)
+		return lb.defaultLoadBalancer.PickReadPartition(taskListType, req, isolationGroup)
 	}
-	return loadBalancer.PickReadPartition(domainID, taskList, taskListType, forwardedFrom)
+	return loadBalancer.PickReadPartition(taskListType, req, isolationGroup)
 }
 
 func (lb *multiLoadBalancer) UpdateWeight(
-	domainID string,
-	taskList types.TaskList,
 	taskListType int,
-	forwardedFrom string,
+	req ReadRequest,
 	partition string,
-	weight int64,
+	info *types.LoadBalancerHints,
 ) {
-	domainName, err := lb.domainIDToName(domainID)
+	if !lb.canRedirectToPartition(req) {
+		return
+	}
+	domainName, err := lb.domainIDToName(req.GetDomainUUID())
 	if err != nil {
 		return
 	}
-	strategy := lb.loadbalancerStrategy(domainName, taskList.GetName(), taskListType)
+	strategy := lb.loadbalancerStrategy(domainName, req.GetTaskList().GetName(), taskListType)
 	loadBalancer, ok := lb.loadBalancers[strategy]
 	if !ok {
 		lb.logger.Warn("unsupported load balancer strategy", tag.Value(strategy))
 		return
 	}
-	loadBalancer.UpdateWeight(domainID, taskList, taskListType, forwardedFrom, partition, weight)
+	loadBalancer.UpdateWeight(taskListType, req, partition, info)
+}
+
+func (lb *multiLoadBalancer) canRedirectToPartition(req ReadRequest) bool {
+	return req.GetForwardedFrom() == "" && req.GetTaskList().GetKind() == types.TaskListKindNormal && !strings.HasPrefix(req.GetTaskList().GetName(), constants.ReservedTaskListPrefix)
 }

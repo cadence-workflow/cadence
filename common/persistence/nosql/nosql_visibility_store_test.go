@@ -24,16 +24,19 @@ package nosql
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
+	"github.com/uber/cadence/common/types"
 )
 
 const (
@@ -48,7 +51,7 @@ const (
 func TestNewNoSQLVisibilityStore(t *testing.T) {
 	cfg := getValidShardedNoSQLConfig()
 
-	store, err := newNoSQLVisibilityStore(false, cfg, log.NewNoop(), nil)
+	store, err := newNoSQLVisibilityStore(false, cfg, log.NewNoop(), metrics.NewNoopMetricsClient(), nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, store)
 }
@@ -78,7 +81,22 @@ func setupNoSQLVisibilityStoreMocks(t *testing.T) (*nosqlVisibilityStore, *nosql
 	return visibilityStore, dbMock
 }
 
-func TestRecordWorkflowExecutionStarted(t *testing.T) {
+func TestRecordWorkflowExecutionStarted_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().InsertVisibility(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	err := visibilityStore.RecordWorkflowExecutionStarted(context.Background(), &persistence.InternalRecordWorkflowExecutionStartedRequest{
+		DomainUUID:       testDomainID,
+		WorkflowID:       testWorkflowID,
+		RunID:            testRunID,
+		WorkflowTypeName: testWorkflowTypeName,
+	})
+
+	assert.NoError(t, err)
+}
+
+func TestRecordWorkflowExecutionStarted_Failed(t *testing.T) {
 	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
 
 	db.EXPECT().InsertVisibility(gomock.Any(), gomock.Any(), gomock.Any()).Return(assert.AnError)
@@ -101,11 +119,24 @@ func TestRecordWorkflowExecutionStarted(t *testing.T) {
 		ShardID:            2,
 	})
 
-	assert.Error(t, err)
 	assert.ErrorContains(t, err, "RecordWorkflowExecutionStarted failed. Error:")
 }
 
-func TestRecordWorkflowExecutionClosed(t *testing.T) {
+func TestRecordWorkflowExecutionClosed_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().UpdateVisibility(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	err := visibilityStore.RecordWorkflowExecutionClosed(context.Background(), &persistence.InternalRecordWorkflowExecutionClosedRequest{
+		DomainUUID:       testDomainID,
+		WorkflowID:       testWorkflowID,
+		RunID:            testRunID,
+		WorkflowTypeName: testWorkflowTypeName,
+	})
+
+	assert.NoError(t, err)
+}
+func TestRecordWorkflowExecutionClosed_Failed(t *testing.T) {
 	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
 
 	db.EXPECT().UpdateVisibility(gomock.Any(), gomock.Any(), gomock.Any()).Return(assert.AnError)
@@ -127,7 +158,6 @@ func TestRecordWorkflowExecutionClosed(t *testing.T) {
 		ShardID:            2,
 	})
 
-	assert.Error(t, err)
 	assert.ErrorContains(t, err, "RecordWorkflowExecutionClosed failed. Error:")
 }
 
@@ -159,23 +189,11 @@ func TestListOpenWorkflowExecutions_Success(t *testing.T) {
 
 	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
 		Executions: []*nosqlplugin.VisibilityRow{{
-			DomainID:         testDomainID,
-			WorkflowType:     testWorkflowTypeName,
-			WorkflowID:       testWorkflowID,
-			RunID:            testRunID,
-			TypeName:         "test-name",
-			StartTime:        time.Time{},
-			ExecutionTime:    time.Time{},
-			CloseTime:        time.Time{},
-			Status:           nil,
-			HistoryLength:    2,
-			Memo:             nil,
-			TaskList:         testTaskListName,
-			IsCron:           false,
-			NumClusters:      0,
-			UpdateTime:       time.Time{},
-			SearchAttributes: nil,
-			ShardID:          2,
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+			WorkflowID:   testWorkflowID,
+			RunID:        testRunID,
+			TypeName:     "test-name",
 		}},
 		NextPageToken: nil,
 	}, nil)
@@ -208,8 +226,336 @@ func TestListOpenWorkflowExecutions_Failed(t *testing.T) {
 		NextPageToken: nil,
 	})
 
-	assert.Error(t, err)
 	assert.ErrorContains(t, err, "ListOpenWorkflowExecutions failed. Error:")
+}
+
+func TestListClosedWorkflowExecutions_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+	visibilityStore.sortByCloseTime = true
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
+		Executions: []*nosqlplugin.VisibilityRow{{
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+			WorkflowID:   testWorkflowID,
+			RunID:        testRunID,
+			TypeName:     "test-name",
+		}},
+		NextPageToken: nil,
+	}, nil)
+
+	response, err := visibilityStore.ListClosedWorkflowExecutions(context.Background(), &persistence.InternalListWorkflowExecutionsRequest{
+		DomainUUID:    testDomainID,
+		Domain:        testDomainName,
+		EarliestTime:  time.Time{},
+		LatestTime:    time.Time{},
+		PageSize:      2,
+		NextPageToken: nil,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(response.Executions), 1)
+}
+
+func TestListClosedWorkflowExecutions_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.ListClosedWorkflowExecutions(context.Background(), &persistence.InternalListWorkflowExecutionsRequest{
+		DomainUUID:    testDomainID,
+		Domain:        testDomainName,
+		EarliestTime:  time.Time{},
+		LatestTime:    time.Time{},
+		PageSize:      2,
+		NextPageToken: nil,
+	})
+
+	assert.ErrorContains(t, err, "ListClosedWorkflowExecutions failed. Error:")
+}
+
+func TestListOpenWorkflowExecutionsByType_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
+		Executions: []*nosqlplugin.VisibilityRow{{
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+		}},
+		NextPageToken: nil,
+	}, nil)
+
+	response, err := visibilityStore.ListOpenWorkflowExecutionsByType(context.Background(), &persistence.InternalListWorkflowExecutionsByTypeRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowTypeName: testWorkflowTypeName,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(response.Executions), 1)
+}
+
+func TestListOpenWorkflowExecutionsByType_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.ListOpenWorkflowExecutionsByType(context.Background(), &persistence.InternalListWorkflowExecutionsByTypeRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowTypeName: testWorkflowTypeName,
+	})
+
+	assert.ErrorContains(t, err, "ListOpenWorkflowExecutionsByType failed. Error:")
+}
+
+func TestListClosedWorkflowExecutionsByType_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+	visibilityStore.sortByCloseTime = true
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
+		Executions: []*nosqlplugin.VisibilityRow{{
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+		}},
+		NextPageToken: nil,
+	}, nil)
+
+	response, err := visibilityStore.ListClosedWorkflowExecutionsByType(context.Background(), &persistence.InternalListWorkflowExecutionsByTypeRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowTypeName: testWorkflowTypeName,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(response.Executions))
+}
+
+func TestListClosedWorkflowExecutionsByType_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.ListClosedWorkflowExecutionsByType(context.Background(), &persistence.InternalListWorkflowExecutionsByTypeRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowTypeName: testWorkflowTypeName,
+	})
+
+	assert.ErrorContains(t, err, "ListClosedWorkflowExecutionsByType failed. Error:")
+}
+
+func TestListOpenWorkflowExecutionsByWorkflowID_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
+		Executions: []*nosqlplugin.VisibilityRow{{
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+		}},
+		NextPageToken: nil,
+	}, nil)
+
+	response, err := visibilityStore.ListOpenWorkflowExecutionsByWorkflowID(context.Background(), &persistence.InternalListWorkflowExecutionsByWorkflowIDRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowID: testWorkflowID,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(response.Executions), 1)
+}
+
+func TestListOpenWorkflowExecutionsByWorkflowID_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.ListOpenWorkflowExecutionsByWorkflowID(context.Background(), &persistence.InternalListWorkflowExecutionsByWorkflowIDRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowID: testWorkflowID,
+	})
+
+	assert.ErrorContains(t, err, "ListOpenWorkflowExecutionsByWorkflowID failed. Error:")
+}
+
+func TestListClosedWorkflowExecutionsByWorkflowID_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+	visibilityStore.sortByCloseTime = true
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
+		Executions: []*nosqlplugin.VisibilityRow{{
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+		}},
+		NextPageToken: nil,
+	}, nil)
+
+	response, err := visibilityStore.ListClosedWorkflowExecutionsByWorkflowID(context.Background(), &persistence.InternalListWorkflowExecutionsByWorkflowIDRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowID: testWorkflowID,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(response.Executions), 1)
+}
+
+func TestListClosedWorkflowExecutionsByWorkflowID_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.ListClosedWorkflowExecutionsByWorkflowID(context.Background(), &persistence.InternalListWorkflowExecutionsByWorkflowIDRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		WorkflowID: testWorkflowID,
+	})
+
+	assert.ErrorContains(t, err, "ListClosedWorkflowExecutionsByWorkflowID failed. Error:")
+}
+
+func TestListClosedWorkflowExecutionsByStatus_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+	visibilityStore.sortByCloseTime = true
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(&nosqlplugin.SelectVisibilityResponse{
+		Executions: []*nosqlplugin.VisibilityRow{{
+			DomainID:     testDomainID,
+			WorkflowType: testWorkflowTypeName,
+		}},
+		NextPageToken: nil,
+	}, nil)
+
+	response, err := visibilityStore.ListClosedWorkflowExecutionsByStatus(context.Background(), &persistence.InternalListClosedWorkflowExecutionsByStatusRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		Status: 0,
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(response.Executions), 1)
+}
+
+func TestListClosedWorkflowExecutionsByStatus_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectVisibility(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.ListClosedWorkflowExecutionsByStatus(context.Background(), &persistence.InternalListClosedWorkflowExecutionsByStatusRequest{
+		InternalListWorkflowExecutionsRequest: persistence.InternalListWorkflowExecutionsRequest{
+			DomainUUID: testDomainID,
+		},
+		Status: 0,
+	})
+
+	assert.ErrorContains(t, err, "ListClosedWorkflowExecutionsByStatus failed. Error:")
+}
+
+func TestGetClosedWorkflowExecution_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectOneClosedWorkflow(gomock.Any(), testDomainID, testWorkflowID, testRunID).Return(&nosqlplugin.VisibilityRow{
+		DomainID:     testDomainID,
+		WorkflowType: testWorkflowTypeName,
+		WorkflowID:   testWorkflowID,
+		RunID:        testRunID,
+		TypeName:     "test-name",
+	}, nil)
+
+	response, err := visibilityStore.GetClosedWorkflowExecution(context.Background(), &persistence.InternalGetClosedWorkflowExecutionRequest{
+		DomainUUID: testDomainID,
+		Domain:     testWorkflowID,
+		Execution: types.WorkflowExecution{
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.Equal(t, testWorkflowID, response.Execution.WorkflowID)
+}
+
+func TestGetClosedWorkflowExecution_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectOneClosedWorkflow(gomock.Any(), testDomainID, testWorkflowID, testRunID).Return(nil, assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	_, err := visibilityStore.GetClosedWorkflowExecution(context.Background(), &persistence.InternalGetClosedWorkflowExecutionRequest{
+		DomainUUID: testDomainID,
+		Domain:     testWorkflowID,
+		Execution: types.WorkflowExecution{
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+	})
+
+	assert.ErrorContains(t, err, "GetClosedWorkflowExecution failed. Error:")
+}
+
+func TestGetClosedWorkflowExecution_Failed_Special_Case(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().SelectOneClosedWorkflow(gomock.Any(), testDomainID, testWorkflowID, testRunID).Return(nil, nil)
+
+	_, err := visibilityStore.GetClosedWorkflowExecution(context.Background(), &persistence.InternalGetClosedWorkflowExecutionRequest{
+		DomainUUID: testDomainID,
+		Domain:     testWorkflowID,
+		Execution: types.WorkflowExecution{
+			WorkflowID: testWorkflowID,
+			RunID:      testRunID,
+		},
+	})
+
+	assert.ErrorContains(t, err, fmt.Sprintf("Workflow execution not found.  WorkflowId: %v, RunId: %v", testWorkflowID, testRunID))
+}
+
+func TestDeleteWorkflowExecution_Success(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().DeleteVisibility(gomock.Any(), testDomainID, testWorkflowID, testRunID).Return(nil)
+
+	err := visibilityStore.DeleteWorkflowExecution(context.Background(), &persistence.VisibilityDeleteWorkflowExecutionRequest{
+		DomainID:   testDomainID,
+		Domain:     testDomainName,
+		RunID:      testRunID,
+		WorkflowID: testWorkflowID,
+	})
+
+	assert.NoError(t, err)
+}
+
+func TestDeleteWorkflowExecution_Failed(t *testing.T) {
+	visibilityStore, db := setupNoSQLVisibilityStoreMocks(t)
+
+	db.EXPECT().DeleteVisibility(gomock.Any(), testDomainID, testWorkflowID, testRunID).Return(assert.AnError)
+	db.EXPECT().IsNotFoundError(assert.AnError).Return(true)
+
+	err := visibilityStore.DeleteWorkflowExecution(context.Background(), &persistence.VisibilityDeleteWorkflowExecutionRequest{
+		DomainID:   testDomainID,
+		Domain:     testDomainName,
+		RunID:      testRunID,
+		WorkflowID: testWorkflowID,
+	})
+
+	assert.ErrorContains(t, err, "DeleteWorkflowExecution failed. Error:")
 }
 
 func TestDeleteUninitializedWorkflowExecution(t *testing.T) {

@@ -364,7 +364,7 @@ func (p *pinotVisibilityMetricsClient) DeleteUninitializedWorkflowExecution(
 	return err
 }
 
-func (p *pinotVisibilityMetricsClient) updateErrorMetric(scopeWithDomainTag metrics.Scope, scope int, err error) {
+func (p *pinotVisibilityMetricsClient) updateErrorMetric(scopeWithDomainTag metrics.Scope, scope metrics.ScopeIdx, err error) {
 
 	switch err.(type) {
 	case *types.BadRequestError:
@@ -375,7 +375,7 @@ func (p *pinotVisibilityMetricsClient) updateErrorMetric(scopeWithDomainTag metr
 		scopeWithDomainTag.IncCounter(metrics.PinotErrBusyCounterPerDomain)
 		scopeWithDomainTag.IncCounter(metrics.PinotFailuresPerDomain)
 	default:
-		p.logger.Error("Operation failed with internal error.", tag.MetricScope(scope), tag.Error(err))
+		p.logger.Error("Operation failed with internal error.", tag.MetricScope(int(scope)), tag.Error(err))
 		scopeWithDomainTag.IncCounter(metrics.PinotFailuresPerDomain)
 	}
 }

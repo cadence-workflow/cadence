@@ -22,10 +22,12 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -35,16 +37,20 @@ import (
 
 type (
 	standbyActionFn     func(context.Context, execution.Context, execution.MutableState) (interface{}, error)
-	standbyPostActionFn func(context.Context, Info, interface{}, log.Logger) error
+	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
 
-	standbyCurrentTimeFn func() time.Time
+	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
+)
+
+var (
+	errDomainBecomesActive = errors.New("domain becomes active when processing task as standby")
 )
 
 func standbyTaskPostActionNoOp(
 	ctx context.Context,
-	taskInfo Info,
+	taskInfo persistence.Task,
 	postActionInfo interface{},
-	_ log.Logger,
+	logger log.Logger,
 ) error {
 
 	if postActionInfo == nil {
@@ -52,12 +58,20 @@ func standbyTaskPostActionNoOp(
 	}
 
 	// return error so task processing logic will retry
+	logger.Debug("standbyTaskPostActionNoOp return redispatch error so task processing logic will retry",
+		tag.WorkflowID(taskInfo.GetWorkflowID()),
+		tag.WorkflowRunID(taskInfo.GetRunID()),
+		tag.WorkflowDomainID(taskInfo.GetDomainID()),
+		tag.TaskID(taskInfo.GetTaskID()),
+		tag.TaskType(taskInfo.GetTaskType()),
+		tag.FailoverVersion(taskInfo.GetVersion()),
+		tag.Timestamp(taskInfo.GetVisibilityTimestamp()))
 	return &redispatchError{Reason: fmt.Sprintf("post action is %T", postActionInfo)}
 }
 
-func standbyTransferTaskPostActionTaskDiscarded(
+func standbyTaskPostActionTaskDiscarded(
 	ctx context.Context,
-	taskInfo Info,
+	task persistence.Task,
 	postActionInfo interface{},
 	logger log.Logger,
 ) error {
@@ -66,41 +80,14 @@ func standbyTransferTaskPostActionTaskDiscarded(
 		return nil
 	}
 
-	transferTask := taskInfo.(*persistence.TransferTaskInfo)
-	logger.Error("Discarding standby transfer task due to task being pending for too long.",
-		tag.WorkflowID(transferTask.WorkflowID),
-		tag.WorkflowRunID(transferTask.RunID),
-		tag.WorkflowDomainID(transferTask.DomainID),
-		tag.TaskID(transferTask.TaskID),
-		tag.TaskType(transferTask.TaskType),
-		tag.FailoverVersion(transferTask.GetVersion()),
-		tag.Timestamp(transferTask.VisibilityTimestamp),
-		tag.WorkflowEventID(transferTask.ScheduleID))
-	return ErrTaskDiscarded
-}
-
-func standbyTimerTaskPostActionTaskDiscarded(
-	ctx context.Context,
-	taskInfo Info,
-	postActionInfo interface{},
-	logger log.Logger,
-) error {
-
-	if postActionInfo == nil {
-		return nil
-	}
-
-	timerTask := taskInfo.(*persistence.TimerTaskInfo)
-	logger.Error("Discarding standby timer task due to task being pending for too long.",
-		tag.WorkflowID(timerTask.WorkflowID),
-		tag.WorkflowRunID(timerTask.RunID),
-		tag.WorkflowDomainID(timerTask.DomainID),
-		tag.TaskID(timerTask.TaskID),
-		tag.TaskType(timerTask.TaskType),
-		tag.WorkflowTimeoutType(int64(timerTask.TimeoutType)),
-		tag.FailoverVersion(timerTask.GetVersion()),
-		tag.Timestamp(timerTask.VisibilityTimestamp),
-		tag.WorkflowEventID(timerTask.EventID))
+	logger.Error("Discarding standby task due to task being pending for too long.",
+		tag.WorkflowID(task.GetWorkflowID()),
+		tag.WorkflowRunID(task.GetRunID()),
+		tag.WorkflowDomainID(task.GetDomainID()),
+		tag.TaskID(task.GetTaskID()),
+		tag.TaskType(task.GetTaskType()),
+		tag.FailoverVersion(task.GetVersion()),
+		tag.Timestamp(task.GetVisibilityTimestamp()))
 	return ErrTaskDiscarded
 }
 
@@ -113,6 +100,7 @@ type (
 
 	pushActivityToMatchingInfo struct {
 		activityScheduleToStartTimeout int32
+		tasklist                       types.TaskList
 		partitionConfig                map[string]string
 	}
 
@@ -125,11 +113,13 @@ type (
 
 func newPushActivityToMatchingInfo(
 	activityScheduleToStartTimeout int32,
+	tasklist types.TaskList,
 	partitionConfig map[string]string,
 ) *pushActivityToMatchingInfo {
 
 	return &pushActivityToMatchingInfo{
 		activityScheduleToStartTimeout: activityScheduleToStartTimeout,
+		tasklist:                       tasklist,
 		partitionConfig:                partitionConfig,
 	}
 }
@@ -170,7 +160,8 @@ func getHistoryResendInfo(
 }
 
 func getStandbyPostActionFn(
-	taskInfo Info,
+	logger log.Logger,
+	taskInfo persistence.Task,
 	standbyNow standbyCurrentTimeFn,
 	standbyTaskMissingEventsResendDelay time.Duration,
 	standbyTaskMissingEventsDiscardDelay time.Duration,
@@ -178,22 +169,55 @@ func getStandbyPostActionFn(
 	discardTaskStandbyPostActionFn standbyPostActionFn,
 ) standbyPostActionFn {
 
-	// this is for task retry, use machine time
-	now := standbyNow()
 	taskTime := taskInfo.GetVisibilityTimestamp()
 	resendTime := taskTime.Add(standbyTaskMissingEventsResendDelay)
 	discardTime := taskTime.Add(standbyTaskMissingEventsDiscardDelay)
 
+	tags := []tag.Tag{
+		tag.WorkflowID(taskInfo.GetWorkflowID()),
+		tag.WorkflowRunID(taskInfo.GetRunID()),
+		tag.WorkflowDomainID(taskInfo.GetDomainID()),
+		tag.TaskID(taskInfo.GetTaskID()),
+		tag.TaskType(int(taskInfo.GetTaskType())),
+		tag.Timestamp(taskInfo.GetVisibilityTimestamp()),
+	}
+
+	now, err := standbyNow(taskInfo)
+	if err != nil {
+		tags = append(tags, tag.Error(err))
+		logger.Error("getStandbyPostActionFn error getting current time, fallback to standbyTaskPostActionNoOp", tags...)
+		return standbyTaskPostActionNoOp
+	}
+
 	// now < task start time + StandbyTaskMissingEventsResendDelay
 	if now.Before(resendTime) {
+		logger.Debug("getStandbyPostActionFn returning standbyTaskPostActionNoOp because now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
 		return standbyTaskPostActionNoOp
 	}
 
 	// task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay
 	if now.Before(discardTime) {
+		logger.Debug("getStandbyPostActionFn returning fetchHistoryStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
 		return fetchHistoryStandbyPostActionFn
 	}
 
 	// task start time + StandbyTaskMissingEventsResendDelay <= now
+	logger.Debug("getStandbyPostActionFn returning discardTaskStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now", tags...)
 	return discardTaskStandbyPostActionFn
+}
+
+func getRemoteClusterName(
+	ctx context.Context,
+	currentCluster string,
+	activeClusterMgr activecluster.Manager,
+	taskInfo persistence.Task,
+) (string, error) {
+	activeClusterInfo, err := activeClusterMgr.GetActiveClusterInfoByWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
+	if err != nil {
+		return "", err
+	}
+	if activeClusterInfo.ActiveClusterName == currentCluster {
+		return "", errDomainBecomesActive
+	}
+	return activeClusterInfo.ActiveClusterName, nil
 }

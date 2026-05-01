@@ -129,7 +129,7 @@ Loop:
 
 		actualDLQMsgs := map[int64]bool{}
 		request := persistence.NewGetReplicationTasksFromDLQRequest(
-			"standby", -1, math.MaxInt64, math.MaxInt64, nil,
+			"standby", 0, math.MaxInt64, math.MaxInt64, nil,
 		)
 		var token []byte
 		for doPaging := true; doPaging; doPaging = len(token) > 0 {
@@ -144,7 +144,9 @@ Loop:
 			token = response.NextPageToken
 
 			for _, task := range response.Tasks {
-				firstEventID := task.FirstEventID
+				t, ok := task.(*persistence.HistoryReplicationTask)
+				s.True(ok, "task is not a HistoryReplicationTask")
+				firstEventID := t.FirstEventID
 				actualDLQMsgs[firstEventID] = true
 			}
 		}

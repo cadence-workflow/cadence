@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -61,7 +61,7 @@ func (s *eventReapplicationSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	logger := testlogger.New(s.Suite.T())
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History)
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.reapplication = NewEventsReapplier(
 		metricsClient,
 		logger,

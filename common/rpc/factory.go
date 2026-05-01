@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/service"
 )
 
 const (
@@ -44,8 +45,15 @@ const (
 	factoryComponentName = "rpc-factory"
 )
 
+var (
+	// P2P outbounds are only needed for history and matching services
+	servicesToTalkP2P = []string{service.History, service.Matching}
+)
+
 // Factory is an implementation of rpc.Factory interface
 type FactoryImpl struct {
+	startOnce      sync.Once
+	stopOnce       sync.Once
 	maxMessageSize int
 	channel        tchannel.Channel
 	dispatcher     *yarpc.Dispatcher
@@ -59,7 +67,7 @@ type FactoryImpl struct {
 }
 
 // NewFactory builds a new rpc.Factory
-func NewFactory(logger log.Logger, p Params) *FactoryImpl {
+func NewFactory(logger log.Logger, p Params) Factory {
 	logger = logger.WithTags(tag.ComponentRPCFactory)
 
 	inbounds := yarpc.Inbounds{}
@@ -163,7 +171,7 @@ func (d *FactoryImpl) GetDispatcher() *yarpc.Dispatcher {
 	return d.dispatcher
 }
 
-// GetChannel returns Tchannel Channel used by Ringpop
+// GetTChannel GetChannel returns Tchannel Channel used by Ringpop
 func (d *FactoryImpl) GetTChannel() tchannel.Channel {
 	return d.channel
 }
@@ -176,47 +184,57 @@ func (d *FactoryImpl) GetMaxMessageSize() int {
 }
 
 func (d *FactoryImpl) Start(peerLister PeerLister) error {
-	// subscribe to membership changes and notify outbounds builder for peer updates
-	d.peerLister = peerLister
-	ch := make(chan *membership.ChangedEvent, 1)
-	if err := d.peerLister.Subscribe(d.serviceName, factoryComponentName, ch); err != nil {
-		return fmt.Errorf("rpc factory failed to subscribe to membership updates: %v", err)
-	}
-	d.wg.Add(1)
-	go d.listenMembershipChanges(ch)
-
-	return nil
+	var err error
+	d.startOnce.Do(func() {
+		d.peerLister = peerLister
+		// subscribe to membership changes for history and matching. This is needed to update the peers for rpc
+		for _, svc := range servicesToTalkP2P {
+			ch := make(chan *membership.ChangedEvent, 1)
+			if err = d.peerLister.Subscribe(svc, factoryComponentName, ch); err != nil {
+				err = fmt.Errorf("rpc factory failed to subscribe to membership updates for svc: %v, err: %w", svc, err)
+				return
+			}
+			d.wg.Add(1)
+			go d.listenMembershipChanges(svc, ch)
+		}
+	})
+	return err
 }
 
 func (d *FactoryImpl) Stop() error {
-	d.logger.Info("stopping rpc factory")
-	if err := d.peerLister.Unsubscribe(d.serviceName, factoryComponentName); err != nil {
-		d.logger.Error("rpc factory failed to unsubscribe from membership updates", tag.Error(err))
-	}
+	d.stopOnce.Do(func() {
+		d.logger.Info("stopping rpc factory")
 
-	d.cancelFn()
-	d.wg.Wait()
+		for _, svc := range servicesToTalkP2P {
+			if err := d.peerLister.Unsubscribe(svc, factoryComponentName); err != nil {
+				d.logger.Error("rpc factory failed to unsubscribe from membership updates", tag.Error(err), tag.Service(svc))
+			}
+		}
 
-	d.logger.Info("stopped rpc factory")
+		d.cancelFn()
+		d.wg.Wait()
+
+		d.logger.Info("stopped rpc factory")
+	})
 	return nil
 }
 
-func (d *FactoryImpl) listenMembershipChanges(ch chan *membership.ChangedEvent) {
+func (d *FactoryImpl) listenMembershipChanges(svc string, ch chan *membership.ChangedEvent) {
 	defer d.wg.Done()
 
 	for {
 		select {
 		case <-ch:
-			d.logger.Debug("rpc factory received membership changed event")
-			members, err := d.peerLister.Members(d.serviceName)
+			d.logger.Debug("rpc factory received membership changed event", tag.Service(svc))
+			members, err := d.peerLister.Members(svc)
 			if err != nil {
-				d.logger.Error("rpc factory failed to get members from membership resolver", tag.Error(err))
+				d.logger.Error("rpc factory failed to get members from membership resolver", tag.Error(err), tag.Service(svc))
 				continue
 			}
 
-			d.outbounds.UpdatePeers(members)
+			d.outbounds.UpdatePeers(svc, members)
 		case <-d.ctx.Done():
-			d.logger.Info("rpc factory stopped so listenMembershipChanges returning")
+			d.logger.Info("rpc factory stopped so listenMembershipChanges returning", tag.Service(svc))
 			return
 		}
 	}

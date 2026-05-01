@@ -20,19 +20,15 @@
 
 package types
 
-import "sort"
+import (
+	"sort"
+	"unsafe"
+)
 
 // AddSearchAttributeRequest is an internal type (TBD...)
 type AddSearchAttributeRequest struct {
 	SearchAttribute map[string]IndexedValueType `json:"searchAttribute,omitempty"`
 	SecurityToken   string                      `json:"securityToken,omitempty"`
-}
-
-func (v *AddSearchAttributeRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetSearchAttribute is an internal getter (TBD...)
@@ -54,13 +50,6 @@ type DescribeClusterResponse struct {
 type AdminDescribeWorkflowExecutionRequest struct {
 	Domain    string             `json:"domain,omitempty"`
 	Execution *WorkflowExecution `json:"execution,omitempty"`
-}
-
-func (v *AdminDescribeWorkflowExecutionRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -105,13 +94,6 @@ type GetWorkflowExecutionRawHistoryV2Request struct {
 	EndEventVersion   *int64             `json:"endEventVersion,omitempty"`
 	MaximumPageSize   int32              `json:"maximumPageSize,omitempty"`
 	NextPageToken     []byte             `json:"nextPageToken,omitempty"`
-}
-
-func (v *GetWorkflowExecutionRawHistoryV2Request) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -229,13 +211,6 @@ type ResendReplicationTasksRequest struct {
 	EndVersion    *int64 `json:"endVersion,omitempty"`
 }
 
-func (v *ResendReplicationTasksRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 // GetWorkflowID is an internal getter (TBD...)
 func (v *ResendReplicationTasksRequest) GetWorkflowID() (o string) {
 	if v != nil {
@@ -272,13 +247,6 @@ type GetDynamicConfigRequest struct {
 	Filters    []*DynamicConfigFilter `json:"filters,omitempty"`
 }
 
-func (v *GetDynamicConfigRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type GetDynamicConfigResponse struct {
 	Value *DataBlob `json:"value,omitempty"`
 }
@@ -288,23 +256,9 @@ type UpdateDynamicConfigRequest struct {
 	ConfigValues []*DynamicConfigValue `json:"configValues,omitempty"`
 }
 
-func (v *UpdateDynamicConfigRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type RestoreDynamicConfigRequest struct {
 	ConfigName string                 `json:"configName,omitempty"`
 	Filters    []*DynamicConfigFilter `json:"filters,omitempty"`
-}
-
-func (v *RestoreDynamicConfigRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 // AdminDeleteWorkflowRequest is an internal type (TBD...)
@@ -312,13 +266,6 @@ type AdminDeleteWorkflowRequest struct {
 	Domain     string             `json:"domain,omitempty"`
 	Execution  *WorkflowExecution `json:"execution,omitempty"`
 	SkipErrors bool               `json:"skipErrors,omitempty"`
-}
-
-func (v *AdminDeleteWorkflowRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 func (v *AdminDeleteWorkflowRequest) GetDomain() (o string) {
@@ -356,13 +303,6 @@ type ListDynamicConfigRequest struct {
 	ConfigName string `json:"configName,omitempty"`
 }
 
-func (v *ListDynamicConfigRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type ListDynamicConfigResponse struct {
 	Entries []*DynamicConfigEntry `json:"entries,omitempty"`
 }
@@ -378,6 +318,14 @@ const (
 type IsolationGroupPartition struct {
 	Name  string
 	State IsolationGroupState
+}
+
+// ByteSize returns an approximate size of the object in bytes
+func (i IsolationGroupPartition) ByteSize() uint64 {
+	var size uint64
+	size += uint64(unsafe.Sizeof(i))
+	size += uint64(len(i.Name))
+	return size
 }
 
 // IsolationGroupConfiguration is an internal representation of a set of
@@ -419,6 +367,19 @@ func (i IsolationGroupConfiguration) DeepCopy() IsolationGroupConfiguration {
 	return out
 }
 
+// ByteSize returns an approximate size of the object in bytes
+func (i *IsolationGroupConfiguration) ByteSize() uint64 {
+	if i == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*i))
+	for k, v := range *i {
+		size += uint64(len(k)) + uint64(len(v.Name))
+	}
+	return size
+}
+
 // FromIsolationGroupPartitionList maps a list of isolation to the internal IsolationGroup configuration type
 // whose map keys tend to be used more for set operations
 func FromIsolationGroupPartitionList(in []IsolationGroupPartition) IsolationGroupConfiguration {
@@ -434,13 +395,6 @@ func FromIsolationGroupPartitionList(in []IsolationGroupPartition) IsolationGrou
 
 type GetGlobalIsolationGroupsRequest struct{}
 
-func (v *GetGlobalIsolationGroupsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type GetGlobalIsolationGroupsResponse struct {
 	IsolationGroups IsolationGroupConfiguration
 }
@@ -449,24 +403,10 @@ type UpdateGlobalIsolationGroupsRequest struct {
 	IsolationGroups IsolationGroupConfiguration
 }
 
-func (v *UpdateGlobalIsolationGroupsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type UpdateGlobalIsolationGroupsResponse struct{}
 
 type GetDomainIsolationGroupsRequest struct {
 	Domain string
-}
-
-func (v *GetDomainIsolationGroupsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 type GetDomainIsolationGroupsResponse struct {
@@ -478,24 +418,10 @@ type UpdateDomainIsolationGroupsRequest struct {
 	IsolationGroups IsolationGroupConfiguration
 }
 
-func (v *UpdateDomainIsolationGroupsRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type UpdateDomainIsolationGroupsResponse struct{}
 
 type GetDomainAsyncWorkflowConfiguratonRequest struct {
 	Domain string
-}
-
-func (v *GetDomainAsyncWorkflowConfiguratonRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
 }
 
 type GetDomainAsyncWorkflowConfiguratonResponse struct {
@@ -520,17 +446,31 @@ func (c AsyncWorkflowConfiguration) DeepCopy() AsyncWorkflowConfiguration {
 	return res
 }
 
+// ByteSize returns an approximate size of the object in bytes
+func (c *AsyncWorkflowConfiguration) ByteSize() uint64 {
+	if c == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*c))
+	size += uint64(len(c.PredefinedQueueName))
+	size += uint64(len(c.QueueType))
+	size += c.QueueConfig.ByteSize()
+	return size
+}
+
 type UpdateDomainAsyncWorkflowConfiguratonRequest struct {
 	Domain        string
 	Configuration *AsyncWorkflowConfiguration
 }
 
-func (v *UpdateDomainAsyncWorkflowConfiguratonRequest) SerializeForLogging() (string, error) {
-	if v == nil {
-		return "", nil
-	}
-	return SerializeRequest(v)
-}
-
 type UpdateDomainAsyncWorkflowConfiguratonResponse struct {
 }
+
+type UpdateTaskListPartitionConfigRequest struct {
+	Domain          string
+	TaskList        *TaskList
+	TaskListType    *TaskListType
+	PartitionConfig *TaskListPartitionConfig
+}
+
+type UpdateTaskListPartitionConfigResponse struct{}

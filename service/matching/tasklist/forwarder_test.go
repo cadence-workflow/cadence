@@ -28,13 +28,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -43,12 +44,11 @@ import (
 
 type ForwarderTestSuite struct {
 	suite.Suite
-	controller      *gomock.Controller
-	client          *matching.MockClient
-	fwdr            *forwarderImpl
-	cfg             *config.ForwarderConfig
-	taskList        *Identifier
-	isolationGroups []string
+	controller *gomock.Controller
+	client     *matching.MockClient
+	fwdr       *forwarderImpl
+	cfg        *config.ForwarderConfig
+	taskList   *Identifier
 }
 
 func TestForwarderSuite(t *testing.T) {
@@ -67,8 +67,7 @@ func (t *ForwarderTestSuite) SetupTest() {
 	id, err := NewIdentifier("fwdr", "tl0", persistence.TaskListTypeDecision)
 	t.NoError(err)
 	t.taskList = id
-	t.isolationGroups = []string{"abc", "xyz"}
-	t.fwdr = newForwarder(t.cfg, t.taskList, types.TaskListKindNormal, t.client, t.isolationGroups, metrics.NoopScope(metrics.Matching)).(*forwarderImpl)
+	t.fwdr = newForwarder(t.cfg, t.taskList, types.TaskListKindNormal, t.client, metrics.NoopScope).(*forwarderImpl)
 }
 
 func (t *ForwarderTestSuite) TearDownTest() {
@@ -160,7 +159,7 @@ func (t *ForwarderTestSuite) TestForwardQueryTaskError() {
 func (t *ForwarderTestSuite) TestForwardQueryTask() {
 	t.usingTasklistPartition(persistence.TaskListTypeDecision)
 	task := newInternalQueryTask("id1", &types.MatchingQueryWorkflowRequest{})
-	resp := &types.QueryWorkflowResponse{}
+	resp := &types.MatchingQueryWorkflowResponse{}
 	var request *types.MatchingQueryWorkflowRequest
 	t.client.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Do(
 		func(arg0 context.Context, arg1 *types.MatchingQueryWorkflowRequest, option ...yarpc.CallOption) {
@@ -179,7 +178,7 @@ func (t *ForwarderTestSuite) TestForwardQueryTask() {
 func (t *ForwarderTestSuite) TestForwardQueryTaskRateNotEnforced() {
 	t.usingTasklistPartition(persistence.TaskListTypeActivity)
 	task := newInternalQueryTask("id1", &types.MatchingQueryWorkflowRequest{})
-	resp := &types.QueryWorkflowResponse{}
+	resp := &types.MatchingQueryWorkflowResponse{}
 	rps := 2
 	t.client.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).Return(resp, nil).Times(rps + 1)
 	for i := 0; i < rps; i++ {
@@ -279,44 +278,32 @@ func (t *ForwarderTestSuite) TestMaxOutstandingConcurrency() {
 			for i := 0; i < concurrency; i++ {
 				wg.Add(1)
 				go func() {
-					for i := 0; i < len(t.isolationGroups)+1; i++ {
-						select {
-						case token := <-t.fwdr.AddReqTokenC():
-							if !tc.mustLeakToken {
-								token.release("")
-							}
-							atomic.AddInt32(&adds, 1)
-						case <-time.After(time.Millisecond * 100):
-							break
+					select {
+					case token := <-t.fwdr.AddReqTokenC():
+						if !tc.mustLeakToken {
+							token.release()
 						}
+						atomic.AddInt32(&adds, 1)
+					case <-time.After(time.Millisecond * 100):
+						break
 					}
 
 					select {
-					case token := <-t.fwdr.PollReqTokenC(""):
+					case token := <-t.fwdr.PollReqTokenC():
 						if !tc.mustLeakToken {
-							token.release("")
+							token.release()
 						}
 						atomic.AddInt32(&polls, 1)
 					case <-time.After(time.Millisecond * 100):
 						break
 					}
-					for _, ig := range t.isolationGroups {
-						select {
-						case token := <-t.fwdr.PollReqTokenC(ig):
-							if !tc.mustLeakToken {
-								token.release(ig)
-							}
-							atomic.AddInt32(&polls, 1)
-						case <-time.After(time.Millisecond * 100):
-							break
-						}
-					}
+
 					wg.Done()
 				}()
 			}
 			t.True(common.AwaitWaitGroup(&wg, time.Second))
-			t.Equal(tc.output*int32(len(t.isolationGroups)+1), adds)
-			t.Equal(tc.output*int32(len(t.isolationGroups)+1), polls)
+			t.Equal(tc.output, adds)
+			t.Equal(tc.output, polls)
 		})
 	}
 }
@@ -334,9 +321,9 @@ func (t *ForwarderTestSuite) TestMaxOutstandingConfigUpdate() {
 		go func() {
 			<-startC
 			token1 := <-t.fwdr.AddReqTokenC()
-			token1.release("")
-			token2 := <-t.fwdr.PollReqTokenC("")
-			token2.release("")
+			token1.release()
+			token2 := <-t.fwdr.PollReqTokenC()
+			token2.release()
 			doneWG.Done()
 		}()
 	}
@@ -346,12 +333,12 @@ func (t *ForwarderTestSuite) TestMaxOutstandingConfigUpdate() {
 	close(startC)
 	t.True(common.AwaitWaitGroup(&doneWG, time.Second))
 
-	t.Equal(10*(len(t.isolationGroups)+1), cap(t.fwdr.addReqToken.Load().(*ForwarderReqToken).ch))
+	t.Equal(10, cap(t.fwdr.addReqToken.Load().(*ForwarderReqToken).ch))
 	t.Equal(10, cap(t.fwdr.pollReqToken.Load().(*ForwarderReqToken).ch))
 }
 
 func (t *ForwarderTestSuite) usingTasklistPartition(taskType int) {
-	t.taskList = NewTestTaskListID(t.T(), "fwdr", common.ReservedTaskListPrefix+"tl0/1", taskType)
+	t.taskList = NewTestTaskListID(t.T(), "fwdr", constants.ReservedTaskListPrefix+"tl0/1", taskType)
 	t.fwdr.taskListID = t.taskList
 }
 

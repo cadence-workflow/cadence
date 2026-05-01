@@ -37,8 +37,8 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -72,16 +72,20 @@ var (
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
 		},
-		&cli.StringFlag{
-			// TODO use StringSliceFlag instead
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringSliceFlag{
 			Name:    FlagClusters,
 			Aliases: []string{"cl"},
-			Usage:   "Clusters",
+			Usage:   FlagClustersUsage,
 		},
 		&cli.StringFlag{
 			Name:    FlagIsGlobalDomain,
 			Aliases: []string{"gd"},
-			Usage:   "Flag to indicate whether domain is a global domain. Default to true. Local domain is now legacy.",
+			Usage:   "Flag to indicate whether domain is a global domain (active-passive domain). Default to true. Local domain is now legacy.",
 			Value:   "true",
 		},
 		&cli.GenericFlag{
@@ -138,11 +142,15 @@ var (
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
 		},
-		&cli.StringFlag{
-			// TODO use StringSliceFlag instead
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringSliceFlag{
 			Name:    FlagClusters,
 			Aliases: []string{"cl"},
-			Usage:   "Clusters",
+			Usage:   FlagClustersUsage,
 		},
 		&cli.GenericFlag{
 			Name:  FlagDomainData,
@@ -199,6 +207,14 @@ var (
 		},
 	}
 
+	deleteDomainFlags = []cli.Flag{
+		&cli.StringFlag{
+			Name:    FlagSecurityToken,
+			Aliases: []string{"st"},
+			Usage:   "Optional token for security check",
+		},
+	}
+
 	deprecateDomainFlags = []cli.Flag{
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -248,6 +264,43 @@ var (
 		getFormatFlag(),
 	}
 
+	failoverDomainFlags = []cli.Flag{
+		&cli.StringFlag{
+			Name:    FlagActiveClusterName,
+			Aliases: []string{"ac"},
+			Usage:   "Active cluster name",
+		},
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringFlag{
+			Name:    FlagActiveClustersJSON,
+			Aliases: []string{"acs-json"},
+			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"region-us-east1":{"clusterAttributes":{"new-york":{"activeClusterName":"cluster1"}}}}}`,
+		},
+		&cli.StringFlag{
+			Name:    FlagFailoverReason,
+			Aliases: []string{"r"},
+			Usage:   "Reason for failover (for tracking and transparency)",
+		},
+	}
+
+	listFailoverHistoryFlags = []cli.Flag{
+		&cli.BoolFlag{
+			Name:    FlagAll,
+			Aliases: []string{"a"},
+			Usage:   "List all failover history events",
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintJSON,
+			Aliases: []string{"pjson"},
+			Usage:   "Print in raw JSON format",
+		},
+		getFormatFlag(),
+	}
+
 	adminDomainCommonFlags = getDBFlags()
 
 	adminRegisterDomainFlags = append(
@@ -257,6 +310,11 @@ var (
 
 	adminUpdateDomainFlags = append(
 		updateDomainFlags,
+		adminDomainCommonFlags...,
+	)
+
+	adminDeleteDomainFlags = append(
+		deleteDomainFlags,
 		adminDomainCommonFlags...,
 	)
 
@@ -291,7 +349,7 @@ func initializeAdminDomainHandler(c *cli.Context) (domain.Handler, error) {
 		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
 	}
 	clusterMetadata := initializeClusterMetadata(configuration, metricsClient, logger)
-	metadataMgr, err := initializeDomainManager(c)
+	metadataMgr, err := getDeps(c).initializeDomainManager(c)
 	if err != nil {
 		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
 	}
@@ -339,14 +397,15 @@ func initializeDomainHandler(
 ) domain.Handler {
 
 	domainConfig := domain.Config{
-		MinRetentionDays:  dynamicconfig.GetIntPropertyFn(dynamicconfig.MinRetentionDays.DefaultInt()),
-		MaxBadBinaryCount: dynamicconfig.GetIntPropertyFilteredByDomain(dynamicconfig.FrontendMaxBadBinaries.DefaultInt()),
-		FailoverCoolDown:  dynamicconfig.GetDurationPropertyFnFilteredByDomain(dynamicconfig.FrontendFailoverCoolDown.DefaultDuration()),
+		MinRetentionDays:  dynamicproperties.GetIntPropertyFn(dynamicproperties.MinRetentionDays.DefaultInt()),
+		MaxBadBinaryCount: dynamicproperties.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries.DefaultInt()),
+		FailoverCoolDown:  dynamicproperties.GetDurationPropertyFnFilteredByDomain(dynamicproperties.FrontendFailoverCoolDown.DefaultDuration()),
 	}
 	return domain.NewHandler(
 		domainConfig,
 		logger,
 		domainManager,
+		nil, // domainAuditManager not needed for CLI tools
 		clusterMetadata,
 		initializeDomainReplicator(logger),
 		archivalMetadata,
@@ -362,17 +421,13 @@ func initializeLogger(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zap logger, err: %w", err)
 	}
-	return loggerimpl.NewLogger(zapLogger), nil
+	return log.NewLogger(zapLogger), nil
 }
 
 func initializeClusterMetadata(serviceConfig *config.Config, metrics metrics.Client, logger log.Logger) cluster.Metadata {
-
 	clusterGroupMetadata := serviceConfig.ClusterGroupMetadata
 	return cluster.NewMetadata(
-		clusterGroupMetadata.FailoverVersionIncrement,
-		clusterGroupMetadata.PrimaryClusterName,
-		clusterGroupMetadata.CurrentClusterName,
-		clusterGroupMetadata.ClusterGroup,
+		*clusterGroupMetadata,
 		func(d string) bool { return false },
 		metrics,
 		logger,
@@ -461,7 +516,7 @@ func initializeDynamicConfig(
 }
 
 func initializeMetricsClient() metrics.Client {
-	return metrics.NewClient(tally.NoopScope, metrics.Common)
+	return metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{})
 }
 
 func getEnvironment(c *cli.Context) string {

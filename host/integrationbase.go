@@ -22,6 +22,7 @@ package host
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -33,15 +34,16 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/environment"
 )
@@ -51,18 +53,20 @@ type (
 	IntegrationBase struct {
 		suite.Suite
 
-		testCluster              *TestCluster
-		testClusterConfig        *TestClusterConfig
-		engine                   FrontendClient
-		adminClient              AdminClient
+		TestCluster              *TestCluster
+		TestClusterConfig        *TestClusterConfig
+		Engine                   FrontendClient
+		HistoryClient            HistoryClient
+		AdminClient              AdminClient
 		Logger                   log.Logger
-		domainName               string
-		secondaryDomainName      string
-		testRawHistoryDomainName string
-		foreignDomainName        string
-		archivalDomainName       string
-		defaultTestCluster       testcluster.PersistenceTestCluster
-		visibilityTestCluster    testcluster.PersistenceTestCluster
+		DomainName               string
+		SecondaryDomainName      string
+		TestRawHistoryDomainName string
+		ForeignDomainName        string
+		ArchivalDomainName       string
+		ActiveActiveDomainName   string
+		DefaultTestCluster       testcluster.PersistenceTestCluster
+		VisibilityTestCluster    testcluster.PersistenceTestCluster
 	}
 
 	IntegrationBaseParams struct {
@@ -75,16 +79,16 @@ type (
 
 func NewIntegrationBase(params IntegrationBaseParams) *IntegrationBase {
 	return &IntegrationBase{
-		defaultTestCluster:    params.DefaultTestCluster,
-		visibilityTestCluster: params.VisibilityTestCluster,
-		testClusterConfig:     params.TestClusterConfig,
+		DefaultTestCluster:    params.DefaultTestCluster,
+		VisibilityTestCluster: params.VisibilityTestCluster,
+		TestClusterConfig:     params.TestClusterConfig,
 	}
 }
 
 func (s *IntegrationBase) setupSuite() {
-	s.setupLogger()
+	s.SetupLogger()
 
-	if s.testClusterConfig.FrontendAddress != "" {
+	if s.TestClusterConfig.FrontendAddress != "" {
 		s.Logger.Info("Running integration test against specified frontend", tag.Address(TestFlags.FrontendAddr))
 		channel, err := tchannel.NewChannelTransport(tchannel.ServiceName("cadence-frontend"))
 		s.Require().NoError(err)
@@ -101,47 +105,68 @@ func (s *IntegrationBase) setupSuite() {
 			s.Logger.Fatal("Failed to create outbound transport channel", tag.Error(err))
 		}
 
-		s.engine = NewFrontendClient(dispatcher)
-		s.adminClient = NewAdminClient(dispatcher)
+		s.Engine = NewFrontendClient(dispatcher)
+		s.HistoryClient = NewHistoryClient(dispatcher)
+		s.AdminClient = NewAdminClient(dispatcher)
 	} else {
 		s.Logger.Info("Running integration test against test cluster")
-		clusterMetadata := NewClusterMetadata(s.T(), s.testClusterConfig)
+		clusterMetadata := NewClusterMetadata(s.T(), s.TestClusterConfig)
 		dc := persistence.DynamicConfiguration{
-			EnableSQLAsyncTransaction:                dynamicconfig.GetBoolPropertyFn(false),
-			EnableCassandraAllConsistencyLevelDelete: dynamicconfig.GetBoolPropertyFn(true),
-			PersistenceSampleLoggingRate:             dynamicconfig.GetIntPropertyFn(100),
-			EnableShardIDMetrics:                     dynamicconfig.GetBoolPropertyFn(true),
+			EnableSQLAsyncTransaction:                dynamicproperties.GetBoolPropertyFn(false),
+			EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
+			EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
+			EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
+			ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
+			SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
+			HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
 		}
 		params := pt.TestBaseParams{
-			DefaultTestCluster:    s.defaultTestCluster,
-			VisibilityTestCluster: s.visibilityTestCluster,
+			DefaultTestCluster:    s.DefaultTestCluster,
+			VisibilityTestCluster: s.VisibilityTestCluster,
 			ClusterMetadata:       clusterMetadata,
 			DynamicConfiguration:  dc,
 		}
-		cluster, err := NewCluster(s.T(), s.testClusterConfig, s.Logger, params)
+		cluster, err := NewCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 		s.Require().NoError(err)
-		s.testCluster = cluster
-		s.engine = s.testCluster.GetFrontendClient()
-		s.adminClient = s.testCluster.GetAdminClient()
+		s.TestCluster = cluster
+		s.Engine = s.TestCluster.GetFrontendClient()
+		s.HistoryClient = s.TestCluster.GetHistoryClient()
+		s.AdminClient = s.TestCluster.GetAdminClient()
 	}
-	s.testRawHistoryDomainName = "TestRawHistoryDomain"
-	s.domainName = s.randomizeStr("integration-test-domain")
+	s.TestRawHistoryDomainName = "TestRawHistoryDomain"
+	s.DomainName = s.RandomizeStr("integration-test-domain")
 	s.Require().NoError(
-		s.registerDomain(s.domainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+		s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.Require().NoError(
-		s.registerDomain(s.testRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
-	s.foreignDomainName = s.randomizeStr("integration-foreign-test-domain")
+		s.RegisterDomain(s.TestRawHistoryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
+	s.ForeignDomainName = s.RandomizeStr("integration-foreign-test-domain")
 	s.Require().NoError(
-		s.registerDomain(s.foreignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+		s.RegisterDomain(s.ForeignDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	s.Require().NoError(s.registerArchivalDomain())
+	s.ActiveActiveDomainName = s.RandomizeStr("integration-active-active-test-domain")
+	s.Require().NoError(s.RegisterDomain(s.ActiveActiveDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", &types.ActiveClusters{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"us-east": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+				},
+			},
+			"city": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"tokyo": {ActiveClusterName: s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()},
+				},
+			},
+		},
+	}))
 
 	// this sleep is necessary because domainv2 cache gets refreshed in the
 	// background only every domainCacheRefreshInterval period
 	time.Sleep(cache.DomainCacheRefreshInterval + time.Second)
 }
 
-func (s *IntegrationBase) setupLogger() {
+func (s *IntegrationBase) SetupLogger() {
 	s.Logger = testlogger.New(s.T())
 }
 
@@ -169,7 +194,7 @@ func GetTestClusterConfig(configFile string) (*TestClusterConfig, error) {
 
 	options.FrontendAddress = TestFlags.FrontendAddr
 	if options.ESConfig != nil {
-		options.ESConfig.Indices[common.VisibilityAppName] += uuid.New()
+		options.ESConfig.Indices[constants.VisibilityAppName] += uuid.New()
 	}
 	if options.Persistence.DBName == "" {
 		options.Persistence.DBName = "test_" + pt.GenerateRandomDBName(10)
@@ -201,26 +226,33 @@ func GetTestClusterConfigs(configFile string) ([]*TestClusterConfig, error) {
 	return clusterConfigs, nil
 }
 
-func (s *IntegrationBase) tearDownSuite() {
-	if s.testCluster != nil {
-		s.testCluster.TearDownCluster()
-		s.testCluster = nil
-		s.engine = nil
-		s.adminClient = nil
+func (s *IntegrationBase) TearDownBaseSuite() {
+	if s.TestCluster != nil {
+		s.TestCluster.TearDownCluster()
+		s.TestCluster = nil
+		s.Engine = nil
+		s.AdminClient = nil
 	}
 }
 
-func (s *IntegrationBase) registerDomain(
+func (s *IntegrationBase) RegisterDomain(
 	domain string,
 	retentionDays int,
 	historyArchivalStatus types.ArchivalStatus,
 	historyArchivalURI string,
 	visibilityArchivalStatus types.ArchivalStatus,
 	visibilityArchivalURI string,
+	activeClusters *types.ActiveClusters,
 ) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return s.engine.RegisterDomain(ctx, &types.RegisterDomainRequest{
+	isGlobalDomain := true
+	if TestFlags.SQLPluginName == sqlite.PluginName {
+		// There seems to be a bug in the SQLite plugin that causes integration tests to fail.
+		// EnqueueMessage operation failed.  Error: sqlite3: database is locked
+		isGlobalDomain = false
+	}
+	return s.Engine.RegisterDomain(ctx, &types.RegisterDomainRequest{
 		Name:                                   domain,
 		Description:                            domain,
 		WorkflowExecutionRetentionPeriodInDays: int32(retentionDays),
@@ -228,16 +260,18 @@ func (s *IntegrationBase) registerDomain(
 		HistoryArchivalURI:                     historyArchivalURI,
 		VisibilityArchivalStatus:               &visibilityArchivalStatus,
 		VisibilityArchivalURI:                  visibilityArchivalURI,
+		ActiveClusters:                         activeClusters,
+		IsGlobalDomain:                         isGlobalDomain,
 	})
 }
 
 func (s *IntegrationBase) domainCacheRefresh() {
-	s.testClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
+	s.TestClusterConfig.TimeSource.Advance(cache.DomainCacheRefreshInterval + time.Second)
 	// this sleep is necessary to yield execution to other goroutines. not 100% guaranteed to work
 	time.Sleep(2 * time.Second)
 }
 
-func (s *IntegrationBase) randomizeStr(id string) string {
+func (s *IntegrationBase) RandomizeStr(id string) string {
 	return fmt.Sprintf("%v-%v", id, uuid.New())
 }
 
@@ -245,13 +279,13 @@ func (s *IntegrationBase) printWorkflowHistory(domain string, execution *types.W
 	events := s.getHistory(domain, execution)
 	history := &types.History{}
 	history.Events = events
-	common.PrettyPrintHistory(history, s.Logger)
+	PrettyPrintHistory(history, s.Logger)
 }
 
 func (s *IntegrationBase) getHistory(domain string, execution *types.WorkflowExecution) []*types.HistoryEvent {
 	ctx, cancel := createContext()
 	defer cancel()
-	historyResponse, err := s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
 		Domain:          domain,
 		Execution:       execution,
 		MaximumPageSize: 5, // Use small page size to force pagination code path
@@ -261,7 +295,7 @@ func (s *IntegrationBase) getHistory(domain string, execution *types.WorkflowExe
 	events := historyResponse.History.Events
 	for historyResponse.NextPageToken != nil {
 		ctx, cancel := createContext()
-		historyResponse, err = s.engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		historyResponse, err = s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
 			Domain:        domain,
 			Execution:     execution,
 			NextPageToken: historyResponse.NextPageToken,
@@ -281,20 +315,20 @@ func (s *IntegrationBase) registerArchivalDomain() error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
-	s.archivalDomainName = s.randomizeStr("integration-archival-enabled-domain")
-	currentClusterName := s.testCluster.testBase.ClusterMetadata.GetCurrentClusterName()
+	s.ArchivalDomainName = s.RandomizeStr("integration-archival-enabled-domain")
+	currentClusterName := s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName()
 	domainRequest := &persistence.CreateDomainRequest{
 		Info: &persistence.DomainInfo{
 			ID:     uuid.New(),
-			Name:   s.archivalDomainName,
+			Name:   s.ArchivalDomainName,
 			Status: persistence.DomainStatusRegistered,
 		},
 		Config: &persistence.DomainConfig{
 			Retention:                0,
 			HistoryArchivalStatus:    types.ArchivalStatusEnabled,
-			HistoryArchivalURI:       s.testCluster.archiverBase.historyURI,
+			HistoryArchivalURI:       s.TestCluster.archiverBase.historyURI,
 			VisibilityArchivalStatus: types.ArchivalStatusEnabled,
-			VisibilityArchivalURI:    s.testCluster.archiverBase.visibilityURI,
+			VisibilityArchivalURI:    s.TestCluster.archiverBase.visibilityURI,
 			BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
 		},
 		ReplicationConfig: &persistence.DomainReplicationConfig{
@@ -304,14 +338,27 @@ func (s *IntegrationBase) registerArchivalDomain() error {
 			},
 		},
 		IsGlobalDomain:  false,
-		FailoverVersion: common.EmptyVersion,
+		FailoverVersion: constants.EmptyVersion,
 	}
-	response, err := s.testCluster.testBase.DomainManager.CreateDomain(ctx, domainRequest)
+	response, err := s.TestCluster.testBase.DomainManager.CreateDomain(ctx, domainRequest)
 	if err == nil {
 		s.Logger.Info("Register domain succeeded",
-			tag.WorkflowDomainName(s.archivalDomainName),
+			tag.WorkflowDomainName(s.ArchivalDomainName),
 			tag.WorkflowDomainID(response.ID),
 		)
 	}
 	return err
+}
+
+// PrettyPrintHistory prints history in human readable format
+func PrettyPrintHistory(history *types.History, logger log.Logger) {
+	data, err := json.MarshalIndent(history, "", "    ")
+
+	if err != nil {
+		logger.Error("Error serializing history: %v\n", tag.Error(err))
+	}
+
+	fmt.Println("******************************************")
+	fmt.Println("History", tag.DetailInfo(string(data)))
+	fmt.Println("******************************************")
 }

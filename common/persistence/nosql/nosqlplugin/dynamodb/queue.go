@@ -91,11 +91,7 @@ func (db *ddb) DeleteMessage(
 }
 
 // Insert an empty metadata row, starting from a version
-func (db *ddb) InsertQueueMetadata(
-	ctx context.Context,
-	queueType persistence.QueueType,
-	version int64,
-) error {
+func (db *ddb) InsertQueueMetadata(ctx context.Context, row nosqlplugin.QueueMetadataRow) error {
 	panic("TODO")
 }
 

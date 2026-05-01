@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
+	ringpopproviderconfig "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 )
 
 type (
@@ -66,12 +67,12 @@ var _ membership.PeerProvider = (*Provider)(nil)
 
 func New(
 	service string,
-	config *Config,
+	config *ringpopproviderconfig.Config,
 	channel tchannel.Channel,
 	portMap membership.PortMap,
 	logger log.Logger,
 ) (*Provider, error) {
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 

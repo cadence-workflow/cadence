@@ -25,14 +25,16 @@ package diagnostics
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/shared"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant"
+	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
 )
 
 func Test__Start(t *testing.T) {
@@ -56,5 +58,6 @@ func setuptest(t *testing.T) (DiagnosticsWorkflow, *resource.Test) {
 		ClientBean:    mockClientBean,
 		MetricsClient: nil,
 		TallyScope:    tally.TestScope(nil),
+		Invariants:    []invariant.Invariant{failure.NewInvariant()},
 	}), mockResource
 }

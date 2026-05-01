@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -174,6 +175,7 @@ type (
 		releaseFn execution.ReleaseFunc,
 		task replicationTask,
 		r *historyReplicatorImpl,
+		logger log.Logger,
 	) error
 
 	applyNonStartEventsToNoneCurrentBranchWithContinueAsNewFn func(
@@ -193,6 +195,8 @@ type (
 		task replicationTask,
 		transactionManager transactionManager,
 		clusterMetadata cluster.Metadata,
+		shard shard.Context,
+		logger log.Logger,
 	) error
 
 	applyNonStartEventsMissingMutableStateFn func(
@@ -283,6 +287,7 @@ func NewHistoryReplicator(
 				shard,
 				logger,
 				domainEntry,
+				constants.EmptyVersion,
 			)
 		},
 		newReplicationTaskFn:                                         newReplicationTask,
@@ -378,7 +383,7 @@ func (r *historyReplicatorImpl) applyEvents(
 					r.newStateBuilderFn, r.clusterMetadata, r.shard, r.logger, r.transactionManager)
 			}
 			// passed in r because there's a recursive call within applyNonStartEventsToNoneCurrentBranchWithContinueAsNew
-			return r.applyNonStartEventsToNoneCurrentBranchFn(ctx, context, mutableState, branchIndex, releaseFn, task, r)
+			return r.applyNonStartEventsToNoneCurrentBranchFn(ctx, context, mutableState, branchIndex, releaseFn, task, r, r.logger)
 
 		case *types.EntityNotExistsError:
 			// mutable state not created, check if is workflow reset
@@ -416,6 +421,7 @@ func applyStartEvents(
 		return err
 	}
 	requestID := uuid.New() // requestID used for start workflow execution request.  This is not on the history event.
+	// since it's replicated from the other cluster, we don't care the active cluster policy, because the failover version will be updated after ApplyEvents
 	mutableState := newMutableState(domainEntry, task.getLogger())
 	stateBuilder := newStateBuilder(mutableState, task.getLogger())
 
@@ -444,6 +450,7 @@ func applyStartEvents(
 			context,
 			mutableState,
 			releaseFn,
+			logger,
 		),
 	)
 	if err != nil {
@@ -551,6 +558,7 @@ func applyNonStartEventsToCurrentBranch(
 		context,
 		mutableState,
 		releaseFn,
+		logger,
 	)
 
 	var newWorkflow execution.Workflow
@@ -573,6 +581,7 @@ func applyNonStartEventsToCurrentBranch(
 			newContext,
 			newMutableState,
 			execution.NoopReleaseFn,
+			logger,
 		)
 	}
 
@@ -602,6 +611,7 @@ func applyNonStartEventsToNoneCurrentBranch(
 	releaseFn execution.ReleaseFunc,
 	task replicationTask,
 	r *historyReplicatorImpl,
+	logger log.Logger,
 ) error {
 
 	if len(task.getNewEvents()) != 0 {
@@ -623,6 +633,8 @@ func applyNonStartEventsToNoneCurrentBranch(
 		task,
 		r.transactionManager,
 		r.clusterMetadata,
+		r.shard,
+		logger,
 	)
 }
 
@@ -635,6 +647,8 @@ func applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 	task replicationTask,
 	transactionManager transactionManager,
 	clusterMetadata cluster.Metadata,
+	shard shard.Context,
+	logger log.Logger,
 ) error {
 
 	versionHistoryItem := persistence.NewVersionHistoryItem(
@@ -662,6 +676,7 @@ func applyNonStartEventsToNoneCurrentBranchWithoutContinueAsNew(
 			context,
 			mutableState,
 			releaseFn,
+			logger,
 		),
 		&persistence.WorkflowEvents{
 			DomainID:    task.getDomainID(),
@@ -815,6 +830,7 @@ func applyNonStartEventsResetWorkflow(
 		context,
 		mutableState,
 		execution.NoopReleaseFn,
+		logger,
 	)
 
 	err = transactionManager.createWorkflow(
@@ -847,6 +863,7 @@ func notify(
 	}
 	now = now.Add(-shard.GetConfig().StandbyClusterDelay())
 	shard.SetCurrentTime(clusterName, now)
+	logger.Debugf("History replicator setting current time to: %v for clusterName %v", now, clusterName)
 }
 
 func newNDCRetryTaskErrorWithHint(

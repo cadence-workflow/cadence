@@ -29,7 +29,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"regexp"
@@ -47,6 +46,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/authorization"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/types"
 )
@@ -70,9 +70,9 @@ func (j *JSONHistorySerializer) Deserialize(data []byte) (*types.History, error)
 }
 
 // GetHistory helper method to iterate over all pages and return complete list of history events
-func GetHistory(ctx context.Context, workflowClient frontend.Client, domain, workflowID, runID string) (*types.History, error) {
+func GetHistory(ctx context.Context, workflowClient frontend.Client, domain, workflowID, runID string, consistencyLevel *types.QueryConsistencyLevel) (*types.History, error) {
 	events := []*types.HistoryEvent{}
-	iterator, err := GetWorkflowHistoryIterator(ctx, workflowClient, domain, workflowID, runID, false, types.HistoryEventFilterTypeAllEvent.Ptr())
+	iterator, err := GetWorkflowHistoryIterator(ctx, workflowClient, domain, workflowID, runID, false, types.HistoryEventFilterTypeAllEvent.Ptr(), consistencyLevel)
 	for iterator.HasNext() {
 		entity, err := iterator.Next()
 		if err != nil {
@@ -94,6 +94,7 @@ func GetWorkflowHistoryIterator(
 	runID string,
 	isLongPoll bool,
 	filterType *types.HistoryEventFilterType,
+	consistencyLevel *types.QueryConsistencyLevel,
 ) (pagination.Iterator, error) {
 	paginate := func(ctx context.Context, pageToken pagination.PageToken) (pagination.Page, error) {
 		tcCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
@@ -113,6 +114,7 @@ func GetWorkflowHistoryIterator(
 			HistoryEventFilterType: filterType,
 			NextPageToken:          nextPageToken,
 			SkipArchival:           isLongPoll,
+			QueryConsistencyLevel:  consistencyLevel,
 		}
 
 		var resp *types.GetWorkflowExecutionHistoryResponse
@@ -483,8 +485,8 @@ func getCurrentUserFromEnv() string {
 func prettyPrintJSONObject(writer io.Writer, o interface{}) {
 	b, err := json.MarshalIndent(o, "", "  ")
 	if err != nil {
-		fmt.Printf("Error when try to print pretty: %v\n", err)
-		fmt.Println(o)
+		writer.Write([]byte(fmt.Sprintf("Error when try to print pretty: %v\n", err)))
+		writer.Write([]byte(fmt.Sprintf("%+v\n", o)))
 	}
 	writer.Write(b)
 	writer.Write([]byte("\n"))
@@ -506,26 +508,41 @@ func intSliceToSet(s []int) map[int]struct{} {
 	return ret
 }
 
-func printMessage(msg string) {
-	fmt.Printf("%s %s\n", "cadence:", msg)
+func printMessage(output io.Writer, msg string) {
+	output.Write([]byte(fmt.Sprintf("%s %s\n", "cadence:", msg)))
 }
 
-func printError(msg string, err error) {
+func printError(output io.Writer, msg string, err error) {
 	if err != nil {
-		fmt.Printf("%s %s\n%s %+v\n", colorRed("Error:"), msg, colorMagenta("Error Details:"), err)
+		output.Write([]byte(fmt.Sprintf("%s %s\n%s %+v\n", colorRed("Error:"), msg, colorMagenta("Error Details:"), err)))
 		if os.Getenv(showErrorStackEnv) != `` {
 			fmt.Printf("Stack trace:\n")
 			debug.PrintStack()
 		} else {
-			fmt.Printf("('export %s=1' to see stack traces)\n", showErrorStackEnv)
+			output.Write([]byte(fmt.Sprintf("('export %s=1' to see stack traces)\n", showErrorStackEnv)))
 		}
 	} else {
-		fmt.Printf("%s %s\n", colorRed("Error:"), msg)
+		output.Write([]byte(fmt.Sprintf("%s %s\n", colorRed("Error:"), msg)))
 	}
 }
 
 func getWorkflowClient(c *cli.Context) (frontend.Client, error) {
 	return getDeps(c).ServerFrontendClient(c)
+}
+
+// getOptionWithSerializer is a helper function that retrieves a non-required option using a serializer function.
+// To support nil as a valid value, returns nil when the option is not set.
+// Do not use this function with a pointer type (e.g getOptionWithSerializer[*int]).
+// Returns a pointer to the parsed value when the option is serialized.
+// Returns an error when the serializer function is unable to parse the option value.
+func getOptionWithSerializer[T any](c *cli.Context, optionName string, serializer func(string) (T, error)) (*T, error) {
+	if !c.IsSet(optionName) {
+		return nil, nil
+	}
+
+	value, err := serializer(c.String(optionName))
+
+	return &value, err
 }
 
 func getRequiredOption(c *cli.Context, optionName string) (string, error) {
@@ -554,11 +571,11 @@ func timestampPtrToStringPtr(unixNanoPtr *int64, onlyTime bool) *string {
 	if unixNanoPtr == nil {
 		return nil
 	}
-	return common.StringPtr(convertTime(*unixNanoPtr, onlyTime))
+	return common.StringPtr(timestampToString(*unixNanoPtr, onlyTime))
 }
 
-func convertTime(unixNano int64, onlyTime bool) string {
-	t := time.Unix(0, unixNano)
+func timestampToString(unixNano int64, onlyTime bool) string {
+	t := time.Unix(0, unixNano).UTC()
 	var result string
 	if onlyTime {
 		result = t.Format(defaultTimeFormat)
@@ -588,8 +605,8 @@ func parseTime(timeStr string, defaultValue int64) (int64, error) {
 	// treat as time range format
 	parsedTime, err = parseTimeRange(timeStr)
 	if err != nil {
-		return 0, fmt.Errorf("Cannot parse time '%s', use UTC format '2006-01-02T15:04:05Z', "+
-			"time range or raw UnixNano directly. See help for more details: %v", timeStr, err)
+		return 0, fmt.Errorf("cannot parse time '%s', use UTC format '2006-01-02T15:04:05Z', "+
+			"time range or raw UnixNano directly. see help for more details: %v", timeStr, err)
 	}
 	return parsedTime.UnixNano(), nil
 }
@@ -694,6 +711,8 @@ func parseTimeDuration(duration string) (dur time.Duration, err error) {
 	return
 }
 
+// strToTaskListType converts str to types.TaskListType
+// if it's not matched, it returns types.TaskListTypeDecision
 func strToTaskListType(str string) types.TaskListType {
 	if strings.ToLower(str) == "activity" {
 		return types.TaskListTypeActivity
@@ -722,7 +741,7 @@ func processJWTFlags(ctx context.Context, cliCtx *cli.Context) (context.Context,
 	if t != "" {
 		token = t
 	} else if path != "" {
-		token, err = createJWT(path)
+		token, err = createJWT(path, clock.NewRealTimeSource())
 		if err != nil {
 			return nil, fmt.Errorf("error creating JWT token: %w", err)
 		}
@@ -814,7 +833,7 @@ func processJSONInputHelper(c *cli.Context, jType jsonType) (string, error) {
 		inputFile := c.String(flagNameOfInputFileName)
 		// This method is purely used to parse input from the CLI. The input comes from a trusted user
 		// #nosec
-		data, err := ioutil.ReadFile(inputFile)
+		data, err := os.ReadFile(inputFile)
 		if err != nil {
 			return "", fmt.Errorf("error reading input file: %w", err)
 		}
@@ -948,16 +967,16 @@ func truncate(str string) string {
 
 // this only works for ANSI terminal, which means remove existing lines won't work if users redirect to file
 // ref: https://en.wikipedia.org/wiki/ANSI_escape_code
-func removePrevious2LinesFromTerminal() {
-	fmt.Printf("\033[1A")
-	fmt.Printf("\033[2K")
-	fmt.Printf("\033[1A")
-	fmt.Printf("\033[2K")
+func removePrevious2LinesFromTerminal(output io.Writer) {
+	output.Write([]byte("\033[1A"))
+	output.Write([]byte("\033[2K"))
+	output.Write([]byte("\033[1A"))
+	output.Write([]byte("\033[2K"))
 }
 
-func showNextPage() bool {
-	fmt.Printf("Press %s to show next page, press %s to quit: ",
-		color.GreenString("Enter"), color.RedString("any other key then Enter"))
+func showNextPage(output io.Writer) bool {
+	output.Write([]byte(fmt.Sprintf("Press %s to show next page, press %s to quit: ",
+		color.GreenString("Enter"), color.RedString("any other key then Enter"))))
 	var input string
 	fmt.Scanln(&input)
 	return strings.Trim(input, " ") == ""
@@ -995,7 +1014,7 @@ func getInputFile(inputFile string) (*os.File, error) {
 }
 
 // createJWT defines the logic to create a JWT
-func createJWT(keyPath string) (string, error) {
+func createJWT(keyPath string, timeSource clock.TimeSource) (string, error) {
 	privateKey, err := common.LoadRSAPrivateKey(keyPath)
 	if err != nil {
 		return "", err
@@ -1005,8 +1024,8 @@ func createJWT(keyPath string) (string, error) {
 	claims := authorization.JWTClaims{
 		Admin: true,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Second * time.Duration(ttl))),
+			IssuedAt:  jwt.NewNumericDate(timeSource.Now()),
+			ExpiresAt: jwt.NewNumericDate(timeSource.Now().Add(time.Second * time.Duration(ttl))),
 		},
 	}
 

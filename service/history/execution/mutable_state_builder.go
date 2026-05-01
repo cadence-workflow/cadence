@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"runtime/debug"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -36,8 +37,8 @@ import (
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -143,10 +144,9 @@ type (
 		// TODO: persist this to db
 		appliedEvents map[string]struct{}
 
-		insertTransferTasks     []persistence.Task
-		insertCrossClusterTasks []persistence.Task
-		insertReplicationTasks  []persistence.Task
-		insertTimerTasks        []persistence.Task
+		insertTransferTasks    []persistence.Task
+		insertReplicationTasks []persistence.Task
+		insertTimerTasks       []persistence.Task
 
 		workflowRequests map[persistence.WorkflowRequest]struct{}
 
@@ -181,13 +181,14 @@ func NewMutableStateBuilder(
 	logger log.Logger,
 	domainEntry *cache.DomainCacheEntry,
 ) MutableState {
-	return newMutableStateBuilder(shard, logger, domainEntry)
+	return newMutableStateBuilder(shard, logger, domainEntry, constants.EmptyVersion)
 }
 
 func newMutableStateBuilder(
 	shard shard.Context,
 	logger log.Logger,
 	domainEntry *cache.DomainCacheEntry,
+	currentVersion int64,
 ) *mutableStateBuilder {
 	s := &mutableStateBuilder{
 		updateActivityInfos:        make(map[int64]*persistence.ActivityInfo),
@@ -217,7 +218,7 @@ func newMutableStateBuilder(
 		pendingSignalRequestedIDs: make(map[string]struct{}),
 		deleteSignalRequestedIDs:  make(map[string]struct{}),
 
-		currentVersion:        domainEntry.GetFailoverVersion(),
+		currentVersion:        currentVersion,
 		hasBufferedEventsInDB: false,
 		stateInDB:             persistence.WorkflowStateVoid,
 		nextEventIDInDB:       0,
@@ -237,34 +238,37 @@ func newMutableStateBuilder(
 		workflowRequests: make(map[persistence.WorkflowRequest]struct{}),
 	}
 	s.executionInfo = &persistence.WorkflowExecutionInfo{
-		DecisionVersion:    common.EmptyVersion,
-		DecisionScheduleID: common.EmptyEventID,
-		DecisionStartedID:  common.EmptyEventID,
-		DecisionRequestID:  common.EmptyUUID,
+		DecisionVersion:    constants.EmptyVersion,
+		DecisionScheduleID: constants.EmptyEventID,
+		DecisionStartedID:  constants.EmptyEventID,
+		DecisionRequestID:  constants.EmptyUUID,
 		DecisionTimeout:    0,
 
-		NextEventID:        common.FirstEventID,
+		NextEventID:        constants.FirstEventID,
 		State:              persistence.WorkflowStateCreated,
 		CloseStatus:        persistence.WorkflowCloseStatusNone,
-		LastProcessedEvent: common.EmptyEventID,
+		LastProcessedEvent: constants.EmptyEventID,
+		CronOverlapPolicy:  types.CronOverlapPolicySkipped,
 	}
 	s.hBuilder = NewHistoryBuilder(s)
-
-	s.taskGenerator = NewMutableStateTaskGenerator(shard.GetClusterMetadata(), shard.GetDomainCache(), s)
+	s.taskGenerator = NewMutableStateTaskGenerator(shard.GetLogger(), shard.GetClusterMetadata(), shard.GetDomainCache(), s)
 	s.decisionTaskManager = newMutableStateDecisionTaskManager(s)
-
 	s.executionStats = &persistence.ExecutionStats{}
 	return s
 }
 
 // NewMutableStateBuilderWithVersionHistories creates mutable state builder with version history initialized
+// NOTE: currentVersion should be the failover version of the workflow, which is derived from domain metadata and
+// the active cluster selection policy of the workflow. For passive workflows, the currentVersion will be overridden by the event version,
+// so the input doesn't matter for them.
 func NewMutableStateBuilderWithVersionHistories(
 	shard shard.Context,
 	logger log.Logger,
 	domainEntry *cache.DomainCacheEntry,
+	currentVersion int64,
 ) MutableState {
 
-	s := newMutableStateBuilder(shard, logger, domainEntry)
+	s := newMutableStateBuilder(shard, logger, domainEntry, currentVersion)
 	s.versionHistories = persistence.NewVersionHistories(&persistence.VersionHistory{})
 	return s
 }
@@ -292,7 +296,7 @@ func NewMutableStateBuilderWithVersionHistoriesWithEventV2(
 	domainEntry *cache.DomainCacheEntry,
 ) MutableState {
 
-	msBuilder := NewMutableStateBuilderWithVersionHistories(shard, logger, domainEntry)
+	msBuilder := NewMutableStateBuilderWithVersionHistories(shard, logger, domainEntry, domainEntry.GetFailoverVersion())
 	err := msBuilder.UpdateCurrentVersion(version, false)
 	if err != nil {
 		logger.Error("update current version error", tag.Error(err))
@@ -323,8 +327,9 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 }
 
 func (e *mutableStateBuilder) Load(
+	ctx context.Context,
 	state *persistence.WorkflowMutableState,
-) error {
+) {
 
 	e.pendingActivityInfoIDs = state.ActivityInfos
 	for _, activityInfo := range state.ActivityInfos {
@@ -339,9 +344,9 @@ func (e *mutableStateBuilder) Load(
 	e.pendingSignalInfoIDs = state.SignalInfos
 	e.pendingSignalRequestedIDs = state.SignalRequestedIDs
 	e.executionInfo = state.ExecutionInfo
-	e.bufferedEvents = state.BufferedEvents
+	e.bufferedEvents = e.reorderAndFilterDuplicateEvents(state.BufferedEvents, "load")
 
-	e.currentVersion = common.EmptyVersion
+	e.currentVersion = constants.EmptyVersion
 	e.hasBufferedEventsInDB = len(e.bufferedEvents) > 0
 	e.stateInDB = state.ExecutionInfo.State
 	e.nextEventIDInDB = state.ExecutionInfo.NextEventID
@@ -354,33 +359,11 @@ func (e *mutableStateBuilder) Load(
 	e.fillForBackwardsCompatibility()
 
 	if len(state.Checksum.Value) > 0 {
-		switch {
-		case e.shouldInvalidateChecksum():
+		if e.shouldInvalidateChecksum() {
 			e.checksum = checksum.Checksum{}
 			e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.MutableStateChecksumInvalidated)
-		case e.shouldVerifyChecksum():
-			if err := verifyMutableStateChecksum(e, state.Checksum); err != nil {
-				// we ignore checksum verification errors for now until this
-				// feature is tested and/or we have mechanisms in place to deal
-				// with these types of errors
-				e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.MutableStateChecksumMismatch)
-				e.logError("mutable state checksum mismatch",
-					tag.WorkflowNextEventID(e.executionInfo.NextEventID),
-					tag.WorkflowScheduleID(e.executionInfo.DecisionScheduleID),
-					tag.WorkflowStartedID(e.executionInfo.DecisionStartedID),
-					tag.Dynamic("timerIDs", maps.Keys(e.pendingTimerInfoIDs)),
-					tag.Dynamic("activityIDs", maps.Keys(e.pendingActivityInfoIDs)),
-					tag.Dynamic("childIDs", maps.Keys(e.pendingChildExecutionInfoIDs)),
-					tag.Dynamic("signalIDs", maps.Keys(e.pendingSignalInfoIDs)),
-					tag.Dynamic("cancelIDs", maps.Keys(e.pendingRequestCancelInfoIDs)),
-					tag.Error(err))
-				if e.enableChecksumFailureRetry() {
-					return err
-				}
-			}
 		}
 	}
-	return nil
 }
 
 func (e *mutableStateBuilder) fillForBackwardsCompatibility() {
@@ -411,6 +394,10 @@ func (e *mutableStateBuilder) GetCurrentBranchToken() ([]byte, error) {
 
 func (e *mutableStateBuilder) GetVersionHistories() *persistence.VersionHistories {
 	return e.versionHistories
+}
+
+func (e *mutableStateBuilder) GetChecksum() checksum.Checksum {
+	return e.checksum
 }
 
 // set treeID/historyBranches
@@ -469,65 +456,45 @@ func (e *mutableStateBuilder) FlushBufferedEvents() error {
 	var newBufferedEvents []*types.HistoryEvent
 	var newCommittedEvents []*types.HistoryEvent
 	for _, event := range e.hBuilder.history {
-		if event.ID == common.BufferedEventID {
+		if event.ID == constants.BufferedEventID {
 			newBufferedEvents = append(newBufferedEvents, event)
 		} else {
 			newCommittedEvents = append(newCommittedEvents, event)
 		}
 	}
 
-	// Sometimes we see buffered events are out of order when read back from database.  This is mostly not an issue
-	// except in the Activity case where ActivityStarted and ActivityCompleted gets out of order.  The following code
-	// is added to reorder buffered events to guarantee all activity completion events will always be processed at the end.
-	var reorderedEvents []*types.HistoryEvent
-	reorderFunc := func(bufferedEvents []*types.HistoryEvent) {
-		for _, event := range bufferedEvents {
-			switch event.GetEventType() {
-			case types.EventTypeActivityTaskCompleted,
-				types.EventTypeActivityTaskFailed,
-				types.EventTypeActivityTaskCanceled,
-				types.EventTypeActivityTaskTimedOut:
-				reorderedEvents = append(reorderedEvents, event)
-			case types.EventTypeChildWorkflowExecutionCompleted,
-				types.EventTypeChildWorkflowExecutionFailed,
-				types.EventTypeChildWorkflowExecutionCanceled,
-				types.EventTypeChildWorkflowExecutionTimedOut,
-				types.EventTypeChildWorkflowExecutionTerminated:
-				reorderedEvents = append(reorderedEvents, event)
-			default:
-				newCommittedEvents = append(newCommittedEvents, event)
-			}
-		}
-	}
-
 	// no decision in-flight, flush all buffered events to committed bucket
 	if !e.HasInFlightDecision() {
+		var allBufferedEvents []*types.HistoryEvent
+
 		// flush persisted buffered events
 		if len(e.bufferedEvents) > 0 {
-			reorderFunc(e.bufferedEvents)
+			allBufferedEvents = append(allBufferedEvents, e.bufferedEvents...)
 			e.bufferedEvents = nil
 		}
 		if e.hasBufferedEventsInDB {
 			e.clearBufferedEvents = true
 		}
-
 		// flush pending buffered events
-		reorderFunc(e.updateBufferedEvents)
-		// clear pending buffered events
+		allBufferedEvents = append(allBufferedEvents, e.updateBufferedEvents...)
 		e.updateBufferedEvents = nil
+
+		// Resolve issues with persistence duplicating or reordering buffered events
+		reorderedEvents := e.reorderAndFilterDuplicateEvents(allBufferedEvents, "flush")
 
 		// Put back all the reordered buffer events at the end
 		if len(reorderedEvents) > 0 {
 			newCommittedEvents = append(newCommittedEvents, reorderedEvents...)
 		}
 
-		// flush new buffered events that were not saved to persistence yet
+		// flush new buffered events
 		newCommittedEvents = append(newCommittedEvents, newBufferedEvents...)
 		newBufferedEvents = nil
 	}
 
 	newCommittedEvents = e.trimEventsAfterWorkflowClose(newCommittedEvents)
 	e.hBuilder.history = newCommittedEvents
+
 	// make sure all new committed events have correct EventID
 	e.assignEventIDToBufferedEvents()
 	if err := e.assignTaskIDToEvents(); err != nil {
@@ -546,6 +513,11 @@ func (e *mutableStateBuilder) UpdateCurrentVersion(
 	version int64,
 	forceUpdate bool,
 ) error {
+	before := e.currentVersion
+	defer func() {
+		e.logger.Debugf("UpdateCurrentVersion for domain %s, wfID %v, version before: %v, version after: %v, forceUpdate: %v",
+			e.executionInfo.DomainID, e.executionInfo.WorkflowID, before, e.currentVersion, forceUpdate)
+	}()
 
 	if state, _ := e.GetWorkflowStateCloseStatus(); state == persistence.WorkflowStateCompleted {
 		// always set current version to last write version when workflow is completed
@@ -578,24 +550,28 @@ func (e *mutableStateBuilder) UpdateCurrentVersion(
 
 		return nil
 	}
-	e.currentVersion = common.EmptyVersion
+	e.currentVersion = constants.EmptyVersion
 	return nil
 }
 
+// GetCurrentVersion indicates which cluster this workflow is considered active.
 func (e *mutableStateBuilder) GetCurrentVersion() int64 {
-
-	// TODO: remove this after all 2DC workflows complete
+	// Legacy TODO: remove this after all 2DC workflows complete
 	if e.replicationState != nil {
+		e.logger.Debugf("GetCurrentVersion replicationState.CurrentVersion=%v", e.replicationState.CurrentVersion)
 		return e.replicationState.CurrentVersion
 	}
 
 	if e.versionHistories != nil {
+		e.logger.Debugf("GetCurrentVersion versionHistories.CurrentVersion=%v", e.currentVersion)
 		return e.currentVersion
 	}
 
-	return common.EmptyVersion
+	e.logger.Debugf("GetCurrentVersion returning empty version=%v", constants.EmptyVersion)
+	return constants.EmptyVersion
 }
 
+// TODO: Check all usages of this method and address active-active case if needed.
 func (e *mutableStateBuilder) GetStartVersion() (int64, error) {
 
 	if e.versionHistories != nil {
@@ -610,7 +586,7 @@ func (e *mutableStateBuilder) GetStartVersion() (int64, error) {
 		return firstItem.Version, nil
 	}
 
-	return common.EmptyVersion, nil
+	return constants.EmptyVersion, nil
 }
 
 func (e *mutableStateBuilder) GetLastWriteVersion() (int64, error) {
@@ -632,7 +608,7 @@ func (e *mutableStateBuilder) GetLastWriteVersion() (int64, error) {
 		return lastItem.Version, nil
 	}
 
-	return common.EmptyVersion, nil
+	return constants.EmptyVersion, nil
 }
 
 func (e *mutableStateBuilder) checkAndClearTimerFiredEvent(
@@ -687,7 +663,7 @@ func (e *mutableStateBuilder) assignEventIDToBufferedEvents() {
 
 	scheduledIDToStartedID := make(map[int64]int64)
 	for _, event := range newCommittedEvents {
-		if event.ID != common.BufferedEventID {
+		if event.ID != constants.BufferedEventID {
 			continue
 		}
 
@@ -767,13 +743,13 @@ func (e *mutableStateBuilder) assignTaskIDToEvents() error {
 	// first transient events
 	numTaskIDs := len(e.hBuilder.transientHistory)
 	if numTaskIDs > 0 {
-		taskIDs, err := e.shard.GenerateTransferTaskIDs(numTaskIDs)
+		taskIDs, err := e.shard.GenerateTaskIDs(numTaskIDs)
 		if err != nil {
 			return err
 		}
 
 		for index, event := range e.hBuilder.transientHistory {
-			if event.TaskID == common.EmptyEventTaskID {
+			if event.TaskID == constants.EmptyEventTaskID {
 				taskID := taskIDs[index]
 				event.TaskID = taskID
 				e.executionInfo.LastEventTaskID = taskID
@@ -784,13 +760,13 @@ func (e *mutableStateBuilder) assignTaskIDToEvents() error {
 	// then normal events
 	numTaskIDs = len(e.hBuilder.history)
 	if numTaskIDs > 0 {
-		taskIDs, err := e.shard.GenerateTransferTaskIDs(numTaskIDs)
+		taskIDs, err := e.shard.GenerateTaskIDs(numTaskIDs)
 		if err != nil {
 			return err
 		}
 
 		for index, event := range e.hBuilder.history {
-			if event.TaskID == common.EmptyEventTaskID {
+			if event.TaskID == constants.EmptyEventTaskID {
 				taskID := taskIDs[index]
 				event.TaskID = taskID
 				e.executionInfo.LastEventTaskID = taskID
@@ -853,7 +829,7 @@ func (e *mutableStateBuilder) CreateNewHistoryEventWithTimestamp(
 ) *types.HistoryEvent {
 	eventID := e.executionInfo.NextEventID
 	if e.shouldBufferEvent(eventType) {
-		eventID = common.BufferedEventID
+		eventID = constants.BufferedEventID
 	} else {
 		// only increase NextEventID if event is not buffered
 		e.executionInfo.IncreaseNextEventID()
@@ -865,7 +841,7 @@ func (e *mutableStateBuilder) CreateNewHistoryEventWithTimestamp(
 	historyEvent.Timestamp = ts
 	historyEvent.EventType = &eventType
 	historyEvent.Version = e.GetCurrentVersion()
-	historyEvent.TaskID = common.EmptyEventTaskID
+	historyEvent.TaskID = constants.EmptyEventTaskID
 
 	return historyEvent
 }
@@ -985,7 +961,8 @@ func (e *mutableStateBuilder) GetCronBackoffDuration(
 		time.Duration(workflowStartEvent.GetWorkflowExecutionStartedEventAttributes().GetFirstDecisionTaskBackoffSeconds()) * time.Second
 	executionTime = executionTime.Add(firstDecisionTaskBackoff)
 	jitterStartSeconds := workflowStartEvent.GetWorkflowExecutionStartedEventAttributes().GetJitterStartSeconds()
-	return backoff.GetBackoffForNextSchedule(sched, executionTime, e.timeSource.Now(), jitterStartSeconds)
+
+	return backoff.GetBackoffForNextSchedule(sched, executionTime, e.timeSource.Now(), jitterStartSeconds, info.CronOverlapPolicy)
 }
 
 // GetStartEvent retrieves the workflow start event from mutable state
@@ -1004,8 +981,8 @@ func (e *mutableStateBuilder) GetStartEvent(
 		e.executionInfo.DomainID,
 		e.executionInfo.WorkflowID,
 		e.executionInfo.RunID,
-		common.FirstEventID,
-		common.FirstEventID,
+		constants.FirstEventID,
+		constants.FirstEventID,
 		currentBranchToken,
 	)
 	if err != nil {
@@ -1087,7 +1064,7 @@ func (e *mutableStateBuilder) HasBufferedEvents() bool {
 	}
 
 	for _, event := range e.hBuilder.history {
-		if event.ID == common.BufferedEventID {
+		if event.ID == constants.BufferedEventID {
 			return true
 		}
 	}
@@ -1266,10 +1243,27 @@ func (e *mutableStateBuilder) AddContinueAsNewEvent(
 	}
 	firstScheduleTime := currentStartEvent.GetWorkflowExecutionStartedEventAttributes().GetFirstScheduledTime()
 	domainID := e.domainEntry.GetInfo().ID
+	activeClusterInfo, err := e.shard.GetActiveClusterManager().GetActiveClusterInfoByClusterAttribute(ctx, domainID, attributes.ActiveClusterSelectionPolicy.GetClusterAttribute())
+	if err != nil {
+		return nil, nil, err
+	}
+	if e.logger.DebugOn() {
+		e.logger.Debug("mutableStateBuilder.AddContinueAsNewEvent created newStateBuilder",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(e.executionInfo.WorkflowID),
+			tag.WorkflowRunID(e.executionInfo.RunID),
+			tag.WorkflowRunID(newRunID),
+			tag.CurrentVersion(e.currentVersion),
+			tag.Dynamic("activecluster-sel-policy", attributes.ActiveClusterSelectionPolicy),
+			tag.Dynamic("activecluster-info", activeClusterInfo),
+		)
+	}
+	// TODO: improve type casting
 	newStateBuilder := NewMutableStateBuilderWithVersionHistories(
 		e.shard,
 		e.logger,
 		e.domainEntry,
+		activeClusterInfo.FailoverVersion,
 	).(*mutableStateBuilder)
 
 	if _, err = newStateBuilder.addWorkflowExecutionStartedEventForContinueAsNew(
@@ -1347,12 +1341,6 @@ func (e *mutableStateBuilder) AddTransferTasks(
 	e.insertTransferTasks = append(e.insertTransferTasks, transferTasks...)
 }
 
-func (e *mutableStateBuilder) AddCrossClusterTasks(
-	crossClusterTasks ...persistence.Task,
-) {
-	e.insertCrossClusterTasks = append(e.insertCrossClusterTasks, crossClusterTasks...)
-}
-
 // TODO convert AddTimerTasks to prepareTimerTasks
 func (e *mutableStateBuilder) AddTimerTasks(
 	timerTasks ...persistence.Task,
@@ -1365,20 +1353,12 @@ func (e *mutableStateBuilder) GetTransferTasks() []persistence.Task {
 	return e.insertTransferTasks
 }
 
-func (e *mutableStateBuilder) GetCrossClusterTasks() []persistence.Task {
-	return e.insertCrossClusterTasks
-}
-
 func (e *mutableStateBuilder) GetTimerTasks() []persistence.Task {
 	return e.insertTimerTasks
 }
 
 func (e *mutableStateBuilder) DeleteTransferTasks() {
 	e.insertTransferTasks = nil
-}
-
-func (e *mutableStateBuilder) DeleteCrossClusterTasks() {
-	e.insertCrossClusterTasks = nil
 }
 
 func (e *mutableStateBuilder) DeleteTimerTasks() {
@@ -1411,21 +1391,23 @@ func (e *mutableStateBuilder) UpdateWorkflowStateCloseStatus(
 }
 
 func (e *mutableStateBuilder) StartTransaction(
+	ctx context.Context,
 	domainEntry *cache.DomainCacheEntry,
 	incomingTaskVersion int64,
 ) (bool, error) {
-
-	e.domainEntry = domainEntry
-	if err := e.UpdateCurrentVersion(domainEntry.GetFailoverVersion(), false); err != nil {
-		return false, err
-	}
-
-	flushBeforeReady, err := e.startTransactionHandleDecisionFailover(incomingTaskVersion)
+	activeClusterInfo, err := e.shard.GetActiveClusterManager().GetActiveClusterInfoByWorkflow(ctx, e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID)
 	if err != nil {
 		return false, err
 	}
+	if e.logger.DebugOn() {
+		e.logger.Debugf("StartTransaction calling UpdateCurrentVersion for domain %s, wfID %v, incomingTaskVersion %v, version %v, stacktrace %v",
+			domainEntry.GetInfo().Name, e.executionInfo.WorkflowID, incomingTaskVersion, activeClusterInfo.FailoverVersion, string(debug.Stack()))
+	}
+	if err := e.UpdateCurrentVersion(activeClusterInfo.FailoverVersion, false); err != nil {
+		return false, err
+	}
 
-	return flushBeforeReady, nil
+	return e.startTransactionHandleDecisionFailover(incomingTaskVersion)
 }
 
 func (e *mutableStateBuilder) CloseTransactionAsMutation(
@@ -1471,25 +1453,26 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		UpsertActivityInfos:       convertUpdateActivityInfos(e.updateActivityInfos),
-		DeleteActivityInfos:       convertInt64SetToSlice(e.deleteActivityInfos),
-		UpsertTimerInfos:          convertUpdateTimerInfos(e.updateTimerInfos),
-		DeleteTimerInfos:          convertStringSetToSlice(e.deleteTimerInfos),
-		UpsertChildExecutionInfos: convertUpdateChildExecutionInfos(e.updateChildExecutionInfos),
-		DeleteChildExecutionInfos: convertInt64SetToSlice(e.deleteChildExecutionInfos),
-		UpsertRequestCancelInfos:  convertUpdateRequestCancelInfos(e.updateRequestCancelInfos),
-		DeleteRequestCancelInfos:  convertInt64SetToSlice(e.deleteRequestCancelInfos),
-		UpsertSignalInfos:         convertUpdateSignalInfos(e.updateSignalInfos),
-		DeleteSignalInfos:         convertInt64SetToSlice(e.deleteSignalInfos),
-		UpsertSignalRequestedIDs:  convertStringSetToSlice(e.updateSignalRequestedIDs),
-		DeleteSignalRequestedIDs:  convertStringSetToSlice(e.deleteSignalRequestedIDs),
+		UpsertActivityInfos:       maps.Values(e.updateActivityInfos),
+		DeleteActivityInfos:       maps.Keys(e.deleteActivityInfos),
+		UpsertTimerInfos:          maps.Values(e.updateTimerInfos),
+		DeleteTimerInfos:          maps.Keys(e.deleteTimerInfos),
+		UpsertChildExecutionInfos: maps.Values(e.updateChildExecutionInfos),
+		DeleteChildExecutionInfos: maps.Keys(e.deleteChildExecutionInfos),
+		UpsertRequestCancelInfos:  maps.Values(e.updateRequestCancelInfos),
+		DeleteRequestCancelInfos:  maps.Keys(e.deleteRequestCancelInfos),
+		UpsertSignalInfos:         maps.Values(e.updateSignalInfos),
+		DeleteSignalInfos:         maps.Keys(e.deleteSignalInfos),
+		UpsertSignalRequestedIDs:  maps.Keys(e.updateSignalRequestedIDs),
+		DeleteSignalRequestedIDs:  maps.Keys(e.deleteSignalRequestedIDs),
 		NewBufferedEvents:         e.updateBufferedEvents,
 		ClearBufferedEvents:       e.clearBufferedEvents,
 
-		TransferTasks:     e.insertTransferTasks,
-		CrossClusterTasks: e.insertCrossClusterTasks,
-		ReplicationTasks:  e.insertReplicationTasks,
-		TimerTasks:        e.insertTimerTasks,
+		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
+			persistence.HistoryTaskCategoryReplication: e.insertReplicationTasks,
+			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
+		},
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 
@@ -1559,17 +1542,18 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		ActivityInfos:       convertPendingActivityInfos(e.pendingActivityInfoIDs),
-		TimerInfos:          convertPendingTimerInfos(e.pendingTimerInfoIDs),
-		ChildExecutionInfos: convertPendingChildExecutionInfos(e.pendingChildExecutionInfoIDs),
-		RequestCancelInfos:  convertPendingRequestCancelInfos(e.pendingRequestCancelInfoIDs),
-		SignalInfos:         convertPendingSignalInfos(e.pendingSignalInfoIDs),
-		SignalRequestedIDs:  convertStringSetToSlice(e.pendingSignalRequestedIDs),
+		ActivityInfos:       maps.Values(e.pendingActivityInfoIDs),
+		TimerInfos:          maps.Values(e.pendingTimerInfoIDs),
+		ChildExecutionInfos: maps.Values(e.pendingChildExecutionInfoIDs),
+		RequestCancelInfos:  maps.Values(e.pendingRequestCancelInfoIDs),
+		SignalInfos:         maps.Values(e.pendingSignalInfoIDs),
+		SignalRequestedIDs:  maps.Keys(e.pendingSignalRequestedIDs),
 
-		TransferTasks:     e.insertTransferTasks,
-		CrossClusterTasks: e.insertCrossClusterTasks,
-		ReplicationTasks:  e.insertReplicationTasks,
-		TimerTasks:        e.insertTimerTasks,
+		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
+			persistence.HistoryTaskCategoryReplication: e.insertReplicationTasks,
+			persistence.HistoryTaskCategoryTimer:       e.insertTimerTasks,
+		},
 
 		WorkflowRequests: convertWorkflowRequests(e.workflowRequests),
 
@@ -1605,6 +1589,11 @@ func (e *mutableStateBuilder) GetHistorySize() int64 {
 
 func (e *mutableStateBuilder) SetHistorySize(size int64) {
 	e.executionStats.HistorySize = size
+}
+
+func (e *mutableStateBuilder) ByteSize() uint64 {
+	// TODO: To be implemented
+	return 0
 }
 
 func (e *mutableStateBuilder) prepareCloseTransaction(
@@ -1678,7 +1667,6 @@ func (e *mutableStateBuilder) cleanupTransaction() error {
 	e.nextEventIDInDB = e.GetNextEventID()
 
 	e.insertTransferTasks = nil
-	e.insertCrossClusterTasks = nil
 	e.insertReplicationTasks = nil
 	e.insertTimerTasks = nil
 
@@ -1761,6 +1749,7 @@ func (e *mutableStateBuilder) eventsToReplicationTask(
 	lastEvent := events[len(events)-1]
 	version := firstEvent.Version
 
+	// Check all the events in the transaction belongs to the same cluster
 	sourceCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(version)
 	if err != nil {
 		return nil, err
@@ -1780,6 +1769,11 @@ func (e *mutableStateBuilder) eventsToReplicationTask(
 
 	// the visibility timestamp will be set in shard context
 	replicationTask := &persistence.HistoryReplicationTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   e.executionInfo.DomainID,
+			WorkflowID: e.executionInfo.WorkflowID,
+			RunID:      e.executionInfo.RunID,
+		},
 		TaskData: persistence.TaskData{
 			Version: firstEvent.Version,
 		},
@@ -1788,6 +1782,14 @@ func (e *mutableStateBuilder) eventsToReplicationTask(
 		BranchToken:       currentBranchToken,
 		NewRunBranchToken: nil,
 	}
+
+	e.logger.Debugf("eventsToReplicationTask returning replicationTask. Version: %v, FirstEventID: %v, NextEventID: %v, SourceCluster: %v, CurrentCluster: %v",
+		replicationTask.Version,
+		replicationTask.FirstEventID,
+		replicationTask.NextEventID,
+		sourceCluster,
+		currentCluster,
+	)
 
 	return []persistence.Task{replicationTask}, nil
 }
@@ -1802,6 +1804,7 @@ func (e *mutableStateBuilder) syncActivityToReplicationTask(
 	}
 
 	return convertSyncActivityInfos(
+		e.executionInfo,
 		e.pendingActivityInfoIDs,
 		e.syncActivityTasks,
 	)
@@ -1914,7 +1917,6 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 		return false, nil
 	}
 
-	currentVersion := e.GetCurrentVersion()
 	lastWriteVersion, err := e.GetLastWriteVersion()
 	if err != nil {
 		return false, err
@@ -1931,13 +1933,15 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 	if err != nil {
 		return false, err
 	}
+
+	currentVersion := e.GetCurrentVersion()
 	currentVersionCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(currentVersion)
 	if err != nil {
 		return false, err
 	}
 	currentCluster := e.clusterMetadata.GetCurrentClusterName()
 
-	// there are 4 cases for version changes (based on version from domain cache)
+	// there are 5 cases for version changes (based on version from domain cache)
 	// NOTE: domain cache version change may occur after seeing events with higher version
 	//  meaning that the flush buffer logic in NDC branch manager should be kept.
 	//
@@ -1948,12 +1952,20 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 	// 5. special case: current cluster is passive. Due to some reason, the history generated by the current cluster
 	// is missing and the missing history replicate back from remote cluster via resending approach => nothing to do
 
+	e.logger.Debugf("startTransactionHandleDecisionFailover incomingTaskVersion %v, lastWriteVersion %v, currentVersion %v, currentCluster %v, lastWriteSourceCluster %v, currentVersionCluster %v",
+		incomingTaskVersion,
+		lastWriteVersion,
+		currentVersion,
+		currentCluster,
+		lastWriteSourceCluster,
+		currentVersionCluster,
+	)
 	// handle case 5
 	incomingTaskSourceCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(incomingTaskVersion)
 	if err != nil {
 		return false, err
 	}
-	if incomingTaskVersion != common.EmptyVersion &&
+	if incomingTaskVersion != constants.EmptyVersion &&
 		currentVersionCluster != currentCluster &&
 		incomingTaskSourceCluster == currentCluster {
 		return false, nil
@@ -1987,6 +1999,8 @@ func (e *mutableStateBuilder) startTransactionHandleDecisionFailover(
 	// this workflow was previous active (whether it has buffered events or not),
 	// the in flight decision must be failed to guarantee all events within same
 	// event batch shard the same version
+	e.logger.Debugf("startTransactionHandleDecisionFailover calling UpdateCurrentVersion for domain %s, wfID %v, flushBufferVersion %v",
+		e.executionInfo.DomainID, e.executionInfo.WorkflowID, flushBufferVersion)
 	if err := e.UpdateCurrentVersion(flushBufferVersion, true); err != nil {
 		return false, err
 	}
@@ -2023,8 +2037,8 @@ func (e *mutableStateBuilder) closeTransactionWithPolicyCheck(
 	currentCluster := e.clusterMetadata.GetCurrentClusterName()
 
 	if activeCluster != currentCluster {
-		domainID := e.GetExecutionInfo().DomainID
-		return errors.NewDomainNotActiveError(domainID, currentCluster, activeCluster)
+		e.logger.Debugf("closeTransactionWithPolicyCheck activeCluster != currentCluster, activeCluster=%v, currentCluster=%v, e.GetCurrentVersion()=%v", activeCluster, currentCluster, e.GetCurrentVersion())
+		return e.domainEntry.NewDomainNotActiveError(currentCluster, activeCluster)
 	}
 	return nil
 }
@@ -2160,20 +2174,6 @@ func (e *mutableStateBuilder) shouldGenerateChecksum() bool {
 	return rand.Intn(100) < e.config.MutableStateChecksumGenProbability(e.domainEntry.GetInfo().Name)
 }
 
-func (e *mutableStateBuilder) shouldVerifyChecksum() bool {
-	if e.domainEntry == nil {
-		return false
-	}
-	return rand.Intn(100) < e.config.MutableStateChecksumVerifyProbability(e.domainEntry.GetInfo().Name)
-}
-
-func (e *mutableStateBuilder) enableChecksumFailureRetry() bool {
-	if e.domainEntry == nil {
-		return false
-	}
-	return e.config.EnableRetryForChecksumFailure(e.domainEntry.GetInfo().Name)
-}
-
 func (e *mutableStateBuilder) shouldInvalidateChecksum() bool {
 	invalidateBeforeEpochSecs := int64(e.config.MutableStateChecksumInvalidateBefore())
 	if invalidateBeforeEpochSecs > 0 {
@@ -2253,6 +2253,141 @@ func (e *mutableStateBuilder) logDataInconsistency() {
 		tag.WorkflowID(workflowID),
 		tag.WorkflowRunID(runID),
 	)
+}
+func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.HistoryEvent, source string) []*types.HistoryEvent {
+	type eventUniquenessParams struct {
+		eventType        types.EventType
+		scheduledEventID int64
+		attempt          int32
+		startedEventID   int64
+	}
+
+	activityTaskUniqueEvents := make(map[eventUniquenessParams]struct{})
+
+	checkEventUniqueness := func(event *types.HistoryEvent) bool {
+		var uniqueEventParams eventUniquenessParams
+
+		var scheduledEventID int64
+
+		switch event.GetEventType() {
+		case types.EventTypeActivityTaskStarted:
+			scheduledEventID = event.ActivityTaskStartedEventAttributes.GetScheduledEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				attempt:          event.ActivityTaskStartedEventAttributes.Attempt,
+			}
+		case types.EventTypeActivityTaskCompleted:
+			scheduledEventID = event.ActivityTaskCompletedEventAttributes.GetScheduledEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskCompletedEventAttributes.GetStartedEventID(),
+			}
+		case types.EventTypeActivityTaskFailed:
+			scheduledEventID = event.ActivityTaskFailedEventAttributes.GetScheduledEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskFailedEventAttributes.GetStartedEventID(),
+			}
+		case types.EventTypeActivityTaskCanceled:
+			scheduledEventID = event.ActivityTaskCanceledEventAttributes.GetScheduledEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskCanceledEventAttributes.StartedEventID,
+			}
+		case types.EventTypeActivityTaskTimedOut:
+			scheduledEventID = event.ActivityTaskTimedOutEventAttributes.GetScheduledEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ActivityTaskTimedOutEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionStarted:
+			scheduledEventID = event.ChildWorkflowExecutionStartedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionCompleted:
+			scheduledEventID = event.ChildWorkflowExecutionCompletedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionCompletedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionFailed:
+			scheduledEventID = event.ChildWorkflowExecutionFailedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionFailedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionTimedOut:
+			scheduledEventID = event.ChildWorkflowExecutionTimedOutEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionTimedOutEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionCanceled:
+			scheduledEventID = event.ChildWorkflowExecutionCanceledEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionCanceledEventAttributes.StartedEventID,
+			}
+		default:
+			return true
+		}
+
+		if _, ok := activityTaskUniqueEvents[uniqueEventParams]; ok {
+			e.logger.Error("Duplicate event found",
+				tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
+				tag.WorkflowID(e.GetExecutionInfo().WorkflowID),
+				tag.WorkflowRunID(e.GetExecutionInfo().RunID),
+				tag.WorkflowScheduleID(scheduledEventID),
+				tag.WorkflowEventType(event.GetEventType().String()),
+				tag.Dynamic("duplication-source", source),
+			)
+
+			e.metricsClient.IncCounter(metrics.HistoryFlushBufferedEventsScope, metrics.DuplicateActivityTaskEventCounter)
+			return false
+		}
+		activityTaskUniqueEvents[uniqueEventParams] = struct{}{}
+		return true
+	}
+
+	var headEvents []*types.HistoryEvent
+	var tailEvents []*types.HistoryEvent
+
+	// Sometimes we see buffered events are out of order when read back from database.  This is mostly not an issue
+	// except in the Activity case where ActivityStarted and ActivityCompleted gets out of order.  The following code
+	// is added to reorder buffered events to guarantee all activity completion events will always be processed at the end.
+	for _, event := range events {
+		// We sometimes see duplicate events
+		if unique := checkEventUniqueness(event); !unique {
+			continue
+		}
+		switch event.GetEventType() {
+		case types.EventTypeActivityTaskCompleted,
+			types.EventTypeActivityTaskFailed,
+			types.EventTypeActivityTaskCanceled,
+			types.EventTypeActivityTaskTimedOut:
+			tailEvents = append(tailEvents, event)
+		case types.EventTypeChildWorkflowExecutionCompleted,
+			types.EventTypeChildWorkflowExecutionFailed,
+			types.EventTypeChildWorkflowExecutionCanceled,
+			types.EventTypeChildWorkflowExecutionTimedOut,
+			types.EventTypeChildWorkflowExecutionTerminated:
+			tailEvents = append(tailEvents, event)
+		default:
+			headEvents = append(headEvents, event)
+		}
+	}
+	return append(headEvents, tailEvents...)
 }
 
 func mergeMapOfByteArray(

@@ -23,9 +23,9 @@ package nosql
 import (
 	"testing"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
@@ -88,8 +88,8 @@ func (s *testCluster) Config() config.Persistence {
 		DataStores: map[string]config.DataStore{
 			"test": {NoSQL: &s.cfg},
 		},
-		TransactionSizeLimit: dynamicconfig.GetIntPropertyFn(common.DefaultTransactionSizeLimit),
-		ErrorInjectionRate:   dynamicconfig.GetFloatPropertyFn(0),
+		TransactionSizeLimit: dynamicproperties.GetIntPropertyFn(constants.DefaultTransactionSizeLimit),
+		ErrorInjectionRate:   dynamicproperties.GetFloatPropertyFn(0),
 	}
 }
 

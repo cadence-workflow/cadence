@@ -26,8 +26,8 @@ import (
 	"testing"
 
 	"github.com/gocql/gocql"
-	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	gomock "go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
 )

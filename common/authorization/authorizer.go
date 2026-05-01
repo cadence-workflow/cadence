@@ -24,13 +24,15 @@ package authorization
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	clientworker "go.uber.org/cadence/worker"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -48,6 +50,8 @@ const (
 	PermissionWrite
 	// PermissionAdmin means the user can read+write on the domain level APIs
 	PermissionAdmin
+	// PermissionProcess means the user can process via the task execution related APIs
+	PermissionProcess
 )
 
 type (
@@ -84,6 +88,8 @@ func NewPermission(permission string) Permission {
 		return PermissionWrite
 	case "admin":
 		return PermissionAdmin
+	case "process":
+		return PermissionProcess
 	default:
 		return -1
 	}
@@ -115,20 +121,50 @@ type FilteredRequestBody interface {
 	SerializeForLogging() (string, error)
 }
 
+type simpleRequestLogWrapper struct {
+	request interface{}
+}
+
+func (f *simpleRequestLogWrapper) SerializeForLogging() (string, error) {
+	// We have to check if the request is a typed nil. In the interface we have to handle typed nils.
+	// The reflection check  is slow but this function is doing json marshalling, so performance
+	// shouldn't be an issue.
+	if f.request == nil || reflect.ValueOf(f.request).IsNil() {
+		return "", nil
+	}
+
+	res, err := json.Marshal(f.request)
+	if err != nil {
+		return "", err
+	}
+
+	return string(res), nil
+}
+
+func NewFilteredRequestBody(request interface{}) FilteredRequestBody {
+	return &simpleRequestLogWrapper{request}
+}
+
 func validatePermission(claims *JWTClaims, attributes *Attributes, data domainData) error {
-	if (attributes.Permission < PermissionRead) || (attributes.Permission > PermissionAdmin) {
+	if (attributes.Permission < PermissionRead) || (attributes.Permission > PermissionProcess) {
 		return fmt.Errorf("permission %v is not supported", attributes.Permission)
 	}
 
 	allowedGroups := map[string]bool{}
 	// groups that allowed by domain configuration(in domainData)
 	// write groups are always checked
-	for _, g := range data.Groups(common.DomainDataKeyForWriteGroups) {
+	for _, g := range data.Groups(constants.DomainDataKeyForWriteGroups) {
 		allowedGroups[g] = true
 	}
 
 	if attributes.Permission == PermissionRead {
-		for _, g := range data.Groups(common.DomainDataKeyForReadGroups) {
+		for _, g := range data.Groups(constants.DomainDataKeyForReadGroups) {
+			allowedGroups[g] = true
+		}
+	}
+
+	if attributes.Permission == PermissionProcess {
+		for _, g := range data.Groups(constants.DomainDataKeyForProcessGroups) {
 			allowedGroups[g] = true
 		}
 	}

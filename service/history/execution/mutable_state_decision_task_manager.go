@@ -26,9 +26,11 @@ package execution
 
 import (
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -154,8 +156,8 @@ func (m *mutableStateDecisionTaskManagerImpl) ReplicateDecisionTaskScheduledEven
 	decision := &DecisionInfo{
 		Version:                    version,
 		ScheduleID:                 scheduleID,
-		StartedID:                  common.EmptyEventID,
-		RequestID:                  common.EmptyUUID,
+		StartedID:                  constants.EmptyEventID,
+		RequestID:                  constants.EmptyUUID,
 		DecisionTimeout:            startToCloseTimeoutSeconds,
 		TaskList:                   taskList,
 		Attempt:                    attempt,
@@ -192,8 +194,8 @@ func (m *mutableStateDecisionTaskManagerImpl) ReplicateTransientDecisionTaskSche
 	decision := &DecisionInfo{
 		Version:            m.msb.GetCurrentVersion(),
 		ScheduleID:         m.msb.GetNextEventID(),
-		StartedID:          common.EmptyEventID,
-		RequestID:          common.EmptyUUID,
+		StartedID:          constants.EmptyEventID,
+		RequestID:          constants.EmptyUUID,
 		DecisionTimeout:    m.msb.GetExecutionInfo().DecisionStartToCloseTimeout,
 		TaskList:           m.msb.GetExecutionInfo().TaskList,
 		Attempt:            m.msb.GetExecutionInfo().DecisionAttempt,
@@ -255,7 +257,7 @@ func (m *mutableStateDecisionTaskManagerImpl) ReplicateDecisionTaskCompletedEven
 	event *types.HistoryEvent,
 ) error {
 	m.beforeAddDecisionTaskCompletedEvent()
-	maxResetPoints := common.DefaultHistoryMaxAutoResetPoints // use default when it is not set in the config
+	maxResetPoints := constants.DefaultHistoryMaxAutoResetPoints // use default when it is not set in the config
 	if m.msb.GetDomainEntry() != nil && m.msb.GetDomainEntry().GetInfo() != nil && m.msb.config != nil {
 		domainName := m.msb.GetDomainEntry().GetInfo().Name
 		maxResetPoints = m.msb.config.MaxAutoResetPoints(domainName)
@@ -323,7 +325,7 @@ func (m *mutableStateDecisionTaskManagerImpl) AddDecisionTaskScheduleToStartTime
 			types.TimeoutTypeScheduleToStart,
 			"",
 			"",
-			common.EmptyVersion,
+			constants.EmptyVersion,
 			"",
 			types.DecisionTaskTimedOutCauseTimeout,
 			"",
@@ -500,7 +502,7 @@ func (m *mutableStateDecisionTaskManagerImpl) AddDecisionTaskStartedEvent(
 ) (*types.HistoryEvent, *DecisionInfo, error) {
 	opTag := tag.WorkflowActionDecisionTaskStarted
 	decision, ok := m.GetDecisionInfo(scheduleEventID)
-	if !ok || decision.StartedID != common.EmptyEventID {
+	if !ok || decision.StartedID != constants.EmptyEventID {
 		m.msb.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(m.msb.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction,
@@ -656,7 +658,7 @@ func (m *mutableStateDecisionTaskManagerImpl) AddDecisionTaskTimedOutEvent(
 			types.TimeoutTypeStartToClose,
 			"",
 			"",
-			common.EmptyVersion,
+			constants.EmptyVersion,
 			"",
 			types.DecisionTaskTimedOutCauseTimeout,
 			"",
@@ -676,10 +678,10 @@ func (m *mutableStateDecisionTaskManagerImpl) FailDecision(
 	m.msb.ClearStickyness()
 
 	failDecisionInfo := &DecisionInfo{
-		Version:                    common.EmptyVersion,
-		ScheduleID:                 common.EmptyEventID,
-		StartedID:                  common.EmptyEventID,
-		RequestID:                  common.EmptyUUID,
+		Version:                    constants.EmptyVersion,
+		ScheduleID:                 constants.EmptyEventID,
+		StartedID:                  constants.EmptyEventID,
+		RequestID:                  constants.EmptyUUID,
 		DecisionTimeout:            0,
 		StartedTimestamp:           0,
 		TaskList:                   "",
@@ -694,6 +696,7 @@ func (m *mutableStateDecisionTaskManagerImpl) FailDecision(
 			domainName := m.msb.GetDomainEntry().GetInfo().Name
 			domainTag := metrics.DomainTag(domainName)
 			m.msb.metricsClient.Scope(metrics.WorkflowContextScope, domainTag).RecordTimer(metrics.DecisionAttemptTimer, time.Duration(failDecisionInfo.Attempt))
+			m.msb.metricsClient.Scope(metrics.WorkflowContextScope, domainTag).IntExponentialHistogram(metrics.DecisionAttemptHistogram, int(failDecisionInfo.Attempt))
 			m.msb.logger.Warn("Critical error processing decision task, retrying.",
 				tag.WorkflowDomainName(m.msb.GetDomainEntry().GetInfo().Name),
 				tag.WorkflowID(m.msb.GetExecutionInfo().WorkflowID),
@@ -707,10 +710,10 @@ func (m *mutableStateDecisionTaskManagerImpl) FailDecision(
 // DeleteDecision deletes a decision task.
 func (m *mutableStateDecisionTaskManagerImpl) DeleteDecision() {
 	resetDecisionInfo := &DecisionInfo{
-		Version:            common.EmptyVersion,
-		ScheduleID:         common.EmptyEventID,
-		StartedID:          common.EmptyEventID,
-		RequestID:          common.EmptyUUID,
+		Version:            constants.EmptyVersion,
+		ScheduleID:         constants.EmptyEventID,
+		StartedID:          constants.EmptyEventID,
+		RequestID:          constants.EmptyUUID,
 		DecisionTimeout:    0,
 		Attempt:            0,
 		StartedTimestamp:   0,
@@ -738,23 +741,26 @@ func (m *mutableStateDecisionTaskManagerImpl) UpdateDecision(
 
 	// NOTE: do not update tasklist in execution info
 
-	m.msb.logger.Debug(fmt.Sprintf(
-		"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}",
-		decision.ScheduleID,
-		decision.StartedID,
-		decision.RequestID,
-		decision.DecisionTimeout,
-		decision.Attempt,
-		decision.StartedTimestamp,
-	))
+	if m.msb.logger.DebugOn() {
+		m.msb.logger.Debugf(
+			"Decision Updated: {Schedule: %v, Started: %v, ID: %v, Timeout: %v, Attempt: %v, Timestamp: %v}, Stacktrace: %v",
+			decision.ScheduleID,
+			decision.StartedID,
+			decision.RequestID,
+			decision.DecisionTimeout,
+			decision.Attempt,
+			decision.StartedTimestamp,
+			debug.Stack(),
+		)
+	}
 }
 
 func (m *mutableStateDecisionTaskManagerImpl) HasPendingDecision() bool {
-	return m.msb.executionInfo.DecisionScheduleID != common.EmptyEventID
+	return m.msb.executionInfo.DecisionScheduleID != constants.EmptyEventID
 }
 
 func (m *mutableStateDecisionTaskManagerImpl) GetPendingDecision() (*DecisionInfo, bool) {
-	if m.msb.executionInfo.DecisionScheduleID == common.EmptyEventID {
+	if m.msb.executionInfo.DecisionScheduleID == constants.EmptyEventID {
 		return nil, false
 	}
 
@@ -767,8 +773,8 @@ func (m *mutableStateDecisionTaskManagerImpl) HasInFlightDecision() bool {
 }
 
 func (m *mutableStateDecisionTaskManagerImpl) GetInFlightDecision() (*DecisionInfo, bool) {
-	if m.msb.executionInfo.DecisionScheduleID == common.EmptyEventID ||
-		m.msb.executionInfo.DecisionStartedID == common.EmptyEventID {
+	if m.msb.executionInfo.DecisionScheduleID == constants.EmptyEventID ||
+		m.msb.executionInfo.DecisionStartedID == constants.EmptyEventID {
 		return nil, false
 	}
 
@@ -777,7 +783,7 @@ func (m *mutableStateDecisionTaskManagerImpl) GetInFlightDecision() (*DecisionIn
 }
 
 func (m *mutableStateDecisionTaskManagerImpl) HasProcessedOrPendingDecision() bool {
-	return m.HasPendingDecision() || m.msb.GetPreviousStartedEventID() != common.EmptyEventID
+	return m.HasPendingDecision() || m.msb.GetPreviousStartedEventID() != constants.EmptyEventID
 }
 
 // GetDecisionInfo returns details about the in-progress decision task

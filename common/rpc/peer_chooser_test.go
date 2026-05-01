@@ -27,13 +27,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/transport/grpc"
 
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 )
 
 type (
@@ -54,9 +56,11 @@ func (p *fakePeer) StartRequest()       {}
 func (p *fakePeer) EndRequest()         {}
 
 func TestDNSPeerChooserFactory(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
 	logger := log.NewNoop()
 	ctx := context.Background()
-	interval := 100 * time.Millisecond
+	interval := 10 * time.Millisecond
 
 	factory := NewDNSPeerChooserFactory(interval, logger)
 	peerTransport := &fakePeerTransport{}
@@ -69,22 +73,32 @@ func TestDNSPeerChooserFactory(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, chooser.Start())
+	defer chooser.Stop()
+
 	require.True(t, chooser.IsRunning())
 
-	// Wait for refresh
-	time.Sleep(interval)
-
-	peer, _, err := chooser.Choose(ctx, &transport.Request{})
-	require.NoError(t, err)
-	require.NotNil(t, peer)
-	assert.Equal(t, "fakePeer", peer.Identifier())
+	// Poll until the DNS refresh populates the peer list.
+	var gotPeer peer.Peer
+	require.Eventually(t, func() bool {
+		attemptCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		p, _, err := chooser.Choose(attemptCtx, &transport.Request{})
+		if err != nil {
+			return false
+		}
+		gotPeer = p
+		return true
+	}, 500*time.Millisecond, interval)
+	require.NotNil(t, gotPeer)
+	assert.Equal(t, "fakePeer", gotPeer.Identifier())
 }
 
 func TestDirectPeerChooserFactory(t *testing.T) {
 	logger := testlogger.New(t)
+	metricCl := metrics.NewNoopMetricsClient()
 	serviceName := "service"
-	pcf := NewDirectPeerChooserFactory(serviceName, logger)
-	directConnRetainFn := func(opts ...dynamicconfig.FilterOption) bool { return false }
+	pcf := NewDirectPeerChooserFactory(serviceName, logger, metricCl)
+	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return false }
 	grpcTransport := grpc.NewTransport()
 	chooser, err := pcf.CreatePeerChooser(grpcTransport, PeerChooserOptions{
 		ServiceName:                            serviceName,

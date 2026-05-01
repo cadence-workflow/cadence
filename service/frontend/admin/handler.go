@@ -38,9 +38,10 @@ import (
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/codec"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/domain"
-	dc "github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
 	"github.com/uber/cadence/common/log"
@@ -60,7 +61,6 @@ import (
 const (
 	getDomainReplicationMessageBatchSize = 100
 	defaultLastMessageID                 = int64(-1)
-	endMessageID                         = int64(1<<63 - 1)
 )
 
 type (
@@ -118,8 +118,10 @@ func NewHandler(
 
 	domainReplicationTaskExecutor := domain.NewReplicationTaskExecutor(
 		resource.GetDomainManager(),
+		resource.GetDomainAuditManager(),
 		resource.GetTimeSource(),
 		resource.GetLogger(),
+		dynamicproperties.GetBoolPropertyFn(false), // audit operations are not needed for DLQ operations
 	)
 
 	return &adminHandlerImpl{
@@ -137,6 +139,7 @@ func NewHandler(
 		domainFailoverWatcher: domain.NewFailoverWatcher(
 			resource.GetDomainCache(),
 			resource.GetDomainManager(),
+			resource.GetClusterMetadata(),
 			resource.GetTimeSource(),
 			config.DomainFailoverRefreshInterval,
 			config.DomainFailoverRefreshTimerJitterCoefficient,
@@ -191,7 +194,7 @@ func (adh *adminHandlerImpl) AddSearchAttribute(
 	}
 
 	searchAttr := request.GetSearchAttribute()
-	currentValidAttr, err := adh.params.DynamicConfig.GetMapValue(dc.ValidSearchAttributes, nil)
+	currentValidAttr, err := adh.params.DynamicConfig.GetMapValue(dynamicproperties.ValidSearchAttributes, nil)
 	if err != nil {
 		return adh.error(&types.InternalServiceError{Message: fmt.Sprintf("Failed to get dynamic config, err: %v", err)}, scope)
 	}
@@ -210,7 +213,7 @@ func (adh *adminHandlerImpl) AddSearchAttribute(
 	}
 
 	// update dynamic config. Until the DB based dynamic config is implemented, we shouldn't fail the updating.
-	err = adh.params.DynamicConfig.UpdateValue(dc.ValidSearchAttributes, currentValidAttr)
+	err = adh.params.DynamicConfig.UpdateValue(dynamicproperties.ValidSearchAttributes, currentValidAttr)
 	if err != nil {
 		adh.GetLogger().Warn("Failed to update dynamicconfig. This is only useful in local dev environment for filebased config. Please ignore this warn if this is in a real Cluster, because your filebased dynamicconfig MUST be updated separately. Configstore dynamic config will also require separate updating via the CLI.")
 	}
@@ -279,7 +282,7 @@ func (adh *adminHandlerImpl) DescribeWorkflowExecution(
 		Execution:  request.Execution,
 	})
 	if err != nil {
-		return &types.AdminDescribeWorkflowExecutionResponse{}, err
+		return nil, err
 	}
 	return &types.AdminDescribeWorkflowExecutionResponse{
 		ShardID:                shardIDForOutput,
@@ -817,6 +820,7 @@ func (adh *adminHandlerImpl) GetWorkflowExecutionRawHistoryV2(
 	pageToken.PersistenceToken = rawHistoryResponse.NextPageToken
 	size := rawHistoryResponse.Size
 	scope.RecordTimer(metrics.HistorySize, time.Duration(size))
+	scope.IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 
 	rawBlobs := rawHistoryResponse.HistoryEventBlobs
 	blobs := []*types.DataBlob{}
@@ -1078,21 +1082,21 @@ func (adh *adminHandlerImpl) ReadDLQMessages(
 	}
 
 	if request.GetMaximumPageSize() <= 0 {
-		request.MaximumPageSize = common.ReadDLQMessagesPageSize
+		request.MaximumPageSize = constants.ReadDLQMessagesPageSize
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(common.EndMessageID)
+		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
 	var tasks []*types.ReplicationTask
 	var token []byte
-	var op func() error
+	var op func(ctx context.Context) error
 	switch request.GetType() {
 	case types.DLQTypeReplication:
 		return adh.GetHistoryClient().ReadDLQMessages(ctx, request)
 	case types.DLQTypeDomain:
-		op = func() error {
+		op = func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -1139,15 +1143,15 @@ func (adh *adminHandlerImpl) PurgeDLQMessages(
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(endMessageID)
+		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
-	var op func() error
+	var op func(ctx context.Context) error
 	switch request.GetType() {
 	case types.DLQTypeReplication:
 		return adh.GetHistoryClient().PurgeDLQMessages(ctx, request)
 	case types.DLQTypeDomain:
-		op = func() error {
+		op = func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -1213,17 +1217,17 @@ func (adh *adminHandlerImpl) MergeDLQMessages(
 	}
 
 	if request.InclusiveEndMessageID == nil {
-		request.InclusiveEndMessageID = common.Int64Ptr(endMessageID)
+		request.InclusiveEndMessageID = common.Ptr(constants.InclusiveEndMessageID)
 	}
 
 	var token []byte
-	var op func() error
+	var op func(ctx context.Context) error
 	switch request.GetType() {
 	case types.DLQTypeReplication:
 		return adh.GetHistoryClient().MergeDLQMessages(ctx, request)
 	case types.DLQTypeDomain:
 
-		op = func() error {
+		op = func(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -1295,7 +1299,7 @@ func (adh *adminHandlerImpl) ResendReplicationTasks(
 	}
 	resender := ndc.NewHistoryResender(
 		adh.GetDomainCache(),
-		adh.GetRemoteAdminClient(request.GetRemoteCluster()),
+		adh.GetClientBean(),
 		func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 			return adh.GetHistoryClient().ReplicateEventsV2(ctx, request)
 		},
@@ -1304,6 +1308,7 @@ func (adh *adminHandlerImpl) ResendReplicationTasks(
 		adh.GetLogger(),
 	)
 	return resender.SendSingleWorkflowHistory(
+		request.GetRemoteCluster(),
 		request.DomainID,
 		request.GetWorkflowID(),
 		request.GetRunID(),
@@ -1420,7 +1425,7 @@ func (adh *adminHandlerImpl) setRequestDefaultValueAndGetTargetVersionHistory(
 	if request.StartEventID == nil || request.StartEventVersion == nil {
 		// If start event is not set, get the events from the first event
 		// As the API is exclusive-exclusive, use first event id - 1 here
-		request.StartEventID = common.Int64Ptr(common.FirstEventID - 1)
+		request.StartEventID = common.Int64Ptr(constants.FirstEventID - 1)
 		request.StartEventVersion = common.Int64Ptr(firstItem.Version)
 	}
 	if request.EndEventID == nil || request.EndEventVersion == nil {
@@ -1449,7 +1454,7 @@ func (adh *adminHandlerImpl) setRequestDefaultValueAndGetTargetVersionHistory(
 	startItem := persistence.NewVersionHistoryItem(request.GetStartEventID(), request.GetStartEventVersion())
 	// If the request start event is defined. The start event may be on a different branch as current branch.
 	// We need to find the LCA of the start event and the current branch.
-	if request.GetStartEventID() == common.FirstEventID-1 &&
+	if request.GetStartEventID() == constants.FirstEventID-1 &&
 		request.GetStartEventVersion() == firstItem.Version {
 		// this is a special case, start event is on the same branch as target branch
 	} else {
@@ -1508,7 +1513,7 @@ func (adh *adminHandlerImpl) validatePaginationToken(
 }
 
 // startRequestProfile initiates recording of request metrics
-func (adh *adminHandlerImpl) startRequestProfile(ctx context.Context, scope int) (metrics.Scope, metrics.Stopwatch) {
+func (adh *adminHandlerImpl) startRequestProfile(ctx context.Context, scope metrics.ScopeIdx) (metrics.Scope, metrics.Stopwatch) {
 	metricsScope := adh.GetMetricsClient().Scope(scope).Tagged(metrics.DomainUnknownTag()).Tagged(metrics.GetContextTags(ctx)...)
 	sw := metricsScope.StartTimer(metrics.CadenceLatency)
 	metricsScope.IncCounter(metrics.CadenceRequests)
@@ -1516,9 +1521,10 @@ func (adh *adminHandlerImpl) startRequestProfile(ctx context.Context, scope int)
 }
 
 func (adh *adminHandlerImpl) error(err error, scope metrics.Scope) error {
+	logger := adh.GetLogger().Helper()
 	switch err.(type) {
 	case *types.InternalServiceError:
-		adh.GetLogger().Error("Internal service error", tag.Error(err))
+		logger.Error("Internal service error", tag.Error(err))
 		scope.IncCounter(metrics.CadenceFailures)
 		return err
 	case *types.BadRequestError:
@@ -1530,7 +1536,7 @@ func (adh *adminHandlerImpl) error(err error, scope metrics.Scope) error {
 	case *types.EntityNotExistsError:
 		return err
 	default:
-		adh.GetLogger().Error("Uncategorized error", tag.Error(err))
+		logger.Error("Uncategorized error", tag.Error(err))
 		scope.IncCounter(metrics.CadenceFailures)
 		return &types.InternalServiceError{Message: err.Error()}
 	}
@@ -1579,7 +1585,7 @@ func (adh *adminHandlerImpl) GetDynamicConfig(ctx context.Context, request *type
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil {
 		return nil, adh.error(err, scope)
 	}
@@ -1623,7 +1629,7 @@ func (adh *adminHandlerImpl) UpdateDynamicConfig(ctx context.Context, request *t
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil {
 		return adh.error(err, scope)
 	}
@@ -1640,12 +1646,12 @@ func (adh *adminHandlerImpl) RestoreDynamicConfig(ctx context.Context, request *
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil {
 		return adh.error(err, scope)
 	}
 
-	var filters map[dc.Filter]interface{}
+	var filters map[dynamicproperties.Filter]interface{}
 
 	if request.Filters == nil {
 		filters = nil
@@ -1667,7 +1673,7 @@ func (adh *adminHandlerImpl) ListDynamicConfig(ctx context.Context, request *typ
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
 	}
 
-	keyVal, err := dc.GetKeyFromKeyName(request.ConfigName)
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
 	if err != nil || request.ConfigName == "" {
 		entries, err2 := adh.params.DynamicConfig.ListValue(nil)
 		if err2 != nil {
@@ -1751,7 +1757,7 @@ func (adh *adminHandlerImpl) UpdateDomainIsolationGroups(ctx context.Context, re
 
 func (adh *adminHandlerImpl) GetDomainAsyncWorkflowConfiguraton(ctx context.Context, request *types.GetDomainAsyncWorkflowConfiguratonRequest) (_ *types.GetDomainAsyncWorkflowConfiguratonResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
-	scope, sw := adh.startRequestProfile(ctx, metrics.UpdateDomainAsyncWorkflowConfiguraton)
+	scope, sw := adh.startRequestProfile(ctx, metrics.GetDomainAsyncWorkflowConfiguraton)
 	defer sw.Stop()
 	if request == nil {
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
@@ -1777,6 +1783,50 @@ func (adh *adminHandlerImpl) UpdateDomainAsyncWorkflowConfiguraton(ctx context.C
 	return resp, nil
 }
 
+func (adh *adminHandlerImpl) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest) (_ *types.UpdateTaskListPartitionConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.UpdateTaskListPartitionConfig)
+	defer sw.Stop()
+	if request == nil {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+	domainID, err := adh.GetDomainCache().GetDomainID(request.Domain)
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	if request.TaskList == nil {
+		return nil, adh.error(validate.ErrTaskListNotSet, scope)
+	}
+	if request.TaskList.Kind == nil {
+		return nil, adh.error(&types.BadRequestError{Message: "Task list kind not set."}, scope)
+	}
+	if *request.TaskList.Kind != types.TaskListKindNormal {
+		return nil, adh.error(&types.BadRequestError{Message: "Only normal tasklist's partition config can be updated."}, scope)
+	}
+	if request.TaskListType == nil {
+		return nil, adh.error(&types.BadRequestError{Message: "Task list type not set."}, scope)
+	}
+	if request.PartitionConfig == nil {
+		return nil, adh.error(&types.BadRequestError{Message: "Task list partition config is not set in the request."}, scope)
+	}
+	if len(request.PartitionConfig.WritePartitions) > len(request.PartitionConfig.ReadPartitions) {
+		return nil, adh.error(&types.BadRequestError{Message: "The number of write partitions cannot be larger than the number of read partitions."}, scope)
+	}
+	if len(request.PartitionConfig.WritePartitions) <= 0 {
+		return nil, adh.error(&types.BadRequestError{Message: "The number of partitions must be larger than 0."}, scope)
+	}
+	_, err = adh.GetMatchingClient().UpdateTaskListPartitionConfig(ctx, &types.MatchingUpdateTaskListPartitionConfigRequest{
+		DomainUUID:      domainID,
+		TaskList:        request.TaskList,
+		TaskListType:    request.TaskListType,
+		PartitionConfig: request.PartitionConfig,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &types.UpdateTaskListPartitionConfigResponse{}, nil
+}
+
 func convertFromDataBlob(blob *types.DataBlob) (interface{}, error) {
 	switch *blob.EncodingType {
 	case types.EncodingTypeJSON:
@@ -1788,15 +1838,15 @@ func convertFromDataBlob(blob *types.DataBlob) (interface{}, error) {
 	}
 }
 
-func convertFilterListToMap(filters []*types.DynamicConfigFilter) (map[dc.Filter]interface{}, error) {
-	newFilters := make(map[dc.Filter]interface{})
+func convertFilterListToMap(filters []*types.DynamicConfigFilter) (map[dynamicproperties.Filter]interface{}, error) {
+	newFilters := make(map[dynamicproperties.Filter]interface{})
 
 	for _, filter := range filters {
 		val, err := convertFromDataBlob(filter.Value)
 		if err != nil {
 			return nil, err
 		}
-		newFilters[dc.ParseFilter(filter.Name)] = val
+		newFilters[dynamicproperties.ParseFilter(filter.Name)] = val
 	}
 	return newFilters, nil
 }

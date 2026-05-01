@@ -28,16 +28,15 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/loggerimpl"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -132,7 +131,7 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
-					dynamicconfig.GetIntPropertyFn(1), dynamicconfig.GetBoolPropertyFn(true))
+					dynamicproperties.GetBoolPropertyFn(true))
 
 				return newObj, wrapped
 			},
@@ -144,8 +143,8 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 
 				zapLogger, logs := setupLogsCapture()
 				metricScope := tally.NewTestScope("", nil)
-				metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0))
-				logger := loggerimpl.NewLogger(zapLogger)
+				metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
+				logger := log.NewLogger(zapLogger)
 
 				wrapper, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
 				prepareMockForTest(t, mocked, nil)
@@ -173,8 +172,8 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 
 						zapLogger, logs := setupLogsCapture()
 						metricScope := tally.NewTestScope("", nil)
-						metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0))
-						logger := loggerimpl.NewLogger(zapLogger)
+						metricsClient := metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{})
+						logger := log.NewLogger(zapLogger)
 
 						newObj, mocked := tc.prepareMock(t, ctrl, metricsClient, logger)
 						prepareMockForTest(t, mocked, errorType)
@@ -211,17 +210,17 @@ func prepareMockForTest(t *testing.T, input interface{}, expectedErr error) {
 		mocked.EXPECT().GetAllHistoryTreeBranches(gomock.Any(), gomock.Any()).Return(&persistence.GetAllHistoryTreeBranchesResponse{}, expectedErr).Times(1)
 	case *persistence.MockQueueManager:
 		mocked.EXPECT().EnqueueMessage(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).Return([]*persistence.QueueMessage{}, expectedErr).Times(1)
-		mocked.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().GetAckLevels(gomock.Any()).Return(map[string]int64{}, expectedErr).Times(1)
+		mocked.EXPECT().ReadMessages(gomock.Any(), gomock.Any()).Return(&persistence.ReadMessagesResponse{Messages: []*persistence.QueueMessage{}}, expectedErr).Times(1)
+		mocked.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).Return(&persistence.GetAckLevelsResponse{AckLevels: map[string]int64{}}, expectedErr).Times(1)
 		mocked.EXPECT().DeleteMessagesBefore(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().DeleteMessageFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().EnqueueMessageToDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().GetDLQAckLevels(gomock.Any()).Return(map[string]int64{}, expectedErr).Times(1)
-		mocked.EXPECT().GetDLQSize(gomock.Any()).Return(int64(0), expectedErr).Times(1)
-		mocked.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return([]*persistence.QueueMessage{}, nil, expectedErr).Times(1)
-		mocked.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().GetDLQAckLevels(gomock.Any(), gomock.Any()).Return(&persistence.GetDLQAckLevelsResponse{AckLevels: map[string]int64{}}, expectedErr).Times(1)
+		mocked.EXPECT().GetDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetDLQSizeResponse{Size: 0}, expectedErr).Times(1)
+		mocked.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.ReadMessagesFromDLQResponse{Messages: []*persistence.QueueMessage{}}, expectedErr).Times(1)
+		mocked.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 	case *persistence.MockShardManager:
 		mocked.EXPECT().GetShard(gomock.Any(), gomock.Any()).Return(&persistence.GetShardResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().UpdateShard(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
@@ -257,31 +256,27 @@ func prepareMockForTest(t *testing.T, input interface{}, expectedErr error) {
 		mocked.EXPECT().UpsertWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().ScanWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListWorkflowExecutionsResponse{}, expectedErr).Times(1)
 	case *persistence.MockExecutionManager:
-		mocked.EXPECT().CompleteTimerTask(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().CompleteTransferTask(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.CreateWorkflowExecutionResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.GetWorkflowExecutionResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.UpdateWorkflowExecutionResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().DeleteCurrentWorkflowExecution(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().GetCurrentExecution(gomock.Any(), gomock.Any()).Return(&persistence.GetCurrentExecutionResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().CompleteReplicationTask(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.ConflictResolveWorkflowExecutionResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().CreateFailoverMarkerTasks(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().DeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 		mocked.EXPECT().GetReplicationDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationDLQSizeResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().GetReplicationTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationTasksFromDLQResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().GetTimerIndexTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTimerIndexTasksResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().GetTransferTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetTransferTasksResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().IsWorkflowExecutionExists(gomock.Any(), gomock.Any()).Return(&persistence.IsWorkflowExecutionExistsResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().ListConcreteExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListConcreteExecutionsResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().ListCurrentExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListCurrentExecutionsResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().PutReplicationTaskToDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
-		mocked.EXPECT().RangeCompleteReplicationTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteReplicationTaskResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().RangeCompleteTimerTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteTimerTaskResponse{}, expectedErr).Times(1)
-		mocked.EXPECT().RangeCompleteTransferTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteTransferTaskResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(&types.ActiveClusterSelectionPolicy{}, expectedErr).Times(1)
+		mocked.EXPECT().DeleteActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 	default:
 		t.Errorf("unsupported type %v", reflect.TypeOf(input))
 		t.FailNow()

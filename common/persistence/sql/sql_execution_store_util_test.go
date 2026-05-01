@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -89,7 +89,7 @@ func mockUpdateExecution(
 
 func mockCreateTransferTasks(
 	mockTx *sqlplugin.MockTx,
-	mockParser *serialization.MockParser,
+	mockTaskSerializer *serialization.MockTaskSerializer,
 	tasks int,
 	wantErr bool,
 ) {
@@ -97,27 +97,13 @@ func mockCreateTransferTasks(
 	if wantErr {
 		err = errors.New("some error")
 	}
-	mockParser.EXPECT().TransferTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
+	mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
 	mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), gomock.Any()).Return(&sqlResult{rowsAffected: int64(tasks)}, err)
-}
-
-func mockCreateCrossClusterTasks(
-	mockTx *sqlplugin.MockTx,
-	mockParser *serialization.MockParser,
-	tasks int,
-	wantErr bool,
-) {
-	var err error
-	if wantErr {
-		err = errors.New("some error")
-	}
-	mockParser.EXPECT().CrossClusterTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
-	mockTx.EXPECT().InsertIntoCrossClusterTasks(gomock.Any(), gomock.Any()).Return(&sqlResult{rowsAffected: int64(tasks)}, err)
 }
 
 func mockCreateReplicationTasks(
 	mockTx *sqlplugin.MockTx,
-	mockParser *serialization.MockParser,
+	mockTaskSerializer *serialization.MockTaskSerializer,
 	tasks int,
 	wantErr bool,
 ) {
@@ -125,13 +111,13 @@ func mockCreateReplicationTasks(
 	if wantErr {
 		err = errors.New("some error")
 	}
-	mockParser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
+	mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
 	mockTx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), gomock.Any()).Return(&sqlResult{rowsAffected: int64(tasks)}, err)
 }
 
 func mockCreateTimerTasks(
 	mockTx *sqlplugin.MockTx,
-	mockParser *serialization.MockParser,
+	mockTaskSerializer *serialization.MockTaskSerializer,
 	tasks int,
 	wantErr bool,
 ) {
@@ -139,26 +125,24 @@ func mockCreateTimerTasks(
 	if wantErr {
 		err = errors.New("some error")
 	}
-	mockParser.EXPECT().TimerTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
+	mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{}, nil).Times(tasks)
 	mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), gomock.Any()).Return(&sqlResult{rowsAffected: int64(tasks)}, err)
 }
 
 func mockApplyTasks(
 	mockTx *sqlplugin.MockTx,
-	mockParser *serialization.MockParser,
+	mockTaskSerializer *serialization.MockTaskSerializer,
 	transfer int,
-	crossCluster int,
 	timer int,
 	replication int,
 	wantErr bool,
 ) {
-	mockCreateTransferTasks(mockTx, mockParser, transfer, wantErr)
+	mockCreateTransferTasks(mockTx, mockTaskSerializer, transfer, wantErr)
 	if wantErr {
 		return
 	}
-	mockCreateCrossClusterTasks(mockTx, mockParser, crossCluster, wantErr)
-	mockCreateTimerTasks(mockTx, mockParser, timer, wantErr)
-	mockCreateReplicationTasks(mockTx, mockParser, replication, wantErr)
+	mockCreateTimerTasks(mockTx, mockTaskSerializer, timer, wantErr)
+	mockCreateReplicationTasks(mockTx, mockTaskSerializer, replication, wantErr)
 }
 
 func mockUpdateActivityInfos(
@@ -446,7 +430,7 @@ func TestApplyWorkflowMutationTx(t *testing.T) {
 	testCases := []struct {
 		name      string
 		workflow  *persistence.InternalWorkflowMutation
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
+		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser, *serialization.MockTaskSerializer)
 		wantErr   bool
 		assertErr func(*testing.T, error)
 	}{
@@ -459,23 +443,21 @@ func TestApplyWorkflowMutationTx(t *testing.T) {
 					RunID:      "8be8a310-7d20-483e-a5d2-48659dc47603",
 				},
 				Condition: 9,
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{},
-				},
-				CrossClusterTasks: []persistence.Task{
-					&persistence.CrossClusterStartChildExecutionTask{},
-					&persistence.CrossClusterStartChildExecutionTask{},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{},
+					},
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+					},
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 				UpsertActivityInfos: []*persistence.InternalActivityInfo{
 					{},
@@ -501,10 +483,10 @@ func TestApplyWorkflowMutationTx(t *testing.T) {
 				DeleteSignalRequestedIDs: []string{"c", "d"},
 				ClearBufferedEvents:      true,
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockSetupLockAndCheckNextEventID(mockTx, shardID, serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602"), "abc", serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603"), 9, false)
 				mockUpdateExecution(mockTx, mockParser, false)
-				mockApplyTasks(mockTx, mockParser, 1, 2, 3, 4, false)
+				mockApplyTasks(mockTx, mockTaskSerializer, 1, 3, 4, false)
 				mockUpdateActivityInfos(mockTx, mockParser, 1, 2, false)
 				mockUpdateTimerInfos(mockTx, mockParser, 1, 2, false)
 				mockUpdateChildExecutionInfos(mockTx, mockParser, 1, 2, false)
@@ -524,10 +506,11 @@ func TestApplyWorkflowMutationTx(t *testing.T) {
 
 			mockTx := sqlplugin.NewMockTx(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(ctrl)
 
-			tc.mockSetup(mockTx, mockParser)
+			tc.mockSetup(mockTx, mockParser, mockTaskSerializer)
 
-			err := applyWorkflowMutationTx(context.Background(), mockTx, shardID, tc.workflow, mockParser)
+			err := applyWorkflowMutationTx(context.Background(), mockTx, shardID, tc.workflow, mockParser, mockTaskSerializer)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -542,7 +525,7 @@ func TestApplyWorkflowSnapshotTxAsReset(t *testing.T) {
 	testCases := []struct {
 		name      string
 		workflow  *persistence.InternalWorkflowSnapshot
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
+		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser, *serialization.MockTaskSerializer)
 		wantErr   bool
 		assertErr func(*testing.T, error)
 	}{
@@ -555,23 +538,21 @@ func TestApplyWorkflowSnapshotTxAsReset(t *testing.T) {
 					RunID:      "8be8a310-7d20-483e-a5d2-48659dc47603",
 				},
 				Condition: 9,
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{},
-				},
-				CrossClusterTasks: []persistence.Task{
-					&persistence.CrossClusterStartChildExecutionTask{},
-					&persistence.CrossClusterStartChildExecutionTask{},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{},
+					},
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+					},
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 				ActivityInfos: []*persistence.InternalActivityInfo{
 					{},
@@ -590,13 +571,13 @@ func TestApplyWorkflowSnapshotTxAsReset(t *testing.T) {
 				},
 				SignalRequestedIDs: []string{"a", "b"},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser, mockTaskSerializer *serialization.MockTaskSerializer) {
 				domainID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602")
 				workflowID := "abc"
 				runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
 				mockSetupLockAndCheckNextEventID(mockTx, shardID, domainID, workflowID, runID, 9, false)
 				mockUpdateExecution(mockTx, mockParser, false)
-				mockApplyTasks(mockTx, mockParser, 1, 2, 3, 4, false)
+				mockApplyTasks(mockTx, mockTaskSerializer, 1, 3, 4, false)
 				mockDeleteActivityInfoMap(mockTx, shardID, domainID, workflowID, runID, false)
 				mockUpdateActivityInfos(mockTx, mockParser, 1, 0, false)
 				mockDeleteTimerInfoMap(mockTx, shardID, domainID, workflowID, runID, false)
@@ -622,10 +603,11 @@ func TestApplyWorkflowSnapshotTxAsReset(t *testing.T) {
 
 			mockTx := sqlplugin.NewMockTx(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(ctrl)
 
-			tc.mockSetup(mockTx, mockParser)
+			tc.mockSetup(mockTx, mockParser, mockTaskSerializer)
 
-			err := applyWorkflowSnapshotTxAsReset(context.Background(), mockTx, shardID, tc.workflow, mockParser)
+			err := applyWorkflowSnapshotTxAsReset(context.Background(), mockTx, shardID, tc.workflow, mockParser, mockTaskSerializer)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -640,7 +622,7 @@ func TestApplyWorkflowSnapshotTxAsNew(t *testing.T) {
 	testCases := []struct {
 		name      string
 		workflow  *persistence.InternalWorkflowSnapshot
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
+		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser, *serialization.MockTaskSerializer)
 		wantErr   bool
 		assertErr func(*testing.T, error)
 	}{
@@ -653,23 +635,21 @@ func TestApplyWorkflowSnapshotTxAsNew(t *testing.T) {
 					RunID:      "8be8a310-7d20-483e-a5d2-48659dc47603",
 				},
 				Condition: 9,
-				TransferTasks: []persistence.Task{
-					&persistence.ActivityTask{},
-				},
-				CrossClusterTasks: []persistence.Task{
-					&persistence.CrossClusterStartChildExecutionTask{},
-					&persistence.CrossClusterStartChildExecutionTask{},
-				},
-				TimerTasks: []persistence.Task{
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-					&persistence.DecisionTimeoutTask{},
-				},
-				ReplicationTasks: []persistence.Task{
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
-					&persistence.HistoryReplicationTask{},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer: []persistence.Task{
+						&persistence.ActivityTask{},
+					},
+					persistence.HistoryTaskCategoryTimer: []persistence.Task{
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+						&persistence.DecisionTimeoutTask{},
+					},
+					persistence.HistoryTaskCategoryReplication: []persistence.Task{
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+						&persistence.HistoryReplicationTask{},
+					},
 				},
 				ActivityInfos: []*persistence.InternalActivityInfo{
 					{},
@@ -688,9 +668,9 @@ func TestApplyWorkflowSnapshotTxAsNew(t *testing.T) {
 				},
 				SignalRequestedIDs: []string{"a", "b"},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser, mockTaskSerializer *serialization.MockTaskSerializer) {
 				mockCreateExecution(mockTx, mockParser, false)
-				mockApplyTasks(mockTx, mockParser, 1, 2, 3, 4, false)
+				mockApplyTasks(mockTx, mockTaskSerializer, 1, 3, 4, false)
 				mockUpdateActivityInfos(mockTx, mockParser, 1, 0, false)
 				mockUpdateTimerInfos(mockTx, mockParser, 1, 0, false)
 				mockUpdateChildExecutionInfos(mockTx, mockParser, 1, 0, false)
@@ -709,10 +689,11 @@ func TestApplyWorkflowSnapshotTxAsNew(t *testing.T) {
 
 			mockTx := sqlplugin.NewMockTx(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(ctrl)
 
-			tc.mockSetup(mockTx, mockParser)
+			tc.mockSetup(mockTx, mockParser, mockTaskSerializer)
 
-			err := applyWorkflowSnapshotTxAsNew(context.Background(), mockTx, shardID, tc.workflow, mockParser)
+			err := applyWorkflowSnapshotTxAsNew(context.Background(), mockTx, shardID, tc.workflow, mockParser, mockTaskSerializer)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -830,7 +811,7 @@ func TestCreateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
 					ShardID:          shardID,
@@ -861,7 +842,7 @@ func TestCreateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
@@ -929,7 +910,7 @@ func TestUpdateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				mockTx.EXPECT().UpdateExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
 					ShardID:          shardID,
@@ -960,7 +941,7 @@ func TestUpdateExecution(t *testing.T) {
 			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
 				mockParser.EXPECT().WorkflowExecutionInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`workflow`),
-					Encoding: common.EncodingType("workflow"),
+					Encoding: constants.EncodingType("workflow"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().UpdateExecutions(gomock.Any(), &sqlplugin.ExecutionsRow{
@@ -1001,13 +982,10 @@ func TestUpdateExecution(t *testing.T) {
 
 func TestCreateTransferTasks(t *testing.T) {
 	shardID := 1
-	domainID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602")
-	workflowID := "abc"
-	runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
 	testCases := []struct {
 		name      string
 		tasks     []persistence.Task
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
+		mockSetup func(*sqlplugin.MockTx, *serialization.MockTaskSerializer)
 		wantErr   bool
 		assertErr func(*testing.T, error)
 	}{
@@ -1020,9 +998,9 @@ func TestCreateTransferTasks(t *testing.T) {
 						VisibilityTimestamp: time.Unix(1, 1),
 						TaskID:              1,
 					},
-					DomainID:   "8be8a310-7d20-483e-a5d2-48659dc47609",
-					TaskList:   "tl",
-					ScheduleID: 111,
+					TargetDomainID: "8be8a310-7d20-483e-a5d2-48659dc47609",
+					TaskList:       "tl",
+					ScheduleID:     111,
 				},
 				&persistence.DecisionTask{
 					TaskData: persistence.TaskData{
@@ -1030,187 +1008,19 @@ func TestCreateTransferTasks(t *testing.T) {
 						VisibilityTimestamp: time.Unix(2, 2),
 						TaskID:              2,
 					},
-					DomainID:   "7be8a310-7d20-483e-a5d2-48659dc47609",
-					TaskList:   "tl2",
-					ScheduleID: 222,
-				},
-				&persistence.CancelExecutionTask{
-					TaskData: persistence.TaskData{
-						Version:             3,
-						VisibilityTimestamp: time.Unix(3, 3),
-						TaskID:              3,
-					},
-					TargetDomainID:          "6be8a310-7d20-483e-a5d2-48659dc47609",
-					TargetWorkflowID:        "acd",
-					TargetRunID:             "3be8a310-7d20-483e-a5d2-48659dc47609",
-					TargetChildWorkflowOnly: true,
-					InitiatedID:             333,
-				},
-				&persistence.SignalExecutionTask{
-					TaskData: persistence.TaskData{
-						Version:             5,
-						VisibilityTimestamp: time.Unix(5, 5),
-						TaskID:              5,
-					},
-					TargetDomainID:          "5be8a310-7d20-483e-a5d2-48659dc47609",
-					TargetWorkflowID:        "zcd",
-					TargetRunID:             "4be8a310-7d20-483e-a5d2-48659dc47609",
-					TargetChildWorkflowOnly: true,
-					InitiatedID:             555,
-				},
-				&persistence.StartChildExecutionTask{
-					TaskData: persistence.TaskData{
-						Version:             7,
-						VisibilityTimestamp: time.Unix(7, 7),
-						TaskID:              7,
-					},
-					TargetDomainID:   "2be8a310-7d20-483e-a5d2-48659dc47609",
-					TargetWorkflowID: "xcd",
-					InitiatedID:      777,
-				},
-				&persistence.RecordChildExecutionCompletedTask{
-					TaskData: persistence.TaskData{
-						Version:             8,
-						VisibilityTimestamp: time.Unix(8, 8),
-						TaskID:              8,
-					},
-					TargetDomainID:   "1be8a310-7d20-483e-a5d2-48659dc47609",
-					TargetWorkflowID: "ddd",
-					TargetRunID:      "0be8a310-7d20-483e-a5d2-48659dc47609",
-				},
-				&persistence.ApplyParentClosePolicyTask{
-					TaskData: persistence.TaskData{
-						Version:             9,
-						VisibilityTimestamp: time.Unix(9, 9),
-						TaskID:              9,
-					},
-					TargetDomainIDs: map[string]struct{}{"abe8a310-7d20-483e-a5d2-48659dc47609": struct{}{}},
-				},
-				&persistence.CloseExecutionTask{
-					TaskData: persistence.TaskData{
-						Version:             10,
-						VisibilityTimestamp: time.Unix(10, 10),
-						TaskID:              10,
-					},
+					TargetDomainID: "7be8a310-7d20-483e-a5d2-48659dc47609",
+					TaskList:       "tl2",
+					ScheduleID:     222,
 				},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeActivityTask),
-					TargetDomainID:      serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					ScheduleID:          111,
-					Version:             1,
-					VisibilityTimestamp: time.Unix(1, 1),
-					TaskList:            "tl",
-				}).Return(persistence.DataBlob{
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeDecisionTask),
-					TargetDomainID:      serialization.MustParseUUID("7be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					ScheduleID:          222,
-					Version:             2,
-					VisibilityTimestamp: time.Unix(2, 2),
-					TaskList:            "tl2",
-				}).Return(persistence.DataBlob{
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.TransferTaskTypeCancelExecution),
-					TargetDomainID:          serialization.MustParseUUID("6be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:        "acd",
-					TargetRunID:             serialization.MustParseUUID("3be8a310-7d20-483e-a5d2-48659dc47609"),
-					ScheduleID:              333,
-					Version:                 3,
-					VisibilityTimestamp:     time.Unix(3, 3),
-					TargetChildWorkflowOnly: true,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.TransferTaskTypeSignalExecution),
-					TargetDomainID:          serialization.MustParseUUID("5be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:        "zcd",
-					TargetRunID:             serialization.MustParseUUID("4be8a310-7d20-483e-a5d2-48659dc47609"),
-					ScheduleID:              555,
-					Version:                 5,
-					VisibilityTimestamp:     time.Unix(5, 5),
-					TargetChildWorkflowOnly: true,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`5`),
-					Encoding: common.EncodingType("5"),
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeStartChildExecution),
-					TargetDomainID:      serialization.MustParseUUID("2be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "xcd",
-					ScheduleID:          777,
-					Version:             7,
-					VisibilityTimestamp: time.Unix(7, 7),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`7`),
-					Encoding: common.EncodingType("7"),
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeRecordChildExecutionCompleted),
-					TargetDomainID:      serialization.MustParseUUID("1be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "ddd",
-					TargetRunID:         serialization.MustParseUUID("0be8a310-7d20-483e-a5d2-48659dc47609"),
-					Version:             8,
-					VisibilityTimestamp: time.Unix(8, 8),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`8`),
-					Encoding: common.EncodingType("8"),
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeApplyParentClosePolicy),
-					TargetDomainID:      domainID,
-					TargetDomainIDs:     []serialization.UUID{serialization.MustParseUUID("abe8a310-7d20-483e-a5d2-48659dc47609")},
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					Version:             9,
-					VisibilityTimestamp: time.Unix(9, 9),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`9`),
-					Encoding: common.EncodingType("9"),
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeCloseExecution),
-					TargetDomainID:      domainID,
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					Version:             10,
-					VisibilityTimestamp: time.Unix(10, 10),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`10`),
-					Encoding: common.EncodingType("10"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), []sqlplugin.TransferTasksRow{
 					{
@@ -1225,43 +1035,7 @@ func TestCreateTransferTasks(t *testing.T) {
 						Data:         []byte(`2`),
 						DataEncoding: "2",
 					},
-					{
-						ShardID:      shardID,
-						TaskID:       3,
-						Data:         []byte(`3`),
-						DataEncoding: "3",
-					},
-					{
-						ShardID:      shardID,
-						TaskID:       5,
-						Data:         []byte(`5`),
-						DataEncoding: "5",
-					},
-					{
-						ShardID:      shardID,
-						TaskID:       7,
-						Data:         []byte(`7`),
-						DataEncoding: "7",
-					},
-					{
-						ShardID:      shardID,
-						TaskID:       8,
-						Data:         []byte(`8`),
-						DataEncoding: "8",
-					},
-					{
-						ShardID:      shardID,
-						TaskID:       9,
-						Data:         []byte(`9`),
-						DataEncoding: "9",
-					},
-					{
-						ShardID:      shardID,
-						TaskID:       10,
-						Data:         []byte(`10`),
-						DataEncoding: "10",
-					},
-				}).Return(&sqlResult{rowsAffected: 8}, nil)
+				}).Return(&sqlResult{rowsAffected: 2}, nil)
 			},
 			wantErr: false,
 		},
@@ -1274,26 +1048,15 @@ func TestCreateTransferTasks(t *testing.T) {
 						VisibilityTimestamp: time.Unix(1, 1),
 						TaskID:              1,
 					},
-					DomainID:   "8be8a310-7d20-483e-a5d2-48659dc47609",
-					TaskList:   "tl",
-					ScheduleID: 111,
+					TargetDomainID: "8be8a310-7d20-483e-a5d2-48659dc47609",
+					TaskList:       "tl",
+					ScheduleID:     111,
 				},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().TransferTaskInfoToBlob(&serialization.TransferTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.TransferTaskTypeActivityTask),
-					TargetDomainID:      serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					ScheduleID:          111,
-					Version:             1,
-					VisibilityTimestamp: time.Unix(1, 1),
-					TaskList:            "tl",
-				}).Return(persistence.DataBlob{
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoTransferTasks(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -1309,11 +1072,11 @@ func TestCreateTransferTasks(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockTx := sqlplugin.NewMockTx(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(ctrl)
 
-			tc.mockSetup(mockTx, mockParser)
+			tc.mockSetup(mockTx, mockTaskSerializer)
 
-			err := createTransferTasks(context.Background(), mockTx, tc.tasks, shardID, domainID, workflowID, runID, mockParser)
+			err := createTransferTasks(context.Background(), mockTx, tc.tasks, shardID, mockTaskSerializer)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 				if tc.assertErr != nil {
@@ -1328,13 +1091,10 @@ func TestCreateTransferTasks(t *testing.T) {
 
 func TestCreateTimerTasks(t *testing.T) {
 	shardID := 1
-	domainID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602")
-	workflowID := "abc"
-	runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
 	testCases := []struct {
 		name      string
 		tasks     []persistence.Task
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
+		mockSetup func(*sqlplugin.MockTx, *serialization.MockTaskSerializer)
 		wantErr   bool
 		assertErr func(*testing.T, error)
 	}{
@@ -1361,134 +1121,15 @@ func TestCreateTimerTasks(t *testing.T) {
 					Attempt:     2,
 					TimeoutType: 2,
 				},
-				&persistence.UserTimerTask{
-					TaskData: persistence.TaskData{
-						Version:             3,
-						VisibilityTimestamp: time.Unix(3, 3),
-						TaskID:              3,
-					},
-					EventID: 3,
-				},
-				&persistence.ActivityRetryTimerTask{
-					TaskData: persistence.TaskData{
-						Version:             4,
-						VisibilityTimestamp: time.Unix(4, 4),
-						TaskID:              4,
-					},
-					EventID: 4,
-					Attempt: 4,
-				},
-				&persistence.WorkflowBackoffTimerTask{
-					TaskData: persistence.TaskData{
-						Version:             5,
-						VisibilityTimestamp: time.Unix(5, 5),
-						TaskID:              5,
-					},
-					EventID:     5,
-					TimeoutType: 5,
-				},
-				&persistence.WorkflowTimeoutTask{
-					TaskData: persistence.TaskData{
-						Version:             6,
-						VisibilityTimestamp: time.Unix(6, 6),
-						TaskID:              6,
-					},
-				},
-				&persistence.DeleteHistoryEventTask{
-					TaskData: persistence.TaskData{
-						Version:             7,
-						VisibilityTimestamp: time.Unix(7, 7),
-						TaskID:              7,
-					},
-				},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeDecisionTimeout),
-					Version:         1,
-					EventID:         1,
-					ScheduleAttempt: 1,
-					TimeoutType:     common.Int16Ptr(1),
-				}).Return(persistence.DataBlob{
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeActivityTimeout),
-					Version:         2,
-					EventID:         2,
-					ScheduleAttempt: 2,
-					TimeoutType:     common.Int16Ptr(2),
-				}).Return(persistence.DataBlob{
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeUserTimer),
-					Version:         3,
-					EventID:         3,
-					ScheduleAttempt: 0,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeActivityRetryTimer),
-					Version:         4,
-					EventID:         4,
-					ScheduleAttempt: 4,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`4`),
-					Encoding: common.EncodingType("4"),
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeWorkflowBackoffTimer),
-					Version:         5,
-					EventID:         5,
-					ScheduleAttempt: 0,
-					TimeoutType:     common.Int16Ptr(5),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`5`),
-					Encoding: common.EncodingType("5"),
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeWorkflowTimeout),
-					Version:         6,
-					EventID:         common.EmptyEventID,
-					ScheduleAttempt: 0,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`6`),
-					Encoding: common.EncodingType("6"),
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeDeleteHistoryEvent),
-					Version:         7,
-					EventID:         common.EmptyEventID,
-					ScheduleAttempt: 0,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`7`),
-					Encoding: common.EncodingType("7"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), []sqlplugin.TimerTasksRow{
 					{
@@ -1505,42 +1146,7 @@ func TestCreateTimerTasks(t *testing.T) {
 						Data:                []byte(`2`),
 						DataEncoding:        "2",
 					},
-					{
-						ShardID:             shardID,
-						TaskID:              3,
-						VisibilityTimestamp: time.Unix(3, 3),
-						Data:                []byte(`3`),
-						DataEncoding:        "3",
-					},
-					{
-						ShardID:             shardID,
-						TaskID:              4,
-						VisibilityTimestamp: time.Unix(4, 4),
-						Data:                []byte(`4`),
-						DataEncoding:        "4",
-					},
-					{
-						ShardID:             shardID,
-						TaskID:              5,
-						VisibilityTimestamp: time.Unix(5, 5),
-						Data:                []byte(`5`),
-						DataEncoding:        "5",
-					},
-					{
-						ShardID:             shardID,
-						TaskID:              6,
-						VisibilityTimestamp: time.Unix(6, 6),
-						Data:                []byte(`6`),
-						DataEncoding:        "6",
-					},
-					{
-						ShardID:             shardID,
-						TaskID:              7,
-						VisibilityTimestamp: time.Unix(7, 7),
-						Data:                []byte(`7`),
-						DataEncoding:        "7",
-					},
-				}).Return(&sqlResult{rowsAffected: 7}, nil)
+				}).Return(&sqlResult{rowsAffected: 2}, nil)
 			},
 			wantErr: false,
 		},
@@ -1558,19 +1164,10 @@ func TestCreateTimerTasks(t *testing.T) {
 					TimeoutType:     1,
 				},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().TimerTaskInfoToBlob(&serialization.TimerTaskInfo{
-					DomainID:        domainID,
-					WorkflowID:      workflowID,
-					RunID:           runID,
-					TaskType:        int16(persistence.TaskTypeDecisionTimeout),
-					Version:         1,
-					EventID:         1,
-					ScheduleAttempt: 1,
-					TimeoutType:     common.Int16Ptr(1),
-				}).Return(persistence.DataBlob{
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
 				err := errors.New("some error")
 				mockTx.EXPECT().InsertIntoTimerTasks(gomock.Any(), gomock.Any()).Return(nil, err)
@@ -1586,275 +1183,11 @@ func TestCreateTimerTasks(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockTx := sqlplugin.NewMockTx(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(ctrl)
 
-			tc.mockSetup(mockTx, mockParser)
+			tc.mockSetup(mockTx, mockTaskSerializer)
 
-			err := createTimerTasks(context.Background(), mockTx, tc.tasks, shardID, domainID, workflowID, runID, mockParser)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-				if tc.assertErr != nil {
-					tc.assertErr(t, err)
-				}
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestCreateCrossClusterTasks(t *testing.T) {
-	shardID := 1
-	domainID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602")
-	workflowID := "abc"
-	runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
-	testCases := []struct {
-		name      string
-		tasks     []persistence.Task
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
-		wantErr   bool
-		assertErr func(*testing.T, error)
-	}{
-		{
-			name: "Success case",
-			tasks: []persistence.Task{
-				&persistence.CrossClusterStartChildExecutionTask{
-					TargetCluster: "1",
-					StartChildExecutionTask: persistence.StartChildExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             1,
-							VisibilityTimestamp: time.Unix(1, 1),
-							TaskID:              1,
-						},
-						TargetDomainID:   "2be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID: "xcd",
-						InitiatedID:      111,
-					},
-				},
-				&persistence.CrossClusterCancelExecutionTask{
-					TargetCluster: "2",
-					CancelExecutionTask: persistence.CancelExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             2,
-							VisibilityTimestamp: time.Unix(2, 2),
-							TaskID:              2,
-						},
-						TargetDomainID:          "6be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID:        "acd",
-						TargetRunID:             "3be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetChildWorkflowOnly: true,
-						InitiatedID:             222,
-					},
-				},
-				&persistence.CrossClusterSignalExecutionTask{
-					TargetCluster: "3",
-					SignalExecutionTask: persistence.SignalExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             3,
-							VisibilityTimestamp: time.Unix(3, 3),
-							TaskID:              3,
-						},
-						TargetDomainID:          "5be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID:        "zcd",
-						TargetRunID:             "4be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetChildWorkflowOnly: true,
-						InitiatedID:             333,
-					},
-				},
-				&persistence.CrossClusterRecordChildExecutionCompletedTask{
-					TargetCluster: "4",
-					RecordChildExecutionCompletedTask: persistence.RecordChildExecutionCompletedTask{
-						TaskData: persistence.TaskData{
-							Version:             4,
-							VisibilityTimestamp: time.Unix(4, 4),
-							TaskID:              4,
-						},
-						TargetDomainID:   "1be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID: "ddd",
-						TargetRunID:      "0be8a310-7d20-483e-a5d2-48659dc47609",
-					},
-				},
-				&persistence.CrossClusterApplyParentClosePolicyTask{
-					TargetCluster: "5",
-					ApplyParentClosePolicyTask: persistence.ApplyParentClosePolicyTask{
-						TaskData: persistence.TaskData{
-							Version:             5,
-							VisibilityTimestamp: time.Unix(5, 5),
-							TaskID:              5,
-						},
-						TargetDomainIDs: map[string]struct{}{"abe8a310-7d20-483e-a5d2-48659dc47609": struct{}{}},
-					},
-				},
-			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeStartChildExecution),
-					TargetDomainID:      serialization.MustParseUUID("2be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "xcd",
-					TargetRunID:         serialization.UUID(persistence.CrossClusterTaskDefaultTargetRunID),
-					ScheduleID:          111,
-					Version:             1,
-					VisibilityTimestamp: time.Unix(1, 1),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.CrossClusterTaskTypeCancelExecution),
-					TargetDomainID:          serialization.MustParseUUID("6be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:        "acd",
-					TargetRunID:             serialization.MustParseUUID("3be8a310-7d20-483e-a5d2-48659dc47609"),
-					ScheduleID:              222,
-					Version:                 2,
-					VisibilityTimestamp:     time.Unix(2, 2),
-					TargetChildWorkflowOnly: true,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.CrossClusterTaskTypeSignalExecution),
-					TargetDomainID:          serialization.MustParseUUID("5be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:        "zcd",
-					TargetRunID:             serialization.MustParseUUID("4be8a310-7d20-483e-a5d2-48659dc47609"),
-					ScheduleID:              333,
-					Version:                 3,
-					VisibilityTimestamp:     time.Unix(3, 3),
-					TargetChildWorkflowOnly: true,
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeRecordChildExeuctionCompleted),
-					TargetDomainID:      serialization.MustParseUUID("1be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "ddd",
-					TargetRunID:         serialization.MustParseUUID("0be8a310-7d20-483e-a5d2-48659dc47609"),
-					Version:             4,
-					VisibilityTimestamp: time.Unix(4, 4),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`4`),
-					Encoding: common.EncodingType("4"),
-				}, nil)
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeApplyParentClosePolicy),
-					TargetDomainID:      domainID,
-					TargetDomainIDs:     []serialization.UUID{serialization.MustParseUUID("abe8a310-7d20-483e-a5d2-48659dc47609")},
-					TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
-					TargetRunID:         serialization.UUID(persistence.CrossClusterTaskDefaultTargetRunID),
-					Version:             5,
-					VisibilityTimestamp: time.Unix(5, 5),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`5`),
-					Encoding: common.EncodingType("5"),
-				}, nil)
-				mockTx.EXPECT().InsertIntoCrossClusterTasks(gomock.Any(), []sqlplugin.CrossClusterTasksRow{
-					{
-						ShardID:       shardID,
-						TaskID:        1,
-						TargetCluster: "1",
-						Data:          []byte(`1`),
-						DataEncoding:  "1",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        2,
-						TargetCluster: "2",
-						Data:          []byte(`2`),
-						DataEncoding:  "2",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        3,
-						TargetCluster: "3",
-						Data:          []byte(`3`),
-						DataEncoding:  "3",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        4,
-						TargetCluster: "4",
-						Data:          []byte(`4`),
-						DataEncoding:  "4",
-					},
-					{
-						ShardID:       shardID,
-						TaskID:        5,
-						TargetCluster: "5",
-						Data:          []byte(`5`),
-						DataEncoding:  "5",
-					},
-				}).Return(&sqlResult{rowsAffected: 5}, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			tasks: []persistence.Task{
-				&persistence.CrossClusterStartChildExecutionTask{
-					TargetCluster: "1",
-					StartChildExecutionTask: persistence.StartChildExecutionTask{
-						TaskData: persistence.TaskData{
-							Version:             1,
-							VisibilityTimestamp: time.Unix(1, 1),
-							TaskID:              1,
-						},
-						TargetDomainID:   "2be8a310-7d20-483e-a5d2-48659dc47609",
-						TargetWorkflowID: "xcd",
-						InitiatedID:      111,
-					},
-				},
-			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().CrossClusterTaskInfoToBlob(&serialization.CrossClusterTaskInfo{
-					DomainID:            domainID,
-					WorkflowID:          workflowID,
-					RunID:               runID,
-					TaskType:            int16(persistence.CrossClusterTaskTypeStartChildExecution),
-					TargetDomainID:      serialization.MustParseUUID("2be8a310-7d20-483e-a5d2-48659dc47609"),
-					TargetWorkflowID:    "xcd",
-					TargetRunID:         serialization.UUID(persistence.CrossClusterTaskDefaultTargetRunID),
-					ScheduleID:          111,
-					Version:             1,
-					VisibilityTimestamp: time.Unix(1, 1),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
-				}, nil)
-				err := errors.New("some error")
-				mockTx.EXPECT().InsertIntoCrossClusterTasks(gomock.Any(), gomock.Any()).Return(nil, err)
-				mockTx.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockTx := sqlplugin.NewMockTx(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
-
-			tc.mockSetup(mockTx, mockParser)
-
-			err := createCrossClusterTasks(context.Background(), mockTx, tc.tasks, shardID, domainID, workflowID, runID, mockParser)
+			err := createTimerTasks(context.Background(), mockTx, tc.tasks, shardID, mockTaskSerializer)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 				if tc.assertErr != nil {
@@ -1869,13 +1202,10 @@ func TestCreateCrossClusterTasks(t *testing.T) {
 
 func TestCreateReplicationTasks(t *testing.T) {
 	shardID := 1
-	domainID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47602")
-	workflowID := "abc"
-	runID := serialization.MustParseUUID("8be8a310-7d20-483e-a5d2-48659dc47603")
 	testCases := []struct {
 		name      string
 		tasks     []persistence.Task
-		mockSetup func(*sqlplugin.MockTx, *serialization.MockParser)
+		mockSetup func(*sqlplugin.MockTx, *serialization.MockTaskSerializer)
 		wantErr   bool
 		assertErr func(*testing.T, error)
 	}{
@@ -1901,65 +1231,15 @@ func TestCreateReplicationTasks(t *testing.T) {
 					},
 					ScheduledID: 2,
 				},
-				&persistence.FailoverMarkerTask{
-					TaskData: persistence.TaskData{
-						TaskID:              3,
-						VisibilityTimestamp: time.Unix(3, 3),
-						Version:             3,
-					},
-					DomainID: "ddd",
-				},
 			},
-			mockSetup: func(mockTx *sqlplugin.MockTx, mockParser *serialization.MockParser) {
-				mockParser.EXPECT().ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.ReplicationTaskTypeHistory),
-					FirstEventID:            1,
-					NextEventID:             2,
-					Version:                 1,
-					ScheduledID:             common.EmptyEventID,
-					EventStoreVersion:       persistence.EventStoreVersion,
-					NewRunEventStoreVersion: persistence.EventStoreVersion,
-					CreationTimestamp:       time.Unix(1, 1),
-					BranchToken:             []byte{1},
-					NewRunBranchToken:       []byte{2},
-				}).Return(persistence.DataBlob{
+			mockSetup: func(mockTx *sqlplugin.MockTx, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`1`),
-					Encoding: common.EncodingType("1"),
+					Encoding: constants.EncodingType("1"),
 				}, nil)
-				mockParser.EXPECT().ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.ReplicationTaskTypeSyncActivity),
-					FirstEventID:            common.EmptyEventID,
-					NextEventID:             common.EmptyEventID,
-					Version:                 2,
-					ScheduledID:             2,
-					EventStoreVersion:       persistence.EventStoreVersion,
-					NewRunEventStoreVersion: persistence.EventStoreVersion,
-					CreationTimestamp:       time.Unix(2, 2),
-				}).Return(persistence.DataBlob{
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
 					Data:     []byte(`2`),
-					Encoding: common.EncodingType("2"),
-				}, nil)
-				mockParser.EXPECT().ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
-					DomainID:                domainID,
-					WorkflowID:              workflowID,
-					RunID:                   runID,
-					TaskType:                int16(persistence.ReplicationTaskTypeFailoverMarker),
-					FirstEventID:            common.EmptyEventID,
-					NextEventID:             common.EmptyEventID,
-					Version:                 3,
-					ScheduledID:             common.EmptyEventID,
-					EventStoreVersion:       persistence.EventStoreVersion,
-					NewRunEventStoreVersion: persistence.EventStoreVersion,
-					CreationTimestamp:       time.Unix(3, 3),
-				}).Return(persistence.DataBlob{
-					Data:     []byte(`3`),
-					Encoding: common.EncodingType("3"),
+					Encoding: constants.EncodingType("2"),
 				}, nil)
 				mockTx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
 					{
@@ -1974,13 +1254,7 @@ func TestCreateReplicationTasks(t *testing.T) {
 						Data:         []byte(`2`),
 						DataEncoding: "2",
 					},
-					{
-						ShardID:      shardID,
-						TaskID:       3,
-						Data:         []byte(`3`),
-						DataEncoding: "3",
-					},
-				}).Return(&sqlResult{rowsAffected: 3}, nil)
+				}).Return(&sqlResult{rowsAffected: 2}, nil)
 			},
 			wantErr: false,
 		},
@@ -1992,11 +1266,11 @@ func TestCreateReplicationTasks(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockTx := sqlplugin.NewMockTx(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(ctrl)
 
-			tc.mockSetup(mockTx, mockParser)
+			tc.mockSetup(mockTx, mockTaskSerializer)
 
-			err := createReplicationTasks(context.Background(), mockTx, tc.tasks, shardID, domainID, workflowID, runID, mockParser)
+			err := createReplicationTasks(context.Background(), mockTx, tc.tasks, shardID, mockTaskSerializer)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 				if tc.assertErr != nil {

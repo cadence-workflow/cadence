@@ -316,8 +316,8 @@ func assertRatelimitersBehaveSimilarly(t *testing.T, burst int, minWaitDuration 
 
 	actual := rate.NewLimiter(limit, burst)
 	wrapped := NewRatelimiter(limit, burst)
-	mocked := NewMockRatelimiter(ts, limit, burst)
-	compressed := NewMockRatelimiter(compressedTS, limit, burst)
+	mocked := NewRateLimiterWithTimeSource(ts, limit, burst)
+	compressed := NewRateLimiterWithTimeSource(compressedTS, limit, burst)
 
 	// record "to be executed" closures on the time-compressed ratelimiter too,
 	// so it can be checked at a sped up rate.

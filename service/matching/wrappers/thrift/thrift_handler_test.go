@@ -24,8 +24,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/.gen/go/health"
 	m "github.com/uber/cadence/.gen/go/matching"
@@ -98,7 +98,7 @@ func TestThriftHandler(t *testing.T) {
 		assert.Equal(t, expectedErr, err)
 	})
 	t.Run("QueryWorkflow", func(t *testing.T) {
-		h.EXPECT().QueryWorkflow(ctx, &types.MatchingQueryWorkflowRequest{}).Return(&types.QueryWorkflowResponse{}, internalErr).Times(1)
+		h.EXPECT().QueryWorkflow(ctx, &types.MatchingQueryWorkflowRequest{}).Return(&types.MatchingQueryWorkflowResponse{}, internalErr).Times(1)
 		resp, err := th.QueryWorkflow(ctx, &m.QueryWorkflowRequest{})
 		assert.Equal(t, s.QueryWorkflowResponse{}, *resp)
 		assert.Equal(t, expectedErr, err)

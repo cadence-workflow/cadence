@@ -164,6 +164,14 @@ func (s *ShardInfo) GetTimerProcessingQueueStatesEncoding() (o string) {
 	return
 }
 
+// GetQueueStates internal sql blob getter
+func (s *ShardInfo) GetQueueStates() (o map[int32]*types.QueueState) {
+	if s != nil {
+		return s.QueueStates
+	}
+	return
+}
+
 // GetName internal sql blob getter
 func (d *DomainInfo) GetName() (o string) {
 	if d != nil {
@@ -428,6 +436,13 @@ func (w *WorkflowExecutionInfo) GetTaskList() (o string) {
 	return
 }
 
+func (w *WorkflowExecutionInfo) GetTaskListKind() (o types.TaskListKind) {
+	if w != nil {
+		return w.TaskListKind
+	}
+	return
+}
+
 // GetIsCron internal sql blob getter
 func (w *WorkflowExecutionInfo) GetIsCron() (o bool) {
 	if w != nil {
@@ -484,6 +499,14 @@ func (w *WorkflowExecutionInfo) GetCronSchedule() (o string) {
 	return
 }
 
+// GetCronOverlapPolicy internal sql blob getter
+func (w *WorkflowExecutionInfo) GetCronOverlapPolicy() (o int32) {
+	if w != nil {
+		return int32(w.CronOverlapPolicy)
+	}
+	return
+}
+
 // GetClientLibraryVersion internal sql blob getter
 func (w *WorkflowExecutionInfo) GetClientLibraryVersion() (o string) {
 	if w != nil {
@@ -520,6 +543,14 @@ func (w *WorkflowExecutionInfo) GetAutoResetPointsEncoding() (o string) {
 func (w *WorkflowExecutionInfo) GetVersionHistoriesEncoding() (o string) {
 	if w != nil {
 		return w.VersionHistoriesEncoding
+	}
+	return
+}
+
+// GetActiveClusterSelectionPolicyEncoding internal sql blob getter
+func (w *WorkflowExecutionInfo) GetActiveClusterSelectionPolicyEncoding() (o string) {
+	if w != nil {
+		return w.ActiveClusterSelectionPolicyEncoding
 	}
 	return
 }
@@ -960,6 +991,13 @@ func (a *ActivityInfo) GetRetryLastWorkerIdentity() (o string) {
 func (a *ActivityInfo) GetTaskList() (o string) {
 	if a != nil {
 		return a.TaskList
+	}
+	return
+}
+
+func (a *ActivityInfo) GetTaskListKind() (o types.TaskListKind) {
+	if a != nil {
+		return a.TaskListKind
 	}
 	return
 }
@@ -1536,6 +1574,22 @@ func (t *TransferTaskInfo) GetVisibilityTimestamp() time.Time {
 	return time.Unix(0, 0)
 }
 
+// GetOriginalTaskList internal sql blob getter
+func (t *TransferTaskInfo) GetOriginalTaskList() (o string) {
+	if t != nil {
+		return t.OriginalTaskList
+	}
+	return
+}
+
+// GetOriginalTaskListKind internal sql blob getter
+func (t *TransferTaskInfo) GetOriginalTaskListKind() (o types.TaskListKind) {
+	if t != nil {
+		return t.OriginalTaskListKind
+	}
+	return
+}
+
 // GetDomainID internal sql blob getter
 func (t *TimerTaskInfo) GetDomainID() (o []byte) {
 	if t != nil && t.DomainID != nil {
@@ -1596,6 +1650,14 @@ func (t *TimerTaskInfo) GetScheduleAttempt() (o int64) {
 func (t *TimerTaskInfo) GetEventID() (o int64) {
 	if t != nil {
 		return t.EventID
+	}
+	return
+}
+
+// GetTaskList internal sql blob getter
+func (t *TimerTaskInfo) GetTaskList() (o string) {
+	if t != nil {
+		return t.TaskList
 	}
 	return
 }

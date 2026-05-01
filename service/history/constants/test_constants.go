@@ -32,6 +32,10 @@ var (
 	TestVersion = cluster.TestCurrentClusterInitialFailoverVersion + (cluster.TestFailoverVersionIncrement * 5)
 	// TestDomainID is the domainID for test
 	TestDomainID = "deadbeef-0123-4567-890a-bcdef0123456"
+	// TestActiveActiveDomainID is the active active domainID for test
+	TestActiveActiveDomainID = "965c78b7-1f6f-4122-9ba7-af6b7a55b27f"
+	// TestActiveActiveDomainName is the active active domain name for test
+	TestActiveActiveDomainName = "active-active-domain"
 	// TestDomainName is the domainName for test
 	TestDomainName = "some random domain name"
 	// TestRateLimitedDomainName is the domain name for testing task processing rate limits
@@ -46,9 +50,19 @@ var (
 	TestRunID = "0d00698f-08e1-4d36-a3e2-3bf109f5d2d6"
 	// TestRequestID is the request ID for test
 	TestRequestID = "143b22cd-dfac-4d59-9398-893f89d89df6"
+	// CronSkip
+	CronSkip = types.CronOverlapPolicySkipped
 
 	// TestClusterMetadata is the cluster metadata for test
 	TestClusterMetadata = cluster.GetTestClusterMetadata(true)
+
+	// TestActiveClusterSelectionPolicy is the active cluster selection policy for test
+	TestActiveClusterSelectionPolicy = types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-east",
+		},
+	}
 
 	// TestLocalDomainEntry is the local domain cache entry for test
 	TestLocalDomainEntry = cache.NewLocalDomainCacheEntryForTest(
@@ -70,6 +84,37 @@ var (
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: cluster.TestCurrentClusterName},
 				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		TestVersion,
+	)
+
+	TestActiveActiveDomainEntry = cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: TestActiveActiveDomainID, Name: TestActiveActiveDomainName},
+		&persistence.DomainConfig{
+			Retention:                1,
+			VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+			VisibilityArchivalURI:    "test:///visibility/archival",
+		},
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+			ActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {
+								ActiveClusterName: cluster.TestCurrentClusterName,
+							},
+							"us-west": {
+								ActiveClusterName: cluster.TestAlternativeClusterName,
+							},
+						},
+					},
+				},
 			},
 		},
 		TestVersion,
@@ -127,6 +172,24 @@ var (
 		&persistence.DomainConfig{Retention: 1},
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: cluster.TestCurrentClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		TestVersion,
+	)
+
+	// TestGlobalStandbyDomainEntry is the global standby domain cache entry for test
+	TestGlobalStandbyDomainEntry = cache.NewGlobalDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: TestDomainID, Name: TestDomainName},
+		&persistence.DomainConfig{
+			Retention:                1,
+			VisibilityArchivalStatus: types.ArchivalStatusEnabled,
+			VisibilityArchivalURI:    "test:///visibility/archival",
+		},
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: cluster.TestCurrentClusterName},
 				{ClusterName: cluster.TestAlternativeClusterName},

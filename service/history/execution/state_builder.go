@@ -29,8 +29,10 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/shard"
@@ -97,10 +99,17 @@ func (b *stateBuilderImpl) ApplyEvents(
 	lastEvent := history[len(history)-1]
 	var newRunMutableStateBuilder MutableState
 
+	b.logger.Debugf("stateBuilderImpl Applying events for domain %s, wfID %v, first event [id:%v, version:%v], last event [id:%v, version:%v]",
+		domainID, workflowExecution.WorkflowID, firstEvent.ID, firstEvent.Version, lastEvent.ID, lastEvent.Version)
+
 	// need to clear the stickiness since workflow turned to passive
 	b.mutableState.ClearStickyness()
 
-	for _, event := range history {
+	historyLength := len(history)
+	for i, event := range history {
+		b.logger.Debugf("stateBuilderImpl Applying event %v of %v. Calling UpdateCurrentVersion for domain %s, wfID %v, event [id:%v, version:%v]",
+			i+1, historyLength, domainID, workflowExecution.WorkflowID, event.ID, event.Version)
+
 		// NOTE: stateBuilder is also being used in the active side
 		if err := b.mutableState.UpdateCurrentVersion(event.Version, true); err != nil {
 			return nil, err
@@ -138,6 +147,13 @@ func (b *stateBuilderImpl) ApplyEvents(
 				}
 				parentDomainID = &parentDomainEntry.GetInfo().ID
 			}
+
+			b.logger.Debug("stateBuilderImpl calling ReplicateWorkflowExecutionStartedEvent",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowExecution.WorkflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Dynamic("attributes.activecluster-sel-policy-nil", attributes.ActiveClusterSelectionPolicy == nil),
+			)
 
 			if err := b.mutableState.ReplicateWorkflowExecutionStartedEvent(
 				parentDomainID,
@@ -473,10 +489,12 @@ func (b *stateBuilderImpl) ApplyEvents(
 
 			// The length of newRunHistory can be zero in resend case
 			if len(newRunHistory) != 0 {
+				domainEntry := b.mutableState.GetDomainEntry()
 				newRunMutableStateBuilder = NewMutableStateBuilderWithVersionHistories(
 					b.shard,
 					b.logger,
-					b.mutableState.GetDomainEntry(),
+					domainEntry,
+					constants.EmptyVersion,
 				)
 				newRunStateBuilder := NewStateBuilder(b.shard, b.logger, newRunMutableStateBuilder)
 				newRunID := event.WorkflowExecutionContinuedAsNewEventAttributes.GetNewExecutionRunID()
@@ -496,6 +514,14 @@ func (b *stateBuilderImpl) ApplyEvents(
 				}
 			}
 
+			b.logger.Debug("stateBuilderImpl calling ReplicateWorkflowExecutionContinuedAsNewEvent",
+				tag.WorkflowDomainID(domainID),
+				tag.WorkflowID(workflowExecution.WorkflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Dynamic("newRunHistorySize", len(newRunHistory)),
+				tag.Dynamic("activecluster-sel-policy-nil", event.WorkflowExecutionContinuedAsNewEventAttributes.ActiveClusterSelectionPolicy == nil),
+			)
+
 			err := b.mutableState.ReplicateWorkflowExecutionContinuedAsNewEvent(
 				firstEvent.ID,
 				domainID,
@@ -508,12 +534,15 @@ func (b *stateBuilderImpl) ApplyEvents(
 		default:
 			return nil, &types.BadRequestError{Message: "Unknown event type"}
 		}
+
+		b.logger.Debugf("Applied event %v of %v for domain %s, wfID %v, event [id:%v, version:%v]",
+			i+1, historyLength, domainID, workflowExecution.WorkflowID, event.ID, event.Version)
 	}
 
 	b.mutableState.GetExecutionInfo().SetLastFirstEventID(firstEvent.ID)
 	b.mutableState.GetExecutionInfo().SetNextEventID(lastEvent.ID + 1)
 
-	b.mutableState.SetHistoryBuilder(NewHistoryBuilderFromEvents(history))
+	b.mutableState.SetHistoryBuilder(NewHistoryBuilderFromEvents(history, b.mutableState))
 
 	return newRunMutableStateBuilder, nil
 }

@@ -26,8 +26,9 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/quotas"
 	commonResource "github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/history/config"
@@ -63,14 +64,12 @@ func NewService(
 		dynamicconfig.NewCollection(
 			params.DynamicConfig,
 			params.Logger,
-			dynamicconfig.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
 		params.PersistenceConfig.NumHistoryShards,
 		params.RPCFactory.GetMaxMessageSize(),
 		params.PersistenceConfig.IsAdvancedVisibilityConfigExist(),
 		params.HostName)
-
-	params.PersistenceConfig.HistoryMaxConns = serviceConfig.HistoryMgrNumConns()
 
 	serviceResource, err := resource.New(
 		params,
@@ -101,25 +100,19 @@ func (s *Service) Start() {
 	logger.Info("history starting")
 
 	wfIDCache := workflowcache.New(workflowcache.Params{
-		TTL:                            workflowIDCacheTTL,
-		ExternalLimiterFactory:         quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDExternalRPS),
-		InternalLimiterFactory:         quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDInternalRPS),
-		WorkflowIDCacheExternalEnabled: s.config.WorkflowIDCacheExternalEnabled,
-		WorkflowIDCacheInternalEnabled: s.config.WorkflowIDCacheInternalEnabled,
-		MaxCount:                       workflowIDCacheMaxCount,
-		DomainCache:                    s.Resource.GetDomainCache(),
-		Logger:                         s.Resource.GetLogger(),
-		MetricsClient:                  s.Resource.GetMetricsClient(),
-		RatelimitExternalPerWorkflowID: s.config.WorkflowIDCacheExternalEnabled,
-		RatelimitInternalPerWorkflowID: s.config.WorkflowIDCacheInternalEnabled,
+		TTL:                    workflowIDCacheTTL,
+		ExternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDExternalRPS),
+		InternalLimiterFactory: quotas.NewSimpleDynamicRateLimiterFactory(s.config.WorkflowIDInternalRPS),
+		MaxCount:               workflowIDCacheMaxCount,
+		DomainCache:            s.Resource.GetDomainCache(),
+		Logger:                 s.Resource.GetLogger(),
+		MetricsClient:          s.Resource.GetMetricsClient(),
 	})
 
-	rawHandler := handler.NewHandler(s.Resource, s.config, wfIDCache, s.config.WorkflowIDInternalRateLimitEnabled)
+	rawHandler := handler.NewHandler(s.Resource, s.config, wfIDCache)
 	s.handler = ratelimited.NewHistoryHandler(
 		rawHandler,
 		wfIDCache,
-		s.config.WorkflowIDExternalRateLimitEnabled,
-		s.Resource.GetDomainCache(),
 		s.Resource.GetLogger(),
 	)
 

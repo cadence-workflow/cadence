@@ -68,9 +68,23 @@ type DecisionTimeoutMetadata struct {
 }
 
 type PollersMetadata struct {
+	TaskListName    string
 	TaskListBacklog int64
 }
 
 type HeartbeatingMetadata struct {
 	TimeElapsed time.Duration
+	RetryPolicy *types.RetryPolicy
+}
+
+type TimeoutIssuesMetadata struct {
+	ExecutionTimeout *ExecutionTimeoutMetadata
+	ActivityTimeout  *ActivityTimeoutMetadata
+	ChildWfTimeout   *ChildWfTimeoutMetadata
+	DecisionTimeout  *DecisionTimeoutMetadata
+}
+
+type TimeoutRootcauseMetadata struct {
+	PollersMetadata      *PollersMetadata
+	HeartBeatingMetadata *HeartbeatingMetadata
 }

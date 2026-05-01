@@ -28,8 +28,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
@@ -39,8 +39,8 @@ import (
 func TestTimerIterator(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	retryer := persistence.NewMockRetryer(ctrl)
-	retryer.EXPECT().GetTimerIndexTasks(gomock.Any(), gomock.Any()).
-		Return(&persistence.GetTimerIndexTasksResponse{}, nil).
+	retryer.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).
+		Return(&persistence.GetHistoryTasksResponse{}, nil).
 		Times(1)
 
 	iterator := TimerIterator(
@@ -75,25 +75,29 @@ func TestGetUserTimers(t *testing.T) {
 			name: "Success",
 			setupMock: func(ctrl *gomock.Controller) *persistence.MockRetryer {
 				mockRetryer := persistence.NewMockRetryer(ctrl)
-				timerTasks := []*persistence.TimerTaskInfo{
-					{
-						DomainID:            "testDomainID",
-						WorkflowID:          "testWorkflowID",
-						RunID:               "testRunID",
-						VisibilityTimestamp: fixedTimestamp,
-						TaskType:            persistence.TaskTypeUserTimer,
+				timerTasks := []persistence.Task{
+					&persistence.UserTimerTask{
+						WorkflowIdentifier: persistence.WorkflowIdentifier{
+							DomainID:   "testDomainID",
+							WorkflowID: "testWorkflowID",
+							RunID:      "testRunID",
+						},
+						TaskData: persistence.TaskData{
+							VisibilityTimestamp: fixedTimestamp,
+						},
 					},
 				}
 
 				mockRetryer.EXPECT().
-					GetTimerIndexTasks(gomock.Any(), &persistence.GetTimerIndexTasksRequest{
-						MinTimestamp:  minTimestamp,
-						MaxTimestamp:  maxTimestamp,
-						BatchSize:     pageSize,
-						NextPageToken: nil,
+					GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+						TaskCategory:        persistence.HistoryTaskCategoryTimer,
+						InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+						ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+						PageSize:            pageSize,
+						NextPageToken:       nil,
 					}).
-					Return(&persistence.GetTimerIndexTasksResponse{
-						Timers:        timerTasks,
+					Return(&persistence.GetHistoryTasksResponse{
+						Tasks:         timerTasks,
 						NextPageToken: nil,
 					}, nil)
 
@@ -122,14 +126,15 @@ func TestGetUserTimers(t *testing.T) {
 				mockRetryer := persistence.NewMockRetryer(ctrl)
 
 				mockRetryer.EXPECT().
-					GetTimerIndexTasks(gomock.Any(), &persistence.GetTimerIndexTasksRequest{
-						MinTimestamp:  minTimestamp,
-						MaxTimestamp:  maxTimestamp,
-						BatchSize:     pageSize,
-						NextPageToken: nonNilToken,
+					GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+						TaskCategory:        persistence.HistoryTaskCategoryTimer,
+						InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+						ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+						PageSize:            pageSize,
+						NextPageToken:       nonNilToken,
 					}).
-					Return(&persistence.GetTimerIndexTasksResponse{
-						Timers:        nil,
+					Return(&persistence.GetHistoryTasksResponse{
+						Tasks:         nil,
 						NextPageToken: nonNilToken,
 					}, nil)
 
@@ -148,23 +153,27 @@ func TestGetUserTimers(t *testing.T) {
 			setupMock: func(ctrl *gomock.Controller) *persistence.MockRetryer {
 				mockRetryer := persistence.NewMockRetryer(ctrl)
 
-				invalidTimer := &persistence.TimerTaskInfo{
-					DomainID:            "", // Invalid as it's empty
-					WorkflowID:          "testWorkflowID",
-					RunID:               "testRunID",
-					VisibilityTimestamp: fixedTimestamp,
-					TaskType:            persistence.TaskTypeUserTimer,
+				invalidTimer := &persistence.UserTimerTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "", // Invalid as it's empty
+						WorkflowID: "testWorkflowID",
+						RunID:      "testRunID",
+					},
+					TaskData: persistence.TaskData{
+						VisibilityTimestamp: fixedTimestamp,
+					},
 				}
 
 				mockRetryer.EXPECT().
-					GetTimerIndexTasks(gomock.Any(), &persistence.GetTimerIndexTasksRequest{
-						MinTimestamp:  minTimestamp,
-						MaxTimestamp:  maxTimestamp,
-						BatchSize:     pageSize,
-						NextPageToken: nil,
+					GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+						TaskCategory:        persistence.HistoryTaskCategoryTimer,
+						InclusiveMinTaskKey: persistence.NewHistoryTaskKey(minTimestamp, 0),
+						ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTimestamp, 0),
+						PageSize:            pageSize,
+						NextPageToken:       nil,
 					}).
-					Return(&persistence.GetTimerIndexTasksResponse{
-						Timers:        []*persistence.TimerTaskInfo{invalidTimer},
+					Return(&persistence.GetHistoryTasksResponse{
+						Tasks:         []persistence.Task{invalidTimer},
 						NextPageToken: nil,
 					}, nil)
 

@@ -35,7 +35,7 @@ import (
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/service"
 )
@@ -55,12 +55,12 @@ type OutboundsBuilder interface {
 
 type Outbounds struct {
 	yarpc.Outbounds
-	onUpdatePeers func([]membership.HostInfo)
+	onUpdatePeers func(serviceName string, members []membership.HostInfo)
 }
 
-func (o *Outbounds) UpdatePeers(peers []membership.HostInfo) {
+func (o *Outbounds) UpdatePeers(serviceName string, peers []membership.HostInfo) {
 	if o.onUpdatePeers != nil {
-		o.onUpdatePeers(peers)
+		o.onUpdatePeers(serviceName, peers)
 	}
 }
 
@@ -76,7 +76,7 @@ func CombineOutbounds(builders ...OutboundsBuilder) OutboundsBuilder {
 func (b multiOutboundsBuilder) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (*Outbounds, error) {
 	outbounds := yarpc.Outbounds{}
 	var errs error
-	var callbacks []func([]membership.HostInfo)
+	var callbacks []func(string, []membership.HostInfo)
 	for _, builder := range b.builders {
 		builderOutbounds, err := builder.Build(grpc, tchannel)
 		if err != nil {
@@ -99,9 +99,9 @@ func (b multiOutboundsBuilder) Build(grpc *grpc.Transport, tchannel *tchannel.Tr
 
 	return &Outbounds{
 		Outbounds: outbounds,
-		onUpdatePeers: func(peers []membership.HostInfo) {
+		onUpdatePeers: func(serviceName string, members []membership.HostInfo) {
 			for _, callback := range callbacks {
-				callback(peers)
+				callback(serviceName, members)
 			}
 		},
 	}, errs
@@ -202,6 +202,7 @@ func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport
 			ServiceName: clusterInfo.RPCName,
 			Unary: middleware.ApplyUnaryOutbound(outbound, yarpc.UnaryOutboundMiddleware(
 				authMiddleware,
+				&CallerInfoOutboundMiddleware{},
 				&overrideCallerMiddleware{crossDCCaller},
 			)),
 		}
@@ -214,15 +215,16 @@ type directOutbound struct {
 	grpcEnabled          bool
 	tlsConfig            *tls.Config
 	pcf                  PeerChooserFactory
-	enableConnRetainMode dynamicconfig.BoolPropertyFn
+	enableConnRetainMode dynamicproperties.BoolPropertyFn
 }
 
-func NewDirectOutboundBuilder(serviceName string, grpcEnabled bool, tlsConfig *tls.Config, pcf PeerChooserFactory, enableConnRetainMode dynamicconfig.BoolPropertyFn) OutboundsBuilder {
+func NewDirectOutboundBuilder(serviceName string, grpcEnabled bool, tlsConfig *tls.Config, pcf PeerChooserFactory, enableConnRetainMode dynamicproperties.BoolPropertyFn) OutboundsBuilder {
 	return directOutbound{serviceName, grpcEnabled, tlsConfig, pcf, enableConnRetainMode}
 }
 
 func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (*Outbounds, error) {
 	var outbound transport.UnaryOutbound
+	var streamOutbound transport.StreamOutbound
 	opts := PeerChooserOptions{
 		EnableConnectionRetainingDirectChooser: o.enableConnRetainMode,
 		ServiceName:                            o.serviceName,
@@ -236,6 +238,8 @@ func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 			return nil, err
 		}
 		outbound = grpc.NewOutbound(directChooser)
+		// Shard manager needs stream outbound, it only supports GRPC, so we don't need to create a tchannel stream outbound
+		streamOutbound = grpc.NewOutbound(directChooser)
 	} else {
 		directChooser, err = o.pcf.CreatePeerChooser(tchannel, opts)
 		if err != nil {
@@ -248,7 +252,8 @@ func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 		Outbounds: yarpc.Outbounds{
 			o.serviceName: {
 				ServiceName: o.serviceName,
-				Unary:       middleware.ApplyUnaryOutbound(outbound, &ResponseInfoMiddleware{}),
+				Unary:       middleware.ApplyUnaryOutbound(outbound, yarpc.UnaryOutboundMiddleware(&CallerInfoOutboundMiddleware{}, &ResponseInfoMiddleware{})),
+				Stream:      streamOutbound,
 			},
 		},
 		onUpdatePeers: directChooser.UpdatePeers,
@@ -262,4 +267,25 @@ func IsGRPCOutbound(config transport.ClientConfig) bool {
 		panic("Outbound does not implement transport.Namer")
 	}
 	return namer.TransportName() == grpc.TransportName
+}
+func NewSingleGRPCOutboundBuilder(outboundName string, serviceName string, address string) OutboundsBuilder {
+	return singleGRPCOutbound{outboundName, serviceName, address}
+}
+
+type singleGRPCOutbound struct {
+	outboundName string
+	serviceName  string
+	address      string
+}
+
+func (b singleGRPCOutbound) Build(grpc *grpc.Transport, _ *tchannel.Transport) (*Outbounds, error) {
+	return &Outbounds{
+		Outbounds: yarpc.Outbounds{
+			b.outboundName: {
+				ServiceName: b.serviceName,
+				Unary:       grpc.NewSingleOutbound(b.address),
+				Stream:      grpc.NewSingleOutbound(b.address),
+			},
+		},
+	}, nil
 }

@@ -44,7 +44,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -77,7 +77,7 @@ type (
 	// 1's local-fallback and 2 MUST NOT share ratelimiter instances, or the local instances will be double-counted when shadowing.
 	// they should likely be configured to behave identically, but they need to be separate instances.
 	Collection struct {
-		updateInterval dynamicconfig.DurationPropertyFn
+		updateInterval dynamicproperties.DurationPropertyFn
 
 		// targetRPS is a small type-casting wrapper around dynamicconfig.IntPropertyFnWithDomainFilter
 		// to prevent accidentally using the wrong key type.
@@ -92,7 +92,7 @@ type (
 
 		global   *internal.AtomicMap[shared.LocalKey, *internal.FallbackLimiter]
 		local    *internal.AtomicMap[shared.LocalKey, internal.CountedLimiter]
-		disabled quotas.ICollection
+		disabled quotas.ICollection[string]
 		km       shared.KeyMapper
 
 		ctx       context.Context // context used for background operations, canceled when stopping
@@ -161,16 +161,16 @@ func New(
 	name string,
 	// quotas for "local only" behavior.
 	// used for both "local" and "disabled" behavior, though "local" wraps the values with usage metrics.
-	local quotas.ICollection,
+	local quotas.ICollection[string],
 	// quotas for the global limiter's internal fallback.
 	//
 	// this should be configured the same as the local collection, but it
 	// MUST NOT actually be the same collection, or shadowing will double-count
 	// events on the fallback.
-	globalFallback quotas.ICollection,
-	updateInterval dynamicconfig.DurationPropertyFn,
-	targetRPS dynamicconfig.IntPropertyFnWithDomainFilter,
-	keyModes dynamicconfig.StringPropertyWithRatelimitKeyFilter,
+	globalFallback quotas.ICollection[string],
+	updateInterval dynamicproperties.DurationPropertyFn,
+	targetRPS func(key string) int,
+	keyModes dynamicproperties.StringPropertyWithRatelimitKeyFilter,
 	aggs rpc.Client,
 	logger log.Logger,
 	met metrics.Client,

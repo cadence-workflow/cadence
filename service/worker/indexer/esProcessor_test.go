@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/collection"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/elasticsearch/bulk"
 	mocks2 "github.com/uber/cadence/common/elasticsearch/bulk/mocks"
@@ -55,7 +55,7 @@ var (
 	testIndex     = "test-index"
 	testType      = elasticsearch.GetESDocType()
 	testID        = "test-doc-id"
-	testStopWatch = metrics.NoopScope(metrics.ESProcessorScope).StartTimer(metrics.ESProcessorProcessMsgLatency)
+	testStopWatch = metrics.NoopScope.StartTimer(metrics.ESProcessorProcessMsgLatency)
 	testScope     = metrics.ESProcessorScope
 	testMetric    = metrics.ESProcessorProcessMsgLatency
 )
@@ -70,11 +70,11 @@ func (s *esProcessorSuite) SetupSuite() {
 
 func (s *esProcessorSuite) SetupTest() {
 	config := &Config{
-		IndexerConcurrency:       dynamicconfig.GetIntPropertyFn(32),
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
+		IndexerConcurrency:       dynamicproperties.GetIntPropertyFn(32),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
 	}
 	s.mockBulkProcessor = &mocks2.GenericBulkProcessor{}
 	s.mockScope = &mocks.Scope{}
@@ -86,7 +86,7 @@ func (s *esProcessorSuite) SetupTest() {
 		msgEncoder: defaultEncoder,
 	}
 	p.mapToKafkaMsg = collection.NewShardedConcurrentTxMap(1024, p.hashFn)
-	p.bulkProcessor = []bulk.GenericBulkProcessor{s.mockBulkProcessor}
+	p.bulkProcessor = s.mockBulkProcessor
 
 	s.esProcessor = p
 
@@ -100,10 +100,10 @@ func (s *esProcessorSuite) TearDownTest() {
 
 func (s *esProcessorSuite) TestNewESProcessorAndStart() {
 	config := &Config{
-		ESProcessorNumOfWorkers:  dynamicconfig.GetIntPropertyFn(1),
-		ESProcessorBulkActions:   dynamicconfig.GetIntPropertyFn(10),
-		ESProcessorBulkSize:      dynamicconfig.GetIntPropertyFn(2 << 20),
-		ESProcessorFlushInterval: dynamicconfig.GetDurationPropertyFn(1 * time.Minute),
+		ESProcessorNumOfWorkers:  dynamicproperties.GetIntPropertyFn(1),
+		ESProcessorBulkActions:   dynamicproperties.GetIntPropertyFn(10),
+		ESProcessorBulkSize:      dynamicproperties.GetIntPropertyFn(2 << 20),
+		ESProcessorFlushInterval: dynamicproperties.GetDurationPropertyFn(1 * time.Minute),
 	}
 	processorName := "test-bulkProcessor"
 
@@ -526,18 +526,12 @@ func (s *esProcessorSuite) TestBulkAfterAction_Nack_Shadow_WithError() {
 	mapVal := newKafkaMessageWithMetrics(mockKafkaMsg, &testStopWatch)
 	s.esProcessor.mapToKafkaMsg.Put(testKey, mapVal)
 
-	// Add mocked secondary processor
-	secondaryProcessor := &mocks2.GenericBulkProcessor{}
-	s.esProcessor.bulkProcessor = append(s.esProcessor.bulkProcessor, secondaryProcessor)
-
 	// Mock Kafka message Nack and Value
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
-	s.mockScope.On("IncCounter", mock.AnythingOfType("int")).Return()
+	s.mockScope.On("IncCounter", mock.AnythingOfType("metrics.MetricIdx")).Return()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, mockErr)
-	// Mocking secondary processor to test shadowBulkAfterAction with error
-	s.esProcessor.shadowBulkAfterAction(0, requests, response, mockErr)
 }
 
 func (s *esProcessorSuite) TestBulkAfterAction_Shadow_Fail_WithoutError() {
@@ -572,16 +566,10 @@ func (s *esProcessorSuite) TestBulkAfterAction_Shadow_Fail_WithoutError() {
 	mapVal := newKafkaMessageWithMetrics(mockKafkaMsg, &testStopWatch)
 	s.esProcessor.mapToKafkaMsg.Put(testKey, mapVal)
 
-	// Add mocked secondary processor
-	secondaryProcessor := &mocks2.GenericBulkProcessor{}
-	s.esProcessor.bulkProcessor = append(s.esProcessor.bulkProcessor, secondaryProcessor)
-
 	// Mock Kafka message Nack and Value
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", mock.AnythingOfType("int")).Return()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, nil)
-	// Mocking secondary processor to test shadowBulkAfterAction with error
-	s.esProcessor.shadowBulkAfterAction(0, requests, response, nil)
 }

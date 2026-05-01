@@ -26,15 +26,15 @@ To run locally:
 
 1. Stop the previous run if any
 
-	docker-compose -f docker/buildkite/docker-compose-cassandra-lwt.yml down
+	docker compose -f docker/github_actions/docker-compose-cassandra-lwt.yml down
 
 2. Build the integration-test-async-wf image
 
-	docker-compose -f docker/buildkite/docker-compose-cassandra-lwt.yml build test-cass-lwt
+	docker compose -f docker/github_actions/docker-compose-cassandra-lwt.yml build test-cass-lwt
 
 3. Run the test in the docker container
 
-	docker-compose -f docker/buildkite/docker-compose-cassandra-lwt.yml run --rm test-cass-lwt
+	docker compose -f docker/github_actions/docker-compose-cassandra-lwt.yml run --rm test-cass-lwt
 
 4. Full test run logs can be found at test.log file
 */
@@ -81,8 +81,8 @@ import (
 	"github.com/pborman/uuid"
 	"go.uber.org/multierr"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
@@ -274,7 +274,7 @@ func createWorkflow(s *persistencetests.TestBase, wfID string) (*persistence.Wor
 	versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)
@@ -291,7 +291,7 @@ func createWorkflow(s *persistencetests.TestBase, wfID string) (*persistence.Wor
 				WorkflowTypeName:            workflowType,
 				WorkflowTimeout:             workflowTimeout,
 				DecisionStartToCloseTimeout: decisionTimeout,
-				LastFirstEventID:            common.FirstEventID,
+				LastFirstEventID:            constants.FirstEventID,
 				NextEventID:                 nextEventID,
 				LastProcessedEvent:          lastProcessedEventID,
 				State:                       persistence.WorkflowStateCreated,
@@ -337,7 +337,7 @@ func infoToUpdateReq(s *persistencetests.TestBase, info *persistence.WorkflowMut
 	versionHistory := persistence.NewVersionHistory([]byte{}, []*persistence.VersionHistoryItem{
 		{
 			EventID: nextEventID,
-			Version: common.EmptyVersion,
+			Version: constants.EmptyVersion,
 		},
 	})
 	versionHistories := persistence.NewVersionHistories(versionHistory)

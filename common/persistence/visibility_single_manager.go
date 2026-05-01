@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -36,20 +37,19 @@ type (
 		serializer  PayloadSerializer
 		persistence VisibilityStore
 		logger      log.Logger
+		dc          *DynamicConfiguration
 	}
 )
-
-// VisibilityEncoding is default encoding for visibility data
-const VisibilityEncoding = common.EncodingTypeThriftRW
 
 var _ VisibilityManager = (*visibilityManagerImpl)(nil)
 
 // NewVisibilityManagerImpl returns new VisibilityManager via a VisibilityStore
-func NewVisibilityManagerImpl(persistence VisibilityStore, logger log.Logger) VisibilityManager {
+func NewVisibilityManagerImpl(persistence VisibilityStore, logger log.Logger, dc *DynamicConfiguration) VisibilityManager {
 	return &visibilityManagerImpl{
 		serializer:  NewPayloadSerializer(),
 		persistence: persistence,
 		logger:      logger,
+		dc:          dc,
 	}
 }
 
@@ -66,21 +66,26 @@ func (v *visibilityManagerImpl) RecordWorkflowExecutionStarted(
 	request *RecordWorkflowExecutionStartedRequest,
 ) error {
 	req := &InternalRecordWorkflowExecutionStartedRequest{
-		DomainUUID:         request.DomainUUID,
-		WorkflowID:         request.Execution.GetWorkflowID(),
-		RunID:              request.Execution.GetRunID(),
-		WorkflowTypeName:   request.WorkflowTypeName,
-		StartTimestamp:     time.Unix(0, request.StartTimestamp),
-		ExecutionTimestamp: time.Unix(0, request.ExecutionTimestamp),
-		WorkflowTimeout:    common.SecondsToDuration(request.WorkflowTimeout),
-		TaskID:             request.TaskID,
-		TaskList:           request.TaskList,
-		IsCron:             request.IsCron,
-		NumClusters:        request.NumClusters,
-		Memo:               v.serializeMemo(request.Memo, request.DomainUUID, request.Execution.GetWorkflowID(), request.Execution.GetRunID()),
-		UpdateTimestamp:    time.Unix(0, request.UpdateTimestamp),
-		SearchAttributes:   request.SearchAttributes,
-		ShardID:            request.ShardID,
+		DomainUUID:             request.DomainUUID,
+		WorkflowID:             request.Execution.GetWorkflowID(),
+		RunID:                  request.Execution.GetRunID(),
+		WorkflowTypeName:       request.WorkflowTypeName,
+		StartTimestamp:         time.Unix(0, request.StartTimestamp),
+		ExecutionTimestamp:     time.Unix(0, request.ExecutionTimestamp),
+		WorkflowTimeout:        common.SecondsToDuration(request.WorkflowTimeout),
+		TaskID:                 request.TaskID,
+		TaskList:               request.TaskList,
+		IsCron:                 request.IsCron,
+		CronSchedule:           request.CronSchedule,
+		NumClusters:            request.NumClusters,
+		ClusterAttributeScope:  request.ClusterAttributeScope,
+		ClusterAttributeName:   request.ClusterAttributeName,
+		Memo:                   v.serializeMemo(request.Memo, request.DomainUUID, request.Execution.GetWorkflowID(), request.Execution.GetRunID()),
+		UpdateTimestamp:        time.Unix(0, request.UpdateTimestamp),
+		SearchAttributes:       request.SearchAttributes,
+		ShardID:                request.ShardID,
+		ExecutionStatus:        request.ExecutionStatus,
+		ScheduledExecutionTime: time.Unix(0, request.ScheduledExecutionTimestamp),
 	}
 	return v.persistence.RecordWorkflowExecutionStarted(ctx, req)
 }
@@ -90,24 +95,29 @@ func (v *visibilityManagerImpl) RecordWorkflowExecutionClosed(
 	request *RecordWorkflowExecutionClosedRequest,
 ) error {
 	req := &InternalRecordWorkflowExecutionClosedRequest{
-		DomainUUID:         request.DomainUUID,
-		WorkflowID:         request.Execution.GetWorkflowID(),
-		RunID:              request.Execution.GetRunID(),
-		WorkflowTypeName:   request.WorkflowTypeName,
-		StartTimestamp:     time.Unix(0, request.StartTimestamp),
-		ExecutionTimestamp: time.Unix(0, request.ExecutionTimestamp),
-		TaskID:             request.TaskID,
-		Memo:               v.serializeMemo(request.Memo, request.DomainUUID, request.Execution.GetWorkflowID(), request.Execution.GetRunID()),
-		TaskList:           request.TaskList,
-		SearchAttributes:   request.SearchAttributes,
-		CloseTimestamp:     time.Unix(0, request.CloseTimestamp),
-		Status:             request.Status,
-		HistoryLength:      request.HistoryLength,
-		RetentionPeriod:    common.SecondsToDuration(request.RetentionSeconds),
-		IsCron:             request.IsCron,
-		NumClusters:        request.NumClusters,
-		UpdateTimestamp:    time.Unix(0, request.UpdateTimestamp),
-		ShardID:            request.ShardID,
+		DomainUUID:             request.DomainUUID,
+		WorkflowID:             request.Execution.GetWorkflowID(),
+		RunID:                  request.Execution.GetRunID(),
+		WorkflowTypeName:       request.WorkflowTypeName,
+		StartTimestamp:         time.Unix(0, request.StartTimestamp),
+		ExecutionTimestamp:     time.Unix(0, request.ExecutionTimestamp),
+		TaskID:                 request.TaskID,
+		Memo:                   v.serializeMemo(request.Memo, request.DomainUUID, request.Execution.GetWorkflowID(), request.Execution.GetRunID()),
+		TaskList:               request.TaskList,
+		ClusterAttributeScope:  request.ClusterAttributeScope,
+		ClusterAttributeName:   request.ClusterAttributeName,
+		SearchAttributes:       request.SearchAttributes,
+		CloseTimestamp:         time.Unix(0, request.CloseTimestamp),
+		Status:                 request.Status,
+		HistoryLength:          request.HistoryLength,
+		RetentionPeriod:        common.SecondsToDuration(request.RetentionSeconds),
+		IsCron:                 request.IsCron,
+		CronSchedule:           request.CronSchedule,
+		NumClusters:            request.NumClusters,
+		UpdateTimestamp:        time.Unix(0, request.UpdateTimestamp),
+		ShardID:                request.ShardID,
+		ExecutionStatus:        request.ExecutionStatus,
+		ScheduledExecutionTime: time.Unix(0, request.ScheduledExecutionTimestamp),
 	}
 	return v.persistence.RecordWorkflowExecutionClosed(ctx, req)
 }
@@ -132,20 +142,25 @@ func (v *visibilityManagerImpl) UpsertWorkflowExecution(
 	request *UpsertWorkflowExecutionRequest,
 ) error {
 	req := &InternalUpsertWorkflowExecutionRequest{
-		DomainUUID:         request.DomainUUID,
-		WorkflowID:         request.Execution.GetWorkflowID(),
-		RunID:              request.Execution.GetRunID(),
-		WorkflowTypeName:   request.WorkflowTypeName,
-		StartTimestamp:     time.Unix(0, request.StartTimestamp),
-		ExecutionTimestamp: time.Unix(0, request.ExecutionTimestamp),
-		TaskID:             request.TaskID,
-		Memo:               v.serializeMemo(request.Memo, request.DomainUUID, request.Execution.GetWorkflowID(), request.Execution.GetRunID()),
-		TaskList:           request.TaskList,
-		IsCron:             request.IsCron,
-		NumClusters:        request.NumClusters,
-		UpdateTimestamp:    time.Unix(0, request.UpdateTimestamp),
-		SearchAttributes:   request.SearchAttributes,
-		ShardID:            request.ShardID,
+		DomainUUID:                  request.DomainUUID,
+		WorkflowID:                  request.Execution.GetWorkflowID(),
+		RunID:                       request.Execution.GetRunID(),
+		WorkflowTypeName:            request.WorkflowTypeName,
+		StartTimestamp:              time.Unix(0, request.StartTimestamp),
+		ExecutionTimestamp:          time.Unix(0, request.ExecutionTimestamp),
+		TaskID:                      request.TaskID,
+		Memo:                        v.serializeMemo(request.Memo, request.DomainUUID, request.Execution.GetWorkflowID(), request.Execution.GetRunID()),
+		TaskList:                    request.TaskList,
+		IsCron:                      request.IsCron,
+		CronSchedule:                request.CronSchedule,
+		NumClusters:                 request.NumClusters,
+		ClusterAttributeScope:       request.ClusterAttributeScope,
+		ClusterAttributeName:        request.ClusterAttributeName,
+		UpdateTimestamp:             time.Unix(0, request.UpdateTimestamp),
+		SearchAttributes:            request.SearchAttributes,
+		ShardID:                     request.ShardID,
+		ExecutionStatus:             request.ExecutionStatus,
+		ScheduledExecutionTimestamp: request.ScheduledExecutionTimestamp,
 	}
 	return v.persistence.UpsertWorkflowExecution(ctx, req)
 }
@@ -395,12 +410,15 @@ func (v *visibilityManagerImpl) convertVisibilityWorkflowExecutionInfo(execution
 		Type: &types.WorkflowType{
 			Name: execution.TypeName,
 		},
-		StartTime:        common.Int64Ptr(execution.StartTime.UnixNano()),
-		ExecutionTime:    common.Int64Ptr(execution.ExecutionTime.UnixNano()),
-		Memo:             memo,
-		SearchAttributes: searchAttributes,
-		TaskList:         execution.TaskList,
-		IsCron:           execution.IsCron,
+		StartTime:              common.Int64Ptr(execution.StartTime.UnixNano()),
+		ExecutionTime:          common.Int64Ptr(execution.ExecutionTime.UnixNano()),
+		Memo:                   memo,
+		SearchAttributes:       searchAttributes,
+		TaskList:               &types.TaskList{Name: execution.TaskList},
+		IsCron:                 execution.IsCron,
+		CronSchedule:           common.StringPtr(execution.CronSchedule),
+		ExecutionStatus:        &execution.ExecutionStatus,
+		ScheduledExecutionTime: common.Int64Ptr(execution.ScheduledExecutionTime.UnixNano()),
 	}
 
 	// for close records
@@ -428,7 +446,7 @@ func (v *visibilityManagerImpl) toInternalListWorkflowExecutionsRequest(req *Lis
 }
 
 func (v *visibilityManagerImpl) serializeMemo(visibilityMemo *types.Memo, domainID, wID, rID string) *DataBlob {
-	memo, err := v.serializer.SerializeVisibilityMemo(visibilityMemo, VisibilityEncoding)
+	memo, err := v.serializer.SerializeVisibilityMemo(visibilityMemo, constants.EncodingType(v.dc.SerializationEncoding()))
 	if err != nil {
 		v.logger.WithTags(
 			tag.WorkflowDomainID(domainID),

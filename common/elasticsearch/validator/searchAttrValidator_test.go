@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/definition"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 )
@@ -46,11 +46,11 @@ func (s *searchAttributesValidatorSuite) TestValidateSearchAttributes() {
 	sizeOfTotalLimit := 20
 
 	validator := NewSearchAttributesValidator(log.NewNoop(),
-		dynamicconfig.GetBoolPropertyFn(true),
-		dynamicconfig.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
-		dynamicconfig.GetIntPropertyFilteredByDomain(numOfKeysLimit),
-		dynamicconfig.GetIntPropertyFilteredByDomain(sizeOfValueLimit),
-		dynamicconfig.GetIntPropertyFilteredByDomain(sizeOfTotalLimit))
+		dynamicproperties.GetBoolPropertyFn(true),
+		dynamicproperties.GetMapPropertyFn(definition.GetDefaultIndexedKeys()),
+		dynamicproperties.GetIntPropertyFilteredByDomain(numOfKeysLimit),
+		dynamicproperties.GetIntPropertyFilteredByDomain(sizeOfValueLimit),
+		dynamicproperties.GetIntPropertyFilteredByDomain(sizeOfTotalLimit))
 
 	domain := "domain"
 	var attr *types.SearchAttributes
@@ -103,7 +103,7 @@ func (s *searchAttributesValidatorSuite) TestValidateSearchAttributes() {
 	}
 	attr.IndexedFields = fields
 	err = validator.ValidateSearchAttributes(attr, domain)
-	s.Equal(`StartTime is read-only Cadence reservered attribute`, err.Error())
+	s.Equal(`StartTime is read-only Cadence reserved attribute`, err.Error())
 
 	fields = map[string][]byte{
 		"CustomKeywordField": []byte(`"123456"`),

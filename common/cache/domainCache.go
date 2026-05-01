@@ -24,6 +24,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"hash/fnv"
 	"sort"
 	"strconv"
@@ -33,9 +34,10 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -60,10 +62,7 @@ const (
 	domainCacheMinRefreshInterval = 1 * time.Second
 	// DomainCacheRefreshInterval domain cache refresh interval
 	DomainCacheRefreshInterval = 10 * time.Second
-	// DomainCacheRefreshFailureRetryInterval is the wait time
-	// if refreshment encounters error
-	DomainCacheRefreshFailureRetryInterval = 1 * time.Second
-	domainCacheRefreshPageSize             = 200
+	domainCacheRefreshPageSize = 200
 
 	domainCachePersistenceTimeout = 3 * time.Second
 
@@ -81,6 +80,10 @@ type (
 	// it is guaranteed that  CallbackFn pair will be both called or non will be called
 	CallbackFn func(updatedDomains []*DomainCacheEntry)
 
+	// CatchUpFn is a function to execute PrepareCallbackFn and/or CallbackFn during domain callback registration,
+	// allowing the caller to catch up with the latest domain changes
+	CatchUpFn func(domainCache DomainCache, prepareCallback PrepareCallbackFn, callback CallbackFn)
+
 	// DomainCache is used the cache domain information and configuration to avoid making too many calls to cassandra.
 	// This cache is mainly used by frontend for resolving domain names to domain uuids which are used throughout the
 	// system.  Each domain entry is kept in the cache for one hour but also has an expiry of 10 seconds.  This results
@@ -88,8 +91,8 @@ type (
 	// requests using the stale entry from cache upto an hour
 	DomainCache interface {
 		common.Daemon
-		RegisterDomainChangeCallback(shard int, initialNotificationVersion int64, prepareCallback PrepareCallbackFn, callback CallbackFn)
-		UnregisterDomainChangeCallback(shard int)
+		RegisterDomainChangeCallback(id string, catchUpFn CatchUpFn, prepareCallback PrepareCallbackFn, callback CallbackFn)
+		UnregisterDomainChangeCallback(id string)
 		GetDomain(name string) (*DomainCacheEntry, error)
 		GetDomainByID(id string) (*DomainCacheEntry, error)
 		GetDomainID(name string) (string, error)
@@ -99,15 +102,16 @@ type (
 	}
 
 	DefaultDomainCache struct {
-		status        int32
-		shutdownChan  chan struct{}
-		clusterGroup  string
-		cacheNameToID *atomic.Value
-		cacheByID     *atomic.Value
-		domainManager persistence.DomainManager
-		timeSource    clock.TimeSource
-		scope         metrics.Scope
-		logger        log.Logger
+		status          int32
+		shutdownChan    chan struct{}
+		clusterGroup    string
+		clusterMetadata cluster.Metadata
+		cacheNameToID   *atomic.Value
+		cacheByID       *atomic.Value
+		domainManager   persistence.DomainManager
+		timeSource      clock.TimeSource
+		scope           metrics.Scope
+		logger          log.Logger
 
 		// refresh lock is used to guarantee at most one
 		// coroutine is doing domain refreshment
@@ -117,8 +121,14 @@ type (
 		lastCallbackEmitTime time.Time
 
 		callbackLock     sync.Mutex
-		prepareCallbacks map[int]PrepareCallbackFn
-		callbacks        map[int]CallbackFn
+		prepareCallbacks map[string]PrepareCallbackFn
+		callbacks        map[string]CallbackFn
+
+		throttleRetry *backoff.ThrottleRetry
+
+		// ctx and cancel are used to control the lifecycle of background operations
+		ctx    context.Context
+		cancel context.CancelFunc
 	}
 
 	// DomainCacheEntries is DomainCacheEntry slice
@@ -138,6 +148,9 @@ type (
 		failoverEndTime             *int64
 		notificationVersion         int64
 		initialized                 bool
+
+		// list of active clusters for active-active domains. initialized from replication config.
+		activeClusters []string
 	}
 )
 
@@ -160,18 +173,28 @@ func NewDomainCache(
 	opts ...DomainCacheOption,
 ) *DefaultDomainCache {
 
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(common.CreateDomainCacheRetryPolicy()),
+		backoff.WithRetryableError(common.IsServiceTransientError),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
 	cache := &DefaultDomainCache{
 		status:           domainCacheInitialized,
 		shutdownChan:     make(chan struct{}),
 		clusterGroup:     getClusterGroupIdentifier(metadata),
+		clusterMetadata:  metadata,
 		cacheNameToID:    &atomic.Value{},
 		cacheByID:        &atomic.Value{},
 		domainManager:    domainManager,
 		timeSource:       clock.NewRealTimeSource(),
 		scope:            metricsClient.Scope(metrics.DomainCacheScope),
 		logger:           logger,
-		prepareCallbacks: make(map[int]PrepareCallbackFn),
-		callbacks:        make(map[int]CallbackFn),
+		prepareCallbacks: make(map[string]PrepareCallbackFn),
+		callbacks:        make(map[string]CallbackFn),
+		throttleRetry:    throttleRetry,
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 	cache.cacheNameToID.Store(newDomainCache())
 	cache.cacheByID.Store(newDomainCache())
@@ -230,7 +253,7 @@ func NewLocalDomainCacheEntryForTest(
 			ActiveClusterName: targetCluster,
 			Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: targetCluster}},
 		},
-		failoverVersion: common.EmptyVersion,
+		failoverVersion: constants.EmptyVersion,
 	}
 }
 
@@ -246,7 +269,6 @@ func NewDomainCacheEntryForTest(
 	previousFailoverVersion int64,
 	notificationVersion int64,
 ) *DomainCacheEntry {
-
 	return &DomainCacheEntry{
 		info:                        info,
 		config:                      config,
@@ -257,6 +279,7 @@ func NewDomainCacheEntryForTest(
 		failoverNotificationVersion: failoverNotificationVersion,
 		previousFailoverVersion:     previousFailoverVersion,
 		notificationVersion:         notificationVersion,
+		activeClusters:              getActiveClusters(repConfig),
 	}
 }
 
@@ -283,6 +306,7 @@ func (c *DefaultDomainCache) Stop() {
 	if !atomic.CompareAndSwapInt32(&c.status, domainCacheStarted, domainCacheStopped) {
 		return
 	}
+	c.cancel() // Cancel the context first
 	close(c.shutdownChan)
 }
 
@@ -308,49 +332,31 @@ func (c *DefaultDomainCache) GetAllDomain() map[string]*DomainCacheEntry {
 // make sure the callback function will not call domain cache again in case of dead lock
 // afterCallback will be invoked when NOT holding the domain cache lock.
 func (c *DefaultDomainCache) RegisterDomainChangeCallback(
-	shard int,
-	initialNotificationVersion int64,
+	id string,
+	catchUpFn CatchUpFn,
 	prepareCallback PrepareCallbackFn,
 	callback CallbackFn,
 ) {
 
 	c.callbackLock.Lock()
-	c.prepareCallbacks[shard] = prepareCallback
-	c.callbacks[shard] = callback
+	c.prepareCallbacks[id] = prepareCallback
+	c.callbacks[id] = callback
 	c.callbackLock.Unlock()
 
-	// this section is trying to make the shard catch up with domain changes
-	domains := DomainCacheEntries{}
-	for _, domain := range c.GetAllDomain() {
-		domains = append(domains, domain)
-	}
-	// we mush notify the change in a ordered fashion
-	// since history shard have to update the shard info
-	// with domain change version.
-	sort.Sort(domains)
+	catchUpFn(c, prepareCallback, callback)
 
-	var updatedEntries []*DomainCacheEntry
-	for _, domain := range domains {
-		if domain.notificationVersion >= initialNotificationVersion {
-			updatedEntries = append(updatedEntries, domain)
-		}
-	}
-	if len(updatedEntries) > 0 {
-		prepareCallback()
-		callback(updatedEntries)
-	}
 }
 
 // UnregisterDomainChangeCallback delete a domain failover callback
 func (c *DefaultDomainCache) UnregisterDomainChangeCallback(
-	shard int,
+	id string,
 ) {
 
 	c.callbackLock.Lock()
 	defer c.callbackLock.Unlock()
 
-	delete(c.prepareCallbacks, shard)
-	delete(c.callbacks, shard)
+	delete(c.prepareCallbacks, id)
+	delete(c.callbacks, id)
 }
 
 // GetDomain retrieves the information from the cache if it exists, otherwise retrieves the information from metadata
@@ -411,15 +417,12 @@ func (c *DefaultDomainCache) refreshLoop() {
 		case <-c.shutdownChan:
 			return
 		case <-timer.Chan():
-			for err := c.refreshDomains(); err != nil; err = c.refreshDomains() {
-				select {
-				case <-c.shutdownChan:
-					return
-				default:
-					c.logger.Error("Error refreshing domain cache", tag.Error(err))
-					c.timeSource.Sleep(DomainCacheRefreshFailureRetryInterval)
-				}
+			err := c.refreshDomains()
+			if err != nil {
+				c.logger.Error("Error refreshing domain cache", tag.Error(err))
+				continue
 			}
+
 			c.logger.Debug("Domain cache refreshed")
 		}
 	}
@@ -428,12 +431,12 @@ func (c *DefaultDomainCache) refreshLoop() {
 func (c *DefaultDomainCache) refreshDomains() error {
 	c.refreshLock.Lock()
 	defer c.refreshLock.Unlock()
-	return c.refreshDomainsLocked()
+	return c.throttleRetry.Do(c.ctx, c.refreshDomainsLocked)
 }
 
 // this function only refresh the domains in the v2 table
 // the domains in the v1 table will be refreshed if cache is stale
-func (c *DefaultDomainCache) refreshDomainsLocked() error {
+func (c *DefaultDomainCache) refreshDomainsLocked(ctx context.Context) error {
 	now := c.timeSource.Now()
 	if now.Sub(c.lastRefreshTime) < domainCacheMinRefreshInterval {
 		return nil
@@ -441,7 +444,7 @@ func (c *DefaultDomainCache) refreshDomainsLocked() error {
 
 	// first load the metadata record, then load domains
 	// this can guarantee that domains in the cache are not updated more than metadata record
-	ctx, cancel := context.WithTimeout(context.Background(), domainCachePersistenceTimeout)
+	ctx, cancel := context.WithTimeout(ctx, domainCachePersistenceTimeout)
 	defer cancel()
 	metadata, err := c.domainManager.GetMetadata(ctx)
 	if err != nil {
@@ -454,7 +457,7 @@ func (c *DefaultDomainCache) refreshDomainsLocked() error {
 	continuePage := true
 
 	for continuePage {
-		ctx, cancel := context.WithTimeout(context.Background(), domainCachePersistenceTimeout)
+		ctx, cancel := context.WithTimeout(ctx, domainCachePersistenceTimeout)
 		request.NextPageToken = token
 		response, err := c.domainManager.ListDomains(ctx, request)
 		cancel()
@@ -503,6 +506,7 @@ UpdateLoop:
 			metrics.DomainTypeTag(nextEntry.isGlobalDomain),
 			metrics.ClusterGroupTag(c.clusterGroup),
 			metrics.ActiveClusterTag(nextEntry.replicationConfig.ActiveClusterName),
+			metrics.IsActiveActiveDomainTag(nextEntry.replicationConfig.IsActiveActive()),
 		).UpdateGauge(metrics.ActiveClusterGauge, 1)
 
 		c.updateNameToIDCache(newCacheNameToID, nextEntry.info.Name, nextEntry.info.ID)
@@ -526,6 +530,7 @@ UpdateLoop:
 	if now.Sub(c.lastCallbackEmitTime) > 30*time.Minute {
 		c.lastCallbackEmitTime = now
 		c.scope.AddCounter(metrics.DomainCacheCallbacksCount, int64(len(c.callbacks)))
+		c.scope.RecordHistogramDuration(metrics.DomainCacheUpdateLatency, c.timeSource.Now().Sub(now))
 	}
 
 	return nil
@@ -579,6 +584,7 @@ func (c *DefaultDomainCache) updateIDToDomainCache(
 	entry.failoverEndTime = record.failoverEndTime
 	entry.notificationVersion = record.notificationVersion
 	entry.initialized = record.initialized
+	entry.activeClusters = record.activeClusters
 	return triggerCallback, entry.duplicate(), nil
 }
 
@@ -603,7 +609,7 @@ func (c *DefaultDomainCache) getDomain(
 	if cacheHit {
 		return c.getDomainByID(id, true)
 	}
-	if err := c.refreshDomainsLocked(); err != nil {
+	if err := c.refreshDomainsLocked(context.Background()); err != nil {
 		return nil, err
 	}
 	id, cacheHit = c.cacheNameToID.Load().(Cache).Get(name).(string)
@@ -622,6 +628,11 @@ func (c *DefaultDomainCache) getDomainByID(
 ) (*DomainCacheEntry, error) {
 
 	var result *DomainCacheEntry
+	defer func() {
+		if result != nil {
+			c.logger.Debugf("GetDomainByID returning domain %s, failoverVersion: %d", result.info.Name, result.failoverVersion)
+		}
+	}()
 	entry, cacheHit := c.cacheByID.Load().(Cache).Get(id).(*DomainCacheEntry)
 	if cacheHit {
 		entry.mu.RLock()
@@ -649,7 +660,7 @@ func (c *DefaultDomainCache) getDomainByID(
 		entry.mu.RUnlock()
 		return result, nil
 	}
-	if err := c.refreshDomainsLocked(); err != nil {
+	if err := c.refreshDomainsLocked(context.Background()); err != nil {
 		return nil, err
 	}
 	entry, cacheHit = c.cacheByID.Load().(Cache).Get(id).(*DomainCacheEntry)
@@ -667,24 +678,31 @@ func (c *DefaultDomainCache) getDomainByID(
 }
 
 func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
+	start := time.Now()
 	sw := c.scope.StartTimer(metrics.DomainCachePrepareCallbacksLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.scope.RecordHistogramDuration(metrics.DomainCachePrepareCallbacksLatencyHistogram, time.Since(start))
+	}()
 
 	for _, prepareCallback := range c.prepareCallbacks {
 		prepareCallback()
 	}
 }
 
-func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(
-	nextDomains []*DomainCacheEntry,
-) {
-
+func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*DomainCacheEntry) {
+	start := time.Now()
 	sw := c.scope.StartTimer(metrics.DomainCacheCallbacksLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.scope.RecordHistogramDuration(metrics.DomainCacheCallbacksLatencyHistogram, time.Since(start))
+	}()
 
+	c.logger.Debug("Domain change callbacks are going to triggered", tag.Number(int64(len(nextDomains))))
 	for _, callback := range c.callbacks {
 		callback(nextDomains)
 	}
+	c.logger.Debug("Domain change callbacks are completed", tag.Number(int64(len(nextDomains))))
 }
 
 func (c *DefaultDomainCache) buildEntryFromRecord(
@@ -705,6 +723,7 @@ func (c *DefaultDomainCache) buildEntryFromRecord(
 		failoverEndTime:             record.FailoverEndTime,
 		notificationVersion:         record.NotificationVersion,
 		initialized:                 true,
+		activeClusters:              getActiveClusters(record.ReplicationConfig),
 	}
 }
 
@@ -747,8 +766,10 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 		ActiveClusterName: entry.replicationConfig.ActiveClusterName,
 	}
 	for _, clusterCfg := range entry.replicationConfig.Clusters {
-		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &*clusterCfg)
+		c := *clusterCfg
+		result.replicationConfig.Clusters = append(result.replicationConfig.Clusters, &c)
 	}
+	result.replicationConfig.ActiveClusters = entry.replicationConfig.ActiveClusters.DeepCopy()
 	result.configVersion = entry.configVersion
 	result.failoverVersion = entry.failoverVersion
 	result.isGlobalDomain = entry.isGlobalDomain
@@ -757,6 +778,7 @@ func (entry *DomainCacheEntry) duplicate() *DomainCacheEntry {
 	result.failoverEndTime = entry.failoverEndTime
 	result.notificationVersion = entry.notificationVersion
 	result.initialized = entry.initialized
+	result.activeClusters = entry.activeClusters
 	return result
 }
 
@@ -810,26 +832,101 @@ func (entry *DomainCacheEntry) GetFailoverEndTime() *int64 {
 	return entry.failoverEndTime
 }
 
-// IsActive return whether the domain is active, i.e. non global domain or global domain which active cluster is the current cluster
-// If domain is not active, it also returns an error
-func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) (bool, error) {
+// GetActiveClusterInfoByClusterAttribute return the active cluster info for a given cluster attribute
+// if clusterAttribute is nil, return the domain-level active cluster info and true
+// if the clusterAttribute exists, return the active cluster info of the clusterAttribute and true
+// if the clusterAttribute is not found, return false
+func (entry *DomainCacheEntry) GetActiveClusterInfoByClusterAttribute(clusterAttribute *types.ClusterAttribute) (*types.ActiveClusterInfo, bool) {
+	if clusterAttribute == nil {
+		return &types.ActiveClusterInfo{
+			ActiveClusterName: entry.GetReplicationConfig().ActiveClusterName,
+			FailoverVersion:   entry.GetFailoverVersion(),
+		}, true
+	}
+	if entry.replicationConfig.ActiveClusters == nil {
+		return nil, false
+	}
+	if entry.replicationConfig.ActiveClusters.AttributeScopes == nil {
+		return nil, false
+	}
+	scope, ok := entry.replicationConfig.ActiveClusters.AttributeScopes[clusterAttribute.Scope]
+	if !ok {
+		return nil, false
+	}
+	info, ok := scope.ClusterAttributes[clusterAttribute.Name]
+	if !ok {
+		return nil, false
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: info.ActiveClusterName,
+		FailoverVersion:   info.FailoverVersion,
+	}, true
+}
+
+// NewDomainNotActiveError return a domain not active error
+// currentCluster is the current cluster
+// activeCluster is the active cluster which is either domain's active cluster or it's inferred from workflow task version
+func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster, activeCluster string) *types.DomainNotActiveError {
+	if entry.GetReplicationConfig().IsActiveActive() {
+		return &types.DomainNotActiveError{
+			Message: fmt.Sprintf(
+				"Domain: %s is active in cluster(s): %v, while current cluster %s is a standby cluster. Operation active cluster: %s",
+				entry.GetInfo().Name,
+				entry.activeClusters,
+				currentCluster,
+				activeCluster,
+			),
+			DomainName:     entry.GetInfo().Name,
+			CurrentCluster: currentCluster,
+			ActiveCluster:  activeCluster,
+			ActiveClusters: entry.activeClusters,
+		}
+	}
+
+	return &types.DomainNotActiveError{
+		Message: fmt.Sprintf(
+			"Domain: %s is active in cluster: %s, while current cluster %s is a standby cluster.",
+			entry.GetInfo().Name,
+			activeCluster,
+			currentCluster,
+		),
+		DomainName:     entry.GetInfo().Name,
+		CurrentCluster: currentCluster,
+		ActiveCluster:  activeCluster,
+	}
+}
+
+// IsActive return whether the domain is active in the current cluster,
+// - for local domain, it is always active
+// - for global domain, it is active if it is not pending active and the domain's active cluster is the current cluster or if the domain is active-active and the active cluster of one of the cluster attributes is the current cluster
+// TODO(active-active): for active-active domains, we should review this logic because now workflows can be active in different clusters based on the cluster attribute.
+// We should also revisit its usage in history service.
+func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 	if !entry.IsGlobalDomain() {
 		// domain is not a global domain, meaning domain is always "active" within each cluster
-		return true, nil
+		return true
 	}
-
-	domainName := entry.GetInfo().Name
-	activeCluster := entry.GetReplicationConfig().ActiveClusterName
 
 	if entry.IsDomainPendingActive() {
-		return false, errors.NewDomainPendingActiveError(domainName, currentCluster)
+		return false
 	}
 
-	if currentCluster != activeCluster {
-		return false, errors.NewDomainNotActiveError(domainName, currentCluster, activeCluster)
+	activeCluster := entry.GetReplicationConfig().ActiveClusterName
+	if currentCluster == activeCluster {
+		return true
 	}
 
-	return true, nil
+	if activeClusters := entry.GetReplicationConfig().ActiveClusters; activeClusters != nil {
+		for _, scope := range activeClusters.AttributeScopes {
+			for _, cl := range scope.ClusterAttributes {
+				if cl.ActiveClusterName == currentCluster {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 // IsDomainPendingActive returns whether the domain is in pending active state
@@ -942,29 +1039,25 @@ func (entry *DomainCacheEntry) IsSampledForLongerRetention(
 	return false
 }
 
-func GetActiveDomainByID(cache DomainCache, currentCluster string, domainID string) (*DomainCacheEntry, error) {
-	if err := common.ValidateDomainUUID(domainID); err != nil {
-		return nil, err
-	}
-
-	domain, err := cache.GetDomainByID(domainID)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err = domain.IsActiveIn(currentCluster); err != nil {
-		// TODO: currently reapply events API will check if returned domainEntry is nil or not
-		// when there's an error.
-		return domain, err
-	}
-
-	return domain, nil
-}
-
 // IsDeprecatedOrDeleted This function checks the domain status to see if the domain has been deprecated or deleted.
 func (entry *DomainCacheEntry) IsDeprecatedOrDeleted() bool {
 	if entry.info.Status == persistence.DomainStatusDeprecated || entry.info.Status == persistence.DomainStatusDeleted {
 		return true
 	}
 	return false
+}
+
+func getActiveClusters(replicationConfig *persistence.DomainReplicationConfig) []string {
+	if !replicationConfig.IsActiveActive() {
+		return nil
+	}
+	// TODO(active-active): Replace with `GetAllClusters` once we remove regions
+	activeClusters := make([]string, 0, len(replicationConfig.ActiveClusters.AttributeScopes))
+	for _, scope := range replicationConfig.ActiveClusters.AttributeScopes {
+		for _, cl := range scope.ClusterAttributes {
+			activeClusters = append(activeClusters, cl.ActiveClusterName)
+		}
+	}
+	sort.Strings(activeClusters)
+	return activeClusters
 }

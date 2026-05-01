@@ -25,13 +25,16 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -46,6 +49,7 @@ type (
 		mockMutableState *MockMutableState
 
 		domainID   string
+		domainName string
 		workflowID string
 		runID      string
 	}
@@ -62,8 +66,8 @@ func (s *workflowSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 	s.mockContext = NewMockContext(s.controller)
 	s.mockMutableState = NewMockMutableState(s.controller)
-
 	s.domainID = uuid.New()
+	s.domainName = "domain-name"
 	s.workflowID = "some random workflow ID"
 	s.runID = uuid.New()
 }
@@ -75,12 +79,19 @@ func (s *workflowSuite) TearDownTest() {
 func (s *workflowSuite) TestGetMethods() {
 	lastEventTaskID := int64(144)
 	lastEventVersion := int64(12)
+	startTimestamp := time.Now()
+	activeClusterSelectionPolicy := &types.ActiveClusterSelectionPolicy{
+		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
+		StickyRegion:                   "region-1",
+	}
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(lastEventVersion, nil).AnyTimes()
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
-		DomainID:        s.domainID,
-		WorkflowID:      s.workflowID,
-		RunID:           s.runID,
-		LastEventTaskID: lastEventTaskID,
+		DomainID:                     s.domainID,
+		WorkflowID:                   s.workflowID,
+		RunID:                        s.runID,
+		LastEventTaskID:              lastEventTaskID,
+		StartTimestamp:               startTimestamp,
+		ActiveClusterSelectionPolicy: activeClusterSelectionPolicy,
 	}).AnyTimes()
 
 	nDCWorkflow := NewWorkflow(
@@ -89,6 +100,7 @@ func (s *workflowSuite) TestGetMethods() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 
 	s.Equal(s.mockContext, nDCWorkflow.GetContext())
@@ -99,66 +111,16 @@ func (s *workflowSuite) TestGetMethods() {
 	expectedReleaseFn := runtime.FuncForPC(reflect.ValueOf(NoopReleaseFn).Pointer()).Name()
 	actualReleaseFn := runtime.FuncForPC(reflect.ValueOf(nDCWorkflow.GetReleaseFn()).Pointer()).Name()
 	s.Equal(expectedReleaseFn, actualReleaseFn)
-	version, taskID, err := nDCWorkflow.GetVectorClock()
+	vectorClock, err := nDCWorkflow.GetVectorClock()
 	s.NoError(err)
-	s.Equal(lastEventVersion, version)
-	s.Equal(lastEventTaskID, taskID)
-}
-
-func (s *workflowSuite) TestHappensAfter_LargerVersion() {
-	thisLastWriteVersion := int64(0)
-	thisLastEventTaskID := int64(100)
-	thatLastWriteVersion := thisLastWriteVersion - 1
-	thatLastEventTaskID := int64(123)
-
-	s.True(workflowHappensAfter(
-		thisLastWriteVersion,
-		thisLastEventTaskID,
-		thatLastWriteVersion,
-		thatLastEventTaskID,
-	))
-}
-
-func (s *workflowSuite) TestHappensAfter_SmallerVersion() {
-	thisLastWriteVersion := int64(0)
-	thisLastEventTaskID := int64(100)
-	thatLastWriteVersion := thisLastWriteVersion + 1
-	thatLastEventTaskID := int64(23)
-
-	s.False(workflowHappensAfter(
-		thisLastWriteVersion,
-		thisLastEventTaskID,
-		thatLastWriteVersion,
-		thatLastEventTaskID,
-	))
-}
-
-func (s *workflowSuite) TestHappensAfter_SameVersion_SmallerTaskID() {
-	thisLastWriteVersion := int64(0)
-	thisLastEventTaskID := int64(100)
-	thatLastWriteVersion := thisLastWriteVersion
-	thatLastEventTaskID := thisLastEventTaskID + 1
-
-	s.False(workflowHappensAfter(
-		thisLastWriteVersion,
-		thisLastEventTaskID,
-		thatLastWriteVersion,
-		thatLastEventTaskID,
-	))
-}
-
-func (s *workflowSuite) TestHappensAfter_SameVersion_LargerTaskID() {
-	thisLastWriteVersion := int64(0)
-	thisLastEventTaskID := int64(100)
-	thatLastWriteVersion := thisLastWriteVersion
-	thatLastEventTaskID := thisLastEventTaskID - 1
-
-	s.True(workflowHappensAfter(
-		thisLastWriteVersion,
-		thisLastEventTaskID,
-		thatLastWriteVersion,
-		thatLastEventTaskID,
-	))
+	expectedVectorClock := WorkflowVectorClock{
+		ActiveClusterSelectionPolicy: activeClusterSelectionPolicy,
+		LastWriteVersion:             lastEventVersion,
+		LastEventTaskID:              lastEventTaskID,
+		StartTimestamp:               startTimestamp,
+		RunID:                        s.runID,
+	}
+	s.Equal(expectedVectorClock, vectorClock)
 }
 
 func (s *workflowSuite) TestSuppressWorkflowBy_Error() {
@@ -168,6 +130,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Error() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 
 	incomingMockContext := NewMockContext(s.controller)
@@ -178,6 +141,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Error() {
 		incomingMockContext,
 		incomingMockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 
 	// cannot suppress by older workflow
@@ -224,6 +188,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Terminate() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 
 	incomingRunID := uuid.New()
@@ -237,6 +202,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Terminate() {
 		incomingMockContext,
 		incomingMockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	incomingMockMutableState.EXPECT().GetLastWriteVersion().Return(incomingLastEventVersion, nil).AnyTimes()
 	incomingMockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
@@ -303,6 +269,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Zombiefy() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 
 	incomingRunID := uuid.New()
@@ -316,6 +283,7 @@ func (s *workflowSuite) TestSuppressWorkflowBy_Zombiefy() {
 		incomingMockContext,
 		incomingMockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	incomingMockMutableState.EXPECT().GetLastWriteVersion().Return(incomingLastEventVersion, nil).AnyTimes()
 	incomingMockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
@@ -350,6 +318,7 @@ func (s *workflowSuite) TestRevive_Zombie_Error() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	err := nDCWorkflow.Revive()
 	s.Error(err)
@@ -366,6 +335,7 @@ func (s *workflowSuite) TestRevive_Zombie_Success() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	err := nDCWorkflow.Revive()
 	s.NoError(err)
@@ -380,6 +350,7 @@ func (s *workflowSuite) TestRevive_NonZombie_Success() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	err := nDCWorkflow.Revive()
 	s.NoError(err)
@@ -396,7 +367,7 @@ func (s *workflowSuite) TestFlushBufferedEvents_Success() {
 	s.mockMutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 	s.mockMutableState.EXPECT().HasBufferedEvents().Return(true)
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(lastWriteVersion, nil)
-	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{LastEventTaskID: lastEventTaskID})
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{LastEventTaskID: lastEventTaskID}).AnyTimes()
 	s.mockMutableState.EXPECT().UpdateCurrentVersion(lastWriteVersion, true).Return(nil)
 	s.mockMutableState.EXPECT().GetInFlightDecision().Return(decision, true)
 	s.mockMutableState.EXPECT().AddDecisionTaskFailedEvent(decision.ScheduleID, decision.StartedID, types.DecisionTaskFailedCauseFailoverCloseDecision, nil, IdentityHistoryService, "", "", "", "", int64(0), "").Return(&types.HistoryEvent{}, nil)
@@ -410,6 +381,7 @@ func (s *workflowSuite) TestFlushBufferedEvents_Success() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	err := nDCWorkflow.FlushBufferedEvents()
 	s.NoError(err)
@@ -425,6 +397,7 @@ func (s *workflowSuite) TestFlushBufferedEvents_NoBuffer_Success() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	err := nDCWorkflow.FlushBufferedEvents()
 	s.NoError(err)
@@ -437,7 +410,14 @@ func (s *workflowSuite) TestFlushBufferedEvents_NoDecision_Success() {
 	s.mockMutableState.EXPECT().IsWorkflowExecutionRunning().Return(true)
 	s.mockMutableState.EXPECT().HasBufferedEvents().Return(true)
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(lastWriteVersion, nil)
-	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{LastEventTaskID: lastEventTaskID})
+	s.mockMutableState.EXPECT().GetExecutionInfo().Return(
+		&persistence.WorkflowExecutionInfo{
+			DomainID:        s.domainID,
+			WorkflowID:      s.workflowID,
+			RunID:           s.runID,
+			LastEventTaskID: lastEventTaskID,
+		},
+	).AnyTimes()
 	s.mockMutableState.EXPECT().UpdateCurrentVersion(lastWriteVersion, true).Return(nil)
 	s.mockMutableState.EXPECT().GetInFlightDecision().Return(nil, false)
 
@@ -447,7 +427,95 @@ func (s *workflowSuite) TestFlushBufferedEvents_NoDecision_Success() {
 		s.mockContext,
 		s.mockMutableState,
 		NoopReleaseFn,
+		testlogger.New(s.T()),
 	)
 	err := nDCWorkflow.FlushBufferedEvents()
 	s.NoError(err)
+}
+
+func TestWorkflowHappensAfter(t *testing.T) {
+	baseTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.FixedZone("UTC-8", -8*60*60))
+	utcBaseTime := baseTime.UTC()
+	laterTime := baseTime.Add(time.Hour)
+
+	// Helper function to create ActiveClusterSelectionPolicy
+	createPolicy := func(scope, name string) *types.ActiveClusterSelectionPolicy {
+		return &types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{
+				Scope: scope,
+				Name:  name,
+			},
+		}
+	}
+
+	// Helper function to create WorkflowVectorClock
+	createVectorClock := func(policy *types.ActiveClusterSelectionPolicy, lastWriteVersion, lastEventTaskID int64, startTime time.Time, runID string) WorkflowVectorClock {
+		return WorkflowVectorClock{
+			ActiveClusterSelectionPolicy: policy,
+			LastWriteVersion:             lastWriteVersion,
+			LastEventTaskID:              lastEventTaskID,
+			StartTimestamp:               startTime,
+			RunID:                        runID,
+		}
+	}
+
+	policy1 := createPolicy("region", "region-1")
+	policy2 := createPolicy("region", "region-2")
+
+	tests := []struct {
+		name            string
+		thisVectorClock WorkflowVectorClock
+		thatVectorClock WorkflowVectorClock
+		expected        bool
+	}{
+		{
+			name:            "Different policies - this happens after based on start timestamp",
+			thisVectorClock: createVectorClock(policy1, 100, 10, laterTime, "run-1"),
+			thatVectorClock: createVectorClock(policy2, 200, 20, baseTime, "run-2"),
+			expected:        true,
+		},
+		{
+			name:            "Different policies - same start timestamp - this happens after based on RunID",
+			thisVectorClock: createVectorClock(policy1, 100, 10, baseTime, "run-z"),
+			thatVectorClock: createVectorClock(policy2, 200, 20, baseTime, "run-a"),
+			expected:        true,
+		},
+		{
+			name:            "Different policies - same start timestamp in different time zone - this happens after based on RunID",
+			thisVectorClock: createVectorClock(policy1, 100, 10, baseTime, "run-z"),
+			thatVectorClock: createVectorClock(policy2, 200, 20, utcBaseTime, "run-a"),
+			expected:        true,
+		},
+		{
+			name:            "Same policies - this happens after based on LastWriteVersion",
+			thisVectorClock: createVectorClock(policy1, 200, 10, baseTime, "run-1"),
+			thatVectorClock: createVectorClock(policy1, 100, 20, baseTime, "run-2"),
+			expected:        true,
+		},
+		{
+			name:            "Same policies and LastWriteVersion - this happens after based on LastEventTaskID",
+			thisVectorClock: createVectorClock(policy1, 100, 20, baseTime, "run-1"),
+			thatVectorClock: createVectorClock(policy1, 100, 10, baseTime, "run-2"),
+			expected:        true,
+		},
+		{
+			name:            "Nil policies - this happens after based on LastWriteVersion",
+			thisVectorClock: createVectorClock(nil, 200, 10, laterTime, "run-1"),
+			thatVectorClock: createVectorClock(nil, 100, 20, baseTime, "run-2"),
+			expected:        true,
+		},
+		{
+			name:            "One nil policy, one non-nil - this happens after based on start timestamp",
+			thisVectorClock: createVectorClock(nil, 100, 10, laterTime, "run-1"),
+			thatVectorClock: createVectorClock(policy1, 200, 20, baseTime, "run-2"),
+			expected:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := workflowHappensAfter(tt.thisVectorClock, tt.thatVectorClock)
+			assert.Equal(t, tt.expected, result, "workflowHappensAfter result mismatch for test case: %s", tt.name)
+		})
+	}
 }

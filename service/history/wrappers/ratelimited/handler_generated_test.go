@@ -27,10 +27,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/handler"
@@ -46,15 +46,8 @@ func TestRatelimitedEndpoints_Table(t *testing.T) {
 	controller := gomock.NewController(t)
 
 	handlerMock := handler.NewMockHandler(controller)
-	var rateLimitingEnabled bool
 
-	wrapper := NewHistoryHandler(
-		handlerMock,
-		nil,
-		func(domainName string) bool { return rateLimitingEnabled },
-		nil,
-		log.NewNoop(),
-	)
+	wrapper := NewHistoryHandler(handlerMock, nil, log.NewNoop())
 
 	// We define the calls that should be ratelimited
 	limitedCalls := []struct {
@@ -139,7 +132,7 @@ func TestRatelimitedEndpoints_Table(t *testing.T) {
 			var sbErr *types.ServiceBusyError
 			assert.ErrorAs(t, err, &sbErr)
 			assert.ErrorContains(t, err, "Too many requests for the workflow ID")
-			assert.Equal(t, common.WorkflowIDRateLimitReason, sbErr.Reason)
+			assert.Equal(t, constants.WorkflowIDRateLimitReason, sbErr.Reason)
 		})
 	}
 }

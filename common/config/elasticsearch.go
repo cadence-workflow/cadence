@@ -29,7 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 )
 
 var errAWSSigningCredential = fmt.Errorf("must provide exactly one type of credential, EnvironmentCredential or StaticCredential")
@@ -58,6 +58,9 @@ type (
 		// optional to add custom headers
 		CustomHeaders map[string]string   `yaml:"customHeaders,omitempty"`
 		Migration     VisibilityMigration `yaml:"migration"`
+		// optional, will use default consumer name if not provided
+		// default consumerName is topic + "-consumer"
+		ConsumerName string `yaml:"consumerName"`
 	}
 
 	// AWSSigning contains config to enable signing,
@@ -93,7 +96,7 @@ type (
 
 // GetVisibilityIndex return visibility index name
 func (cfg *ElasticSearchConfig) GetVisibilityIndex() string {
-	return cfg.Indices[common.VisibilityAppName]
+	return cfg.Indices[constants.VisibilityAppName]
 }
 
 // SetUsernamePassword set the username/password into URL

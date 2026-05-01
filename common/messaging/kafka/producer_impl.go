@@ -24,7 +24,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	"github.com/uber/cadence/.gen/go/indexer"
 	"github.com/uber/cadence/.gen/go/sqlblobs"
@@ -56,7 +56,7 @@ func NewKafkaProducer(topic string, producer sarama.SyncProducer, logger log.Log
 }
 
 // Publish is used to send messages to other clusters through Kafka topic
-// TODO implement context when https://github.com/Shopify/sarama/issues/1849 is supported
+// TODO implement context when https://github.com/IBM/sarama/issues/1849 is supported
 func (p *producerImpl) Publish(_ context.Context, msg interface{}) error {
 	message, err := p.getProducerMessage(msg)
 	if err != nil {

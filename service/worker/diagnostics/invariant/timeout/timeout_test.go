@@ -30,9 +30,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
+	"go.uber.org/cadence/.gen/go/shared"
 
-	"github.com/uber/cadence/client"
-	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
@@ -63,6 +63,7 @@ func Test__Check(t *testing.T) {
 			testData: wfTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeExecution.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      wfTimeoutDataInBytes(t),
@@ -75,6 +76,7 @@ func Test__Check(t *testing.T) {
 			testData: childWfTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeChildWorkflow.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      childWfTimeoutDataInBytes(t),
@@ -87,11 +89,13 @@ func Test__Check(t *testing.T) {
 			testData: activityTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "SCHEDULE_TO_START",
 					Metadata:      activityScheduleToStartTimeoutDataInBytes(t),
 				},
 				{
+					IssueID:       1,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "HEARTBEAT",
 					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
@@ -104,11 +108,13 @@ func Test__Check(t *testing.T) {
 			testData: decisionTimeoutHistory(),
 			expectedResult: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      decisionTimeoutMetadataInBytes,
 				},
 				{
+					IssueID:       1,
 					InvariantType: TimeoutTypeDecision.String(),
 					Reason:        "workflow reset - New run ID: new run ID",
 					Metadata:      decisionTimeoutMetadataInBytes,
@@ -118,14 +124,15 @@ func Test__Check(t *testing.T) {
 		},
 	}
 	ctrl := gomock.NewController(t)
-	mockClientBean := client.NewMockBean(ctrl)
+	mockClient := publicservicetest.NewMockClient(ctrl)
 	for _, tc := range testCases {
-		inv := NewInvariant(NewTimeoutParams{
+		inv := NewInvariant(Params{
+			Client: mockClient,
+		})
+		result, err := inv.Check(context.Background(), invariant.InvariantCheckInput{
 			WorkflowExecutionHistory: tc.testData,
 			Domain:                   testDomain,
-			ClientBean:               mockClientBean,
 		})
-		result, err := inv.Check(context.Background())
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		for i := range result {
@@ -362,6 +369,18 @@ func activityHeartBeatTimeoutDataInBytes(t *testing.T) []byte {
 	return actHeartBeatTimeoutDataInBytes
 }
 
+func activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t *testing.T) []byte {
+	actTimeoutData := activityStartToCloseTimeoutData()
+	actTimeoutData.TimeoutType = types.TimeoutTypeHeartbeat.Ptr()
+	actTimeoutData.HeartBeatTimeout = 50 * time.Second
+	actTimeoutData.RetryPolicy = &types.RetryPolicy{
+		MaximumAttempts: 3,
+	}
+	actHeartBeatTimeoutDataInBytes, err := json.Marshal(actTimeoutData)
+	require.NoError(t, err)
+	return actHeartBeatTimeoutDataInBytes
+}
+
 func childWfTimeoutDataInBytes(t *testing.T) []byte {
 	data := ChildWfTimeoutMetadata{
 		ExecutionTime:     110 * time.Second,
@@ -378,14 +397,16 @@ func childWfTimeoutDataInBytes(t *testing.T) []byte {
 
 func Test__RootCause(t *testing.T) {
 	actStartToCloseTimeoutData := activityStartToCloseTimeoutData()
-	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListBacklog: testTaskListBacklog})
+	pollersMetadataInBytes, err := json.Marshal(PollersMetadata{TaskListName: testTasklist, TaskListBacklog: testTaskListBacklog})
 	require.NoError(t, err)
 	heartBeatingMetadataInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed})
+	require.NoError(t, err)
+	heartBeatingMetadataWithRetryPolicyInBytes, err := json.Marshal(HeartbeatingMetadata{TimeElapsed: actStartToCloseTimeoutData.TimeElapsed, RetryPolicy: &types.RetryPolicy{MaximumAttempts: 3}})
 	require.NoError(t, err)
 	testCases := []struct {
 		name           string
 		input          []invariant.InvariantCheckResult
-		clientExpects  func(*frontend.MockClient)
+		clientExpects  func(client *publicservicetest.MockClient)
 		expectedResult []invariant.InvariantRootCauseResult
 		err            error
 	}{
@@ -393,21 +414,23 @@ func Test__RootCause(t *testing.T) {
 			name: "workflow execution timeout without pollers",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeExecution.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      wfTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
 					Pollers: nil,
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypeMissingPollers,
 					Metadata:  pollersMetadataInBytes,
 				},
@@ -418,25 +441,27 @@ func Test__RootCause(t *testing.T) {
 			name: "workflow execution timeout with pollers",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeExecution.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      wfTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
@@ -447,30 +472,33 @@ func Test__RootCause(t *testing.T) {
 			name: "activity timeout and heart beating not enabled",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "START_TO_CLOSE",
 					Metadata:      activityStartToCloseTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
 				{
-					RootCause: invariant.RootCauseTypeHeartBeatingNotEnabled,
+					IssueID:   0,
+					RootCause: invariant.RootCauseTypeNoHeartBeatTimeoutNoRetryPolicy,
 					Metadata:  heartBeatingMetadataInBytes,
 				},
 			},
@@ -480,25 +508,27 @@ func Test__RootCause(t *testing.T) {
 			name: "activity schedule to start timeout",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "SCHEDULE_TO_START",
 					Metadata:      activityScheduleToStartTimeoutDataInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
@@ -506,33 +536,72 @@ func Test__RootCause(t *testing.T) {
 			err: nil,
 		},
 		{
-			name: "activity timeout and heart beating enabled",
+			name: "activity timeout and heart beating enabled with retry policy",
 			input: []invariant.InvariantCheckResult{
 				{
+					IssueID:       0,
 					InvariantType: TimeoutTypeActivity.String(),
 					Reason:        "START_TO_CLOSE",
-					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
+					Metadata:      activityHeartBeatTimeoutDataWithRetryPolicyInBytes(t),
 				},
 			},
-			clientExpects: func(client *frontend.MockClient) {
-				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&types.DescribeTaskListResponse{
-					Pollers: []*types.PollerInfo{
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
 						{
-							Identity: "dca24-xy",
+							Identity: common.StringPtr("dca24-xy"),
 						},
 					},
-					TaskListStatus: &types.TaskListStatus{
-						BacklogCountHint: testTaskListBacklog,
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
 					},
 				}, nil)
 			},
 			expectedResult: []invariant.InvariantRootCauseResult{
 				{
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypePollersStatus,
 					Metadata:  pollersMetadataInBytes,
 				},
 				{
+					IssueID:   0,
 					RootCause: invariant.RootCauseTypeHeartBeatingEnabledMissingHeartbeat,
+					Metadata:  heartBeatingMetadataWithRetryPolicyInBytes,
+				},
+			},
+			err: nil,
+		},
+		{
+			name: "activity timeout and heart beating enabled without retry policy",
+			input: []invariant.InvariantCheckResult{
+				{
+					IssueID:       0,
+					InvariantType: TimeoutTypeActivity.String(),
+					Reason:        "START_TO_CLOSE",
+					Metadata:      activityHeartBeatTimeoutDataInBytes(t),
+				},
+			},
+			clientExpects: func(client *publicservicetest.MockClient) {
+				client.EXPECT().DescribeTaskList(gomock.Any(), gomock.Any()).Return(&shared.DescribeTaskListResponse{
+					Pollers: []*shared.PollerInfo{
+						{
+							Identity: common.StringPtr("dca24-xy"),
+						},
+					},
+					TaskListStatus: &shared.TaskListStatus{
+						BacklogCountHint: common.Int64Ptr(testTaskListBacklog),
+					},
+				}, nil)
+			},
+			expectedResult: []invariant.InvariantRootCauseResult{
+				{
+					IssueID:   0,
+					RootCause: invariant.RootCauseTypePollersStatus,
+					Metadata:  pollersMetadataInBytes,
+				},
+				{
+					IssueID:   0,
+					RootCause: invariant.RootCauseTypeHeartBeatingEnabledWithoutRetryPolicy,
 					Metadata:  heartBeatingMetadataInBytes,
 				},
 			},
@@ -540,16 +609,16 @@ func Test__RootCause(t *testing.T) {
 		},
 	}
 	ctrl := gomock.NewController(t)
-	mockClientBean := client.NewMockBean(ctrl)
-	mockFrontendClient := frontend.NewMockClient(ctrl)
-	mockClientBean.EXPECT().GetFrontendClient().Return(mockFrontendClient).AnyTimes()
-	inv := NewInvariant(NewTimeoutParams{
-		Domain:     testDomain,
-		ClientBean: mockClientBean,
+	mockClient := publicservicetest.NewMockClient(ctrl)
+	inv := NewInvariant(Params{
+		Client: mockClient,
 	})
 	for _, tc := range testCases {
-		tc.clientExpects(mockFrontendClient)
-		result, err := inv.RootCause(context.Background(), tc.input)
+		tc.clientExpects(mockClient)
+		result, err := inv.RootCause(context.Background(), invariant.InvariantRootCauseInput{
+			Domain: testDomain,
+			Issues: tc.input,
+		})
 		require.Equal(t, tc.err, err)
 		require.Equal(t, len(tc.expectedResult), len(result))
 		for i := range result {

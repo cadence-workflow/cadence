@@ -28,19 +28,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/cadence/.gen/go/shared"
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/worker"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/cache"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/pagination"
 	"github.com/uber/cadence/common/persistence"
@@ -223,14 +222,16 @@ func (s *activitiesSuite) TestFixShardActivity() {
 	for _, tc := range testCases {
 		s.Run(tc.name, func() {
 			s.mockResource.BlobstoreClient.
-				Mock.On("Put", mock.Anything, mock.Anything).
-				Return(&blobstore.PutResponse{}, nil)
+				EXPECT().
+				Put(gomock.Any(), gomock.Any()).
+				Return(&blobstore.PutResponse{}, nil).
+				Times(2)
 			domainCache := cache.NewMockDomainCache(s.controller)
 			domainCache.EXPECT().GetDomainName(gomock.Any()).Return("test-domain", nil).AnyTimes()
 			s.mockResource.DomainCache = domainCache
 			cfg := &ScannerConfig{
 				DynamicParams: DynamicParams{
-					AllowDomain: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+					AllowDomain: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 				},
 			}
 			if tc.itHook != nil && tc.managerHook != nil {
@@ -269,11 +270,11 @@ func (s *activitiesSuite) TestScannerConfigActivity() {
 	}{
 		{
 			dynamicParams: &DynamicParams{
-				ScannerEnabled:          dynamicconfig.GetBoolPropertyFn(true),
-				Concurrency:             dynamicconfig.GetIntPropertyFn(10),
-				PageSize:                dynamicconfig.GetIntPropertyFn(100),
-				ActivityBatchSize:       dynamicconfig.GetIntPropertyFn(10),
-				BlobstoreFlushThreshold: dynamicconfig.GetIntPropertyFn(1000),
+				ScannerEnabled:          dynamicproperties.GetBoolPropertyFn(true),
+				Concurrency:             dynamicproperties.GetIntPropertyFn(10),
+				PageSize:                dynamicproperties.GetIntPropertyFn(100),
+				ActivityBatchSize:       dynamicproperties.GetIntPropertyFn(10),
+				BlobstoreFlushThreshold: dynamicproperties.GetIntPropertyFn(1000),
 			},
 			params: ScannerConfigActivityParams{
 				Overwrites: ScannerWorkflowConfigOverwrites{},
@@ -294,11 +295,11 @@ func (s *activitiesSuite) TestScannerConfigActivity() {
 		},
 		{
 			dynamicParams: &DynamicParams{
-				ScannerEnabled:          dynamicconfig.GetBoolPropertyFn(true),
-				Concurrency:             dynamicconfig.GetIntPropertyFn(10),
-				PageSize:                dynamicconfig.GetIntPropertyFn(100),
-				ActivityBatchSize:       dynamicconfig.GetIntPropertyFn(10),
-				BlobstoreFlushThreshold: dynamicconfig.GetIntPropertyFn(1000),
+				ScannerEnabled:          dynamicproperties.GetBoolPropertyFn(true),
+				Concurrency:             dynamicproperties.GetIntPropertyFn(10),
+				PageSize:                dynamicproperties.GetIntPropertyFn(100),
+				ActivityBatchSize:       dynamicproperties.GetIntPropertyFn(10),
+				BlobstoreFlushThreshold: dynamicproperties.GetIntPropertyFn(1000),
 			},
 			params: ScannerConfigActivityParams{
 				Overwrites: ScannerWorkflowConfigOverwrites{},
@@ -315,11 +316,11 @@ func (s *activitiesSuite) TestScannerConfigActivity() {
 		},
 		{
 			dynamicParams: &DynamicParams{
-				ScannerEnabled:          dynamicconfig.GetBoolPropertyFn(true),
-				Concurrency:             dynamicconfig.GetIntPropertyFn(10),
-				ActivityBatchSize:       dynamicconfig.GetIntPropertyFn(100),
-				PageSize:                dynamicconfig.GetIntPropertyFn(100),
-				BlobstoreFlushThreshold: dynamicconfig.GetIntPropertyFn(1000),
+				ScannerEnabled:          dynamicproperties.GetBoolPropertyFn(true),
+				Concurrency:             dynamicproperties.GetIntPropertyFn(10),
+				ActivityBatchSize:       dynamicproperties.GetIntPropertyFn(100),
+				PageSize:                dynamicproperties.GetIntPropertyFn(100),
+				BlobstoreFlushThreshold: dynamicproperties.GetIntPropertyFn(1000),
 			},
 			params: ScannerConfigActivityParams{
 				Overwrites: ScannerWorkflowConfigOverwrites{
@@ -491,7 +492,7 @@ func (s *activitiesSuite) getFixerActivityEnvironment() *testsuite.TestActivityE
 	env := s.NewTestActivityEnvironment()
 	cfg := &ScannerConfig{
 		DynamicParams: DynamicParams{
-			AllowDomain: dynamicconfig.GetBoolPropertyFnFilteredByDomain(true),
+			AllowDomain: dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
 		},
 		FixerHooks: func() *FixerHooks {
 			return &FixerHooks{}

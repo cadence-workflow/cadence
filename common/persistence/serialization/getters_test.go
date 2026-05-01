@@ -140,6 +140,7 @@ func TestGettersForInfos(t *testing.T) {
 			CompletionEvent:         []byte("completionEvent"),
 			CompletionEventEncoding: "completionEventEncoding",
 			TaskList:                "taskList",
+			TaskListKind:            types.TaskListKindEphemeral,
 			WorkflowTypeName:        "workflowTypeName",
 			WorkflowTimeout:         3,
 			DecisionTimeout:         4,
@@ -164,6 +165,8 @@ func TestGettersForInfos(t *testing.T) {
 			ScheduleID:              2,
 			Version:                 3,
 			VisibilityTimestamp:     taskInfoCreateTime,
+			OriginalTaskList:        "originalTaskList",
+			OriginalTaskListKind:    types.TaskListKindEphemeral,
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,
@@ -174,6 +177,7 @@ func TestGettersForInfos(t *testing.T) {
 			Version:         3,
 			ScheduleAttempt: 4,
 			EventID:         5,
+			TaskList:        "taskList",
 		},
 		&ReplicationTaskInfo{
 			DomainID:                replicationTaskDomainID,
@@ -261,6 +265,7 @@ func TestGettersForInfos(t *testing.T) {
 			TimerTaskStatus:          5,
 			Attempt:                  6,
 			TaskList:                 "taskList",
+			TaskListKind:             types.TaskListKindSticky,
 			StartedIdentity:          "startedIdentity",
 			HasRetryPolicy:           true,
 			RetryInitialInterval:     time.Duration(5),
@@ -286,20 +291,22 @@ func TestGettersForInfos(t *testing.T) {
 			Info: "historyTreeInfo",
 		},
 		&DomainInfo{
-			Name:                        "name",
-			Description:                 "description",
-			Owner:                       "owner",
-			Status:                      1,
-			Retention:                   time.Duration(1),
-			EmitMetric:                  true,
-			ArchivalBucket:              "archivalBucket",
-			ArchivalStatus:              2,
-			ConfigVersion:               3,
-			NotificationVersion:         4,
-			FailoverNotificationVersion: 5,
-			FailoverVersion:             6,
-			ActiveClusterName:           "cluster1",
-			Clusters:                    []string{"cluster1", "cluster2"},
+			Name:                         "name",
+			Description:                  "description",
+			Owner:                        "owner",
+			Status:                       1,
+			Retention:                    time.Duration(1),
+			EmitMetric:                   true,
+			ArchivalBucket:               "archivalBucket",
+			ArchivalStatus:               2,
+			ConfigVersion:                3,
+			NotificationVersion:          4,
+			FailoverNotificationVersion:  5,
+			FailoverVersion:              6,
+			ActiveClusterName:            "cluster1",
+			Clusters:                     []string{"cluster1", "cluster2"},
+			ActiveClustersConfig:         []byte("activeClustersConfig"),
+			ActiveClustersConfigEncoding: "activeClustersConfigEncoding",
 			Data: map[string]string{
 				"datakey": "datavalue",
 			},
@@ -343,6 +350,26 @@ func TestGettersForInfos(t *testing.T) {
 			TimerProcessingQueueStatesEncoding:        "timerProcessingQueueStatesEncoding",
 			CrossClusterProcessingQueueStates:         []byte("crossClusterProcessingQueueStates"),
 			CrossClusterProcessingQueueStatesEncoding: "crossClusterProcessingQueueStatesEncoding",
+			QueueStates: map[int32]*types.QueueState{
+				0: &types.QueueState{
+					VirtualQueueStates: map[int64]*types.VirtualQueueState{
+						0: {
+							VirtualSliceStates: []*types.VirtualSliceState{
+								{
+									TaskRange: &types.TaskRange{
+										InclusiveMin: &types.TaskKey{
+											TaskID: 1,
+										},
+										ExclusiveMax: &types.TaskKey{
+											TaskID: 2,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	} {
 		name := reflect.TypeOf(info).String()

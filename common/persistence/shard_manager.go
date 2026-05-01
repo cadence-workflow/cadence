@@ -25,13 +25,16 @@ package persistence
 import (
 	"context"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/constants"
 )
 
 type (
 	shardManager struct {
 		persistence ShardStore
 		serializer  PayloadSerializer
+		timeSrc     clock.TimeSource
+		dc          *DynamicConfiguration
 	}
 )
 
@@ -50,11 +53,14 @@ func WithSerializer(serializer PayloadSerializer) ShardManagerOption {
 // NewShardManager returns a new ShardManager
 func NewShardManager(
 	persistence ShardStore,
+	dc *DynamicConfiguration,
 	options ...ShardManagerOption,
 ) ShardManager {
 	manager := &shardManager{
 		persistence: persistence,
 		serializer:  NewPayloadSerializer(),
+		timeSrc:     clock.NewRealTimeSource(),
+		dc:          dc,
 	}
 	for _, option := range options {
 		option(manager)
@@ -71,12 +77,13 @@ func (m *shardManager) Close() {
 }
 
 func (m *shardManager) CreateShard(ctx context.Context, request *CreateShardRequest) error {
-	shardInfo, err := m.toInternalShardInfo(request.ShardInfo)
+	shardInfo, err := m.toInternalShardInfo(request.ShardInfo, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return err
 	}
 	internalRequest := &InternalCreateShardRequest{
-		ShardInfo: shardInfo,
+		ShardInfo:        shardInfo,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	return m.persistence.CreateShard(ctx, internalRequest)
 }
@@ -100,30 +107,31 @@ func (m *shardManager) GetShard(ctx context.Context, request *GetShardRequest) (
 }
 
 func (m *shardManager) UpdateShard(ctx context.Context, request *UpdateShardRequest) error {
-	shardInfo, err := m.toInternalShardInfo(request.ShardInfo)
+	shardInfo, err := m.toInternalShardInfo(request.ShardInfo, constants.EncodingType(m.dc.SerializationEncoding()))
 	if err != nil {
 		return err
 	}
 	internalRequest := &InternalUpdateShardRequest{
-		ShardInfo:       shardInfo,
-		PreviousRangeID: request.PreviousRangeID,
+		ShardInfo:        shardInfo,
+		PreviousRangeID:  request.PreviousRangeID,
+		CurrentTimeStamp: m.timeSrc.Now(),
 	}
 	return m.persistence.UpdateShard(ctx, internalRequest)
 }
 
-func (m *shardManager) toInternalShardInfo(shardInfo *ShardInfo) (*InternalShardInfo, error) {
+func (m *shardManager) toInternalShardInfo(shardInfo *ShardInfo, encodingType constants.EncodingType) (*InternalShardInfo, error) {
 	if shardInfo == nil {
 		return nil, nil
 	}
-	serializedTransferProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TransferProcessingQueueStates, common.EncodingTypeThriftRW)
+	serializedTransferProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TransferProcessingQueueStates, encodingType)
 	if err != nil {
 		return nil, err
 	}
-	serializedTimerProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TimerProcessingQueueStates, common.EncodingTypeThriftRW)
+	serializedTimerProcessingQueueStates, err := m.serializer.SerializeProcessingQueueStates(shardInfo.TimerProcessingQueueStates, encodingType)
 	if err != nil {
 		return nil, err
 	}
-	pendingFailoverMarker, err := m.serializer.SerializePendingFailoverMarkers(shardInfo.PendingFailoverMarkers, common.EncodingTypeThriftRW)
+	pendingFailoverMarker, err := m.serializer.SerializePendingFailoverMarkers(shardInfo.PendingFailoverMarkers, encodingType)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +153,7 @@ func (m *shardManager) toInternalShardInfo(shardInfo *ShardInfo) (*InternalShard
 		ClusterReplicationLevel:       shardInfo.ClusterReplicationLevel,
 		DomainNotificationVersion:     shardInfo.DomainNotificationVersion,
 		PendingFailoverMarkers:        pendingFailoverMarker,
+		QueueStates:                   shardInfo.QueueStates,
 	}, nil
 }
 
@@ -182,5 +191,6 @@ func (m *shardManager) fromInternalShardInfo(internalShardInfo *InternalShardInf
 		ClusterReplicationLevel:       internalShardInfo.ClusterReplicationLevel,
 		DomainNotificationVersion:     internalShardInfo.DomainNotificationVersion,
 		PendingFailoverMarkers:        pendingFailoverMarker,
+		QueueStates:                   internalShardInfo.QueueStates,
 	}, nil
 }

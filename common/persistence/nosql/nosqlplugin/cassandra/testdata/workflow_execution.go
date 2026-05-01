@@ -23,8 +23,11 @@
 package testdata
 
 import (
+	"time"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -44,21 +47,22 @@ func WFExecRequestWithEventBufferWriteMode(mode nosqlplugin.EventBufferWriteMode
 }
 
 func WFExecRequest(opts ...WFExecRequestOption) *nosqlplugin.WorkflowExecutionRequest {
+	ts := time.Now()
 	req := &nosqlplugin.WorkflowExecutionRequest{
 		InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
 			DomainID:   "test-domain-id",
 			WorkflowID: "test-workflow-id",
 			CompletionEvent: &persistence.DataBlob{
-				Encoding: common.EncodingTypeThriftRW,
+				Encoding: constants.EncodingTypeThriftRW,
 				Data:     []byte("test-completion-event"),
 			},
 			AutoResetPoints: &persistence.DataBlob{
-				Encoding: common.EncodingTypeThriftRW,
+				Encoding: constants.EncodingTypeThriftRW,
 				Data:     []byte("test-auto-reset-points"),
 			},
 		},
 		VersionHistories: &persistence.DataBlob{
-			Encoding: common.EncodingTypeThriftRW,
+			Encoding: constants.EncodingTypeThriftRW,
 			Data:     []byte("test-version-histories"),
 		},
 		Checksums: &checksum.Checksum{
@@ -67,6 +71,7 @@ func WFExecRequest(opts ...WFExecRequestOption) *nosqlplugin.WorkflowExecutionRe
 			Value:   []byte("test-checksum"),
 		},
 		PreviousNextEventIDCondition: common.Int64Ptr(123),
+		CurrentTimeStamp:             ts,
 	}
 
 	for _, opt := range opts {

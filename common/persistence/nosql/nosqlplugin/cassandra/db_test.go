@@ -24,10 +24,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
-	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -41,7 +41,7 @@ func TestCDBBasics(t *testing.T) {
 	logger := testlogger.New(t)
 	dc := &persistence.DynamicConfiguration{}
 
-	db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+	db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 	if db.PluginName() != PluginName {
 		t.Errorf("got plugin name: %v but want %v", db.PluginName(), PluginName)
@@ -162,7 +162,7 @@ func TestExecuteWithConsistencyAll(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 					return tc.enableAllConsistencyLevelDelete
 				},
 			}
@@ -174,7 +174,7 @@ func TestExecuteWithConsistencyAll(t *testing.T) {
 				tc.clientMockPrep(client)
 			}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.executeWithConsistencyAll(query)
 			if (err != nil) != tc.wantErr {
@@ -262,7 +262,7 @@ func TestExecuteBatchWithConsistencyAll(t *testing.T) {
 			cfg := &config.NoSQL{}
 			logger := testlogger.New(t)
 			dc := &persistence.DynamicConfiguration{
-				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicconfig.FilterOption) bool {
+				EnableCassandraAllConsistencyLevelDelete: func(opts ...dynamicproperties.FilterOption) bool {
 					return tc.enableAllConsistencyLevelDelete
 				},
 			}
@@ -277,7 +277,7 @@ func TestExecuteBatchWithConsistencyAll(t *testing.T) {
 				tc.clientMockPrep(client)
 			}
 
-			db := newCassandraDBFromSession(cfg, session, logger, dc, dbWithClient(client))
+			db := NewCassandraDBFromSession(cfg, session, logger, dc, DbWithClient(client))
 
 			err := db.executeBatchWithConsistencyAll(batch)
 			if (err != nil) != tc.wantErr {

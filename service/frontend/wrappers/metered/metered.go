@@ -29,6 +29,8 @@ import (
 
 	"go.uber.org/yarpc/yarpcerrors"
 
+	"github.com/uber/cadence/common/constants"
+	commonerrors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -36,6 +38,14 @@ import (
 )
 
 func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger) error {
+	logger = logger.Helper()
+
+	// attempt to extract hostname if possible
+	hostname, err := commonerrors.ExtractPeerHostname(err)
+	if hostname != "" {
+		logger = logger.WithTags(tag.PeerHostname(hostname))
+	}
+
 	switch err := err.(type) {
 	case *types.InternalServiceError:
 		logger.Error("Internal service error", tag.Error(err))
@@ -80,12 +90,18 @@ func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger
 			scope.IncCounter(metrics.CadenceErrContextTimeoutCounter)
 			return err
 		}
+		if err.Code() == yarpcerrors.CodeCancelled {
+			scope.IncCounter(metrics.CadenceErrGRPCConnectionClosingCounter)
+			logger.Warn(constants.GRPCConnectionClosingError, tag.Error(err))
+			return err
+		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		logger.Error("Frontend request timedout", tag.Error(err))
 		scope.IncCounter(metrics.CadenceErrContextTimeoutCounter)
 		return err
 	}
+
 	logger.Error("Uncategorized error", tag.Error(err))
 	scope.IncCounter(metrics.CadenceFailures)
 	return frontendInternalServiceError("cadence internal uncategorized error, msg: %v", err.Error())
@@ -148,8 +164,8 @@ func toGetTaskListsByDomainRequestTags(req *types.GetTaskListsByDomainRequest) [
 func toGetWorkflowExecutionHistoryRequestTags(req *types.GetWorkflowExecutionHistoryRequest) []tag.Tag {
 	return []tag.Tag{
 		tag.WorkflowDomainName(req.GetDomain()),
-		tag.WorkflowID(req.GetExecution().GetWorkflowID()),
-		tag.WorkflowRunID(req.GetExecution().GetRunID()),
+		tag.WorkflowID(req.GetWorkflowExecution().GetWorkflowID()),
+		tag.WorkflowRunID(req.GetWorkflowExecution().GetRunID()),
 	}
 }
 
@@ -335,6 +351,60 @@ func toTerminateWorkflowExecutionRequestTags(req *types.TerminateWorkflowExecuti
 }
 
 func toScanWorkflowExecutionsRequestTags(req *types.ListWorkflowExecutionsRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toFailoverDomainRequestTags(req *types.FailoverDomainRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toCreateScheduleRequestTags(req *types.CreateScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toDescribeScheduleRequestTags(req *types.DescribeScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toUpdateScheduleRequestTags(req *types.UpdateScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toDeleteScheduleRequestTags(req *types.DeleteScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toPauseScheduleRequestTags(req *types.PauseScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toUnpauseScheduleRequestTags(req *types.UnpauseScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toBackfillScheduleRequestTags(req *types.BackfillScheduleRequest) []tag.Tag {
+	return []tag.Tag{
+		tag.WorkflowDomainName(req.GetDomain()),
+	}
+}
+
+func toListSchedulesRequestTags(req *types.ListSchedulesRequest) []tag.Tag {
 	return []tag.Tag{
 		tag.WorkflowDomainName(req.GetDomain()),
 	}

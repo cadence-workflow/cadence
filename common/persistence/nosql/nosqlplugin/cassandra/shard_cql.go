@@ -45,10 +45,10 @@ const (
 		`}`
 
 	templateCreateShardQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, shard, range_id) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ` + templateShardType + `, ?) IF NOT EXISTS`
+		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, shard, data, data_encoding, range_id) ` +
+		`VALUES(?, ?, ?, ?, ?, ?, ?, ` + templateShardType + `, ?, ?, ?) IF NOT EXISTS`
 
-	templateGetShardQuery = `SELECT shard, range_id ` +
+	templateGetShardQuery = `SELECT shard, data, data_encoding, range_id ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -59,7 +59,7 @@ const (
 		`and task_id = ?`
 
 	templateUpdateShardQuery = `UPDATE executions ` +
-		`SET shard = ` + templateShardType + `, range_id = ? ` +
+		`SET shard = ` + templateShardType + `, data = ?, data_encoding = ?, range_id = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
 		`and domain_id = ? ` +

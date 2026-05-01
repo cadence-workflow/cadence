@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 5s
+  external_labels:
+    monitor: 'cadence-monitor'
+  query_log_file: /etc/prometheus/query.log
+  scrape_failure_log_file: /etc/prometheus/scrape.log
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: # addresses to scrape
+          - 'cadence:8306'
+          - 'cadence:8307'
+          - 'cadence:8308'
+          - 'cadence:8309'

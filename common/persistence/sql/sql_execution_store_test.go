@@ -27,11 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
@@ -91,7 +92,7 @@ func TestDeleteCurrentWorkflowExecution(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -171,7 +172,7 @@ func TestGetCurrentExecution(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -187,604 +188,73 @@ func TestGetCurrentExecution(t *testing.T) {
 	}
 }
 
-func TestGetTransferTasks(t *testing.T) {
-	shardID := 1
-	testCases := []struct {
-		name      string
-		req       *persistence.GetTransferTasksRequest
-		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
-		want      *persistence.GetTransferTasksResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.GetTransferTasksRequest{
-				ReadLevel:     1,
-				MaxReadLevel:  99,
-				BatchSize:     1,
-				NextPageToken: serializePageToken(11),
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 11,
-					MaxTaskID: 99,
-					PageSize:  1,
-				}).Return([]sqlplugin.TransferTasksRow{
-					{
-						ShardID:      shardID,
-						TaskID:       12,
-						Data:         []byte(`transfer`),
-						DataEncoding: "transfer",
-					},
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoFromBlob([]byte(`transfer`), "transfer").Return(&serialization.TransferTaskInfo{
-					DomainID:                serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a542"),
-					WorkflowID:              "test",
-					RunID:                   serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a54a"),
-					VisibilityTimestamp:     time.Unix(1, 1),
-					TargetDomainID:          serialization.MustParseUUID("bbdcea69-61d5-44c3-9d55-afe23505a542"),
-					TargetDomainIDs:         []serialization.UUID{serialization.MustParseUUID("bbdcea69-61d5-44c3-9d55-afe23505a54a")},
-					TargetWorkflowID:        "xyz",
-					TargetRunID:             serialization.MustParseUUID("dbdcea69-61d5-44c3-9d55-afe23505a54a"),
-					TargetChildWorkflowOnly: true,
-					TaskList:                "tl",
-					TaskType:                1,
-					ScheduleID:              19,
-					Version:                 202,
-				}, nil)
-			},
-			want: &persistence.GetTransferTasksResponse{
-				Tasks: []*persistence.TransferTaskInfo{
-					{
-						TaskID:                  12,
-						DomainID:                "abdcea69-61d5-44c3-9d55-afe23505a542",
-						WorkflowID:              "test",
-						RunID:                   "abdcea69-61d5-44c3-9d55-afe23505a54a",
-						VisibilityTimestamp:     time.Unix(1, 1),
-						TargetDomainID:          "bbdcea69-61d5-44c3-9d55-afe23505a542",
-						TargetWorkflowID:        "xyz",
-						TargetDomainIDs:         map[string]struct{}{"bbdcea69-61d5-44c3-9d55-afe23505a54a": struct{}{}},
-						TargetRunID:             "dbdcea69-61d5-44c3-9d55-afe23505a54a",
-						TargetChildWorkflowOnly: true,
-						TaskList:                "tl",
-						TaskType:                1,
-						ScheduleID:              19,
-						Version:                 202,
-					},
-				},
-				NextPageToken: serializePageToken(12),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case - failed to get from database",
-			req: &persistence.GetTransferTasksRequest{
-				ReadLevel:     1,
-				MaxReadLevel:  99,
-				BatchSize:     1,
-				NextPageToken: serializePageToken(11),
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				err := errors.New("some error")
-				mockDB.EXPECT().SelectFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 11,
-					MaxTaskID: 99,
-					PageSize:  1,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-		{
-			name: "Error case - failed to decode data",
-			req: &persistence.GetTransferTasksRequest{
-				ReadLevel:     1,
-				MaxReadLevel:  99,
-				BatchSize:     1,
-				NextPageToken: serializePageToken(11),
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 11,
-					MaxTaskID: 99,
-					PageSize:  1,
-				}).Return([]sqlplugin.TransferTasksRow{
-					{
-						ShardID:      shardID,
-						TaskID:       12,
-						Data:         []byte(`transfer`),
-						DataEncoding: "transfer",
-					},
-				}, nil)
-				mockParser.EXPECT().TransferTaskInfoFromBlob([]byte(`transfer`), "transfer").Return(nil, errors.New("some error"))
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB, mockParser)
-
-			got, err := store.GetTransferTasks(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
-func TestCompleteTransferTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.CompleteTransferTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.CompleteTransferTaskRequest{
-				TaskID: 123,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID: shardID,
-					TaskID:  123,
-				}).Return(nil, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.CompleteTransferTaskRequest{
-				TaskID: 123,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().DeleteFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID: shardID,
-					TaskID:  123,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			err = store.CompleteTransferTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestRangeCompleteTransferTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.RangeCompleteTransferTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		want      *persistence.RangeCompleteTransferTaskResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.RangeCompleteTransferTaskRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
-				PageSize:             1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().RangeDeleteFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 123,
-					MaxTaskID: 345,
-					PageSize:  1000,
-				}).Return(&sqlResult{rowsAffected: 1000}, nil)
-			},
-			want: &persistence.RangeCompleteTransferTaskResponse{
-				TasksCompleted: 1000,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.RangeCompleteTransferTaskRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
-				PageSize:             1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().RangeDeleteFromTransferTasks(gomock.Any(), &sqlplugin.TransferTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 123,
-					MaxTaskID: 345,
-					PageSize:  1000,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			got, err := store.RangeCompleteTransferTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
-func TestGetReplicationTasks(t *testing.T) {
-	shardID := 0
-	testCases := []struct {
-		name      string
-		req       *persistence.GetReplicationTasksRequest
-		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
-		want      *persistence.InternalGetReplicationTasksResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.GetReplicationTasksRequest{
-				NextPageToken: serializePageToken(100),
-				MaxReadLevel:  199,
-				BatchSize:     1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 1100,
-					PageSize:  1000,
-				}).Return([]sqlplugin.ReplicationTasksRow{
-					{
-						ShardID:      shardID,
-						TaskID:       101,
-						Data:         []byte(`replication`),
-						DataEncoding: "replication",
-					},
-				}, nil)
-				mockParser.EXPECT().ReplicationTaskInfoFromBlob([]byte(`replication`), "replication").Return(&serialization.ReplicationTaskInfo{
-					DomainID:          serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a542"),
-					WorkflowID:        "test",
-					RunID:             serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a54a"),
-					TaskType:          1,
-					FirstEventID:      10,
-					NextEventID:       101,
-					Version:           202,
-					ScheduledID:       19,
-					BranchToken:       []byte(`bt`),
-					NewRunBranchToken: []byte(`nbt`),
-					CreationTimestamp: time.Unix(1, 1),
-				}, nil)
-			},
-			want: &persistence.InternalGetReplicationTasksResponse{
-				Tasks: []*persistence.InternalReplicationTaskInfo{
-					{
-						TaskID:            101,
-						DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
-						WorkflowID:        "test",
-						RunID:             "abdcea69-61d5-44c3-9d55-afe23505a54a",
-						TaskType:          1,
-						FirstEventID:      10,
-						NextEventID:       101,
-						Version:           202,
-						ScheduledID:       19,
-						BranchToken:       []byte(`bt`),
-						NewRunBranchToken: []byte(`nbt`),
-						CreationTime:      time.Unix(1, 1),
-					},
-				},
-				NextPageToken: serializePageToken(101),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case - failed to load from database",
-			req: &persistence.GetReplicationTasksRequest{
-				NextPageToken: serializePageToken(100),
-				MaxReadLevel:  199,
-				BatchSize:     1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				err := errors.New("some error")
-				mockDB.EXPECT().SelectFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 1100,
-					PageSize:  1000,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-		{
-			name: "Error case - failed to decode data",
-			req: &persistence.GetReplicationTasksRequest{
-				NextPageToken: serializePageToken(100),
-				MaxReadLevel:  199,
-				BatchSize:     1000,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:   shardID,
-					MinTaskID: 100,
-					MaxTaskID: 1100,
-					PageSize:  1000,
-				}).Return([]sqlplugin.ReplicationTasksRow{
-					{
-						ShardID:      shardID,
-						TaskID:       101,
-						Data:         []byte(`replication`),
-						DataEncoding: "replication",
-					},
-				}, nil)
-				mockParser.EXPECT().ReplicationTaskInfoFromBlob([]byte(`replication`), "replication").Return(nil, errors.New("some error"))
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB, mockParser)
-
-			got, err := store.GetReplicationTasks(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
-func TestCompleteReplicationTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.CompleteReplicationTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.CompleteReplicationTaskRequest{
-				TaskID: 123,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID: shardID,
-					TaskID:  123,
-				}).Return(nil, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.CompleteReplicationTaskRequest{
-				TaskID: 123,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().DeleteFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID: shardID,
-					TaskID:  123,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			err = store.CompleteReplicationTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestRangeCompleteReplicationTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.RangeCompleteReplicationTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		want      *persistence.RangeCompleteReplicationTaskResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.RangeCompleteReplicationTaskRequest{
-				InclusiveEndTaskID: 345,
-				PageSize:           10,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().RangeDeleteFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:            shardID,
-					InclusiveEndTaskID: 345,
-					PageSize:           10,
-				}).Return(&sqlResult{rowsAffected: 10}, nil)
-			},
-			want: &persistence.RangeCompleteReplicationTaskResponse{
-				TasksCompleted: 10,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.RangeCompleteReplicationTaskRequest{
-				InclusiveEndTaskID: 345,
-				PageSize:           10,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().RangeDeleteFromReplicationTasks(gomock.Any(), &sqlplugin.ReplicationTasksFilter{
-					ShardID:            shardID,
-					InclusiveEndTaskID: 345,
-					PageSize:           10,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			got, err := store.RangeCompleteReplicationTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
 func TestGetReplicationTasksFromDLQ(t *testing.T) {
 	shardID := 0
 	testCases := []struct {
 		name      string
 		req       *persistence.GetReplicationTasksFromDLQRequest
-		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
-		want      *persistence.InternalGetReplicationTasksFromDLQResponse
+		mockSetup func(*sqlplugin.MockDB, *serialization.MockTaskSerializer)
+		want      *persistence.GetHistoryTasksResponse
 		wantErr   bool
 	}{
 		{
 			name: "Success case",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
-				GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-					NextPageToken: serializePageToken(100),
-					MaxReadLevel:  199,
-					BatchSize:     1000,
-				},
+				NextPageToken:     serializePageToken(100),
+				MaxReadLevel:      199,
+				BatchSize:         1000,
 			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockTaskSerializer) {
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
-						ShardID:   shardID,
-						MinTaskID: 100,
-						MaxTaskID: 1100,
-						PageSize:  1000,
+						ShardID:            shardID,
+						InclusiveMinTaskID: 100,
+						ExclusiveMaxTaskID: 1100,
+						PageSize:           1000,
 					},
 					SourceClusterName: "source",
 				}).Return([]sqlplugin.ReplicationTasksRow{
 					{
 						ShardID:      shardID,
-						TaskID:       101,
+						TaskID:       100,
 						Data:         []byte(`replication`),
 						DataEncoding: "replication",
 					},
 				}, nil)
-				mockParser.EXPECT().ReplicationTaskInfoFromBlob([]byte(`replication`), "replication").Return(&serialization.ReplicationTaskInfo{
-					DomainID:          serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a542"),
-					WorkflowID:        "test",
-					RunID:             serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a54a"),
-					TaskType:          1,
+				mockParser.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryReplication, persistence.NewDataBlob([]byte(`replication`), "replication")).Return(&persistence.HistoryReplicationTask{
+					WorkflowIdentifier: persistence.WorkflowIdentifier{
+						DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
+						WorkflowID: "test",
+						RunID:      "abdcea69-61d5-44c3-9d55-afe23505a54a",
+					},
+					TaskData: persistence.TaskData{
+						Version:             202,
+						VisibilityTimestamp: time.Unix(1, 1),
+					},
 					FirstEventID:      10,
 					NextEventID:       101,
-					Version:           202,
-					ScheduledID:       19,
 					BranchToken:       []byte(`bt`),
 					NewRunBranchToken: []byte(`nbt`),
-					CreationTimestamp: time.Unix(1, 1),
 				}, nil)
 			},
-			want: &persistence.InternalGetReplicationTasksFromDLQResponse{
-				Tasks: []*persistence.InternalReplicationTaskInfo{
-					{
-						TaskID:            101,
-						DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
-						WorkflowID:        "test",
-						RunID:             "abdcea69-61d5-44c3-9d55-afe23505a54a",
-						TaskType:          1,
+			want: &persistence.GetHistoryTasksResponse{
+				Tasks: []persistence.Task{
+					&persistence.HistoryReplicationTask{
+						WorkflowIdentifier: persistence.WorkflowIdentifier{
+							DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
+							WorkflowID: "test",
+							RunID:      "abdcea69-61d5-44c3-9d55-afe23505a54a",
+						},
+						TaskData: persistence.TaskData{
+							TaskID:              100,
+							Version:             202,
+							VisibilityTimestamp: time.Unix(1, 1),
+						},
 						FirstEventID:      10,
 						NextEventID:       101,
-						Version:           202,
-						ScheduledID:       19,
 						BranchToken:       []byte(`bt`),
 						NewRunBranchToken: []byte(`nbt`),
-						CreationTime:      time.Unix(1, 1),
 					},
 				},
 				NextPageToken: serializePageToken(101),
@@ -795,20 +265,18 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			name: "Error case - failed to load from database",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
-				GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-					NextPageToken: serializePageToken(100),
-					MaxReadLevel:  199,
-					BatchSize:     1000,
-				},
+				NextPageToken:     serializePageToken(100),
+				MaxReadLevel:      199,
+				BatchSize:         1000,
 			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockTaskSerializer) {
 				err := errors.New("some error")
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
-						ShardID:   shardID,
-						MinTaskID: 100,
-						MaxTaskID: 1100,
-						PageSize:  1000,
+						ShardID:            shardID,
+						InclusiveMinTaskID: 100,
+						ExclusiveMaxTaskID: 1100,
+						PageSize:           1000,
 					},
 					SourceClusterName: "source",
 				}).Return(nil, err)
@@ -820,19 +288,17 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			name: "Error case - failed to decode data",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
-				GetReplicationTasksRequest: persistence.GetReplicationTasksRequest{
-					NextPageToken: serializePageToken(100),
-					MaxReadLevel:  199,
-					BatchSize:     1000,
-				},
+				NextPageToken:     serializePageToken(100),
+				MaxReadLevel:      199,
+				BatchSize:         1000,
 			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockTaskSerializer) {
 				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
-						ShardID:   shardID,
-						MinTaskID: 100,
-						MaxTaskID: 1100,
-						PageSize:  1000,
+						ShardID:            shardID,
+						InclusiveMinTaskID: 100,
+						ExclusiveMaxTaskID: 1100,
+						PageSize:           1000,
 					},
 					SourceClusterName: "source",
 				}).Return([]sqlplugin.ReplicationTasksRow{
@@ -843,7 +309,8 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 						DataEncoding: "replication",
 					},
 				}, nil)
-				mockParser.EXPECT().ReplicationTaskInfoFromBlob([]byte(`replication`), "replication").Return(nil, errors.New("some error"))
+				mockParser.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryReplication, persistence.NewDataBlob([]byte(`replication`), "replication")).Return(nil, errors.New("some error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			wantErr: true,
 		},
@@ -855,8 +322,8 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			mockParser := serialization.NewMockTaskSerializer(ctrl)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, mockParser, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -936,7 +403,7 @@ func TestGetReplicationDLQSize(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1004,7 +471,7 @@ func TestDeleteReplicationTaskFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -1031,8 +498,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.RangeDeleteReplicationTaskFromDLQRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
+				InclusiveBeginTaskID: 123,
+				ExclusiveEndTaskID:   345,
 				PageSize:             10,
 				SourceClusterName:    "source",
 			},
@@ -1040,8 +507,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 				mockDB.EXPECT().RangeDeleteMessageFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
 						ShardID:            shardID,
-						TaskID:             123,
-						InclusiveEndTaskID: 345,
+						InclusiveMinTaskID: 123,
+						ExclusiveMaxTaskID: 345,
 						PageSize:           10,
 					},
 					SourceClusterName: "source",
@@ -1055,8 +522,8 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.RangeDeleteReplicationTaskFromDLQRequest{
-				ExclusiveBeginTaskID: 123,
-				InclusiveEndTaskID:   345,
+				InclusiveBeginTaskID: 123,
+				ExclusiveEndTaskID:   345,
 				PageSize:             10,
 				SourceClusterName:    "source",
 			},
@@ -1065,9 +532,9 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 				mockDB.EXPECT().RangeDeleteMessageFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
 					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
 						ShardID:            shardID,
-						TaskID:             123,
+						InclusiveMinTaskID: 123,
+						ExclusiveMaxTaskID: 345,
 						PageSize:           10,
-						InclusiveEndTaskID: 345,
 					},
 					SourceClusterName: "source",
 				}).Return(nil, err)
@@ -1083,308 +550,12 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
 
 			got, err := store.RangeDeleteReplicationTaskFromDLQ(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
-func TestGetTimerIndexTasks(t *testing.T) {
-	shardID := 1
-	testCases := []struct {
-		name      string
-		req       *persistence.GetTimerIndexTasksRequest
-		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
-		want      *persistence.GetTimerIndexTasksResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.GetTimerIndexTasksRequest{
-				NextPageToken: func() []byte {
-					ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1000, 1).UTC()}
-					token, err := ti.serialize()
-					require.NoError(t, err, "failed to serialize timer task page token")
-					return token
-				}(),
-				MaxTimestamp: time.Unix(2000, 0).UTC(),
-				BatchSize:    1,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(1000, 1).UTC(),
-					TaskID:                 101,
-					MaxVisibilityTimestamp: time.Unix(2000, 0).UTC(),
-					PageSize:               2,
-				}).Return([]sqlplugin.TimerTasksRow{
-					{
-						ShardID:             shardID,
-						VisibilityTimestamp: time.Unix(1001, 0).UTC(),
-						TaskID:              11,
-						Data:                []byte(`timer`),
-						DataEncoding:        "timer",
-					},
-					{
-						ShardID:             shardID,
-						VisibilityTimestamp: time.Unix(1003, 0).UTC(),
-						TaskID:              22,
-						Data:                []byte(`timer`),
-						DataEncoding:        "timer",
-					},
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoFromBlob([]byte(`timer`), "timer").Return(&serialization.TimerTaskInfo{
-					DomainID:        serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a542"),
-					WorkflowID:      "test",
-					RunID:           serialization.MustParseUUID("abdcea69-61d5-44c3-9d55-afe23505a54a"),
-					TaskType:        1,
-					Version:         202,
-					EventID:         10,
-					ScheduleAttempt: 9,
-					TimeoutType:     common.Int16Ptr(12),
-				}, nil).Times(2)
-			},
-			want: &persistence.GetTimerIndexTasksResponse{
-				Timers: []*persistence.TimerTaskInfo{
-					{
-						VisibilityTimestamp: time.Unix(1001, 0).UTC(),
-						TaskID:              11,
-						DomainID:            "abdcea69-61d5-44c3-9d55-afe23505a542",
-						WorkflowID:          "test",
-						RunID:               "abdcea69-61d5-44c3-9d55-afe23505a54a",
-						TaskType:            1,
-						Version:             202,
-						EventID:             10,
-						ScheduleAttempt:     9,
-						TimeoutType:         12,
-					},
-				},
-				NextPageToken: func() []byte {
-					ti := &timerTaskPageToken{TaskID: 22, Timestamp: time.Unix(1003, 0).UTC()}
-					token, err := ti.serialize()
-					require.NoError(t, err, "failed to serialize timer page token")
-					return token
-				}(),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case - failed to load from database",
-			req: &persistence.GetTimerIndexTasksRequest{
-				NextPageToken: func() []byte {
-					ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1000, 1).UTC()}
-					token, err := ti.serialize()
-					require.NoError(t, err, "failed to serialize timer task page token")
-					return token
-				}(),
-				MaxTimestamp: time.Unix(2000, 0).UTC(),
-				BatchSize:    10,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				err := errors.New("some error")
-				mockDB.EXPECT().SelectFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(1000, 1).UTC(),
-					TaskID:                 101,
-					MaxVisibilityTimestamp: time.Unix(2000, 0).UTC(),
-					PageSize:               11,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-		{
-			name: "Error case - failed to decode data",
-			req: &persistence.GetTimerIndexTasksRequest{
-				NextPageToken: func() []byte {
-					ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1000, 1).UTC()}
-					token, err := ti.serialize()
-					require.NoError(t, err, "failed to serialize timer task page token")
-					return token
-				}(),
-				MaxTimestamp: time.Unix(2000, 0).UTC(),
-				BatchSize:    10,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
-				mockDB.EXPECT().SelectFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(1000, 1).UTC(),
-					TaskID:                 101,
-					MaxVisibilityTimestamp: time.Unix(2000, 0).UTC(),
-					PageSize:               11,
-				}).Return([]sqlplugin.TimerTasksRow{
-					{
-						ShardID:             shardID,
-						VisibilityTimestamp: time.Unix(1001, 0).UTC(),
-						TaskID:              11,
-						Data:                []byte(`timer`),
-						DataEncoding:        "timer",
-					},
-				}, nil)
-				mockParser.EXPECT().TimerTaskInfoFromBlob([]byte(`timer`), "timer").Return(nil, errors.New("some error"))
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB, mockParser)
-
-			got, err := store.GetTimerIndexTasks(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-				assert.Equal(t, tc.want, got, "Unexpected result for test case")
-			}
-		})
-	}
-}
-
-func TestCompleteTimerTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.CompleteTimerTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.CompleteTimerTaskRequest{
-				TaskID:              123,
-				VisibilityTimestamp: time.Unix(9, 1),
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:             shardID,
-					TaskID:              123,
-					VisibilityTimestamp: time.Unix(9, 1),
-				}).Return(nil, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.CompleteTimerTaskRequest{
-				TaskID:              123,
-				VisibilityTimestamp: time.Unix(9, 1),
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().DeleteFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:             shardID,
-					TaskID:              123,
-					VisibilityTimestamp: time.Unix(9, 1),
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			err = store.CompleteTimerTask(context.Background(), tc.req)
-			if tc.wantErr {
-				assert.Error(t, err, "Expected an error for test case")
-			} else {
-				assert.NoError(t, err, "Did not expect an error for test case")
-			}
-		})
-	}
-}
-
-func TestRangeCompleteTimerTask(t *testing.T) {
-	shardID := 100
-	testCases := []struct {
-		name      string
-		req       *persistence.RangeCompleteTimerTaskRequest
-		mockSetup func(*sqlplugin.MockDB)
-		want      *persistence.RangeCompleteTimerTaskResponse
-		wantErr   bool
-	}{
-		{
-			name: "Success case",
-			req: &persistence.RangeCompleteTimerTaskRequest{
-				InclusiveBeginTimestamp: time.Unix(9, 1),
-				ExclusiveEndTimestamp:   time.Unix(99, 1),
-				PageSize:                12,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				mockDB.EXPECT().RangeDeleteFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(9, 1),
-					MaxVisibilityTimestamp: time.Unix(99, 1),
-					PageSize:               12,
-				}).Return(&sqlResult{rowsAffected: 11}, nil)
-			},
-			want: &persistence.RangeCompleteTimerTaskResponse{
-				TasksCompleted: 11,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Error case",
-			req: &persistence.RangeCompleteTimerTaskRequest{
-				InclusiveBeginTimestamp: time.Unix(9, 1),
-				ExclusiveEndTimestamp:   time.Unix(99, 1),
-				PageSize:                12,
-			},
-			mockSetup: func(mockDB *sqlplugin.MockDB) {
-				err := errors.New("some error")
-				mockDB.EXPECT().RangeDeleteFromTimerTasks(gomock.Any(), &sqlplugin.TimerTasksFilter{
-					ShardID:                shardID,
-					MinVisibilityTimestamp: time.Unix(9, 1),
-					MaxVisibilityTimestamp: time.Unix(99, 1),
-					PageSize:               12,
-				}).Return(nil, err)
-				mockDB.EXPECT().IsNotFoundError(err).Return(true)
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
-			require.NoError(t, err, "failed to create execution store")
-
-			tc.mockSetup(mockDB)
-
-			got, err := store.RangeCompleteTimerTask(context.Background(), tc.req)
 			if tc.wantErr {
 				assert.Error(t, err, "Expected an error for test case")
 			} else {
@@ -1509,7 +680,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -1624,7 +795,7 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockTx := sqlplugin.NewMockTx(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockTx)
@@ -1715,7 +886,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		req                              *persistence.InternalCreateWorkflowExecutionRequest
 		lockCurrentExecutionIfExistsFn   func(context.Context, sqlplugin.Tx, int, serialization.UUID, string) (*sqlplugin.CurrentExecutionsRow, error)
 		createOrUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error
-		applyWorkflowSnapshotTxAsNewFn   func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
+		applyWorkflowSnapshotTxAsNewFn   func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
 		wantErr                          bool
 		want                             *persistence.CreateWorkflowExecutionResponse
 		assertErr                        func(t *testing.T, err error)
@@ -1735,7 +906,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			want: &persistence.CreateWorkflowExecutionResponse{},
@@ -1757,7 +928,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			want: &persistence.CreateWorkflowExecutionResponse{},
@@ -1781,7 +952,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			want: &persistence.CreateWorkflowExecutionResponse{},
@@ -1968,7 +1139,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			createOrUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, persistence.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2014,8 +1185,8 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		req                                    *persistence.InternalUpdateWorkflowExecutionRequest
 		assertNotCurrentExecutionFn            func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error
 		assertRunIDAndUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error
-		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
-		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error
+		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
+		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error
 		wantErr                                bool
 		assertErr                              func(t *testing.T, err error)
 	}{
@@ -2028,7 +1199,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					ExecutionInfo: &persistence.InternalWorkflowExecutionInfo{},
 				},
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2047,7 +1218,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertNotCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2071,10 +1242,10 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2093,7 +1264,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2181,7 +1352,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2205,10 +1376,10 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2253,9 +1424,9 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		req                                    *persistence.InternalConflictResolveWorkflowExecutionRequest
 		assertRunIDAndUpdateCurrentExecutionFn func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error
 		assertNotCurrentExecutionFn            func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error
-		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error
-		applyWorkflowSnapshotTxAsResetFn       func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
-		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error
+		applyWorkflowMutationTxFn              func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error
+		applyWorkflowSnapshotTxAsResetFn       func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
+		applyWorkflowSnapshotTxAsNewFn         func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error
 		wantErr                                bool
 		assertErr                              func(t *testing.T, err error)
 	}{
@@ -2273,7 +1444,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertNotCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2302,13 +1473,13 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2332,10 +1503,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
 			wantErr: false,
@@ -2409,7 +1580,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertNotCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2438,10 +1609,10 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2470,13 +1641,13 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			assertRunIDAndUpdateCurrentExecutionFn: func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID, serialization.UUID, string, int, int, int64, int64) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsResetFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser) error {
+			applyWorkflowMutationTxFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowMutation, serialization.Parser, serialization.TaskSerializer) error {
 				return nil
 			},
-			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser) error {
+			applyWorkflowSnapshotTxAsNewFn: func(context.Context, sqlplugin.Tx, int, *persistence.InternalWorkflowSnapshot, serialization.Parser, serialization.TaskSerializer) error {
 				return errors.New("some random error")
 			},
 			wantErr: true,
@@ -2541,7 +1712,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2594,7 +1765,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2626,7 +1797,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2659,7 +1830,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			},
 			mockSetup: func(tx *sqlplugin.MockTx, parser *serialization.MockParser) {
 				parser.EXPECT().ReplicationTaskInfoToBlob(gomock.Any()).Return(persistence.DataBlob{
-					Encoding: common.EncodingTypeThriftRW,
+					Encoding: constants.EncodingTypeThriftRW,
 					Data:     []byte("test data"),
 				}, nil)
 				tx.EXPECT().InsertIntoReplicationTasks(gomock.Any(), []sqlplugin.ReplicationTasksRow{
@@ -2814,69 +1985,71 @@ func TestGetWorkflowExecution(t *testing.T) {
 					},
 				}, nil)
 				parser.EXPECT().WorkflowExecutionInfoFromBlob(gomock.Any(), gomock.Any()).Return(&serialization.WorkflowExecutionInfo{
-					ParentDomainID:                     serialization.MustParseUUID("ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d"),
-					ParentWorkflowID:                   "test-parent-workflow-id",
-					ParentRunID:                        serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
-					InitiatedID:                        101,
-					CompletionEventBatchID:             common.Int64Ptr(11),
-					CompletionEvent:                    []byte("test completion event"),
-					CompletionEventEncoding:            "json",
-					TaskList:                           "test-task-list",
-					IsCron:                             true,
-					WorkflowTypeName:                   "test-workflow-type",
-					WorkflowTimeout:                    time.Duration(101),
-					DecisionTaskTimeout:                time.Duration(102),
-					ExecutionContext:                   []byte("test execution context"),
-					State:                              persistence.WorkflowStateCompleted,
-					CloseStatus:                        persistence.WorkflowCloseStatusCompleted,
-					StartVersion:                       111,
-					LastWriteEventID:                   common.Int64Ptr(11),
-					LastEventTaskID:                    12,
-					LastFirstEventID:                   13,
-					LastProcessedEvent:                 14,
-					StartTimestamp:                     time.Unix(11, 12),
-					LastUpdatedTimestamp:               time.Unix(13, 14),
-					DecisionVersion:                    101,
-					DecisionScheduleID:                 102,
-					DecisionStartedID:                  103,
-					DecisionTimeout:                    time.Duration(104),
-					DecisionAttempt:                    105,
-					DecisionStartedTimestamp:           time.Unix(15, 16),
-					DecisionScheduledTimestamp:         time.Unix(17, 18),
-					CancelRequested:                    true,
-					DecisionOriginalScheduledTimestamp: time.Unix(19, 20),
-					CreateRequestID:                    "test-create-request-id",
-					DecisionRequestID:                  "test-decision-request-id",
-					CancelRequestID:                    "test-cancel-request-id",
-					StickyTaskList:                     "test-sticky-task-list",
-					StickyScheduleToStartTimeout:       time.Duration(106),
-					RetryAttempt:                       107,
-					RetryInitialInterval:               time.Duration(108),
-					RetryMaximumInterval:               time.Duration(109),
-					RetryMaximumAttempts:               110,
-					RetryExpiration:                    time.Duration(111),
-					RetryBackoffCoefficient:            111,
-					RetryExpirationTimestamp:           time.Unix(23, 24),
-					RetryNonRetryableErrors:            []string{"error1", "error2"},
-					HasRetryPolicy:                     true,
-					CronSchedule:                       "test-cron-schedule",
-					EventStoreVersion:                  112,
-					EventBranchToken:                   []byte("test-event-branch-token"),
-					SignalCount:                        113,
-					HistorySize:                        114,
-					ClientLibraryVersion:               "test-client-library-version",
-					ClientFeatureVersion:               "test-client-feature-version",
-					ClientImpl:                         "test-client-impl",
-					AutoResetPoints:                    []byte("test-auto-reset-points"),
-					AutoResetPointsEncoding:            "json",
-					SearchAttributes:                   map[string][]byte{"test-key": []byte("test-value")},
-					Memo:                               map[string][]byte{"test-key": []byte("test-value")},
-					VersionHistories:                   []byte("test-version-histories"),
-					VersionHistoriesEncoding:           "json",
-					FirstExecutionRunID:                serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
-					PartitionConfig:                    map[string]string{"test-key": "test-value"},
-					Checksum:                           []byte("test-checksum"),
-					ChecksumEncoding:                   "test-checksum-encoding",
+					ParentDomainID:                       serialization.MustParseUUID("ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d"),
+					ParentWorkflowID:                     "test-parent-workflow-id",
+					ParentRunID:                          serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
+					InitiatedID:                          101,
+					CompletionEventBatchID:               common.Int64Ptr(11),
+					CompletionEvent:                      []byte("test completion event"),
+					CompletionEventEncoding:              "json",
+					TaskList:                             "test-task-list",
+					IsCron:                               true,
+					WorkflowTypeName:                     "test-workflow-type",
+					WorkflowTimeout:                      time.Duration(101),
+					DecisionTaskTimeout:                  time.Duration(102),
+					ExecutionContext:                     []byte("test execution context"),
+					State:                                persistence.WorkflowStateCompleted,
+					CloseStatus:                          persistence.WorkflowCloseStatusCompleted,
+					StartVersion:                         111,
+					LastWriteEventID:                     common.Int64Ptr(11),
+					LastEventTaskID:                      12,
+					LastFirstEventID:                     13,
+					LastProcessedEvent:                   14,
+					StartTimestamp:                       time.Unix(11, 12),
+					LastUpdatedTimestamp:                 time.Unix(13, 14),
+					DecisionVersion:                      101,
+					DecisionScheduleID:                   102,
+					DecisionStartedID:                    103,
+					DecisionTimeout:                      time.Duration(104),
+					DecisionAttempt:                      105,
+					DecisionStartedTimestamp:             time.Unix(15, 16),
+					DecisionScheduledTimestamp:           time.Unix(17, 18),
+					CancelRequested:                      true,
+					DecisionOriginalScheduledTimestamp:   time.Unix(19, 20),
+					CreateRequestID:                      "test-create-request-id",
+					DecisionRequestID:                    "test-decision-request-id",
+					CancelRequestID:                      "test-cancel-request-id",
+					StickyTaskList:                       "test-sticky-task-list",
+					StickyScheduleToStartTimeout:         time.Duration(106),
+					RetryAttempt:                         107,
+					RetryInitialInterval:                 time.Duration(108),
+					RetryMaximumInterval:                 time.Duration(109),
+					RetryMaximumAttempts:                 110,
+					RetryExpiration:                      time.Duration(111),
+					RetryBackoffCoefficient:              111,
+					RetryExpirationTimestamp:             time.Unix(23, 24),
+					RetryNonRetryableErrors:              []string{"error1", "error2"},
+					HasRetryPolicy:                       true,
+					CronSchedule:                         "test-cron-schedule",
+					EventStoreVersion:                    112,
+					EventBranchToken:                     []byte("test-event-branch-token"),
+					SignalCount:                          113,
+					HistorySize:                          114,
+					ClientLibraryVersion:                 "test-client-library-version",
+					ClientFeatureVersion:                 "test-client-feature-version",
+					ClientImpl:                           "test-client-impl",
+					AutoResetPoints:                      []byte("test-auto-reset-points"),
+					AutoResetPointsEncoding:              "json",
+					SearchAttributes:                     map[string][]byte{"test-key": []byte("test-value")},
+					Memo:                                 map[string][]byte{"test-key": []byte("test-value")},
+					VersionHistories:                     []byte("test-version-histories"),
+					VersionHistoriesEncoding:             "json",
+					FirstExecutionRunID:                  serialization.MustParseUUID("ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f"),
+					PartitionConfig:                      map[string]string{"test-key": "test-value"},
+					Checksum:                             []byte("test-checksum"),
+					ChecksumEncoding:                     "test-checksum-encoding",
+					ActiveClusterSelectionPolicy:         []byte("ActiveClusterSelectionPolicy"),
+					ActiveClusterSelectionPolicyEncoding: "json",
 				}, nil)
 				parser.EXPECT().ActivityInfoFromBlob(gomock.Any(), gomock.Any()).Return(&serialization.ActivityInfo{
 					Version:                  101,
@@ -2899,6 +2072,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 					TimerTaskStatus:          105,
 					Attempt:                  106,
 					TaskList:                 "test-task-list",
+					TaskListKind:             types.TaskListKindEphemeral,
 					StartedIdentity:          "test-started-identity",
 					HasRetryPolicy:           true,
 					RetryInitialInterval:     time.Duration(107),
@@ -2960,7 +2134,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 						ParentRunID:                        "ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f",
 						InitiatedID:                        101,
 						CompletionEventBatchID:             11,
-						CompletionEvent:                    persistence.NewDataBlob([]byte("test completion event"), common.EncodingTypeJSON),
+						CompletionEvent:                    persistence.NewDataBlob([]byte("test completion event"), constants.EncodingTypeJSON),
 						TaskList:                           "test-task-list",
 						IsCron:                             true,
 						WorkflowTypeName:                   "test-workflow-type",
@@ -2998,7 +2172,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 						ClientImpl:                         "test-client-impl",
 						FirstExecutionRunID:                "ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f",
 						PartitionConfig:                    map[string]string{"test-key": "test-value"},
-						AutoResetPoints:                    persistence.NewDataBlob([]byte("test-auto-reset-points"), common.EncodingTypeJSON),
+						AutoResetPoints:                    persistence.NewDataBlob([]byte("test-auto-reset-points"), constants.EncodingTypeJSON),
 						Attempt:                            107,
 						InitialInterval:                    time.Duration(108),
 						BackoffCoefficient:                 111,
@@ -3010,8 +2184,9 @@ func TestGetWorkflowExecution(t *testing.T) {
 						SearchAttributes:                   map[string][]byte{"test-key": []byte("test-value")},
 						Memo:                               map[string][]byte{"test-key": []byte("test-value")},
 						ExpirationInterval:                 time.Duration(111),
+						ActiveClusterSelectionPolicy:       persistence.NewDataBlob([]byte("ActiveClusterSelectionPolicy"), constants.EncodingTypeJSON),
 					},
-					VersionHistories: persistence.NewDataBlob([]byte("test-version-histories"), common.EncodingTypeJSON),
+					VersionHistories: persistence.NewDataBlob([]byte("test-version-histories"), constants.EncodingTypeJSON),
 					ReplicationState: &persistence.ReplicationState{
 						StartVersion:     111,
 						LastWriteVersion: 11,
@@ -3022,11 +2197,11 @@ func TestGetWorkflowExecution(t *testing.T) {
 							Version:                101,
 							ScheduleID:             101,
 							ScheduledEventBatchID:  102,
-							ScheduledEvent:         persistence.NewDataBlob([]byte("test scheduled event"), common.EncodingTypeJSON),
+							ScheduledEvent:         persistence.NewDataBlob([]byte("test scheduled event"), constants.EncodingTypeJSON),
 							ScheduledTime:          time.Unix(11, 12),
 							StartedID:              103,
 							StartedTime:            time.Unix(13, 14),
-							StartedEvent:           persistence.NewDataBlob([]byte("test started event"), common.EncodingTypeJSON),
+							StartedEvent:           persistence.NewDataBlob([]byte("test started event"), constants.EncodingTypeJSON),
 							ActivityID:             "test-activity-id",
 							RequestID:              "test-request-id",
 							ScheduleToStartTimeout: time.Duration(101),
@@ -3038,6 +2213,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 							TimerTaskStatus:        105,
 							Attempt:                106,
 							TaskList:               "test-task-list",
+							TaskListKind:           types.TaskListKindEphemeral,
 							StartedIdentity:        "test-started-identity",
 							HasRetryPolicy:         true,
 							DomainID:               "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
@@ -3065,10 +2241,10 @@ func TestGetWorkflowExecution(t *testing.T) {
 						101: {
 							Version:               101,
 							InitiatedID:           101,
-							InitiatedEvent:        persistence.NewDataBlob([]byte("test initiated event"), common.EncodingTypeJSON),
+							InitiatedEvent:        persistence.NewDataBlob([]byte("test initiated event"), constants.EncodingTypeJSON),
 							InitiatedEventBatchID: 102,
 							StartedID:             103,
-							StartedEvent:          persistence.NewDataBlob([]byte("test started event"), common.EncodingTypeJSON),
+							StartedEvent:          persistence.NewDataBlob([]byte("test started event"), constants.EncodingTypeJSON),
 							StartedWorkflowID:     "test-started-workflow-id",
 							StartedRunID:          "ee8d7b6e-876c-4b1e-9b6e-5e3e3c6b6b3f",
 							CreateRequestID:       "test-create-request-id",
@@ -3101,7 +2277,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 					},
 					BufferedEvents: []*persistence.DataBlob{
 						{
-							Encoding: common.EncodingTypeThriftRW,
+							Encoding: constants.EncodingTypeThriftRW,
 							Data:     []byte("test data"),
 						},
 					},
@@ -3424,6 +2600,567 @@ func TestGetWorkflowExecution(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "Did not expect an error for test case")
 				assert.Equal(t, tc.want, resp, "Response mismatch")
+			}
+		})
+	}
+}
+
+func TestRangeCompleteHistoryTask(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name          string
+		request       *persistence.RangeCompleteHistoryTaskRequest
+		setupMock     func(*sqlplugin.MockDB)
+		expectedError error
+	}{
+		{
+			name: "success - scheduled timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 0),
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute),
+					PageSize:               1000,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - immediate transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - immediate replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100), // this is ignored by replication task
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "unknown task category error",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategory{},
+			},
+			setupMock:     func(mockDB *sqlplugin.MockDB) {},
+			expectedError: &types.BadRequestError{},
+		},
+		{
+			name: "database error on timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 0),
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute),
+					PageSize:               1000,
+				}).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
+				}).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
+				}).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "sql result error on timer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 0),
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute),
+					PageSize:               1000,
+				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("sql result error"),
+		},
+		{
+			name: "sql result error on transfer task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:            shardID,
+					InclusiveMinTaskID: 100,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
+				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("sql result error"),
+		},
+		{
+			name: "sql result error on replication task",
+			request: &persistence.RangeCompleteHistoryTaskRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            1000,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB) {
+				mockDB.EXPECT().RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           1000,
+				}).Return(&sqlResult{err: errors.New("sql result error")}, nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("sql result error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			mockDB := sqlplugin.NewMockDB(controller)
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+
+			tc.setupMock(mockDB)
+
+			resp, err := store.RangeCompleteHistoryTask(ctx, tc.request)
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, 1, resp.TasksCompleted)
+			}
+		})
+	}
+}
+
+func TestGetHistoryTasks_SQL(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name                  string
+		request               *persistence.GetHistoryTasksRequest
+		setupMock             func(*sqlplugin.MockDB, *serialization.MockTaskSerializer)
+		expectedError         error
+		expectedTasks         []persistence.Task
+		expectedNextPageToken []byte
+	}{
+		{
+			name: "success - get immediate transfer tasks",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            10,
+				NextPageToken:       serializePageToken(101),
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID:            shardID,
+					InclusiveMinTaskID: 101,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           10,
+				}).Return([]sqlplugin.TransferTasksRow{
+					{
+						ShardID:      shardID,
+						TaskID:       101,
+						Data:         []byte(`{"task": "transfer"}`),
+						DataEncoding: "json",
+					},
+				}, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryTransfer, persistence.NewDataBlob([]byte(`{"task": "transfer"}`), constants.EncodingTypeJSON)).Return(&persistence.DecisionTask{
+					TaskList: "test-task-list",
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.DecisionTask{
+					TaskList: "test-task-list",
+					TaskData: persistence.TaskData{
+						TaskID: 101,
+					},
+				},
+			},
+			expectedNextPageToken: serializePageToken(102),
+		},
+		{
+			name: "success - get scheduled timer tasks",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryTimer,
+				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).UTC(), 0),
+				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute).UTC(), 0),
+				PageSize:            1,
+				NextPageToken: func() []byte {
+					ti := &timerTaskPageToken{TaskID: 10, Timestamp: time.Unix(0, 1).UTC()}
+					token, err := ti.serialize()
+					require.NoError(t, err, "failed to serialize timer page token")
+					return token
+				}(),
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:                shardID,
+					MinVisibilityTimestamp: time.Unix(0, 1).UTC(),
+					TaskID:                 10,
+					MaxVisibilityTimestamp: time.Unix(0, 0).Add(time.Minute).UTC(),
+					PageSize:               2,
+				}).Return([]sqlplugin.TimerTasksRow{
+					{
+						ShardID:             shardID,
+						TaskID:              10,
+						VisibilityTimestamp: time.Unix(1, 1),
+						Data:                []byte(`{"task": "timer"}`),
+						DataEncoding:        "json",
+					},
+					{
+						ShardID:             shardID,
+						TaskID:              101,
+						VisibilityTimestamp: time.Unix(1, 1),
+						Data:                []byte(`{"task": "timer"}`),
+						DataEncoding:        "json",
+					},
+				}, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryTimer, persistence.NewDataBlob([]byte(`{"task": "timer"}`), constants.EncodingTypeJSON)).Return(&persistence.UserTimerTask{
+					EventID: 100,
+				}, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryTimer, persistence.NewDataBlob([]byte(`{"task": "timer"}`), constants.EncodingTypeJSON)).Return(&persistence.UserTimerTask{
+					EventID: 101,
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.UserTimerTask{
+					EventID: 100,
+					TaskData: persistence.TaskData{
+						TaskID:              10,
+						VisibilityTimestamp: time.Unix(1, 1),
+					},
+				},
+			},
+			expectedNextPageToken: func() []byte {
+				ti := &timerTaskPageToken{TaskID: 101, Timestamp: time.Unix(1, 1)}
+				token, err := ti.serialize()
+				require.NoError(t, err, "failed to serialize timer page token")
+				return token
+			}(),
+		},
+		{
+			name: "success - get immediate replication tasks",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory:        persistence.HistoryTaskCategoryReplication,
+				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+				PageSize:            10,
+				NextPageToken:       serializePageToken(101),
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID:            shardID,
+					InclusiveMinTaskID: 101,
+					ExclusiveMaxTaskID: 200,
+					PageSize:           10,
+				}).Return([]sqlplugin.ReplicationTasksRow{
+					{
+						ShardID:      shardID,
+						TaskID:       101,
+						Data:         []byte(`{"task": "replication"}`),
+						DataEncoding: "json",
+					},
+				}, nil)
+				mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryReplication, persistence.NewDataBlob([]byte(`{"task": "replication"}`), constants.EncodingTypeJSON)).Return(&persistence.HistoryReplicationTask{
+					FirstEventID: 100,
+					NextEventID:  200,
+				}, nil)
+			},
+			expectedError: nil,
+			expectedTasks: []persistence.Task{
+				&persistence.HistoryReplicationTask{
+					FirstEventID: 100,
+					NextEventID:  200,
+					TaskData: persistence.TaskData{
+						TaskID: 101,
+					},
+				},
+			},
+			expectedNextPageToken: serializePageToken(102),
+		},
+		{
+			name: "database error on transfer task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectFromTransferTasks(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on replication task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategoryReplication,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectFromReplicationTasks(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "database error on timer task retrieval",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTimer,
+				PageSize:     10,
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockDB.EXPECT().SelectFromTimerTasks(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "unknown task category error",
+			request: &persistence.GetHistoryTasksRequest{
+				TaskCategory: persistence.HistoryTaskCategory{},
+			},
+			setupMock:     func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {},
+			expectedError: &types.BadRequestError{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			mockDB := sqlplugin.NewMockDB(controller)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID, taskSerializer: mockTaskSerializer}
+
+			tc.setupMock(mockDB, mockTaskSerializer)
+
+			resp, err := store.GetHistoryTasks(ctx, tc.request)
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectedTasks, resp.Tasks)
+				assert.Equal(t, tc.expectedNextPageToken, resp.NextPageToken)
+			}
+		})
+	}
+}
+
+func TestCompleteHistoryTask(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name          string
+		request       *persistence.CompleteHistoryTaskRequest
+		setupMock     func(any)
+		expectedError error
+	}{
+		{
+			name: "success - complete scheduled timer task",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTimer,
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+			},
+			setupMock: func(mockDB any) {
+				mock := mockDB.(*sqlplugin.MockDB)
+				mock.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:             shardID,
+					VisibilityTimestamp: time.Unix(10, 10),
+					TaskID:              1,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - complete immediate transfer task",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+				TaskKey:      persistence.NewImmediateTaskKey(2),
+			},
+			setupMock: func(mockDB any) {
+				mock := mockDB.(*sqlplugin.MockDB)
+				mock.EXPECT().DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID: shardID,
+					TaskID:  2,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - complete immediate replication task",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryReplication,
+				TaskKey:      persistence.NewImmediateTaskKey(3),
+			},
+			setupMock: func(mockDB any) {
+				mock := mockDB.(*sqlplugin.MockDB)
+				mock.EXPECT().DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID: shardID,
+					TaskID:  3,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "unknown task category type",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategory{},
+			},
+			setupMock:     func(mockDB any) {},
+			expectedError: &types.BadRequestError{},
+		},
+		{
+			name: "delete timer task error",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTimer,
+				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+			},
+			setupMock: func(mockDB any) {
+				mock := mockDB.(*sqlplugin.MockDB)
+				mock.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:             shardID,
+					VisibilityTimestamp: time.Unix(10, 10),
+					TaskID:              1,
+				}).Return(&sqlResult{rowsAffected: 0}, errors.New("db error"))
+				mock.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "delete transfer task error",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+				TaskKey:      persistence.NewImmediateTaskKey(2),
+			},
+			setupMock: func(mockDB any) {
+				mock := mockDB.(*sqlplugin.MockDB)
+				mock.EXPECT().DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+					ShardID: shardID,
+					TaskID:  2,
+				}).Return(&sqlResult{rowsAffected: 0}, errors.New("db error"))
+				mock.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+		{
+			name: "delete replication task error",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryReplication,
+				TaskKey:      persistence.NewImmediateTaskKey(3),
+			},
+			setupMock: func(mockDB any) {
+				mock := mockDB.(*sqlplugin.MockDB)
+				mock.EXPECT().DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+					ShardID: shardID,
+					TaskID:  3,
+				}).Return(&sqlResult{rowsAffected: 0}, errors.New("db error"))
+				mock.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
+			expectedError: errors.New("db error"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			defer controller.Finish()
+
+			mockDB := sqlplugin.NewMockDB(controller)
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+
+			tc.setupMock(mockDB)
+
+			err := store.CompleteHistoryTask(ctx, tc.request)
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}
