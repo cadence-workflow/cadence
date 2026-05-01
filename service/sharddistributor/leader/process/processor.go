@@ -467,7 +467,8 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	isRebalancedByShardLoad := len(loadBalanceMoves) > 0
 
 	p.emitExecutorMetric(namespaceState, metricsLoopScope)
-	p.emitAssignmentImbalanceMetrics(metricsLoopScope, currentAssignments, namespaceState)
+	emitSmoothedLoadMetrics := p.sdConfig.GetLoadBalancingMode(p.namespaceCfg.Name) == types.LoadBalancingModeGREEDY
+	p.emitAssignmentImbalanceMetrics(metricsLoopScope, currentAssignments, namespaceState, emitSmoothedLoadMetrics)
 
 	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || isRebalancedByShardLoad
 	if !distributionChanged {
@@ -822,6 +823,7 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 	metricsLoopScope metrics.Scope,
 	assignments map[string][]string,
 	namespaceState *store.NamespaceState,
+	emitSmoothedLoadMetrics bool,
 ) {
 	if metricsLoopScope == nil || namespaceState == nil {
 		return
@@ -831,7 +833,10 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 	staleAfter := p.cfg.HeartbeatTTL
 
 	reportedLoads := make([]float64, 0, len(assignments))
-	smoothedLoads := make([]float64, 0, len(assignments))
+	var smoothedLoads []float64
+	if emitSmoothedLoadMetrics {
+		smoothedLoads = make([]float64, 0, len(assignments))
+	}
 
 	totalAssigned := 0
 	smoothedMissing := 0
@@ -851,6 +856,9 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 				reportedLoad += shardReport.ShardLoad
 			}
 
+			if !emitSmoothedLoadMetrics {
+				continue
+			}
 			if namespaceState.ShardStats == nil {
 				smoothedMissing++
 				continue
@@ -867,11 +875,17 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 		}
 
 		reportedLoads = append(reportedLoads, reportedLoad)
-		smoothedLoads = append(smoothedLoads, smoothedLoad)
+		if emitSmoothedLoadMetrics {
+			smoothedLoads = append(smoothedLoads, smoothedLoad)
+		}
 	}
 
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadMaxOverMean, maxOverMean(reportedLoads))
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentLoadCV, coefficientOfVariation(reportedLoads))
+	if !emitSmoothedLoadMetrics {
+		return
+	}
+
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMaxOverMean, maxOverMean(smoothedLoads))
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadCV, coefficientOfVariation(smoothedLoads))
 
