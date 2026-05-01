@@ -103,7 +103,9 @@ func calcShardLoad(namespaceState *store.NamespaceState) map[string]float64 {
 	shardLoad := make(map[string]float64)
 	for _, state := range namespaceState.Executors {
 		for shardID, report := range state.ReportedShards {
-			shardLoad[shardID] = report.ShardLoad
+			if report != nil {
+				shardLoad[shardID] = report.ShardLoad
+			}
 		}
 	}
 	return shardLoad
