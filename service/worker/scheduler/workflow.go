@@ -674,6 +674,9 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 		}
 		head := state.BufferedFires[0]
 		headOverlap := head.OverlapPolicy
+		// OverlapPolicy is INVALID only for BufferedFires persisted before this
+		// field was added; fall back to the schedule's current policy (guaranteed
+		// BUFFER here: handleUpdate clears the queue on any policy change away from BUFFER).
 		if headOverlap == types.ScheduleOverlapPolicyInvalid {
 			headOverlap = input.Policies.OverlapPolicy
 		}
