@@ -166,6 +166,12 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	// Only reject explicit conflicts; standalone --concurrency_limit updates are
+	// valid when the schedule's existing server-side policy is already concurrent.
+	if policies != nil && policies.ConcurrencyLimit > 0 &&
+		c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
+		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
+	}
 	request.Policies = policies
 
 	if request.Spec == nil && request.Policies == nil {

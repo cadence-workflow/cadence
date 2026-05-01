@@ -102,7 +102,7 @@ var (
 		},
 		&cli.IntFlag{
 			Name:  FlagConcurrencyLimit,
-			Usage: "New max number of concurrently running target workflows when overlap policy is Concurrent (0 = unlimited)",
+			Usage: "Max concurrent target workflows (only effective with --overlap_policy concurrent; 0 = unlimited)",
 		},
 		&cli.StringFlag{
 			Name:  FlagCatchUpPolicy,

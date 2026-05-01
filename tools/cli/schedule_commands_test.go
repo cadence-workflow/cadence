@@ -242,10 +242,11 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		extraArgs []string
-		setupMock func(*frontend.MockClient)
-		wantErr   bool
+		name        string
+		extraArgs   []string
+		setupMock   func(*frontend.MockClient)
+		wantErr     bool
+		errContains string
 	}{
 		{
 			name:      "only concurrency_limit succeeds",
@@ -261,6 +262,18 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			},
 		},
 		{
+			name:      "concurrency_limit 0 removes the cap",
+			extraArgs: []string{"--" + FlagConcurrencyLimit, "0"},
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
+						assert.NotNil(t, req.Policies)
+						assert.Equal(t, int32(0), req.Policies.ConcurrencyLimit)
+						return &types.UpdateScheduleResponse{}, nil
+					})
+			},
+		},
+		{
 			name:      "concurrent policy with limit succeeds",
 			extraArgs: []string{"--" + FlagOverlapPolicy, "concurrent", "--" + FlagConcurrencyLimit, "5"},
 			setupMock: func(m *frontend.MockClient) {
@@ -271,6 +284,12 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 						return &types.UpdateScheduleResponse{}, nil
 					})
 			},
+		},
+		{
+			name:        "concurrency_limit with non-concurrent overlap policy returns error",
+			extraArgs:   []string{"--" + FlagOverlapPolicy, "skipnew", "--" + FlagConcurrencyLimit, "3"},
+			wantErr:     true,
+			errContains: "--concurrency_limit requires --overlap_policy concurrent",
 		},
 		{
 			name:    "no flags returns error",
@@ -291,6 +310,9 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			err := sc.UpdateSchedule(c)
 			if tt.wantErr {
 				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
