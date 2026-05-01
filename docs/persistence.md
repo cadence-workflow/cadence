@@ -14,14 +14,14 @@ brew services start cassandra
 ```
 ### Install cadence schema
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 make install-schema
 ```
 > NOTE: See [CONTRIBUTING](/CONTRIBUTING.md) for prerequisite of make command.
 >
 ### Start cadence server
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 ./cadence-server start --services=frontend,matching,history,worker
 ```
 
@@ -33,7 +33,7 @@ brew services start mysql
 ```
 ### Install cadence schema
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 make install-schema-mysql
 ```
 When run tests and CLI command locally, Cadence by default uses a user `uber` with password `uber`, with privileges of creating databases.
@@ -45,7 +45,7 @@ In the mysql shell:
 ```
 ### Start cadence server
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 cp config/development_mysql.yaml config/development.yaml
 ./cadence-server start --services=frontend,matching,history,worker
 ```
@@ -68,13 +68,13 @@ ALTER ROLE
 ```
 ### Install cadence schema
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 make install-schema-postgres
 ```
 
 ### Start cadence server
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 cp config/development_postgres.yaml config/development.yaml
 ./cadence-server start --services=frontend,matching,history,worker
 ```
@@ -222,5 +222,5 @@ Cadence requires at least supporting:
  1. Multi-row single shard conditional write(also called LightWeight transaction by Cassandra terminology)
  2. Strong consistency Read/Write operations   
  
-This NoSQL persistence API interface can be found [here](https://github.com/uber/cadence/blob/master/common/persistence/nosql/nosqlplugin/interfaces.go).
+This NoSQL persistence API interface can be found [here](https://github.com/cadence-workflow/cadence/blob/master/common/persistence/nosql/nosqlplugin/interfaces.go).
 Currently this is only implemented with Cassandra. DynamoDB and MongoDB are in progress.  
