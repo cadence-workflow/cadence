@@ -189,6 +189,7 @@ func classifySourcesAndDestinations(
 
 	for executorID, load := range executorLoads {
 		executor := state.Executors[executorID]
+		// Intentionally allow DRAINING executors as sources so they can shed shards
 		if load > meanLoad*upperBand {
 			sources[executorID] = struct{}{}
 		} else if executor.Status == types.ExecutorStatusACTIVE && load < meanLoad*lowerBand {

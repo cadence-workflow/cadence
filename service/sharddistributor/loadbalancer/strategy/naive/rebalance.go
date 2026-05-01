@@ -67,7 +67,7 @@ func PlanRebalance(
 	}
 
 	// no rebalance if a deviation between coldest and hottest executors less than maxDeviation
-	if hottestExecutorLoad/coldestExecutorLoad < cfg.MaxDeviation(namespace) {
+	if coldestExecutorLoad > 0 && hottestExecutorLoad/coldestExecutorLoad < cfg.MaxDeviation(namespace) {
 		return nil, nil
 	}
 
