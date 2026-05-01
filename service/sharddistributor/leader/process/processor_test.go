@@ -23,6 +23,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/config/configtest"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -914,6 +915,81 @@ func TestAssignShardsToEmptyExecutors(t *testing.T) {
 
 			assert.Equal(t, c.expectedAssignments, c.inputAssignments)
 			assert.Equal(t, c.expectedDistributonChanged, actualDistributionChanged)
+		})
+	}
+}
+
+func TestApplyMoves(t *testing.T) {
+	cases := []struct {
+		name           string
+		assignments    map[string][]string
+		moves          []plan.Move
+		expected       map[string][]string
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "single move",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1", "shard-2"},
+				"exec-b": {"shard-3"},
+			},
+			moves: []plan.Move{{ShardID: "shard-1", From: "exec-a", To: "exec-b"}},
+			expected: map[string][]string{
+				"exec-a": {"shard-2"},
+				"exec-b": {"shard-3", "shard-1"},
+			},
+		},
+		{
+			name: "multiple moves",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1", "shard-2"},
+				"exec-b": {"shard-3", "shard-4"},
+			},
+			moves: []plan.Move{
+				{ShardID: "shard-1", From: "exec-a", To: "exec-b"},
+				{ShardID: "shard-3", From: "exec-b", To: "exec-a"},
+			},
+			// moveShard swaps with the last element, so order may change.
+			expected: map[string][]string{
+				"exec-a": {"shard-2", "shard-3"},
+				"exec-b": {"shard-1", "shard-4"},
+			},
+		},
+		{
+			name: "empty moves is a no-op",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1"},
+				"exec-b": {"shard-2"},
+			},
+			moves: []plan.Move{},
+			expected: map[string][]string{
+				"exec-a": {"shard-1"},
+				"exec-b": {"shard-2"},
+			},
+		},
+		{
+			name: "shard not found in source returns error",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1"},
+				"exec-b": {"shard-2"},
+			},
+			moves:          []plan.Move{{ShardID: "shard-missing", From: "exec-a", To: "exec-b"}},
+			expectError:    true,
+			expectedErrMsg: "shard shard-missing not found in source executor exec-a",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := applyMoves(c.assignments, c.moves)
+			if c.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), c.expectedErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, c.expected, c.assignments)
 		})
 	}
 }
