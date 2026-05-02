@@ -74,6 +74,14 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 	s.T().Skip("skip the test until we store workflow_request in sqlite")
 }
 
+func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in sqlite")
+}
+
+func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in sqlite")
+}
+
 func TestSQLiteExecutionManagerSuite(t *testing.T) {
 	s := new(ExecutionManagerSuite)
 	option := GetTestClusterOption()
