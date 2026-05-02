@@ -194,12 +194,12 @@ type (
 
 	// ActiveClusterSelectionPolicyRow represents a row in active_cluster_selection_policy table
 	ActiveClusterSelectionPolicyRow struct {
-		ShardID      int
-		DomainID     serialization.UUID
-		WorkflowID   string
-		RunID        serialization.UUID
-		Data         []byte
-		DataEncoding string
+		ShardID      int                `db:"shard_id"`
+		DomainID     serialization.UUID `db:"domain_id"`
+		WorkflowID   string             `db:"workflow_id"`
+		RunID        serialization.UUID `db:"run_id"`
+		Data         []byte             `db:"data"`
+		DataEncoding string             `db:"data_encoding"`
 	}
 
 	// ActiveClusterSelectionPolicyFilter contains the column names within
