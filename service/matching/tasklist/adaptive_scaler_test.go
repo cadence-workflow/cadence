@@ -594,6 +594,45 @@ func TestAdaptiveScalerRun(t *testing.T) {
 			},
 			cycles: 3,
 		},
+		{
+			name: "set minimum write partitions from dynamic config",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingTaskListMinimumWritePartitions, 4))
+
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(1, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(nil)
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(), &types.TaskListPartitionConfig{
+					ReadPartitions:  partitions(4),
+					WritePartitions: partitions(4),
+				}).Return(nil)
+			},
+			cycles: 1,
+		},
+		{
+			name: "clamp malformed minimum write partitions to 1 on downscale",
+			mockSetup: func(deps *mockAdaptiveScalerDeps) {
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.MatchingTaskListMinimumWritePartitions, -1))
+
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
+				})
+
+				mockDescribeTaskList(deps, 0, withPartitionsAndQPS(10, 0))
+				mockDescribeTaskList(deps, 9, withPartitionsAndQPS(10, 0))
+				deps.mockManager.EXPECT().TaskListPartitionConfig().Return(&types.TaskListPartitionConfig{
+					WritePartitions: partitions(10),
+					ReadPartitions:  partitions(10),
+				})
+				deps.mockManager.EXPECT().UpdateTaskListPartitionConfig(gomock.Any(),
+					&types.TaskListPartitionConfig{
+						WritePartitions: partitions(1),
+						ReadPartitions:  partitions(10),
+					}).Return(nil)
+			},
+			cycles: 2,
+		},
 	}
 
 	for _, tc := range testCases {

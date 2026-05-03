@@ -910,6 +910,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	MatchingPercentageOnboardedToShardManager
+	// MatchingTaskListMinimumWritePartitions is the minimum number of write partitions that the AdaptiveScaler will specify for a TaskList.
+	// KeyName: matching.taskListMinimumWritePartitions
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: DomainName,TasklistName,TaskType
+	MatchingTaskListMinimumWritePartitions
 
 	// key for history
 
@@ -3866,6 +3872,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "matching.percentageOnboardedToShardManager",
 		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
 		DefaultValue: 0,
+	},
+	MatchingTaskListMinimumWritePartitions: {
+		KeyName:      "matching.taskListMinimumWritePartitions",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingTaskListMinimumWritePartitions is the minimum number of write partitions",
+		DefaultValue: 1,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
