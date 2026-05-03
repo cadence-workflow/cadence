@@ -134,6 +134,16 @@ func PlanRebalance(
 	return moves, nil
 }
 
+func cloneAssignments(assignments map[string][]string) map[string][]string {
+	cloned := make(map[string][]string, len(assignments))
+	for executorID, shardIDs := range assignments {
+		clonedShards := make([]string, len(shardIDs))
+		copy(clonedShards, shardIDs)
+		cloned[executorID] = clonedShards
+	}
+	return cloned
+}
+
 func computeExecutorLoads(currentAssignments map[string][]string, state *store.NamespaceState) (map[string]float64, float64) {
 	loads := make(map[string]float64, len(currentAssignments))
 	total := 0.0
@@ -153,28 +163,11 @@ func computeExecutorLoads(currentAssignments map[string][]string, state *store.N
 	return loads, total
 }
 
-func cloneAssignments(assignments map[string][]string) map[string][]string {
-	cloned := make(map[string][]string, len(assignments))
-	for executorID, shardIDs := range assignments {
-		clonedShards := make([]string, len(shardIDs))
-		copy(clonedShards, shardIDs)
-		cloned[executorID] = clonedShards
+func computeMoveBudget(totalShards int, proportion float64) int {
+	if totalShards <= 0 || proportion <= 0 {
+		return 0
 	}
-	return cloned
-}
-
-func isSevereImbalance(executorLoads map[string]float64, meanLoad, severeImbalanceRatio float64) bool {
-	if meanLoad <= 0 || severeImbalanceRatio <= 0 {
-		return false
-	}
-
-	maxLoad := 0.0
-	for _, load := range executorLoads {
-		if load > maxLoad {
-			maxLoad = load
-		}
-	}
-	return maxLoad/meanLoad >= severeImbalanceRatio
+	return int(math.Ceil(proportion * float64(totalShards)))
 }
 
 func classifySourcesAndDestinations(
@@ -200,6 +193,20 @@ func classifySourcesAndDestinations(
 	return sources, destinations
 }
 
+func isSevereImbalance(executorLoads map[string]float64, meanLoad, severeImbalanceRatio float64) bool {
+	if meanLoad <= 0 || severeImbalanceRatio <= 0 {
+		return false
+	}
+
+	maxLoad := 0.0
+	for _, load := range executorLoads {
+		if load > maxLoad {
+			maxLoad = load
+		}
+	}
+	return maxLoad/meanLoad >= severeImbalanceRatio
+}
+
 func sourcesSortedByDescendingLoad(sourceExecutors map[string]struct{}, executorLoads map[string]float64) []string {
 	sources := make([]string, 0, len(sourceExecutors))
 	for executorID := range sourceExecutors {
@@ -219,13 +226,6 @@ func sourcesSortedByDescendingLoad(sourceExecutors map[string]struct{}, executor
 	})
 
 	return sources
-}
-
-func computeMoveBudget(totalShards int, proportion float64) int {
-	if totalShards <= 0 || proportion <= 0 {
-		return 0
-	}
-	return int(math.Ceil(proportion * float64(totalShards)))
 }
 
 func findBestDestination(destinationExecutors map[string]struct{}, executorLoads map[string]float64) string {
