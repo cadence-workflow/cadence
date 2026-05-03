@@ -265,6 +265,89 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"direct_query_dispatch_non_sticky_latency_ns":       {},
 	"direct_query_dispatch_clear_stickiness_latency":    {},
 	"direct_query_dispatch_clear_stickiness_latency_ns": {},
+	"cadence_authorization_latency":                     {},
+	"cadence_authorization_latency_ns":                  {},
+
+	"pinot_latency":               {},
+	"pinot_latency_ns":            {},
+	"pinot_latency_per_domain":    {},
+	"pinot_latency_per_domain_ns": {},
+
+	"sequentialtask_submit_latency":              {},
+	"sequentialtask_submit_latency_ns":           {},
+	"sequentialtask_queue_size":                  {},
+	"sequentialtask_queue_size_counts":           {},
+	"sequentialtask_queue_processing_latency":    {},
+	"sequentialtask_queue_processing_latency_ns": {},
+	"sequentialtask_task_processing_latency":     {},
+	"sequentialtask_task_processing_latency_ns":  {},
+
+	"prioritytask_submit_latency":    {},
+	"prioritytask_submit_latency_ns": {},
+
+	"graceful_failover_latency":    {},
+	"graceful_failover_latency_ns": {},
+
+	"async_request_payload_size_per_domain":        {},
+	"async_request_payload_size_per_domain_counts": {},
+
+	"task_redispatch_queue_pending_tasks":        {},
+	"task_redispatch_queue_pending_tasks_counts": {},
+
+	"workflow_context_lock_latency":    {},
+	"workflow_context_lock_latency_ns": {},
+
+	"get_replication_messages_for_shard":    {},
+	"get_replication_messages_for_shard_ns": {},
+	"get_dlq_replication_messages":          {},
+	"get_dlq_replication_messages_ns":       {},
+
+	"decision_task_query_latency":    {},
+	"decision_task_query_latency_ns": {},
+
+	"syncmatch_latency_per_tl":     {},
+	"syncmatch_latency_per_tl_ns":  {},
+	"asyncmatch_latency_per_tl":    {},
+	"asyncmatch_latency_per_tl_ns": {},
+
+	"asyncmatch_local_poll_attempt_per_tl":                             {},
+	"asyncmatch_local_poll_attempt_per_tl_counts":                      {},
+	"asyncmatch_forward_poll_attempt_per_tl":                           {},
+	"asyncmatch_forward_poll_attempt_per_tl_counts":                    {},
+	"asyncmatch_local_poll_after_forward_failed_attempt_per_tl":        {},
+	"asyncmatch_local_poll_after_forward_failed_attempt_per_tl_counts": {},
+
+	"poll_local_match_latency_per_tl":                         {},
+	"poll_local_match_latency_per_tl_ns":                      {},
+	"poll_forward_match_latency_per_tl":                       {},
+	"poll_forward_match_latency_per_tl_ns":                    {},
+	"poll_local_match_after_forward_failed_latency_per_tl":    {},
+	"poll_local_match_after_forward_failed_latency_per_tl_ns": {},
+
+	"es_processor_process_msg_latency":       {},
+	"es_processor_process_msg_latency_ns":    {},
+	"index_processor_process_msg_latency":    {},
+	"index_processor_process_msg_latency_ns": {},
+
+	"async_workflow_process_msg_latency":        {},
+	"async_workflow_process_msg_latency_ns":     {},
+	"diagnostics_workflow_execution_latency":    {},
+	"diagnostics_workflow_execution_latency_ns": {},
+
+	"shard_distributor_latency":    {},
+	"shard_distributor_latency_ns": {},
+
+	"global_ratelimiter_update_latency":    {},
+	"global_ratelimiter_update_latency_ns": {},
+
+	"cadence_latency":                       {},
+	"cadence_latency_ns":                    {},
+	"cadence_client_latency":                {},
+	"cadence_client_latency_ns":             {},
+	"cadence_client_latency_redirection":    {},
+	"cadence_client_latency_redirection_ns": {},
+	"cadence_latency_per_tl":                {},
+	"cadence_latency_per_tl_ns":             {},
 }
 
 func (h HistogramMigration) EmitTimer(name string) bool {

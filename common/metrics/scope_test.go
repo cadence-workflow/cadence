@@ -426,3 +426,38 @@ func TestGaugeRollupUsesRootScope(t *testing.T) {
 	}
 	assert.True(t, foundInRoot, "rollup gauge should be emitted on root scope")
 }
+
+func TestRecordHistogramDurationDomainTaggedDualEmit(t *testing.T) {
+	rootScope := tally.NewTestScope("", nil)
+	childScope := tally.NewTestScope("", map[string]string{domain: "test-domain"})
+
+	defs := map[MetricIdx]metricDefinition{
+		CadenceLatencyHistogram: {
+			metricName: "cadence_latency_ns",
+			metricType: Histogram,
+		},
+	}
+
+	scope := newMetricsScope(rootScope, childScope, defs, true, MigrationConfig{
+		Histogram: HistogramMigration{Default: "histogram"},
+	})
+
+	scope.RecordHistogramDuration(CadenceLatencyHistogram, 5*time.Millisecond)
+
+	// per-domain series emitted on child scope
+	domainFound := false
+	allFound := false
+	for _, h := range childScope.Snapshot().Histograms() {
+		if h.Name() == "cadence_latency_ns" {
+			tags := h.Tags()
+			if tags[domain] == "test-domain" {
+				domainFound = true
+			}
+			if tags[domain] == allValue {
+				allFound = true
+			}
+		}
+	}
+	assert.True(t, domainFound, "per-domain histogram series should be emitted")
+	assert.True(t, allFound, "aggregate domain=all histogram series should be emitted")
+}

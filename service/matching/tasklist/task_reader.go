@@ -479,9 +479,11 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	}
 	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, nil, isolationGroup)
 	dispatchCtx, cancel := tr.newDispatchContext(isolationGroup, isolationDuration)
+	asyncMatchStart := time.Now()
 	timerScope := tr.scope.StartTimer(metrics.AsyncMatchLatencyPerTaskList)
 	err := tr.dispatchTask(dispatchCtx, task)
 	timerScope.Stop()
+	tr.scope.RecordHistogramDuration(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(asyncMatchStart))
 	cancel()
 
 	if err == nil {

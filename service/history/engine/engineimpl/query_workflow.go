@@ -158,8 +158,12 @@ func (e *historyEngineImpl) QueryWorkflow(
 
 	// If we get here it means query could not be dispatched through matching directly, so it must block
 	// until either an result has been obtained on a decision task response or until it is safe to dispatch directly through matching.
+	decisionQueryStart := time.Now()
 	sw := scope.StartTimer(metrics.DecisionTaskQueryLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scope.RecordHistogramDuration(metrics.DecisionTaskQueryLatencyHistogram, time.Since(decisionQueryStart))
+	}()
 	queryReg := mutableState.GetQueryRegistry()
 	if len(queryReg.GetBufferedIDs()) >= e.config.MaxBufferedQueryCount() {
 		scope.IncCounter(metrics.QueryBufferExceededCount)

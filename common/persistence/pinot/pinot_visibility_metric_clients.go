@@ -22,6 +22,7 @@ package pinotvisibility
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -59,8 +60,12 @@ func (p *pinotVisibilityMetricsClient) RecordWorkflowExecutionStarted(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotRecordWorkflowExecutionStartedScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	err := p.persistence.RecordWorkflowExecutionStarted(ctx, request)
 
 	if err != nil {
@@ -78,8 +83,12 @@ func (p *pinotVisibilityMetricsClient) RecordWorkflowExecutionClosed(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotRecordWorkflowExecutionClosedScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	err := p.persistence.RecordWorkflowExecutionClosed(ctx, request)
 
 	if err != nil {
@@ -97,8 +106,12 @@ func (p *pinotVisibilityMetricsClient) RecordWorkflowExecutionUninitialized(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotRecordWorkflowExecutionUninitializedScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	err := p.persistence.RecordWorkflowExecutionUninitialized(ctx, request)
 
 	if err != nil {
@@ -116,8 +129,12 @@ func (p *pinotVisibilityMetricsClient) UpsertWorkflowExecution(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotUpsertWorkflowExecutionScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	err := p.persistence.UpsertWorkflowExecution(ctx, request)
 
 	if err != nil {
@@ -135,8 +152,12 @@ func (p *pinotVisibilityMetricsClient) ListOpenWorkflowExecutions(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListOpenWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListOpenWorkflowExecutions(ctx, request)
 
 	if err != nil {
@@ -154,8 +175,12 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutions(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListClosedWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListClosedWorkflowExecutions(ctx, request)
 
 	if err != nil {
@@ -173,8 +198,12 @@ func (p *pinotVisibilityMetricsClient) ListOpenWorkflowExecutionsByType(
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListOpenWorkflowExecutionsByTypeScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
 
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListOpenWorkflowExecutionsByType(ctx, request)
 
 	if err != nil {
@@ -191,8 +220,12 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutionsByType(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListClosedWorkflowExecutionsByTypeScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByType(ctx, request)
 
 	if err != nil {
@@ -209,8 +242,12 @@ func (p *pinotVisibilityMetricsClient) ListOpenWorkflowExecutionsByWorkflowID(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListOpenWorkflowExecutionsByWorkflowIDScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
 
 	if err != nil {
@@ -227,8 +264,12 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutionsByWorkflowID(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListClosedWorkflowExecutionsByWorkflowIDScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
 
 	if err != nil {
@@ -245,8 +286,12 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutionsByStatus(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListClosedWorkflowExecutionsByStatusScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByStatus(ctx, request)
 
 	if err != nil {
@@ -263,8 +308,12 @@ func (p *pinotVisibilityMetricsClient) GetClosedWorkflowExecution(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotGetClosedWorkflowExecutionScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.GetClosedWorkflowExecution(ctx, request)
 
 	if err != nil {
@@ -281,8 +330,12 @@ func (p *pinotVisibilityMetricsClient) ListWorkflowExecutions(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotListWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ListWorkflowExecutions(ctx, request)
 
 	if err != nil {
@@ -299,8 +352,12 @@ func (p *pinotVisibilityMetricsClient) ScanWorkflowExecutions(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotScanWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.ScanWorkflowExecutions(ctx, request)
 
 	if err != nil {
@@ -317,8 +374,12 @@ func (p *pinotVisibilityMetricsClient) CountWorkflowExecutions(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotCountWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	response, err := p.persistence.CountWorkflowExecutions(ctx, request)
 
 	if err != nil {
@@ -335,8 +396,12 @@ func (p *pinotVisibilityMetricsClient) DeleteWorkflowExecution(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotDeleteWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	err := p.persistence.DeleteWorkflowExecution(ctx, request)
 
 	if err != nil {
@@ -353,8 +418,12 @@ func (p *pinotVisibilityMetricsClient) DeleteUninitializedWorkflowExecution(
 
 	scopeWithDomainTag := p.metricClient.Scope(metrics.PinotDeleteWorkflowExecutionsScope, metrics.DomainTag(request.Domain))
 	scopeWithDomainTag.IncCounter(metrics.PinotRequestsPerDomain)
+	pinotStart := time.Now()
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+	}()
 	err := p.persistence.DeleteWorkflowExecution(ctx, request)
 
 	if err != nil {

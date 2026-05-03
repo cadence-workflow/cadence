@@ -295,6 +295,7 @@ func (c *contextImpl) Unlock() {
 	}
 	elapsed := time.Since(c.lockTime)
 	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
+	c.metricsClient.Scope(metrics.WorkflowContextScope).RecordHistogramDuration(metrics.WorkflowContextLockLatencyHistogram, elapsed)
 	if elapsed > c.maxLockDuration {
 		c.maxLockDuration = elapsed
 		c.logger.Info("workflow context lock is released. this is logged only when it's longer than maxLockDuration", tag.WorkflowContextLockLatency(elapsed))

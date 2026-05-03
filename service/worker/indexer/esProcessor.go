@@ -60,6 +60,8 @@ type (
 	kafkaMessageWithMetrics struct { // value of ESProcessorImpl.mapToKafkaMsg
 		message        messaging.Message
 		swFromAddToAck *metrics.Stopwatch // metric from message add to process, to message ack/nack
+		processStart   time.Time
+		scope          metrics.Scope
 	}
 )
 
@@ -113,8 +115,9 @@ func (p *ESProcessorImpl) Add(request *bulk.GenericBulkableAddRequest, key strin
 	actionWhenFoundDuplicates := func(key interface{}, value interface{}) error {
 		return kafkaMsg.Ack()
 	}
+	esProcessStart := time.Now()
 	sw := p.scope.StartTimer(metrics.ESProcessorProcessMsgLatency)
-	mapVal := newKafkaMessageWithMetrics(kafkaMsg, &sw)
+	mapVal := newKafkaMessageWithMetrics(kafkaMsg, &sw, esProcessStart, p.scope)
 	_, isDup, _ := p.mapToKafkaMsg.PutOrDo(key, mapVal, actionWhenFoundDuplicates)
 	if isDup {
 		return
@@ -360,10 +363,12 @@ func getErrorMsgFromESResp(resp *bulk.GenericBulkResponseItem) string {
 	return errMsg
 }
 
-func newKafkaMessageWithMetrics(kafkaMsg messaging.Message, stopwatch *metrics.Stopwatch) *kafkaMessageWithMetrics {
+func newKafkaMessageWithMetrics(kafkaMsg messaging.Message, stopwatch *metrics.Stopwatch, processStart time.Time, scope metrics.Scope) *kafkaMessageWithMetrics {
 	return &kafkaMessageWithMetrics{
 		message:        kafkaMsg,
 		swFromAddToAck: stopwatch,
+		processStart:   processStart,
+		scope:          scope,
 	}
 }
 
@@ -371,6 +376,7 @@ func (km *kafkaMessageWithMetrics) Ack() {
 	km.message.Ack() // nolint:errcheck
 	if km.swFromAddToAck != nil {
 		km.swFromAddToAck.Stop()
+		km.scope.RecordHistogramDuration(metrics.ESProcessorProcessMsgLatencyHistogram, time.Since(km.processStart))
 	}
 }
 
@@ -378,5 +384,6 @@ func (km *kafkaMessageWithMetrics) Nack() {
 	km.message.Nack() //nolint:errcheck
 	if km.swFromAddToAck != nil {
 		km.swFromAddToAck.Stop()
+		km.scope.RecordHistogramDuration(metrics.ESProcessorProcessMsgLatencyHistogram, time.Since(km.processStart))
 	}
 }

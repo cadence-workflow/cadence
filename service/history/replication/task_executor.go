@@ -22,6 +22,7 @@ package replication
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -130,8 +131,12 @@ func (e *taskExecutorImpl) handleActivityTask(
 		return err
 	}
 
+	replicationLatencyStart := time.Now()
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.SyncActivityTaskScope, metrics.CadenceLatency)
-	defer replicationStopWatch.Stop()
+	defer func() {
+		replicationStopWatch.Stop()
+		e.metricsClient.Scope(metrics.SyncActivityTaskScope).RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(replicationLatencyStart))
+	}()
 	request := &types.SyncActivityRequest{
 		DomainID:           attr.DomainID,
 		WorkflowID:         attr.WorkflowID,
@@ -171,8 +176,12 @@ func (e *taskExecutorImpl) handleActivityTask(
 	}
 	// Handle resend error
 	e.metricsClient.IncCounter(metrics.HistoryRereplicationByActivityReplicationScope, metrics.CadenceClientRequests)
+	activityResendLatencyStart := time.Now()
 	stopwatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByActivityReplicationScope, metrics.CadenceClientLatency)
-	defer stopwatch.Stop()
+	defer func() {
+		stopwatch.Stop()
+		e.metricsClient.Scope(metrics.HistoryRereplicationByActivityReplicationScope).RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(activityResendLatencyStart))
+	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
 		e.sourceCluster,
@@ -234,8 +243,12 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 		return err
 	}
 
+	replicationV2LatencyStart := time.Now()
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.HistoryReplicationV2TaskScope, metrics.CadenceLatency)
-	defer replicationStopWatch.Stop()
+	defer func() {
+		replicationStopWatch.Stop()
+		e.metricsClient.Scope(metrics.HistoryReplicationV2TaskScope).RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(replicationV2LatencyStart))
+	}()
 	request := &types.ReplicateEventsV2Request{
 		DomainUUID: attr.DomainID,
 		WorkflowExecution: &types.WorkflowExecution{
@@ -268,8 +281,12 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 		return err
 	}
 	e.metricsClient.IncCounter(metrics.HistoryRereplicationByHistoryReplicationScope, metrics.CadenceClientRequests)
+	historyResendLatencyStart := time.Now()
 	resendStopWatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByHistoryReplicationScope, metrics.CadenceClientLatency)
-	defer resendStopWatch.Stop()
+	defer func() {
+		resendStopWatch.Stop()
+		e.metricsClient.Scope(metrics.HistoryRereplicationByHistoryReplicationScope).RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(historyResendLatencyStart))
+	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
 		e.sourceCluster,

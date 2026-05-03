@@ -24,6 +24,7 @@ package accesscontrolled
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/metrics"
@@ -46,8 +47,12 @@ func (a *apiHandler) isAuthorized(
 	attr *authorization.Attributes,
 	scope metrics.Scope,
 ) (bool, error) {
+	authStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceAuthorizationLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scope.RecordHistogramDuration(metrics.CadenceAuthorizationLatencyHistogram, time.Since(authStart))
+	}()
 
 	result, err := a.authorizer.Authorize(ctx, attr)
 	if err != nil {

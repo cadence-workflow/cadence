@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
@@ -40,8 +41,12 @@ func (e *historyEngineImpl) GetReplicationMessages(
 ) (*types.ReplicationMessages, error) {
 
 	scope := metrics.HistoryGetReplicationMessagesScope
+	replMsgStart := time.Now()
 	sw := e.metricsClient.StartTimer(scope, metrics.GetReplicationMessagesForShardLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		e.metricsClient.Scope(scope).RecordHistogramDuration(metrics.GetReplicationMessagesForShardLatencyHistogram, time.Since(replMsgStart))
+	}()
 
 	replicationMessages, err := e.replicationAckManager.GetTasks(
 		ctx,
@@ -78,8 +83,12 @@ func (e *historyEngineImpl) GetDLQReplicationMessages(
 ) ([]*types.ReplicationTask, error) {
 
 	scope := metrics.HistoryGetDLQReplicationMessagesScope
+	dlqStart := time.Now()
 	sw := e.metricsClient.StartTimer(scope, metrics.GetDLQReplicationMessagesLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		e.metricsClient.Scope(scope).RecordHistogramDuration(metrics.GetDLQReplicationMessagesLatencyHistogram, time.Since(dlqStart))
+	}()
 
 	tasks := make([]*types.ReplicationTask, 0, len(taskInfos))
 	for _, taskInfo := range taskInfos {

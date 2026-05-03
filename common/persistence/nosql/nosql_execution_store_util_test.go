@@ -1162,7 +1162,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					Mode: persistence.CreateWorkflowModeBrandNew,
 				}
 				return store.prepareCurrentWorkflowRequestForCreateWorkflowTxn(
-					"test-domain-id", "test-workflow-id", "test-run-id", executionInfo, 123, request)
+					"test-domain-id", "test-workflow-id", "test-run-id", executionInfo, 123, request, store.shardID)
 			},
 			validate: func(t *testing.T, result interface{}, err error) {
 				assert.NoError(t, err)
@@ -1178,7 +1178,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				err := &nosqlplugin.WorkflowOperationConditionFailure{
 					CurrentWorkflowConditionFailInfo: common.StringPtr("current workflow condition failed"),
 				}
-				return nil, store.processUpdateWorkflowResult(err, 99)
+				return nil, store.processUpdateWorkflowResult(err, 99, store.shardID)
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.Error(t, err)
@@ -1189,7 +1189,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 		{
 			name: "processUpdateWorkflowResult - Success",
 			setupStore: func(store *nosqlExecutionStore) (interface{}, error) {
-				return nil, store.processUpdateWorkflowResult(nil, 99)
+				return nil, store.processUpdateWorkflowResult(nil, 99, store.shardID)
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.NoError(t, err)
@@ -1201,7 +1201,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				err := &nosqlplugin.WorkflowOperationConditionFailure{
 					ShardRangeIDNotMatch: common.Int64Ptr(100),
 				}
-				return nil, store.processUpdateWorkflowResult(err, 99)
+				return nil, store.processUpdateWorkflowResult(err, 99, store.shardID)
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.Error(t, err)
@@ -1223,7 +1223,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					PreviousLastWriteVersion: 123, // Simulating a non-completed state with a valid version
 				}
 				return store.prepareCurrentWorkflowRequestForCreateWorkflowTxn(
-					"test-domain-id", "test-workflow-id", "test-run-id", executionInfo, 123, request)
+					"test-domain-id", "test-workflow-id", "test-run-id", executionInfo, 123, request, store.shardID)
 			},
 			validate: func(t *testing.T, result interface{}, err error) {
 				_, ok := err.(*persistence.CurrentWorkflowConditionFailedError)
@@ -1243,7 +1243,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					PreviousRunID: "previous-run-id-zombie",
 				}
 				return store.prepareCurrentWorkflowRequestForCreateWorkflowTxn(
-					"domain-id-zombie", "workflow-id-zombie", "run-id-zombie", executionInfo, 123, request)
+					"domain-id-zombie", "workflow-id-zombie", "run-id-zombie", executionInfo, 123, request, store.shardID)
 			},
 			validate: func(t *testing.T, result interface{}, err error) {
 				assert.NoError(t, err)
@@ -1265,7 +1265,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					PreviousRunID: "previous-run-id-continueasnew",
 				}
 				return store.prepareCurrentWorkflowRequestForCreateWorkflowTxn(
-					"domain-id-continueasnew", "workflow-id-continueasnew", "run-id-continueasnew", executionInfo, 123, request)
+					"domain-id-continueasnew", "workflow-id-continueasnew", "run-id-continueasnew", executionInfo, 123, request, store.shardID)
 			},
 			validate: func(t *testing.T, result interface{}, err error) {
 				assert.NoError(t, err)
@@ -1289,7 +1289,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 				).Return(&nosqlplugin.CurrentWorkflowRow{
 					RunID: "different-run-id",
 				}, nil)
-				return nil, store.assertNotCurrentExecution(ctx, "test-domain-id", "test-workflow-id", "expected-run-id")
+				return nil, store.assertNotCurrentExecution(ctx, store.shardID, "test-domain-id", "test-workflow-id", "expected-run-id")
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.NoError(t, err)
@@ -1308,7 +1308,7 @@ func TestNosqlExecutionStoreUtilsExtended(t *testing.T) {
 					"test-workflow-id",
 				).Return(nil, &types.EntityNotExistsError{})
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true).AnyTimes()
-				return nil, store.assertNotCurrentExecution(ctx, "test-domain-id", "test-workflow-id", "expected-run-id")
+				return nil, store.assertNotCurrentExecution(ctx, store.shardID, "test-domain-id", "test-workflow-id", "expected-run-id")
 			},
 			validate: func(t *testing.T, _ interface{}, err error) {
 				assert.NoError(t, err)

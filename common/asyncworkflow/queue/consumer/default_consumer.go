@@ -156,8 +156,12 @@ func (c *DefaultConsumer) processMessage(msg messaging.Message) {
 	logger := c.logger.WithTags(tag.Dynamic("partition", msg.Partition()), tag.Dynamic("offset", msg.Offset()))
 	logger.Debug("Received message")
 
+	asyncProcessStart := time.Now()
 	sw := c.scope.StartTimer(metrics.AsyncWorkflowProcessMsgLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.scope.RecordHistogramDuration(metrics.AsyncWorkflowProcessMsgLatencyHistogram, time.Since(asyncProcessStart))
+	}()
 
 	var request sqlblobs.AsyncRequestMessage
 	if err := c.msgDecoder.Decode(msg.Value(), &request); err != nil {

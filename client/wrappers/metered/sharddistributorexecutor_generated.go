@@ -6,6 +6,7 @@ package metered
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/yarpc"
 
@@ -40,9 +41,11 @@ func (c *sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *typ
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	ep2, err = c.client.Heartbeat(ctx, ep1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)

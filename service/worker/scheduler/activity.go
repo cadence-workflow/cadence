@@ -75,6 +75,32 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 		policy = types.ScheduleOverlapPolicySkipNew
 	}
 
+	// Bounded CONCURRENT: describe each tracked in-flight workflow, prune
+	// completed entries, and enforce the cap. When under the cap, falls through
+	// to the shared start block; stillRunning is used there to build
+	// result.ActiveWorkflows. When at or over the cap, returns early with a skip.
+	isBoundedConcurrent := policy == types.ScheduleOverlapPolicyConcurrent && req.ConcurrencyLimit > 0
+	var stillRunning []RunningWorkflowInfo
+	if isBoundedConcurrent {
+		effectiveLimit := effectiveConcurrencyLimit(req.ConcurrencyLimit)
+		for _, wf := range req.RunningWorkflows {
+			running, err := isWorkflowRunning(ctx, sc.FrontendClient, req.Domain, &wf)
+			if err != nil {
+				return nil, err
+			}
+			if running {
+				stillRunning = append(stillRunning, wf)
+			}
+		}
+		if len(stillRunning) >= int(effectiveLimit) {
+			scope.Tagged(metrics.OverlapPolicyTag(policy.String()), metrics.TriggerSourceTag(string(req.TriggerSource))).
+				IncCounter(metrics.SchedulerFireSkippedCountPerDomain)
+			result.SkippedDelta = 1
+			result.ActiveWorkflows = stillRunning
+			return result, nil
+		}
+	}
+
 	if policy != types.ScheduleOverlapPolicyConcurrent && req.LastStartedWorkflow != nil {
 		running, err := isWorkflowRunning(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow)
 		if err != nil {
@@ -135,10 +161,14 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 		var alreadyStarted *types.WorkflowExecutionAlreadyStartedError
 		if errors.As(err, &alreadyStarted) {
 			scope.Tagged(metrics.TriggerSourceTag(string(req.TriggerSource))).IncCounter(metrics.SchedulerFireAlreadyRunningCountPerDomain)
-			result.SkippedDelta = 1
-			result.StartedWorkflow = &RunningWorkflowInfo{
+			existing := &RunningWorkflowInfo{
 				WorkflowID: workflowID,
 				RunID:      alreadyStarted.RunID,
+			}
+			result.SkippedDelta = 1
+			result.StartedWorkflow = existing
+			if isBoundedConcurrent {
+				result.ActiveWorkflows = append(stillRunning, *existing)
 			}
 			return result, nil
 		}
@@ -154,6 +184,9 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 	result.StartedWorkflow = &RunningWorkflowInfo{
 		WorkflowID: workflowID,
 		RunID:      resp.GetRunID(),
+	}
+	if isBoundedConcurrent {
+		result.ActiveWorkflows = append(stillRunning, *result.StartedWorkflow)
 	}
 	return result, nil
 }

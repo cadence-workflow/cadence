@@ -346,6 +346,7 @@ forLoop:
 			event.Log(e)
 			tm.scope.IncCounter(metrics.AsyncMatchLocalPollCounterPerTaskList)
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAttemptPerTaskList, time.Duration(attempt))
+			tm.scope.IntExponentialHistogram(metrics.AsyncMatchLocalPollAttemptPerTaskListHistogram, attempt)
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
 			return nil
 		case token := <-tm.fwdrAddReqTokenC():
@@ -377,6 +378,7 @@ forLoop:
 					cancel()
 					tm.scope.IncCounter(metrics.AsyncMatchLocalPollAfterForwardFailedCounterPerTaskList)
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList, time.Duration(attempt))
+					tm.scope.IntExponentialHistogram(metrics.AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskListHistogram, attempt)
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList, time.Since(startT))
 					return nil
 				case <-childCtx.Done():
@@ -391,6 +393,7 @@ forLoop:
 			event.Log(e)
 			tm.scope.IncCounter(metrics.AsyncMatchForwardPollCounterPerTaskList)
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollAttemptPerTaskList, time.Duration(attempt))
+			tm.scope.IntExponentialHistogram(metrics.AsyncMatchForwardPollAttemptPerTaskListHistogram, attempt)
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollLatencyPerTaskList, time.Since(startT))
 
 			// at this point, we forwarded the task to a parent partition which
@@ -438,6 +441,7 @@ func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*In
 	// try local match first without blocking until context timeout
 	if task, err = tm.pollNonBlocking(ctxWithCancelPropagation, isolatedTaskC, tm.taskC, tm.queryTaskC); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
+		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		return task, nil
 	}
 	// there is no local poller available to pickup this task. Now block waiting
@@ -466,6 +470,7 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 	// try local match first without blocking until context timeout
 	if task, err := tm.pollNonBlocking(ctx, nil, nil, tm.queryTaskC); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
+		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		return task, nil
 	}
 
@@ -498,6 +503,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
+		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -518,6 +524,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
+		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -559,6 +566,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 		if task, err := tm.fwdr.ForwardPoll(ctx); err == nil {
 			token.release()
 			tm.scope.RecordTimer(metrics.PollForwardMatchLatencyPerTaskList, time.Since(startT))
+			tm.scope.RecordHistogramDuration(metrics.PollForwardMatchLatencyPerTaskListHistogram, time.Since(startT))
 			event.Log(event.E{
 				TaskListName: tm.tasklist.GetName(),
 				TaskListType: tm.tasklist.GetType(),
@@ -585,6 +593,7 @@ func (tm *taskMatcherImpl) poll(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskList, time.Since(startT))
+		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -605,6 +614,7 @@ func (tm *taskMatcherImpl) poll(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskList, time.Since(startT))
+		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),

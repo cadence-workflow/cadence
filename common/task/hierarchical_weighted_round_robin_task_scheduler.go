@@ -116,8 +116,12 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Stop() {
 
 func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) error {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		w.metricsScope.RecordHistogramDuration(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	w.RLock()
 	defer w.RUnlock()
@@ -137,8 +141,12 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) TrySubmit(
 	task T,
 ) (bool, error) {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		w.metricsScope.RecordHistogramDuration(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	w.RLock()
 	defer w.RUnlock()

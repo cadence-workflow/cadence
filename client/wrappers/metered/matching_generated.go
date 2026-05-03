@@ -7,6 +7,7 @@ package metered
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.uber.org/yarpc"
 
@@ -43,9 +44,11 @@ func (c *matchingClient) AddActivityTask(ctx context.Context, ap1 *types.AddActi
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, ap1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	ap2, err = c.client.AddActivityTask(ctx, ap1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -66,9 +69,11 @@ func (c *matchingClient) AddDecisionTask(ctx context.Context, ap1 *types.AddDeci
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, ap1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	ap2, err = c.client.AddDecisionTask(ctx, ap1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -89,9 +94,11 @@ func (c *matchingClient) CancelOutstandingPoll(ctx context.Context, cp1 *types.C
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, cp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.CancelOutstandingPoll(ctx, cp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -112,9 +119,11 @@ func (c *matchingClient) DescribeTaskList(ctx context.Context, mp1 *types.Matchi
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	dp1, err = c.client.DescribeTaskList(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -135,9 +144,11 @@ func (c *matchingClient) GetTaskListsByDomain(ctx context.Context, gp1 *types.Ge
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, gp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetTaskListsByDomain(ctx, gp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -158,9 +169,11 @@ func (c *matchingClient) ListTaskListPartitions(ctx context.Context, mp1 *types.
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp1, err = c.client.ListTaskListPartitions(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -181,9 +194,11 @@ func (c *matchingClient) PollForActivityTask(ctx context.Context, mp1 *types.Mat
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	mp2, err = c.client.PollForActivityTask(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -204,9 +219,11 @@ func (c *matchingClient) PollForDecisionTask(ctx context.Context, mp1 *types.Mat
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	mp2, err = c.client.PollForDecisionTask(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -227,9 +244,11 @@ func (c *matchingClient) QueryWorkflow(ctx context.Context, mp1 *types.MatchingQ
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	mp2, err = c.client.QueryWorkflow(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -250,9 +269,11 @@ func (c *matchingClient) RefreshTaskListPartitionConfig(ctx context.Context, mp1
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	mp2, err = c.client.RefreshTaskListPartitionConfig(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -273,9 +294,11 @@ func (c *matchingClient) RespondQueryTaskCompleted(ctx context.Context, mp1 *typ
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RespondQueryTaskCompleted(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -296,9 +319,11 @@ func (c *matchingClient) UpdateTaskListPartitionConfig(ctx context.Context, mp1 
 	scope.IncCounter(metrics.CadenceClientRequests)
 	c.emitForwardedFromStats(scope, mp1)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	mp2, err = c.client.UpdateTaskListPartitionConfig(ctx, mp1, p1...)
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)

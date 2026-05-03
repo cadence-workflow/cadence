@@ -125,8 +125,12 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Stop() {
 
 func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) error {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		w.metricsScope.RecordHistogramDuration(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	if w.isStopped() {
 		return ErrTaskSchedulerClosed

@@ -110,8 +110,12 @@ type retryIssuesResult struct {
 func (w *dw) DiagnosticsWorkflow(ctx workflow.Context, params DiagnosticsWorkflowInput) (*DiagnosticsWorkflowResult, error) {
 	scope := w.metricsClient.Scope(metrics.DiagnosticsWorkflowScope, metrics.DomainTag(params.Domain))
 	scope.IncCounter(metrics.DiagnosticsWorkflowStartedCount)
+	diagStart := workflow.Now(ctx)
 	sw := scope.StartTimer(metrics.DiagnosticsWorkflowExecutionLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scope.RecordHistogramDuration(metrics.DiagnosticsWorkflowExecutionLatencyHistogram, workflow.Now(ctx).Sub(diagStart))
+	}()
 
 	var timeoutsResult *timeoutDiagnostics
 	var failureResult *failureDiagnostics

@@ -780,6 +780,44 @@ func TestHandleBackfill(t *testing.T) {
 	}
 }
 
+func TestEffectiveFireOverlap(t *testing.T) {
+	tests := []struct {
+		name            string
+		trigger         TriggerSource
+		backfillOverlap types.ScheduleOverlapPolicy
+		scheduleOverlap types.ScheduleOverlapPolicy
+		want            types.ScheduleOverlapPolicy
+	}{
+		{
+			name:            "schedule fire always uses schedule overlap",
+			trigger:         TriggerSourceSchedule,
+			backfillOverlap: types.ScheduleOverlapPolicyConcurrent,
+			scheduleOverlap: types.ScheduleOverlapPolicySkipNew,
+			want:            types.ScheduleOverlapPolicySkipNew,
+		},
+		{
+			name:            "backfill INVALID inherits schedule overlap",
+			trigger:         TriggerSourceBackfill,
+			backfillOverlap: types.ScheduleOverlapPolicyInvalid,
+			scheduleOverlap: types.ScheduleOverlapPolicyBuffer,
+			want:            types.ScheduleOverlapPolicyBuffer,
+		},
+		{
+			name:            "backfill non-invalid overrides schedule overlap",
+			trigger:         TriggerSourceBackfill,
+			backfillOverlap: types.ScheduleOverlapPolicyConcurrent,
+			scheduleOverlap: types.ScheduleOverlapPolicyBuffer,
+			want:            types.ScheduleOverlapPolicyConcurrent,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := effectiveFireOverlap(tt.trigger, tt.backfillOverlap, tt.scheduleOverlap)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestProcessBackfillsRespectsPause(t *testing.T) {
 	sched := mustParseCron(t, "0 * * * *")
 	input := &SchedulerWorkflowInput{
@@ -1120,42 +1158,42 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		{
 			name:         "unlimited buffer accepts fire when bufferLimit=0",
 			bufferLimit:  0,
-			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule}},
+			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer}},
 			enqueueTime:  t0.Add(time.Minute),
 			trigger:      TriggerSourceSchedule,
 			wantFires: []BufferedFire{
-				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
-				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 		},
 		{
 			name:        "enqueue below limit appends to tail",
 			bufferLimit: 3,
 			initialFires: []BufferedFire{
-				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
-				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 			enqueueTime: t0.Add(2 * time.Minute),
 			trigger:     TriggerSourceSchedule,
 			wantFires: []BufferedFire{
-				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
-				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
-				{ScheduledTime: t0.Add(2 * time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+				{ScheduledTime: t0.Add(2 * time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 		},
 		{
 			name:        "enqueue at user limit drops fire and emits user_limit metric",
 			bufferLimit: 2,
 			initialFires: []BufferedFire{
-				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
-				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 			initialSkipped: 5,
 			enqueueTime:    t0.Add(2 * time.Minute),
 			trigger:        TriggerSourceSchedule,
 			wantFires: []BufferedFire{
-				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
-				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 			wantSkippedRuns:    6,
 			wantOverflowReason: BufferOverflowReasonUserLimit,
@@ -1188,7 +1226,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 			enqueueTime:  t0,
 			trigger:      TriggerSourceBackfill,
 			wantFires: []BufferedFire{
-				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill},
+				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 		},
 	}
@@ -1203,7 +1241,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 				SkippedRuns:   tt.initialSkipped,
 			}
 			scope := tally.NewTestScope("", nil)
-			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger)
+			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger, types.ScheduleOverlapPolicyBuffer)
 			assert.Equal(t, tt.wantFires, state.BufferedFires)
 			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
 
@@ -1228,6 +1266,7 @@ func largeBufferedFires(n int, base time.Time) []BufferedFire {
 		out[i] = BufferedFire{
 			ScheduledTime: base.Add(time.Duration(i) * time.Second),
 			TriggerSource: TriggerSourceSchedule,
+			OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
 		}
 	}
 	return out
@@ -1280,7 +1319,7 @@ func TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty(t *testing.T) {
 	}
 	state := &SchedulerWorkflowState{
 		BufferedFires: []BufferedFire{
-			{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
+			{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 		},
 	}
 	scope := tally.NewTestScope("", nil)
@@ -1289,7 +1328,7 @@ func TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty(t *testing.T) {
 	// nil ctx is safe because the BUFFER+non-empty-queue branch returns before
 	// touching workflow.ExecuteLocalActivity. If the fast path were ever
 	// removed, this call would panic — which is the property we want to lock in.
-	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule)
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer)
 
 	require.Len(t, state.BufferedFires, 2, "live fire should be enqueued at the tail")
 	assert.Equal(t, t0, state.BufferedFires[0].ScheduledTime, "older queued fire stays at head")
@@ -1416,11 +1455,95 @@ func TestEffectiveBufferLimit(t *testing.T) {
 	}
 }
 
+func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T) {
+	runningWFs := []RunningWorkflowInfo{
+		{WorkflowID: "wf-1", RunID: "run-1"},
+		{WorkflowID: "wf-2", RunID: "run-2"},
+	}
+
+	tests := []struct {
+		name              string
+		fromOverlap       types.ScheduleOverlapPolicy
+		fromLimit         int32
+		toOverlap         types.ScheduleOverlapPolicy
+		toLimit           int32
+		initialRunningWFs []RunningWorkflowInfo
+		wantNil           bool
+	}{
+		{
+			name:              "CONCURRENT(limit=2) -> SKIP_NEW clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicySkipNew,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=0) clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> BUFFER clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicyBuffer,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=5) -> CONCURRENT(limit=2) preserves running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         5,
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           2,
+			initialRunningWFs: runningWFs,
+			wantNil:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{
+					OverlapPolicy:    tt.fromOverlap,
+					ConcurrencyLimit: tt.fromLimit,
+				},
+			}
+			state := &SchedulerWorkflowState{
+				RunningWorkflows: append([]RunningWorkflowInfo(nil), tt.initialRunningWFs...),
+			}
+			sig := UpdateSignal{
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy:    tt.toOverlap,
+					ConcurrencyLimit: tt.toLimit,
+				},
+			}
+
+			changed := handleUpdate(testLogger, sig, input, state)
+
+			assert.True(t, changed, "policy update signal should report state as changed")
+			if tt.wantNil {
+				assert.Nil(t, state.RunningWorkflows)
+			} else {
+				assert.Equal(t, tt.initialRunningWFs, state.RunningWorkflows)
+			}
+		})
+	}
+}
+
 func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	initialFires := []BufferedFire{
-		{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule},
-		{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule},
+		{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+		{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 	}
 
 	tests := []struct {

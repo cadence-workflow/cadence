@@ -96,8 +96,12 @@ func (t *sequentialTaskProcessorImpl) Stop() {
 func (t *sequentialTaskProcessorImpl) Submit(task Task) error {
 
 	t.metricsScope.IncCounter(metrics.SequentialTaskSubmitRequest)
+	submitStart := time.Now()
 	metricsTimer := t.metricsScope.StartTimer(metrics.SequentialTaskSubmitLatency)
-	defer metricsTimer.Stop()
+	defer func() {
+		metricsTimer.Stop()
+		t.metricsScope.RecordHistogramDuration(metrics.SequentialTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	taskqueue := t.taskQueueFactory(task)
 	taskqueue.Add(task)
@@ -139,9 +143,11 @@ func (t *sequentialTaskProcessorImpl) pollAndProcessTaskQueue() {
 		case <-t.shutdownChan:
 			return
 		case taskqueue := <-t.taskqueueChan:
+			queueProcessingStart := time.Now()
 			metricsTimer := t.metricsScope.StartTimer(metrics.SequentialTaskQueueProcessingLatency)
 			t.processTaskQueue(taskqueue)
 			metricsTimer.Stop()
+			t.metricsScope.RecordHistogramDuration(metrics.SequentialTaskQueueProcessingLatencyHistogram, time.Since(queueProcessingStart))
 		}
 	}
 }
@@ -154,6 +160,7 @@ func (t *sequentialTaskProcessorImpl) processTaskQueue(taskqueue SequentialTaskQ
 		default:
 			queueSize := taskqueue.Len()
 			t.metricsScope.RecordTimer(metrics.SequentialTaskQueueSize, time.Duration(queueSize))
+			t.metricsScope.IntExponentialHistogram(metrics.SequentialTaskQueueSizeHistogram, queueSize)
 			if queueSize > 0 {
 				t.processTaskOnce(taskqueue)
 			}
@@ -173,8 +180,12 @@ func (t *sequentialTaskProcessorImpl) processTaskQueue(taskqueue SequentialTaskQ
 }
 
 func (t *sequentialTaskProcessorImpl) processTaskOnce(taskqueue SequentialTaskQueue) {
+	taskProcessingStart := time.Now()
 	metricsTimer := t.metricsScope.StartTimer(metrics.SequentialTaskTaskProcessingLatency)
-	defer metricsTimer.Stop()
+	defer func() {
+		metricsTimer.Stop()
+		t.metricsScope.RecordHistogramDuration(metrics.SequentialTaskTaskProcessingLatencyHistogram, time.Since(taskProcessingStart))
+	}()
 
 	task := taskqueue.Remove()
 	err := task.Execute()

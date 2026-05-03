@@ -1,6 +1,7 @@
 import (
 	"context"
 	"strings"
+	"time"
 
 	"go.uber.org/yarpc"
     "github.com/uber/cadence/common/constants"
@@ -44,9 +45,11 @@ func (c *{{$decorator}}) {{$method.Declaration}} {
     c.emitForwardedFromStats(scope, {{(index $method.Params 1).Name}})
     {{ end }}
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	{{$method.ResultsNames}} = c.client.{{$method.Call}}
 	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)

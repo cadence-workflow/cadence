@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/authorization"
@@ -49,6 +50,7 @@ func TestIsAuthorized(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
+				scope.On("RecordHistogramDuration", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
 			},
 			isAuthorized: true,
 			wantErr:      false,
@@ -58,6 +60,7 @@ func TestIsAuthorized(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
+				scope.On("RecordHistogramDuration", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
 				scope.On("IncCounter", metrics.CadenceErrUnauthorizedCounter).Return().Once()
 			},
 			isAuthorized: false,
@@ -68,6 +71,7 @@ func TestIsAuthorized(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{}, errors.New("some random error"))
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
+				scope.On("RecordHistogramDuration", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
 				scope.On("IncCounter", metrics.CadenceErrAuthorizeFailedCounter).Return().Once()
 			},
 			isAuthorized: false,
