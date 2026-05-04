@@ -990,6 +990,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	var schedulerDomainCache cache.DomainCache
 	if c.workerConfig.EnableScheduler {
 		schedulerDomainCache = c.startSchedulerWorkerManager(params, service)
+		defer c.schedulerWorkerManager.Stop()
 		defer schedulerDomainCache.Stop()
 	}
 
@@ -1002,9 +1003,6 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	}
 	if c.workerConfig.EnableArchiver {
 		clientWorkerDomainCache.Stop()
-	}
-	if c.workerConfig.EnableScheduler && c.schedulerWorkerManager != nil {
-		c.schedulerWorkerManager.Stop()
 	}
 }
 
