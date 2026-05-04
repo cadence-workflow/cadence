@@ -78,6 +78,7 @@ import (
 	"github.com/uber/cadence/service/worker/asyncworkflow"
 	"github.com/uber/cadence/service/worker/indexer"
 	"github.com/uber/cadence/service/worker/replicator"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 // Cadence hosts all of cadence services in one process
@@ -117,6 +118,7 @@ type (
 		replicator                    *replicator.Replicator
 		clientWorker                  archiver.ClientWorker
 		indexer                       *indexer.Indexer
+		schedulerWorkerManager        *scheduler.WorkerManager
 		archiverMetadata              carchiver.ArchivalMetadata
 		archiverProvider              provider.ArchiverProvider
 		historyConfig                 *HistoryConfig
@@ -985,6 +987,12 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 		defer cm.Stop()
 	}
 
+	var schedulerDomainCache cache.DomainCache
+	if c.workerConfig.EnableScheduler {
+		schedulerDomainCache = c.startSchedulerWorkerManager(params, service)
+		defer schedulerDomainCache.Stop()
+	}
+
 	c.logger.Info("Started worker service")
 	startWG.Done()
 
@@ -994,6 +1002,9 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	}
 	if c.workerConfig.EnableArchiver {
 		clientWorkerDomainCache.Stop()
+	}
+	if c.workerConfig.EnableScheduler && c.schedulerWorkerManager != nil {
+		c.schedulerWorkerManager.Stop()
 	}
 }
 
@@ -1061,6 +1072,36 @@ func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Servic
 		c.indexer.Stop()
 		c.logger.Fatal("Fail to start indexer when start worker", tag.Error(err))
 	}
+}
+
+// startSchedulerWorkerManager wires up the per-domain scheduler worker manager
+// inside the integration test cluster. Production wires this in
+// service/worker/service.go; mirroring it here lets host/ tests exercise the
+// full Cadence Schedules pipeline (frontend RPC -> scheduler workflow -> target
+// workflow) end-to-end.
+//
+// We create our own DomainCache because the test Service does not expose one
+// (matches the pattern used by startWorkerReplicator / startWorkerClientWorker).
+// The caller is responsible for stopping the returned cache during shutdown.
+func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc Service) cache.DomainCache {
+	metadataManager := metered.NewDomainManager(c.domainManager, svc.GetMetricsClient(), c.logger, &c.persistenceConfig)
+	domainCache := cache.NewDomainCache(metadataManager, c.clusterMetadata, svc.GetMetricsClient(), svc.GetLogger())
+	domainCache.Start()
+
+	bp := &scheduler.BootstrapParams{
+		ServiceClient:      params.PublicClient,
+		FrontendClient:     c.frontendClient,
+		MetricsClient:      svc.GetMetricsClient(),
+		Logger:             svc.GetLogger(),
+		DomainCache:        domainCache,
+		MembershipResolver: svc.GetMembershipResolver(),
+		HostInfo:           svc.GetHostInfo(),
+	}
+	dc := dynamicconfig.NewCollection(params.DynamicConfig, svc.GetLogger())
+	enabledFn := dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler)
+	c.schedulerWorkerManager = scheduler.NewWorkerManager(bp, enabledFn)
+	c.schedulerWorkerManager.Start()
+	return domainCache
 }
 
 func (c *cadenceImpl) createSystemDomain() error {
