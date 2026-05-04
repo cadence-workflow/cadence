@@ -12,11 +12,8 @@ historyconfig:
     minhistoryhosts: 1
   simulationconfig:
     numworkflows: 5
-    workflowstartdelayms: 0
-    minsimulationdurationseconds: 60
-    testtimeoutseconds: 180
-    workflowexecutiontimeoutseconds: 90
-    endsleepseconds: 15
+    timeout: 180000000000       # 3 minutes
+    sleepafterallworkflows: 15000000000  # 15 seconds
 matchingconfig:
   nummatchinghosts: 1
 workerconfig:
