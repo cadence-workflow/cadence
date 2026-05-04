@@ -151,7 +151,8 @@ type (
 		// shared hashrings and resolver tracking for shard movement simulation
 		historyHashring  *simpleHashring
 		serviceRings     map[string]*simpleHashring // shared hashrings keyed by service name
-		allResolvers     []*simpleResolver          // all resolvers, for notification dispatch
+		allResolvers     []*simpleResolver          // non-history resolvers (frontend, matching, worker)
+		historyResolvers []*simpleResolver          // per-index history resolvers; nil when host is stopped
 		historyHostInfos []membership.HostInfo
 
 		// dynamicconfig overrides per service
@@ -412,6 +413,7 @@ func (c *cadenceImpl) Start() error {
 	// Build shared hashrings for each service
 	c.historyHostInfos = c.HistoryHosts()
 	c.historyHashring = newSimpleHashring(c.historyHostInfos)
+	c.historyResolvers = make([]*simpleResolver, len(c.historyHostInfos))
 
 	frontendRing := newSimpleHashring([]membership.HostInfo{c.FrontendHost()})
 	matchingRing := newSimpleHashring(c.MatchingHosts())
@@ -467,6 +469,7 @@ func (c *cadenceImpl) Stop() {
 	c.shutdownWG.Add(serviceCount)
 	c.frontendService.Stop()
 	for _, historyService := range c.historyServices {
+		// StopHistoryHost sets entries to nil; skip already-stopped hosts
 		if historyService != nil {
 			historyService.Stop()
 		}
@@ -726,16 +729,13 @@ func (c *cadenceImpl) StopHistoryHost(index int) {
 	// This lets surviving hosts start acquiring orphaned shards during the drain
 	// window instead of waiting until after Stop() returns.
 	c.historyHashring.RemoveHost(host)
-	event := &membership.ChangedEvent{
+	c.notifyHistoryChange(&membership.ChangedEvent{
 		HostsRemoved: []string{host.Identity()},
-	}
-	for _, r := range c.allResolvers {
-		r.NotifySubscribers(service.History, event)
-	}
+	})
 
-	// Stop the service (blocks for drain)
 	svc.Stop()
 	c.historyServices[index] = nil
+	c.historyResolvers[index] = nil
 
 	c.logger.Info("StopHistoryHost: done", tag.Dynamic("index", index))
 }
@@ -753,6 +753,55 @@ func (c *cadenceImpl) StartHistoryHost(index int) {
 	hostport := c.historyHostInfos[index]
 	c.logger.Info("StartHistoryHost: starting", tag.Dynamic("index", index), tag.Dynamic("host", hostport.Identity()))
 
+	params := c.buildHistoryParams(index)
+
+	historyService, err := history.NewService(params)
+	if err != nil {
+		c.logger.Error("StartHistoryHost: unable to create history service", tag.Error(err))
+		return
+	}
+
+	if c.mockAdminClient != nil {
+		clientBean := historyService.GetClientBean()
+		if clientBean != nil {
+			for serviceName, client := range c.mockAdminClient {
+				clientBean.SetRemoteAdminClient(serviceName, client)
+			}
+		}
+	}
+
+	c.historyServices[index] = historyService
+
+	c.historyHashring.AddHost(hostport)
+	c.notifyHistoryChange(&membership.ChangedEvent{
+		HostsAdded: []string{hostport.Identity()},
+	})
+
+	go historyService.Start()
+
+	c.logger.Info("StartHistoryHost: done", tag.Dynamic("index", index))
+}
+
+func (c *cadenceImpl) HistoryHostIdentity(index int) string {
+	if index < 0 || index >= len(c.historyHostInfos) {
+		return ""
+	}
+	return c.historyHostInfos[index].Identity()
+}
+
+func (c *cadenceImpl) notifyHistoryChange(event *membership.ChangedEvent) {
+	for _, r := range c.allResolvers {
+		r.NotifySubscribers(service.History, event)
+	}
+	for _, r := range c.historyResolvers {
+		if r != nil {
+			r.NotifySubscribers(service.History, event)
+		}
+	}
+}
+
+func (c *cadenceImpl) buildHistoryParams(index int) *resource.Params {
+	hostport := c.historyHostInfos[index]
 	pprofPorts := c.HistoryPProfPorts()
 
 	params := new(resource.Params)
@@ -765,10 +814,9 @@ func (c *cadenceImpl) StartHistoryHost(index int) {
 	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{})
 	params.RPCFactory = c.newRPCFactory(service.History, hostport, params.MetricsClient)
 
-	// Reuse the shared hashrings stored during Start()
 	resolver := NewSimpleResolverWithHashrings(params.Name, c.serviceRings, hostport)
 	params.MembershipResolver = resolver
-	c.allResolvers = append(c.allResolvers, resolver.(*simpleResolver))
+	c.historyResolvers[index] = resolver.(*simpleResolver)
 
 	params.ClusterMetadata = c.clusterMetadata
 	params.MessagingClient = c.messagingClient
@@ -805,45 +853,7 @@ func (c *cadenceImpl) StartHistoryHost(index int) {
 		}
 	}
 
-	historyService, err := history.NewService(params)
-	if err != nil {
-		c.logger.Error("StartHistoryHost: unable to create history service", tag.Error(err))
-		return
-	}
-
-	// Wire mock admin client if configured (mirrors startHistory logic)
-	if c.mockAdminClient != nil {
-		clientBean := historyService.GetClientBean()
-		if clientBean != nil {
-			for serviceName, client := range c.mockAdminClient {
-				clientBean.SetRemoteAdminClient(serviceName, client)
-			}
-		}
-	}
-
-	c.historyServices[index] = historyService
-
-	// Add to hashring (shared, visible to all resolvers)
-	c.historyHashring.AddHost(hostport)
-
-	// Notify all subscribers
-	event := &membership.ChangedEvent{
-		HostsAdded: []string{hostport.Identity()},
-	}
-	for _, r := range c.allResolvers {
-		r.NotifySubscribers(service.History, event)
-	}
-
-	go historyService.Start()
-
-	c.logger.Info("StartHistoryHost: done", tag.Dynamic("index", index))
-}
-
-func (c *cadenceImpl) HistoryHostIdentity(index int) string {
-	if index < 0 || index >= len(c.historyHostInfos) {
-		return ""
-	}
-	return c.historyHostInfos[index].Identity()
+	return params
 }
 
 func (c *cadenceImpl) startFrontend(rings map[string]*simpleHashring, startWG *sync.WaitGroup) {
@@ -930,55 +940,8 @@ func (c *cadenceImpl) startFrontend(rings map[string]*simpleHashring, startWG *s
 }
 
 func (c *cadenceImpl) startHistory(rings map[string]*simpleHashring, startWG *sync.WaitGroup) {
-	pprofPorts := c.HistoryPProfPorts()
-	historyHosts := c.HistoryHosts()
-	for i, hostport := range historyHosts {
-		params := new(resource.Params)
-		params.Name = service.History
-		params.Logger = c.logger
-		params.ThrottledLogger = c.logger
-		params.TimeSource = c.timeSource
-		params.PProfInitializer = newPProfInitializerImpl(c.logger, pprofPorts[i])
-		params.MetricScope = tally.NewTestScope(service.History, make(map[string]string))
-		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{} /* default, only used in test setups */)
-		params.RPCFactory = c.newRPCFactory(service.History, hostport, params.MetricsClient)
-		resolver := NewSimpleResolverWithHashrings(params.Name, rings, hostport)
-		params.MembershipResolver = resolver
-		c.allResolvers = append(c.allResolvers, resolver.(*simpleResolver))
-		params.ClusterMetadata = c.clusterMetadata
-		params.MessagingClient = c.messagingClient
-		integrationClient := newIntegrationConfigClient(c.dynamicClient, c.historyDynCfgOverrides)
-		c.overrideHistoryDynamicConfig(integrationClient)
-		params.DynamicConfig = integrationClient
-		params.PublicClient = newPublicClient(params.RPCFactory.GetDispatcher())
-		params.ArchivalMetadata = c.archiverMetadata
-		params.ArchiverProvider = c.archiverProvider
-		params.ESConfig = c.esConfig
-		params.ESClient = c.esClient
-		params.PinotConfig = c.pinotConfig
-		params.GetIsolationGroups = getFromDynamicConfig(params)
-
-		var err error
-		params.PersistenceConfig, err = copyPersistenceConfig(c.persistenceConfig)
-		if err != nil {
-			c.logger.Fatal("Failed to copy persistence config for history", tag.Error(err))
-		}
-
-		if c.pinotConfig != nil {
-			pinotDataStoreName := "pinot-visibility"
-			params.PersistenceConfig.AdvancedVisibilityStore = pinotDataStoreName
-			params.PersistenceConfig.DataStores[pinotDataStoreName] = config.DataStore{
-				Pinot:         c.pinotConfig,
-				ElasticSearch: c.esConfig,
-			}
-			params.DynamicConfig.UpdateValue(dynamicproperties.WriteVisibilityStoreName, constants.VisibilityModePinot)
-		} else if c.esConfig != nil {
-			esDataStoreName := "es-visibility"
-			params.PersistenceConfig.AdvancedVisibilityStore = esDataStoreName
-			params.PersistenceConfig.DataStores[esDataStoreName] = config.DataStore{
-				ElasticSearch: c.esConfig,
-			}
-		}
+	for i := range c.historyHostInfos {
+		params := c.buildHistoryParams(i)
 
 		historyService, err := history.NewService(params)
 		if err != nil {
