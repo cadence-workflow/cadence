@@ -720,8 +720,9 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessCancelExecution_Pending() 
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.discardDuration))
 	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *transferStandbyTaskExecutorSuite) TestProcessCancelExecution_Pending_ActiveActiveDomain() {
@@ -902,8 +903,9 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessSignalExecution_Pending() 
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.discardDuration))
 	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *transferStandbyTaskExecutorSuite) TestProcessSignalExecution_Pending_ActiveActiveDomain() {
@@ -1084,8 +1086,9 @@ func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Pendin
 
 	s.mockShard.SetCurrentTime(s.clusterName, now.Add(s.discardDuration))
 	_, err = s.transferStandbyTaskExecutor.Execute(transferTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *transferStandbyTaskExecutorSuite) TestProcessStartChildExecution_Pending_ActiveActiveDomain() {

@@ -220,8 +220,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessUserTimerTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessUserTimerTimeout_Pending_ActiveActiveDomain() {
@@ -389,8 +390,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Pending_ActiveActiveDomain() {
@@ -676,8 +678,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessDecisionTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessDecisionTimeout_Pending_ActiveActiveDomain() {
@@ -822,7 +825,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending(
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
 	s.True(isRedispatchErr(err))
 
-	s.mockShard.SetCurrentTime(s.clusterName, time.Now().Add(s.fetchHistoryDuration))
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
 		s.clusterName,
 		timerTask.GetDomainID(),
@@ -836,10 +839,11 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending(
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
 	s.True(isRedispatchErr(err))
 
-	s.mockShard.SetCurrentTime(s.clusterName, time.Now().Add(s.discardDuration))
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending_ActiveActiveDomain() {
@@ -873,7 +877,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending_
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
 	s.True(isRedispatchErr(err))
 
-	s.mockShard.SetCurrentTime(s.clusterName, time.Now().Add(s.fetchHistoryDuration))
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.fetchHistoryDuration))
 	s.mockNDCHistoryResender.EXPECT().SendSingleWorkflowHistory(
 		s.clusterName,
 		timerTask.GetDomainID(),
@@ -887,7 +891,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowBackoffTimer_Pending_
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
 	s.True(isRedispatchErr(err))
 
-	s.mockShard.SetCurrentTime(s.clusterName, time.Now().Add(s.discardDuration))
+	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
 	s.NoError(err)
 	s.Require().Len(s.mockDLQWriter.calls, 1)
@@ -967,8 +971,9 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowTimeout_Pending() {
 
 	s.mockShard.SetCurrentTime(s.clusterName, s.timeSource.Now().Add(s.discardDuration))
 	_, err = s.timerStandbyTaskExecutor.Execute(timerTask)
-	s.ErrorIs(err, ErrTaskDiscarded)
-	s.Empty(s.mockDLQWriter.calls)
+	s.NoError(err)
+	s.Require().Len(s.mockDLQWriter.calls, 1)
+	s.Equal(s.domainID, s.mockDLQWriter.calls[0].DomainID)
 }
 
 func (s *timerStandbyTaskExecutorSuite) TestProcessWorkflowTimeout_Pending_ActiveActiveDomain() {

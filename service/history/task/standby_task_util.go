@@ -124,17 +124,17 @@ func standbyTaskPostActionWriteToDLQ(
 
 		clusterAttribute, err := getClusterAttributesForTask(ctx, shard, task)
 		if err != nil {
-			if errors.Is(err, errDomainNotActiveActive) {
-				logger.Warn("Domain is not active-active but reached active-active logic. This should not happen.")
-				return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
-			} else if errors.Is(err, errActiveClusterSelectionPolicyNotFound) {
+			if errors.Is(err, errActiveClusterSelectionPolicyNotFound) {
 				logger.Warn("Active cluster selection policy not found. Defaulting to default scope and name.")
-				clusterAttribute = &types.ClusterAttribute{
-					Scope: taskdlq.DefaultClusterAttributeScope,
-					Name:  taskdlq.DefaultClusterAttributeName,
-				}
 			} else {
 				return err
+			}
+		}
+
+		if clusterAttribute == nil {
+			clusterAttribute = &types.ClusterAttribute{
+				Scope: taskdlq.DefaultClusterAttributeScope,
+				Name:  taskdlq.DefaultClusterAttributeName,
 			}
 		}
 

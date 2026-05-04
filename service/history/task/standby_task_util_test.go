@@ -258,3 +258,103 @@ func TestStandbyTaskPostActionWriteToDLQ_NilWriter_FallsBackToDiscard(t *testing
 
 	assert.ErrorIs(t, err, ErrTaskDiscarded)
 }
+
+func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	writer := &mockDLQWriter{}
+	mockTask := persistence.NewMockTask(ctrl)
+	mockTask.EXPECT().GetDomainID().Return("domain-1").AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return("wf-1").AnyTimes()
+	mockTask.EXPECT().GetRunID().Return("run-1").AnyTimes()
+	mockTask.EXPECT().GetTaskID().Return(int64(100)).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
+	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(1)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeDisabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
+	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
+
+	assert.ErrorIs(t, err, ErrTaskDiscarded)
+	assert.Empty(t, writer.calls)
+}
+
+func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	writer := &mockDLQWriter{}
+	mockTask := persistence.NewMockTask(ctrl)
+	mockTask.EXPECT().GetDomainID().Return("domain-1").AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return("wf-1").AnyTimes()
+	mockTask.EXPECT().GetRunID().Return("run-1").AnyTimes()
+	mockTask.EXPECT().GetTaskID().Return(int64(100)).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
+	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+
+	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
+	mockActiveClusterMgr.EXPECT().
+		GetActiveClusterSelectionPolicyForWorkflow(gomock.Any(), "domain-1", "wf-1", "run-1").
+		Return(&types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{Scope: "my-scope", Name: "my-name"},
+		}, nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(7)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeShadow }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
+	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
+
+	assert.ErrorIs(t, err, ErrTaskDiscarded)
+	assert.Len(t, writer.calls, 1)
+}
+
+func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttributes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	writer := &mockDLQWriter{}
+	mockTask := persistence.NewMockTask(ctrl)
+	mockTask.EXPECT().GetDomainID().Return("domain-1").AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return("wf-1").AnyTimes()
+	mockTask.EXPECT().GetRunID().Return("run-1").AnyTimes()
+	mockTask.EXPECT().GetTaskID().Return(int64(100)).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
+	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(1)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
+	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
+
+	assert.NoError(t, err)
+	assert.Len(t, writer.calls, 1)
+	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.calls[0].ClusterAttributeScope)
+	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.calls[0].ClusterAttributeName)
+}

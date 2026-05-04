@@ -2,7 +2,7 @@ package taskdlq
 
 var (
 	// DefaultClusterAttributeScope is used to write tasks to the DLQ for the domains default ActiveCluster.
-	DefaultClusterAttributeScope = "cluster-attribute-default-scope"
+	DefaultClusterAttributeScope = ""
 	// DefaultClusterAttributeName is used to write tasks to the DLQ for the domains default ActiveCluster.
-	DefaultClusterAttributeName = "cluster-attribute-default-name"
+	DefaultClusterAttributeName = ""
 )

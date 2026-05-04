@@ -368,7 +368,7 @@ func getClusterAttributesForTask(
 	}
 
 	if !domainEntry.GetReplicationConfig().IsActiveActive() {
-		return nil, errDomainNotActiveActive
+		return nil, nil
 	}
 
 	activeClusterSelectionPolicy, err := shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
@@ -398,6 +398,5 @@ func (m *mockTaskMatcher) String() string {
 	return fmt.Sprintf("is equal to %v", m.task)
 }
 
-var errDomainNotActiveActive = errors.New("domain is not active-active")
 var errActiveClusterSelectionPolicyNotFound = errors.New("active cluster selection policy not found")
 var errDomainEntryNotFound = errors.New("domain entry not found")
