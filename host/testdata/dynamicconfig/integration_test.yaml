@@ -4,3 +4,13 @@ frontend.warmupDuration:
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
   constraints: {}
+# Disable search-attribute whitelist validation in the integration test
+# cluster. The Cadence Schedules workflow upserts attributes
+# (CadenceScheduleState/Cron/WorkflowType on the scheduler workflow itself,
+# CadenceScheduleID/Time/IsBackfill on target workflows) that are not in the
+# default indexed-keys map. Enumerating the full default list as a yaml
+# override is brittle (every default change would break tests); turning the
+# whitelist off keeps the test cluster permissive without affecting prod.
+frontend.enableQueryAttributeValidation:
+- value: false
+  constraints: {}

@@ -21,6 +21,9 @@
 package host
 
 import (
+	"sync"
+	"time"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
@@ -33,15 +36,18 @@ import (
 // This is the smoke test for the host/onebox.go scheduler-worker-manager wiring
 // added in the same change. It does not exercise overlap/catch-up/backfill
 // semantics; those live in dedicated tests in a follow-up change.
+//
+// Polling design: the target task list is drained in a background goroutine so
+// the main test loop only does cheap DescribeSchedule calls. PollForDecisionTask
+// long-polls up to 90s each call, so polling inline would dominate the test
+// runtime and starve other parallel tests in the IntegrationSuite of task-list
+// capacity.
 func (s *IntegrationSuite) TestScheduleSmokeTest() {
 	scheduleID := "smoke-schedule"
 	targetWorkflowType := "smoke-schedule-target"
 	targetTaskList := "smoke-schedule-tasklist"
 	identity := "schedule-smoke-test"
 
-	// `@every 5s` is the smallest interval cron parser accepts. We allow up to
-	// 90s for the first fire to land — the scheduler worker manager has a 60s
-	// periodic refresh, and registering this domain races that ticker.
 	createReq := &types.CreateScheduleRequest{
 		Domain:     s.DomainName,
 		ScheduleID: scheduleID,
@@ -59,13 +65,28 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 	}
 
 	createCtx, createCancel := createContext()
-	defer createCancel()
 	_, err := s.Engine.CreateSchedule(createCtx, createReq)
+	createCancel()
 	s.Require().NoError(err, "CreateSchedule failed")
 
-	// Each scheduler-fired target workflow needs a poller to complete its first
-	// decision task; otherwise the target stays open and the scheduler still
-	// counts a successful start, but the fixture leaks.
+	// Always tear the schedule down at the end so we don't leak a per-domain
+	// scheduler workflow that keeps firing across subsequent tests.
+	defer func() {
+		delCtx, delCancel := createContext()
+		defer delCancel()
+		if _, derr := s.Engine.DeleteSchedule(delCtx, &types.DeleteScheduleRequest{
+			Domain:     s.DomainName,
+			ScheduleID: scheduleID,
+		}); derr != nil {
+			s.Logger.Warn("DeleteSchedule (cleanup) failed", tag.Error(derr))
+		}
+	}()
+
+	// Background poller: drains decision tasks for the target task list until
+	// the test signals done. Each scheduler-fired target needs its first
+	// decision processed so it doesn't sit open consuming history; without this
+	// the scheduler still counts a successful start (TotalRuns advances) but
+	// the fixture leaks fired-but-stuck workflows.
 	completeOnFirstDecision := func(execution *types.WorkflowExecution, _ *types.WorkflowType,
 		_, _ int64, _ *types.History) ([]byte, []*types.Decision, error) {
 		s.Logger.Info("scheduler-fired target workflow polled",
@@ -91,16 +112,46 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		T:               s.T(),
 	}
 
-	// Poll inline, alternating between draining decision tasks and re-checking
-	// DescribeSchedule. We bail as soon as TotalRuns advances past zero.
-	const maxIterations = 30 // ~120s with 4s per iteration in the worst case
-	fired := false
-	for i := 0; i < maxIterations; i++ {
-		// Best-effort: a poll may return immediately if there's no task ready.
-		if _, perr := poller.PollAndProcessDecisionTask(false, false); perr != nil {
-			s.Logger.Info("decision-task poll returned", tag.Error(perr))
+	done := make(chan struct{})
+	var pollerWG sync.WaitGroup
+	pollerWG.Add(1)
+	go func() {
+		defer pollerWG.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			// PollAndProcessDecisionTask uses a 90s context internally and
+			// returns whenever a task arrives or the long-poll deadline elapses.
+			// We don't care about per-poll errors (e.g. empty-task-list timeout);
+			// the goroutine just keeps going until done is closed.
+			if _, perr := poller.PollAndProcessDecisionTask(false, false); perr != nil {
+				s.Logger.Info("decision-task poll returned", tag.Error(perr))
+			}
 		}
+	}()
+	defer func() {
+		close(done)
+		pollerWG.Wait()
+	}()
 
+	// Wait for the schedule to fire at least once. Worst case timing budget:
+	//   - up to 60s for the scheduler worker manager periodic refresh to
+	//     discover the per-test domain (test domains are registered in
+	//     SetupSuite *after* the cluster boots),
+	//   - then `@every 5s` until the first cron fire,
+	//   - then a few seconds for StartWorkflowExecution + the activity round-trip.
+	// 120s gives comfortable headroom; describe is a cheap query, so polling
+	// every 2s is fine.
+	const (
+		fireDeadline = 120 * time.Second
+		pollInterval = 2 * time.Second
+	)
+	deadline := time.Now().Add(fireDeadline)
+	fired := false
+	for time.Now().Before(deadline) {
 		descCtx, descCancel := createContext()
 		desc, derr := s.Engine.DescribeSchedule(descCtx, &types.DescribeScheduleRequest{
 			Domain:     s.DomainName,
@@ -109,25 +160,13 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		descCancel()
 		if derr != nil {
 			s.Logger.Warn("DescribeSchedule failed during smoke test", tag.Error(derr))
-			continue
-		}
-		s.Logger.Info("DescribeSchedule snapshot during smoke test",
-			tag.Counter(int(desc.GetInfo().GetTotalRuns())))
-		if desc.GetInfo().GetTotalRuns() >= 1 {
+		} else if desc.GetInfo().GetTotalRuns() >= 1 {
+			s.Logger.Info("schedule fired",
+				tag.Counter(int(desc.GetInfo().GetTotalRuns())))
 			fired = true
 			break
 		}
+		time.Sleep(pollInterval)
 	}
-	s.True(fired, "schedule did not fire any target workflow within the polling window")
-
-	// Clean up. We don't assert on post-delete describe behavior — the
-	// scheduler workflow signals delete and exits asynchronously, so a follow-up
-	// describe may briefly succeed before returning EntityNotExists.
-	delCtx, delCancel := createContext()
-	defer delCancel()
-	_, err = s.Engine.DeleteSchedule(delCtx, &types.DeleteScheduleRequest{
-		Domain:     s.DomainName,
-		ScheduleID: scheduleID,
-	})
-	s.NoError(err, "DeleteSchedule failed")
+	s.True(fired, "schedule did not fire any target workflow within %s", fireDeadline)
 }
