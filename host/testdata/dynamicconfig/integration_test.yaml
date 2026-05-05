@@ -4,13 +4,57 @@ frontend.warmupDuration:
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
   constraints: {}
-# Disable search-attribute whitelist validation in the integration test
-# cluster. The Cadence Schedules workflow upserts attributes
-# (CadenceScheduleState/Cron/WorkflowType on the scheduler workflow itself,
-# CadenceScheduleID/Time/IsBackfill on target workflows) that are not in the
-# default indexed-keys map. Enumerating the full default list as a yaml
-# override is brittle (every default change would break tests); turning the
-# whitelist off keeps the test cluster permissive without affecting prod.
-frontend.enableQueryAttributeValidation:
-- value: false
+# Override the valid-search-attributes whitelist so the Cadence Schedules
+# workflow can upsert its scheduler-managed attributes (CadenceScheduleState/
+# Cron/WorkflowType on the scheduler workflow itself, CadenceScheduleID/Time/
+# IsBackfill on target workflows). Without this, the upsert decision is
+# rejected by the validator and the scheduler workflow ends up in a
+# decision-task retry loop.
+#
+# When overriding ValidSearchAttributes you must include the existing default
+# keys (see the doc comment in dynamicconfig/dynamicproperties/constants.go
+# under ValidSearchAttributes). Below is the default set from
+# definition.GetDefaultIndexedKeys() plus the scheduler-specific keys.
+# Type values match types.IndexedValueType: 0=String, 1=Keyword, 2=Int,
+# 3=Double, 4=Bool, 5=Datetime.
+frontend.validSearchAttributes:
+- value:
+    # System-indexed keys (definition.systemIndexedKeys).
+    DomainID: 1
+    WorkflowID: 1
+    RunID: 1
+    WorkflowType: 1
+    StartTime: 2
+    ExecutionTime: 2
+    CloseTime: 2
+    CloseStatus: 2
+    HistoryLength: 2
+    TaskList: 1
+    IsCron: 4
+    NumClusters: 2
+    UpdateTime: 2
+    CronSchedule: 1
+    ExecutionStatus: 2
+    ScheduledExecutionTime: 2
+    ClusterAttributeScope: 1
+    ClusterAttributeName: 1
+    # Default custom indexed keys used by other tests in host/.
+    CustomStringField: 0
+    CustomKeywordField: 1
+    CustomIntField: 2
+    CustomBoolField: 4
+    CustomDoubleField: 3
+    CustomDatetimeField: 5
+    CadenceChangeVersion: 1
+    BinaryChecksums: 1
+    CustomDomain: 0
+    Operator: 0
+    # Cadence Schedules: scheduler-workflow attributes.
+    CadenceScheduleState: 1
+    CadenceScheduleCron: 1
+    CadenceScheduleWorkflowType: 1
+    # Cadence Schedules: target-workflow attributes.
+    CadenceScheduleID: 1
+    CadenceScheduleTime: 5
+    CadenceScheduleIsBackfill: 4
   constraints: {}
