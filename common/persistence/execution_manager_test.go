@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
@@ -2037,9 +2038,9 @@ func TestFetchWorkflowTimerTasksForCleanup_FiltersCorrectly(t *testing.T) {
 		RunID:      testRunID,
 	})
 	assert.NoError(t, err)
-	assert.Contains(t, result, longLivedID, "long-lived timer should be returned for cleanup")
-	assert.NotContains(t, result, shortLivedID, "short-lived timer should be excluded")
-	assert.NotContains(t, result, pastID, "past timer should be excluded")
+	require.Len(t, result, 1, "only long-lived timer should be returned for cleanup")
+	assert.Equal(t, longLivedID, result[0].GetTaskID(), "long-lived timer taskID should match")
+	assert.WithinDuration(t, longLivedTS, result[0].GetScheduledTime(), time.Millisecond)
 }
 
 func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
@@ -2065,7 +2066,7 @@ func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-func TestDeleteWorkflowTimerTasks(t *testing.T) {
+func TestCompleteHistoryTasks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
 	mockedSerializer := NewMockPayloadSerializer(ctrl)
@@ -2077,15 +2078,14 @@ func TestDeleteWorkflowTimerTasks(t *testing.T) {
 		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	})
 
-	mockedStore.EXPECT().DeleteTimerTask(gomock.Any(), gomock.Cond(func(req *DeleteTimerTaskRequest) bool {
-		return req.TaskID == taskID && req.DomainID == testDomainID
+	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
+	mockedStore.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Cond(func(req *CompleteHistoryTaskRequest) bool {
+		return req.TaskCategory == HistoryTaskCategoryTimer &&
+			req.TaskKey.GetTaskID() == taskID
 	})).Return(nil).Times(1)
 
-	err := manager.DeleteWorkflowTimerTasks(context.Background(), &DeleteWorkflowTimerTasksRequest{
-		DomainID:   testDomainID,
-		WorkflowID: testWorkflowID,
-		RunID:      testRunID,
-		Tasks:      map[int64]time.Time{taskID: visTS},
+	err := manager.CompleteHistoryTasks(context.Background(), HistoryTaskCategoryTimer, []HistoryTaskKey{
+		NewHistoryTaskKey(visTS, taskID),
 	})
 	assert.NoError(t, err)
 }

@@ -1409,15 +1409,6 @@ func (m *sqlExecutionStore) RangeCompleteHistoryTask(
 	}
 }
 
-func (m *sqlExecutionStore) DeleteTimerTask(
-	ctx context.Context,
-	request *p.DeleteTimerTaskRequest,
-) error {
-	// TODO: Implement timer task deletion for SQL stores. See issue #7567
-	// Reference: CDB.DeleteTimerTask in common/persistence/nosql/nosqlplugin/cassandra/workflow.go
-	return nil
-}
-
 func (m *sqlExecutionStore) rangeCompleteScheduledHistoryTask(
 	ctx context.Context,
 	request *p.RangeCompleteHistoryTaskRequest,

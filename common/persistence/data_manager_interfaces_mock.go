@@ -449,6 +449,20 @@ func (mr *MockExecutionManagerMockRecorder) CompleteHistoryTask(ctx, request any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteHistoryTask", reflect.TypeOf((*MockExecutionManager)(nil).CompleteHistoryTask), ctx, request)
 }
 
+// CompleteHistoryTasks mocks base method.
+func (m *MockExecutionManager) CompleteHistoryTasks(ctx context.Context, category HistoryTaskCategory, keys []HistoryTaskKey) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteHistoryTasks", ctx, category, keys)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CompleteHistoryTasks indicates an expected call of CompleteHistoryTasks.
+func (mr *MockExecutionManagerMockRecorder) CompleteHistoryTasks(ctx, category, keys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteHistoryTasks", reflect.TypeOf((*MockExecutionManager)(nil).CompleteHistoryTasks), ctx, category, keys)
+}
+
 // ConflictResolveWorkflowExecution mocks base method.
 func (m *MockExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *ConflictResolveWorkflowExecutionRequest) (*ConflictResolveWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -549,25 +563,11 @@ func (mr *MockExecutionManagerMockRecorder) DeleteWorkflowExecution(ctx, request
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockExecutionManager)(nil).DeleteWorkflowExecution), ctx, request)
 }
 
-// DeleteWorkflowTimerTasks mocks base method.
-func (m *MockExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *DeleteWorkflowTimerTasksRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWorkflowTimerTasks", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteWorkflowTimerTasks indicates an expected call of DeleteWorkflowTimerTasks.
-func (mr *MockExecutionManagerMockRecorder) DeleteWorkflowTimerTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowTimerTasks", reflect.TypeOf((*MockExecutionManager)(nil).DeleteWorkflowTimerTasks), ctx, request)
-}
-
 // FetchWorkflowTimerTasksForCleanup mocks base method.
-func (m *MockExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) (map[int64]time.Time, error) {
+func (m *MockExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) ([]HistoryTaskKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchWorkflowTimerTasksForCleanup", ctx, request)
-	ret0, _ := ret[0].(map[int64]time.Time)
+	ret0, _ := ret[0].([]HistoryTaskKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

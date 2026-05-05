@@ -26,7 +26,6 @@ package mocks
 
 import (
 	context "context"
-	time "time"
 
 	mock "github.com/stretchr/testify/mock"
 
@@ -158,20 +157,6 @@ func (_m *ExecutionManager) DeleteWorkflowExecution(ctx context.Context, request
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *persistence.DeleteWorkflowExecutionRequest) error); ok {
-		r0 = rf(ctx, request)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// DeleteTimerTask provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) DeleteTimerTask(ctx context.Context, request *persistence.DeleteTimerTaskRequest) error {
-	ret := _m.Called(ctx, request)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.DeleteTimerTaskRequest) error); ok {
 		r0 = rf(ctx, request)
 	} else {
 		r0 = ret.Error(0)
@@ -549,14 +534,14 @@ func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Conte
 }
 
 // FetchWorkflowTimerTasksForCleanup provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (map[int64]time.Time, error) {
+func (_m *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) ([]persistence.HistoryTaskKey, error) {
 	ret := _m.Called(ctx, request)
 
-	var r0 map[int64]time.Time
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) map[int64]time.Time); ok {
+	var r0 []persistence.HistoryTaskKey
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) []persistence.HistoryTaskKey); ok {
 		r0 = rf(ctx, request)
 	} else if ret.Get(0) != nil {
-		r0 = ret.Get(0).(map[int64]time.Time)
+		r0 = ret.Get(0).([]persistence.HistoryTaskKey)
 	}
 
 	var r1 error
@@ -569,13 +554,13 @@ func (_m *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Contex
 	return r0, r1
 }
 
-// DeleteWorkflowTimerTasks provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) error {
-	ret := _m.Called(ctx, request)
+// CompleteHistoryTasks provides a mock function with given fields: ctx, category, keys
+func (_m *ExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) error {
+	ret := _m.Called(ctx, category, keys)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.DeleteWorkflowTimerTasksRequest) error); ok {
-		r0 = rf(ctx, request)
+	if rf, ok := ret.Get(0).(func(context.Context, persistence.HistoryTaskCategory, []persistence.HistoryTaskKey) error); ok {
+		r0 = rf(ctx, category, keys)
 	} else {
 		r0 = ret.Error(0)
 	}

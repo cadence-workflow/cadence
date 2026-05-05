@@ -56,6 +56,21 @@ func (c *injectorExecutionManager) CompleteHistoryTask(ctx context.Context, requ
 	return
 }
 
+func (c *injectorExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.CompleteHistoryTasks(ctx, category, keys)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.CompleteHistoryTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *persistence.ConflictResolveWorkflowExecutionRequest) (cp1 *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
@@ -161,26 +176,11 @@ func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) (err error) {
+func (c *injectorExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (ha1 []persistence.HistoryTaskKey, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.DeleteWorkflowTimerTasks(ctx, request)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.DeleteWorkflowTimerTasks", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
-func (c *injectorExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (m1 map[int64]time.Time, err error) {
-	fakeErr := generateFakeError(c.errorRate, c.starttime)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		m1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+		ha1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
 	}
 
 	if fakeErr != nil {

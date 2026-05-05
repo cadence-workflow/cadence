@@ -1002,18 +1002,6 @@ func (d *nosqlExecutionStore) rangeCompleteScheduledHistoryTask(
 	return &persistence.RangeCompleteHistoryTaskResponse{TasksCompleted: persistence.UnknownNumRowsAffected}, nil
 }
 
-func (d *nosqlExecutionStore) DeleteTimerTask(
-	ctx context.Context,
-	request *persistence.DeleteTimerTaskRequest,
-) error {
-	return d.db.DeleteTimerTask(
-		ctx,
-		d.shardID,
-		request.TaskID,
-		request.VisibilityTimestamp,
-	)
-}
-
 func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,

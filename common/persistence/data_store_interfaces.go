@@ -137,7 +137,6 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
-		DeleteTimerTask(ctx context.Context, request *DeleteTimerTaskRequest) error
 
 		SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error)
 

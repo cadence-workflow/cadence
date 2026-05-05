@@ -2616,9 +2616,9 @@ func TestSelectWorkflowTimerTasks(t *testing.T) {
 		{
 			name: "success - returns map",
 			mapScan: map[string]interface{}{
-				"workflow_timer_tasks": map[int64]time.Time{
-					100: ts,
-					200: ts.Add(time.Hour),
+				"workflow_timer_tasks": [][]interface{}{
+					{ts, int64(100)},
+					{ts.Add(time.Hour), int64(200)},
 				},
 			},
 			wantResult: map[int64]time.Time{

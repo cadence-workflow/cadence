@@ -239,7 +239,7 @@ var (
 	StoreOperationGetActiveClusterSelectionPolicy    = storeOperation("get-active-cluster-selection-policy")
 	StoreOperationDeleteActiveClusterSelectionPolicy = storeOperation("delete-active-cluster-selection-policy")
 	StoreOperationFetchWorkflowTimerTasksForCleanup  = storeOperation("fetch-workflow-timer-tasks-for-cleanup")
-	StoreOperationDeleteWorkflowTimerTasks           = storeOperation("delete-workflow-timer-tasks")
+	StoreOperationCompleteHistoryTasks               = storeOperation("complete-history-tasks")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")

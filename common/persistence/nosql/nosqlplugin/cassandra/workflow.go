@@ -277,7 +277,7 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	return state, nil
 }
 
-// SelectWorkflowTimerTasks reads the workflow_timer_tasks map from the execution row.
+// SelectWorkflowTimerTasks reads the workflow_timer_tasks set from the execution row.
 func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error) {
 	query := db.session.Query(templateGetWorkflowTimerTasksQuery,
 		shardID,
@@ -296,10 +296,27 @@ func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domain
 		}
 		return nil, err
 	}
-	if m, ok := result["workflow_timer_tasks"].(map[int64]time.Time); ok {
-		return m, nil
+	// gocql scans set<frozen<tuple<timestamp,bigint>>> as [][]interface{}
+	// where each inner slice is [visibilityTimestamp, taskID].
+	tuples, ok := result["workflow_timer_tasks"].([][]interface{})
+	if !ok || len(tuples) == 0 {
+		return nil, nil
 	}
-	return nil, nil
+	m := make(map[int64]time.Time, len(tuples))
+	for _, tuple := range tuples {
+		if len(tuple) < 2 {
+			continue
+		}
+		visibilityTs, ok1 := tuple[0].(time.Time)
+		taskID, ok2 := tuple[1].(int64)
+		if ok1 && ok2 {
+			m[taskID] = visibilityTs
+		}
+	}
+	if len(m) == 0 {
+		return nil, nil
+	}
+	return m, nil
 }
 
 func (db *CDB) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID, currentRunIDCondition string) error {

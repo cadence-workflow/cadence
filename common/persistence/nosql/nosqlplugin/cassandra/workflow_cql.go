@@ -691,7 +691,7 @@ const (
 		`and task_id = ?`
 
 	templateAppendWorkflowTimerTaskQuery = `UPDATE executions ` +
-		`SET workflow_timer_tasks[ ? ] = ? ` +
+		`SET workflow_timer_tasks = workflow_timer_tasks + ? ` +
 		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

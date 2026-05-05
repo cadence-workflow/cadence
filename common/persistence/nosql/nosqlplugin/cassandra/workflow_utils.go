@@ -986,8 +986,15 @@ func updateTimerInfos(
 	return nil
 }
 
-// appendWorkflowTimerTasks adds timer task entries to the workflow_timer_tasks map using
-// native Cassandra map append — no read required, idempotent per taskID.
+// workflowTimerTaskTuple is the Cassandra tuple<timestamp, bigint> representation
+// for entries in the workflow_timer_tasks set column.
+type workflowTimerTaskTuple struct {
+	VisibilityTimestamp time.Time
+	TaskID              int64
+}
+
+// appendWorkflowTimerTasks adds timer task entries to the workflow_timer_tasks set using
+// native Cassandra set addition — no read required. Each element is a (visibilityTs, taskID) tuple.
 func appendWorkflowTimerTasks(
 	batch gocql.Batch,
 	shardID int,
@@ -999,8 +1006,7 @@ func appendWorkflowTimerTasks(
 ) {
 	for taskID, visibilityTs := range timerTasks {
 		batch.Query(templateAppendWorkflowTimerTaskQuery,
-			taskID,
-			visibilityTs,
+			[]workflowTimerTaskTuple{{VisibilityTimestamp: visibilityTs, TaskID: taskID}},
 			timeStamp,
 			shardID,
 			rowTypeExecution,

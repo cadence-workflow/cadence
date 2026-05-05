@@ -6,7 +6,6 @@ package metered
 
 import (
 	"context"
-	"time"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -68,6 +67,30 @@ func (c *meteredExecutionManager) CompleteHistoryTask(ctx context.Context, reque
 	}
 
 	err = c.callWithoutDomainTag(metrics.PersistenceCompleteHistoryTaskScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
+func (c *meteredExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) (err error) {
+	op := func() error {
+		err = c.wrapped.CompleteHistoryTasks(ctx, category, keys)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(category); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(category)...)
+		c.logger.Debug("Persistence CompleteHistoryTasks called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteHistoryTasksScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceCompleteHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceCompleteHistoryTasksScope, op, append(getCustomMetricTags(category), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }
@@ -242,34 +265,10 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 	return
 }
 
-func (c *meteredExecutionManager) DeleteWorkflowTimerTasks(ctx context.Context, request *persistence.DeleteWorkflowTimerTasksRequest) (err error) {
+func (c *meteredExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (ha1 []persistence.HistoryTaskKey, err error) {
 	op := func() error {
-		err = c.wrapped.DeleteWorkflowTimerTasks(ctx, request)
-		return err
-	}
-
-	retryCount := getRetryCountFromContext(ctx)
-	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
-		c.logger.Debug("Persistence DeleteWorkflowTimerTasks called", logTags...)
-		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteWorkflowTimerTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
-		} else {
-			err = c.call(metrics.PersistenceDeleteWorkflowTimerTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
-		}
-		return
-	}
-
-	err = c.callWithoutDomainTag(metrics.PersistenceDeleteWorkflowTimerTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
-
-	return
-}
-
-func (c *meteredExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (m1 map[int64]time.Time, err error) {
-	op := func() error {
-		m1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
-		c.emptyMetric("ExecutionManager.FetchWorkflowTimerTasksForCleanup", request, m1, err)
+		ha1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+		c.emptyMetric("ExecutionManager.FetchWorkflowTimerTasksForCleanup", request, ha1, err)
 		return err
 	}
 

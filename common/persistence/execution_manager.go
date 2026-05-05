@@ -1076,12 +1076,12 @@ func (m *executionManagerImpl) RangeCompleteHistoryTask(
 }
 
 // FetchWorkflowTimerTasksForCleanup reads the workflow_timer_tasks tracking column and
-// returns tasks whose remaining time until firing is at least WorkflowTimerTaskCleanupMinTTL.
+// returns task keys whose remaining time until firing is at least WorkflowTimerTaskCleanupMinTTL.
 // These are the tasks that need to be explicitly deleted from the timer queue at retention time.
 func (m *executionManagerImpl) FetchWorkflowTimerTasksForCleanup(
 	ctx context.Context,
 	request *FetchWorkflowTimerTasksForCleanupRequest,
-) (map[int64]time.Time, error) {
+) ([]HistoryTaskKey, error) {
 	if m.dc == nil || m.dc.WorkflowTimerTaskCleanupMinTTL == nil {
 		return nil, nil
 	}
@@ -1092,45 +1092,38 @@ func (m *executionManagerImpl) FetchWorkflowTimerTasksForCleanup(
 	if err != nil || len(trackingMap) == 0 {
 		return nil, err
 	}
-	result := make(map[int64]time.Time)
+	var result []HistoryTaskKey
 	for taskID, visibilityTs := range trackingMap {
 		if visibilityTs.Sub(now) >= minTTL {
-			result[taskID] = visibilityTs
+			result = append(result, NewHistoryTaskKey(visibilityTs, taskID))
 		}
-	}
-	if len(result) == 0 {
-		return nil, nil
 	}
 	return result, nil
 }
 
-// DeleteWorkflowTimerTasks deletes the given timer tasks from the timer queue.
-// Best-effort: individual delete failures are logged but do not abort the operation.
-func (m *executionManagerImpl) DeleteWorkflowTimerTasks(
+// CompleteHistoryTasks completes (deletes) multiple history tasks of the same category.
+// Best-effort: individual failures are logged but do not abort the operation.
+func (m *executionManagerImpl) CompleteHistoryTasks(
 	ctx context.Context,
-	request *DeleteWorkflowTimerTasksRequest,
+	category HistoryTaskCategory,
+	keys []HistoryTaskKey,
 ) error {
-	for taskID, visibilityTs := range request.Tasks {
+	for _, key := range keys {
 		select {
 		case <-ctx.Done():
-			m.logger.Warn("Context cancelled during workflow timer task cleanup; some timers may not have been deleted",
-				tag.WorkflowDomainID(request.DomainID),
-				tag.WorkflowID(request.WorkflowID),
-				tag.WorkflowRunID(request.RunID),
+			m.logger.Warn("Context cancelled during history task completion; some tasks may not have been deleted",
 				tag.Error(ctx.Err()),
 			)
 			return ctx.Err()
 		default:
 		}
-		if delErr := m.persistence.DeleteTimerTask(ctx, &DeleteTimerTaskRequest{
-			DomainID:            request.DomainID,
-			WorkflowID:          request.WorkflowID,
-			RunID:               request.RunID,
-			TaskID:              taskID,
-			VisibilityTimestamp: visibilityTs,
+		if delErr := m.persistence.CompleteHistoryTask(ctx, &CompleteHistoryTaskRequest{
+			ShardID:      common.Ptr(m.persistence.GetShardID()),
+			TaskCategory: category,
+			TaskKey:      key,
 		}); delErr != nil {
-			m.logger.Warn("Failed to delete tracked workflow timer task during cleanup; skipping",
-				tag.TaskID(taskID),
+			m.logger.Warn("Failed to complete history task during cleanup; skipping",
+				tag.TaskID(key.GetTaskID()),
 				tag.Error(delErr),
 			)
 		}

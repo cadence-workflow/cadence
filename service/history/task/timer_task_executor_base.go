@@ -22,7 +22,6 @@ package task
 
 import (
 	"context"
-	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -42,8 +41,6 @@ import (
 var (
 	taskRetryPolicy = common.CreateTaskProcessingRetryPolicy()
 )
-
-const workflowTimerTaskCleanupTimeout = 30 * time.Second
 
 type (
 	timerTaskExecutorBase struct {
@@ -365,13 +362,13 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 }
 
 // cleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking column to find timer
-// tasks eligible for cleanup, then asynchronously deletes them from the timer queue.
+// tasks eligible for cleanup, then deletes them from the timer queue.
 // Must be called before deleteWorkflowExecution so the execution row is still readable.
 func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, task *persistence.DeleteHistoryEventTask) {
 	if !t.shard.GetConfig().EnableWorkflowTimerTaskCleanup() {
 		return
 	}
-	tasks, err := t.shard.GetExecutionManager().FetchWorkflowTimerTasksForCleanup(ctx, &persistence.FetchWorkflowTimerTasksForCleanupRequest{
+	keys, err := t.shard.GetExecutionManager().FetchWorkflowTimerTasksForCleanup(ctx, &persistence.FetchWorkflowTimerTasksForCleanupRequest{
 		DomainID:   task.DomainID,
 		WorkflowID: task.WorkflowID,
 		RunID:      task.RunID,
@@ -385,20 +382,11 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 		)
 		return
 	}
-	if len(tasks) == 0 {
+	if len(keys) == 0 {
 		return
 	}
-	go func() {
-		deleteCtx, cancel := context.WithTimeout(t.ctx, workflowTimerTaskCleanupTimeout)
-		defer cancel()
-		_ = t.shard.GetExecutionManager().DeleteWorkflowTimerTasks(deleteCtx, &persistence.DeleteWorkflowTimerTasksRequest{
-			DomainID:   task.DomainID,
-			WorkflowID: task.WorkflowID,
-			RunID:      task.RunID,
-			Tasks:      tasks,
-		})
-		t.metricsClient.AddCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.WorkflowCleanupTimerTasksSentForDeletionCount, int64(len(tasks)))
-	}()
+	_ = t.shard.GetExecutionManager().CompleteHistoryTasks(ctx, persistence.HistoryTaskCategoryTimer, keys)
+	t.metricsClient.AddCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.WorkflowCleanupTimerTasksSentForDeletionCount, int64(len(keys)))
 }
 
 func (t *timerTaskExecutorBase) Stop() {

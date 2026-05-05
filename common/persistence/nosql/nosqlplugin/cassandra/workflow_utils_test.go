@@ -2967,7 +2967,7 @@ func TestAppendWorkflowTimerTasks(t *testing.T) {
 			desc:       "single entry produces one UPDATE query",
 			timerTasks: map[int64]time.Time{100: visTS},
 			wantQueries: []string{
-				`UPDATE executions SET workflow_timer_tasks[ 100 ] = 2025-02-01T00:00:00Z ` +
+				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 00:00:00 +0000 UTC 100}] ` +
 					`, last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
 					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -2980,11 +2980,11 @@ func TestAppendWorkflowTimerTasks(t *testing.T) {
 				200: visTS.Add(time.Hour),
 			},
 			wantQueries: []string{
-				`UPDATE executions SET workflow_timer_tasks[ 100 ] = 2025-02-01T00:00:00Z ` +
+				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 00:00:00 +0000 UTC 100}] ` +
 					`, last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
 					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
-				`UPDATE executions SET workflow_timer_tasks[ 200 ] = 2025-02-01T01:00:00Z ` +
+				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 01:00:00 +0000 UTC 200}] ` +
 					`, last_updated_time = 2025-01-06T15:00:00Z ` +
 					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
 					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
