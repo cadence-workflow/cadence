@@ -1072,15 +1072,9 @@ func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Servic
 	}
 }
 
-// startSchedulerWorkerManager wires up the per-domain scheduler worker manager
-// inside the integration test cluster. Production wires this in
-// service/worker/service.go; mirroring it here lets host/ tests exercise the
-// full Cadence Schedules pipeline (frontend RPC -> scheduler workflow -> target
-// workflow) end-to-end.
-//
-// We create our own DomainCache because the test Service does not expose one
-// (matches the pattern used by startWorkerReplicator / startWorkerClientWorker).
-// The caller is responsible for stopping the returned cache during shutdown.
+// startSchedulerWorkerManager mirrors the production wiring in
+// service/worker/service.go so host/ tests can exercise the schedule pipeline.
+// Returns a domain cache the caller must stop on shutdown.
 func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc Service) cache.DomainCache {
 	metadataManager := metered.NewDomainManager(c.domainManager, svc.GetMetricsClient(), c.logger, &c.persistenceConfig)
 	domainCache := cache.NewDomainCache(metadataManager, c.clusterMetadata, svc.GetMetricsClient(), svc.GetLogger())

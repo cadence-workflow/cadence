@@ -29,19 +29,9 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-// TestScheduleSmokeTest exercises the minimum schedule-pipeline path end-to-end:
-// CreateSchedule → scheduler workflow starts → a target workflow fires →
-// DescribeSchedule reports a non-zero TotalRuns → DeleteSchedule.
-//
-// This is the smoke test for the host/onebox.go scheduler-worker-manager wiring
-// added in the same change. It does not exercise overlap/catch-up/backfill
-// semantics; those live in dedicated tests in a follow-up change.
-//
-// Polling design: the target task list is drained in a background goroutine so
-// the main test loop only does cheap DescribeSchedule calls. PollForDecisionTask
-// long-polls up to 90s each call, so polling inline would dominate the test
-// runtime and starve other parallel tests in the IntegrationSuite of task-list
-// capacity.
+// TestScheduleSmokeTest verifies the schedule pipeline end-to-end against the
+// integration test cluster: CreateSchedule, wait for the scheduler workflow to
+// fire at least one target run, DeleteSchedule.
 func (s *IntegrationSuite) TestScheduleSmokeTest() {
 	scheduleID := "smoke-schedule"
 	targetWorkflowType := "smoke-schedule-target"
@@ -69,8 +59,6 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 	createCancel()
 	s.Require().NoError(err, "CreateSchedule failed")
 
-	// Always tear the schedule down at the end so we don't leak a per-domain
-	// scheduler workflow that keeps firing across subsequent tests.
 	defer func() {
 		delCtx, delCancel := createContext()
 		defer delCancel()
@@ -82,11 +70,8 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		}
 	}()
 
-	// Background poller: drains decision tasks for the target task list until
-	// the test signals done. Each scheduler-fired target needs its first
-	// decision processed so it doesn't sit open consuming history; without this
-	// the scheduler still counts a successful start (TotalRuns advances) but
-	// the fixture leaks fired-but-stuck workflows.
+	// Drain target decision tasks in the background so fired workflows don't
+	// stay open. Polling inline would block the test loop on the long-poll.
 	completeOnFirstDecision := func(execution *types.WorkflowExecution, _ *types.WorkflowType,
 		_, _ int64, _ *types.History) ([]byte, []*types.Decision, error) {
 		s.Logger.Info("scheduler-fired target workflow polled",
@@ -123,10 +108,6 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 				return
 			default:
 			}
-			// PollAndProcessDecisionTask uses a 90s context internally and
-			// returns whenever a task arrives or the long-poll deadline elapses.
-			// We don't care about per-poll errors (e.g. empty-task-list timeout);
-			// the goroutine just keeps going until done is closed.
 			if _, perr := poller.PollAndProcessDecisionTask(false, false); perr != nil {
 				s.Logger.Info("decision-task poll returned", tag.Error(perr))
 			}
@@ -137,14 +118,8 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		pollerWG.Wait()
 	}()
 
-	// Wait for the schedule to fire at least once. Worst case timing budget:
-	//   - up to 60s for the scheduler worker manager periodic refresh to
-	//     discover the per-test domain (test domains are registered in
-	//     SetupSuite *after* the cluster boots),
-	//   - then `@every 5s` until the first cron fire,
-	//   - then a few seconds for StartWorkflowExecution + the activity round-trip.
-	// 120s gives comfortable headroom; describe is a cheap query, so polling
-	// every 2s is fine.
+	// 120s budget covers the worker manager refresh interval (60s), one cron
+	// fire interval, and the StartWorkflowExecution round-trip.
 	const (
 		fireDeadline = 120 * time.Second
 		pollInterval = 2 * time.Second

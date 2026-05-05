@@ -4,22 +4,11 @@ frontend.warmupDuration:
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
   constraints: {}
-# Override the valid-search-attributes whitelist so the Cadence Schedules
-# workflow can upsert its scheduler-managed attributes (CadenceScheduleState/
-# Cron/WorkflowType on the scheduler workflow itself, CadenceScheduleID/Time/
-# IsBackfill on target workflows). Without this, the upsert decision is
-# rejected by the validator and the scheduler workflow ends up in a
-# decision-task retry loop.
-#
-# When overriding ValidSearchAttributes you must include the existing default
-# keys (see the doc comment in dynamicconfig/dynamicproperties/constants.go
-# under ValidSearchAttributes). Below is the default set from
-# definition.GetDefaultIndexedKeys() plus the scheduler-specific keys.
-# Type values match types.IndexedValueType: 0=String, 1=Keyword, 2=Int,
-# 3=Double, 4=Bool, 5=Datetime.
+# Adds the schedule search attributes on top of the default whitelist; without
+# them the scheduler workflow's UpsertSearchAttributes decision is rejected
+# and the workflow loops in decision-task retries.
 frontend.validSearchAttributes:
 - value:
-    # System-indexed keys (definition.systemIndexedKeys).
     DomainID: 1
     WorkflowID: 1
     RunID: 1
@@ -38,7 +27,6 @@ frontend.validSearchAttributes:
     ScheduledExecutionTime: 2
     ClusterAttributeScope: 1
     ClusterAttributeName: 1
-    # Default custom indexed keys used by other tests in host/.
     CustomStringField: 0
     CustomKeywordField: 1
     CustomIntField: 2
@@ -49,11 +37,9 @@ frontend.validSearchAttributes:
     BinaryChecksums: 1
     CustomDomain: 0
     Operator: 0
-    # Cadence Schedules: scheduler-workflow attributes.
     CadenceScheduleState: 1
     CadenceScheduleCron: 1
     CadenceScheduleWorkflowType: 1
-    # Cadence Schedules: target-workflow attributes.
     CadenceScheduleID: 1
     CadenceScheduleTime: 5
     CadenceScheduleIsBackfill: 4
