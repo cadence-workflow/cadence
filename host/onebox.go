@@ -1089,7 +1089,7 @@ func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc S
 		DomainCache:        domainCache,
 		MembershipResolver: svc.GetMembershipResolver(),
 		HostInfo:           svc.GetHostInfo(),
-		RefreshInterval:    dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval)(),
+		RefreshInterval:    dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval),
 	}
 	enabledFn := dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler)
 	c.schedulerWorkerManager = scheduler.NewWorkerManager(bp, enabledFn)
