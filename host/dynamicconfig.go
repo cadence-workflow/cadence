@@ -25,9 +25,11 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 var (
@@ -49,8 +51,27 @@ var (
 		dynamicproperties.MinRetentionDays:                                  0,
 		dynamicproperties.WorkflowDeletionJitterRange:                       1,
 		dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow: true,
+		dynamicproperties.ValidSearchAttributes:                             validSearchAttributesWithSchedules(),
 	}
 )
+
+// validSearchAttributesWithSchedules merges the default indexed-keys map with
+// the scheduler-managed search attributes the schedule pipeline upserts.
+// Without this, those upserts are rejected and the scheduler workflow loops
+// in decision-task retries.
+func validSearchAttributesWithSchedules() map[string]interface{} {
+	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys())+6)
+	for k, v := range definition.GetDefaultIndexedKeys() {
+		out[k] = v
+	}
+	out[scheduler.SearchAttrScheduleID] = types.IndexedValueTypeKeyword
+	out[scheduler.SearchAttrScheduleTime] = types.IndexedValueTypeDatetime
+	out[scheduler.SearchAttrIsBackfill] = types.IndexedValueTypeBool
+	out[scheduler.SearchAttrScheduleState] = types.IndexedValueTypeKeyword
+	out[scheduler.SearchAttrScheduleCron] = types.IndexedValueTypeKeyword
+	out[scheduler.SearchAttrScheduleWorkflowType] = types.IndexedValueTypeKeyword
+	return out
+}
 
 type dynamicClient struct {
 	sync.RWMutex
