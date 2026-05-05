@@ -58,6 +58,10 @@ var (
 // validSearchAttributesWithSchedules returns the default indexed-keys map
 // extended with the scheduler-managed search attributes that the schedule
 // pipeline upserts.
+//
+// TODO: drop this once the scheduler search attributes are part of the
+// default indexed-keys set in common/definition. At that point the
+// staticOverrides entry for ValidSearchAttributes can go away entirely.
 func validSearchAttributesWithSchedules() map[string]interface{} {
 	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys())+6)
 	for k, v := range definition.GetDefaultIndexedKeys() {

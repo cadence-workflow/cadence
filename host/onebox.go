@@ -374,7 +374,11 @@ func NewCadence(params *CadenceParams) Cadence {
 }
 
 func (c *cadenceImpl) enableWorker() bool {
-	return c.workerConfig.EnableArchiver || c.workerConfig.EnableIndexer || c.workerConfig.EnableReplicator || c.workerConfig.EnableAsyncWFConsumer
+	return c.workerConfig.EnableArchiver ||
+		c.workerConfig.EnableIndexer ||
+		c.workerConfig.EnableReplicator ||
+		c.workerConfig.EnableAsyncWFConsumer ||
+		c.workerConfig.EnableScheduler
 }
 
 func (c *cadenceImpl) Start() error {
@@ -1075,6 +1079,13 @@ func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Servic
 // startSchedulerWorkerManager mirrors the production wiring in
 // service/worker/service.go so host/ tests can exercise the schedule pipeline.
 // Returns a domain cache the caller must stop on shutdown.
+//
+// TODO: this duplicates startup logic from service/worker/service.go. The
+// rest of the worker subsystems in this onebox (replicator/archiver/indexer/
+// async-wf) are wired the same hand-rolled way, so the right long-term fix
+// is to have host/ tests boot the worker service via worker.NewService(...)
+// and let it manage the WorkerManager (and friends) end-to-end, rather than
+// reaching into the bootstrap params here.
 func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc Service) cache.DomainCache {
 	metadataManager := metered.NewDomainManager(c.domainManager, svc.GetMetricsClient(), c.logger, &c.persistenceConfig)
 	domainCache := cache.NewDomainCache(metadataManager, c.clusterMetadata, svc.GetMetricsClient(), svc.GetLogger())
