@@ -64,10 +64,9 @@ type BootstrapParams struct {
 	DomainCache        cache.DomainCache
 	MembershipResolver membership.Resolver
 	HostInfo           membership.HostInfo
-	// RefreshInterval controls how often the manager re-scans the domain cache
-	// to reconcile per-domain workers. When zero or negative, defaults to one
-	// minute. Sourced from the dynamicconfig.SchedulerWorkerRefreshInterval
-	// property in production.
+	// RefreshInterval controls how often the manager re-scans the domain
+	// cache to reconcile per-domain workers. Zero falls back to a sensible
+	// default.
 	RefreshInterval time.Duration
 }
 

@@ -74,8 +74,8 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		}
 	}()
 
-	// Drain target decision tasks in the background so fired workflows don't
-	// stay open. Polling inline would block the test loop on the long-poll.
+	// Drain target decision tasks in the background so fired workflows
+	// don't stay open.
 	completeOnFirstDecision := func(execution *types.WorkflowExecution, _ *types.WorkflowType,
 		_, _ int64, _ *types.History) ([]byte, []*types.Decision, error) {
 		s.Logger.Info("scheduler-fired target workflow polled",

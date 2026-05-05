@@ -55,10 +55,9 @@ var (
 	}
 )
 
-// validSearchAttributesWithSchedules merges the default indexed-keys map with
-// the scheduler-managed search attributes the schedule pipeline upserts.
-// Without this, those upserts are rejected and the scheduler workflow loops
-// in decision-task retries.
+// validSearchAttributesWithSchedules returns the default indexed-keys map
+// extended with the scheduler-managed search attributes that the schedule
+// pipeline upserts.
 func validSearchAttributesWithSchedules() map[string]interface{} {
 	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys())+6)
 	for k, v := range definition.GetDefaultIndexedKeys() {
