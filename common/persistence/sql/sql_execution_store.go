@@ -25,6 +25,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"runtime/debug"
@@ -1430,7 +1431,7 @@ func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 		RunID:      runID,
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows || errors.Is(err, sqlplugin.ErrNotImplemented) {
 			return nil, &types.EntityNotExistsError{
 				Message: fmt.Sprintf(
 					"Active cluster selection policy not found. DomainId: %v, WorkflowId: %v, RunId: %v",
@@ -1455,6 +1456,9 @@ func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 		WorkflowID: request.WorkflowID,
 		RunID:      runID,
 	}); err != nil {
+		if errors.Is(err, sqlplugin.ErrNotImplemented) {
+			return nil
+		}
 		return convertCommonErrors(m.db, "DeleteActiveClusterSelectionPolicy", "", err)
 	}
 	return nil
