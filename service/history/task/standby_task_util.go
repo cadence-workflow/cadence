@@ -45,9 +45,9 @@ type (
 
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 
-	// TaskDLQWriter is the subset of taskdlq.HistoryTaskDLQStore used by standby task executors.
+	// TaskDLQWriter is the subset of persistence.HistoryTaskDLQManager used by standby task executors.
 	TaskDLQWriter interface {
-		AddTask(ctx context.Context, request taskdlq.AddTaskRequest) error
+		CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error
 	}
 )
 
@@ -151,7 +151,7 @@ func standbyTaskPostActionWriteToDLQ(
 		// TODO(c-warren): Move this logic into the writer instead, and return a ErrHistoryDLQNotEnabled error to be handled here
 		switch isDeadLetterQueueEnabled {
 		case constants.HistoryTaskDLQModeEnabled:
-			return writer.AddTask(ctx, taskdlq.AddTaskRequest{
+			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
 				ClusterAttributeScope: clusterAttribute.Scope,
@@ -159,7 +159,7 @@ func standbyTaskPostActionWriteToDLQ(
 				Task:                  task,
 			})
 		case constants.HistoryTaskDLQModeShadow:
-			err := writer.AddTask(ctx, taskdlq.AddTaskRequest{
+			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
 				ClusterAttributeScope: clusterAttribute.Scope,

@@ -425,6 +425,11 @@ func (s *Test) GetHistoryManager() persistence.HistoryManager {
 	return s.HistoryMgr
 }
 
+// GetHistoryTaskDLQManager for testing
+func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return nil
+}
+
 // GetExecutionManager for testing
 func (s *Test) GetExecutionManager(
 	shardID int,

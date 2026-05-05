@@ -126,7 +126,8 @@ type Impl struct {
 	clientBean                        client.Bean
 
 	// persistence clients
-	persistenceBean persistenceClient.Bean
+	persistenceBean       persistenceClient.Bean
+	historyTaskDLQManager persistence.HistoryTaskDLQManager
 
 	// loggers
 	logger          log.Logger
@@ -199,7 +200,7 @@ func New(
 
 	params.PersistenceConfig.HostName = hostname
 
-	persistenceBean, err := newPersistenceBeanFn(persistenceClient.NewFactory(
+	persistenceFactory := persistenceClient.NewFactory(
 		&params.PersistenceConfig,
 		func() float64 {
 			return permember.PerMember(
@@ -213,7 +214,8 @@ func New(
 		params.MetricsClient,
 		logger,
 		persistence.NewDynamicConfiguration(dynamicCollection),
-	), &persistenceClient.Params{
+	)
+	persistenceBean, err := newPersistenceBeanFn(persistenceFactory, &persistenceClient.Params{
 		PersistenceConfig: params.PersistenceConfig,
 		MetricsClient:     params.MetricsClient,
 		MessagingClient:   params.MessagingClient,
@@ -226,6 +228,13 @@ func New(
 	}, serviceConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	var historyTaskDLQMgr persistence.HistoryTaskDLQManager
+	if dlqMgr, dlqErr := persistenceFactory.NewHistoryTaskDLQManager(); dlqErr == nil {
+		historyTaskDLQMgr = dlqMgr
+	} else {
+		logger.Warn("History task DLQ manager unavailable", tag.Error(dlqErr))
 	}
 
 	domainCache := cache.NewDomainCache(
@@ -396,7 +405,8 @@ func New(
 		clientBean:                        clientBean,
 
 		// persistence clients
-		persistenceBean: persistenceBean,
+		persistenceBean:       persistenceBean,
+		historyTaskDLQManager: historyTaskDLQMgr,
 
 		// loggers
 		logger:          logger,
@@ -674,6 +684,11 @@ func (h *Impl) GetShardManager() persistence.ShardManager {
 // GetHistoryManager return history manager
 func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 	return h.persistenceBean.GetHistoryManager()
+}
+
+// GetHistoryTaskDLQManager returns the history task DLQ manager (nil if unsupported by the datastore).
+func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return h.historyTaskDLQManager
 }
 
 // GetExecutionManager return execution manager for given shard ID

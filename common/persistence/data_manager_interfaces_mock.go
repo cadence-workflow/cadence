@@ -1516,18 +1516,18 @@ func (mr *MockHistoryTaskDLQManagerMockRecorder) GetAckLevels(ctx, shardID any) 
 }
 
 // GetAckLevelsForPartition mocks base method.
-func (m *MockHistoryTaskDLQManager) GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]HistoryDLQAckLevel, error) {
+func (m *MockHistoryTaskDLQManager) GetAckLevelsForPartition(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAckLevelsForPartition", ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName)
+	ret := m.ctrl.Call(m, "GetAckLevelsForPartition", ctx, request)
 	ret0, _ := ret[0].([]HistoryDLQAckLevel)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAckLevelsForPartition indicates an expected call of GetAckLevelsForPartition.
-func (mr *MockHistoryTaskDLQManagerMockRecorder) GetAckLevelsForPartition(ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName any) *gomock.Call {
+func (mr *MockHistoryTaskDLQManagerMockRecorder) GetAckLevelsForPartition(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAckLevelsForPartition", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetAckLevelsForPartition), ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAckLevelsForPartition", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetAckLevelsForPartition), ctx, request)
 }
 
 // GetName mocks base method.

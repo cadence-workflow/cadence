@@ -130,11 +130,11 @@ func TestGetRemoteClusterName(t *testing.T) {
 
 // mockDLQWriter is a simple in-process test double for TaskDLQWriter.
 type mockDLQWriter struct {
-	calls []taskdlq.AddTaskRequest
+	calls []persistence.CreateHistoryDLQTaskRequest
 	err   error
 }
 
-func (m *mockDLQWriter) AddTask(_ context.Context, req taskdlq.AddTaskRequest) error {
+func (m *mockDLQWriter) CreateHistoryDLQTask(_ context.Context, req persistence.CreateHistoryDLQTaskRequest) error {
 	m.calls = append(m.calls, req)
 	return m.err
 }

@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/reset"
 	"github.com/uber/cadence/service/history/shard"
+	"github.com/uber/cadence/service/history/taskdlq"
 	"github.com/uber/cadence/service/history/workflow"
 	"github.com/uber/cadence/service/worker/archiver"
 )
@@ -108,6 +109,7 @@ type historyEngineImpl struct {
 	clientChecker             client.VersionChecker
 	replicationDLQHandler     replication.DLQHandler
 	failoverMarkerNotifier    failover.MarkerNotifier
+	dlqProcessor              taskdlq.Processor // nil if DLQ storage is unavailable
 
 	updateWithActionFn func(
 		context.Context,
@@ -292,6 +294,18 @@ func NewEngineWithShardContext(
 	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors)
 	historyEngImpl.replicationDLQHandler = replicationMessageHandler
 
+	if dlqMgr := shard.GetService().GetHistoryTaskDLQManager(); dlqMgr != nil {
+		historyEngImpl.dlqProcessor = taskdlq.NewProcessor(
+			shard.GetShardID(),
+			dlqMgr,
+			map[int]taskdlq.TaskExecutor{},
+			100,
+			taskdlq.DefaultProcessingInterval(),
+			shard.GetTimeSource(),
+			logger,
+		)
+	}
+
 	shard.SetEngine(historyEngImpl)
 	return historyEngImpl
 }
@@ -305,6 +319,9 @@ func (e *historyEngineImpl) Start() {
 
 	for _, processor := range e.queueProcessors {
 		processor.Start()
+	}
+	if e.dlqProcessor != nil {
+		e.dlqProcessor.Start()
 	}
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
@@ -332,6 +349,9 @@ func (e *historyEngineImpl) Stop() {
 
 	for _, processor := range e.queueProcessors {
 		processor.Stop()
+	}
+	if e.dlqProcessor != nil {
+		e.dlqProcessor.Stop()
 	}
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
