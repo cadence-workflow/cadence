@@ -64,6 +64,11 @@ type BootstrapParams struct {
 	DomainCache        cache.DomainCache
 	MembershipResolver membership.Resolver
 	HostInfo           membership.HostInfo
+	// RefreshInterval controls how often the manager re-scans the domain cache
+	// to reconcile per-domain workers. When zero or negative, defaults to one
+	// minute. Sourced from the dynamicconfig.SchedulerWorkerRefreshInterval
+	// property in production.
+	RefreshInterval time.Duration
 }
 
 // workerHandle is the subset of cadenceworker.Worker used by the manager,
@@ -105,6 +110,10 @@ type WorkerManager struct {
 // NewWorkerManager creates a new per-domain scheduler worker manager.
 func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolPropertyFnWithDomainFilter) *WorkerManager {
 	ctx, cancel := context.WithCancel(context.Background())
+	refresh := params.RefreshInterval
+	if refresh <= 0 {
+		refresh = defaultRefreshInterval
+	}
 	wm := &WorkerManager{
 		enabledFn:          enabledFn,
 		serviceClient:      params.ServiceClient,
@@ -115,7 +124,7 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 		membershipResolver: params.MembershipResolver,
 		hostInfo:           params.HostInfo,
 		timeSrc:            clock.NewRealTimeSource(),
-		refreshInterval:    defaultRefreshInterval,
+		refreshInterval:    refresh,
 		shutdownTimeout:    defaultShutdownTimeout,
 		ctx:                ctx,
 		cancelFn:           cancel,

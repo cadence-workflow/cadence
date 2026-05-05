@@ -122,11 +122,10 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		pollerWG.Wait()
 	}()
 
-	// 120s budget covers the worker manager refresh interval (60s), one cron
-	// fire interval, and the StartWorkflowExecution round-trip.
+	// Budget: ~2s manager refresh + one cron interval + StartWorkflowExecution.
 	const (
-		fireDeadline = 120 * time.Second
-		pollInterval = 2 * time.Second
+		fireDeadline = 30 * time.Second
+		pollInterval = 1 * time.Second
 	)
 	timeout := time.NewTimer(fireDeadline)
 	defer timeout.Stop()

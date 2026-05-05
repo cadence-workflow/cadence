@@ -3177,6 +3177,13 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	WorkerESProcessorFlushInterval
+	// SchedulerWorkerRefreshInterval is how often the scheduler worker manager
+	// scans the domain cache to start/stop per-domain scheduler workers.
+	// KeyName: worker.schedulerRefreshInterval
+	// Value type: Duration
+	// Default value: 1m (time.Minute)
+	// Allowed filters: N/A
+	SchedulerWorkerRefreshInterval
 	// WorkerTimeLimitPerArchivalIteration is controls the time limit of each iteration of archival workflow
 	// KeyName: worker.TimeLimitPerArchivalIteration
 	// Value type: Duration
@@ -5815,6 +5822,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "worker.ESProcessorFlushInterval",
 		Description:  "WorkerESProcessorFlushInterval is flush interval for esProcessor",
 		DefaultValue: time.Second,
+	},
+	SchedulerWorkerRefreshInterval: {
+		KeyName:      "worker.schedulerRefreshInterval",
+		Description:  "SchedulerWorkerRefreshInterval is how often the scheduler worker manager scans the domain cache to start/stop per-domain workers",
+		DefaultValue: time.Minute,
 	},
 	WorkerTimeLimitPerArchivalIteration: {
 		KeyName:      "worker.TimeLimitPerArchivalIteration",

@@ -1080,6 +1080,7 @@ func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc S
 	domainCache := cache.NewDomainCache(metadataManager, c.clusterMetadata, svc.GetMetricsClient(), svc.GetLogger())
 	domainCache.Start()
 
+	dc := dynamicconfig.NewCollection(params.DynamicConfig, svc.GetLogger())
 	bp := &scheduler.BootstrapParams{
 		ServiceClient:      params.PublicClient,
 		FrontendClient:     c.frontendClient,
@@ -1088,8 +1089,8 @@ func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc S
 		DomainCache:        domainCache,
 		MembershipResolver: svc.GetMembershipResolver(),
 		HostInfo:           svc.GetHostInfo(),
+		RefreshInterval:    dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval)(),
 	}
-	dc := dynamicconfig.NewCollection(params.DynamicConfig, svc.GetLogger())
 	enabledFn := dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler)
 	c.schedulerWorkerManager = scheduler.NewWorkerManager(bp, enabledFn)
 	c.schedulerWorkerManager.Start()
