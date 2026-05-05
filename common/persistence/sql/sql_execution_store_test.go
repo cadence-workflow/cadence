@@ -33,12 +33,59 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 	"github.com/uber/cadence/common/types"
 )
+
+func TestResolveShardID(t *testing.T) {
+	tests := []struct {
+		name           string
+		reqID          *int
+		storeID        int
+		expectedShard  int
+		expectedReason string
+	}{
+		{name: "nil request shard id is reported as missing", reqID: nil, storeID: 5, expectedShard: 5, expectedReason: "missing"},
+		{name: "matching request shard id has no reason", reqID: common.IntPtr(5), storeID: 5, expectedShard: 5, expectedReason: ""},
+		{name: "differing request shard id falls back to store and is reported as mismatch", reqID: common.IntPtr(9), storeID: 5, expectedShard: 5, expectedReason: "mismatch"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			shard, reason := resolveShardID(tc.reqID, tc.storeID)
+			assert.Equal(t, tc.expectedShard, shard)
+			assert.Equal(t, tc.expectedReason, reason)
+		})
+	}
+}
+
+func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDInconsistent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := log.NewMockLogger(ctrl)
+	mockLogger.EXPECT().
+		Warn("execution store request inconsistent with store shard ID; using store shard ID", gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(1)
+	mockLogger.EXPECT().
+		Warn("execution store request inconsistent with store shard ID; using store shard ID", gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(1)
+
+	store := &sqlExecutionStore{
+		shardID: 123,
+		sqlStore: sqlStore{
+			logger: mockLogger,
+		},
+	}
+
+	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(999), "UpdateWorkflowExecution"))
+	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(123), "DeleteWorkflowExecution"))
+}
 
 func TestDeleteCurrentWorkflowExecution(t *testing.T) {
 	shardID := int64(100)
@@ -874,7 +921,7 @@ func TestTxExecuteShardLocked(t *testing.T) {
 				},
 			}
 
-			gotError := s.txExecuteShardLocked(context.Background(), 0, tt.operation, tt.rangeID, tt.fn)
+			gotError := s.txExecuteShardLocked(context.Background(), 0, 0, tt.operation, tt.rangeID, tt.fn)
 			assert.Equal(t, tt.wantError, gotError)
 		})
 	}
@@ -1157,7 +1204,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					db:     mockDB,
 					logger: testlogger.New(t),
 				},
-				txExecuteShardLockedFn: func(_ context.Context, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
+				txExecuteShardLockedFn: func(_ context.Context, _ int, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
 					return fn(nil)
 				},
 				lockCurrentExecutionIfExistsFn:   tc.lockCurrentExecutionIfExistsFn,
@@ -1396,7 +1443,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					db:     mockDB,
 					logger: testlogger.New(t),
 				},
-				txExecuteShardLockedFn: func(_ context.Context, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
+				txExecuteShardLockedFn: func(_ context.Context, _ int, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
 					return fn(nil)
 				},
 				assertNotCurrentExecutionFn:            tc.assertNotCurrentExecutionFn,
@@ -1665,7 +1712,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 					db:     mockDB,
 					logger: testlogger.New(t),
 				},
-				txExecuteShardLockedFn: func(_ context.Context, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
+				txExecuteShardLockedFn: func(_ context.Context, _ int, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
 					return fn(nil)
 				},
 				assertNotCurrentExecutionFn:            tc.assertNotCurrentExecutionFn,
@@ -1863,7 +1910,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 					logger: testlogger.New(t),
 					parser: parser,
 				},
-				txExecuteShardLockedFn: func(_ context.Context, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
+				txExecuteShardLockedFn: func(_ context.Context, _ int, _ int, _ string, _ int64, fn func(sqlplugin.Tx) error) error {
 					return fn(tx)
 				},
 			}
