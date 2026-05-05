@@ -33,6 +33,10 @@ import (
 // integration test cluster: CreateSchedule, wait for the scheduler workflow to
 // fire at least one target run, DeleteSchedule.
 func (s *IntegrationSuite) TestScheduleSmokeTest() {
+	if s.TestClusterConfig.WorkerConfig == nil || !s.TestClusterConfig.WorkerConfig.EnableScheduler {
+		s.T().Skip("scheduler worker manager not enabled on this cluster")
+	}
+
 	scheduleID := "smoke-schedule"
 	targetWorkflowType := "smoke-schedule-target"
 	targetTaskList := "smoke-schedule-tasklist"
