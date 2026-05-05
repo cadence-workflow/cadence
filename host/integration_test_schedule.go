@@ -37,9 +37,9 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		s.T().Skip("scheduler worker manager not enabled on this cluster")
 	}
 
-	scheduleID := "smoke-schedule"
+	scheduleID := s.RandomizeStr("smoke-schedule")
 	targetWorkflowType := "smoke-schedule-target"
-	targetTaskList := "smoke-schedule-tasklist"
+	targetTaskList := s.RandomizeStr("smoke-schedule-tasklist")
 	identity := "schedule-smoke-test"
 
 	createReq := &types.CreateScheduleRequest{
@@ -128,9 +128,13 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		fireDeadline = 120 * time.Second
 		pollInterval = 2 * time.Second
 	)
-	deadline := time.Now().Add(fireDeadline)
+	timeout := time.NewTimer(fireDeadline)
+	defer timeout.Stop()
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
 	fired := false
-	for time.Now().Before(deadline) {
+	for !fired {
 		descCtx, descCancel := createContext()
 		desc, derr := s.Engine.DescribeSchedule(descCtx, &types.DescribeScheduleRequest{
 			Domain:     s.DomainName,
@@ -145,7 +149,11 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 			fired = true
 			break
 		}
-		time.Sleep(pollInterval)
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			s.Failf("schedule did not fire", "no target workflow fired within %s", fireDeadline)
+			return
+		}
 	}
-	s.True(fired, "schedule did not fire any target workflow within %s", fireDeadline)
 }
