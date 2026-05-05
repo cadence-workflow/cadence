@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -1172,6 +1173,9 @@ func insertActiveClusterSelectionPolicy(
 		Data:         policy.Data,
 		DataEncoding: policy.GetEncodingString(),
 	}); err != nil {
+		if errors.Is(err, sqlplugin.ErrNotImplemented) {
+			return nil
+		}
 		return convertCommonErrors(tx, "InsertIntoActiveClusterSelectionPolicy", "", err)
 	}
 	return nil

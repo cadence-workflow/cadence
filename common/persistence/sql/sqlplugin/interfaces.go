@@ -37,6 +37,8 @@ import (
 var (
 	// ErrTTLNotSupported indicates the sql plugin does not support ttl
 	ErrTTLNotSupported = errors.New("plugin implementation does not support ttl")
+	// ErrNotImplemented indicates the sql database does not implement the method
+	ErrNotImplemented = errors.New("method not implemented for datastore")
 )
 
 type (

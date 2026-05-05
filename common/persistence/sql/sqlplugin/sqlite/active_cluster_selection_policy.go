@@ -28,14 +28,13 @@ import (
 )
 
 func (mdb *DB) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *sqlplugin.ActiveClusterSelectionPolicyRow) (sql.Result, error) {
-	// TODO(active-active): Implement sqlite support for ActiveClusterSelectionPolicy
-	return nil, nil
+	return nil, sqlplugin.ErrNotImplemented
 }
 
 func (mdb *DB) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (*sqlplugin.ActiveClusterSelectionPolicyRow, error) {
-	return nil, sql.ErrNoRows
+	return nil, sqlplugin.ErrNotImplemented
 }
 
 func (mdb *DB) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
-	return nil, nil
+	return nil, sqlplugin.ErrNotImplemented
 }

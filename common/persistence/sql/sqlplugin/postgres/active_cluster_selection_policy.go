@@ -28,14 +28,13 @@ import (
 )
 
 func (pdb *db) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *sqlplugin.ActiveClusterSelectionPolicyRow) (sql.Result, error) {
-	// TODO(active-active): Implement postgres support for ActiveClusterSelectionPolicy
-	return nil, nil
+	return nil, sqlplugin.ErrNotImplemented
 }
 
 func (pdb *db) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (*sqlplugin.ActiveClusterSelectionPolicyRow, error) {
-	return nil, sql.ErrNoRows
+	return nil, sqlplugin.ErrNotImplemented
 }
 
 func (pdb *db) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
-	return nil, nil
+	return nil, sqlplugin.ErrNotImplemented
 }
