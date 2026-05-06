@@ -217,6 +217,7 @@ var _ (gocql.Query) = &fakeQuery{}
 type fakeQuery struct {
 	iter              *fakeIter
 	mapScan           map[string]interface{}
+	scanValues        []interface{}
 	err               error
 	scanCASApplied    bool
 	mapScanCASApplied bool
@@ -226,7 +227,12 @@ func (q *fakeQuery) Exec() error {
 	return q.err
 }
 
-func (q *fakeQuery) Scan(...interface{}) error {
+func (q *fakeQuery) Scan(dest ...interface{}) error {
+	for i := 0; i < len(q.scanValues) && i < len(dest); i++ {
+		if q.scanValues[i] != nil {
+			reflect.ValueOf(dest[i]).Elem().Set(reflect.ValueOf(q.scanValues[i]))
+		}
+	}
 	return q.err
 }
 

@@ -289,32 +289,19 @@ func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domain
 		rowTypeExecutionTaskID,
 	).WithContext(ctx)
 
-	result := make(map[string]interface{})
-	if err := query.MapScan(result); err != nil {
+	var tuples []workflowTimerTaskTuple
+	if err := query.Scan(&tuples); err != nil {
 		if db.client.IsNotFoundError(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	// gocql scans set<frozen<tuple<timestamp,bigint>>> as [][]interface{}
-	// where each inner slice is [visibilityTimestamp, taskID].
-	tuples, ok := result["workflow_timer_tasks"].([][]interface{})
-	if !ok || len(tuples) == 0 {
+	if len(tuples) == 0 {
 		return nil, nil
 	}
 	m := make(map[int64]time.Time, len(tuples))
-	for _, tuple := range tuples {
-		if len(tuple) < 2 {
-			continue
-		}
-		visibilityTs, ok1 := tuple[0].(time.Time)
-		taskID, ok2 := tuple[1].(int64)
-		if ok1 && ok2 {
-			m[taskID] = visibilityTs
-		}
-	}
-	if len(m) == 0 {
-		return nil, nil
+	for _, t := range tuples {
+		m[t.TaskID] = t.VisibilityTimestamp
 	}
 	return m, nil
 }

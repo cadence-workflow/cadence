@@ -2607,18 +2607,18 @@ func TestSelectWorkflowTimerTasks(t *testing.T) {
 	ts := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name       string
-		mapScan    map[string]interface{}
-		mapScanErr error
+		scanValues []interface{}
+		scanErr    error
 		isNotFound bool
 		wantResult map[int64]time.Time
 		wantErr    bool
 	}{
 		{
 			name: "success - returns map",
-			mapScan: map[string]interface{}{
-				"workflow_timer_tasks": [][]interface{}{
-					{ts, int64(100)},
-					{ts.Add(time.Hour), int64(200)},
+			scanValues: []interface{}{
+				[]workflowTimerTaskTuple{
+					{VisibilityTimestamp: ts, TaskID: 100},
+					{VisibilityTimestamp: ts.Add(time.Hour), TaskID: 200},
 				},
 			},
 			wantResult: map[int64]time.Time{
@@ -2628,20 +2628,20 @@ func TestSelectWorkflowTimerTasks(t *testing.T) {
 		},
 		{
 			name:       "success - column absent returns nil",
-			mapScan:    map[string]interface{}{},
+			scanValues: []interface{}{[]workflowTimerTaskTuple{}},
 			wantResult: nil,
 		},
 		{
 			name:       "not found returns nil",
-			mapScan:    map[string]interface{}{},
-			mapScanErr: errors.New("not found"),
+			scanValues: nil,
+			scanErr:    errors.New("not found"),
 			isNotFound: true,
 			wantResult: nil,
 		},
 		{
 			name:       "query error",
-			mapScan:    map[string]interface{}{},
-			mapScanErr: errors.New("cassandra unavailable"),
+			scanValues: nil,
+			scanErr:    errors.New("cassandra unavailable"),
 			isNotFound: false,
 			wantErr:    true,
 		},
@@ -2652,13 +2652,13 @@ func TestSelectWorkflowTimerTasks(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			logger := testlogger.New(t)
 			cl := gocql.NewMockClient(ctrl)
-			if tc.mapScanErr != nil {
-				cl.EXPECT().IsNotFoundError(tc.mapScanErr).Return(tc.isNotFound).Times(1)
+			if tc.scanErr != nil {
+				cl.EXPECT().IsNotFoundError(tc.scanErr).Return(tc.isNotFound).Times(1)
 			}
 			session := &fakeSession{
 				query: &fakeQuery{
-					mapScan: tc.mapScan,
-					err:     tc.mapScanErr,
+					scanValues: tc.scanValues,
+					err:        tc.scanErr,
 				},
 			}
 			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(cl))
