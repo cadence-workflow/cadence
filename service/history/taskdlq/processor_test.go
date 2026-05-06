@@ -633,7 +633,7 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 	}
 }
 
-func TestStart_WhenNotEnabled_DoesNotStartBackgroundLoop(t *testing.T) {
+func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -655,19 +655,13 @@ func TestStart_WhenNotEnabled_DoesNotStartBackgroundLoop(t *testing.T) {
 	proc.Start()
 	defer proc.Stop()
 
-	// If the background loop had started it would immediately register a timer.
-	// BlockUntil(1) unblocks as soon as one goroutine is waiting on the time source,
-	// so if it does not return within the deadline the loop was never started.
-	timerRegistered := make(chan struct{})
-	go func() {
-		ts.BlockUntil(1)
-		close(timerRegistered)
-	}()
-	select {
-	case <-timerRegistered:
-		t.Fatal("background loop started despite processor being disabled")
-	case <-time.After(50 * time.Millisecond):
-	}
+	// The loop always starts; wait for the first timer to be registered.
+	ts.BlockUntil(1)
+	// Advance past the interval — enabled() returns false, so GetAckLevels must not be called.
+	ts.Advance(defaultTestProcessingInterval)
+	// Wait for the timer to be reset, confirming the loop ran and continued.
+	ts.BlockUntil(1)
+	// ctrl.Finish() verifies GetAckLevels was called 0 times.
 }
 
 func TestProcessShard_WhenDomainNotEnabled_SkipsProcessing(t *testing.T) {

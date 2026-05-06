@@ -116,10 +116,6 @@ func NewProcessor(
 
 // Start starts the processor and launches the background processing loop.
 func (p *ProcessorImpl) Start() {
-	if !p.enabled() {
-		p.logger.Debug("DLQ processor not enabled, skipping start", tag.ShardID(p.shardID))
-		return
-	}
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -156,11 +152,13 @@ func (p *ProcessorImpl) processLoop() {
 		case <-p.ctx.Done():
 			return
 		case <-timer.Chan():
-			if err := p.ProcessShard(p.ctx); err != nil {
-				p.logger.Error("DLQ periodic shard sweep failed",
-					tag.ShardID(p.shardID),
-					tag.Error(err),
-				)
+			if p.enabled() {
+				if err := p.ProcessShard(p.ctx); err != nil {
+					p.logger.Error("DLQ periodic shard sweep failed",
+						tag.ShardID(p.shardID),
+						tag.Error(err),
+					)
+				}
 			}
 			timer.Reset(p.interval())
 		}
@@ -181,6 +179,7 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 }
 
 func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
+	// Fast-fail for direct callers; processAckLevel also guards each partition individually.
 	if p.domainEnabled(domainID) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
 		return nil

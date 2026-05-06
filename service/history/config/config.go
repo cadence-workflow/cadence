@@ -619,6 +619,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 
 		HistoryTaskDLQMode:            dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDeadLetterQueueMode),
 		HistoryTaskProcessingInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
+		HistoryTaskDLQEnabled:         dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
 
 		HostName: hostname,
 	}

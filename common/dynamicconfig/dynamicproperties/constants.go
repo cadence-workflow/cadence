@@ -5146,7 +5146,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.historyTaskDLQProcessorEnabled",
 		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
 		DefaultValue: false,
-		Filters:      []Filter{DomainName},
 	},
 }
 
