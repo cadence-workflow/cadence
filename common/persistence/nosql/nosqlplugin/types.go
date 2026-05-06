@@ -294,6 +294,54 @@ type (
 		CreatedAt             time.Time
 	}
 
+	// HistoryDLQTaskFilter is the filter for selecting history DLQ task rows.
+	HistoryDLQTaskFilter struct {
+		ShardID                  int
+		DomainID                 string
+		ClusterAttributeScope    string
+		ClusterAttributeName     string
+		TaskType                 int
+		ExclusiveMinVisibilityTS time.Time
+		ExclusiveMinTaskID       int64
+		InclusiveMaxVisibilityTS time.Time
+		InclusiveMaxTaskID       int64
+		PageSize                 int
+		NextPageToken            []byte
+	}
+
+	// HistoryDLQTaskRangeDeleteFilter is the filter for range-deleting history DLQ task rows.
+	HistoryDLQTaskRangeDeleteFilter struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		// AckLevelVisibilityTS and AckLevelTaskID form the inclusive upper bound for deletion.
+		AckLevelVisibilityTS time.Time
+		AckLevelTaskID       int64
+	}
+
+	// HistoryDLQAckLevelRow defines the row struct for history DLQ ack level entries.
+	HistoryDLQAckLevelRow struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// HistoryDLQAckLevelFilter is the filter for selecting history DLQ ack level rows.
+	// DomainID, ClusterAttributeScope, and ClusterAttributeName are optional; leave empty to return all for the shard.
+	HistoryDLQAckLevelFilter struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+	}
+
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
 	SelectMessagesBetweenRequest struct {
 		QueueType               persistence.QueueType

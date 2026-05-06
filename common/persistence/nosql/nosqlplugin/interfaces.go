@@ -559,5 +559,15 @@ type (
 	HistoryDLQTaskCRUD interface {
 		// InsertHistoryDLQTaskRow writes a task to the history DLQ.
 		InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error
+		// SelectHistoryDLQTaskRows reads paginated tasks from the history DLQ within the given bounds.
+		// Returns the rows and a next-page token (nil when no more pages remain).
+		SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error)
+		// RangeDeleteHistoryDLQTaskRows deletes all tasks up to and including the given ack-level bounds.
+		RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error
+		// SelectHistoryDLQAckLevelRows reads ack-level rows for a shard.
+		// Optional filter fields (DomainID, ClusterAttributeScope, ClusterAttributeName) narrow the result when non-empty.
+		SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error)
+		// InsertOrUpdateHistoryDLQAckLevelRow upserts a single ack-level row.
+		InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error
 	}
 )

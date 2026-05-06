@@ -22,9 +22,9 @@ package nosql
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -89,38 +89,117 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 func (m *nosqlHistoryDLQTaskStore) GetName() string { return m.db.PluginName() }
 func (m *nosqlHistoryDLQTaskStore) Close()          {}
 
-// GetHistoryDLQTasks is not yet implemented; it will be wired once the
-// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+// GetHistoryDLQTasks reads paginated tasks from the history DLQ.
 func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
-	_ context.Context,
-	_ persistence.InternalGetHistoryDLQTasksRequest,
+	ctx context.Context,
+	request persistence.InternalGetHistoryDLQTasksRequest,
 ) (persistence.InternalGetHistoryDLQTasksResponse, error) {
-	return persistence.InternalGetHistoryDLQTasksResponse{}, fmt.Errorf("GetHistoryDLQTasks not implemented")
+	rows, nextPageToken, err := m.db.SelectHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskFilter{
+		ShardID:                  request.ShardID,
+		DomainID:                 request.DomainID,
+		ClusterAttributeScope:    request.ClusterAttributeScope,
+		ClusterAttributeName:     request.ClusterAttributeName,
+		TaskType:                 request.TaskType,
+		ExclusiveMinVisibilityTS: request.ExclusiveMinVisibilityTS,
+		ExclusiveMinTaskID:       request.ExclusiveMinTaskID,
+		InclusiveMaxVisibilityTS: request.InclusiveMaxVisibilityTS,
+		InclusiveMaxTaskID:       request.InclusiveMaxTaskID,
+		PageSize:                 request.PageSize,
+		NextPageToken:            request.NextPageToken,
+	})
+	if err != nil {
+		return persistence.InternalGetHistoryDLQTasksResponse{}, convertCommonErrors(m.db, "GetHistoryDLQTasks", err)
+	}
+
+	tasks := make([]*persistence.InternalHistoryDLQTask, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, &persistence.InternalHistoryDLQTask{
+			DomainID:              row.DomainID,
+			ClusterAttributeScope: row.ClusterAttributeScope,
+			ClusterAttributeName:  row.ClusterAttributeName,
+			TaskType:              row.TaskType,
+			VisibilityTimestamp:   row.VisibilityTimestamp,
+			TaskID:                row.TaskID,
+			TaskPayload:           &persistence.DataBlob{Data: row.Data, Encoding: constants.EncodingType(row.DataEncoding)},
+			CreatedAt:             row.CreatedAt,
+		})
+	}
+	return persistence.InternalGetHistoryDLQTasksResponse{
+		Tasks:         tasks,
+		NextPageToken: nextPageToken,
+	}, nil
 }
 
-// RangeDeleteHistoryDLQTasks is not yet implemented; it will be wired once the
-// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+// RangeDeleteHistoryDLQTasks deletes all tasks up to and including the given ack-level bounds.
 func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
-	_ context.Context,
-	_ persistence.InternalRangeDeleteHistoryDLQTasksRequest,
+	ctx context.Context,
+	request persistence.InternalRangeDeleteHistoryDLQTasksRequest,
 ) error {
-	return fmt.Errorf("RangeDeleteHistoryDLQTasks not implemented")
+	err := m.db.RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskType:              request.TaskType,
+		AckLevelVisibilityTS:  request.AckLevelVisibilityTS,
+		AckLevelTaskID:        request.AckLevelTaskID,
+	})
+	if err != nil {
+		return convertCommonErrors(m.db, "RangeDeleteHistoryDLQTasks", err)
+	}
+	return nil
 }
 
-// GetHistoryDLQAckLevels is not yet implemented; it will be wired once the
-// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+// GetHistoryDLQAckLevels reads ack-level rows for a shard.
 func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
-	_ context.Context,
-	_ persistence.InternalGetHistoryDLQAckLevelsRequest,
+	ctx context.Context,
+	request persistence.InternalGetHistoryDLQAckLevelsRequest,
 ) (persistence.InternalGetHistoryDLQAckLevelsResponse, error) {
-	return persistence.InternalGetHistoryDLQAckLevelsResponse{}, fmt.Errorf("GetHistoryDLQAckLevels not implemented")
+	rows, err := m.db.SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+	})
+	if err != nil {
+		return persistence.InternalGetHistoryDLQAckLevelsResponse{}, convertCommonErrors(m.db, "GetHistoryDLQAckLevels", err)
+	}
+
+	ackLevels := make([]*persistence.InternalHistoryDLQAckLevel, 0, len(rows))
+	for _, row := range rows {
+		ackLevels = append(ackLevels, &persistence.InternalHistoryDLQAckLevel{
+			ShardID:               row.ShardID,
+			DomainID:              row.DomainID,
+			ClusterAttributeScope: row.ClusterAttributeScope,
+			ClusterAttributeName:  row.ClusterAttributeName,
+			TaskType:              row.TaskType,
+			AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
+			AckLevelTaskID:        row.AckLevelTaskID,
+			LastUpdatedAt:         row.LastUpdatedAt,
+		})
+	}
+	return persistence.InternalGetHistoryDLQAckLevelsResponse{
+		AckLevels: ackLevels,
+	}, nil
 }
 
-// UpdateHistoryDLQAckLevel is not yet implemented; it will be wired once the
-// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+// UpdateHistoryDLQAckLevel upserts a single ack-level row.
 func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
-	_ context.Context,
-	_ persistence.InternalUpdateHistoryDLQAckLevelRequest,
+	ctx context.Context,
+	request persistence.InternalUpdateHistoryDLQAckLevelRequest,
 ) error {
-	return fmt.Errorf("UpdateHistoryDLQAckLevel not implemented")
+	err := m.db.InsertOrUpdateHistoryDLQAckLevelRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
+		ShardID:               request.Row.ShardID,
+		DomainID:              request.Row.DomainID,
+		ClusterAttributeScope: request.Row.ClusterAttributeScope,
+		ClusterAttributeName:  request.Row.ClusterAttributeName,
+		TaskType:              request.Row.TaskType,
+		AckLevelVisibilityTS:  request.Row.AckLevelVisibilityTS,
+		AckLevelTaskID:        request.Row.AckLevelTaskID,
+		LastUpdatedAt:         request.Row.LastUpdatedAt,
+	})
+	if err != nil {
+		return convertCommonErrors(m.db, "UpdateHistoryDLQAckLevel", err)
+	}
+	return nil
 }

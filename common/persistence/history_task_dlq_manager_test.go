@@ -426,7 +426,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 						assert.Equal(t, "dom", req.Row.DomainID)
 						assert.Equal(t, HistoryTaskCategoryIDReplication, req.Row.TaskType)
 						assert.Equal(t, int64(77), req.Row.AckLevelTaskID)
-						assert.Equal(t, now, req.Row.AckLevelVisibilityTS)
+						assert.Equal(t, time.Unix(0, 0).UTC(), req.Row.AckLevelVisibilityTS)
 						assert.Equal(t, now, req.Row.LastUpdatedAt)
 						return nil
 					})

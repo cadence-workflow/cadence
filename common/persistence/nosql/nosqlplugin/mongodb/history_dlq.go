@@ -30,3 +30,19 @@ import (
 func (db *mdb) InsertHistoryDLQTaskRow(ctx context.Context, task *nosqlplugin.HistoryDLQTaskRow) error {
 	panic("TODO: InsertHistoryDLQTaskRow not implemented for MongoDB")
 }
+
+func (db *mdb) SelectHistoryDLQTaskRows(ctx context.Context, filter nosqlplugin.HistoryDLQTaskFilter) ([]*nosqlplugin.HistoryDLQTaskRow, []byte, error) {
+	panic("TODO: SelectHistoryDLQTaskRows not implemented for MongoDB")
+}
+
+func (db *mdb) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter nosqlplugin.HistoryDLQTaskRangeDeleteFilter) error {
+	panic("TODO: RangeDeleteHistoryDLQTaskRows not implemented for MongoDB")
+}
+
+func (db *mdb) SelectHistoryDLQAckLevelRows(ctx context.Context, filter nosqlplugin.HistoryDLQAckLevelFilter) ([]*nosqlplugin.HistoryDLQAckLevelRow, error) {
+	panic("TODO: SelectHistoryDLQAckLevelRows not implemented for MongoDB")
+}
+
+func (db *mdb) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *nosqlplugin.HistoryDLQAckLevelRow) error {
+	panic("TODO: InsertOrUpdateHistoryDLQAckLevelRow not implemented for MongoDB")
+}
