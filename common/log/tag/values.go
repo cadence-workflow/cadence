@@ -235,11 +235,11 @@ var (
 	StoreOperationCompleteTimerTask                  = storeOperation("complete-timer-task")
 	StoreOperationGetHistoryTasks                    = storeOperation("get-history-tasks")
 	StoreOperationCompleteHistoryTask                = storeOperation("complete-history-task")
+	StoreOperationCompleteHistoryTasks               = storeOperation("complete-history-tasks")
 	StoreOperationRangeCompleteHistoryTask           = storeOperation("range-complete-history-task")
 	StoreOperationGetActiveClusterSelectionPolicy    = storeOperation("get-active-cluster-selection-policy")
 	StoreOperationDeleteActiveClusterSelectionPolicy = storeOperation("delete-active-cluster-selection-policy")
 	StoreOperationFetchWorkflowTimerTasksForCleanup  = storeOperation("fetch-workflow-timer-tasks-for-cleanup")
-	StoreOperationCompleteHistoryTasks               = storeOperation("complete-history-tasks")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")

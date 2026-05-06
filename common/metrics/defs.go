@@ -211,6 +211,8 @@ const (
 	PersistenceGetHistoryTasksScope
 	// PersistenceCompleteHistoryTaskScope tracks CompleteHistoryTask calls made by service to persistence layer
 	PersistenceCompleteHistoryTaskScope
+	// PersistenceCompleteHistoryTasksScope tracks CompleteHistoryTasks calls
+	PersistenceCompleteHistoryTasksScope
 	// PersistenceRangeCompleteHistoryTaskScope tracks RangeCompleteHistoryTask calls made by service to persistence layer
 	PersistenceRangeCompleteHistoryTaskScope
 	// PersistenceCreateTasksScope tracks CreateTask calls made by service to persistence layer
@@ -327,8 +329,6 @@ const (
 	PersistenceDeleteActiveClusterSelectionPolicyScope
 	// PersistenceFetchWorkflowTimerTasksForCleanupScope tracks FetchWorkflowTimerTasksForCleanup calls
 	PersistenceFetchWorkflowTimerTasksForCleanupScope
-	// PersistenceCompleteHistoryTasksScope tracks CompleteHistoryTasks calls
-	PersistenceCompleteHistoryTasksScope
 
 	// ResolverHostNotFoundScope is a simple low level error indicating a lookup failed in the membership resolver
 	ResolverHostNotFoundScope
@@ -1597,6 +1597,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceCompleteTimerTaskScope:                        {operation: "CompleteTimerTask"},
 		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
 		PersistenceCompleteHistoryTaskScope:                      {operation: "CompleteHistoryTask"},
+		PersistenceCompleteHistoryTasksScope:                     {operation: "CompleteHistoryTasks"},
 		PersistenceRangeCompleteHistoryTaskScope:                 {operation: "RangeCompleteHistoryTask"},
 		PersistenceCreateTasksScope:                              {operation: "CreateTask"},
 		PersistenceGetTasksScope:                                 {operation: "GetTasks"},
@@ -1664,7 +1665,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
 		PersistenceDeleteActiveClusterSelectionPolicyScope:       {operation: "DeleteActiveClusterSelectionPolicy"},
 		PersistenceFetchWorkflowTimerTasksForCleanupScope:        {operation: "FetchWorkflowTimerTasksForCleanup"},
-		PersistenceCompleteHistoryTasksScope:                     {operation: "CompleteHistoryTasks"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
 
 		ClusterMetadataArchivalConfigScope: {operation: "ArchivalConfig"},

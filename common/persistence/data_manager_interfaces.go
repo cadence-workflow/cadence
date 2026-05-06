@@ -966,14 +966,6 @@ type (
 		RunID      string
 	}
 
-	// FetchWorkflowTimerTasksForCleanupRequest identifies the workflow whose timer tracking
-	// column should be read to find tasks eligible for cleanup.
-	FetchWorkflowTimerTasksForCleanupRequest struct {
-		DomainID   string
-		WorkflowID string
-		RunID      string
-	}
-
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	PutReplicationTaskToDLQRequest struct {
 		ShardID           ShardID
@@ -1045,6 +1037,14 @@ type (
 		ShardID      ShardID
 		TaskCategory HistoryTaskCategory
 		TaskKey      HistoryTaskKey
+	}
+
+	// FetchWorkflowTimerTasksForCleanupRequest identifies the workflow whose timer tracking
+	// column should be read to find tasks eligible for cleanup.
+	FetchWorkflowTimerTasksForCleanupRequest struct {
+		DomainID   string
+		WorkflowID string
+		RunID      string
 	}
 
 	// RangeCompleteHistoryTaskRequest is used to complete a range of history tasks
@@ -1664,8 +1664,8 @@ type (
 
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
-		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 		CompleteHistoryTasks(ctx context.Context, category HistoryTaskCategory, keys []HistoryTaskKey) error
+		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 		FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) ([]HistoryTaskKey, error)
 
 		// Scan operations
