@@ -972,7 +972,7 @@ type (
 		SourceClusterName string
 		TaskInfo          *ReplicationTaskInfo
 		DomainName        string
-		Task              *DataBlob
+		Task              *types.ReplicationTask
 	}
 
 	// GetReplicationTasksFromDLQRequest is used to get replication tasks from dlq

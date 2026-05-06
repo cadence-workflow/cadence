@@ -870,10 +870,14 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *PutReplicationTaskToDLQRequest,
 ) error {
+	taskBlob, err := m.serializer.SerializeReplicationDLQTask(request.Task, constants.EncodingTypeThriftRW)
+	if err != nil {
+		return err
+	}
 	internalRequest := &InternalPutReplicationTaskToDLQRequest{
 		SourceClusterName: request.SourceClusterName,
 		TaskInfo:          m.toInternalReplicationTaskInfo(request.TaskInfo),
-		Task:              request.Task,
+		Task:              taskBlob,
 	}
 	return m.persistence.PutReplicationTaskToDLQ(ctx, internalRequest)
 }

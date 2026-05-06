@@ -577,10 +577,6 @@ func (p *taskProcessorImpl) generateDLQRequest(
 		if err != nil {
 			return nil, err
 		}
-		taskBlob, err := p.historySerializer.SerializeReplicationDLQTask(replicationTask, constants.EncodingTypeThriftRW)
-		if err != nil {
-			return nil, err
-		}
 		return &persistence.PutReplicationTaskToDLQRequest{
 			SourceClusterName: p.sourceCluster,
 			TaskInfo: &persistence.ReplicationTaskInfo{
@@ -591,7 +587,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				TaskType:    persistence.ReplicationTaskTypeSyncActivity,
 				ScheduledID: taskAttributes.GetScheduledID(),
 			},
-			Task:       taskBlob,
+			Task:       replicationTask,
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
@@ -613,10 +609,6 @@ func (p *taskProcessorImpl) generateDLQRequest(
 			return nil, fmt.Errorf("corrupted history event batch, empty events")
 		}
 
-		taskBlob, err := p.historySerializer.SerializeReplicationDLQTask(replicationTask, constants.EncodingTypeThriftRW)
-		if err != nil {
-			return nil, err
-		}
 		return &persistence.PutReplicationTaskToDLQRequest{
 			SourceClusterName: p.sourceCluster,
 			TaskInfo: &persistence.ReplicationTaskInfo{
@@ -629,7 +621,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				NextEventID:  events[len(events)-1].ID + 1,
 				Version:      events[0].Version,
 			},
-			Task:       taskBlob,
+			Task:       replicationTask,
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
