@@ -100,6 +100,7 @@ func TestCreateSchedule(t *testing.T) {
 			StartWorkflow: &types.StartWorkflowAction{
 				WorkflowType: &types.WorkflowType{Name: "my-workflow"},
 				TaskList:     &types.TaskList{Name: "my-tasklist"},
+				Input:        []byte(`{"k":1}`),
 			},
 		},
 	}
@@ -249,6 +250,8 @@ func TestCreateSchedule(t *testing.T) {
 						assert.Equal(t, testDomain, input.Domain)
 						assert.Equal(t, "my-schedule", input.ScheduleID)
 						assert.Equal(t, "*/5 * * * *", input.Spec.CronExpression)
+						require.NotNil(t, input.Action.StartWorkflow)
+						assert.Equal(t, []byte(`{"k":1}`), input.Action.StartWorkflow.Input)
 
 						return &types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil
 					})
