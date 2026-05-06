@@ -385,8 +385,8 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 	if len(keys) == 0 {
 		return
 	}
-	_ = t.shard.GetExecutionManager().CompleteHistoryTasks(ctx, persistence.HistoryTaskCategoryTimer, keys)
 	t.metricsClient.AddCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.WorkflowCleanupTimerTasksSentForDeletionCount, int64(len(keys)))
+	_ = t.shard.GetExecutionManager().CompleteHistoryTasks(ctx, persistence.HistoryTaskCategoryTimer, keys)
 }
 
 func (t *timerTaskExecutorBase) Stop() {

@@ -1004,18 +1004,23 @@ func appendWorkflowTimerTasks(
 	timerTasks map[int64]time.Time,
 	timeStamp time.Time,
 ) {
-	for taskID, visibilityTs := range timerTasks {
-		batch.Query(templateAppendWorkflowTimerTaskQuery,
-			[]workflowTimerTaskTuple{{VisibilityTimestamp: visibilityTs, TaskID: taskID}},
-			timeStamp,
-			shardID,
-			rowTypeExecution,
-			domainID,
-			workflowID,
-			runID,
-			defaultVisibilityTimestamp,
-			rowTypeExecutionTaskID)
+	if len(timerTasks) == 0 {
+		return
 	}
+	tuples := make([]workflowTimerTaskTuple, 0, len(timerTasks))
+	for taskID, visibilityTs := range timerTasks {
+		tuples = append(tuples, workflowTimerTaskTuple{VisibilityTimestamp: visibilityTs, TaskID: taskID})
+	}
+	batch.Query(templateAppendWorkflowTimerTaskQuery,
+		tuples,
+		timeStamp,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID)
 }
 
 func resetActivityInfos(
