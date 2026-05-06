@@ -236,8 +236,8 @@ type Config struct {
 	HistorySizeLimitWarn             dynamicproperties.IntPropertyFnWithDomainFilter
 	HistoryCountLimitError           dynamicproperties.IntPropertyFnWithDomainFilter
 	HistoryCountLimitWarn            dynamicproperties.IntPropertyFnWithDomainFilter
-	PendingActivitiesCountLimitError dynamicproperties.IntPropertyFn
-	PendingActivitiesCountLimitWarn  dynamicproperties.IntPropertyFn
+	PendingActivitiesCountLimitError dynamicproperties.IntPropertyFnWithDomainFilter
+	PendingActivitiesCountLimitWarn  dynamicproperties.IntPropertyFnWithDomainFilter
 	PendingActivityValidationEnabled dynamicproperties.BoolPropertyFn
 
 	// ValidSearchAttributes is legal indexed keys that can be used in list APIs
@@ -524,8 +524,8 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		HistorySizeLimitWarn:             dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitWarn),
 		HistoryCountLimitError:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitError),
 		HistoryCountLimitWarn:            dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitWarn),
-		PendingActivitiesCountLimitError: dc.GetIntProperty(dynamicproperties.PendingActivitiesCountLimitError),
-		PendingActivitiesCountLimitWarn:  dc.GetIntProperty(dynamicproperties.PendingActivitiesCountLimitWarn),
+		PendingActivitiesCountLimitError: dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitError),
+		PendingActivitiesCountLimitWarn:  dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitWarn),
 		PendingActivityValidationEnabled: dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation),
 
 		ThrottledLogRPS:   dc.GetIntProperty(dynamicproperties.HistoryThrottledLogRPS),

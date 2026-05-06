@@ -410,13 +410,13 @@ const (
 	// KeyName: limit.pendingActivityCount.error
 	// Value type: Int
 	// Default value: 1024
-	// Allowed filters: N/A
+	// Allowed filters: DomainName
 	PendingActivitiesCountLimitError
 	// PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged
 	// KeyName: limit.pendingActivityCount.warn
 	// Value type: Int
 	// Default value: 512
-	// Allowed filters: N/A
+	// Allowed filters: DomainName
 	PendingActivitiesCountLimitWarn
 	// DomainNameMaxLength is the length limit for domain name
 	// KeyName: limit.domainNameLength
@@ -3476,11 +3476,13 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	PendingActivitiesCountLimitError: {
 		KeyName:      "limit.pendingActivityCount.error",
+		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitError is the limit of how many pending activities a workflow can have at a point in time",
 		DefaultValue: 1024,
 	},
 	PendingActivitiesCountLimitWarn: {
 		KeyName:      "limit.pendingActivityCount.warn",
+		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged",
 		DefaultValue: 512,
 	},
