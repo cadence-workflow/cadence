@@ -36,6 +36,11 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/service/history/constants"
+)
+
+const (
+	defaultTestProcessingInterval = 15 * time.Second
 )
 
 // newMockTask creates a mock persistence.Task whose GetTaskKey returns an immediate key for taskID.
@@ -57,7 +62,9 @@ func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *Moc
 			persistence.HistoryTaskCategoryIDTransfer: executor,
 		},
 		10,
-		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(true),
 		clock.NewMockedTimeSource(),
 		testlogger.New(t),
 	)
@@ -280,7 +287,9 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 			persistence.HistoryTaskCategoryIDTimer:    timerExecutor,
 		},
 		10,
-		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(true),
 		clock.NewMockedTimeSource(),
 		testlogger.New(t),
 	)
@@ -419,7 +428,9 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 		store,
 		map[int]TaskExecutor{},
 		10,
-		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(true),
 		clock.NewMockedTimeSource(),
 		testlogger.New(t),
 	)
@@ -488,7 +499,9 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 		store,
 		map[int]TaskExecutor{},
 		10,
-		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(true),
 		ts,
 		testlogger.New(t),
 	)
@@ -496,7 +509,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 	proc.Start()
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultProcessingInterval)
+	ts.Advance(defaultTestProcessingInterval)
 
 	select {
 	case <-inGetAckLevels:
@@ -567,7 +580,9 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 		store,
 		map[int]TaskExecutor{},
 		10,
-		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(true),
 		clock.NewMockedTimeSource(),
 		testlogger.New(t),
 	)
@@ -598,7 +613,9 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 		store,
 		map[int]TaskExecutor{},
 		10,
-		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(true),
 		ts,
 		testlogger.New(t),
 	)
@@ -607,11 +624,76 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 	defer proc.Stop()
 
 	ts.BlockUntil(1)
-	ts.Advance(defaultProcessingInterval)
+	ts.Advance(defaultTestProcessingInterval)
 
 	select {
 	case <-processed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for ProcessShard to be called by the background loop")
 	}
+}
+
+func TestStart_WhenNotEnabled_DoesNotStartBackgroundLoop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	store := NewMockHistoryTaskDLQStore(ctrl)
+	store.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).Times(0)
+	proc := NewProcessor(
+		1,
+		store,
+		map[int]TaskExecutor{},
+		10,
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
+		dynamicproperties.GetBoolPropertyFn(false),
+		ts,
+		testlogger.New(t),
+	)
+
+	proc.Start()
+	defer proc.Stop()
+
+	// If the background loop had started it would immediately register a timer.
+	// BlockUntil(1) unblocks as soon as one goroutine is waiting on the time source,
+	// so if it does not return within the deadline the loop was never started.
+	timerRegistered := make(chan struct{})
+	go func() {
+		ts.BlockUntil(1)
+		close(timerRegistered)
+	}()
+	select {
+	case <-timerRegistered:
+		t.Fatal("background loop started despite processor being disabled")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestProcessShard_WhenDomainNotEnabled_SkipsProcessing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := NewMockHistoryTaskDLQStore(ctrl)
+	executor := NewMockTaskExecutor(ctrl)
+	proc := NewProcessor(
+		1,
+		store,
+		map[int]TaskExecutor{
+			persistence.HistoryTaskCategoryIDTransfer: executor,
+		},
+		10,
+		dynamicproperties.GetDurationPropertyFn(defaultTestProcessingInterval),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeDisabled),
+		dynamicproperties.GetBoolPropertyFn(true),
+		clock.NewMockedTimeSource(),
+		testlogger.New(t),
+	)
+
+	al := baseAckLevel(1)
+	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al}, nil)
+	store.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Times(0)
+	executor.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
 }

@@ -2371,6 +2371,13 @@ const (
 	// Allowed filters: DomainName
 	EnableTaskListAwareTaskSchedulerByDomain
 
+	// HistoryTaskDLQEnabled enables processing HistoryTaskDLQ messages.
+	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
+	// KeyName: history.historyTaskDLQProcessorEnabled
+	// Value type: Bool
+	// Default value: false
+	HistoryTaskDLQProcessorEnabled
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -2722,7 +2729,12 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
-	// HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue
+	// HistoryTaskDeadLetterQueueMode enables writing tasks to the History Task DLQ rather than discarding them.
+	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
+	//
+	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
+	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
 	// KeyName: history.historyTaskDeadLetterQueueMode
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
@@ -5129,6 +5141,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain",
 		Filters:      []Filter{DomainName},
 		DefaultValue: false,
+	},
+	HistoryTaskDLQProcessorEnabled: {
+		KeyName:      "history.historyTaskDLQProcessorEnabled",
+		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
+		DefaultValue: false,
+		Filters:      []Filter{DomainName},
 	},
 }
 

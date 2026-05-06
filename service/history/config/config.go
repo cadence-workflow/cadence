@@ -348,6 +348,7 @@ type Config struct {
 	// History Task DLQ Configuration
 	HistoryTaskDLQMode            dynamicproperties.StringPropertyFnWithDomainFilter
 	HistoryTaskProcessingInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
+	HistoryTaskDLQEnabled         dynamicproperties.BoolPropertyFn
 
 	// HostName for machine running the service
 	HostName string

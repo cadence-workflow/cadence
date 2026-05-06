@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/multierr"
 
@@ -38,12 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
-)
-
-const (
-	// defaultProcessingInterval is how often the periodic shard sweep runs.
-	// TODO(c-warren) Make this dynamically configurable via dynamic config in a future change.
-	defaultProcessingInterval = 30 * time.Minute
+	"github.com/uber/cadence/service/history/constants"
 )
 
 type (
@@ -68,13 +62,15 @@ type (
 	}
 
 	ProcessorImpl struct {
-		shardID    int
-		store      HistoryTaskDLQStore
-		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
-		pageSize   int
-		interval   dynamicproperties.DurationPropertyFn
-		timeSource clock.TimeSource
-		logger     log.Logger
+		shardID       int
+		store         HistoryTaskDLQStore
+		executors     map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
+		pageSize      int
+		interval      dynamicproperties.DurationPropertyFn
+		domainEnabled dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled       dynamicproperties.BoolPropertyFn
+		timeSource    clock.TimeSource
+		logger        log.Logger
 
 		status    int32
 		ctx       context.Context
@@ -84,14 +80,6 @@ type (
 	}
 )
 
-// DefaultProcessingInterval returns a default processing interval of 30 minutes.
-// TODO(c-warren): Remove this once the dynamic config is implemented.
-func DefaultProcessingInterval() dynamicproperties.DurationPropertyFn {
-	return func(opts ...dynamicproperties.FilterOption) time.Duration {
-		return defaultProcessingInterval
-	}
-}
-
 var _ Processor = (*ProcessorImpl)(nil)
 
 // NewProcessor creates a Processor that reads from the history task DLQ for shardID.
@@ -99,33 +87,39 @@ var _ Processor = (*ProcessorImpl)(nil)
 // executors maps persistence.HistoryTaskCategoryID* constants to the appropriate
 // historyqueuev2 executor for each task type.
 //
-// interval controls how often the background loop calls ProcessShard. Pass
-// dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval) to use the
-// package default, or supply a dynamic-config-backed function for live tuning.
+// interval controls how often the background loop calls ProcessShard.
 func NewProcessor(
 	shardID int,
 	store HistoryTaskDLQStore,
 	executors map[int]TaskExecutor,
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFn,
+	domainEnabled dynamicproperties.StringPropertyFnWithDomainFilter,
+	enabled dynamicproperties.BoolPropertyFn,
 	timeSource clock.TimeSource,
 	logger log.Logger,
 ) *ProcessorImpl {
 	return &ProcessorImpl{
-		shardID:    shardID,
-		store:      store,
-		executors:  executors,
-		pageSize:   pageSize,
-		interval:   interval,
-		timeSource: timeSource,
-		logger:     logger,
-		status:     common.DaemonStatusInitialized,
-		cancel:     func() {}, // no-op until Start() sets the real cancel
+		shardID:       shardID,
+		store:         store,
+		executors:     executors,
+		pageSize:      pageSize,
+		interval:      interval,
+		domainEnabled: domainEnabled,
+		enabled:       enabled,
+		timeSource:    timeSource,
+		logger:        logger,
+		status:        common.DaemonStatusInitialized,
+		cancel:        func() {}, // no-op until Start() sets the real cancel
 	}
 }
 
 // Start starts the processor and launches the background processing loop.
 func (p *ProcessorImpl) Start() {
+	if !p.enabled() {
+		p.logger.Debug("DLQ processor not enabled, skipping start", tag.ShardID(p.shardID))
+		return
+	}
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -187,6 +181,11 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 }
 
 func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
+	if p.domainEnabled(domainID) != constants.HistoryTaskDLQModeEnabled {
+		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
+		return nil
+	}
+
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
 	if ctx.Err() != nil {
@@ -223,6 +222,11 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 // each one. It stops at the first execution failure, then advances the ack level to
 // the last successfully executed task key.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error {
+	if p.domainEnabled(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
+		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
+		return nil
+	}
+
 	executor, ok := p.executors[al.TaskType]
 	if !ok {
 		return fmt.Errorf("no executor registered for task type %d", al.TaskType)
