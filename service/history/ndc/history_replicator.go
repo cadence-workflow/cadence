@@ -345,9 +345,13 @@ func (r *historyReplicatorImpl) applyEvents(
 	defer func() {
 		if rec := recover(); rec != nil {
 			releaseFn(errPanic)
-			stack := make([]byte, 1<<14) // 16kb
+			stack := make([]byte, 1<<14)
 			n := runtime.Stack(stack, false)
 			stack = stack[:n]
+			r.logger.Error("panic in applyEvents",
+				tag.Error(fmt.Errorf("%v", rec)),
+				tag.Value(string(stack)),
+			)
 			if retError == nil {
 				retError = fmt.Errorf("panic: %v, stack: %s", rec, stack)
 			} else {
