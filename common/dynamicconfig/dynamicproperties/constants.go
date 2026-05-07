@@ -2371,7 +2371,7 @@ const (
 	// Allowed filters: DomainName
 	EnableTaskListAwareTaskSchedulerByDomain
 
-	// HistoryTaskDLQEnabled enables processing HistoryTaskDLQ messages.
+	// HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages.
 	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
 	// KeyName: history.historyTaskDLQProcessorEnabled
 	// Value type: Bool
@@ -2729,17 +2729,17 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
-	// HistoryTaskDeadLetterQueueMode enables writing tasks to the History Task DLQ rather than discarding them.
+	// HistoryTaskDLQMode enables writing tasks to the History Task Dead Letter Queue rather than discarding them.
 	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
 	//
 	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
 	// * "shadow" - tasks are written to the DLQ but never processed.
 	//
-	// KeyName: history.historyTaskDeadLetterQueueMode
+	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
 	// Allowed filters: domainName
-	HistoryTaskDeadLetterQueueMode
+	HistoryTaskDLQMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -5425,9 +5425,9 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
 		DefaultValue: "naive",
 	},
-	HistoryTaskDeadLetterQueueMode: {
-		KeyName:      "history.historyTaskDeadLetterQueueMode",
-		Description:  "HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+	HistoryTaskDLQMode: {
+		KeyName:      "history.historyTaskDLQMode",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},

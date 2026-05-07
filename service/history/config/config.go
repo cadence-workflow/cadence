@@ -346,9 +346,9 @@ type Config struct {
 	GlobalRatelimiterGCAfter        dynamicproperties.DurationPropertyFn
 
 	// History Task DLQ Configuration
-	HistoryTaskDLQMode            dynamicproperties.StringPropertyFnWithDomainFilter
-	HistoryTaskProcessingInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
-	HistoryTaskDLQEnabled         dynamicproperties.BoolPropertyFn
+	HistoryTaskDLQMode              dynamicproperties.StringPropertyFnWithDomainFilter
+	HistoryTaskDLQProcessorInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
+	HistoryTaskDLQProcessorEnabled  dynamicproperties.BoolPropertyFn
 
 	// HostName for machine running the service
 	HostName string
@@ -617,9 +617,9 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		GlobalRatelimiterDecayAfter:     dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterDecayAfter),
 		GlobalRatelimiterGCAfter:        dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterGCAfter),
 
-		HistoryTaskDLQMode:            dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDeadLetterQueueMode),
-		HistoryTaskProcessingInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
-		HistoryTaskDLQEnabled:         dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
+		HistoryTaskDLQMode:              dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDLQMode),
+		HistoryTaskDLQProcessorInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
+		HistoryTaskDLQProcessorEnabled:  dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
 
 		HostName: hostname,
 	}
