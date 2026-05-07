@@ -62,15 +62,15 @@ type (
 	}
 
 	ProcessorImpl struct {
-		shardID       int
-		store         HistoryTaskDLQStore
-		executors     map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
-		pageSize      int
-		interval      dynamicproperties.DurationPropertyFn
-		domainEnabled dynamicproperties.StringPropertyFnWithDomainFilter
-		enabled       dynamicproperties.BoolPropertyFn
-		timeSource    clock.TimeSource
-		logger        log.Logger
+		shardID    int
+		store      HistoryTaskDLQStore
+		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
+		pageSize   int
+		interval   dynamicproperties.DurationPropertyFn
+		domainMode dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled    dynamicproperties.BoolPropertyFn
+		timeSource clock.TimeSource
+		logger     log.Logger
 
 		status    int32
 		ctx       context.Context
@@ -94,23 +94,23 @@ func NewProcessor(
 	executors map[int]TaskExecutor,
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFn,
-	domainEnabled dynamicproperties.StringPropertyFnWithDomainFilter,
+	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
 	timeSource clock.TimeSource,
 	logger log.Logger,
 ) *ProcessorImpl {
 	return &ProcessorImpl{
-		shardID:       shardID,
-		store:         store,
-		executors:     executors,
-		pageSize:      pageSize,
-		interval:      interval,
-		domainEnabled: domainEnabled,
-		enabled:       enabled,
-		timeSource:    timeSource,
-		logger:        logger,
-		status:        common.DaemonStatusInitialized,
-		cancel:        func() {}, // no-op until Start() sets the real cancel
+		shardID:    shardID,
+		store:      store,
+		executors:  executors,
+		pageSize:   pageSize,
+		interval:   interval,
+		domainMode: domainMode,
+		enabled:    enabled,
+		timeSource: timeSource,
+		logger:     logger,
+		status:     common.DaemonStatusInitialized,
+		cancel:     func() {}, // no-op until Start() sets the real cancel
 	}
 }
 
@@ -180,7 +180,7 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 
 func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
 	// Fast-fail for direct callers; processAckLevel also guards each partition individually.
-	if p.domainEnabled(domainID) != constants.HistoryTaskDLQModeEnabled {
+	if p.domainMode(domainID) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
 		return nil
 	}
@@ -221,7 +221,7 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 // each one. It stops at the first execution failure, then advances the ack level to
 // the last successfully executed task key.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error {
-	if p.domainEnabled(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
+	if p.domainMode(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
 		return nil
 	}
