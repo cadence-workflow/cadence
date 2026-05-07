@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -438,28 +439,75 @@ func (wh *WorkflowHandler) ListSchedules(
 		pageSize = defaultListSchedulesPageSize
 	}
 
-	// NOTE: this calls wh.ListWorkflowExecutions directly (not via frontend client),
-	// which skips the cluster redirection middleware. For global (XDC) domains, the
-	// passive region may return stale visibility data. This applies to all schedule
-	// read APIs (Describe, List) and will be addressed when adding XDC support.
-	//
-	// CloseTime = missing restricts results to open scheduler workflows, so deleted
-	// schedules (closed workflows with state.Deleted=true returned nil) no longer
-	// surface here. This is the canonical "open only" filter used across the
-	// visibility layer (ES, Pinot, SQL-backed stores all recognize it).
-	listResp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
-		Domain:        domainName,
-		PageSize:      pageSize,
-		NextPageToken: request.GetNextPageToken(),
-		Query:         fmt.Sprintf("WorkflowType = '%s' and CloseTime = missing", scheduler.WorkflowTypeName),
-	})
+	// NOTE: schedule read handlers call visibility via the embedded WorkflowHandler
+	// methods below (not via the frontend client), so cluster redirection middleware
+	// is skipped. For global (XDC) domains, the passive region may return stale
+	// visibility data; that applies to Describe and List schedules until XDC support.
+	// Operator-oriented details: docs/list-schedules-visibility.md
+	var executions []*types.WorkflowExecutionInfo
+	var nextPageToken []byte
+	var err error
+
+	if wh.config.DisableListVisibilityByFilter(domainName) {
+		// When filtered list visibility APIs are disabled, only list-by-query remains
+		// (advanced visibility: ES / Pinot / SQL with custom query support).
+		listResp, e := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
+			Domain:        domainName,
+			PageSize:      pageSize,
+			NextPageToken: request.GetNextPageToken(),
+			Query:         fmt.Sprintf("WorkflowType = '%s' and CloseTime = missing", scheduler.WorkflowTypeName),
+		})
+		err = e
+		if listResp != nil {
+			executions = listResp.Executions
+			nextPageToken = listResp.NextPageToken
+		}
+	} else {
+		// Default path: list open workflows by scheduler workflow type. This uses
+		// ListOpenWorkflowExecutionsByType and works on basic Cassandra/SQL visibility
+		// stores that do not support ListWorkflowExecutions custom queries (which
+		// previously made ListSchedules look empty in those deployments).
+		nowNanos := wh.GetTimeSource().Now().UnixNano()
+		openResp, e := wh.ListOpenWorkflowExecutions(ctx, &types.ListOpenWorkflowExecutionsRequest{
+			Domain:          domainName,
+			MaximumPageSize: pageSize,
+			NextPageToken:   request.GetNextPageToken(),
+			StartTimeFilter: &types.StartTimeFilter{
+				EarliestTime: common.Int64Ptr(0),
+				LatestTime:   common.Int64Ptr(nowNanos),
+			},
+			TypeFilter: &types.WorkflowTypeFilter{Name: scheduler.WorkflowTypeName},
+		})
+		err = e
+		if openResp != nil {
+			executions = openResp.Executions
+			nextPageToken = openResp.NextPageToken
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	entries := make([]*types.ScheduleListEntry, 0, len(listResp.GetExecutions()))
-	for _, exec := range listResp.GetExecutions() {
+	entries := buildScheduleListEntriesFromExecutions(wh, domainName, executions)
+
+	return &types.ListSchedulesResponse{
+		Schedules:     entries,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
+func buildScheduleListEntriesFromExecutions(wh *WorkflowHandler, domainName string, executions []*types.WorkflowExecutionInfo) []*types.ScheduleListEntry {
+	logger := wh.GetLogger()
+	entries := make([]*types.ScheduleListEntry, 0, len(executions))
+	for _, exec := range executions {
 		wfID := exec.GetExecution().GetWorkflowID()
+		if !strings.HasPrefix(wfID, scheduleWorkflowIDPrefix) {
+			logger.Warn("skipping visibility row without schedule workflow id prefix",
+				tag.WorkflowDomainName(domainName),
+				tag.WorkflowID(wfID),
+			)
+			continue
+		}
 		scheduleID := strings.TrimPrefix(wfID, scheduleWorkflowIDPrefix)
 
 		entry := &types.ScheduleListEntry{
@@ -477,7 +525,7 @@ func (wh *WorkflowHandler) ListSchedules(
 			if stateBytes, ok := idx[scheduler.SearchAttrScheduleState]; ok {
 				var stateStr string
 				if err := json.Unmarshal(stateBytes, &stateStr); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
+					logger.Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
@@ -487,7 +535,7 @@ func (wh *WorkflowHandler) ListSchedules(
 			}
 			if cronBytes, ok := idx[scheduler.SearchAttrScheduleCron]; ok {
 				if err := json.Unmarshal(cronBytes, &cronExpr); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleCron search attribute, defaulting to empty",
+					logger.Warn("failed to unmarshal CadenceScheduleCron search attribute, defaulting to empty",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
@@ -495,7 +543,7 @@ func (wh *WorkflowHandler) ListSchedules(
 			}
 			if typeBytes, ok := idx[scheduler.SearchAttrScheduleWorkflowType]; ok {
 				if err := json.Unmarshal(typeBytes, &workflowTypeName); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleWorkflowType search attribute, defaulting to empty",
+					logger.Warn("failed to unmarshal CadenceScheduleWorkflowType search attribute, defaulting to empty",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
@@ -510,11 +558,7 @@ func (wh *WorkflowHandler) ListSchedules(
 
 		entries = append(entries, entry)
 	}
-
-	return &types.ListSchedulesResponse{
-		Schedules:     entries,
-		NextPageToken: listResp.GetNextPageToken(),
-	}, nil
+	return entries
 }
 
 func (wh *WorkflowHandler) signalScheduleWorkflow(

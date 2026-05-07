@@ -725,8 +725,8 @@ func TestListSchedules(t *testing.T) {
 		cronBytes, _ := json.Marshal("0 6 * * *")
 		typeBytes, _ := json.Marshal("my-target-workflow")
 
-		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
-			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler' and CloseTime = missing"
+		f.mockResource.VisibilityMgr.On("ListOpenWorkflowExecutionsByType", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByTypeRequest) bool {
+			return req.Domain == testDomain && req.WorkflowTypeName == scheduler.WorkflowTypeName
 		})).Return(&persistence.ListWorkflowExecutionsResponse{
 			Executions: []*types.WorkflowExecutionInfo{
 				{
@@ -774,6 +774,66 @@ func TestListSchedules(t *testing.T) {
 		assert.Nil(t, resp.Schedules[1].WorkflowType, "missing workflow type search attribute should yield nil")
 
 		assert.Equal(t, []byte("next"), resp.NextPageToken)
+	})
+
+	t.Run("query path when list visibility filter disabled", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
+
+		f.handler.config.DisableListVisibilityByFilter = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+
+		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+
+		f.mockResource.VisibilityMgr.On("ListWorkflowExecutions", mock.Anything, mock.MatchedBy(func(req *persistence.ListWorkflowExecutionsByQueryRequest) bool {
+			return req.Domain == testDomain && req.Query == "WorkflowType = 'cadence-scheduler' and CloseTime = missing"
+		})).Return(&persistence.ListWorkflowExecutionsResponse{
+			Executions: []*types.WorkflowExecutionInfo{
+				{
+					Execution: &types.WorkflowExecution{
+						WorkflowID: "cadence-scheduler:sched-q",
+						RunID:      "run-q",
+					},
+					Type: &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+				},
+			},
+			NextPageToken: []byte("tok-q"),
+		}, nil).Once()
+
+		resp, err := f.handler.ListSchedules(context.Background(), &types.ListSchedulesRequest{
+			Domain:   testDomain,
+			PageSize: 5,
+		})
+		assert.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Len(t, resp.Schedules, 1)
+		assert.Equal(t, "sched-q", resp.Schedules[0].ScheduleID)
+		assert.Equal(t, []byte("tok-q"), resp.NextPageToken)
+	})
+
+	t.Run("skips visibility rows without schedule workflow id prefix", func(t *testing.T) {
+		f := newScheduleTestFixture(t)
+		defer f.finish()
+
+		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+
+		f.mockResource.VisibilityMgr.On("ListOpenWorkflowExecutionsByType", mock.Anything, mock.Anything).
+			Return(&persistence.ListWorkflowExecutionsResponse{
+				Executions: []*types.WorkflowExecutionInfo{
+					{
+						Execution: &types.WorkflowExecution{WorkflowID: "not-scheduler-wf", RunID: "r1"},
+						Type:      &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+					},
+					{
+						Execution: &types.WorkflowExecution{WorkflowID: "cadence-scheduler:good", RunID: "r2"},
+						Type:      &types.WorkflowType{Name: scheduler.WorkflowTypeName},
+					},
+				},
+			}, nil).Once()
+
+		resp, err := f.handler.ListSchedules(context.Background(), &types.ListSchedulesRequest{Domain: testDomain})
+		require.NoError(t, err)
+		require.Len(t, resp.Schedules, 1)
+		assert.Equal(t, "good", resp.Schedules[0].ScheduleID)
 	})
 }
 
