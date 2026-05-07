@@ -139,6 +139,24 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"invalid cron expression": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "not-a-cron"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"impossible cron date (Feb 30) parses but never fires": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "0 0 30 2 *"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"nil action": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
@@ -551,6 +569,24 @@ func TestUpdateSchedule(t *testing.T) {
 					})
 			},
 			wantErr: false,
+		},
+		"invalid cron expression in spec update": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "not-a-cron"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"impossible cron date in spec update (Feb 30) parses but never fires": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "0 0 30 2 *"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
 		},
 	}
 

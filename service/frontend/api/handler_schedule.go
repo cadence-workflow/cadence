@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -122,6 +123,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	}
 	if request.GetSpec().GetCronExpression() == "" {
 		return nil, &types.BadRequestError{Message: "CronExpression is not set on request."}
+	}
+	if _, err := backoff.ValidateSchedule(request.GetSpec().GetCronExpression()); err != nil {
+		return nil, err
 	}
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
@@ -274,6 +278,11 @@ func (wh *WorkflowHandler) UpdateSchedule(
 		return nil, err
 	}
 	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
+	if spec := request.GetSpec(); spec != nil && spec.GetCronExpression() != "" {
+		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {
+			return nil, err
+		}
+	}
 
 	signal := scheduler.UpdateSignal{
 		Spec:     request.GetSpec(),
