@@ -316,10 +316,24 @@ func (wh *WorkflowHandler) DeleteSchedule(
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
 	}
 
-	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameDelete, nil); err != nil {
-		return nil, err
+	err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameDelete, nil)
+	if err == nil {
+		return &types.DeleteScheduleResponse{}, nil
 	}
-	return &types.DeleteScheduleResponse{}, nil
+
+	// Anomalous terminal states of the scheduler workflow (Failed/Terminated/
+	// TimedOut/Canceled) are an operational concern — they should be observed
+	// via scheduler-workflow metrics and logs, not re-surfaced through the
+	// public delete API where they are not actionable for the caller.
+	if errors.As(err, new(*types.EntityNotExistsError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError)) {
+		wh.GetLogger().Info("DeleteSchedule: scheduler workflow already gone; treating as already deleted",
+			tag.WorkflowDomainName(domainName),
+			tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+			tag.Error(err))
+		return &types.DeleteScheduleResponse{}, nil
+	}
+	return nil, err
 }
 
 func (wh *WorkflowHandler) PauseSchedule(

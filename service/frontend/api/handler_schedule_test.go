@@ -65,6 +65,7 @@ func newScheduleTestFixture(t *testing.T) *scheduleTestFixture {
 
 	versionChecker := client.NewMockVersionChecker(ctrl)
 	versionChecker.EXPECT().ClientSupported(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	versionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockResource.MembershipResolver.EXPECT().MemberCount(service.Frontend).Return(5, nil).AnyTimes()
 
 	config := frontendcfg.NewConfig(
@@ -618,7 +619,17 @@ func TestDeleteSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
-		"success": {
+		"empty domain": {
+			request: &types.DeleteScheduleRequest{ScheduleID: "s1"},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"empty schedule ID": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"success: signal delivered": {
 			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
 			mockFn: func(f *scheduleTestFixture) {
 				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
@@ -630,6 +641,33 @@ func TestDeleteSchedule(t *testing.T) {
 					})
 			},
 			wantErr: false,
+		},
+		"idempotent: scheduler workflow not found is treated as already deleted": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.EntityNotExistsError{Message: "workflow cadence-scheduler:s1 not found"})
+			},
+			wantErr: false,
+		},
+		"idempotent: scheduler workflow already closed is treated as already deleted": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.WorkflowExecutionAlreadyCompletedError{Message: "workflow execution already completed"})
+			},
+			wantErr: false,
+		},
+		"non-idempotent error from delete signal passes through unchanged": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("some internal error"))
+			},
+			wantErr: true,
 		},
 	}
 
@@ -832,40 +870,6 @@ func TestNormalizeScheduleError(t *testing.T) {
 		assert.Contains(t, notFound.Message, `schedule "s1" not found in domain`)
 	})
 
-	t.Run("delete not found returns friendly message", func(t *testing.T) {
-		f := newScheduleTestFixture(t)
-		defer f.finish()
-
-		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
-		f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
-			Return(&types.EntityNotExistsError{Message: "workflow cadence-scheduler:s1 not found"})
-
-		_, err := f.handler.DeleteSchedule(context.Background(), &types.DeleteScheduleRequest{
-			Domain:     testDomain,
-			ScheduleID: "s1",
-		})
-
-		var notFound *types.EntityNotExistsError
-		require.True(t, errors.As(err, &notFound))
-		assert.Contains(t, notFound.Message, `schedule "s1" not found in domain`)
-	})
-
-	t.Run("non-EntityNotExistsError passes through unchanged", func(t *testing.T) {
-		f := newScheduleTestFixture(t)
-		defer f.finish()
-
-		origErr := errors.New("some internal error")
-		f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
-		f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
-			Return(origErr)
-
-		_, err := f.handler.DeleteSchedule(context.Background(), &types.DeleteScheduleRequest{
-			Domain:     testDomain,
-			ScheduleID: "s1",
-		})
-
-		assert.Equal(t, origErr, err)
-	})
 }
 
 func TestScheduleWorkflowID(t *testing.T) {
