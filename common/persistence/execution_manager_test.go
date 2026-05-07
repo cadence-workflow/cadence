@@ -567,7 +567,7 @@ func TestDeserializeBufferedEvents(t *testing.T) {
 func TestPutReplicationTaskToDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), &DynamicConfiguration{
 		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	})
 
@@ -581,6 +581,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 			CreationTime: now.UnixNano(),
 		},
 		DomainName: testDomain,
+		Task:       &types.ReplicationTask{},
 	}
 
 	mockedStore.EXPECT().PutReplicationTaskToDLQ(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, req *InternalPutReplicationTaskToDLQRequest) error {
