@@ -1731,11 +1731,19 @@ func TestUpdateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
 	mockedStore.EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req *InternalUpdateWorkflowExecutionRequest) error {
-			assert.Contains(t, req.UpdateWorkflowMutation.WorkflowTimerTasks, longLivedID,
-				"long-lived timer should be tracked")
-			assert.WithinDuration(t, longLivedTS, req.UpdateWorkflowMutation.WorkflowTimerTasks[longLivedID], time.Millisecond)
-			assert.NotContains(t, req.UpdateWorkflowMutation.WorkflowTimerTasks, shortLivedID,
-				"short-lived timer should not be tracked — it will fire naturally within MinTTL")
+			tracked := req.UpdateWorkflowMutation.WorkflowTimerTasks
+			var foundLong, foundShort bool
+			for _, k := range tracked {
+				if k.GetTaskID() == longLivedID {
+					foundLong = true
+					assert.WithinDuration(t, longLivedTS, k.GetScheduledTime(), time.Millisecond)
+				}
+				if k.GetTaskID() == shortLivedID {
+					foundShort = true
+				}
+			}
+			assert.True(t, foundLong, "long-lived timer should be tracked")
+			assert.False(t, foundShort, "short-lived timer should not be tracked — it will fire naturally within MinTTL")
 			return nil
 		}).Times(1)
 
@@ -1787,11 +1795,19 @@ func TestCreateWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
 	mockedStore.EXPECT().CreateWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req *InternalCreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error) {
-			assert.Contains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, longLivedID,
-				"long-lived timer should be tracked")
-			assert.WithinDuration(t, longLivedTS, req.NewWorkflowSnapshot.WorkflowTimerTasks[longLivedID], time.Millisecond)
-			assert.NotContains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, shortLivedID,
-				"short-lived timer should not be tracked — it will fire naturally within MinTTL")
+			tracked := req.NewWorkflowSnapshot.WorkflowTimerTasks
+			var foundLong, foundShort bool
+			for _, k := range tracked {
+				if k.GetTaskID() == longLivedID {
+					foundLong = true
+					assert.WithinDuration(t, longLivedTS, k.GetScheduledTime(), time.Millisecond)
+				}
+				if k.GetTaskID() == shortLivedID {
+					foundShort = true
+				}
+			}
+			assert.True(t, foundLong, "long-lived timer should be tracked")
+			assert.False(t, foundShort, "short-lived timer should not be tracked — it will fire naturally within MinTTL")
 			return &CreateWorkflowExecutionResponse{}, nil
 		}).Times(1)
 
@@ -1939,13 +1955,21 @@ func TestConflictResolveWorkflowExecution_TimerTaskTracking(t *testing.T) {
 	mockedSerializer.EXPECT().SerializeActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(sampleActiveClusterSelectionPolicyData(), nil).AnyTimes()
 	mockedStore.EXPECT().ConflictResolveWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, req *InternalConflictResolveWorkflowExecutionRequest) error {
-			assert.Contains(t, req.ResetWorkflowSnapshot.WorkflowTimerTasks, resetTaskID,
+			containsTaskID := func(keys []HistoryTaskKey, taskID int64) bool {
+				for _, k := range keys {
+					if k.GetTaskID() == taskID {
+						return true
+					}
+				}
+				return false
+			}
+			assert.True(t, containsTaskID(req.ResetWorkflowSnapshot.WorkflowTimerTasks, resetTaskID),
 				"reset snapshot timer task should be tracked")
-			assert.Contains(t, req.CurrentWorkflowMutation.WorkflowTimerTasks, currentTaskID,
+			assert.True(t, containsTaskID(req.CurrentWorkflowMutation.WorkflowTimerTasks, currentTaskID),
 				"current mutation timer task should be tracked")
-			assert.Contains(t, req.NewWorkflowSnapshot.WorkflowTimerTasks, newTaskID,
+			assert.True(t, containsTaskID(req.NewWorkflowSnapshot.WorkflowTimerTasks, newTaskID),
 				"new snapshot timer task should be tracked")
-			assert.NotContains(t, req.ResetWorkflowSnapshot.WorkflowTimerTasks, shortLivedID,
+			assert.False(t, containsTaskID(req.ResetWorkflowSnapshot.WorkflowTimerTasks, shortLivedID),
 				"short-lived timer should not be tracked — it will fire naturally within MinTTL")
 			return nil
 		}).Times(1)
@@ -2024,15 +2048,20 @@ func TestFetchWorkflowTimerTasksForCleanup_FiltersCorrectly(t *testing.T) {
 		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(minTTL),
 	})
 
-	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
-	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), 0, testDomainID, testWorkflowID, testRunID).
-		Return(map[int64]time.Time{
-			longLivedID:  longLivedTS,
-			shortLivedID: shortLivedTS,
-			pastID:       pastTS,
-		}, nil)
+	shardID := 0
+	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
+		ShardID:    shardID,
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      testRunID,
+	}).Return([]HistoryTaskKey{
+		NewHistoryTaskKey(longLivedTS, longLivedID),
+		NewHistoryTaskKey(shortLivedTS, shortLivedID),
+		NewHistoryTaskKey(pastTS, pastID),
+	}, nil)
 
 	result, err := manager.FetchWorkflowTimerTasksForCleanup(context.Background(), &FetchWorkflowTimerTasksForCleanupRequest{
+		ShardID:    common.Ptr(shardID),
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
@@ -2053,11 +2082,16 @@ func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
 		WorkflowTimerTaskCleanupMinTTL: dynamicproperties.GetDurationPropertyFn(time.Hour),
 	})
 
-	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
-	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), 0, testDomainID, testWorkflowID, testRunID).
-		Return(nil, nil)
+	shardID := 0
+	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
+		ShardID:    shardID,
+		DomainID:   testDomainID,
+		WorkflowID: testWorkflowID,
+		RunID:      testRunID,
+	}).Return(nil, nil)
 
 	result, err := manager.FetchWorkflowTimerTasksForCleanup(context.Background(), &FetchWorkflowTimerTasksForCleanupRequest{
+		ShardID:    common.Ptr(shardID),
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
@@ -2078,14 +2112,17 @@ func TestCompleteHistoryTasks(t *testing.T) {
 		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	})
 
-	mockedStore.EXPECT().GetShardID().Return(0).AnyTimes()
+	shardID := 0
 	mockedStore.EXPECT().CompleteHistoryTask(gomock.Any(), gomock.Cond(func(req *CompleteHistoryTaskRequest) bool {
 		return req.TaskCategory == HistoryTaskCategoryTimer &&
-			req.TaskKey.GetTaskID() == taskID
+			len(req.TaskKeys) == 1 &&
+			req.TaskKeys[0].GetTaskID() == taskID
 	})).Return(nil).Times(1)
 
-	err := manager.CompleteHistoryTasks(context.Background(), HistoryTaskCategoryTimer, []HistoryTaskKey{
-		NewHistoryTaskKey(visTS, taskID),
+	err := manager.CompleteHistoryTask(context.Background(), &CompleteHistoryTaskRequest{
+		ShardID:      common.Ptr(shardID),
+		TaskCategory: HistoryTaskCategoryTimer,
+		TaskKeys:     []HistoryTaskKey{NewHistoryTaskKey(visTS, taskID)},
 	})
 	assert.NoError(t, err)
 }

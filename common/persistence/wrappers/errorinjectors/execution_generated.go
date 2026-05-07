@@ -56,21 +56,6 @@ func (c *injectorExecutionManager) CompleteHistoryTask(ctx context.Context, requ
 	return
 }
 
-func (c *injectorExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) (err error) {
-	fakeErr := generateFakeError(c.errorRate, c.starttime)
-	var forwardCall bool
-	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.CompleteHistoryTasks(ctx, category, keys)
-	}
-
-	if fakeErr != nil {
-		logErr(c.logger, "ExecutionManager.CompleteHistoryTasks", fakeErr, forwardCall, err)
-		err = fakeErr
-		return
-	}
-	return
-}
-
 func (c *injectorExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *persistence.ConflictResolveWorkflowExecutionRequest) (cp1 *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool

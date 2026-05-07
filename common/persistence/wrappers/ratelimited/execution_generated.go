@@ -45,14 +45,6 @@ func (c *ratelimitedExecutionManager) CompleteHistoryTask(ctx context.Context, r
 	return c.wrapped.CompleteHistoryTask(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) (err error) {
-	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
-		err = ErrPersistenceLimitExceeded
-		return
-	}
-	return c.wrapped.CompleteHistoryTasks(ctx, category, keys)
-}
-
 func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *persistence.ConflictResolveWorkflowExecutionRequest) (cp1 *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded

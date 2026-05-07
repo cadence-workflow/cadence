@@ -73,7 +73,7 @@ func (db *ddb) DeleteWorkflowExecution(ctx context.Context, shardID int, domainI
 	panic("TODO")
 }
 
-func (db *ddb) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error) {
+func (db *ddb) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
 	panic("TODO")
 }
 
@@ -93,7 +93,7 @@ func (db *ddb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 	panic("TODO")
 }
 
-func (db *ddb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (db *ddb) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	panic("TODO")
 }
 
@@ -105,7 +105,7 @@ func (db *ddb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 	panic("TODO")
 }
 
-func (db *ddb) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (db *ddb) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	panic("TODO")
 }
 
@@ -117,7 +117,7 @@ func (db *ddb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID,
 	panic("TODO")
 }
 
-func (db *ddb) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (db *ddb) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	panic("TODO")
 }
 

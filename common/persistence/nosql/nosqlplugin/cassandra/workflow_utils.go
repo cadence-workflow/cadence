@@ -995,21 +995,23 @@ type workflowTimerTaskTuple struct {
 
 // appendWorkflowTimerTasks adds timer task entries to the workflow_timer_tasks set using
 // native Cassandra set addition — no read required. Each element is a (visibilityTs, taskID) tuple.
+// timerTasks is a slice rather than a set; Cassandra's set semantics dedupe identical
+// elements on insert, so any duplicates in the input are harmless.
 func appendWorkflowTimerTasks(
 	batch gocql.Batch,
 	shardID int,
 	domainID string,
 	workflowID string,
 	runID string,
-	timerTasks map[int64]time.Time,
+	timerTasks []persistence.HistoryTaskKey,
 	timeStamp time.Time,
 ) {
 	if len(timerTasks) == 0 {
 		return
 	}
 	tuples := make([]workflowTimerTaskTuple, 0, len(timerTasks))
-	for taskID, visibilityTs := range timerTasks {
-		tuples = append(tuples, workflowTimerTaskTuple{VisibilityTimestamp: visibilityTs, TaskID: taskID})
+	for _, key := range timerTasks {
+		tuples = append(tuples, workflowTimerTaskTuple{VisibilityTimestamp: key.GetScheduledTime(), TaskID: key.GetTaskID()})
 	}
 	batch.Query(templateAppendWorkflowTimerTaskQuery,
 		tuples,

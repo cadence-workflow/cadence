@@ -278,7 +278,7 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 }
 
 // SelectWorkflowTimerTasks reads the workflow_timer_tasks set from the execution row.
-func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) (map[int64]time.Time, error) {
+func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
 	query := db.session.Query(templateGetWorkflowTimerTasksQuery,
 		shardID,
 		rowTypeExecution,
@@ -299,11 +299,11 @@ func (db *CDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domain
 	if len(tuples) == 0 {
 		return nil, nil
 	}
-	m := make(map[int64]time.Time, len(tuples))
+	keys := make([]persistence.HistoryTaskKey, 0, len(tuples))
 	for _, t := range tuples {
-		m[t.TaskID] = t.VisibilityTimestamp
+		keys = append(keys, persistence.NewHistoryTaskKey(t.VisibilityTimestamp, t.TaskID))
 	}
-	return m, nil
+	return keys, nil
 }
 
 func (db *CDB) DeleteCurrentWorkflow(ctx context.Context, shardID int, domainID, workflowID, currentRunIDCondition string) error {
@@ -473,18 +473,23 @@ func (db *CDB) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 	return tasks, nextPageToken, err
 }
 
-func (db *CDB) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
-	query := db.session.Query(templateCompleteTransferTaskQuery,
-		shardID,
-		rowTypeTransferTask,
-		rowTypeTransferDomainID,
-		rowTypeTransferWorkflowID,
-		rowTypeTransferRunID,
-		defaultVisibilityTimestamp,
-		taskID,
-	).WithContext(ctx)
-
-	return db.executeWithConsistencyAll(query)
+func (db *CDB) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	for _, key := range keys {
+		batch.Query(templateCompleteTransferTaskQuery,
+			shardID,
+			rowTypeTransferTask,
+			rowTypeTransferDomainID,
+			rowTypeTransferWorkflowID,
+			rowTypeTransferRunID,
+			defaultVisibilityTimestamp,
+			key.GetTaskID(),
+		)
+	}
+	return db.executeBatchWithConsistencyAll(batch)
 }
 
 func (db *CDB) RangeDeleteTransferTasks(ctx context.Context, shardID int, exclusiveBeginTaskID, inclusiveEndTaskID int64) error {
@@ -549,19 +554,24 @@ func (db *CDB) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 	return timers, nextPageToken, err
 }
 
-func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
-	ts := persistence.UnixNanoToDBTimestamp(visibilityTimestamp.UnixNano())
-	query := db.session.Query(templateCompleteTimerTaskQuery,
-		shardID,
-		rowTypeTimerTask,
-		rowTypeTimerDomainID,
-		rowTypeTimerWorkflowID,
-		rowTypeTimerRunID,
-		ts,
-		taskID,
-	).WithContext(ctx)
-
-	return db.executeWithConsistencyAll(query)
+func (db *CDB) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	for _, key := range keys {
+		ts := persistence.UnixNanoToDBTimestamp(key.GetScheduledTime().UnixNano())
+		batch.Query(templateCompleteTimerTaskQuery,
+			shardID,
+			rowTypeTimerTask,
+			rowTypeTimerDomainID,
+			rowTypeTimerWorkflowID,
+			rowTypeTimerRunID,
+			ts,
+			key.GetTaskID(),
+		)
+	}
+	return db.executeBatchWithConsistencyAll(batch)
 }
 
 func (db *CDB) RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error {
@@ -595,18 +605,23 @@ func (db *CDB) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID,
 	return populateGetReplicationTasks(query)
 }
 
-func (db *CDB) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
-	query := db.session.Query(templateCompleteReplicationTaskQuery,
-		shardID,
-		rowTypeReplicationTask,
-		rowTypeReplicationDomainID,
-		rowTypeReplicationWorkflowID,
-		rowTypeReplicationRunID,
-		defaultVisibilityTimestamp,
-		taskID,
-	).WithContext(ctx)
-
-	return db.executeWithConsistencyAll(query)
+func (db *CDB) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	for _, key := range keys {
+		batch.Query(templateCompleteReplicationTaskQuery,
+			shardID,
+			rowTypeReplicationTask,
+			rowTypeReplicationDomainID,
+			rowTypeReplicationWorkflowID,
+			rowTypeReplicationRunID,
+			defaultVisibilityTimestamp,
+			key.GetTaskID(),
+		)
+	}
+	return db.executeBatchWithConsistencyAll(batch)
 }
 
 func (db *CDB) RangeDeleteReplicationTasks(ctx context.Context, shardID int, inclusiveEndTaskID int64) error {

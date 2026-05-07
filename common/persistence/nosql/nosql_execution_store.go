@@ -24,7 +24,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -937,7 +936,7 @@ func (d *nosqlExecutionStore) completeScheduledHistoryTask(
 ) error {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err := d.db.DeleteTimerTask(ctx, shardID, request.TaskKey.GetTaskID(), request.TaskKey.GetScheduledTime())
+		err := d.db.DeleteTimerTask(ctx, shardID, request.TaskKeys)
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteScheduledHistoryTask", err)
 		}
@@ -954,13 +953,13 @@ func (d *nosqlExecutionStore) completeImmediateHistoryTask(
 ) error {
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err := d.db.DeleteTransferTask(ctx, shardID, request.TaskKey.GetTaskID())
+		err := d.db.DeleteTransferTask(ctx, shardID, request.TaskKeys)
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
 		}
 		return nil
 	case persistence.HistoryTaskCategoryIDReplication:
-		err := d.db.DeleteReplicationTask(ctx, shardID, request.TaskKey.GetTaskID())
+		err := d.db.DeleteReplicationTask(ctx, shardID, request.TaskKeys)
 		if err != nil {
 			return convertCommonErrors(d.db, "CompleteImmediateHistoryTask", err)
 		}
@@ -1049,10 +1048,9 @@ func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
 
 func (d *nosqlExecutionStore) SelectWorkflowTimerTasks(
 	ctx context.Context,
-	shardID int,
-	domainID, workflowID, runID string,
-) (map[int64]time.Time, error) {
-	result, err := d.db.SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID)
+	request *persistence.SelectWorkflowTimerTasksRequest,
+) ([]persistence.HistoryTaskKey, error) {
+	result, err := d.db.SelectWorkflowTimerTasks(ctx, request.ShardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "SelectWorkflowTimerTasks", err)
 	}

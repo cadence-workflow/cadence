@@ -71,30 +71,6 @@ func (c *meteredExecutionManager) CompleteHistoryTask(ctx context.Context, reque
 	return
 }
 
-func (c *meteredExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) (err error) {
-	op := func() error {
-		err = c.wrapped.CompleteHistoryTasks(ctx, category, keys)
-		return err
-	}
-
-	retryCount := getRetryCountFromContext(ctx)
-	if domainName, hasDomainName := getDomainNameFromRequest(category); hasDomainName {
-		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(category)...)
-		c.logger.Debug("Persistence CompleteHistoryTasks called", logTags...)
-		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteHistoryTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
-		} else {
-			err = c.call(metrics.PersistenceCompleteHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
-		}
-		return
-	}
-
-	err = c.callWithoutDomainTag(metrics.PersistenceCompleteHistoryTasksScope, op, append(getCustomMetricTags(category), metrics.IsRetryTag(retryCount > 0))...)
-
-	return
-}
-
 func (c *meteredExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *persistence.ConflictResolveWorkflowExecutionRequest) (cp1 *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
 	op := func() error {
 		cp1, err = c.wrapped.ConflictResolveWorkflowExecution(ctx, request)

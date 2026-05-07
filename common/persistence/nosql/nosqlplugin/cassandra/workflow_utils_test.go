@@ -54,6 +54,7 @@ type fakeSession struct {
 	mapExecuteBatchCASApplied bool
 	mapExecuteBatchCASPrev    map[string]any
 	mapExecuteBatchCASErr     error
+	executeBatchErr           error
 	query                     gocql.Query
 
 	// outputs
@@ -73,7 +74,7 @@ func (s *fakeSession) NewBatch(gocql.BatchType) gocql.Batch {
 }
 
 func (s *fakeSession) ExecuteBatch(gocql.Batch) error {
-	return nil
+	return s.executeBatchErr
 }
 
 func (s *fakeSession) MapExecuteBatchCAS(batch gocql.Batch, prev map[string]interface{}) (bool, gocql.Iter, error) {
@@ -2957,23 +2958,23 @@ func TestAppendWorkflowTimerTasks(t *testing.T) {
 	visTS := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
 		desc             string
-		timerTasks       map[int64]time.Time
+		timerTasks       []persistence.HistoryTaskKey
 		wantQueries      []string
 		wantQueriesAnyOf []string
 	}{
 		{
-			desc:        "nil map produces no queries",
+			desc:        "nil produces no queries",
 			timerTasks:  nil,
 			wantQueries: nil,
 		},
 		{
-			desc:        "empty map produces no queries",
-			timerTasks:  map[int64]time.Time{},
+			desc:        "empty produces no queries",
+			timerTasks:  []persistence.HistoryTaskKey{},
 			wantQueries: nil,
 		},
 		{
 			desc:       "single entry produces one UPDATE query",
-			timerTasks: map[int64]time.Time{100: visTS},
+			timerTasks: []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(visTS, 100)},
 			wantQueries: []string{
 				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 00:00:00 +0000 UTC 100}] ` +
 					`, last_updated_time = 2025-01-06T15:00:00Z ` +
@@ -2983,9 +2984,9 @@ func TestAppendWorkflowTimerTasks(t *testing.T) {
 		},
 		{
 			desc: "multiple entries produce one query with all tuples",
-			timerTasks: map[int64]time.Time{
-				100: visTS,
-				200: visTS.Add(time.Hour),
+			timerTasks: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(visTS, 100),
+				persistence.NewHistoryTaskKey(visTS.Add(time.Hour), 200),
 			},
 			// two tuples in one set addition — order within the slice is non-deterministic
 			// so we accept either ordering

@@ -554,20 +554,6 @@ func (_m *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Contex
 	return r0, r1
 }
 
-// CompleteHistoryTasks provides a mock function with given fields: ctx, category, keys
-func (_m *ExecutionManager) CompleteHistoryTasks(ctx context.Context, category persistence.HistoryTaskCategory, keys []persistence.HistoryTaskKey) error {
-	ret := _m.Called(ctx, category, keys)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, persistence.HistoryTaskCategory, []persistence.HistoryTaskKey) error); ok {
-		r0 = rf(ctx, category, keys)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // NewExecutionManager
 
 // NewExecutionManager creates a new instance of ExecutionManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

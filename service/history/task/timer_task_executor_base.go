@@ -369,6 +369,7 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 		return
 	}
 	keys, err := t.shard.GetExecutionManager().FetchWorkflowTimerTasksForCleanup(ctx, &persistence.FetchWorkflowTimerTasksForCleanupRequest{
+		ShardID:    common.Ptr(t.shard.GetShardID()),
 		DomainID:   task.DomainID,
 		WorkflowID: task.WorkflowID,
 		RunID:      task.RunID,
@@ -386,7 +387,18 @@ func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, t
 		return
 	}
 	t.metricsClient.AddCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.WorkflowCleanupTimerTasksSentForDeletionCount, int64(len(keys)))
-	_ = t.shard.GetExecutionManager().CompleteHistoryTasks(ctx, persistence.HistoryTaskCategoryTimer, keys)
+	if err := t.shard.GetExecutionManager().CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+		ShardID:      common.Ptr(t.shard.GetShardID()),
+		TaskCategory: persistence.HistoryTaskCategoryTimer,
+		TaskKeys:     keys,
+	}); err != nil {
+		t.logger.Error("failed to complete workflow timer tasks for cleanup",
+			tag.WorkflowDomainID(task.DomainID),
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.Error(err),
+		)
+	}
 }
 
 func (t *timerTaskExecutorBase) Stop() {

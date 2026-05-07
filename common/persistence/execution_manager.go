@@ -642,15 +642,15 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	return &CreateWorkflowExecutionResponse{MutableStateUpdateSessionStats: msuss}, nil
 }
 
-// syncTimerTaskTrackingAsMap extracts timer tasks from tasksByCategory and returns them as a
-// map[int64]time.Time (taskID → visibilityTimestamp) to be persisted in the workflow_timer_tasks
-// tracking column. Returns nil when the feature flag is disabled or no eligible tasks are found.
+// syncTimerTaskTrackingKeys extracts timer tasks from tasksByCategory and returns them as
+// HistoryTaskKey entries to be persisted in the workflow_timer_tasks tracking column.
+// Returns nil when the feature flag is disabled or no eligible tasks are found.
 // DeleteHistoryEventTask is always excluded — deleting it would prevent retention-based cleanup.
 // Timers firing within WorkflowTimerTaskCleanupMinTTL are also excluded — they will fire naturally
 // and CleanupWorkflowTimerTasks would skip them anyway.
-func (m *executionManagerImpl) syncTimerTaskTrackingAsMap(
+func (m *executionManagerImpl) syncTimerTaskTrackingKeys(
 	tasksByCategory map[HistoryTaskCategory][]Task,
-) map[int64]time.Time {
+) []HistoryTaskKey {
 	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
 		return nil
 	}
@@ -659,7 +659,7 @@ func (m *executionManagerImpl) syncTimerTaskTrackingAsMap(
 		minTTL = m.dc.WorkflowTimerTaskCleanupMinTTL()
 	}
 	now := time.Now()
-	var result map[int64]time.Time
+	var result []HistoryTaskKey
 	for category, tasks := range tasksByCategory {
 		for _, task := range tasks {
 			if category.categoryID != HistoryTaskCategoryIDTimer {
@@ -679,14 +679,11 @@ func (m *executionManagerImpl) syncTimerTaskTrackingAsMap(
 				continue
 			}
 			// Skip timers firing within MinTTL — CleanupWorkflowTimerTasks would skip them too,
-			// so there is no point storing them in the tracking map.
+			// so there is no point storing them in the tracking column.
 			if task.GetVisibilityTimestamp().Sub(now) < minTTL {
 				continue
 			}
-			if result == nil {
-				result = make(map[int64]time.Time)
-			}
-			result[task.GetTaskID()] = task.GetVisibilityTimestamp()
+			result = append(result, NewHistoryTaskKey(task.GetVisibilityTimestamp(), task.GetTaskID()))
 		}
 	}
 	return result
@@ -748,7 +745,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
-		WorkflowTimerTasks:        m.syncTimerTaskTrackingAsMap(input.TasksByCategory),
+		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
 		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
@@ -818,7 +815,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 		ActivityInfos:       serializedActivityInfos,
 		TimerInfos:          input.TimerInfos,
-		WorkflowTimerTasks:  m.syncTimerTaskTrackingAsMap(input.TasksByCategory),
+		WorkflowTimerTasks:  m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		ChildExecutionInfos: serializedChildExecutionInfos,
 		RequestCancelInfos:  input.RequestCancelInfos,
 		SignalInfos:         input.SignalInfos,
@@ -1087,48 +1084,22 @@ func (m *executionManagerImpl) FetchWorkflowTimerTasksForCleanup(
 	}
 	minTTL := m.dc.WorkflowTimerTaskCleanupMinTTL()
 	now := time.Now()
-	trackingMap, err := m.persistence.SelectWorkflowTimerTasks(
-		ctx, m.persistence.GetShardID(), request.DomainID, request.WorkflowID, request.RunID)
-	if err != nil || len(trackingMap) == 0 {
+	trackedKeys, err := m.persistence.SelectWorkflowTimerTasks(ctx, &SelectWorkflowTimerTasksRequest{
+		ShardID:    *request.ShardID,
+		DomainID:   request.DomainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      request.RunID,
+	})
+	if err != nil || len(trackedKeys) == 0 {
 		return nil, err
 	}
 	var result []HistoryTaskKey
-	for taskID, visibilityTs := range trackingMap {
-		if visibilityTs.Sub(now) >= minTTL {
-			result = append(result, NewHistoryTaskKey(visibilityTs, taskID))
+	for _, key := range trackedKeys {
+		if key.GetScheduledTime().Sub(now) >= minTTL {
+			result = append(result, key)
 		}
 	}
 	return result, nil
-}
-
-// CompleteHistoryTasks completes (deletes) multiple history tasks of the same category.
-// Best-effort: individual failures are logged but do not abort the operation.
-func (m *executionManagerImpl) CompleteHistoryTasks(
-	ctx context.Context,
-	category HistoryTaskCategory,
-	keys []HistoryTaskKey,
-) error {
-	for _, key := range keys {
-		select {
-		case <-ctx.Done():
-			m.logger.Warn("Context cancelled during history task completion; some tasks may not have been deleted",
-				tag.Error(ctx.Err()),
-			)
-			return ctx.Err()
-		default:
-		}
-		if delErr := m.persistence.CompleteHistoryTask(ctx, &CompleteHistoryTaskRequest{
-			ShardID:      common.Ptr(m.persistence.GetShardID()),
-			TaskCategory: category,
-			TaskKey:      key,
-		}); delErr != nil {
-			m.logger.Warn("Failed to complete history task during cleanup; skipping",
-				tag.TaskID(key.GetTaskID()),
-				tag.Error(delErr),
-			)
-		}
-	}
-	return nil
 }
 
 func getStartVersion(
