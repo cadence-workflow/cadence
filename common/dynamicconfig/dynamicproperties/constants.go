@@ -410,13 +410,13 @@ const (
 	// KeyName: limit.pendingActivityCount.error
 	// Value type: Int
 	// Default value: 1024
-	// Allowed filters: N/A
+	// Allowed filters: DomainName
 	PendingActivitiesCountLimitError
 	// PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged
 	// KeyName: limit.pendingActivityCount.warn
 	// Value type: Int
 	// Default value: 512
-	// Allowed filters: N/A
+	// Allowed filters: DomainName
 	PendingActivitiesCountLimitWarn
 	// DomainNameMaxLength is the length limit for domain name
 	// KeyName: limit.domainNameLength
@@ -910,6 +910,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	MatchingPercentageOnboardedToShardManager
+	// MatchingTaskListMinimumWritePartitions is the minimum number of write partitions that the AdaptiveScaler will specify for a TaskList.
+	// KeyName: matching.taskListMinimumWritePartitions
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: DomainName,TasklistName,TaskType
+	MatchingTaskListMinimumWritePartitions
 
 	// key for history
 
@@ -2371,6 +2377,13 @@ const (
 	// Allowed filters: DomainName
 	EnableTaskListAwareTaskSchedulerByDomain
 
+	// HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages.
+	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
+	// KeyName: history.historyTaskDLQProcessorEnabled
+	// Value type: Bool
+	// Default value: false
+	HistoryTaskDLQProcessorEnabled
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -2722,12 +2735,17 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
-	// HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue
-	// KeyName: history.historyTaskDeadLetterQueueMode
+	// HistoryTaskDLQMode enables writing tasks to the History Task Dead Letter Queue rather than discarding them.
+	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
+	//
+	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
+	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
+	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
 	// Allowed filters: domainName
-	HistoryTaskDeadLetterQueueMode
+	HistoryTaskDLQMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -3177,6 +3195,13 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	WorkerESProcessorFlushInterval
+	// SchedulerWorkerRefreshInterval is how often the scheduler worker manager
+	// scans the domain cache to start/stop per-domain scheduler workers.
+	// KeyName: worker.schedulerRefreshInterval
+	// Value type: Duration
+	// Default value: 1m (time.Minute)
+	// Allowed filters: N/A
+	SchedulerWorkerRefreshInterval
 	// WorkerTimeLimitPerArchivalIteration is controls the time limit of each iteration of archival workflow
 	// KeyName: worker.TimeLimitPerArchivalIteration
 	// Value type: Duration
@@ -3476,11 +3501,13 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	PendingActivitiesCountLimitError: {
 		KeyName:      "limit.pendingActivityCount.error",
+		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitError is the limit of how many pending activities a workflow can have at a point in time",
 		DefaultValue: 1024,
 	},
 	PendingActivitiesCountLimitWarn: {
 		KeyName:      "limit.pendingActivityCount.warn",
+		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged",
 		DefaultValue: 512,
 	},
@@ -3866,6 +3893,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "matching.percentageOnboardedToShardManager",
 		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
 		DefaultValue: 0,
+	},
+	MatchingTaskListMinimumWritePartitions: {
+		KeyName:      "matching.taskListMinimumWritePartitions",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingTaskListMinimumWritePartitions is the minimum number of write partitions",
+		DefaultValue: 1,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
@@ -5121,6 +5154,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainName},
 		DefaultValue: false,
 	},
+	HistoryTaskDLQProcessorEnabled: {
+		KeyName:      "history.historyTaskDLQProcessorEnabled",
+		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -5399,9 +5437,9 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
 		DefaultValue: "naive",
 	},
-	HistoryTaskDeadLetterQueueMode: {
-		KeyName:      "history.historyTaskDeadLetterQueueMode",
-		Description:  "HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+	HistoryTaskDLQMode: {
+		KeyName:      "history.historyTaskDLQMode",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},
@@ -5815,6 +5853,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "worker.ESProcessorFlushInterval",
 		Description:  "WorkerESProcessorFlushInterval is flush interval for esProcessor",
 		DefaultValue: time.Second,
+	},
+	SchedulerWorkerRefreshInterval: {
+		KeyName:      "worker.schedulerRefreshInterval",
+		Description:  "SchedulerWorkerRefreshInterval is how often the scheduler worker manager scans the domain cache to start/stop per-domain workers",
+		DefaultValue: time.Minute,
 	},
 	WorkerTimeLimitPerArchivalIteration: {
 		KeyName:      "worker.TimeLimitPerArchivalIteration",

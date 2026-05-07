@@ -64,6 +64,11 @@ type BootstrapParams struct {
 	DomainCache        cache.DomainCache
 	MembershipResolver membership.Resolver
 	HostInfo           membership.HostInfo
+	// RefreshInterval returns how often the manager should re-scan the
+	// domain cache to reconcile per-domain workers. Re-evaluated on every
+	// tick so live dynamic-config changes take effect on the next iteration.
+	// Nil falls back to a sensible default.
+	RefreshInterval dynamicproperties.DurationPropertyFn
 }
 
 // workerHandle is the subset of cadenceworker.Worker used by the manager,
@@ -92,7 +97,7 @@ type WorkerManager struct {
 	membershipResolver membership.Resolver
 	hostInfo           membership.HostInfo
 	timeSrc            clock.TimeSource
-	refreshInterval    time.Duration
+	refreshInterval    dynamicproperties.DurationPropertyFn
 	shutdownTimeout    time.Duration
 	ctx                context.Context
 	cancelFn           context.CancelFunc
@@ -105,6 +110,10 @@ type WorkerManager struct {
 // NewWorkerManager creates a new per-domain scheduler worker manager.
 func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolPropertyFnWithDomainFilter) *WorkerManager {
 	ctx, cancel := context.WithCancel(context.Background())
+	refresh := params.RefreshInterval
+	if refresh == nil {
+		refresh = dynamicproperties.GetDurationPropertyFn(defaultRefreshInterval)
+	}
 	wm := &WorkerManager{
 		enabledFn:          enabledFn,
 		serviceClient:      params.ServiceClient,
@@ -115,7 +124,7 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 		membershipResolver: params.MembershipResolver,
 		hostInfo:           params.HostInfo,
 		timeSrc:            clock.NewRealTimeSource(),
-		refreshInterval:    defaultRefreshInterval,
+		refreshInterval:    refresh,
 		shutdownTimeout:    defaultShutdownTimeout,
 		ctx:                ctx,
 		cancelFn:           cancel,
@@ -154,7 +163,7 @@ func (m *WorkerManager) Stop() {
 func (m *WorkerManager) run() {
 	defer m.wg.Done()
 
-	ticker := m.timeSrc.NewTicker(m.refreshInterval)
+	ticker := m.timeSrc.NewTicker(m.refreshInterval())
 	defer ticker.Stop()
 
 	m.refreshWorkers()
@@ -163,11 +172,13 @@ func (m *WorkerManager) run() {
 		select {
 		case <-ticker.Chan():
 			m.refreshWorkers()
+			ticker.Reset(m.refreshInterval())
 
 		case <-m.membershipChangeCh:
 			drainMembershipCh(m.membershipChangeCh)
 			m.logger.Debug("membership ring changed, refreshing scheduler workers")
 			m.refreshWorkers()
+			ticker.Reset(m.refreshInterval())
 
 		case <-m.ctx.Done():
 			m.logger.Info("scheduler worker manager background loop stopped")

@@ -300,7 +300,9 @@ func NewEngineWithShardContext(
 			dlqMgr,
 			map[int]taskdlq.TaskExecutor{},
 			100,
-			taskdlq.DefaultProcessingInterval(),
+			config.HistoryTaskDLQProcessorInterval,
+			config.HistoryTaskDLQMode,
+			config.HistoryTaskDLQProcessorEnabled,
 			shard.GetTimeSource(),
 			logger,
 		)
