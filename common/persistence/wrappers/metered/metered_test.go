@@ -27,13 +27,16 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
@@ -46,6 +49,42 @@ var _staticMethods = map[string]bool{
 	"Close":      true,
 	"GetName":    true,
 	"GetShardID": true,
+}
+
+func TestGetRetryCountFromContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	wrapped := persistence.NewMockExecutionManager(ctrl)
+	wrapped.EXPECT().GetShardID().Return(1).AnyTimes()
+	request := &persistence.GetHistoryTasksRequest{}
+
+	gomock.InOrder(
+		wrapped.EXPECT().GetHistoryTasks(gomock.Any(), request).Return(nil, &types.InternalServiceError{}),
+		wrapped.EXPECT().GetHistoryTasks(gomock.Any(), request).Return(&persistence.GetHistoryTasksResponse{}, nil),
+	)
+
+	metricScope := tally.NewTestScope("", nil)
+	meteredManager := NewExecutionManager(
+		wrapped,
+		metrics.NewClient(metricScope, metrics.ServiceIdx(0), metrics.MigrationConfig{}),
+		log.NewLogger(zap.NewNop()),
+		&config.Persistence{},
+		dynamicproperties.GetBoolPropertyFn(false),
+	)
+
+	policy := backoff.NewExponentialRetryPolicy(time.Nanosecond)
+	policy.SetMaximumAttempts(2)
+
+	retryer := persistence.NewPersistenceRetryer(meteredManager, persistence.NewMockHistoryManager(ctrl), policy)
+	_, err := retryer.GetHistoryTasks(context.Background(), request)
+	require.NoError(t, err)
+
+	countsByIsRetry := map[string]int64{}
+	for _, counter := range metricScope.Snapshot().Counters() {
+		if counter.Name() == "persistence_requests" {
+			countsByIsRetry[counter.Tags()["is_retry"]] += counter.Value()
+		}
+	}
+	require.Equal(t, map[string]int64{"false": 1, "true": 1}, countsByIsRetry)
 }
 
 func TestWrappersAgainstPreviousImplementation(t *testing.T) {

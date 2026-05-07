@@ -363,6 +363,10 @@ func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *Schedul
 }
 
 func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState) bool {
+	if state.Paused {
+		logger.Info("ignoring pause signal, schedule is already paused")
+		return false
+	}
 	state.Paused = true
 	state.PauseReason = sig.Reason
 	state.PausedBy = sig.PausedBy

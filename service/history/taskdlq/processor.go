@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/multierr"
 
@@ -38,12 +37,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
-)
-
-const (
-	// defaultProcessingInterval is how often the periodic shard sweep runs.
-	// TODO(c-warren) Make this dynamically configurable via dynamic config in a future change.
-	defaultProcessingInterval = 30 * time.Minute
+	"github.com/uber/cadence/service/history/constants"
 )
 
 type (
@@ -73,6 +67,8 @@ type (
 		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
 		pageSize   int
 		interval   dynamicproperties.DurationPropertyFn
+		domainMode dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled    dynamicproperties.BoolPropertyFn
 		timeSource clock.TimeSource
 		logger     log.Logger
 
@@ -84,14 +80,6 @@ type (
 	}
 )
 
-// DefaultProcessingInterval returns a default processing interval of 30 minutes.
-// TODO(c-warren): Remove this once the dynamic config is implemented.
-func DefaultProcessingInterval() dynamicproperties.DurationPropertyFn {
-	return func(opts ...dynamicproperties.FilterOption) time.Duration {
-		return defaultProcessingInterval
-	}
-}
-
 var _ Processor = (*ProcessorImpl)(nil)
 
 // NewProcessor creates a Processor that reads from the history task DLQ for shardID.
@@ -99,15 +87,15 @@ var _ Processor = (*ProcessorImpl)(nil)
 // executors maps persistence.HistoryTaskCategoryID* constants to the appropriate
 // historyqueuev2 executor for each task type.
 //
-// interval controls how often the background loop calls ProcessShard. Pass
-// dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval) to use the
-// package default, or supply a dynamic-config-backed function for live tuning.
+// interval controls how often the background loop calls ProcessShard.
 func NewProcessor(
 	shardID int,
 	store HistoryTaskDLQStore,
 	executors map[int]TaskExecutor,
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFn,
+	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
+	enabled dynamicproperties.BoolPropertyFn,
 	timeSource clock.TimeSource,
 	logger log.Logger,
 ) *ProcessorImpl {
@@ -117,6 +105,8 @@ func NewProcessor(
 		executors:  executors,
 		pageSize:   pageSize,
 		interval:   interval,
+		domainMode: domainMode,
+		enabled:    enabled,
 		timeSource: timeSource,
 		logger:     logger,
 		status:     common.DaemonStatusInitialized,
@@ -162,11 +152,13 @@ func (p *ProcessorImpl) processLoop() {
 		case <-p.ctx.Done():
 			return
 		case <-timer.Chan():
-			if err := p.ProcessShard(p.ctx); err != nil {
-				p.logger.Error("DLQ periodic shard sweep failed",
-					tag.ShardID(p.shardID),
-					tag.Error(err),
-				)
+			if p.enabled() {
+				if err := p.ProcessShard(p.ctx); err != nil {
+					p.logger.Error("DLQ periodic shard sweep failed",
+						tag.ShardID(p.shardID),
+						tag.Error(err),
+					)
+				}
 			}
 			timer.Reset(p.interval())
 		}
@@ -187,6 +179,12 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 }
 
 func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
+	// Fast-fail for direct callers; processAckLevel also guards each partition individually.
+	if p.domainMode(domainID) != constants.HistoryTaskDLQModeEnabled {
+		p.logger.Debug("DLQ not enabled for domain, skipping partition processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(domainID))
+		return nil
+	}
+
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
 	if ctx.Err() != nil {
@@ -223,6 +221,11 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 // each one. It stops at the first execution failure, then advances the ack level to
 // the last successfully executed task key.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error {
+	if p.domainMode(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
+		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
+		return nil
+	}
+
 	executor, ok := p.executors[al.TaskType]
 	if !ok {
 		return fmt.Errorf("no executor registered for task type %d", al.TaskType)

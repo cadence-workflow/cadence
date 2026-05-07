@@ -239,14 +239,17 @@ func (a *adaptiveScalerImpl) calculateWritePartitionCount(qps float64, numWriteP
 	a.scope.UpdateGauge(metrics.TaskListPartitionUpscaleThresholdGauge, upscaleThreshold)
 	a.scope.UpdateGauge(metrics.TaskListPartitionDownscaleThresholdGauge, downscaleThreshold)
 
-	result := numWritePartitions
+	// Ensure number of write partitions is over than minimum value of write partitions
+	minWritePartitions := max(1, a.config.MinTaskListWritePartitions())
+	result := max(numWritePartitions, minWritePartitions)
+
 	if a.overLoad.CheckAndReset(qps > upscaleThreshold) {
-		result = getNumberOfPartitions(qps, upscaleRps)
+		result = getNumberOfPartitions(qps, upscaleRps, minWritePartitions)
 		a.scope.IncCounter(metrics.PartitionUpscale)
 		a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 	}
 	if a.underLoad.CheckAndReset(qps < downscaleThreshold) {
-		result = getNumberOfPartitions(qps, upscaleRps)
+		result = getNumberOfPartitions(qps, upscaleRps, minWritePartitions)
 		a.scope.IncCounter(metrics.PartitionDownscale)
 		a.logger.Info("adjust write partitions", tag.CurrentQPS(qps), tag.PartitionUpscaleThreshold(upscaleThreshold), tag.PartitionDownscaleThreshold(downscaleThreshold), tag.PartitionDownscaleFactor(downscaleFactor), tag.CurrentNumWritePartitions(numWritePartitions), tag.NumWritePartitions(result))
 
@@ -421,10 +424,18 @@ func getTaskListType(taskListType int) *types.TaskListType {
 	return nil
 }
 
-func getNumberOfPartitions(qps float64, upscaleQPS float64) int {
-	p := int(math.Ceil(qps / upscaleQPS))
-	if p <= 0 {
-		p = 1
+// getNumberOfPartitions calculates the number of partitions using qps (float64) and upsacleQPS (float64).
+// If the calculated result is lower than the value of minimum write partitions (dynamicConfig),
+// it enforces to return the minimum value of write partitions. (default 1)
+func getNumberOfPartitions(qps float64, upscaleQPS float64, minWritePartitions int) int {
+	partitions := int(math.Ceil(qps / upscaleQPS))
+
+	// ensure minWritePartitions is greater than 0
+	minWritePartitions = max(1, minWritePartitions)
+
+	if partitions < minWritePartitions {
+		// Set minimum number of write partition using dynamic config (default 1)
+		partitions = minWritePartitions
 	}
-	return p
+	return partitions
 }

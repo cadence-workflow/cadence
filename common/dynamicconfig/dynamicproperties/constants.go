@@ -910,6 +910,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	MatchingPercentageOnboardedToShardManager
+	// MatchingTaskListMinimumWritePartitions is the minimum number of write partitions that the AdaptiveScaler will specify for a TaskList.
+	// KeyName: matching.taskListMinimumWritePartitions
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: DomainName,TasklistName,TaskType
+	MatchingTaskListMinimumWritePartitions
 
 	// key for history
 
@@ -2371,6 +2377,13 @@ const (
 	// Allowed filters: DomainName
 	EnableTaskListAwareTaskSchedulerByDomain
 
+	// HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages.
+	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
+	// KeyName: history.historyTaskDLQProcessorEnabled
+	// Value type: Bool
+	// Default value: false
+	HistoryTaskDLQProcessorEnabled
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -2722,12 +2735,17 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
-	// HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue
-	// KeyName: history.historyTaskDeadLetterQueueMode
+	// HistoryTaskDLQMode enables writing tasks to the History Task Dead Letter Queue rather than discarding them.
+	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
+	//
+	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
+	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
+	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
 	// Allowed filters: domainName
-	HistoryTaskDeadLetterQueueMode
+	HistoryTaskDLQMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -3875,6 +3893,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "matching.percentageOnboardedToShardManager",
 		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
 		DefaultValue: 0,
+	},
+	MatchingTaskListMinimumWritePartitions: {
+		KeyName:      "matching.taskListMinimumWritePartitions",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingTaskListMinimumWritePartitions is the minimum number of write partitions",
+		DefaultValue: 1,
 	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
@@ -5130,6 +5154,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainName},
 		DefaultValue: false,
 	},
+	HistoryTaskDLQProcessorEnabled: {
+		KeyName:      "history.historyTaskDLQProcessorEnabled",
+		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -5408,9 +5437,9 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
 		DefaultValue: "naive",
 	},
-	HistoryTaskDeadLetterQueueMode: {
-		KeyName:      "history.historyTaskDeadLetterQueueMode",
-		Description:  "HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+	HistoryTaskDLQMode: {
+		KeyName:      "history.historyTaskDLQMode",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},

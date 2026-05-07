@@ -1052,6 +1052,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		MinTaskThrottlingBurstSize: func() int {
 			return cfg.MinTaskThrottlingBurstSize(domainName, taskListName, taskType)
 		},
+		MinTaskListWritePartitions: func() int {
+			return cfg.MinTaskListWritePartitions(domainName, taskListName, taskType)
+		},
 		EnableSyncMatch: func() bool {
 			return cfg.EnableSyncMatch(domainName, taskListName, taskType)
 		},
