@@ -295,16 +295,17 @@ type (
 	}
 
 	// HistoryDLQTaskFilter is the filter for selecting history DLQ task rows.
+	// Bounds follow [inclusive min, exclusive max) semantics.
 	HistoryDLQTaskFilter struct {
 		ShardID                  int
 		DomainID                 string
 		ClusterAttributeScope    string
 		ClusterAttributeName     string
 		TaskType                 int
-		ExclusiveMinVisibilityTS time.Time
-		ExclusiveMinTaskID       int64
-		InclusiveMaxVisibilityTS time.Time
-		InclusiveMaxTaskID       int64
+		InclusiveMinVisibilityTS time.Time
+		InclusiveMinTaskID       int64
+		ExclusiveMaxVisibilityTS time.Time
+		ExclusiveMaxTaskID       int64
 		PageSize                 int
 		NextPageToken            []byte
 	}
@@ -316,9 +317,9 @@ type (
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		TaskType              int
-		// AckLevelVisibilityTS and AckLevelTaskID form the inclusive upper bound for deletion.
-		AckLevelVisibilityTS time.Time
-		AckLevelTaskID       int64
+		// ExclusiveMaxVisibilityTS and ExclusiveMaxTaskID form the exclusive upper bound for deletion.
+		ExclusiveMaxVisibilityTS time.Time
+		ExclusiveMaxTaskID       int64
 	}
 
 	// HistoryDLQAckLevelRow defines the row struct for history DLQ ack level entries.

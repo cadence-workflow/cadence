@@ -1745,10 +1745,9 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
-		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
-		GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error)
-		// GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
-		GetAckLevelsForPartition(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
+		// GetAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
+		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+		GetAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
 		// GetTasks returns deserialized tasks from a DLQ partition.
 		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
 		// UpdateAckLevel persists the new ack level for a partition.
@@ -1784,7 +1783,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          HistoryTaskCategory
 		InclusiveMinTaskKey   HistoryTaskKey
 		ExclusiveMaxTaskKey   HistoryTaskKey
 		PageSize              int
@@ -1797,8 +1796,11 @@ type (
 		NextPageToken []byte
 	}
 
+	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.
+	// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
 	HistoryDLQGetAckLevelsRequest struct {
 		ShardID               int
+		TaskCategory          HistoryTaskCategory
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string

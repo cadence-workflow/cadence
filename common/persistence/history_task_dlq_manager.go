@@ -81,34 +81,22 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	})
 }
 
-// GetAckLevels returns all DLQ partitions for a shard with their stored ack levels.
-func (m *historyTaskDLQManagerImpl) GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error) {
-	return m.getAckLevels(ctx, InternalGetHistoryDLQAckLevelsRequest{ShardID: shardID})
-}
-
-// GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
-func (m *historyTaskDLQManagerImpl) GetAckLevelsForPartition(
+// GetAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.
+// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+func (m *historyTaskDLQManagerImpl) GetAckLevels(
 	ctx context.Context,
 	request HistoryDLQGetAckLevelsRequest,
-) ([]HistoryDLQAckLevel, error) {
-	return m.getAckLevels(ctx, InternalGetHistoryDLQAckLevelsRequest{
-		ShardID:               request.ShardID,
-		DomainID:              request.DomainID,
-		ClusterAttributeScope: request.ClusterAttributeScope,
-		ClusterAttributeName:  request.ClusterAttributeName,
-	})
-}
-
-func (m *historyTaskDLQManagerImpl) getAckLevels(
-	ctx context.Context,
-	request InternalGetHistoryDLQAckLevelsRequest,
 ) ([]HistoryDLQAckLevel, error) {
 	resp, err := m.persistence.GetHistoryDLQAckLevels(ctx, request)
 	if err != nil {
 		return nil, err
 	}
+	taskTypeID := request.TaskCategory.ID()
 	out := make([]HistoryDLQAckLevel, 0, len(resp.AckLevels))
 	for _, row := range resp.AckLevels {
+		if row.TaskType != taskTypeID {
+			continue
+		}
 		out = append(out, HistoryDLQAckLevel{
 			ShardID:               row.ShardID,
 			DomainID:              row.DomainID,
@@ -127,31 +115,14 @@ func (m *historyTaskDLQManagerImpl) GetTasks(
 	ctx context.Context,
 	request HistoryDLQGetTasksRequest,
 ) (HistoryDLQGetTasksResponse, error) {
-	resp, err := m.persistence.GetHistoryDLQTasks(ctx, InternalGetHistoryDLQTasksRequest{
-		ShardID:                  request.ShardID,
-		DomainID:                 request.DomainID,
-		ClusterAttributeScope:    request.ClusterAttributeScope,
-		ClusterAttributeName:     request.ClusterAttributeName,
-		TaskType:                 request.TaskType,
-		ExclusiveMinVisibilityTS: request.InclusiveMinTaskKey.GetScheduledTime(),
-		ExclusiveMinTaskID:       request.InclusiveMinTaskKey.GetTaskID() - 1,
-		InclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
-		InclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID() - 1,
-		PageSize:                 request.PageSize,
-		NextPageToken:            request.NextPageToken,
-	})
-	if err != nil {
-		return HistoryDLQGetTasksResponse{}, err
-	}
-
-	category, err := historyTaskCategoryForType(request.TaskType)
+	resp, err := m.persistence.GetHistoryDLQTasks(ctx, request)
 	if err != nil {
 		return HistoryDLQGetTasksResponse{}, err
 	}
 
 	tasks := make([]Task, 0, len(resp.Tasks))
 	for _, raw := range resp.Tasks {
-		task, err := m.taskSerializer.DeserializeTask(category, raw.TaskPayload)
+		task, err := m.taskSerializer.DeserializeTask(request.TaskCategory, raw.TaskPayload)
 		if err != nil {
 			return HistoryDLQGetTasksResponse{}, fmt.Errorf("failed to deserialize history DLQ task: %w", err)
 		}
@@ -184,29 +155,7 @@ func (m *historyTaskDLQManagerImpl) DeleteTasks(
 	ctx context.Context,
 	request HistoryDLQDeleteTasksRequest,
 ) error {
-	return m.persistence.RangeDeleteHistoryDLQTasks(ctx, InternalRangeDeleteHistoryDLQTasksRequest{
-		ShardID:               request.ShardID,
-		DomainID:              request.DomainID,
-		ClusterAttributeScope: request.ClusterAttributeScope,
-		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskType:              request.TaskType,
-		AckLevelVisibilityTS:  request.ExclusiveMaxTaskKey.GetScheduledTime(),
-		AckLevelTaskID:        request.ExclusiveMaxTaskKey.GetTaskID() - 1,
-	})
-}
-
-// historyTaskCategoryForType maps a HistoryTaskCategoryID constant to its HistoryTaskCategory.
-func historyTaskCategoryForType(taskType int) (HistoryTaskCategory, error) {
-	switch taskType {
-	case HistoryTaskCategoryIDTransfer:
-		return HistoryTaskCategoryTransfer, nil
-	case HistoryTaskCategoryIDTimer:
-		return HistoryTaskCategoryTimer, nil
-	case HistoryTaskCategoryIDReplication:
-		return HistoryTaskCategoryReplication, nil
-	default:
-		return HistoryTaskCategory{}, fmt.Errorf("unknown history task type: %d", taskType)
-	}
+	return m.persistence.RangeDeleteHistoryDLQTasks(ctx, request)
 }
 
 func (m *historyTaskDLQManagerImpl) GetName() string { return m.persistence.GetName() }

@@ -1178,7 +1178,7 @@ func (mr *MockHistoryDLQTaskStoreMockRecorder) CreateHistoryDLQTask(ctx, request
 }
 
 // GetHistoryDLQAckLevels mocks base method.
-func (m *MockHistoryDLQTaskStore) GetHistoryDLQAckLevels(ctx context.Context, request InternalGetHistoryDLQAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error) {
+func (m *MockHistoryDLQTaskStore) GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHistoryDLQAckLevels", ctx, request)
 	ret0, _ := ret[0].(InternalGetHistoryDLQAckLevelsResponse)
@@ -1193,7 +1193,7 @@ func (mr *MockHistoryDLQTaskStoreMockRecorder) GetHistoryDLQAckLevels(ctx, reque
 }
 
 // GetHistoryDLQTasks mocks base method.
-func (m *MockHistoryDLQTaskStore) GetHistoryDLQTasks(ctx context.Context, request InternalGetHistoryDLQTasksRequest) (InternalGetHistoryDLQTasksResponse, error) {
+func (m *MockHistoryDLQTaskStore) GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (InternalGetHistoryDLQTasksResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetHistoryDLQTasks", ctx, request)
 	ret0, _ := ret[0].(InternalGetHistoryDLQTasksResponse)
@@ -1222,7 +1222,7 @@ func (mr *MockHistoryDLQTaskStoreMockRecorder) GetName() *gomock.Call {
 }
 
 // RangeDeleteHistoryDLQTasks mocks base method.
-func (m *MockHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(ctx context.Context, request InternalRangeDeleteHistoryDLQTasksRequest) error {
+func (m *MockHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTasks", ctx, request)
 	ret0, _ := ret[0].(error)

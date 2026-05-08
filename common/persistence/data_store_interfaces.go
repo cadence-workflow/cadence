@@ -107,9 +107,9 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error
-		GetHistoryDLQTasks(ctx context.Context, request InternalGetHistoryDLQTasksRequest) (InternalGetHistoryDLQTasksResponse, error)
-		RangeDeleteHistoryDLQTasks(ctx context.Context, request InternalRangeDeleteHistoryDLQTasksRequest) error
-		GetHistoryDLQAckLevels(ctx context.Context, request InternalGetHistoryDLQAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
+		GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (InternalGetHistoryDLQTasksResponse, error)
+		RangeDeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
 		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
 	}
 
@@ -1032,49 +1032,13 @@ type (
 		LastUpdatedAt         time.Time
 	}
 
-	// InternalGetHistoryDLQTasksRequest reads tasks from one DLQ partition.
-	InternalGetHistoryDLQTasksRequest struct {
-		ShardID                  int
-		DomainID                 string
-		ClusterAttributeScope    string
-		ClusterAttributeName     string
-		TaskType                 int
-		ExclusiveMinVisibilityTS time.Time
-		ExclusiveMinTaskID       int64
-		InclusiveMaxVisibilityTS time.Time
-		InclusiveMaxTaskID       int64
-		PageSize                 int
-		NextPageToken            []byte
-	}
-
-	// InternalGetHistoryDLQTasksResponse is the response for InternalGetHistoryDLQTasksRequest.
+	// InternalGetHistoryDLQTasksResponse is the response for GetHistoryDLQTasks.
 	InternalGetHistoryDLQTasksResponse struct {
 		Tasks         []*InternalHistoryDLQTask
 		NextPageToken []byte
 	}
 
-	// InternalRangeDeleteHistoryDLQTasksRequest deletes DLQ tasks up to an inclusive (visibility_ts, task_id) boundary.
-	InternalRangeDeleteHistoryDLQTasksRequest struct {
-		ShardID               int
-		DomainID              string
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-		TaskType              int
-		// AckLevelVisibilityTS and AckLevelTaskID are the inclusive upper bound to delete up to.
-		AckLevelVisibilityTS time.Time
-		AckLevelTaskID       int64
-	}
-
-	// InternalGetHistoryDLQAckLevelsRequest reads ack level rows for a shard.
-	// Optional filters: leave DomainID/ClusterAttributeScope/ClusterAttributeName empty to return all.
-	InternalGetHistoryDLQAckLevelsRequest struct {
-		ShardID               int
-		DomainID              string
-		ClusterAttributeScope string
-		ClusterAttributeName  string
-	}
-
-	// InternalGetHistoryDLQAckLevelsResponse is the response for InternalGetHistoryDLQAckLevelsRequest.
+	// InternalGetHistoryDLQAckLevelsResponse is the response for GetHistoryDLQAckLevels.
 	InternalGetHistoryDLQAckLevelsResponse struct {
 		AckLevels []*InternalHistoryDLQAckLevel
 	}
