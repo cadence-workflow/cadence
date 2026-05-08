@@ -219,6 +219,7 @@ func NewEngineWithShardContext(
 		shard.GetExecutionManager(),
 		shard.GetHistoryManager(),
 		common.CreatePersistenceRetryPolicy(),
+		shard.GetShardID(),
 	)
 	openExecutionCheck := invariant.NewConcreteExecutionExists(pRetry, shard.GetDomainCache())
 

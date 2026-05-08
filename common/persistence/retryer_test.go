@@ -473,6 +473,28 @@ func TestPersistenceRetryerGetShardID(t *testing.T) {
 	assert.Equal(t, 42, retryer.GetShardID())
 }
 
+func TestPersistenceRetryerGetShardIDFromRequestShardID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockExecutionManager := NewMockExecutionManager(ctrl)
+	retryer := NewPersistenceRetryer(mockExecutionManager, NewMockHistoryManager(ctrl), backoff.NewExponentialRetryPolicy(time.Nanosecond), 42)
+
+	assert.Equal(t, 42, retryer.GetShardID())
+}
+
+func TestPersistenceRetryerSetsShardID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockExecutionManager := NewMockExecutionManager(ctrl)
+	shardID := 7
+	mockExecutionManager.EXPECT().
+		GetCurrentExecution(gomock.Any(), gomock.Eq(&GetCurrentExecutionRequest{ShardID: &shardID})).
+		Return(&GetCurrentExecutionResponse{}, nil)
+
+	retryer := NewPersistenceRetryer(mockExecutionManager, NewMockHistoryManager(ctrl), backoff.NewExponentialRetryPolicy(time.Nanosecond), shardID)
+
+	_, err := retryer.GetCurrentExecution(context.Background(), &GetCurrentExecutionRequest{})
+	assert.NoError(t, err)
+}
+
 func TestPersistenceRetryerGetHistoryTasks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	tests := map[string]struct {

@@ -174,7 +174,7 @@ func scanShard(
 		return nil, err
 	}
 
-	pr := persistence.NewPersistenceRetryer(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy())
+	pr := persistence.NewPersistenceRetryer(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 
 	scanner := NewScanner(
 		shardID,
@@ -397,7 +397,7 @@ func fixShard(
 		return nil, err
 	}
 
-	pr := persistence.NewPersistenceRetryer(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy())
+	pr := persistence.NewPersistenceRetryer(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 
 	fixer := NewFixer(
 		activityCtx,

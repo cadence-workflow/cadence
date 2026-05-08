@@ -455,6 +455,7 @@ func (adh *adminHandlerImpl) deleteWorkflowFromExecutions(
 		return false
 	}
 	req := &persistence.DeleteWorkflowExecutionRequest{
+		ShardID:    common.Ptr(shardIDInt),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
@@ -470,6 +471,7 @@ func (adh *adminHandlerImpl) deleteWorkflowFromExecutions(
 	}
 
 	deleteCurrentReq := &persistence.DeleteCurrentWorkflowExecutionRequest{
+		ShardID:    common.Ptr(shardIDInt),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,

@@ -132,7 +132,8 @@ func fixExecution(
 	invariants []executions.InvariantFactory,
 	execution *store.ScanOutputEntity,
 ) (invariant.ManagerFixResult, error) {
-	execManager, err := getDeps(c).initializeExecutionManager(c, execution.Execution.(entity.Entity).GetShardID())
+	shardID := execution.Execution.(entity.Entity).GetShardID()
+	execManager, err := getDeps(c).initializeExecutionManager(c, shardID)
 	if err != nil {
 		return invariant.ManagerFixResult{}, err
 	}
@@ -148,6 +149,7 @@ func fixExecution(
 		execManager,
 		historyV2Mgr,
 		common.CreatePersistenceRetryPolicy(),
+		shardID,
 	)
 
 	var ivs []invariant.Invariant
