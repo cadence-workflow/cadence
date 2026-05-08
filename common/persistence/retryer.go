@@ -59,17 +59,31 @@ func NewPersistenceRetryer(
 	execManager ExecutionManager,
 	historyManager HistoryManager,
 	policy backoff.RetryPolicy,
-	shardID ...int,
 ) Retryer {
-	var requestShardID ShardID
-	if len(shardID) > 0 {
-		sid := shardID[0]
-		requestShardID = &sid
-	}
+	return newPersistenceRetryer(execManager, historyManager, policy, nil)
+}
+
+// NewPersistenceRetryerWithShardID constructs a new Retryer that populates empty request shard IDs.
+func NewPersistenceRetryerWithShardID(
+	execManager ExecutionManager,
+	historyManager HistoryManager,
+	policy backoff.RetryPolicy,
+	shardID int,
+) Retryer {
+	requestShardID := shardID
+	return newPersistenceRetryer(execManager, historyManager, policy, &requestShardID)
+}
+
+func newPersistenceRetryer(
+	execManager ExecutionManager,
+	historyManager HistoryManager,
+	policy backoff.RetryPolicy,
+	shardID ShardID,
+) Retryer {
 	return &persistenceRetryer{
 		execManager:    execManager,
 		historyManager: historyManager,
-		shardID:        requestShardID,
+		shardID:        shardID,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(policy),
 			backoff.WithRetryableError(IsTransientError),

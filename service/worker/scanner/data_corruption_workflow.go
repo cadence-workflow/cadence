@@ -185,7 +185,7 @@ func getDefaultDAO(
 	if err != nil {
 		return nil, nil, err
 	}
-	pr := persistence.NewPersistenceRetryer(execManager, res.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
+	pr := persistence.NewPersistenceRetryerWithShardID(execManager, res.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 	return pr, cache, nil
 }
 

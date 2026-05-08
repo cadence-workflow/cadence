@@ -145,7 +145,7 @@ func fixExecution(
 	}
 	defer historyV2Mgr.Close()
 
-	pr := persistence.NewPersistenceRetryer(
+	pr := persistence.NewPersistenceRetryerWithShardID(
 		execManager,
 		historyV2Mgr,
 		common.CreatePersistenceRetryPolicy(),
