@@ -94,7 +94,7 @@ func (m *historyTaskDLQManagerImpl) GetAckLevels(
 	taskTypeID := request.TaskCategory.ID()
 	out := make([]HistoryDLQAckLevel, 0, len(resp.AckLevels))
 	for _, row := range resp.AckLevels {
-		if row.TaskType != taskTypeID {
+		if row.TaskCategory != taskTypeID {
 			continue
 		}
 		out = append(out, HistoryDLQAckLevel{
@@ -102,7 +102,7 @@ func (m *historyTaskDLQManagerImpl) GetAckLevels(
 			DomainID:              row.DomainID,
 			ClusterAttributeScope: row.ClusterAttributeScope,
 			ClusterAttributeName:  row.ClusterAttributeName,
-			TaskType:              row.TaskType,
+			TaskCategory:          request.TaskCategory,
 			AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
 			AckLevelTaskID:        row.AckLevelTaskID,
 		})
@@ -142,7 +142,7 @@ func (m *historyTaskDLQManagerImpl) UpdateAckLevel(
 			DomainID:              request.DomainID,
 			ClusterAttributeScope: request.ClusterAttributeScope,
 			ClusterAttributeName:  request.ClusterAttributeName,
-			TaskType:              request.TaskType,
+			TaskCategory:          request.TaskCategory.ID(),
 			AckLevelVisibilityTS:  request.UpdatedInclusiveReadLevel.GetScheduledTime(),
 			AckLevelTaskID:        request.UpdatedInclusiveReadLevel.GetTaskID(),
 			LastUpdatedAt:         m.timeSrc.Now().UTC(),

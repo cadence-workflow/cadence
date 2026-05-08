@@ -306,7 +306,7 @@ func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks(t *testing.T) {
 		DomainID:              "domain-abc",
 		ClusterAttributeScope: "scope-1",
 		ClusterAttributeName:  "cluster-west",
-		TaskType:              3,
+		TaskCategory:          persistence.HistoryTaskCategoryReplication,
 		ExclusiveMaxTaskKey:   maxKey,
 	}
 
@@ -481,7 +481,7 @@ func TestNoSQLHistoryDLQTaskStore_UpdateHistoryDLQAckLevel(t *testing.T) {
 			DomainID:              "domain-abc",
 			ClusterAttributeScope: "scope-1",
 			ClusterAttributeName:  "cluster-west",
-			TaskType:              3,
+			TaskCategory:          3,
 			AckLevelVisibilityTS:  ackTS,
 			AckLevelTaskID:        88,
 			LastUpdatedAt:         updatedAt,

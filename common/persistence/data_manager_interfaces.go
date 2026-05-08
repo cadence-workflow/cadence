@@ -231,6 +231,20 @@ var (
 	}
 )
 
+// HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
+func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
+	switch id {
+	case HistoryTaskCategoryIDTransfer:
+		return HistoryTaskCategoryTransfer, nil
+	case HistoryTaskCategoryIDTimer:
+		return HistoryTaskCategoryTimer, nil
+	case HistoryTaskCategoryIDReplication:
+		return HistoryTaskCategoryReplication, nil
+	default:
+		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
+	}
+}
+
 // Transfer task types
 const (
 	TransferTaskTypeDecisionTask = iota
@@ -1771,10 +1785,9 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		// TaskType is a HistoryTaskCategoryID* constant (1=Transfer, 2=Timer, 3=Replication).
-		TaskType             int
-		AckLevelVisibilityTS time.Time
-		AckLevelTaskID       int64
+		TaskCategory          HistoryTaskCategory
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
 	}
 
 	// HistoryDLQGetTasksRequest specifies what tasks to fetch from a DLQ partition.
@@ -1812,7 +1825,7 @@ type (
 		DomainID                  string
 		ClusterAttributeScope     string
 		ClusterAttributeName      string
-		TaskType                  int
+		TaskCategory              HistoryTaskCategory
 		UpdatedInclusiveReadLevel HistoryTaskKey
 	}
 
@@ -1822,7 +1835,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          HistoryTaskCategory
 		ExclusiveMaxTaskKey   HistoryTaskKey
 	}
 

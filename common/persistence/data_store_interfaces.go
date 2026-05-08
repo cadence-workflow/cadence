@@ -1012,7 +1012,7 @@ type (
 		RunID                 string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          int
 		VisibilityTimestamp   time.Time
 		TaskID                int64
 		TaskPayload           *DataBlob
@@ -1026,7 +1026,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          int
 		AckLevelVisibilityTS  time.Time
 		AckLevelTaskID        int64
 		LastUpdatedAt         time.Time

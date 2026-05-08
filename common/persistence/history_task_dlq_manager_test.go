@@ -162,7 +162,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			DomainID:              "domain-1",
 			ClusterAttributeScope: "scope",
 			ClusterAttributeName:  "cluster-a",
-			TaskType:              HistoryTaskCategoryIDTransfer,
+			TaskCategory:          HistoryTaskCategoryIDTransfer,
 			AckLevelVisibilityTS:  now,
 			AckLevelTaskID:        100,
 			LastUpdatedAt:         now,
@@ -172,7 +172,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			DomainID:              "domain-1",
 			ClusterAttributeScope: "scope",
 			ClusterAttributeName:  "cluster-a",
-			TaskType:              HistoryTaskCategoryIDTimer,
+			TaskCategory:          HistoryTaskCategoryIDTimer,
 			AckLevelVisibilityTS:  now,
 			AckLevelTaskID:        50,
 			LastUpdatedAt:         now,
@@ -200,7 +200,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 					DomainID:              "domain-1",
 					ClusterAttributeScope: "scope",
 					ClusterAttributeName:  "cluster-a",
-					TaskType:              HistoryTaskCategoryIDTransfer,
+					TaskCategory:          HistoryTaskCategoryTransfer,
 					AckLevelVisibilityTS:  now,
 					AckLevelTaskID:        100,
 				},
@@ -226,13 +226,13 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 					}).
 					Return(InternalGetHistoryDLQAckLevelsResponse{
 						AckLevels: []*InternalHistoryDLQAckLevel{
-							{ShardID: 5, DomainID: "domain-x", TaskType: HistoryTaskCategoryIDTimer,
+							{ShardID: 5, DomainID: "domain-x", TaskCategory: HistoryTaskCategoryIDTimer,
 								AckLevelVisibilityTS: now, AckLevelTaskID: 50},
 						},
 					}, nil)
 			},
 			wantLevels: []HistoryDLQAckLevel{
-				{ShardID: 5, DomainID: "domain-x", TaskType: HistoryTaskCategoryIDTimer,
+				{ShardID: 5, DomainID: "domain-x", TaskCategory: HistoryTaskCategoryTimer,
 					AckLevelVisibilityTS: now, AckLevelTaskID: 50},
 			},
 		},
@@ -273,9 +273,9 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 	taskBlob := &DataBlob{Data: []byte("task-bytes"), Encoding: constants.EncodingTypeThriftRW}
 
 	storeTask := &InternalHistoryDLQTask{
-		TaskType:    HistoryTaskCategoryIDTransfer,
-		TaskID:      15,
-		TaskPayload: taskBlob,
+		TaskCategory: HistoryTaskCategoryIDTransfer,
+		TaskID:       15,
+		TaskPayload:  taskBlob,
 	}
 	deserializedTask := &ActivityTask{TaskData: TaskData{TaskID: 15}}
 
@@ -383,7 +383,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 				DomainID:                  "dom",
 				ClusterAttributeScope:     "scope",
 				ClusterAttributeName:      "cluster",
-				TaskType:                  HistoryTaskCategoryIDReplication,
+				TaskCategory:              HistoryTaskCategoryReplication,
 				UpdatedInclusiveReadLevel: NewImmediateTaskKey(77),
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
@@ -392,7 +392,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 					DoAndReturn(func(_ context.Context, req InternalUpdateHistoryDLQAckLevelRequest) error {
 						assert.Equal(t, 2, req.Row.ShardID)
 						assert.Equal(t, "dom", req.Row.DomainID)
-						assert.Equal(t, HistoryTaskCategoryIDReplication, req.Row.TaskType)
+						assert.Equal(t, HistoryTaskCategoryIDReplication, req.Row.TaskCategory)
 						assert.Equal(t, int64(77), req.Row.AckLevelTaskID)
 						assert.Equal(t, time.Unix(0, 0).UTC(), req.Row.AckLevelVisibilityTS)
 						assert.Equal(t, now, req.Row.LastUpdatedAt)
@@ -451,7 +451,7 @@ func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
 				DomainID:              "dom",
 				ClusterAttributeScope: "scope",
 				ClusterAttributeName:  "cluster",
-				TaskType:              HistoryTaskCategoryIDTimer,
+				TaskCategory:          HistoryTaskCategoryTimer,
 				ExclusiveMaxTaskKey:   maxKey,
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
@@ -461,7 +461,7 @@ func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
 						DomainID:              "dom",
 						ClusterAttributeScope: "scope",
 						ClusterAttributeName:  "cluster",
-						TaskType:              HistoryTaskCategoryIDTimer,
+						TaskCategory:          HistoryTaskCategoryTimer,
 						ExclusiveMaxTaskKey:   maxKey,
 					}).
 					Return(nil)

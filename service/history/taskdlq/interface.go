@@ -73,11 +73,9 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		// TaskType is a persistence.HistoryTaskCategoryID* constant
-		// (1=Transfer, 2=Timer, 3=Replication).
-		TaskType             int
-		AckLevelVisibilityTS time.Time
-		AckLevelTaskID       int64
+		TaskCategory          persistence.HistoryTaskCategory
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
 		// ExclusiveMaxTaskKey bounds the DLQ scan to tasks that were committed to the DLQ
 		// before the source queue had processed this far.
 		ExclusiveMaxTaskKey persistence.HistoryTaskKey
@@ -89,7 +87,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          persistence.HistoryTaskCategory
 		InclusiveMinTaskKey   persistence.HistoryTaskKey
 		ExclusiveMaxTaskKey   persistence.HistoryTaskKey
 		PageSize              int
@@ -108,7 +106,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          persistence.HistoryTaskCategory
 		AckLevelVisibilityTS  time.Time
 		AckLevelTaskID        int64
 	}
@@ -119,7 +117,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          persistence.HistoryTaskCategory
 		ExclusiveMaxTaskKey   persistence.HistoryTaskKey
 	}
 

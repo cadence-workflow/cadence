@@ -70,7 +70,7 @@ func baseAckLevel(shardID int) AckLevel {
 		DomainID:              "test-domain",
 		ClusterAttributeScope: "scope",
 		ClusterAttributeName:  "name",
-		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
 		ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
@@ -168,7 +168,7 @@ func TestProcessShard_WhenExecutionFailsMidPage_AdvancesAckLevelToLastSuccess(t 
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		AckLevelVisibilityTS:  key0.GetScheduledTime(),
 		AckLevelTaskID:        key0.GetTaskID(),
 	}).Return(nil)
@@ -234,7 +234,7 @@ func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPar
 		DomainID:              "other-domain",
 		ClusterAttributeScope: "scope",
 		ClusterAttributeName:  "name",
-		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
 		ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
@@ -287,13 +287,13 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 
 	transferAL := AckLevel{
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-		TaskType:             persistence.HistoryTaskCategoryIDTransfer,
+		TaskCategory:         persistence.HistoryTaskCategoryTransfer,
 		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
 		ExclusiveMaxTaskKey: persistence.MaximumHistoryTaskKey,
 	}
 	timerAL := AckLevel{
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-		TaskType:             persistence.HistoryTaskCategoryIDTimer,
+		TaskCategory:         persistence.HistoryTaskCategoryTimer,
 		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
 		ExclusiveMaxTaskKey: persistence.MaximumHistoryTaskKey,
 	}
@@ -359,7 +359,7 @@ func TestProcessShard_WhenNoExecutorForTaskType_ReturnsError(t *testing.T) {
 
 	proc, store, _ := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
-	al.TaskType = persistence.HistoryTaskCategoryIDTimer // no executor registered for timer
+	al.TaskCategory = persistence.HistoryTaskCategoryTimer // no executor registered for timer
 
 	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al}, nil)
 
@@ -545,7 +545,7 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		AckLevelVisibilityTS:  task0Key.GetScheduledTime(),
 		AckLevelTaskID:        task0Key.GetTaskID(),
 		ExclusiveMaxTaskKey:   persistence.MaximumHistoryTaskKey,
