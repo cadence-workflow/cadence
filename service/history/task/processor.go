@@ -57,6 +57,28 @@ type processorImpl struct {
 
 var (
 	errTaskProcessorNotRunning = errors.New("queue task processor is not running")
+	niceValueToWeight          = map[int]int{
+		-10: 349,
+		-9:  278,
+		-8:  223,
+		-7:  179,
+		-6:  143,
+		-5:  114,
+		-4:  92,
+		-3:  73,
+		-2:  58,
+		-1:  47,
+		0:   38,
+		1:   30,
+		2:   24,
+		3:   19,
+		4:   16,
+		5:   12,
+		6:   10,
+		7:   8,
+		8:   7,
+		9:   5,
+	}
 )
 
 const (
@@ -108,6 +130,10 @@ func NewProcessor(
 					},
 				}
 			}
+			niceValue := config.TaskListNiceValue(domainName, taskList)
+			niceValue = min(niceValue, 9)
+			niceValue = max(niceValue, -10)
+			weight := niceValueToWeight[niceValue]
 			return []task.WeightedKey[any]{
 				{
 					Key:    key,
@@ -115,7 +141,7 @@ func NewProcessor(
 				},
 				{
 					Key:    taskList,
-					Weight: 1,
+					Weight: weight,
 				},
 			}
 		}

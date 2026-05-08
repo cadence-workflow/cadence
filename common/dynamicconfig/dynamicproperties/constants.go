@@ -343,6 +343,7 @@ const (
 	TestGetIntPropertyFilteredByWorkflowTypeKey
 	TestGetIntPropertyFilteredByTaskListInfoKey
 	TestGetIntPropertyFilteredByShardIDKey
+	TestGetIntPropertyFilteredByDomainAndTaskListKey
 
 	// key for common & admin
 
@@ -1626,6 +1627,13 @@ const (
 	// Default value: 128
 	// Allowed filters: N/A
 	ShardDistributorMaxEtcdTxnOps
+
+	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
+	// KeyName: history.taskListNiceValue
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName
+	HistoryTaskListNiceValue
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -3419,6 +3427,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: 0,
 		Filters:      nil,
 	},
+	TestGetIntPropertyFilteredByDomainAndTaskListKey: {
+		KeyName:      "testGetIntPropertyFilteredByDomainAndTaskListKey",
+		Description:  "",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
+	},
 	TransactionSizeLimit: {
 		KeyName:      "system.transactionSizeLimit",
 		Description:  "TransactionSizeLimit is the largest allowed transaction size to persistence",
@@ -4464,6 +4478,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "shardDistributor.maxEtcdTxnOps",
 		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
 		DefaultValue: 128,
+	},
+	HistoryTaskListNiceValue: {
+		KeyName:      "history.taskListNiceValue",
+		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
 	},
 }
 

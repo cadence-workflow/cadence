@@ -41,6 +41,11 @@ func GetIntPropertyFilteredByTaskListInfo(value int) func(domain string, taskLis
 	return func(domain string, taskList string, taskType int) int { return value }
 }
 
+// GetIntPropertyFilteredByDomainAndTaskList returns value as IntPropertyFnWithDomainAndTaskListFilter
+func GetIntPropertyFilteredByDomainAndTaskList(value int) func(domain string, taskList string) int {
+	return func(domain string, taskList string) int { return value }
+}
+
 // GetIntPropertyFilteredByShardID returns values as IntPropertyFnWithShardIDFilter
 func GetIntPropertyFilteredByShardID(value int) func(shardID int) int {
 	return func(shardID int) int { return value }
