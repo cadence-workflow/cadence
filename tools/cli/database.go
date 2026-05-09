@@ -171,7 +171,7 @@ func (f *defaultManagerFactory) initializeExecutionManager(c *cli.Context, shard
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get persistence factory: %w", err)
 	}
-	executionManager, err := factory.NewExecutionManager(shardID)
+	executionManager, err := factory.NewExecutionManager()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize history manager %w", err)
 	}

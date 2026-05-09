@@ -94,7 +94,7 @@ func NewManager(
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager()
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func (m *managerImpl) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx cont
 	}
 
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager()
 	if err != nil {
 		return nil, false, err
 	}

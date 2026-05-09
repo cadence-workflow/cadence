@@ -55,7 +55,7 @@ type Manager interface {
 }
 
 type ExecutionManagerProvider interface {
-	GetExecutionManager(shardID int) (persistence.ExecutionManager, error)
+	GetExecutionManager() (persistence.ExecutionManager, error)
 }
 
 type ClusterAttributeNotFoundError struct {

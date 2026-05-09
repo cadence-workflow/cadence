@@ -250,7 +250,7 @@ func (s *TestBase) Setup() {
 	s.fatalOnError("NewConfigStoreManager", err)
 
 	s.ExecutionMgrFactory = factory
-	s.ExecutionManager, err = factory.NewExecutionManager(shardID)
+	s.ExecutionManager, err = factory.NewExecutionManager()
 	s.fatalOnError("NewExecutionManager", err)
 
 	domainFilter := &types.DomainFilter{
@@ -416,6 +416,7 @@ func (s *TestBase) CreateWorkflowExecutionWithBranchToken(
 			Checksum:         testWorkflowChecksum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 	})
 
@@ -506,6 +507,7 @@ func (s *TestBase) CreateChildWorkflowExecution(ctx context.Context, domainID st
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:    s.ShardInfo.RangeID,
 		DomainName: s.DomainManager.GetName(),
 	})
@@ -517,9 +519,9 @@ func (s *TestBase) CreateChildWorkflowExecution(ctx context.Context, domainID st
 func (s *TestBase) GetWorkflowExecutionInfoWithStats(ctx context.Context, domainID string, workflowExecution types.WorkflowExecution) (
 	*persistence.MutableStateStats, *persistence.WorkflowMutableState, error) {
 	response, err := s.ExecutionManager.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
+		ShardID:   common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:  domainID,
 		Execution: workflowExecution,
-		ShardID:   common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:   s.ShardInfo.RangeID,
 	})
 	if err != nil {
@@ -533,9 +535,9 @@ func (s *TestBase) GetWorkflowExecutionInfoWithStats(ctx context.Context, domain
 func (s *TestBase) GetWorkflowExecutionInfo(ctx context.Context, domainID string, workflowExecution types.WorkflowExecution) (
 	*persistence.WorkflowMutableState, error) {
 	response, err := s.ExecutionManager.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
+		ShardID:   common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:  domainID,
 		Execution: workflowExecution,
-		ShardID:   common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:   s.ShardInfo.RangeID,
 	})
 	if err != nil {
@@ -547,9 +549,9 @@ func (s *TestBase) GetWorkflowExecutionInfo(ctx context.Context, domainID string
 // GetCurrentWorkflowRunID returns the workflow run ID for the given params
 func (s *TestBase) GetCurrentWorkflowRunID(ctx context.Context, domainID, workflowID string) (string, error) {
 	response, err := s.ExecutionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
-		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 	})
 
 	if err != nil {
@@ -636,6 +638,7 @@ func (s *TestBase) ContinueAsNewExecution(
 			ExecutionStats:   updatedStats,
 			VersionHistories: versionHistories,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 		// To DO: next PR for UpdateWorkflowExecution
@@ -705,6 +708,7 @@ func (s *TestBase) UpdateWorkflowExecutionAndFinish(
 		TaskData: persistence.TaskData{TaskID: s.GetNextSequenceNumber()},
 	})
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
 			ExecutionInfo:  updatedInfo,
@@ -1166,6 +1170,7 @@ func (s *TestBase) UpdateWorkflowExecutionWithReplication(
 			ScheduleID:     int64(activityScheduleID)})
 	}
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: rangeID,
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
 			ExecutionInfo:    updatedInfo,
@@ -1210,7 +1215,8 @@ func (s *TestBase) UpdateWorkflowExecutionTasks(
 	timerTasks []persistence.Task,
 ) error {
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
-		Mode: persistence.UpdateWorkflowModeIgnoreCurrent,
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
+		Mode:    persistence.UpdateWorkflowModeIgnoreCurrent,
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
 			ExecutionInfo:  updatedInfo,
 			ExecutionStats: updatedStats,
@@ -1248,6 +1254,7 @@ func (s *TestBase) UpdateWorkflowExecutionWithTransferTasks(
 			UpsertActivityInfos: upsertActivityInfo,
 			VersionHistories:    versionHistories,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 	})
@@ -1268,6 +1275,7 @@ func (s *TestBase) UpdateWorkflowExecutionForChildExecutionsInitiated(
 			Condition:                 condition,
 			UpsertChildExecutionInfos: childInfos,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 	})
@@ -1289,6 +1297,7 @@ func (s *TestBase) UpdateWorkflowExecutionForRequestCancel(
 			Condition:                condition,
 			UpsertRequestCancelInfos: upsertRequestCancelInfo,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 	})
@@ -1310,6 +1319,7 @@ func (s *TestBase) UpdateWorkflowExecutionForSignal(
 			Condition:         condition,
 			UpsertSignalInfos: upsertSignalInfos,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 	})
@@ -1337,6 +1347,7 @@ func (s *TestBase) UpdateWorkflowExecutionForBufferEvents(
 			VersionHistories:    versionHistories,
 			Checksum:            testWorkflowChecksum,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 	})
@@ -1375,6 +1386,7 @@ func (s *TestBase) UpdateAllMutableState(ctx context.Context, updatedMutableStat
 		srIDs = append(srIDs, id)
 	}
 	_, err := s.ExecutionManager.UpdateWorkflowExecution(ctx, &persistence.UpdateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		UpdateWorkflowMutation: persistence.WorkflowMutation{
 			ExecutionInfo:             updatedMutableState.ExecutionInfo,
@@ -1410,6 +1422,7 @@ func (s *TestBase) ConflictResolveWorkflowExecution(
 ) error {
 
 	_, err := s.ExecutionManager.ConflictResolveWorkflowExecution(ctx, &persistence.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
 			ExecutionInfo:       info,
@@ -1432,20 +1445,20 @@ func (s *TestBase) ConflictResolveWorkflowExecution(
 // DeleteWorkflowExecution is a utility method to delete a workflow execution
 func (s *TestBase) DeleteWorkflowExecution(ctx context.Context, info *persistence.WorkflowExecutionInfo) error {
 	return s.ExecutionManager.DeleteWorkflowExecution(ctx, &persistence.DeleteWorkflowExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   info.DomainID,
 		WorkflowID: info.WorkflowID,
 		RunID:      info.RunID,
-		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 	})
 }
 
 // DeleteCurrentWorkflowExecution is a utility method to delete the workflow current execution
 func (s *TestBase) DeleteCurrentWorkflowExecution(ctx context.Context, info *persistence.WorkflowExecutionInfo) error {
 	return s.ExecutionManager.DeleteCurrentWorkflowExecution(ctx, &persistence.DeleteCurrentWorkflowExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   info.DomainID,
 		WorkflowID: info.WorkflowID,
 		RunID:      info.RunID,
-		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 	})
 }
 
@@ -1457,6 +1470,7 @@ func (s *TestBase) GetTransferTasks(ctx context.Context, batchSize int, getAll b
 Loop:
 	for {
 		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(0),
 			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(math.MaxInt64),
@@ -1490,6 +1504,7 @@ func (s *TestBase) GetReplicationTasks(ctx context.Context, batchSize int, getAl
 Loop:
 	for {
 		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 			TaskCategory:        persistence.HistoryTaskCategoryReplication,
 			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(0),
 			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(math.MaxInt64),
@@ -1514,6 +1529,7 @@ Loop:
 func (s *TestBase) RangeCompleteReplicationTask(ctx context.Context, exclusiveEndTaskID int64) error {
 	for {
 		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 			TaskCategory:        persistence.HistoryTaskCategoryReplication,
 			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(exclusiveEndTaskID),
 			PageSize:            1,
@@ -1536,6 +1552,7 @@ func (s *TestBase) PutReplicationTaskToDLQ(
 ) error {
 
 	return s.ExecutionManager.PutReplicationTaskToDLQ(ctx, &persistence.PutReplicationTaskToDLQRequest{
+		ShardID:           common.IntPtr(s.ShardInfo.ShardID),
 		SourceClusterName: sourceCluster,
 		TaskInfo:          taskInfo,
 	})
@@ -1552,6 +1569,7 @@ func (s *TestBase) GetReplicationTasksFromDLQ(
 ) (*persistence.GetReplicationDLQTasksResponse, error) {
 
 	return s.ExecutionManager.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
+		ShardID:           common.IntPtr(s.ShardInfo.ShardID),
 		SourceClusterName: sourceCluster,
 		ReadLevel:         readLevel,
 		MaxReadLevel:      maxReadLevel,
@@ -1567,6 +1585,7 @@ func (s *TestBase) GetReplicationDLQSize(
 ) (*persistence.GetReplicationDLQSizeResponse, error) {
 
 	return s.ExecutionManager.GetReplicationDLQSize(ctx, &persistence.GetReplicationDLQSizeRequest{
+		ShardID:           common.IntPtr(s.ShardInfo.ShardID),
 		SourceClusterName: sourceCluster,
 	})
 }
@@ -1579,6 +1598,7 @@ func (s *TestBase) DeleteReplicationTaskFromDLQ(
 ) error {
 
 	return s.ExecutionManager.DeleteReplicationTaskFromDLQ(ctx, &persistence.DeleteReplicationTaskFromDLQRequest{
+		ShardID:           common.IntPtr(s.ShardInfo.ShardID),
 		SourceClusterName: sourceCluster,
 		TaskID:            taskID,
 	})
@@ -1593,6 +1613,7 @@ func (s *TestBase) RangeDeleteReplicationTaskFromDLQ(
 ) error {
 
 	_, err := s.ExecutionManager.RangeDeleteReplicationTaskFromDLQ(ctx, &persistence.RangeDeleteReplicationTaskFromDLQRequest{
+		ShardID:              common.IntPtr(s.ShardInfo.ShardID),
 		SourceClusterName:    sourceCluster,
 		InclusiveBeginTaskID: beginTaskID,
 		ExclusiveEndTaskID:   endTaskID,
@@ -1607,6 +1628,7 @@ func (s *TestBase) CreateFailoverMarkers(
 ) error {
 
 	return s.ExecutionManager.CreateFailoverMarkerTasks(ctx, &persistence.CreateFailoverMarkersRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Markers: markers,
 	})
@@ -1616,6 +1638,7 @@ func (s *TestBase) CreateFailoverMarkers(
 func (s *TestBase) CompleteTransferTask(ctx context.Context, taskID int64) error {
 
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+		ShardID:      common.IntPtr(s.ShardInfo.ShardID),
 		TaskCategory: persistence.HistoryTaskCategoryTransfer,
 		TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(taskID)},
 	})
@@ -1625,6 +1648,7 @@ func (s *TestBase) CompleteTransferTask(ctx context.Context, taskID int64) error
 func (s *TestBase) RangeCompleteTransferTask(ctx context.Context, inclusiveBeginTaskID int64, exclusiveEndTaskID int64) error {
 	for {
 		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(inclusiveBeginTaskID),
 			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(exclusiveEndTaskID),
@@ -1654,6 +1678,7 @@ func (s *TestBase) RangeCompleteCrossClusterTask(ctx context.Context, targetClus
 func (s *TestBase) CompleteReplicationTask(ctx context.Context, taskID int64) error {
 
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+		ShardID:      common.IntPtr(s.ShardInfo.ShardID),
 		TaskCategory: persistence.HistoryTaskCategoryReplication,
 		TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(taskID)},
 	})
@@ -1667,6 +1692,7 @@ func (s *TestBase) GetTimerIndexTasks(ctx context.Context, batchSize int, getAll
 Loop:
 	for {
 		response, err := s.ExecutionManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 			TaskCategory:        persistence.HistoryTaskCategoryTimer,
 			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
 			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
@@ -1690,6 +1716,7 @@ Loop:
 // CompleteTimerTask is a utility method to complete a timer task
 func (s *TestBase) CompleteTimerTask(ctx context.Context, ts time.Time, taskID int64) error {
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+		ShardID:      common.IntPtr(s.ShardInfo.ShardID),
 		TaskCategory: persistence.HistoryTaskCategoryTimer,
 		TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(ts, taskID)},
 	})
@@ -1699,6 +1726,7 @@ func (s *TestBase) CompleteTimerTask(ctx context.Context, ts time.Time, taskID i
 func (s *TestBase) RangeCompleteTimerTask(ctx context.Context, inclusiveBeginTimestamp time.Time, exclusiveEndTimestamp time.Time) error {
 	for {
 		resp, err := s.ExecutionManager.RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
+			ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 			TaskCategory:        persistence.HistoryTaskCategoryTimer,
 			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(inclusiveBeginTimestamp, 0),
 			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(exclusiveEndTimestamp, 0),

@@ -271,11 +271,7 @@ func (c *injectorExecutionManager) GetReplicationTasksFromDLQ(ctx context.Contex
 	return
 }
 
-func (c *injectorExecutionManager) GetShardID() (i1 int) {
-	return c.wrapped.GetShardID()
-}
-
-func (c *injectorExecutionManager) GetWorkflowExecution(ctx context.Context, request *_sourcePersistence.GetWorkflowExecutionRequest) (gp1 *_sourcePersistence.GetWorkflowExecutionResponse, err error) {
+func (c *injectorExecutionManager) GetWorkflowExecution(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (gp1 *persistence.GetWorkflowExecutionResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {

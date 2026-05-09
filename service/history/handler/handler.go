@@ -765,7 +765,7 @@ func (h *handlerImpl) RemoveTask(
 	ctx context.Context,
 	request *types.RemoveTaskRequest,
 ) (retError error) {
-	executionMgr, err := h.GetExecutionManager(int(request.GetShardID()))
+	executionMgr, err := h.GetExecutionManager()
 	if err != nil {
 		return err
 	}

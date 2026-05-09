@@ -352,7 +352,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
-				emp.EXPECT().GetExecutionManager(6).Return(nil, errors.New("failed to get execution manager")).AnyTimes()
+				emp.EXPECT().GetExecutionManager().Return(nil, errors.New("failed to get execution manager")).AnyTimes()
 			},
 			expectedError: "failed to get execution manager",
 		},
@@ -662,7 +662,6 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			wfID := "test-workflow-id"
-			shardID := 6 // corresponds to wfID given numShards
 
 			var emProvider *MockExecutionManagerProvider
 			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
@@ -676,7 +675,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 					if tc.mockExecutionManagerFn != nil {
 						tc.mockExecutionManagerFn(em)
 					}
-					emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
+					emProvider.EXPECT().GetExecutionManager().Return(em, nil).AnyTimes()
 				}
 			}
 
@@ -772,7 +771,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
-				emp.EXPECT().GetExecutionManager(6).Return(nil, errors.New("failed to get execution manager")).AnyTimes()
+				emp.EXPECT().GetExecutionManager().Return(nil, errors.New("failed to get execution manager")).AnyTimes()
 			},
 			expectedError:   "failed to get execution manager",
 			expectedRunning: false,
@@ -1067,7 +1066,6 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			wfID := "test-workflow-id"
-			shardID := 6 // corresponds to wfID given numShards
 
 			var emProvider *MockExecutionManagerProvider
 			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
@@ -1081,7 +1079,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					if tc.mockExecutionManagerFn != nil {
 						tc.mockExecutionManagerFn(em)
 					}
-					emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
+					emProvider.EXPECT().GetExecutionManager().Return(em, nil).AnyTimes()
 				}
 			}
 
