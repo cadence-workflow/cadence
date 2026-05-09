@@ -160,9 +160,15 @@ func (p *archiverProvider) RegisterBootstrapContainer(
 
 func (p *archiverProvider) GetHistoryArchiver(scheme, serviceName string) (historyArchiver archiver.HistoryArchiver, err error) {
 	archiverKey := p.getArchiverKey(scheme, serviceName)
+	p.RLock()
+	if historyArchiver, ok := p.historyArchivers[archiverKey]; ok {
+		p.RUnlock()
+		return historyArchiver, nil
+	}
+	p.RUnlock()
+
 	p.Lock()
 	defer p.Unlock()
-
 	if historyArchiver, ok := p.historyArchivers[archiverKey]; ok {
 		return historyArchiver, nil
 	}
@@ -193,9 +199,15 @@ func (p *archiverProvider) GetHistoryArchiver(scheme, serviceName string) (histo
 
 func (p *archiverProvider) GetVisibilityArchiver(scheme, serviceName string) (archiver.VisibilityArchiver, error) {
 	archiverKey := p.getArchiverKey(scheme, serviceName)
+	p.RLock()
+	if visibilityArchiver, ok := p.visibilityArchivers[archiverKey]; ok {
+		p.RUnlock()
+		return visibilityArchiver, nil
+	}
+	p.RUnlock()
+
 	p.Lock()
 	defer p.Unlock()
-
 	if visibilityArchiver, ok := p.visibilityArchivers[archiverKey]; ok {
 		return visibilityArchiver, nil
 	}
