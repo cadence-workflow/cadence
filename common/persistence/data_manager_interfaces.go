@@ -1634,7 +1634,6 @@ type (
 	ExecutionManager interface {
 		Closeable
 		GetName() string
-		GetShardID() int
 
 		CreateWorkflowExecution(ctx context.Context, request *CreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error)
 		GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error)
@@ -1667,10 +1666,10 @@ type (
 		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
 	}
 
-	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
+	// ExecutionManagerFactory creates an instance of ExecutionManager
 	ExecutionManagerFactory interface {
 		Closeable
-		NewExecutionManager(shardID int) (ExecutionManager, error)
+		NewExecutionManager() (ExecutionManager, error)
 	}
 
 	// TaskManager is used to manage tasks

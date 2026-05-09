@@ -71,8 +71,8 @@ type (
 		NewDomainAuditManager() (p.DomainAuditManager, error)
 		// NewHistoryTaskDLQManager returns a new history task DLQ manager
 		NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error)
-		// NewExecutionManager returns a new execution manager for a given shardID
-		NewExecutionManager(shardID int) (p.ExecutionManager, error)
+		// NewExecutionManager returns a new execution manager
+		NewExecutionManager() (p.ExecutionManager, error)
 		// NewVisibilityManager returns a new visibility manager
 		NewVisibilityManager(params *Params, serviceConfig *service.Config) (p.VisibilityManager, error)
 		// NewDomainReplicationQueueManager returns a new queue for domain replication
@@ -97,8 +97,8 @@ type (
 		NewDomainAuditStore() (p.DomainAuditStore, error)
 		// NewHistoryDLQTaskStore returns a new history DLQ task store
 		NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error)
-		// NewExecutionStore returns an execution store for given shardID
-		NewExecutionStore(shardID int) (p.ExecutionStore, error)
+		// NewExecutionStore returns an execution store
+		NewExecutionStore() (p.ExecutionStore, error)
 		// NewVisibilityStore returns a new visibility store,
 		// TODO We temporarily using sortByCloseTime to determine whether or not ListClosedWorkflowExecutions should
 		// be ordering by CloseTime. This will be removed when implementing https://github.com/uber/cadence/issues/3621
@@ -294,10 +294,10 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 	return p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger), nil
 }
 
-// NewExecutionManager returns a new execution manager for a given shardID
-func (f *factoryImpl) NewExecutionManager(shardID int) (p.ExecutionManager, error) {
+// NewExecutionManager returns a new execution manager
+func (f *factoryImpl) NewExecutionManager() (p.ExecutionManager, error) {
 	ds := f.datastores[storeTypeExecution]
-	store, err := ds.factory.NewExecutionStore(shardID)
+	store, err := ds.factory.NewExecutionStore()
 	if err != nil {
 		return nil, err
 	}

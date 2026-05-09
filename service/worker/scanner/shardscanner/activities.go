@@ -168,13 +168,13 @@ func scanShard(
 	}
 
 	resources := ctx.Resource
-	execManager, err := resources.GetExecutionManager(shardID)
+	execManager, err := resources.GetExecutionManager()
 	if err != nil {
 		scope.IncCounter(metrics.CadenceFailures)
 		return nil, err
 	}
 
-	pr := persistence.NewPersistenceRetryer(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy())
+	pr := persistence.NewPersistenceRetryerWithShardID(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 
 	scanner := NewScanner(
 		shardID,
@@ -391,13 +391,13 @@ func fixShard(
 		return nil, cadence.NewCustomError(ErrMissingHooks)
 	}
 
-	execManager, err := resource.GetExecutionManager(shardID)
+	execManager, err := resource.GetExecutionManager()
 	if err != nil {
 		scope.IncCounter(metrics.CadenceFailures)
 		return nil, err
 	}
 
-	pr := persistence.NewPersistenceRetryer(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy())
+	pr := persistence.NewPersistenceRetryerWithShardID(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 
 	fixer := NewFixer(
 		activityCtx,

@@ -94,12 +94,13 @@ func NewManager(
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager()
 	if err != nil {
 		return nil, err
 	}
 	if rID == "" {
 		execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+			ShardID:    common.Ptr(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 		})
@@ -122,6 +123,7 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 	}
 
 	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, &persistence.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.Ptr(shardID),
 		DomainID:   domainID,
 		WorkflowID: wfID,
 		RunID:      rID,
@@ -297,11 +299,12 @@ func (m *managerImpl) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx cont
 	}
 
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
+	executionManager, err := m.executionManagerProvider.GetExecutionManager()
 	if err != nil {
 		return nil, false, err
 	}
 	execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(shardID),
 		DomainID:   domainID,
 		WorkflowID: wfID,
 	})

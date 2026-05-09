@@ -638,20 +638,6 @@ func (mr *MockExecutionManagerMockRecorder) GetReplicationTasksFromDLQ(ctx, requ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasksFromDLQ", reflect.TypeOf((*MockExecutionManager)(nil).GetReplicationTasksFromDLQ), ctx, request)
 }
 
-// GetShardID mocks base method.
-func (m *MockExecutionManager) GetShardID() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShardID")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetShardID indicates an expected call of GetShardID.
-func (mr *MockExecutionManagerMockRecorder) GetShardID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionManager)(nil).GetShardID))
-}
-
 // GetWorkflowExecution mocks base method.
 func (m *MockExecutionManager) GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -808,18 +794,18 @@ func (mr *MockExecutionManagerFactoryMockRecorder) Close() *gomock.Call {
 }
 
 // NewExecutionManager mocks base method.
-func (m *MockExecutionManagerFactory) NewExecutionManager(shardID int) (ExecutionManager, error) {
+func (m *MockExecutionManagerFactory) NewExecutionManager() (ExecutionManager, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewExecutionManager", shardID)
+	ret := m.ctrl.Call(m, "NewExecutionManager")
 	ret0, _ := ret[0].(ExecutionManager)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // NewExecutionManager indicates an expected call of NewExecutionManager.
-func (mr *MockExecutionManagerFactoryMockRecorder) NewExecutionManager(shardID any) *gomock.Call {
+func (mr *MockExecutionManagerFactoryMockRecorder) NewExecutionManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionManager", reflect.TypeOf((*MockExecutionManagerFactory)(nil).NewExecutionManager), shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionManager", reflect.TypeOf((*MockExecutionManagerFactory)(nil).NewExecutionManager))
 }
 
 // MockTaskManager is a mock of TaskManager interface.

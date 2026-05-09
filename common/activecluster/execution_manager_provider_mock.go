@@ -42,16 +42,16 @@ func (m *MockExecutionManagerProvider) EXPECT() *MockExecutionManagerProviderMoc
 }
 
 // GetExecutionManager mocks base method.
-func (m *MockExecutionManagerProvider) GetExecutionManager(shardID int) (persistence.ExecutionManager, error) {
+func (m *MockExecutionManagerProvider) GetExecutionManager() (persistence.ExecutionManager, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExecutionManager", shardID)
+	ret := m.ctrl.Call(m, "GetExecutionManager")
 	ret0, _ := ret[0].(persistence.ExecutionManager)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetExecutionManager indicates an expected call of GetExecutionManager.
-func (mr *MockExecutionManagerProviderMockRecorder) GetExecutionManager(shardID any) *gomock.Call {
+func (mr *MockExecutionManagerProviderMockRecorder) GetExecutionManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutionManager", reflect.TypeOf((*MockExecutionManagerProvider)(nil).GetExecutionManager), shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutionManager", reflect.TypeOf((*MockExecutionManagerProvider)(nil).GetExecutionManager))
 }

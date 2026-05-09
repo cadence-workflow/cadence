@@ -143,7 +143,8 @@ func checkExecution(
 	invariants []executions.InvariantFactory,
 	fetcher executions.ExecutionFetcher,
 ) (interface{}, invariant.ManagerCheckResult, error) {
-	execManager, err := getDeps(c).initializeExecutionManager(c, common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards))
+	shardID := common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards)
+	execManager, err := getDeps(c).initializeExecutionManager(c, shardID)
 	if err != nil {
 		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("initialize execution manager: %w", err)
 	}
@@ -155,10 +156,11 @@ func checkExecution(
 	}
 	defer historyV2Mgr.Close()
 
-	pr := persistence.NewPersistenceRetryer(
+	pr := persistence.NewPersistenceRetryerWithShardID(
 		execManager,
 		historyV2Mgr,
 		common.CreatePersistenceRetryPolicy(),
+		shardID,
 	)
 
 	ctx, cancel, err := newContext(c)

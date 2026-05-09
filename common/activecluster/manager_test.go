@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -351,7 +352,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
-				emp.EXPECT().GetExecutionManager(6).Return(nil, errors.New("failed to get execution manager")).AnyTimes()
+				emp.EXPECT().GetExecutionManager().Return(nil, errors.New("failed to get execution manager")).AnyTimes()
 			},
 			expectedError: "failed to get execution manager",
 		},
@@ -605,6 +606,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				// Expect GetCurrentExecution to be called first to get the runID
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -642,6 +644,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				// GetCurrentExecution returns an error
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(nil, errors.New("workflow not found"))
@@ -659,7 +662,6 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			wfID := "test-workflow-id"
-			shardID := 6 // corresponds to wfID given numShards
 
 			var emProvider *MockExecutionManagerProvider
 			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
@@ -673,7 +675,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 					if tc.mockExecutionManagerFn != nil {
 						tc.mockExecutionManagerFn(em)
 					}
-					emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
+					emProvider.EXPECT().GetExecutionManager().Return(em, nil).AnyTimes()
 				}
 			}
 
@@ -769,7 +771,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
-				emp.EXPECT().GetExecutionManager(6).Return(nil, errors.New("failed to get execution manager")).AnyTimes()
+				emp.EXPECT().GetExecutionManager().Return(nil, errors.New("failed to get execution manager")).AnyTimes()
 			},
 			expectedError:   "failed to get execution manager",
 			expectedRunning: false,
@@ -791,6 +793,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(nil, errors.New("workflow not found"))
@@ -815,6 +818,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -846,6 +850,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -889,6 +894,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -928,6 +934,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -961,6 +968,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -1000,6 +1008,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -1029,6 +1038,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
 				em.EXPECT().GetCurrentExecution(gomock.Any(), &persistence.GetCurrentExecutionRequest{
+					ShardID:    common.Ptr(6),
 					DomainID:   "test-domain-id",
 					WorkflowID: "test-workflow-id",
 				}).Return(&persistence.GetCurrentExecutionResponse{
@@ -1056,7 +1066,6 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
 			wfID := "test-workflow-id"
-			shardID := 6 // corresponds to wfID given numShards
 
 			var emProvider *MockExecutionManagerProvider
 			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
@@ -1070,7 +1079,7 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 					if tc.mockExecutionManagerFn != nil {
 						tc.mockExecutionManagerFn(em)
 					}
-					emProvider.EXPECT().GetExecutionManager(shardID).Return(em, nil).AnyTimes()
+					emProvider.EXPECT().GetExecutionManager().Return(em, nil).AnyTimes()
 				}
 			}
 
