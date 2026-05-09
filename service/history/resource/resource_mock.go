@@ -283,18 +283,18 @@ func (mr *MockResourceMockRecorder) GetEventCache() *gomock.Call {
 }
 
 // GetExecutionManager mocks base method.
-func (m *MockResource) GetExecutionManager(arg0 int) (persistence.ExecutionManager, error) {
+func (m *MockResource) GetExecutionManager() (persistence.ExecutionManager, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExecutionManager", arg0)
+	ret := m.ctrl.Call(m, "GetExecutionManager")
 	ret0, _ := ret[0].(persistence.ExecutionManager)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetExecutionManager indicates an expected call of GetExecutionManager.
-func (mr *MockResourceMockRecorder) GetExecutionManager(arg0 any) *gomock.Call {
+func (mr *MockResourceMockRecorder) GetExecutionManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutionManager", reflect.TypeOf((*MockResource)(nil).GetExecutionManager), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutionManager", reflect.TypeOf((*MockResource)(nil).GetExecutionManager))
 }
 
 // GetFrontendClient mocks base method.

@@ -95,13 +95,13 @@ func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, err
 	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
-// NewExecutionStore returns an ExecutionStore for a given shardID
-func (f *Factory) NewExecutionStore(shardID int) (persistence.ExecutionStore, error) {
+// NewExecutionStore returns an ExecutionStore
+func (f *Factory) NewExecutionStore() (persistence.ExecutionStore, error) {
 	factory, err := f.executionStoreFactory()
 	if err != nil {
 		return nil, err
 	}
-	return factory.new(shardID)
+	return factory.new()
 }
 
 // NewVisibilityStore returns a visibility store
@@ -173,7 +173,11 @@ func (f *executionStoreFactory) close() {
 }
 
 // new implements ExecutionStoreFactory interface
-func (f *executionStoreFactory) new(shardID int) (persistence.ExecutionStore, error) {
+func (f *executionStoreFactory) new() (persistence.ExecutionStore, error) {
+	return NewShardedExecutionStore(f.shardedNosqlStore, f.logger, f.taskSerializer), nil
+}
+
+func (f *executionStoreFactory) newForShard(shardID int) (persistence.ExecutionStore, error) {
 	storeShard, err := f.shardedNosqlStore.GetStoreShardByHistoryShard(shardID)
 	if err != nil {
 		return nil, err
