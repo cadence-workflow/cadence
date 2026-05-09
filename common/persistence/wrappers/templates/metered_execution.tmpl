@@ -29,7 +29,7 @@ func New{{.Interface.Name}}(
         wrapped: wrapped,
         base:       base{
 			metricClient:                  metricClient,
-			logger:                        logger.WithTags(tag.ShardID(wrapped.GetShardID())),
+			logger:                        logger,
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
 			enableShardIDMetrics:          enableShardIDMetrics,
 			hostName:                      cfg.HostName,
@@ -57,8 +57,12 @@ func New{{.Interface.Name}}(
                     logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags({{$reqName}})...)
                     c.logger.Debug("Persistence {{$methodName}} called", logTags...)
                 	if c.enableShardIDMetrics() {
-                	    err = c.callWithDomainAndShardScope({{$scopeName}}, op, metrics.DomainTag(domainName),
-                	    metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+                	    if shardID, hasShardID := getShardIDFromRequest({{$reqName}}); hasShardID && shardID != nil {
+                	        err = c.callWithDomainAndShardScope({{$scopeName}}, op, metrics.DomainTag(domainName),
+                	        metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+                	    } else {
+                	        err = c.call({{$scopeName}}, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+                	    }
                 	} else {
                 		err = c.call({{$scopeName}}, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
                 	}

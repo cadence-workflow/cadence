@@ -114,7 +114,7 @@ type Resource interface {
 	GetShardManager() persistence.ShardManager
 	GetHistoryManager() persistence.HistoryManager
 	GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
-	GetExecutionManager(int) (persistence.ExecutionManager, error)
+	GetExecutionManager() (persistence.ExecutionManager, error)
 	GetPersistenceBean() persistenceClient.Bean
 
 	// GetHostName get host name

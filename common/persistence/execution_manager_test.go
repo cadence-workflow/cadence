@@ -65,12 +65,6 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 		prepareMocks func(*MockExecutionStore)
 	}{
 		{
-			method: "GetShardID",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().GetShardID().Return(1).Times(1)
-			},
-		},
-		{
 			method: "GetName",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
 				mockedStore.EXPECT().GetName().Return("test").Times(1)

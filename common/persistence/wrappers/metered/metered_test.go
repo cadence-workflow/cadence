@@ -46,15 +46,13 @@ import (
 )
 
 var _staticMethods = map[string]bool{
-	"Close":      true,
-	"GetName":    true,
-	"GetShardID": true,
+	"Close":   true,
+	"GetName": true,
 }
 
 func TestGetRetryCountFromContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	wrapped := persistence.NewMockExecutionManager(ctrl)
-	wrapped.EXPECT().GetShardID().Return(1).AnyTimes()
 	request := &persistence.GetHistoryTasksRequest{}
 
 	gomock.InOrder(
@@ -166,8 +164,6 @@ func TestWrappersAgainstPreviousImplementation(t *testing.T) {
 			name: "ExecutionManager",
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockExecutionManager(ctrl)
-
-				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
 					dynamicproperties.GetBoolPropertyFn(true))
