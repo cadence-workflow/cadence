@@ -467,10 +467,9 @@ func TestPersistenceRetryerDeleteCurrentWorkflowExecution(t *testing.T) {
 func TestPersistenceRetryerGetShardID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockExecutionManager := NewMockExecutionManager(ctrl)
-	mockExecutionManager.EXPECT().GetShardID().Return(42)
 	retryer := NewPersistenceRetryer(mockExecutionManager, NewMockHistoryManager(ctrl), backoff.NewExponentialRetryPolicy(time.Nanosecond))
 
-	assert.Equal(t, 42, retryer.GetShardID())
+	assert.Equal(t, -1, retryer.GetShardID())
 }
 
 func TestPersistenceRetryerGetShardIDFromConfiguredShardID(t *testing.T) {

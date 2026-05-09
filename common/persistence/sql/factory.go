@@ -124,13 +124,13 @@ func (f *Factory) NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error) {
 	return nil, nil
 }
 
-// NewExecutionStore returns an ExecutionStore for a given shardID
-func (f *Factory) NewExecutionStore(shardID int) (p.ExecutionStore, error) {
+// NewExecutionStore returns an ExecutionStore
+func (f *Factory) NewExecutionStore() (p.ExecutionStore, error) {
 	conn, err := f.dbConn.get()
 	if err != nil {
 		return nil, err
 	}
-	return NewSQLExecutionStore(conn, f.logger, shardID, f.parser, f.taskSerializer, f.dc)
+	return NewSQLExecutionStore(conn, f.logger, f.parser, f.taskSerializer, f.dc)
 }
 
 // NewVisibilityStore returns a visibility store

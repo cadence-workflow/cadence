@@ -147,6 +147,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:    s.ShardInfo.RangeID,
 		Mode:       p.CreateWorkflowModeBrandNew,
 		DomainName: domainName,
@@ -168,6 +169,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 			Condition:        nextEventID,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -234,6 +236,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithWorkflowRequestsD
 				},
 			},
 		},
+		ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:             s.ShardInfo.RangeID,
 		Mode:                p.CreateWorkflowModeBrandNew,
 		WorkflowRequestMode: p.CreateWorkflowRequestModeReplicated,
@@ -299,6 +302,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionStateCloseStatus() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -437,6 +441,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithZombieState() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeZombie,
 	}
@@ -540,6 +545,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 				},
 			},
 		},
+		ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:             s.ShardInfo.RangeID,
 		Mode:                p.CreateWorkflowModeBrandNew,
 		WorkflowRequestMode: p.CreateWorkflowRequestModeNew,
@@ -569,6 +575,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 				},
 			},
 		},
+		ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:             s.ShardInfo.RangeID,
 		Mode:                p.UpdateWorkflowModeUpdateCurrent,
 		WorkflowRequestMode: p.CreateWorkflowRequestModeNew,
@@ -640,6 +647,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -667,6 +675,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -688,6 +697,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				ExecutionStats: updatedStats,
 				Condition:      nextEventID,
 			},
+			ShardID: common.IntPtr(s.ShardInfo.ShardID),
 			RangeID: s.ShardInfo.RangeID,
 			Mode:    p.UpdateWorkflowModeUpdateCurrent,
 		})
@@ -704,6 +714,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			ExecutionStats: updatedStats,
 			Condition:      nextEventID,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -718,6 +729,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				Condition:        nextEventID,
 				VersionHistories: versionHistories,
 			},
+			ShardID: common.IntPtr(s.ShardInfo.ShardID),
 			RangeID: s.ShardInfo.RangeID,
 			Mode:    p.UpdateWorkflowModeUpdateCurrent,
 		})
@@ -756,6 +768,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			Condition:        nextEventID,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -776,6 +789,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				ExecutionStats: updatedStats,
 				Condition:      nextEventID,
 			},
+			ShardID: common.IntPtr(s.ShardInfo.ShardID),
 			RangeID: s.ShardInfo.RangeID,
 			Mode:    p.UpdateWorkflowModeBypassCurrent,
 		})
@@ -831,6 +845,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -856,6 +871,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Condition:      nextEventID,
 			Checksum:       csum,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -872,6 +888,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Condition:        nextEventID,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -914,6 +931,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -1054,6 +1072,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionBrandNew() {
 			ExecutionStats:   &p.ExecutionStats{},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -1118,6 +1137,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -1150,6 +1170,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -1176,6 +1197,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -1258,6 +1280,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionRunIDReuseWithoutRepl
 			ExecutionStats:   &p.ExecutionStats{},
 			VersionHistories: versionHistories,
 		},
+		ShardID:                  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:                  s.ShardInfo.RangeID,
 		Mode:                     p.CreateWorkflowModeWorkflowIDReuse,
 		PreviousRunID:            workflowExecution.GetRunID(),
@@ -1405,6 +1428,7 @@ func (s *ExecutionManagerSuite) TestPersistenceStartWorkflow() {
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID - 1,
 	})
 
@@ -1511,7 +1535,8 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
-		Mode: p.CreateWorkflowModeBrandNew,
+		Mode:    p.CreateWorkflowModeBrandNew,
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 	}
 	createReq.NewWorkflowSnapshot.ExecutionInfo.FirstExecutionRunID = createReq.NewWorkflowSnapshot.ExecutionInfo.RunID
 
@@ -1599,6 +1624,7 @@ func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
 	createReq := &p.CreateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		NewWorkflowSnapshot: p.WorkflowSnapshot{
 			ExecutionInfo: &p.WorkflowExecutionInfo{
@@ -1668,6 +1694,7 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	})
 	versionHistories := p.NewVersionHistories(versionHistory)
 	createReq := &p.CreateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		NewWorkflowSnapshot: p.WorkflowSnapshot{
 			ExecutionInfo: &p.WorkflowExecutionInfo{
@@ -2263,6 +2290,7 @@ func (s *ExecutionManagerSuite) TestCleanupCorruptedWorkflow() {
 			Checksum:         testWorkflowChecksum,
 			VersionHistories: info0.VersionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -2303,6 +2331,7 @@ func (s *ExecutionManagerSuite) TestGetCurrentWorkflow() {
 	s.NotNil(task0, "Expected non empty task identifier.")
 
 	response, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.GetWorkflowID(),
 	})
@@ -5123,6 +5152,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistories := p.NewVersionHistories(versionHistory)
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5161,6 +5191,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5300,6 +5331,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	newWorkflowExecutionInfo.PartitionConfig = map[string]string{"user": uuid.New()}
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5350,6 +5382,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5458,6 +5491,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistories := p.NewVersionHistories(versionHistory)
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5484,6 +5518,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5583,6 +5618,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	newWorkflowExecutionInfo.PartitionConfig = map[string]string{"zone": "dca1"}
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5621,6 +5657,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5748,6 +5785,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistories := p.NewVersionHistories(versionHistory)
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeUpdateCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5774,6 +5812,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5895,6 +5934,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	newWorkflowExecutionInfo.CloseStatus = p.WorkflowCloseStatusNone
 	newWorkflowExecutionInfo.PartitionConfig = map[string]string{"zone": "dca1"}
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeUpdateCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5933,6 +5973,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})

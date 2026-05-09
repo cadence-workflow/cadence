@@ -145,10 +145,6 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 	return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetShardID() (i1 int) {
-	return c.wrapped.GetShardID()
-}
-
 func (c *ratelimitedExecutionManager) GetWorkflowExecution(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (gp1 *persistence.GetWorkflowExecutionResponse, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded

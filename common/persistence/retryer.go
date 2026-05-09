@@ -244,10 +244,10 @@ func (pr *persistenceRetryer) DeleteCurrentWorkflowExecution(
 
 // GetShardID return shard id
 func (pr *persistenceRetryer) GetShardID() int {
-	if pr.shardID != nil {
-		return *pr.shardID
+	if pr.shardID == nil {
+		return -1
 	}
-	return pr.execManager.GetShardID()
+	return *pr.shardID
 }
 
 // GetHistoryTasks retries GetHistoryTasks

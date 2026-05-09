@@ -676,10 +676,10 @@ func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 	return h.persistenceBean.GetHistoryManager()
 }
 
-// GetExecutionManager return execution manager for given shard ID
-func (h *Impl) GetExecutionManager(shardID int) (persistence.ExecutionManager, error) {
+// GetExecutionManager return execution manager
+func (h *Impl) GetExecutionManager() (persistence.ExecutionManager, error) {
 
-	return h.persistenceBean.GetExecutionManager(shardID)
+	return h.persistenceBean.GetExecutionManager()
 }
 
 // GetPersistenceBean return persistence bean

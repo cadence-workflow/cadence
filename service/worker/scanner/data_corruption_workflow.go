@@ -181,7 +181,7 @@ func getDefaultDAO(
 	}
 	res := sc.resource
 	cache := res.GetDomainCache()
-	execManager, err := res.GetExecutionManager(shardID)
+	execManager, err := res.GetExecutionManager()
 	if err != nil {
 		return nil, nil, err
 	}

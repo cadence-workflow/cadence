@@ -60,8 +60,8 @@ type (
 		GetHistoryManager() persistence.HistoryManager
 		SetHistoryManager(persistence.HistoryManager)
 
-		GetExecutionManager(int) (persistence.ExecutionManager, error)
-		SetExecutionManager(int, persistence.ExecutionManager)
+		GetExecutionManager() (persistence.ExecutionManager, error)
+		SetExecutionManager(persistence.ExecutionManager)
 
 		GetConfigStoreManager() persistence.ConfigStoreManager
 		SetConfigStoreManager(persistence.ConfigStoreManager)
@@ -80,7 +80,7 @@ type (
 		executionManagerFactory       persistence.ExecutionManagerFactory
 
 		sync.RWMutex
-		shardIDToExecutionManager map[int]persistence.ExecutionManager
+		executionManager persistence.ExecutionManager
 	}
 
 	// Params contains dependencies for persistence
@@ -179,8 +179,6 @@ func NewBean(
 		historyManager:                historyManager,
 		configStoreManager:            configStoreManager,
 		executionManagerFactory:       executionManagerFactory,
-
-		shardIDToExecutionManager: make(map[int]persistence.ExecutionManager),
 	}
 }
 
@@ -325,13 +323,11 @@ func (s *BeanImpl) SetHistoryManager(
 }
 
 // GetExecutionManager get ExecutionManager
-func (s *BeanImpl) GetExecutionManager(
-	shardID int,
-) (persistence.ExecutionManager, error) {
+func (s *BeanImpl) GetExecutionManager() (persistence.ExecutionManager, error) {
 
 	s.RLock()
-	executionManager, ok := s.shardIDToExecutionManager[shardID]
-	if ok {
+	executionManager := s.executionManager
+	if executionManager != nil {
 		s.RUnlock()
 		return executionManager, nil
 	}
@@ -340,30 +336,29 @@ func (s *BeanImpl) GetExecutionManager(
 	s.Lock()
 	defer s.Unlock()
 
-	executionManager, ok = s.shardIDToExecutionManager[shardID]
-	if ok {
+	executionManager = s.executionManager
+	if executionManager != nil {
 		return executionManager, nil
 	}
 
-	executionManager, err := s.executionManagerFactory.NewExecutionManager(shardID)
+	executionManager, err := s.executionManagerFactory.NewExecutionManager()
 	if err != nil {
 		return nil, err
 	}
 
-	s.shardIDToExecutionManager[shardID] = executionManager
+	s.executionManager = executionManager
 	return executionManager, nil
 }
 
 // SetExecutionManager set ExecutionManager
 func (s *BeanImpl) SetExecutionManager(
-	shardID int,
 	executionManager persistence.ExecutionManager,
 ) {
 
 	s.Lock()
 	defer s.Unlock()
 
-	s.shardIDToExecutionManager[shardID] = executionManager
+	s.executionManager = executionManager
 }
 
 // GetConfigStoreManager gets ConfigStoreManager
@@ -406,7 +401,7 @@ func (s *BeanImpl) Close() {
 	s.historyManager.Close()
 	s.executionManagerFactory.Close()
 	s.configStoreManager.Close()
-	for _, executionMgr := range s.shardIDToExecutionManager {
-		executionMgr.Close()
+	if s.executionManager != nil {
+		s.executionManager.Close()
 	}
 }

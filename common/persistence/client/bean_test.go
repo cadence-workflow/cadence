@@ -196,10 +196,8 @@ func TestBeanCoverage(t *testing.T) {
 		t.Parallel()
 		f, m, defaultMocks := beanSetup(t)
 
-		// execution managers are per shard, make sure they're set up correctly
-		ex1, ex2 := persistence.NewMockExecutionManager(m.mockCtrl), persistence.NewMockExecutionManager(m.mockCtrl)
-		f.EXPECT().NewExecutionManager(1).Return(ex1, nil).Times(1)
-		f.EXPECT().NewExecutionManager(2).Return(ex2, nil).Times(1)
+		ex1 := persistence.NewMockExecutionManager(m.mockCtrl)
+		f.EXPECT().NewExecutionManager().Return(ex1, nil).Times(1)
 
 		// build all other mock objects so New works.
 		// these will not duplicate ^ above instances, so if they are used they'll fail assert.Equal checks.
@@ -209,13 +207,13 @@ func TestBeanCoverage(t *testing.T) {
 
 		// must be concurrency safe, so run them concurrently
 		var g errgroup.Group
-		g.Go(errgroupAssertExecutionManagerEqual(t, 1, ex1, impl))
-		g.Go(errgroupAssertExecutionManagerEqual(t, 2, ex2, impl))
+		g.Go(errgroupAssertExecutionManagerEqual(t, ex1, impl))
+		g.Go(errgroupAssertExecutionManagerEqual(t, ex1, impl))
 
 		// make sure re-getting doesn't make a duplicate / a different instance.
 		// the `.Times(1)` also ensures this does not make an extra construction.
-		g.Go(errgroupAssertExecutionManagerEqual(t, 1, ex1, impl))
-		g.Go(errgroupAssertExecutionManagerEqual(t, 2, ex2, impl))
+		g.Go(errgroupAssertExecutionManagerEqual(t, ex1, impl))
+		g.Go(errgroupAssertExecutionManagerEqual(t, ex1, impl))
 		require.NoError(t, g.Wait())
 	})
 	t.Run("Execution manager setter", func(t *testing.T) {
@@ -223,33 +221,26 @@ func TestBeanCoverage(t *testing.T) {
 		f, m, defaultMocks := beanSetup(t)
 
 		// seed with some pre-existing data so we can say "not same as before".
-		f.EXPECT().NewExecutionManager(1).Return(persistence.NewMockExecutionManager(m.mockCtrl), nil).Times(1)
-		f.EXPECT().NewExecutionManager(2).Return(persistence.NewMockExecutionManager(m.mockCtrl), nil).Times(1)
+		f.EXPECT().NewExecutionManager().Return(persistence.NewMockExecutionManager(m.mockCtrl), nil).Times(1)
 		defaultMocks()
 		impl, err := NewBeanFromFactory(f, nil, nil)
 		require.NoError(t, err)
-		_, err = impl.GetExecutionManager(1)
-		require.NoError(t, err, "setup sanity check failed")
-		_, err = impl.GetExecutionManager(2)
+		_, err = impl.GetExecutionManager()
 		require.NoError(t, err, "setup sanity check failed")
 
-		// make the execution managers that will be set
-		ex1, ex2 := persistence.NewMockExecutionManager(m.mockCtrl), persistence.NewMockExecutionManager(m.mockCtrl)
+		// make the execution manager that will be set
+		ex1 := persistence.NewMockExecutionManager(m.mockCtrl)
 
 		// must be concurrency safe, so run them concurrently
-		var g errgroup.Group
-		g.Go(errgroupAssertSetsExecutionManager(t, 1, ex1, impl))
-		g.Go(errgroupAssertSetsExecutionManager(t, 2, ex2, impl))
-		require.NoError(t, g.Wait())
+		require.NoError(t, errgroupAssertSetsExecutionManager(t, ex1, impl)())
 	})
 	t.Run("Lifecycle", func(t *testing.T) {
 		t.Parallel()
 		f, m, defaultMocks := beanSetup(t)
 
-		// make some execution managers so they can be closed
-		ex1, ex2 := persistence.NewMockExecutionManager(m.mockCtrl), persistence.NewMockExecutionManager(m.mockCtrl)
-		f.EXPECT().NewExecutionManager(1).Return(ex1, nil).Times(1)
-		f.EXPECT().NewExecutionManager(2).Return(ex2, nil).Times(1)
+		// make an execution manager so it can be closed
+		ex1 := persistence.NewMockExecutionManager(m.mockCtrl)
+		f.EXPECT().NewExecutionManager().Return(ex1, nil).Times(1)
 
 		// expect everything to close
 		m.domainManager.EXPECT().Close().Return().Times(1)
@@ -261,7 +252,6 @@ func TestBeanCoverage(t *testing.T) {
 		m.historyManager.EXPECT().Close().Return().Times(1)
 		m.configManager.EXPECT().Close().Return().Times(1)
 		ex1.EXPECT().Close().Return().Times(1)
-		ex2.EXPECT().Close().Return().Times(1)
 		// which includes the execution-manager-factory itself
 		f.EXPECT().Close().Return().Times(1)
 
@@ -270,10 +260,7 @@ func TestBeanCoverage(t *testing.T) {
 		require.NoError(t, err)
 
 		// seed the execution managers (could call Set instead)
-		v, err := impl.GetExecutionManager(1)
-		require.NoError(t, err)
-		require.NotNil(t, v)
-		v, err = impl.GetExecutionManager(2)
+		v, err := impl.GetExecutionManager()
 		require.NoError(t, err)
 		require.NotNil(t, v)
 
@@ -316,24 +303,24 @@ func errgroupAssertSets(t *testing.T, expected, setFn, getFn any) func() error {
 	}
 }
 
-func errgroupAssertExecutionManagerEqual(t *testing.T, arg int, expected persistence.ExecutionManager, impl Bean) func() error {
+func errgroupAssertExecutionManagerEqual(t *testing.T, expected persistence.ExecutionManager, impl Bean) func() error {
 	t.Helper()
 	return func() error {
 		t.Helper()
-		val, err := impl.GetExecutionManager(arg)
+		val, err := impl.GetExecutionManager()
 		assert.NoError(t, err) // cannot use require in other goroutines
 		assertMocksEqual(t, expected, val)
 		return err
 	}
 }
 
-func errgroupAssertSetsExecutionManager(t *testing.T, arg int, expected persistence.ExecutionManager, impl Bean) func() error {
+func errgroupAssertSetsExecutionManager(t *testing.T, expected persistence.ExecutionManager, impl Bean) func() error {
 	t.Helper()
 	return func() error {
 		t.Helper()
 
 		// sanity check first
-		val, err := impl.GetExecutionManager(arg)
+		val, err := impl.GetExecutionManager()
 		if !assert.NoError(t, err, "could not do initial Get to check values") {
 			return nil
 		}
@@ -341,9 +328,9 @@ func errgroupAssertSetsExecutionManager(t *testing.T, arg int, expected persiste
 			return nil
 		}
 
-		impl.SetExecutionManager(arg, expected)
+		impl.SetExecutionManager(expected)
 
-		val, err = impl.GetExecutionManager(arg)
+		val, err = impl.GetExecutionManager()
 		assert.NoError(t, err) // cannot use require in other goroutines
 		assertMocksEqual(t, expected, val)
 		return err

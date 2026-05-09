@@ -111,7 +111,7 @@ type Resource interface {
 	GetVisibilityManager() persistence.VisibilityManager
 	GetShardManager() persistence.ShardManager
 	GetHistoryManager() persistence.HistoryManager
-	GetExecutionManager(int) (persistence.ExecutionManager, error)
+	GetExecutionManager() (persistence.ExecutionManager, error)
 	GetPersistenceBean() persistenceClient.Bean
 
 	// GetHostName get host name
