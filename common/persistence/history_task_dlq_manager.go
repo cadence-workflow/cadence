@@ -28,6 +28,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 )
 
 // HistoryTaskSerializer serializes and deserializes history tasks. It is a subset of
@@ -91,10 +92,19 @@ func (m *historyTaskDLQManagerImpl) GetAckLevels(
 	if err != nil {
 		return nil, err
 	}
+	filterByCategory := request.TaskCategory.ID() != 0
 	taskTypeID := request.TaskCategory.ID()
 	out := make([]HistoryDLQAckLevel, 0, len(resp.AckLevels))
 	for _, row := range resp.AckLevels {
-		if row.TaskCategory != taskTypeID {
+		if filterByCategory && row.TaskCategory != taskTypeID {
+			continue
+		}
+		category, err := HistoryTaskCategoryFromID(row.TaskCategory)
+		if err != nil {
+			m.logger.Warn("skipping ack level with unknown task category ID",
+				tag.ShardID(row.ShardID),
+				tag.Dynamic("task-category-id", row.TaskCategory),
+			)
 			continue
 		}
 		out = append(out, HistoryDLQAckLevel{
@@ -102,7 +112,7 @@ func (m *historyTaskDLQManagerImpl) GetAckLevels(
 			DomainID:              row.DomainID,
 			ClusterAttributeScope: row.ClusterAttributeScope,
 			ClusterAttributeName:  row.ClusterAttributeName,
-			TaskCategory:          request.TaskCategory,
+			TaskCategory:          category,
 			AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
 			AckLevelTaskID:        row.AckLevelTaskID,
 		})
