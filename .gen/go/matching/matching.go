@@ -9,17 +9,15 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
-	math "math"
-	strconv "strconv"
-	strings "strings"
-
+	shared "github.com/uber/cadence/.gen/go/shared"
 	multierr "go.uber.org/multierr"
 	stream "go.uber.org/thriftrw/protocol/stream"
 	thriftreflect "go.uber.org/thriftrw/thriftreflect"
 	wire "go.uber.org/thriftrw/wire"
 	zapcore "go.uber.org/zap/zapcore"
-
-	shared "github.com/uber/cadence/.gen/go/shared"
+	math "math"
+	strconv "strconv"
+	strings "strings"
 )
 
 type ActivityTaskDispatchInfo struct {

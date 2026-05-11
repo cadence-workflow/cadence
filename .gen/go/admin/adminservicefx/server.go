@@ -4,11 +4,10 @@
 package adminservicefx
 
 import (
+	adminserviceserver "github.com/uber/cadence/.gen/go/admin/adminserviceserver"
 	fx "go.uber.org/fx"
 	transport "go.uber.org/yarpc/api/transport"
 	thrift "go.uber.org/yarpc/encoding/thrift"
-
-	adminserviceserver "github.com/uber/cadence/.gen/go/admin/adminserviceserver"
 )
 
 // ServerParams defines the dependencies for the AdminService server.

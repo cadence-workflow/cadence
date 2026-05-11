@@ -4,11 +4,10 @@
 package matchingservicefx
 
 import (
+	matchingserviceserver "github.com/uber/cadence/.gen/go/matching/matchingserviceserver"
 	fx "go.uber.org/fx"
 	transport "go.uber.org/yarpc/api/transport"
 	thrift "go.uber.org/yarpc/encoding/thrift"
-
-	matchingserviceserver "github.com/uber/cadence/.gen/go/matching/matchingserviceserver"
 )
 
 // ServerParams defines the dependencies for the MatchingService server.

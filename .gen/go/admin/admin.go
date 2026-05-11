@@ -8,17 +8,15 @@ import (
 	base64 "encoding/base64"
 	errors "errors"
 	fmt "fmt"
-	strings "strings"
-
+	config "github.com/uber/cadence/.gen/go/config"
+	replicator "github.com/uber/cadence/.gen/go/replicator"
+	shared "github.com/uber/cadence/.gen/go/shared"
 	multierr "go.uber.org/multierr"
 	stream "go.uber.org/thriftrw/protocol/stream"
 	thriftreflect "go.uber.org/thriftrw/thriftreflect"
 	wire "go.uber.org/thriftrw/wire"
 	zapcore "go.uber.org/zap/zapcore"
-
-	config "github.com/uber/cadence/.gen/go/config"
-	replicator "github.com/uber/cadence/.gen/go/replicator"
-	shared "github.com/uber/cadence/.gen/go/shared"
+	strings "strings"
 )
 
 type AddSearchAttributeRequest struct {

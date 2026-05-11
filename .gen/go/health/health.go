@@ -6,13 +6,12 @@ package health
 import (
 	errors "errors"
 	fmt "fmt"
-	strings "strings"
-
 	multierr "go.uber.org/multierr"
 	stream "go.uber.org/thriftrw/protocol/stream"
 	thriftreflect "go.uber.org/thriftrw/thriftreflect"
 	wire "go.uber.org/thriftrw/wire"
 	zapcore "go.uber.org/zap/zapcore"
+	strings "strings"
 )
 
 type HealthStatus struct {

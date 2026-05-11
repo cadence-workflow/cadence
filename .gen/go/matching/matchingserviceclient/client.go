@@ -5,15 +5,13 @@ package matchingserviceclient
 
 import (
 	context "context"
-	reflect "reflect"
-
+	matching "github.com/uber/cadence/.gen/go/matching"
+	shared "github.com/uber/cadence/.gen/go/shared"
 	wire "go.uber.org/thriftrw/wire"
 	yarpc "go.uber.org/yarpc"
 	transport "go.uber.org/yarpc/api/transport"
 	thrift "go.uber.org/yarpc/encoding/thrift"
-
-	matching "github.com/uber/cadence/.gen/go/matching"
-	shared "github.com/uber/cadence/.gen/go/shared"
+	reflect "reflect"
 )
 
 // Interface is a client for the MatchingService service.
