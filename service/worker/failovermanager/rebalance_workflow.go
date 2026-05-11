@@ -22,9 +22,12 @@ package failovermanager
 
 import (
 	"context"
+	"time"
 
+	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
@@ -36,6 +39,9 @@ type (
 		BatchFailoverSize int
 		// BatchFailoverWaitTimeInSeconds is the waiting time between batch failover
 		BatchFailoverWaitTimeInSeconds int
+		// ClusterAttributeRebalanceMap maps scope type -> attribute name -> cadence cluster name.
+		// When non-nil, AA domains are rebalanced using this mapping.
+		ClusterAttributeRebalanceMap ClusterAttributeRebalanceMap
 	}
 
 	// RebalanceResult contains the result from the rebalance workflow
@@ -44,51 +50,68 @@ type (
 		FailedDomains  []string
 	}
 
-	// DomainRebalanceData contains the result from getRebalanceDomains activity
+	// DomainRebalanceData contains the rebalance target for a single domain.
+	// Exactly one of PreferredCluster or ClusterAttributeUpdates will be set.
 	DomainRebalanceData struct {
-		DomainName       string
+		DomainName string
+		// PreferredCluster is set for non-AA domains; it becomes the new ActiveClusterName.
 		PreferredCluster string
+		// ClusterAttributeUpdates is set for AA domains and contains all mismatched scope updates.
+		ClusterAttributeUpdates *types.ActiveClusters
+	}
+
+	// GetDomainsForRebalanceActivityParams is the params for GetDomainsForRebalanceActivity
+	GetDomainsForRebalanceActivityParams struct {
+		ClusterAttributeRebalanceMap ClusterAttributeRebalanceMap
 	}
 )
 
-// RebalanceWorkflow is to rebalance domains across clusters based on rebalance policy.
+// RebalanceWorkflow rebalances domains across clusters based on rebalance policy.
+// It fetches all domains that need rebalancing in one step, then applies the updates in batches.
 func RebalanceWorkflow(ctx workflow.Context, params *RebalanceParams) (*RebalanceResult, error) {
-	// get rebalance domains
 	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
+	activityParams := &GetDomainsForRebalanceActivityParams{ClusterAttributeRebalanceMap: params.ClusterAttributeRebalanceMap}
 	var domainData []*DomainRebalanceData
-	err := workflow.ExecuteActivity(ao, getRebalanceDomainsActivityName).Get(ctx, &domainData)
-	if err != nil {
+	if err := workflow.ExecuteActivity(ao, getRebalanceDomainsActivityName, activityParams).Get(ctx, &domainData); err != nil {
 		return nil, err
 	}
-	domainPerCluster := getDomainsByCluster(domainData)
 
-	result := &RebalanceResult{
-		SuccessDomains: []string{},
-		FailedDomains:  []string{},
+	result := &RebalanceResult{SuccessDomains: []string{}, FailedDomains: []string{}}
+
+	batchSize := params.BatchFailoverSize
+	if batchSize <= 0 {
+		batchSize = defaultBatchFailoverSize
 	}
-	// failover domains for rebalance
-	for cluster, domains := range domainPerCluster {
-		failoverParams := &FailoverParams{
-			TargetCluster:                  cluster,
-			BatchFailoverSize:              params.BatchFailoverSize,
-			BatchFailoverWaitTimeInSeconds: params.BatchFailoverWaitTimeInSeconds,
+	waitTime := time.Duration(params.BatchFailoverWaitTimeInSeconds) * time.Second
+
+	failoverAO := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
+	for i := 0; i < len(domainData); i += batchSize {
+		end := i + batchSize
+		if end > len(domainData) {
+			end = len(domainData)
 		}
-		successDomains, failedDomains := failoverDomainsByBatch(
-			ctx,
-			domains,
-			failoverParams,
-			func() {},
-			false,
-		)
-		result.SuccessDomains = append(result.SuccessDomains, successDomains...)
-		result.FailedDomains = append(result.FailedDomains, failedDomains...)
+		batch := domainData[i:end]
+
+		var batchResult RebalanceResult
+		if err := workflow.ExecuteActivity(failoverAO, rebalanceDomainsActivityName, batch).Get(ctx, &batchResult); err != nil {
+			result.FailedDomains = append(result.FailedDomains, getDomainNames(batch)...)
+		} else {
+			result.SuccessDomains = append(result.SuccessDomains, batchResult.SuccessDomains...)
+			result.FailedDomains = append(result.FailedDomains, batchResult.FailedDomains...)
+		}
+
+		if i+batchSize < len(domainData) && waitTime > 0 {
+			_ = workflow.Sleep(ctx, waitTime)
+		}
 	}
 
 	return result, nil
 }
 
-// GetDomainsForRebalanceActivity activity fetch domains for rebalance
-func GetDomainsForRebalanceActivity(ctx context.Context) ([]*DomainRebalanceData, error) {
+// GetDomainsForRebalanceActivity fetches domains eligible for rebalance.
+// Non-AA domains are included when they have a preferred cluster different from the active one.
+// AA domains are included when any scope/attribute in the ClusterAttributeRebalanceMap differs from the current active cluster.
+func GetDomainsForRebalanceActivity(ctx context.Context, params *GetDomainsForRebalanceActivityParams) ([]*DomainRebalanceData, error) {
 	domains, err := getAllDomains(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -96,14 +119,88 @@ func GetDomainsForRebalanceActivity(ctx context.Context) ([]*DomainRebalanceData
 	var res []*DomainRebalanceData
 	for _, domain := range domains {
 		if shouldAllowRebalance(domain) {
-			domainName := domain.GetDomainInfo().GetName()
 			res = append(res, &DomainRebalanceData{
-				DomainName:       domainName,
+				DomainName:       domain.GetDomainInfo().GetName(),
 				PreferredCluster: getPreferredClusterName(domain),
 			})
+			continue
+		}
+		if params != nil && len(params.ClusterAttributeRebalanceMap) > 0 {
+			if entry := rebalanceEntryForScopedDomain(domain, params.ClusterAttributeRebalanceMap); entry != nil {
+				res = append(res, entry)
+			}
 		}
 	}
 	return res, nil
+}
+
+// RebalanceDomainsActivity applies the rebalance updates from DomainRebalanceData to each domain.
+// For non-AA domains it sets ActiveClusterName; for AA domains it sets ActiveClusters.
+func RebalanceDomainsActivity(ctx context.Context, domainData []*DomainRebalanceData) (*RebalanceResult, error) {
+	frontendClient := getClient(ctx)
+	var successDomains, failedDomains []string
+	for _, d := range domainData {
+		activity.RecordHeartbeat(ctx, d.DomainName)
+		req := &types.UpdateDomainRequest{Name: d.DomainName}
+		if d.ClusterAttributeUpdates != nil {
+			req.ActiveClusters = d.ClusterAttributeUpdates
+		} else {
+			req.ActiveClusterName = common.StringPtr(d.PreferredCluster)
+		}
+		if _, err := frontendClient.UpdateDomain(ctx, req); err != nil {
+			failedDomains = append(failedDomains, d.DomainName)
+		} else {
+			successDomains = append(successDomains, d.DomainName)
+		}
+	}
+	return &RebalanceResult{SuccessDomains: successDomains, FailedDomains: failedDomains}, nil
+}
+
+// rebalanceEntryForScopedDomain checks whether an AA domain has any scope/attribute that
+// differs from the ClusterAttributeRebalanceMap preference and returns a DomainRebalanceData
+// with the aggregated updates, or nil if nothing needs to change.
+func rebalanceEntryForScopedDomain(domain *types.DescribeDomainResponse, clusterAttributeRebalanceMap ClusterAttributeRebalanceMap) *DomainRebalanceData {
+	if !isDomainFailoverManagedByCadence(domain) || !domain.IsGlobalDomain {
+		return nil
+	}
+	activeClusters := domain.ReplicationConfiguration.GetActiveClusters()
+	if activeClusters == nil || len(activeClusters.AttributeScopes) == 0 {
+		return nil
+	}
+	var updates *types.ActiveClusters
+	for scopeType, scope := range activeClusters.AttributeScopes {
+		attrMapping, ok := clusterAttributeRebalanceMap[clusterAttributeScope(scopeType)]
+		if !ok {
+			continue
+		}
+		for attrName, clusterInfo := range scope.ClusterAttributes {
+			preferredCluster, ok := attrMapping[clusterAttributeName(attrName)]
+			if !ok || clusterInfo.ActiveClusterName == preferredCluster {
+				continue
+			}
+			if !isPreferredClusterInClusterListForDomain(preferredCluster, domain) {
+				continue
+			}
+			if updates == nil {
+				updates = &types.ActiveClusters{AttributeScopes: make(map[string]types.ClusterAttributeScope)}
+			}
+			if _, exists := updates.AttributeScopes[scopeType]; !exists {
+				updates.AttributeScopes[scopeType] = types.ClusterAttributeScope{
+					ClusterAttributes: make(map[string]types.ActiveClusterInfo),
+				}
+			}
+			scopeEntry := updates.AttributeScopes[scopeType]
+			scopeEntry.ClusterAttributes[attrName] = types.ActiveClusterInfo{ActiveClusterName: preferredCluster}
+			updates.AttributeScopes[scopeType] = scopeEntry
+		}
+	}
+	if updates == nil {
+		return nil
+	}
+	return &DomainRebalanceData{
+		DomainName:              domain.GetDomainInfo().GetName(),
+		ClusterAttributeUpdates: updates,
+	}
 }
 
 func getPreferredClusterName(domain *types.DescribeDomainResponse) string {
@@ -120,13 +217,12 @@ func shouldAllowRebalance(domain *types.DescribeDomainResponse) bool {
 		isPreferredClusterInClusterListForDomain(preferredCluster, domain)
 }
 
-func getDomainsByCluster(domainData []*DomainRebalanceData) map[string][]string {
-	domainPerCluster := make(map[string][]string)
-	for _, domain := range domainData {
-		domainPerCluster[domain.PreferredCluster] = append(domainPerCluster[domain.PreferredCluster], domain.DomainName)
+func getDomainNames(data []*DomainRebalanceData) []string {
+	names := make([]string, len(data))
+	for i, d := range data {
+		names[i] = d.DomainName
 	}
-
-	return domainPerCluster
+	return names
 }
 
 func isPreferredClusterInClusterListForDomain(preferredCluster string, domain *types.DescribeDomainResponse) bool {

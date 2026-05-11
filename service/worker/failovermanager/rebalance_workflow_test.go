@@ -55,10 +55,10 @@ func (s *rebalanceWorkflowTestSuite) SetupTest() {
 	s.activityEnv = s.NewTestActivityEnvironment()
 	s.workflowEnv = s.NewTestWorkflowEnvironment()
 	s.workflowEnv.RegisterWorkflowWithOptions(RebalanceWorkflow, workflow.RegisterOptions{Name: RebalanceWorkflowTypeName})
-	s.workflowEnv.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
 	s.workflowEnv.RegisterActivityWithOptions(GetDomainsForRebalanceActivity, activity.RegisterOptions{Name: getRebalanceDomainsActivityName})
-	s.activityEnv.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
+	s.workflowEnv.RegisterActivityWithOptions(RebalanceDomainsActivity, activity.RegisterOptions{Name: rebalanceDomainsActivityName})
 	s.activityEnv.RegisterActivityWithOptions(GetDomainsForRebalanceActivity, activity.RegisterOptions{Name: getRebalanceDomainsActivityName})
+	s.activityEnv.RegisterActivityWithOptions(RebalanceDomainsActivity, activity.RegisterOptions{Name: rebalanceDomainsActivityName})
 }
 
 func (s *rebalanceWorkflowTestSuite) TearDownTest() {
@@ -142,7 +142,7 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ReturnOn
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
 
-	actFuture, err := actEnv.ExecuteActivity(GetDomainsForRebalanceActivity)
+	actFuture, err := actEnv.ExecuteActivity(GetDomainsForRebalanceActivity, (*GetDomainsForRebalanceActivityParams)(nil))
 	s.NoError(err)
 	var domainData []*DomainRebalanceData
 	err = actFuture.Get(&domainData)
@@ -156,7 +156,7 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_Error() 
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).
 		Return(nil, fmt.Errorf("test"))
 
-	_, err := actEnv.ExecuteActivity(GetDomainsForRebalanceActivity)
+	_, err := actEnv.ExecuteActivity(GetDomainsForRebalanceActivity, (*GetDomainsForRebalanceActivityParams)(nil))
 	s.Error(err)
 }
 
@@ -166,36 +166,15 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_Success() {
 		BatchFailoverSize:              10,
 	}
 	domainData := []*DomainRebalanceData{
-		{
-			DomainName:       "d1",
-			PreferredCluster: "c1",
-		},
-		{
-			DomainName:       "d2",
-			PreferredCluster: "c1",
-		},
-		{
-			DomainName:       "d3",
-			PreferredCluster: "c2",
-		},
+		{DomainName: "d1", PreferredCluster: "c1"},
+		{DomainName: "d2", PreferredCluster: "c1"},
+		{DomainName: "d3", PreferredCluster: "c2"},
 	}
-	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything).Return(domainData, nil)
-	failoverActivityParams1 := &FailoverActivityParams{
-		Domains:       []string{"d1", "d2"},
-		TargetCluster: "c1",
+	rebalanceResult := &RebalanceResult{
+		SuccessDomains: []string{"d1", "d2", "d3"},
 	}
-	failoverActivityResult1 := &FailoverActivityResult{
-		SuccessDomains: []string{"d1", "d2"},
-	}
-	failoverActivityParams2 := &FailoverActivityParams{
-		Domains:       []string{"d3"},
-		TargetCluster: "c2",
-	}
-	failoverActivityResult2 := &FailoverActivityResult{
-		SuccessDomains: []string{"d3"},
-	}
-	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, failoverActivityParams1).Return(failoverActivityResult1, nil).Times(1)
-	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, failoverActivityParams2).Return(failoverActivityResult2, nil).Times(1)
+	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(domainData, nil)
+	s.workflowEnv.OnActivity(rebalanceDomainsActivityName, mock.Anything, domainData).Return(rebalanceResult, nil).Times(1)
 	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
 	var result RebalanceResult
 	err := s.workflowEnv.GetWorkflowResult(&result)
@@ -204,40 +183,45 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_Success() {
 	s.Equal(0, len(result.FailedDomains))
 }
 
-func (s *rebalanceWorkflowTestSuite) TestWorkflow_HalfFailoverActivityError_NoWorkflowError() {
+func (s *rebalanceWorkflowTestSuite) TestWorkflow_Batching() {
+	params := &RebalanceParams{
+		BatchFailoverWaitTimeInSeconds: 0,
+		BatchFailoverSize:              2,
+	}
+	domainData := []*DomainRebalanceData{
+		{DomainName: "d1", PreferredCluster: "c1"},
+		{DomainName: "d2", PreferredCluster: "c1"},
+		{DomainName: "d3", PreferredCluster: "c2"},
+	}
+	batch1Result := &RebalanceResult{SuccessDomains: []string{"d1", "d2"}}
+	batch2Result := &RebalanceResult{SuccessDomains: []string{"d3"}}
+	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(domainData, nil)
+	s.workflowEnv.OnActivity(rebalanceDomainsActivityName, mock.Anything, domainData[0:2]).Return(batch1Result, nil).Times(1)
+	s.workflowEnv.OnActivity(rebalanceDomainsActivityName, mock.Anything, domainData[2:3]).Return(batch2Result, nil).Times(1)
+	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
+	var result RebalanceResult
+	err := s.workflowEnv.GetWorkflowResult(&result)
+	s.NoError(err)
+	s.Equal(3, len(result.SuccessDomains))
+	s.Equal(0, len(result.FailedDomains))
+}
+
+func (s *rebalanceWorkflowTestSuite) TestWorkflow_PartialFailure_NoWorkflowError() {
 	params := &RebalanceParams{
 		BatchFailoverWaitTimeInSeconds: 10,
 		BatchFailoverSize:              10,
 	}
 	domainData := []*DomainRebalanceData{
-		{
-			DomainName:       "d1",
-			PreferredCluster: "c1",
-		},
-		{
-			DomainName:       "d2",
-			PreferredCluster: "c1",
-		},
-		{
-			DomainName:       "d3",
-			PreferredCluster: "c2",
-		},
+		{DomainName: "d1", PreferredCluster: "c1"},
+		{DomainName: "d2", PreferredCluster: "c1"},
+		{DomainName: "d3", PreferredCluster: "c2"},
 	}
-	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything).Return(domainData, nil)
-	failoverActivityParams1 := &FailoverActivityParams{
-		Domains:       []string{"d1", "d2"},
-		TargetCluster: "c1",
-	}
-	failoverActivityResult1 := &FailoverActivityResult{
+	rebalanceResult := &RebalanceResult{
 		SuccessDomains: []string{"d1", "d2"},
+		FailedDomains:  []string{"d3"},
 	}
-	failoverActivityParams2 := &FailoverActivityParams{
-		Domains:       []string{"d3"},
-		TargetCluster: "c2",
-	}
-	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, failoverActivityParams1).Return(failoverActivityResult1, nil).Times(1)
-	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, failoverActivityParams2).
-		Return(nil, fmt.Errorf("test")).Times(1)
+	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(domainData, nil)
+	s.workflowEnv.OnActivity(rebalanceDomainsActivityName, mock.Anything, domainData).Return(rebalanceResult, nil).Times(1)
 	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
 	var result RebalanceResult
 	err := s.workflowEnv.GetWorkflowResult(&result)
@@ -246,27 +230,18 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_HalfFailoverActivityError_NoWo
 	s.Equal(1, len(result.FailedDomains))
 }
 
-func (s *rebalanceWorkflowTestSuite) TestWorkflow_FailoverActivityError_NoWorkflowError() {
+func (s *rebalanceWorkflowTestSuite) TestWorkflow_RebalanceActivityError_NoWorkflowError() {
 	params := &RebalanceParams{
 		BatchFailoverWaitTimeInSeconds: 10,
 		BatchFailoverSize:              10,
 	}
 	domainData := []*DomainRebalanceData{
-		{
-			DomainName:       "d1",
-			PreferredCluster: "c1",
-		},
-		{
-			DomainName:       "d2",
-			PreferredCluster: "c1",
-		},
-		{
-			DomainName:       "d3",
-			PreferredCluster: "c2",
-		},
+		{DomainName: "d1", PreferredCluster: "c1"},
+		{DomainName: "d2", PreferredCluster: "c1"},
+		{DomainName: "d3", PreferredCluster: "c2"},
 	}
-	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything).Return(domainData, nil)
-	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("test"))
+	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(domainData, nil)
+	s.workflowEnv.OnActivity(rebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("activity error"))
 	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
 	var result RebalanceResult
 	err := s.workflowEnv.GetWorkflowResult(&result)
@@ -280,11 +255,41 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_GetRebalanceDomainsActivityErr
 		BatchFailoverWaitTimeInSeconds: 10,
 		BatchFailoverSize:              10,
 	}
-	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything).Return(nil, fmt.Errorf("test"))
+	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("test"))
 	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
 	var result RebalanceResult
 	err := s.workflowEnv.GetWorkflowResult(&result)
 	s.Error(err)
+}
+
+func (s *rebalanceWorkflowTestSuite) TestWorkflow_AAAndNonAA_Success() {
+	params := &RebalanceParams{
+		BatchFailoverWaitTimeInSeconds: 10,
+		BatchFailoverSize:              10,
+		ClusterAttributeRebalanceMap:  ClusterAttributeRebalanceMap{"region": ClusterAttributeToClusterMap{"phx": "c1"}},
+	}
+	domainData := []*DomainRebalanceData{
+		{
+			DomainName: "aa1",
+			ClusterAttributeUpdates: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"phx": {ActiveClusterName: "c1"},
+					}},
+				},
+			},
+		},
+		{DomainName: "non1", PreferredCluster: "c2"},
+	}
+	rebalanceResult := &RebalanceResult{SuccessDomains: []string{"aa1", "non1"}}
+	s.workflowEnv.OnActivity(getRebalanceDomainsActivityName, mock.Anything, mock.Anything).Return(domainData, nil)
+	s.workflowEnv.OnActivity(rebalanceDomainsActivityName, mock.Anything, domainData).Return(rebalanceResult, nil).Times(1)
+	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
+	var result RebalanceResult
+	err := s.workflowEnv.GetWorkflowResult(&result)
+	s.NoError(err)
+	s.Equal(2, len(result.SuccessDomains))
+	s.Equal(0, len(result.FailedDomains))
 }
 
 func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
@@ -448,4 +453,206 @@ func (s *rebalanceWorkflowTestSuite) prepareTestActivityEnv() (*testsuite.TestAc
 	})
 
 	return s.activityEnv, mockResource
+}
+
+var aaClusters = []*types.ClusterReplicationConfiguration{
+	{ClusterName: "c1"},
+	{ClusterName: "c2"},
+}
+
+func makeManagedAADomain(name string, activeClusters *types.ActiveClusters) *types.DescribeDomainResponse {
+	return &types.DescribeDomainResponse{
+		DomainInfo: &types.DomainInfo{
+			Name: name,
+			Data: map[string]string{
+				constants.DomainDataKeyForManagedFailover: "true",
+			},
+			Status: types.DomainStatusRegistered.Ptr(),
+		},
+		ReplicationConfiguration: &types.DomainReplicationConfiguration{
+			Clusters:       aaClusters,
+			ActiveClusters: activeClusters,
+		},
+		IsGlobalDomain: true,
+	}
+}
+
+func TestRebalanceEntryForScopedDomain(t *testing.T) {
+	scopeMap := ClusterAttributeRebalanceMap{
+		"region": ClusterAttributeToClusterMap{"phx": "c1", "dca": "c2"},
+	}
+	activeClusters := &types.ActiveClusters{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"phx": {ActiveClusterName: "c2"}, // wrong — prefer c1
+					"dca": {ActiveClusterName: "c2"}, // correct
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		domain     *types.DescribeDomainResponse
+		scopeMap   ClusterAttributeRebalanceMap
+		wantNil    bool
+		wantScopes map[string]map[string]string // scopeType -> attrName -> expectedCluster
+	}{
+		{
+			name:     "one mismatched attribute → entry with update",
+			domain:   makeManagedAADomain("d1", activeClusters),
+			scopeMap: scopeMap,
+			wantNil:  false,
+			wantScopes: map[string]map[string]string{
+				"region": {"phx": "c1"},
+			},
+		},
+		{
+			name: "all attributes match → nil",
+			domain: makeManagedAADomain("d2", &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"phx": {ActiveClusterName: "c1"},
+							"dca": {ActiveClusterName: "c2"},
+						},
+					},
+				},
+			}),
+			scopeMap: scopeMap,
+			wantNil:  true,
+		},
+		{
+			name:     "no AA scopes on domain → nil",
+			domain:   makeManagedAADomain("d3", nil),
+			scopeMap: scopeMap,
+			wantNil:  true,
+		},
+		{
+			name: "not managed by Cadence → nil",
+			domain: &types.DescribeDomainResponse{
+				DomainInfo: &types.DomainInfo{
+					Name:   "d4",
+					Data:   map[string]string{constants.DomainDataKeyForManagedFailover: "false"},
+					Status: types.DomainStatusRegistered.Ptr(),
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					Clusters:       aaClusters,
+					ActiveClusters: activeClusters,
+				},
+				IsGlobalDomain: true,
+			},
+			scopeMap: scopeMap,
+			wantNil:  true,
+		},
+		{
+			name:     "scope type not in scopeMap → nil",
+			domain:   makeManagedAADomain("d5", activeClusters),
+			scopeMap: ClusterAttributeRebalanceMap{"datacenter": ClusterAttributeToClusterMap{"phx": "c1"}},
+			wantNil:  true,
+		},
+		{
+			name: "preferred cluster not in domain's cluster list → skipped, nil",
+			domain: makeManagedAADomain("d6", &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"phx": {ActiveClusterName: "c2"},
+						},
+					},
+				},
+			}),
+			scopeMap: ClusterAttributeRebalanceMap{"region": ClusterAttributeToClusterMap{"phx": "c3"}}, // c3 not in aaClusters
+			wantNil:  true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			entry := rebalanceEntryForScopedDomain(tc.domain, tc.scopeMap)
+			if tc.wantNil {
+				if entry != nil {
+					t.Fatalf("expected nil, got %+v", entry)
+				}
+				return
+			}
+			if entry == nil {
+				t.Fatal("expected non-nil entry")
+			}
+			updates := entry.ClusterAttributeUpdates
+			for scopeType, wantAttrs := range tc.wantScopes {
+				scope, ok := updates.AttributeScopes[scopeType]
+				if !ok {
+					t.Fatalf("missing scope %q in updates", scopeType)
+				}
+				for attrName, wantCluster := range wantAttrs {
+					info, ok := scope.ClusterAttributes[attrName]
+					if !ok {
+						t.Fatalf("missing attribute %q in scope %q", attrName, scopeType)
+					}
+					if info.ActiveClusterName != wantCluster {
+						t.Fatalf("scope %q attr %q: want cluster %q, got %q", scopeType, attrName, wantCluster, info.ActiveClusterName)
+					}
+				}
+			}
+		})
+	}
+}
+
+func (s *rebalanceWorkflowTestSuite) TestRebalanceDomainsActivity_AllSuccess() {
+	actEnv, mockResource := s.prepareTestActivityEnv()
+
+	domainData := []*DomainRebalanceData{
+		{
+			DomainName: "aa1",
+			ClusterAttributeUpdates: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"phx": {ActiveClusterName: "c1"},
+					}},
+				},
+			},
+		},
+		{DomainName: "non1", PreferredCluster: "c2"},
+	}
+
+	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(&types.UpdateDomainResponse{}, nil).Times(2)
+
+	actFuture, err := actEnv.ExecuteActivity(RebalanceDomainsActivity, domainData)
+	s.NoError(err)
+	var result RebalanceResult
+	err = actFuture.Get(&result)
+	s.NoError(err)
+	s.Equal(2, len(result.SuccessDomains))
+	s.Equal(0, len(result.FailedDomains))
+}
+
+func (s *rebalanceWorkflowTestSuite) TestRebalanceDomainsActivity_OneFailure() {
+	actEnv, mockResource := s.prepareTestActivityEnv()
+
+	domainData := []*DomainRebalanceData{
+		{
+			DomainName: "aa1",
+			ClusterAttributeUpdates: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"phx": {ActiveClusterName: "c1"},
+					}},
+				},
+			},
+		},
+		{DomainName: "non1", PreferredCluster: "c2"},
+	}
+
+	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(&types.UpdateDomainResponse{}, nil).Times(1)
+	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("rpc error")).Times(1)
+
+	actFuture, err := actEnv.ExecuteActivity(RebalanceDomainsActivity, domainData)
+	s.NoError(err)
+	var result RebalanceResult
+	err = actFuture.Get(&result)
+	s.NoError(err)
+	s.Equal(1, len(result.SuccessDomains))
+	s.Equal(1, len(result.FailedDomains))
 }
