@@ -5,12 +5,14 @@ package metaclient
 
 import (
 	context "context"
-	health "github.com/uber/cadence/.gen/go/health"
+	reflect "reflect"
+
 	wire "go.uber.org/thriftrw/wire"
 	yarpc "go.uber.org/yarpc"
 	transport "go.uber.org/yarpc/api/transport"
 	thrift "go.uber.org/yarpc/encoding/thrift"
-	reflect "reflect"
+
+	health "github.com/uber/cadence/.gen/go/health"
 )
 
 // Interface is a client for the Meta service.

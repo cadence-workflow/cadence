@@ -9,15 +9,16 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
+	math "math"
+	strconv "strconv"
+	strings "strings"
+
 	multierr "go.uber.org/multierr"
 	stream "go.uber.org/thriftrw/protocol/stream"
 	ptr "go.uber.org/thriftrw/ptr"
 	thriftreflect "go.uber.org/thriftrw/thriftreflect"
 	wire "go.uber.org/thriftrw/wire"
 	zapcore "go.uber.org/zap/zapcore"
-	math "math"
-	strconv "strconv"
-	strings "strings"
 )
 
 type AccessDeniedError struct {
