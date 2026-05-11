@@ -246,6 +246,49 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			},
 			wantErr: "db error",
 		},
+		{
+			name:    "no task category returns all rows with categories derived from stored IDs",
+			request: HistoryDLQGetAckLevelsRequest{ShardID: 3},
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					GetHistoryDLQAckLevels(gomock.Any(), HistoryDLQGetAckLevelsRequest{ShardID: 3}).
+					Return(InternalGetHistoryDLQAckLevelsResponse{AckLevels: storeRows}, nil)
+			},
+			wantLevels: []HistoryDLQAckLevel{
+				{
+					ShardID:               3,
+					DomainID:              "domain-1",
+					ClusterAttributeScope: "scope",
+					ClusterAttributeName:  "cluster-a",
+					TaskCategory:          HistoryTaskCategoryTransfer,
+					AckLevelVisibilityTS:  now,
+					AckLevelTaskID:        100,
+				},
+				{
+					ShardID:               3,
+					DomainID:              "domain-1",
+					ClusterAttributeScope: "scope",
+					ClusterAttributeName:  "cluster-a",
+					TaskCategory:          HistoryTaskCategoryTimer,
+					AckLevelVisibilityTS:  now,
+					AckLevelTaskID:        50,
+				},
+			},
+		},
+		{
+			name:    "skips rows with unknown task category ID",
+			request: HistoryDLQGetAckLevelsRequest{ShardID: 7},
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					GetHistoryDLQAckLevels(gomock.Any(), HistoryDLQGetAckLevelsRequest{ShardID: 7}).
+					Return(InternalGetHistoryDLQAckLevelsResponse{
+						AckLevels: []*InternalHistoryDLQAckLevel{
+							{ShardID: 7, DomainID: "dom", TaskCategory: 99, AckLevelTaskID: 1},
+						},
+					}, nil)
+			},
+			wantLevels: []HistoryDLQAckLevel{},
+		},
 	}
 
 	for _, tc := range tests {
