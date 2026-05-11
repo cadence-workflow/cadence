@@ -475,13 +475,13 @@ func TestHandlePause(t *testing.T) {
 			wantChanged:  true,
 		},
 		{
-			name:         "pause overwrites previous pause reason",
+			name:         "pause when already paused is a no-op",
 			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "old", PausedBy: "old-user"},
 			sig:          PauseSignal{Reason: "new reason", PausedBy: "new-user"},
 			wantPaused:   true,
-			wantReason:   "new reason",
-			wantPausedBy: "new-user",
-			wantChanged:  true,
+			wantReason:   "old",
+			wantPausedBy: "old-user",
+			wantChanged:  false,
 		},
 		{
 			name:         "pause with empty reason",

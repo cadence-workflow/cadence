@@ -343,6 +343,7 @@ const (
 	TestGetIntPropertyFilteredByWorkflowTypeKey
 	TestGetIntPropertyFilteredByTaskListInfoKey
 	TestGetIntPropertyFilteredByShardIDKey
+	TestGetIntPropertyFilteredByDomainAndTaskListKey
 
 	// key for common & admin
 
@@ -1633,6 +1634,13 @@ const (
 	// Allowed filters: N/A
 	ShardDistributorMaxEtcdTxnOps
 
+	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
+	// KeyName: history.taskListNiceValue
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName
+	HistoryTaskListNiceValue
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -1784,14 +1792,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainID
 	MatchingEnableTaskInfoLogByDomainID
-	// MatchingEnableTasklistGuardAgainstOwnershipShardLoss
-	// enables guards to prevent tasklists from processing if there is any detection that the host
-	// no longer is active or owns the shard
-	// KeyName: matching.enableTasklistGuardAgainstOwnershipLoss
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
@@ -2362,6 +2362,13 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
+	// MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager.
+	// When true, all task lists fall back to the hash ring, ignoring MatchingPercentageOnboardedToShardManager.
+	// KeyName: matching.emergencyOffboardingFromShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingEmergencyOffboardingFromShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -3444,6 +3451,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: 0,
 		Filters:      nil,
 	},
+	TestGetIntPropertyFilteredByDomainAndTaskListKey: {
+		KeyName:      "testGetIntPropertyFilteredByDomainAndTaskListKey",
+		Description:  "",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
+	},
 	TransactionSizeLimit: {
 		KeyName:      "system.transactionSizeLimit",
 		Description:  "TransactionSizeLimit is the largest allowed transaction size to persistence",
@@ -4498,6 +4511,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
 		DefaultValue: 128,
 	},
+	HistoryTaskListNiceValue: {
+		KeyName:      "history.taskListNiceValue",
+		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -4656,11 +4675,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableTaskInfoLogByDomainID",
 		Filters:      []Filter{DomainID},
 		Description:  "MatchingEnableTaskInfoLogByDomainID is enables info level logs for decision/activity task based on the request domainID",
-		DefaultValue: false,
-	},
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss: {
-		KeyName:      "matching.enableTasklistGuardAgainstOwnershipLoss",
-		Description:  "allows guards to ensure that tasklists don't continue processing if there's signal that they've lost ownership",
 		DefaultValue: false,
 	},
 	MatchingEnableGetNumberOfPartitionsFromCache: {
@@ -5142,6 +5156,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	MatchingEmergencyOffboardingFromShardManager: {
+		KeyName:      "matching.emergencyOffboardingFromShardManager",
+		Description:  "MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager, ignoring the onboarding percentage",
+		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",

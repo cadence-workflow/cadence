@@ -110,6 +110,7 @@ type Config struct {
 	ResurrectionCheckMinDelay                         dynamicproperties.DurationPropertyFnWithDomainFilter
 	EnableHierarchicalWeightedRoundRobinTaskScheduler dynamicproperties.BoolPropertyFn
 	EnableTaskListAwareTaskSchedulerByDomain          dynamicproperties.BoolPropertyFnWithDomainFilter
+	TaskListNiceValue                                 dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 
 	// History Queue (v2) settings
 	EnableTimerQueueV2                         dynamicproperties.BoolPropertyFnWithShardIDFilter
@@ -424,6 +425,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ResurrectionCheckMinDelay:                         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
 		EnableHierarchicalWeightedRoundRobinTaskScheduler: dc.GetBoolProperty(dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler),
 		EnableTaskListAwareTaskSchedulerByDomain:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain),
+		TaskListNiceValue:                                 dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.HistoryTaskListNiceValue),
 
 		EnableTimerQueueV2:                         dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
 		EnableTransferQueueV2:                      dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
