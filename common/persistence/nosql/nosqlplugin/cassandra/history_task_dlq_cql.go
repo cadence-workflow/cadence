@@ -7,19 +7,22 @@ const templateInsertHistoryDLQTaskRowQuery = `INSERT INTO history_task_dlq (` +
 	`task_payload, encoding_type, created_at) ` +
 	`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
+// templateSelectHistoryDLQTaskRowsQuery uses CQL multi-column slice syntax (tuple comparison),
+// which is valid for consecutive clustering key columns in Cassandra 3.x+.
+// Bounds are [inclusive min, exclusive max).
 const templateSelectHistoryDLQTaskRowsQuery = `SELECT ` +
 	`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
 	`task_type, visibility_ts, task_id, task_payload, encoding_type, created_at ` +
 	`FROM history_task_dlq ` +
 	`WHERE shard_id = ? AND domain_id = ? AND cluster_attribute_scope = ? AND cluster_attribute_name = ? ` +
 	`AND task_type = ? ` +
-	`AND (visibility_ts, task_id) > (?, ?) ` +
-	`AND (visibility_ts, task_id) <= (?, ?)`
+	`AND (visibility_ts, task_id) >= (?, ?) ` +
+	`AND (visibility_ts, task_id) < (?, ?)`
 
 const templateRangeDeleteHistoryDLQTaskRowsQuery = `DELETE FROM history_task_dlq ` +
 	`WHERE shard_id = ? AND domain_id = ? AND cluster_attribute_scope = ? AND cluster_attribute_name = ? ` +
 	`AND task_type = ? ` +
-	`AND (visibility_ts, task_id) <= (?, ?)`
+	`AND (visibility_ts, task_id) < (?, ?)`
 
 const templateSelectHistoryDLQAckLevelRowsQuery = `SELECT ` +
 	`domain_id, cluster_attribute_scope, cluster_attribute_name, ` +

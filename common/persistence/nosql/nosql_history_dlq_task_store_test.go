@@ -183,18 +183,18 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
 	maxTS := time.Date(2025, 6, 2, 0, 0, 0, 0, time.UTC)
 
-	baseRequest := persistence.InternalGetHistoryDLQTasksRequest{
-		ShardID:                  5,
-		DomainID:                 "domain-abc",
-		ClusterAttributeScope:    "scope-1",
-		ClusterAttributeName:     "cluster-west",
-		TaskType:                 3,
-		ExclusiveMinVisibilityTS: now,
-		ExclusiveMinTaskID:       10,
-		InclusiveMaxVisibilityTS: maxTS,
-		InclusiveMaxTaskID:       20,
-		PageSize:                 5,
-		NextPageToken:            nil,
+	minKey := persistence.NewHistoryTaskKey(now, 10)
+	maxKey := persistence.NewHistoryTaskKey(maxTS, 20)
+
+	baseRequest := persistence.HistoryDLQGetTasksRequest{
+		ShardID:               5,
+		DomainID:              "domain-abc",
+		ClusterAttributeScope: "scope-1",
+		ClusterAttributeName:  "cluster-west",
+		TaskCategory:          persistence.HistoryTaskCategoryReplication,
+		InclusiveMinTaskKey:   minKey,
+		ExclusiveMaxTaskKey:   maxKey,
+		PageSize:              5,
 	}
 
 	dbRow := &nosqlplugin.HistoryDLQTaskRow{
@@ -212,7 +212,7 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 
 	tests := map[string]struct {
 		setupMock      func(*nosqlplugin.MockDB)
-		request        persistence.InternalGetHistoryDLQTasksRequest
+		request        persistence.HistoryDLQGetTasksRequest
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 		validate       func(t *testing.T, resp persistence.InternalGetHistoryDLQTasksResponse)
@@ -226,10 +226,10 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 						ClusterAttributeScope:    "scope-1",
 						ClusterAttributeName:     "cluster-west",
 						TaskType:                 3,
-						ExclusiveMinVisibilityTS: now,
-						ExclusiveMinTaskID:       10,
-						InclusiveMaxVisibilityTS: maxTS,
-						InclusiveMaxTaskID:       20,
+						InclusiveMinVisibilityTS: now,
+						InclusiveMinTaskID:       10,
+						ExclusiveMaxVisibilityTS: maxTS,
+						ExclusiveMaxTaskID:       20,
 						PageSize:                 5,
 					}).
 					Return([]*nosqlplugin.HistoryDLQTaskRow{dbRow}, []byte("next-page"), nil)
@@ -299,15 +299,15 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks(t *testing.T) {
 	ctx := context.Background()
 	ackTS := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	maxKey := persistence.NewHistoryTaskKey(ackTS, 42)
 
-	baseRequest := persistence.InternalRangeDeleteHistoryDLQTasksRequest{
+	baseRequest := persistence.HistoryDLQDeleteTasksRequest{
 		ShardID:               5,
 		DomainID:              "domain-abc",
 		ClusterAttributeScope: "scope-1",
 		ClusterAttributeName:  "cluster-west",
-		TaskType:              3,
-		AckLevelVisibilityTS:  ackTS,
-		AckLevelTaskID:        42,
+		TaskCategory:          persistence.HistoryTaskCategoryReplication,
+		ExclusiveMaxTaskKey:   maxKey,
 	}
 
 	tests := map[string]struct {
@@ -319,13 +319,13 @@ func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks(t *testing.T) {
 			setupMock: func(db *nosqlplugin.MockDB) {
 				db.EXPECT().
 					RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
-						ShardID:               5,
-						DomainID:              "domain-abc",
-						ClusterAttributeScope: "scope-1",
-						ClusterAttributeName:  "cluster-west",
-						TaskType:              3,
-						AckLevelVisibilityTS:  ackTS,
-						AckLevelTaskID:        42,
+						ShardID:                  5,
+						DomainID:                 "domain-abc",
+						ClusterAttributeScope:    "scope-1",
+						ClusterAttributeName:     "cluster-west",
+						TaskType:                 3,
+						ExclusiveMaxVisibilityTS: ackTS,
+						ExclusiveMaxTaskID:       42,
 					}).
 					Return(nil)
 			},
@@ -383,7 +383,7 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 
 	tests := map[string]struct {
 		setupMock      func(*nosqlplugin.MockDB)
-		request        persistence.InternalGetHistoryDLQAckLevelsRequest
+		request        persistence.HistoryDLQGetAckLevelsRequest
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 		validate       func(t *testing.T, resp persistence.InternalGetHistoryDLQAckLevelsResponse)
@@ -399,8 +399,9 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 					}).
 					Return([]*nosqlplugin.HistoryDLQAckLevelRow{dbRow}, nil)
 			},
-			request: persistence.InternalGetHistoryDLQAckLevelsRequest{
+			request: persistence.HistoryDLQGetAckLevelsRequest{
 				ShardID:               5,
+				TaskCategory:          persistence.HistoryTaskCategoryReplication,
 				DomainID:              "domain-abc",
 				ClusterAttributeScope: "scope-1",
 				ClusterAttributeName:  "cluster-west",
@@ -419,7 +420,10 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 					SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{ShardID: 5}).
 					Return(nil, nil)
 			},
-			request: persistence.InternalGetHistoryDLQAckLevelsRequest{ShardID: 5},
+			request: persistence.HistoryDLQGetAckLevelsRequest{
+				ShardID:      5,
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			},
 			validate: func(t *testing.T, resp persistence.InternalGetHistoryDLQAckLevelsResponse) {
 				assert.Empty(t, resp.AckLevels)
 			},
@@ -433,7 +437,10 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 				db.EXPECT().IsTimeoutError(gomock.Any()).Return(false)
 				db.EXPECT().IsThrottlingError(gomock.Any()).Return(true)
 			},
-			request:     persistence.InternalGetHistoryDLQAckLevelsRequest{ShardID: 5},
+			request: persistence.HistoryDLQGetAckLevelsRequest{
+				ShardID:      5,
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			},
 			expectError: true,
 			errorValidator: func(t *testing.T, err error) {
 				var busyErr *types.ServiceBusyError
@@ -474,7 +481,7 @@ func TestNoSQLHistoryDLQTaskStore_UpdateHistoryDLQAckLevel(t *testing.T) {
 			DomainID:              "domain-abc",
 			ClusterAttributeScope: "scope-1",
 			ClusterAttributeName:  "cluster-west",
-			TaskType:              3,
+			TaskCategory:          3,
 			AckLevelVisibilityTS:  ackTS,
 			AckLevelTaskID:        88,
 			LastUpdatedAt:         updatedAt,

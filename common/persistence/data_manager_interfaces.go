@@ -231,6 +231,20 @@ var (
 	}
 )
 
+// HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
+func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
+	switch id {
+	case HistoryTaskCategoryIDTransfer:
+		return HistoryTaskCategoryTransfer, nil
+	case HistoryTaskCategoryIDTimer:
+		return HistoryTaskCategoryTimer, nil
+	case HistoryTaskCategoryIDReplication:
+		return HistoryTaskCategoryReplication, nil
+	default:
+		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
+	}
+}
+
 // Transfer task types
 const (
 	TransferTaskTypeDecisionTask = iota
@@ -1745,10 +1759,9 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
-		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
-		GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error)
-		// GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
-		GetAckLevelsForPartition(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
+		// GetAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
+		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+		GetAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
 		// GetTasks returns deserialized tasks from a DLQ partition.
 		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
 		// UpdateAckLevel persists the new ack level for a partition.
@@ -1772,10 +1785,9 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		// TaskType is a HistoryTaskCategoryID* constant (1=Transfer, 2=Timer, 3=Replication).
-		TaskType             int
-		AckLevelVisibilityTS time.Time
-		AckLevelTaskID       int64
+		TaskCategory          HistoryTaskCategory
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
 	}
 
 	// HistoryDLQGetTasksRequest specifies what tasks to fetch from a DLQ partition.
@@ -1784,7 +1796,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          HistoryTaskCategory
 		InclusiveMinTaskKey   HistoryTaskKey
 		ExclusiveMaxTaskKey   HistoryTaskKey
 		PageSize              int
@@ -1797,8 +1809,11 @@ type (
 		NextPageToken []byte
 	}
 
+	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.
+	// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
 	HistoryDLQGetAckLevelsRequest struct {
 		ShardID               int
+		TaskCategory          HistoryTaskCategory
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
@@ -1810,7 +1825,7 @@ type (
 		DomainID                  string
 		ClusterAttributeScope     string
 		ClusterAttributeName      string
-		TaskType                  int
+		TaskCategory              HistoryTaskCategory
 		UpdatedInclusiveReadLevel HistoryTaskKey
 	}
 
@@ -1820,7 +1835,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          HistoryTaskCategory
 		ExclusiveMaxTaskKey   HistoryTaskKey
 	}
 

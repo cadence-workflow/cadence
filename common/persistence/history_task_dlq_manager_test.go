@@ -162,24 +162,36 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			DomainID:              "domain-1",
 			ClusterAttributeScope: "scope",
 			ClusterAttributeName:  "cluster-a",
-			TaskType:              HistoryTaskCategoryIDTransfer,
+			TaskCategory:          HistoryTaskCategoryIDTransfer,
 			AckLevelVisibilityTS:  now,
 			AckLevelTaskID:        100,
+			LastUpdatedAt:         now,
+		},
+		{
+			ShardID:               3,
+			DomainID:              "domain-1",
+			ClusterAttributeScope: "scope",
+			ClusterAttributeName:  "cluster-a",
+			TaskCategory:          HistoryTaskCategoryIDTimer,
+			AckLevelVisibilityTS:  now,
+			AckLevelTaskID:        50,
 			LastUpdatedAt:         now,
 		},
 	}
 
 	tests := []struct {
 		name       string
+		request    HistoryDLQGetAckLevelsRequest
 		mockSetup  func(*MockHistoryDLQTaskStore)
 		wantLevels []HistoryDLQAckLevel
 		wantErr    string
 	}{
 		{
-			name: "returns converted ack levels",
+			name:    "filters by task category and returns converted ack levels",
+			request: HistoryDLQGetAckLevelsRequest{ShardID: 3, TaskCategory: HistoryTaskCategoryTransfer},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
 				store.EXPECT().
-					GetHistoryDLQAckLevels(gomock.Any(), InternalGetHistoryDLQAckLevelsRequest{ShardID: 3}).
+					GetHistoryDLQAckLevels(gomock.Any(), HistoryDLQGetAckLevelsRequest{ShardID: 3, TaskCategory: HistoryTaskCategoryTransfer}).
 					Return(InternalGetHistoryDLQAckLevelsResponse{AckLevels: storeRows}, nil)
 			},
 			wantLevels: []HistoryDLQAckLevel{
@@ -188,14 +200,45 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 					DomainID:              "domain-1",
 					ClusterAttributeScope: "scope",
 					ClusterAttributeName:  "cluster-a",
-					TaskType:              HistoryTaskCategoryIDTransfer,
+					TaskCategory:          HistoryTaskCategoryTransfer,
 					AckLevelVisibilityTS:  now,
 					AckLevelTaskID:        100,
 				},
 			},
 		},
 		{
-			name: "store error propagates",
+			name: "passes partition filter fields to store",
+			request: HistoryDLQGetAckLevelsRequest{
+				ShardID:               5,
+				TaskCategory:          HistoryTaskCategoryTimer,
+				DomainID:              "domain-x",
+				ClusterAttributeScope: "scope",
+				ClusterAttributeName:  "cluster-b",
+			},
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					GetHistoryDLQAckLevels(gomock.Any(), HistoryDLQGetAckLevelsRequest{
+						ShardID:               5,
+						TaskCategory:          HistoryTaskCategoryTimer,
+						DomainID:              "domain-x",
+						ClusterAttributeScope: "scope",
+						ClusterAttributeName:  "cluster-b",
+					}).
+					Return(InternalGetHistoryDLQAckLevelsResponse{
+						AckLevels: []*InternalHistoryDLQAckLevel{
+							{ShardID: 5, DomainID: "domain-x", TaskCategory: HistoryTaskCategoryIDTimer,
+								AckLevelVisibilityTS: now, AckLevelTaskID: 50},
+						},
+					}, nil)
+			},
+			wantLevels: []HistoryDLQAckLevel{
+				{ShardID: 5, DomainID: "domain-x", TaskCategory: HistoryTaskCategoryTimer,
+					AckLevelVisibilityTS: now, AckLevelTaskID: 50},
+			},
+		},
+		{
+			name:    "store error propagates",
+			request: HistoryDLQGetAckLevelsRequest{ShardID: 3, TaskCategory: HistoryTaskCategoryTransfer},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
 				store.EXPECT().
 					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
@@ -212,7 +255,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			tc.mockSetup(mockStore)
 
 			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
-			got, err := mgr.GetAckLevels(context.Background(), 3)
+			got, err := mgr.GetAckLevels(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
@@ -224,75 +267,15 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 	}
 }
 
-func TestHistoryTaskDLQManager_GetAckLevelsForPartition(t *testing.T) {
-	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-
-	tests := []struct {
-		name      string
-		mockSetup func(*MockHistoryDLQTaskStore)
-		wantErr   string
-	}{
-		{
-			name: "passes all filter fields to store",
-			mockSetup: func(store *MockHistoryDLQTaskStore) {
-				store.EXPECT().
-					GetHistoryDLQAckLevels(gomock.Any(), InternalGetHistoryDLQAckLevelsRequest{
-						ShardID:               5,
-						DomainID:              "domain-x",
-						ClusterAttributeScope: "scope",
-						ClusterAttributeName:  "cluster-b",
-					}).
-					Return(InternalGetHistoryDLQAckLevelsResponse{
-						AckLevels: []*InternalHistoryDLQAckLevel{
-							{ShardID: 5, DomainID: "domain-x", TaskType: HistoryTaskCategoryIDTimer,
-								AckLevelVisibilityTS: now, AckLevelTaskID: 50},
-						},
-					}, nil)
-			},
-		},
-		{
-			name: "store error propagates",
-			mockSetup: func(store *MockHistoryDLQTaskStore) {
-				store.EXPECT().
-					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
-					Return(InternalGetHistoryDLQAckLevelsResponse{}, errors.New("timeout"))
-			},
-			wantErr: "timeout",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockStore := NewMockHistoryDLQTaskStore(ctrl)
-			tc.mockSetup(mockStore)
-
-			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
-			_, err := mgr.GetAckLevelsForPartition(context.Background(), HistoryDLQGetAckLevelsRequest{
-				ShardID:               5,
-				DomainID:              "domain-x",
-				ClusterAttributeScope: "scope",
-				ClusterAttributeName:  "cluster-b",
-			})
-
-			if tc.wantErr != "" {
-				assert.EqualError(t, err, tc.wantErr)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 	minKey := NewImmediateTaskKey(10)
 	maxKey := NewImmediateTaskKey(20)
 	taskBlob := &DataBlob{Data: []byte("task-bytes"), Encoding: constants.EncodingTypeThriftRW}
 
 	storeTask := &InternalHistoryDLQTask{
-		TaskType:    HistoryTaskCategoryIDTransfer,
-		TaskID:      15,
-		TaskPayload: taskBlob,
+		TaskCategory: HistoryTaskCategoryIDTransfer,
+		TaskID:       15,
+		TaskPayload:  taskBlob,
 	}
 	deserializedTask := &ActivityTask{TaskData: TaskData{TaskID: 15}}
 
@@ -308,22 +291,20 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 			request: HistoryDLQGetTasksRequest{
 				ShardID:             1,
 				DomainID:            "dom",
-				TaskType:            HistoryTaskCategoryIDTransfer,
+				TaskCategory:        HistoryTaskCategoryTransfer,
 				InclusiveMinTaskKey: minKey,
 				ExclusiveMaxTaskKey: maxKey,
 				PageSize:            10,
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
 				store.EXPECT().
-					GetHistoryDLQTasks(gomock.Any(), InternalGetHistoryDLQTasksRequest{
-						ShardID:                  1,
-						DomainID:                 "dom",
-						TaskType:                 HistoryTaskCategoryIDTransfer,
-						ExclusiveMinVisibilityTS: minKey.GetScheduledTime(),
-						ExclusiveMinTaskID:       minKey.GetTaskID() - 1,
-						InclusiveMaxVisibilityTS: maxKey.GetScheduledTime(),
-						InclusiveMaxTaskID:       maxKey.GetTaskID() - 1,
-						PageSize:                 10,
+					GetHistoryDLQTasks(gomock.Any(), HistoryDLQGetTasksRequest{
+						ShardID:             1,
+						DomainID:            "dom",
+						TaskCategory:        HistoryTaskCategoryTransfer,
+						InclusiveMinTaskKey: minKey,
+						ExclusiveMaxTaskKey: maxKey,
+						PageSize:            10,
 					}).
 					Return(InternalGetHistoryDLQTasksResponse{
 						Tasks:         []*InternalHistoryDLQTask{storeTask},
@@ -336,23 +317,10 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 			wantTasks: []Task{deserializedTask},
 		},
 		{
-			name: "unknown task type returns error",
-			request: HistoryDLQGetTasksRequest{
-				ShardID:  1,
-				TaskType: 99,
-			},
-			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
-				store.EXPECT().
-					GetHistoryDLQTasks(gomock.Any(), gomock.Any()).
-					Return(InternalGetHistoryDLQTasksResponse{Tasks: []*InternalHistoryDLQTask{storeTask}}, nil)
-			},
-			wantErr: "unknown history task type: 99",
-		},
-		{
 			name: "deserialization error surfaces",
 			request: HistoryDLQGetTasksRequest{
-				ShardID:  1,
-				TaskType: HistoryTaskCategoryIDTransfer,
+				ShardID:      1,
+				TaskCategory: HistoryTaskCategoryTransfer,
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
 				store.EXPECT().
@@ -367,8 +335,8 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 		{
 			name: "store error propagates",
 			request: HistoryDLQGetTasksRequest{
-				ShardID:  1,
-				TaskType: HistoryTaskCategoryIDTransfer,
+				ShardID:      1,
+				TaskCategory: HistoryTaskCategoryTransfer,
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
 				store.EXPECT().
@@ -415,7 +383,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 				DomainID:                  "dom",
 				ClusterAttributeScope:     "scope",
 				ClusterAttributeName:      "cluster",
-				TaskType:                  HistoryTaskCategoryIDReplication,
+				TaskCategory:              HistoryTaskCategoryReplication,
 				UpdatedInclusiveReadLevel: NewImmediateTaskKey(77),
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
@@ -424,7 +392,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 					DoAndReturn(func(_ context.Context, req InternalUpdateHistoryDLQAckLevelRequest) error {
 						assert.Equal(t, 2, req.Row.ShardID)
 						assert.Equal(t, "dom", req.Row.DomainID)
-						assert.Equal(t, HistoryTaskCategoryIDReplication, req.Row.TaskType)
+						assert.Equal(t, HistoryTaskCategoryIDReplication, req.Row.TaskCategory)
 						assert.Equal(t, int64(77), req.Row.AckLevelTaskID)
 						assert.Equal(t, time.Unix(0, 0).UTC(), req.Row.AckLevelVisibilityTS)
 						assert.Equal(t, now, req.Row.LastUpdatedAt)
@@ -477,25 +445,24 @@ func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
 		wantErr   string
 	}{
 		{
-			name: "converts ExclusiveMaxTaskKey to inclusive store boundary",
+			name: "passes request to store",
 			request: HistoryDLQDeleteTasksRequest{
 				ShardID:               4,
 				DomainID:              "dom",
 				ClusterAttributeScope: "scope",
 				ClusterAttributeName:  "cluster",
-				TaskType:              HistoryTaskCategoryIDTimer,
+				TaskCategory:          HistoryTaskCategoryTimer,
 				ExclusiveMaxTaskKey:   maxKey,
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
 				store.EXPECT().
-					RangeDeleteHistoryDLQTasks(gomock.Any(), InternalRangeDeleteHistoryDLQTasksRequest{
+					RangeDeleteHistoryDLQTasks(gomock.Any(), HistoryDLQDeleteTasksRequest{
 						ShardID:               4,
 						DomainID:              "dom",
 						ClusterAttributeScope: "scope",
 						ClusterAttributeName:  "cluster",
-						TaskType:              HistoryTaskCategoryIDTimer,
-						AckLevelVisibilityTS:  maxKey.GetScheduledTime(),
-						AckLevelTaskID:        maxKey.GetTaskID() - 1,
+						TaskCategory:          HistoryTaskCategoryTimer,
+						ExclusiveMaxTaskKey:   maxKey,
 					}).
 					Return(nil)
 			},
@@ -527,27 +494,5 @@ func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
 				assert.NoError(t, err)
 			}
 		})
-	}
-}
-
-func TestHistoryTaskCategoryForType(t *testing.T) {
-	tests := []struct {
-		taskType int
-		want     HistoryTaskCategory
-		wantErr  bool
-	}{
-		{HistoryTaskCategoryIDTransfer, HistoryTaskCategoryTransfer, false},
-		{HistoryTaskCategoryIDTimer, HistoryTaskCategoryTimer, false},
-		{HistoryTaskCategoryIDReplication, HistoryTaskCategoryReplication, false},
-		{99, HistoryTaskCategory{}, true},
-	}
-	for _, tc := range tests {
-		got, err := historyTaskCategoryForType(tc.taskType)
-		if tc.wantErr {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		}
 	}
 }

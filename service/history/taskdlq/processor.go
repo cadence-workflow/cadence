@@ -25,7 +25,6 @@ package taskdlq
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,10 +39,6 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/constants"
 )
-
-// maxTaskKey is a sentinel letting the processor scan all committed DLQ tasks.
-// A proper cap from the shard's normal-queue ack level can be substituted in a follow-up.
-var maxTaskKey = persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), math.MaxInt64)
 
 type (
 	// Processor reads tasks from the history task DLQ and executes them synchronously.
@@ -176,7 +171,9 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.mgr.GetAckLevels(ctx, p.shardID)
+	ackLevels, err := p.mgr.GetAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID: p.shardID,
+	})
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
@@ -195,7 +192,7 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.mgr.GetAckLevelsForPartition(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+	ackLevels, err := p.mgr.GetAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
 		ShardID:               p.shardID,
 		DomainID:              domainID,
 		ClusterAttributeScope: clusterAttributeScope,
@@ -218,7 +215,7 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persis
 				tag.WorkflowDomainID(al.DomainID),
 				tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
 				tag.Dynamic("cluster-attribute-name", al.ClusterAttributeName),
-				tag.Dynamic("task-type", al.TaskType),
+				tag.TaskType(al.TaskCategory.ID()),
 				tag.Error(err),
 			)
 			errs = multierr.Append(errs, err)
@@ -236,9 +233,9 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 		return nil
 	}
 
-	executor, ok := p.executors[al.TaskType]
+	executor, ok := p.executors[al.TaskCategory.ID()]
 	if !ok {
-		return fmt.Errorf("no executor registered for task type %d", al.TaskType)
+		return fmt.Errorf("no executor registered for task type %d", al.TaskCategory.ID())
 	}
 
 	var (
@@ -248,6 +245,8 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
+	// TODO(c-warren): Pass in max read level from the shard context
+	maxKey := persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), 0)
 
 	for {
 		resp, err := p.mgr.GetTasks(ctx, persistence.HistoryDLQGetTasksRequest{
@@ -255,9 +254,9 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 			DomainID:              al.DomainID,
 			ClusterAttributeScope: al.ClusterAttributeScope,
 			ClusterAttributeName:  al.ClusterAttributeName,
-			TaskType:              al.TaskType,
+			TaskCategory:          al.TaskCategory,
 			InclusiveMinTaskKey:   minKey,
-			ExclusiveMaxTaskKey:   maxTaskKey,
+			ExclusiveMaxTaskKey:   maxKey,
 			PageSize:              p.pageSize,
 			NextPageToken:         pageToken,
 		})
@@ -305,7 +304,7 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.Hist
 		DomainID:                  al.DomainID,
 		ClusterAttributeScope:     al.ClusterAttributeScope,
 		ClusterAttributeName:      al.ClusterAttributeName,
-		TaskType:                  al.TaskType,
+		TaskCategory:              al.TaskCategory,
 		UpdatedInclusiveReadLevel: newKey,
 	}); err != nil {
 		return fmt.Errorf("update DLQ ack level: %w", err)
@@ -315,7 +314,7 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.Hist
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		ExclusiveMaxTaskKey:   newKey.Next(),
 	}); err != nil {
 		p.logger.Error("failed to delete acknowledged DLQ tasks",

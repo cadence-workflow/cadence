@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,18 +92,18 @@ func (m *nosqlHistoryDLQTaskStore) Close()          {}
 // GetHistoryDLQTasks reads paginated tasks from the history DLQ.
 func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 	ctx context.Context,
-	request persistence.InternalGetHistoryDLQTasksRequest,
+	request persistence.HistoryDLQGetTasksRequest,
 ) (persistence.InternalGetHistoryDLQTasksResponse, error) {
 	rows, nextPageToken, err := m.db.SelectHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskFilter{
 		ShardID:                  request.ShardID,
 		DomainID:                 request.DomainID,
 		ClusterAttributeScope:    request.ClusterAttributeScope,
 		ClusterAttributeName:     request.ClusterAttributeName,
-		TaskType:                 request.TaskType,
-		ExclusiveMinVisibilityTS: request.ExclusiveMinVisibilityTS,
-		ExclusiveMinTaskID:       request.ExclusiveMinTaskID,
-		InclusiveMaxVisibilityTS: request.InclusiveMaxVisibilityTS,
-		InclusiveMaxTaskID:       request.InclusiveMaxTaskID,
+		TaskType:                 request.TaskCategory.ID(),
+		InclusiveMinVisibilityTS: request.InclusiveMinTaskKey.GetScheduledTime(),
+		InclusiveMinTaskID:       request.InclusiveMinTaskKey.GetTaskID(),
+		ExclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
+		ExclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID(),
 		PageSize:                 request.PageSize,
 		NextPageToken:            request.NextPageToken,
 	})
@@ -117,7 +117,7 @@ func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 			DomainID:              row.DomainID,
 			ClusterAttributeScope: row.ClusterAttributeScope,
 			ClusterAttributeName:  row.ClusterAttributeName,
-			TaskType:              row.TaskType,
+			TaskCategory:          row.TaskType,
 			VisibilityTimestamp:   row.VisibilityTimestamp,
 			TaskID:                row.TaskID,
 			TaskPayload:           &persistence.DataBlob{Data: row.Data, Encoding: constants.EncodingType(row.DataEncoding)},
@@ -130,19 +130,19 @@ func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 	}, nil
 }
 
-// RangeDeleteHistoryDLQTasks deletes all tasks up to and including the given ack-level bounds.
+// RangeDeleteHistoryDLQTasks deletes all tasks strictly before the exclusive max key.
 func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
 	ctx context.Context,
-	request persistence.InternalRangeDeleteHistoryDLQTasksRequest,
+	request persistence.HistoryDLQDeleteTasksRequest,
 ) error {
 	err := m.db.RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
-		ShardID:               request.ShardID,
-		DomainID:              request.DomainID,
-		ClusterAttributeScope: request.ClusterAttributeScope,
-		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskType:              request.TaskType,
-		AckLevelVisibilityTS:  request.AckLevelVisibilityTS,
-		AckLevelTaskID:        request.AckLevelTaskID,
+		ShardID:                  request.ShardID,
+		DomainID:                 request.DomainID,
+		ClusterAttributeScope:    request.ClusterAttributeScope,
+		ClusterAttributeName:     request.ClusterAttributeName,
+		TaskType:                 request.TaskCategory.ID(),
+		ExclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
+		ExclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID(),
 	})
 	if err != nil {
 		return convertCommonErrors(m.db, "RangeDeleteHistoryDLQTasks", err)
@@ -150,10 +150,10 @@ func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
 	return nil
 }
 
-// GetHistoryDLQAckLevels reads ack-level rows for a shard.
+// GetHistoryDLQAckLevels reads ack-level rows for a shard, filtered by task category in application code.
 func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
 	ctx context.Context,
-	request persistence.InternalGetHistoryDLQAckLevelsRequest,
+	request persistence.HistoryDLQGetAckLevelsRequest,
 ) (persistence.InternalGetHistoryDLQAckLevelsResponse, error) {
 	rows, err := m.db.SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{
 		ShardID:               request.ShardID,
@@ -172,7 +172,7 @@ func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
 			DomainID:              row.DomainID,
 			ClusterAttributeScope: row.ClusterAttributeScope,
 			ClusterAttributeName:  row.ClusterAttributeName,
-			TaskType:              row.TaskType,
+			TaskCategory:          row.TaskType,
 			AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
 			AckLevelTaskID:        row.AckLevelTaskID,
 			LastUpdatedAt:         row.LastUpdatedAt,
@@ -193,7 +193,7 @@ func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
 		DomainID:              request.Row.DomainID,
 		ClusterAttributeScope: request.Row.ClusterAttributeScope,
 		ClusterAttributeName:  request.Row.ClusterAttributeName,
-		TaskType:              request.Row.TaskType,
+		TaskType:              request.Row.TaskCategory,
 		AckLevelVisibilityTS:  request.Row.AckLevelVisibilityTS,
 		AckLevelTaskID:        request.Row.AckLevelTaskID,
 		LastUpdatedAt:         request.Row.LastUpdatedAt,

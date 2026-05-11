@@ -62,10 +62,10 @@ func (db *CDB) SelectHistoryDLQTaskRows(
 		filter.ClusterAttributeScope,
 		filter.ClusterAttributeName,
 		filter.TaskType,
-		filter.ExclusiveMinVisibilityTS,
-		filter.ExclusiveMinTaskID,
-		filter.InclusiveMaxVisibilityTS,
-		filter.InclusiveMaxTaskID,
+		filter.InclusiveMinVisibilityTS,
+		filter.InclusiveMinTaskID,
+		filter.ExclusiveMaxVisibilityTS,
+		filter.ExclusiveMaxTaskID,
 	).WithContext(ctx)
 
 	if filter.PageSize > 0 {
@@ -123,8 +123,8 @@ func (db *CDB) RangeDeleteHistoryDLQTaskRows(
 		filter.ClusterAttributeScope,
 		filter.ClusterAttributeName,
 		filter.TaskType,
-		filter.AckLevelVisibilityTS,
-		filter.AckLevelTaskID,
+		filter.ExclusiveMaxVisibilityTS,
+		filter.ExclusiveMaxTaskID,
 	).WithContext(ctx)
 	return query.Exec()
 }

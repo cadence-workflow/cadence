@@ -76,7 +76,7 @@ func baseAckLevel(shardID int) persistence.HistoryDLQAckLevel {
 		DomainID:              "test-domain",
 		ClusterAttributeScope: "scope",
 		ClusterAttributeName:  "name",
-		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
 	}
@@ -173,7 +173,7 @@ func TestProcessShard_WhenExecutionFailsMidPage_AdvancesAckLevelToLastSuccess(t 
 		DomainID:                  al.DomainID,
 		ClusterAttributeScope:     al.ClusterAttributeScope,
 		ClusterAttributeName:      al.ClusterAttributeName,
-		TaskType:                  al.TaskType,
+		TaskCategory:              al.TaskCategory,
 		UpdatedInclusiveReadLevel: key0,
 	}).Return(nil)
 	mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(nil)
@@ -238,7 +238,7 @@ func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPar
 		DomainID:              "other-domain",
 		ClusterAttributeScope: "scope",
 		ClusterAttributeName:  "name",
-		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
+		TaskCategory:          persistence.HistoryTaskCategoryTransfer,
 		AckLevelVisibilityTS:  time.Unix(0, 0).UTC(),
 		AckLevelTaskID:        -1,
 	}
@@ -260,7 +260,7 @@ func TestProcessPartition_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	proc, mgr, _ := setupProcessor(t, ctrl)
 	storeErr := errors.New("partition error")
 	mgr.EXPECT().
-		GetAckLevelsForPartition(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
 			ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
 		}).
 		Return(nil, storeErr)
@@ -294,17 +294,17 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 
 	transferAL := persistence.HistoryDLQAckLevel{
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-		TaskType:             persistence.HistoryTaskCategoryIDTransfer,
+		TaskCategory:         persistence.HistoryTaskCategoryTransfer,
 		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
 	}
 	timerAL := persistence.HistoryDLQAckLevel{
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
-		TaskType:             persistence.HistoryTaskCategoryIDTimer,
+		TaskCategory:         persistence.HistoryTaskCategoryTimer,
 		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
 	}
 
 	mgr.EXPECT().
-		GetAckLevelsForPartition(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
 			ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
 		}).
 		Return([]persistence.HistoryDLQAckLevel{transferAL, timerAL}, nil)
@@ -366,7 +366,7 @@ func TestProcessShard_WhenNoExecutorForTaskType_ReturnsError(t *testing.T) {
 
 	proc, mgr, _ := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
-	al.TaskType = persistence.HistoryTaskCategoryIDTimer // no executor registered for timer
+	al.TaskCategory = persistence.HistoryTaskCategoryTimer // no executor registered for timer
 
 	mgr.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 
@@ -427,7 +427,7 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 		<-shardBlocked
 		return nil, nil
 	})
-	mgr.EXPECT().GetAckLevelsForPartition(gomock.Any(), gomock.Any()).DoAndReturn(
+	mgr.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 			close(partitionRan)
 			return nil, nil
@@ -539,7 +539,7 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		AckLevelVisibilityTS:  task0Key.GetScheduledTime(),
 		AckLevelTaskID:        task0Key.GetTaskID(),
 	}
