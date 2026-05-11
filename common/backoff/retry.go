@@ -36,6 +36,13 @@ const retryCountKey = retryCountKeyType("retryCount")
 
 var errCauseOperationTimeout = errors.New("operation timeout")
 
+func GetRetryCountFromContext(ctx context.Context) int {
+	if retryCount, ok := ctx.Value(retryCountKey).(int); ok {
+		return retryCount
+	}
+	return -1
+}
+
 type (
 	// Operation to retry
 	Operation func(ctx context.Context) error

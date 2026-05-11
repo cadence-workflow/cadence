@@ -279,11 +279,13 @@ func TestNewConfig(t *testing.T) {
 		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
 		"EnableHierarchicalWeightedRoundRobinTaskScheduler":    {dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler, true},
 		"EnableTaskListAwareTaskSchedulerByDomain":             {dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain, true},
+		"TaskListNiceValue":                                    {dynamicproperties.HistoryTaskListNiceValue, 5},
 		"EnableCorruptionAutoRepair":                           {dynamicproperties.EnableCorruptionAutoRepair, true},
 		"CorruptionRepairTimeout":                              {dynamicproperties.CorruptionRepairTimeout, time.Duration(1)},
 		"RequireChecksumMatchAfterRebuildRepair":               {dynamicproperties.RequireChecksumMatchAfterRebuildRepair, true},
-		"HistoryTaskDLQMode":                                   {dynamicproperties.HistoryTaskDeadLetterQueueMode, "enabled"},
-		"HistoryTaskProcessingInterval":                        {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
+		"HistoryTaskDLQMode":                                   {dynamicproperties.HistoryTaskDLQMode, "enabled"},
+		"HistoryTaskDLQProcessorInterval":                      {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
+		"HistoryTaskDLQProcessorEnabled":                       {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
@@ -337,6 +339,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain")
 		case dynamicproperties.IntPropertyFnWithTaskListInfoFilters:
 			return fn("domain", "tasklist", int(types.TaskListTypeDecision))
+		case dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter:
+			return fn("domain", "tasklist")
 		case dynamicproperties.BoolPropertyFn:
 			return fn()
 		case dynamicproperties.BoolPropertyFnWithDomainFilter:

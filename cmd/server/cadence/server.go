@@ -187,6 +187,7 @@ func (s *server) startService() common.Daemon {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
 		matchingPercentageOnboarded := dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)
+		matchingEmergencyOffboarding := dc.GetBoolProperty(dynamicproperties.MatchingEmergencyOffboardingFromShardManager)
 
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
@@ -195,7 +196,7 @@ func (s *server) startService() common.Daemon {
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewRealTimeSource(),
 			Enabled: func() bool {
-				return matchingPercentageOnboarded() > 0
+				return !matchingEmergencyOffboarding() && matchingPercentageOnboarded() > 0
 			},
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
@@ -335,6 +336,7 @@ func (*server) wrapHashRingsWithShardDistributor(
 			spectator,
 			dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 			dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+			dc.GetBoolProperty(dynamicproperties.MatchingEmergencyOffboardingFromShardManager),
 			hashRings[service.Matching],
 			logger,
 		)

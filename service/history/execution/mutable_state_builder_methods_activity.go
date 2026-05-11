@@ -223,7 +223,7 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 
 	pendingActivitiesCount := len(e.pendingActivityInfoIDs)
 
-	if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitError() {
+	if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitError(e.GetDomainEntry().GetInfo().Name) {
 		e.logger.Error("Pending activity count exceeds error limit",
 			tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 			tag.WorkflowID(e.executionInfo.WorkflowID),
@@ -233,7 +233,7 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		if e.config.PendingActivityValidationEnabled() {
 			return nil, nil, nil, ErrTooManyPendingActivities
 		}
-	} else if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitWarn() && !e.pendingActivityWarningSent {
+	} else if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitWarn(e.GetDomainEntry().GetInfo().Name) && !e.pendingActivityWarningSent {
 		e.logger.Warn("Pending activity count exceeds warn limit",
 			tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 			tag.WorkflowID(e.executionInfo.WorkflowID),

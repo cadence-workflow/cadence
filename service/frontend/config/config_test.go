@@ -193,6 +193,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn()
 		case dynamicproperties.IntPropertyFnWithTaskListInfoFilters:
 			return fn("domain", "taskList", 0)
+		case dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter:
+			return fn("domain", "taskList")
 		default:
 			panic("Unable to handle type: " + f.Type().Name())
 		}

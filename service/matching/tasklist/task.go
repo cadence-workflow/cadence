@@ -48,17 +48,16 @@ type (
 	// this struct is more like a union and only one of [ query, event, forwarded ] is
 	// non-nil for any given task
 	InternalTask struct {
-		Event                    *genericTaskInfo // non-nil for activity or decision task that's locally generated
-		Query                    *queryTaskInfo   // non-nil for a query task that's locally sync matched
-		started                  *startedTaskInfo // non-nil for a task received from a parent partition which is already started
-		domainName               string
-		source                   types.TaskSource
-		forwardedFrom            string     // name of the child partition this task is forwarded from (empty if not forwarded)
-		isolationGroup           string     // isolation group of this task (empty if it can be polled by workers from any isolation group)
-		ResponseC                chan error // non-nil only where there is a caller waiting for response (sync-match)
-		BacklogCountHint         int64
-		ActivityTaskDispatchInfo *types.ActivityTaskDispatchInfo
-		AutoConfigHint           *types.AutoConfigHint // worker auto-scaler hint, which includes enable auto config flag and poller wait time on the matching engine
+		Event            *genericTaskInfo // non-nil for activity or decision task that's locally generated
+		Query            *queryTaskInfo   // non-nil for a query task that's locally sync matched
+		started          *startedTaskInfo // non-nil for a task received from a parent partition which is already started
+		domainName       string
+		source           types.TaskSource
+		forwardedFrom    string     // name of the child partition this task is forwarded from (empty if not forwarded)
+		isolationGroup   string     // isolation group of this task (empty if it can be polled by workers from any isolation group)
+		ResponseC        chan error // non-nil only where there is a caller waiting for response (sync-match)
+		BacklogCountHint int64
+		AutoConfigHint   *types.AutoConfigHint // worker auto-scaler hint, which includes enable auto config flag and poller wait time on the matching engine
 	}
 )
 
@@ -68,7 +67,6 @@ func newInternalTask(
 	source types.TaskSource,
 	forwardedFrom string,
 	forSyncMatch bool,
-	activityTaskDispatchInfo *types.ActivityTaskDispatchInfo,
 	isolationGroup string,
 ) *InternalTask {
 	task := &InternalTask{
@@ -76,10 +74,9 @@ func newInternalTask(
 			TaskInfo:       info,
 			completionFunc: completionFunc,
 		},
-		source:                   source,
-		forwardedFrom:            forwardedFrom,
-		isolationGroup:           isolationGroup,
-		ActivityTaskDispatchInfo: activityTaskDispatchInfo,
+		source:         source,
+		forwardedFrom:  forwardedFrom,
+		isolationGroup: isolationGroup,
 	}
 	if forSyncMatch {
 		task.ResponseC = make(chan error, 1)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Uber Technologies, Inc.
+// Copyright (c) 2026 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,12 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mysql
+package postgres
 
-// NOTE: whenever there is a new data base schema update, plz update the following versions
+import (
+	"context"
+	"database/sql"
 
-// Version is the MySQL database release version
-const Version = "0.8"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
+)
 
-// VisibilityVersion is the MySQL visibility database release version
-const VisibilityVersion = "0.8"
+func (pdb *db) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *sqlplugin.ActiveClusterSelectionPolicyRow) (sql.Result, error) {
+	return nil, sqlplugin.ErrNotImplemented
+}
+
+func (pdb *db) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (*sqlplugin.ActiveClusterSelectionPolicyRow, error) {
+	return nil, sqlplugin.ErrNotImplemented
+}
+
+func (pdb *db) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *sqlplugin.ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
+	return nil, sqlplugin.ErrNotImplemented
+}
