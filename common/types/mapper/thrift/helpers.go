@@ -57,7 +57,7 @@ func nanoToTimeVal(n *int64) time.Time {
 	return time.Unix(0, *n)
 }
 
-func durationToSecondsI32(d time.Duration) *int32 {
+func durationToSeconds(d time.Duration) *int32 {
 	if d == 0 {
 		return nil
 	}
@@ -65,7 +65,7 @@ func durationToSecondsI32(d time.Duration) *int32 {
 	return &s
 }
 
-func secondsI32ToDuration(s *int32) time.Duration {
+func secondsToDuration(s *int32) time.Duration {
 	if s == nil {
 		return 0
 	}

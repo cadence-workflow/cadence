@@ -62,7 +62,7 @@ func FromScheduleSpec(t *types.ScheduleSpec) *shared.ScheduleSpec {
 		CronExpression:  common.StringPtr(t.CronExpression),
 		StartTimeNano:   timeValToNano(t.StartTime),
 		EndTimeNano:     timeValToNano(t.EndTime),
-		JitterInSeconds: durationToSecondsI32(t.Jitter),
+		JitterInSeconds: durationToSeconds(t.Jitter),
 	}
 }
 
@@ -74,7 +74,7 @@ func ToScheduleSpec(t *shared.ScheduleSpec) *types.ScheduleSpec {
 		CronExpression: t.GetCronExpression(),
 		StartTime:      nanoToTimeVal(t.StartTimeNano),
 		EndTime:        nanoToTimeVal(t.EndTimeNano),
-		Jitter:         secondsI32ToDuration(t.JitterInSeconds),
+		Jitter:         secondsToDuration(t.JitterInSeconds),
 	}
 }
 
@@ -137,7 +137,7 @@ func FromSchedulePolicies(t *types.SchedulePolicies) *shared.SchedulePolicies {
 	return &shared.SchedulePolicies{
 		OverlapPolicy:          FromScheduleOverlapPolicy(t.OverlapPolicy),
 		CatchUpPolicy:          FromScheduleCatchUpPolicy(t.CatchUpPolicy),
-		CatchUpWindowInSeconds: durationToSecondsI32(t.CatchUpWindow),
+		CatchUpWindowInSeconds: durationToSeconds(t.CatchUpWindow),
 		PauseOnFailure:         common.BoolPtr(t.PauseOnFailure),
 		BufferLimit:            common.Int32Ptr(t.BufferLimit),
 		ConcurrencyLimit:       common.Int32Ptr(t.ConcurrencyLimit),
@@ -151,7 +151,7 @@ func ToSchedulePolicies(t *shared.SchedulePolicies) *types.SchedulePolicies {
 	return &types.SchedulePolicies{
 		OverlapPolicy:    ToScheduleOverlapPolicy(t.OverlapPolicy),
 		CatchUpPolicy:    ToScheduleCatchUpPolicy(t.CatchUpPolicy),
-		CatchUpWindow:    secondsI32ToDuration(t.CatchUpWindowInSeconds),
+		CatchUpWindow:    secondsToDuration(t.CatchUpWindowInSeconds),
 		PauseOnFailure:   t.GetPauseOnFailure(),
 		BufferLimit:      t.GetBufferLimit(),
 		ConcurrencyLimit: t.GetConcurrencyLimit(),

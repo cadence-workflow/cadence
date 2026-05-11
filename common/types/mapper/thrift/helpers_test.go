@@ -72,22 +72,22 @@ func TestNanoToTimeValNil(t *testing.T) {
 }
 
 func TestDurationToSecondsI32(t *testing.T) {
-	result := durationToSecondsI32(90 * time.Second)
+	result := durationToSeconds(90 * time.Second)
 	assert.Equal(t, int32(90), *result)
 }
 
 func TestDurationToSecondsI32Zero(t *testing.T) {
-	result := durationToSecondsI32(0)
+	result := durationToSeconds(0)
 	assert.Nil(t, result)
 }
 
 func TestSecondsI32ToDuration(t *testing.T) {
 	s := int32(90)
-	result := secondsI32ToDuration(&s)
+	result := secondsToDuration(&s)
 	assert.Equal(t, 90*time.Second, result)
 }
 
 func TestSecondsI32ToDurationNil(t *testing.T) {
-	result := secondsI32ToDuration(nil)
+	result := secondsToDuration(nil)
 	assert.Equal(t, time.Duration(0), result)
 }
