@@ -313,10 +313,11 @@ func TestDescribeSchedule(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		request *types.DescribeScheduleRequest
-		mockFn  func(*scheduleTestFixture)
-		wantErr bool
-		check   func(*testing.T, *types.DescribeScheduleResponse)
+		request  *types.DescribeScheduleRequest
+		mockFn   func(*scheduleTestFixture)
+		wantErr  bool
+		checkErr func(*testing.T, error)
+		check    func(*testing.T, *types.DescribeScheduleResponse)
 	}{
 		"nil request": {
 			request: nil,
@@ -374,6 +375,11 @@ func TestDescribeSchedule(t *testing.T) {
 					}, nil)
 			},
 			wantErr: true,
+			checkErr: func(t *testing.T, err error) {
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "FAILED")
+			},
 		},
 		"scheduler workflow terminated - query rejected": {
 			request: validRequest,
@@ -388,6 +394,11 @@ func TestDescribeSchedule(t *testing.T) {
 					}, nil)
 			},
 			wantErr: true,
+			checkErr: func(t *testing.T, err error) {
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "TERMINATED")
+			},
 		},
 		"success": {
 			request: validRequest,
@@ -429,6 +440,9 @@ func TestDescribeSchedule(t *testing.T) {
 			resp, err := f.handler.DescribeSchedule(context.Background(), tt.request)
 			if tt.wantErr {
 				assert.Error(t, err)
+				if tt.checkErr != nil {
+					tt.checkErr(t, err)
+				}
 			} else {
 				assert.NoError(t, err)
 				if tt.check != nil {

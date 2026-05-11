@@ -234,11 +234,10 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		if queryResp.QueryRejected.CloseStatus != nil {
 			closeStatus = queryResp.QueryRejected.CloseStatus.String()
 		}
-		return nil, &types.QueryFailedError{
+		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
-				"scheduler workflow for schedule %q is not running (close status: %s); "+
-					"the schedule may have an invalid configuration or was terminated unexpectedly",
-				scheduleID, closeStatus,
+				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
+				scheduleID, domainName, closeStatus,
 			),
 		}
 	}
