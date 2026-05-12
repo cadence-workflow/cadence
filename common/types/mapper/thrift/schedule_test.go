@@ -22,12 +22,9 @@ package thrift
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/testdata"
 )
@@ -197,7 +194,7 @@ func TestSchedulePoliciesConversion(t *testing.T) {
 }
 
 func TestCreateScheduleRequestConversion(t *testing.T) {
-	for _, item := range []*types.CreateScheduleRequest{nil, {}} {
+	for _, item := range []*types.CreateScheduleRequest{nil, {}, &testdata.CreateScheduleRequestThrift} {
 		assert.Equal(t, item, ToCreateScheduleRequest(FromCreateScheduleRequest(item)))
 	}
 }
@@ -215,13 +212,13 @@ func TestDescribeScheduleRequestConversion(t *testing.T) {
 }
 
 func TestDescribeScheduleResponseConversion(t *testing.T) {
-	for _, item := range []*types.DescribeScheduleResponse{nil, {}} {
+	for _, item := range []*types.DescribeScheduleResponse{nil, {}, &testdata.DescribeScheduleResponseThrift} {
 		assert.Equal(t, item, ToDescribeScheduleResponse(FromDescribeScheduleResponse(item)))
 	}
 }
 
 func TestUpdateScheduleRequestConversion(t *testing.T) {
-	for _, item := range []*types.UpdateScheduleRequest{nil, {}} {
+	for _, item := range []*types.UpdateScheduleRequest{nil, {}, &testdata.UpdateScheduleRequestThrift} {
 		assert.Equal(t, item, ToUpdateScheduleRequest(FromUpdateScheduleRequest(item)))
 	}
 }
@@ -245,7 +242,7 @@ func TestUnpauseScheduleRequestConversion(t *testing.T) {
 }
 
 func TestBackfillScheduleRequestConversion(t *testing.T) {
-	for _, item := range []*types.BackfillScheduleRequest{nil, {}} {
+	for _, item := range []*types.BackfillScheduleRequest{nil, {}, &testdata.BackfillScheduleRequestThrift} {
 		assert.Equal(t, item, ToBackfillScheduleRequest(FromBackfillScheduleRequest(item)))
 	}
 }
@@ -257,7 +254,7 @@ func TestListSchedulesRequestConversion(t *testing.T) {
 }
 
 func TestListSchedulesResponseConversion(t *testing.T) {
-	for _, item := range []*types.ListSchedulesResponse{nil, {}} {
+	for _, item := range []*types.ListSchedulesResponse{nil, {}, &testdata.ListSchedulesResponseThrift} {
 		assert.Equal(t, item, ToListSchedulesResponse(FromListSchedulesResponse(item)))
 	}
 }
