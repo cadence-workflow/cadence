@@ -143,65 +143,37 @@ func TestToScheduleListEntryNil(t *testing.T) {
 // --- Round-trip tests ---
 
 func TestScheduleSpecConversion(t *testing.T) {
-	for _, item := range []*types.ScheduleSpec{nil, {}} {
+	for _, item := range []*types.ScheduleSpec{nil, {}, &testdata.ScheduleSpecThrift} {
 		assert.Equal(t, item, ToScheduleSpec(FromScheduleSpec(item)))
 	}
 }
 
-func TestFromScheduleSpec_TimeFields(t *testing.T) {
-	ts := time.Unix(1000, 0)
-	spec := &types.ScheduleSpec{
-		CronExpression: "0 6 * * *",
-		StartTime:      ts,
-		Jitter:         30 * time.Second,
-	}
-	got := FromScheduleSpec(spec)
-	assert.Equal(t, "0 6 * * *", got.GetCronExpression())
-	assert.Equal(t, ts.UnixNano(), got.GetStartTimeNano())
-	assert.Nil(t, got.EndTimeNano)
-	assert.Equal(t, int32(30), got.GetJitterInSeconds())
-}
-
-func TestToScheduleSpec_TimeFields(t *testing.T) {
-	startNano := int64(1000 * int64(time.Second))
-	jitter := int32(30)
-	got := ToScheduleSpec(&shared.ScheduleSpec{
-		CronExpression:  common.StringPtr("0 6 * * *"),
-		StartTimeNano:   &startNano,
-		JitterInSeconds: &jitter,
-	})
-	assert.Equal(t, "0 6 * * *", got.CronExpression)
-	assert.True(t, time.Unix(1000, 0).Equal(got.StartTime))
-	assert.True(t, got.EndTime.IsZero())
-	assert.Equal(t, 30*time.Second, got.Jitter)
-}
-
 func TestSchedulePauseInfoConversion(t *testing.T) {
-	for _, item := range []*types.SchedulePauseInfo{nil, {}} {
+	for _, item := range []*types.SchedulePauseInfo{nil, {}, &testdata.SchedulePauseInfoThrift} {
 		assert.Equal(t, item, ToSchedulePauseInfo(FromSchedulePauseInfo(item)))
 	}
 }
 
 func TestBackfillInfoConversion(t *testing.T) {
-	for _, item := range []*types.BackfillInfo{nil, {}} {
+	for _, item := range []*types.BackfillInfo{nil, {}, &testdata.ScheduleBackfillInfoThrift} {
 		assert.Equal(t, item, ToBackfillInfo(FromBackfillInfo(item)))
 	}
 }
 
 func TestScheduleInfoConversion(t *testing.T) {
-	for _, item := range []*types.ScheduleInfo{nil, {}} {
+	for _, item := range []*types.ScheduleInfo{nil, {}, &testdata.ScheduleInfoThrift} {
 		assert.Equal(t, item, ToScheduleInfo(FromScheduleInfo(item)))
 	}
 }
 
 func TestScheduleStateConversion(t *testing.T) {
-	for _, item := range []*types.ScheduleState{nil, {}} {
+	for _, item := range []*types.ScheduleState{nil, {}, &testdata.ScheduleStateThrift} {
 		assert.Equal(t, item, ToScheduleState(FromScheduleState(item)))
 	}
 }
 
 func TestScheduleListEntryConversion(t *testing.T) {
-	for _, item := range []*types.ScheduleListEntry{nil, {}} {
+	for _, item := range []*types.ScheduleListEntry{nil, {}, &testdata.ScheduleListEntryThrift} {
 		assert.Equal(t, item, ToScheduleListEntry(FromScheduleListEntry(item)))
 	}
 }
