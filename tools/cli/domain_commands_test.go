@@ -316,7 +316,7 @@ func (s *cliAppSuite) TestDomainUpdate() {
 		},
 		{
 			"active-active domain failover via JSON",
-			`cadence --do test-domain domain update --active_clusters_json {"attributeScopes":{"region":{"clusterAttributes":{"region1":{"activeClusterName":"c1"},"region2":{"activeClusterName":"c2"}}}}}`,
+			`cadence --do test-domain domain update --active_clusters_json '{"attributeScopes":{"region":{"clusterAttributes":{"region1":{"activeClusterName":"c1"},"region2":{"activeClusterName":"c2"}}}}}'`,
 			"",
 			func() {
 				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
@@ -336,7 +336,7 @@ func (s *cliAppSuite) TestDomainUpdate() {
 		},
 		{
 			"active-active domain failover with both --active_clusters and --active_clusters_json errors",
-			`cadence --do test-domain domain update --active_clusters region.region1:c1 --active_clusters_json {"attributeScopes":{}}`,
+			`cadence --do test-domain domain update --active_clusters region.region1:c1 --active_clusters_json '{"attributeScopes":{}}'`,
 			"Cannot use both",
 			func() {},
 		},
