@@ -711,12 +711,40 @@ func TestDeleteSchedule(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		"non-idempotent error from delete signal passes through unchanged": {
+		"signal failure falls back to terminate and returns success": {
 			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
 			mockFn: func(f *scheduleTestFixture) {
 				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
 				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(errors.New("some internal error"))
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryTerminateWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, scheduleWorkflowID("s1"), req.TerminateRequest.GetWorkflowExecution().GetWorkflowID())
+						assert.NotEmpty(t, req.TerminateRequest.GetReason())
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"signal failure falls back to terminate; terminate also reports already gone": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("some internal error"))
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.WorkflowExecutionAlreadyCompletedError{Message: "already completed"})
+			},
+			wantErr: false,
+		},
+		"signal failure and terminate failure surface the original signal error": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("signal boom"))
+				f.historyClient.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(errors.New("terminate boom"))
 			},
 			wantErr: true,
 		},

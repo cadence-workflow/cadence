@@ -340,24 +340,43 @@ func (wh *WorkflowHandler) DeleteSchedule(
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
 	}
 
-	err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameDelete, nil)
-	if err == nil {
+	signalErr := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameDelete, nil)
+	if signalErr == nil || isScheduleAlreadyGone(signalErr) {
 		return &types.DeleteScheduleResponse{}, nil
 	}
 
-	// Anomalous terminal states of the scheduler workflow (Failed/Terminated/
-	// TimedOut/Canceled) are an operational concern — they should be observed
-	// via scheduler-workflow metrics and logs, not re-surfaced through the
-	// public delete API where they are not actionable for the caller.
-	if errors.As(err, new(*types.EntityNotExistsError)) ||
-		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError)) {
-		wh.GetLogger().Info("DeleteSchedule: scheduler workflow already gone; treating as already deleted",
-			tag.WorkflowDomainName(domainName),
-			tag.WorkflowID(scheduleWorkflowID(scheduleID)),
-			tag.Error(err))
+	// The signal could not be delivered. The scheduler workflow may be in a state
+	// where it cannot acknowledge signals (e.g. decision-task failure loop, signal
+	// limit exceeded). Fall back to terminating the scheduler workflow so that
+	// DeleteSchedule remains a deterministic operation for the caller.
+	wh.GetLogger().Info("DeleteSchedule: signal delivery failed, falling back to terminate",
+		tag.WorkflowDomainName(domainName),
+		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+		tag.Error(signalErr))
+
+	terminateErr := wh.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain: domainName,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: scheduleWorkflowID(scheduleID),
+		},
+		Reason: "terminated by DeleteSchedule",
+	})
+	if terminateErr == nil || isScheduleAlreadyGone(terminateErr) {
 		return &types.DeleteScheduleResponse{}, nil
 	}
-	return nil, err
+
+	// Both paths failed. Return the original signal error since signal is the
+	// primary path and the one a caller would normally retry against.
+	return nil, signalErr
+}
+
+// isScheduleAlreadyGone reports whether an error from the scheduler workflow
+// signal or terminate path indicates that the underlying workflow no longer
+// exists or is already closed. Such errors satisfy the idempotent contract of
+// DeleteSchedule and are returned to the caller as success.
+func isScheduleAlreadyGone(err error) bool {
+	return errors.As(err, new(*types.EntityNotExistsError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError))
 }
 
 func (wh *WorkflowHandler) PauseSchedule(
@@ -489,7 +508,6 @@ func (wh *WorkflowHandler) ListSchedules(
 	// methods below (not via the frontend client), so cluster redirection middleware
 	// is skipped. For global (XDC) domains, the passive region may return stale
 	// visibility data; that applies to Describe and List schedules until XDC support.
-	// Operator-oriented details: docs/list-schedules-visibility.md
 	var executions []*types.WorkflowExecutionInfo
 	var nextPageToken []byte
 	var err error
