@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.47",
+  "MinCompatibleVersion": "0.47",
+  "Description": "Adding timer_task_tracking native map column to track timer tasks for cleanup when workflow execution is deleted at retention time",
+  "SchemaUpdateCqlFiles": [
+    "workflow_timer_task_info.cql"
+  ]
+}

@@ -290,17 +290,17 @@ func (mr *MockDBMockRecorder) DeleteReplicationDLQTask(ctx, shardID, sourceClust
 }
 
 // DeleteReplicationTask mocks base method.
-func (m *MockDB) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockDB) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteReplicationTask indicates an expected call of DeleteReplicationTask.
-func (mr *MockDBMockRecorder) DeleteReplicationTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteReplicationTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockDB)(nil).DeleteReplicationTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockDB)(nil).DeleteReplicationTask), ctx, shardID, keys)
 }
 
 // DeleteTaskList mocks base method.
@@ -318,31 +318,31 @@ func (mr *MockDBMockRecorder) DeleteTaskList(ctx, filter, previousRangeID any) *
 }
 
 // DeleteTimerTask mocks base method.
-func (m *MockDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (m *MockDB) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, taskID, visibilityTimestamp)
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTimerTask indicates an expected call of DeleteTimerTask.
-func (mr *MockDBMockRecorder) DeleteTimerTask(ctx, shardID, taskID, visibilityTimestamp any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteTimerTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockDB)(nil).DeleteTimerTask), ctx, shardID, taskID, visibilityTimestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockDB)(nil).DeleteTimerTask), ctx, shardID, keys)
 }
 
 // DeleteTransferTask mocks base method.
-func (m *MockDB) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockDB) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTransferTask indicates an expected call of DeleteTransferTask.
-func (mr *MockDBMockRecorder) DeleteTransferTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteTransferTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockDB)(nil).DeleteTransferTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockDB)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
 // DeleteVisibility mocks base method.
@@ -1186,6 +1186,21 @@ func (mr *MockDBMockRecorder) SelectWorkflowExecution(ctx, shardID, domainID, wo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowExecution", reflect.TypeOf((*MockDB)(nil).SelectWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MockDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].([]persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MockDBMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MockDB)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
+}
+
 // UpdateDomain mocks base method.
 func (m *MockDB) UpdateDomain(ctx context.Context, row *DomainRow) error {
 	m.ctrl.T.Helper()
@@ -1449,17 +1464,17 @@ func (mr *MocktableCRUDMockRecorder) DeleteReplicationDLQTask(ctx, shardID, sour
 }
 
 // DeleteReplicationTask mocks base method.
-func (m *MocktableCRUD) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MocktableCRUD) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteReplicationTask indicates an expected call of DeleteReplicationTask.
-func (mr *MocktableCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteReplicationTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteReplicationTask), ctx, shardID, keys)
 }
 
 // DeleteTaskList mocks base method.
@@ -1477,31 +1492,31 @@ func (mr *MocktableCRUDMockRecorder) DeleteTaskList(ctx, filter, previousRangeID
 }
 
 // DeleteTimerTask mocks base method.
-func (m *MocktableCRUD) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (m *MocktableCRUD) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, taskID, visibilityTimestamp)
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTimerTask indicates an expected call of DeleteTimerTask.
-func (mr *MocktableCRUDMockRecorder) DeleteTimerTask(ctx, shardID, taskID, visibilityTimestamp any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteTimerTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTimerTask), ctx, shardID, taskID, visibilityTimestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTimerTask), ctx, shardID, keys)
 }
 
 // DeleteTransferTask mocks base method.
-func (m *MocktableCRUD) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MocktableCRUD) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTransferTask indicates an expected call of DeleteTransferTask.
-func (mr *MocktableCRUDMockRecorder) DeleteTransferTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteTransferTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTransferTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
 // DeleteVisibility mocks base method.
@@ -2273,6 +2288,21 @@ func (m *MocktableCRUD) SelectWorkflowExecution(ctx context.Context, shardID int
 func (mr *MocktableCRUDMockRecorder) SelectWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowExecution", reflect.TypeOf((*MocktableCRUD)(nil).SelectWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MocktableCRUD) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].([]persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MocktableCRUDMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MocktableCRUD)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
 }
 
 // UpdateDomain mocks base method.
@@ -3289,45 +3319,45 @@ func (mr *MockWorkflowCRUDMockRecorder) DeleteReplicationDLQTask(ctx, shardID, s
 }
 
 // DeleteReplicationTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockWorkflowCRUD) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteReplicationTask indicates an expected call of DeleteReplicationTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteReplicationTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteReplicationTask), ctx, shardID, keys)
 }
 
 // DeleteTimerTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (m *MockWorkflowCRUD) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, taskID, visibilityTimestamp)
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTimerTask indicates an expected call of DeleteTimerTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteTimerTask(ctx, shardID, taskID, visibilityTimestamp any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteTimerTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTimerTask), ctx, shardID, taskID, visibilityTimestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTimerTask), ctx, shardID, keys)
 }
 
 // DeleteTransferTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockWorkflowCRUD) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTransferTask indicates an expected call of DeleteTransferTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteTransferTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteTransferTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTransferTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
 // DeleteWorkflowExecution mocks base method.
@@ -3611,6 +3641,21 @@ func (m *MockWorkflowCRUD) SelectWorkflowExecution(ctx context.Context, shardID 
 func (mr *MockWorkflowCRUDMockRecorder) SelectWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowExecution", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MockWorkflowCRUD) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].([]persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MockWorkflowCRUDMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
 }
 
 // UpdateWorkflowExecutionWithTasks mocks base method.

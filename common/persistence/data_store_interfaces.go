@@ -138,6 +138,8 @@ type (
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
+		SelectWorkflowTimerTasks(ctx context.Context, request *SelectWorkflowTimerTasksRequest) ([]HistoryTaskKey, error)
+
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
@@ -547,6 +549,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -577,6 +580,7 @@ type (
 
 		ActivityInfos       []*InternalActivityInfo
 		TimerInfos          []*TimerInfo
+		WorkflowTimerTasks  []HistoryTaskKey
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
@@ -1064,6 +1068,14 @@ type (
 	// InternalGetShardResponse is the response to GetShard
 	InternalGetShardResponse struct {
 		ShardInfo *InternalShardInfo
+	}
+
+	// SelectWorkflowTimerTasksRequest is used to read the workflow_timer_tasks tracking column
+	SelectWorkflowTimerTasksRequest struct {
+		ShardID    int
+		DomainID   string
+		WorkflowID string
+		RunID      string
 	}
 )
 

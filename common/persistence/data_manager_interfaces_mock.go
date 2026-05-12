@@ -549,6 +549,21 @@ func (mr *MockExecutionManagerMockRecorder) DeleteWorkflowExecution(ctx, request
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockExecutionManager)(nil).DeleteWorkflowExecution), ctx, request)
 }
 
+// FetchWorkflowTimerTasksForCleanup mocks base method.
+func (m *MockExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) ([]HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchWorkflowTimerTasksForCleanup", ctx, request)
+	ret0, _ := ret[0].([]HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchWorkflowTimerTasksForCleanup indicates an expected call of FetchWorkflowTimerTasksForCleanup.
+func (mr *MockExecutionManagerMockRecorder) FetchWorkflowTimerTasksForCleanup(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchWorkflowTimerTasksForCleanup", reflect.TypeOf((*MockExecutionManager)(nil).FetchWorkflowTimerTasksForCleanup), ctx, request)
+}
+
 // GetActiveClusterSelectionPolicy mocks base method.
 func (m *MockExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error) {
 	m.ctrl.T.Helper()

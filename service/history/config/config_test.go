@@ -94,6 +94,7 @@ func TestNewConfig(t *testing.T) {
 		"StandbyClusterDelay":                                  {dynamicproperties.StandbyClusterDelay, time.Second},
 		"StandbyTaskMissingEventsResendDelay":                  {dynamicproperties.StandbyTaskMissingEventsResendDelay, time.Second},
 		"StandbyTaskMissingEventsDiscardDelay":                 {dynamicproperties.StandbyTaskMissingEventsDiscardDelay, time.Second},
+		"EnableWorkflowTimerTaskCleanup":                       {dynamicproperties.EnableWorkflowTimerTaskCleanup, true},
 		"TaskProcessRPS":                                       {dynamicproperties.TaskProcessRPS, 30},
 		"TaskSchedulerType":                                    {dynamicproperties.TaskSchedulerType, 31},
 		"TaskSchedulerWorkerCount":                             {dynamicproperties.TaskSchedulerWorkerCount, 32},

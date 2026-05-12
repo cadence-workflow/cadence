@@ -89,7 +89,7 @@ func (db *mdb) SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pa
 	panic("TODO")
 }
 
-func (db *mdb) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (db *mdb) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	panic("TODO")
 }
 
@@ -101,7 +101,7 @@ func (db *mdb) SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardI
 	panic("TODO")
 }
 
-func (db *mdb) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (db *mdb) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	panic("TODO")
 }
 
@@ -113,7 +113,7 @@ func (db *mdb) SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID,
 	panic("TODO")
 }
 
-func (db *mdb) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (db *mdb) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	panic("TODO")
 }
 
@@ -154,5 +154,9 @@ func (db *mdb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 }
 
 func (db *mdb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) error {
+	panic("TODO")
+}
+
+func (db *mdb) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
 	panic("TODO")
 }

@@ -1732,6 +1732,15 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
+	// EnableWorkflowTimerTaskCleanup enables deletion of tracked workflow timer tasks when
+	// the workflow execution record is cleaned up at the end of the retention period. This
+	// prevents orphaned timer task rows from accumulating in Cassandra. Feature flag,
+	// intended to be defaulted to true once validated.
+	// KeyName: system.enableWorkflowTimerTaskCleanup
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableWorkflowTimerTaskCleanup
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -2937,6 +2946,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
+	// WorkflowTimerTaskCleanupMinTTL is the minimum remaining time before a timer task is
+	// worth explicitly deleting at workflow execution cleanup. Timers scheduled to fire within
+	// this window are skipped — they will fire and clean up naturally.
+	// KeyName: history.workflowTimerTaskCleanupMinTTL
+	// Value type: Duration
+	// Default value: 240h (10 days)
+	// Allowed filters: N/A
+	WorkflowTimerTaskCleanupMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -4633,6 +4650,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
 	},
+	EnableWorkflowTimerTaskCleanup: {
+		KeyName:      "system.enableWorkflowTimerTaskCleanup",
+		Description:  "Enables deletion of tracked workflow timer tasks when the execution record is cleaned up at the end of the retention period. Prevents orphaned timer rows from accumulating in Cassandra. Feature flag, intended to be defaulted to true once validated.",
+		DefaultValue: false,
+	},
 	EnableSQLAsyncTransaction: {
 		KeyName:      "system.enableSQLAsyncTransaction",
 		Description:  "EnableSQLAsyncTransaction is the key for enabling async transaction",
@@ -5643,6 +5665,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.standbyClusterDelay",
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
+	},
+	WorkflowTimerTaskCleanupMinTTL: {
+		KeyName:      "history.workflowTimerTaskCleanupMinTTL",
+		Description:  "Minimum remaining time before a timer task is worth explicitly deleting at workflow execution cleanup. Timers firing within this window are skipped and will clean up naturally.",
+		DefaultValue: time.Hour * 24 * 10,
 	},
 	StandbyTaskMissingEventsResendDelay: {
 		KeyName:      "history.standbyTaskMissingEventsResendDelay",

@@ -1032,11 +1032,21 @@ type (
 		NextPageToken []byte
 	}
 
-	// CompleteHistoryTaskRequest is used to complete a history task
+	// CompleteHistoryTaskRequest is used to complete one or more history tasks of the same category.
+	// Cassandra batches multi-key requests into a single LoggedBatch.
 	CompleteHistoryTaskRequest struct {
 		ShardID      ShardID
 		TaskCategory HistoryTaskCategory
-		TaskKey      HistoryTaskKey
+		TaskKeys     []HistoryTaskKey
+	}
+
+	// FetchWorkflowTimerTasksForCleanupRequest identifies the workflow whose timer tracking
+	// column should be read to find tasks eligible for cleanup.
+	FetchWorkflowTimerTasksForCleanupRequest struct {
+		ShardID    ShardID
+		DomainID   string
+		WorkflowID string
+		RunID      string
 	}
 
 	// RangeCompleteHistoryTaskRequest is used to complete a range of history tasks
@@ -1657,6 +1667,7 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
+		FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) ([]HistoryTaskKey, error)
 
 		// Scan operations
 
