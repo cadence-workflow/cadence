@@ -91,6 +91,14 @@ func createDefaultIndexedKeys() map[string]interface{} {
 		BinaryChecksums:      types.IndexedValueTypeKeyword,
 		CustomDomain:         types.IndexedValueTypeString,
 		Operator:             types.IndexedValueTypeString,
+		// Schedule search attributes are set by the scheduler workflow/activity via
+		// UpsertSearchAttributes and StartWorkflow
+		CadenceScheduleID:           types.IndexedValueTypeKeyword,
+		CadenceScheduleTime:         types.IndexedValueTypeDatetime,
+		CadenceScheduleIsBackfill:   types.IndexedValueTypeBool,
+		CadenceScheduleState:        types.IndexedValueTypeKeyword,
+		CadenceScheduleCron:         types.IndexedValueTypeKeyword,
+		CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
 	}
 	for k, v := range systemIndexedKeys {
 		defaultIndexedKeys[k] = v
@@ -123,13 +131,6 @@ var systemIndexedKeys = map[string]interface{}{
 	ScheduledExecutionTime: types.IndexedValueTypeInt,
 	ClusterAttributeScope:  types.IndexedValueTypeKeyword,
 	ClusterAttributeName:   types.IndexedValueTypeKeyword,
-	// Schedule search attributes — set on target workflows and on scheduler workflows.
-	CadenceScheduleID:           types.IndexedValueTypeKeyword,
-	CadenceScheduleTime:         types.IndexedValueTypeDatetime,
-	CadenceScheduleIsBackfill:   types.IndexedValueTypeBool,
-	CadenceScheduleState:        types.IndexedValueTypeKeyword,
-	CadenceScheduleCron:         types.IndexedValueTypeKeyword,
-	CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
 }
 
 // IsSystemIndexedKey return true is key is system added
