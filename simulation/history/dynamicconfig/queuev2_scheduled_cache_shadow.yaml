@@ -1,0 +1,59 @@
+system.workflowDeletionJitterRange:
+- value: 0
+  constraints: {}
+history.enableTimerQueueV2:
+- value: true
+  constraints: {}
+history.enableTransferQueueV2:
+- value: true
+  constraints: {}
+history.queueMaxPendingTaskCount:
+- value: 10000
+  constraints: {}
+history.timerTaskBatchSize:
+- value: 100
+  constraints: {}
+history.timerProcessorUpdateAckInterval:
+- value: 30s
+  constraints: {}
+history.timerProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.timerProcessorMaxPollRPS:
+- value: 20
+  constraints: {}
+history.transferTaskBatchSize:
+- value: 100
+  constraints: {}
+history.transferProcessorUpdateAckInterval:
+- value: 30s
+  constraints: {}
+history.transferProcessorUpdateAckIntervalJitterCoefficient:
+- value: 0
+  constraints: {}
+history.transferProcessorMaxPollRPS:
+- value: 20
+  constraints: {}
+# Cached scheduled queue settings
+history.timerProcessorEnableCachedScheduledQueue:
+- value: true
+  constraints: {}
+history.timerProcessorCachedQueueReaderMode:
+- value: "shadow"
+  constraints: {}
+history.timerProcessorCacheMaxSize:
+- value: 1000
+  constraints: {}
+history.timerProcessorCacheMaxLookAheadWindow:
+- value: 15s
+  constraints: {}
+history.timerProcessorCachePrefetchTriggerWindow:
+- value: 5s
+  constraints: {}
+# Set to 0s to ensure caching starts immediately in simulation
+history.timerProcessorCacheWarmupGracePeriod:
+- value: 0s
+  constraints: {}
+history.timerProcessorCacheEvictionSafeWindow:
+- value: 10s
+  constraints: {}

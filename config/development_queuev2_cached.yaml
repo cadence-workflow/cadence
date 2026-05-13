@@ -1,0 +1,196 @@
+persistence:
+  defaultStore: cass-default
+  visibilityStore: cass-visibility
+  numHistoryShards: 4
+  datastores:
+    cass-default:
+      nosql:
+        pluginName: "cassandra"
+        hosts: "127.0.0.1"
+        keyspace: "cadence"
+        connectTimeout: 2s # defaults to 2s if not defined
+        timeout: 5s # defaults to 10s if not defined
+        consistency: LOCAL_QUORUM # default value
+        serialConsistency: LOCAL_SERIAL # default value
+    cass-visibility:
+      nosql:
+        pluginName: "cassandra"
+        hosts: "127.0.0.1"
+        keyspace: "cadence_visibility"
+
+ringpop:
+  name: cadence
+  bootstrapMode: hosts
+  bootstrapHosts: [ "127.0.0.1:7933", "127.0.0.1:7934", "127.0.0.1:7935" ]
+  maxJoinDuration: 30s
+
+services:
+  frontend:
+    rpc:
+      port: ${FRONTEND_PORT:7933}
+      grpcPort: ${FRONTEND_PORT_GRPC:7833}
+      bindOnLocalHost: true
+      grpcMaxMsgSize: 33554432
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: ${FRONTEND_PORT_PPROF:7936}
+
+  matching:
+    rpc:
+      port: ${MATCHING_PORT:7935}
+      grpcPort: ${MATCHING_PORT_GRPC:7835}
+      bindOnLocalHost: true
+      grpcMaxMsgSize: 33554432
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: ${MATCHING_PORT_PPROF:7938}
+
+  history:
+    rpc:
+      port: ${HISTORY_PORT:7934}
+      grpcPort: ${HISTORY_PORT_GRPC:7834}
+      bindOnLocalHost: true
+      grpcMaxMsgSize: 33554432
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: ${HISTORY_PORT_PPROF:7937}
+
+  worker:
+    rpc:
+      port: ${WORKER_PORT:7939}
+      bindOnLocalHost: true
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: ${WORKER_PORT_PPROF:7940}
+
+  shard-distributor:
+    rpc:
+      port: 7941
+      grpcPort: 7943
+      bindOnLocalHost: true
+    metrics:
+      statsd:
+        hostPort: "127.0.0.1:8125"
+        prefix: "cadence"
+    pprof:
+      port: 7942
+
+clusterGroupMetadata:
+  failoverVersionIncrement: 10
+  primaryClusterName: "cluster0"
+  currentClusterName: "cluster0"
+  clusterGroup:
+    cluster0:
+      enabled: true
+      initialFailoverVersion: 0
+      newInitialFailoverVersion: 1 # migrating to this new failover version
+      rpcAddress: "localhost:7833" # this is to let worker service and XDC replicator connected to the frontend service. In cluster setup, localhost will not work
+      rpcTransport: "grpc"
+
+dcRedirectionPolicy:
+  policy: "noop"
+  toDC: ""
+
+archival:
+  history:
+    status: "enabled"
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: "0666"
+        dirMode: "0766"
+      gstorage:
+        credentialsPath: "/tmp/gcloud/keyfile.json"
+  visibility:
+    status: "enabled"
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: "0666"
+        dirMode: "0766"
+
+domainDefaults:
+  archival:
+    history:
+      status: "enabled"
+      URI: "file:///tmp/cadence_archival/development"
+    visibility:
+      status: "enabled"
+      URI: "file:///tmp/cadence_vis_archival/development"
+
+dynamicconfig:
+  client: filebased
+  configstore:
+    pollInterval: "10s"
+    updateRetryAttempts: 2
+    FetchTimeout: "2s"
+    UpdateTimeout: "2s"
+  filebased:
+    filepath: "config/dynamicconfig/development.yaml"
+    pollInterval: "10s"
+
+blobstore:
+  filestore:
+    outputDirectory: "/tmp/blobstore"
+
+shardDistributorClient:
+  hostPort: "localhost:7943"
+
+shardDistribution:
+  election:
+    leaderPeriod: 60s
+    maxRandomDelay: 1s
+    failedElectionCooldown: 1s
+  namespaces:
+    - name: shard-distributor-canary
+      type: fixed
+      mode: onboarded
+      shardNum: 32
+    - name: shard-distributor-canary-ephemeral
+      mode: onboarded
+      type: ephemeral
+    - name: test-local-passthrough
+      type: fixed
+      mode: local_pass
+    - name: test-local-passthrough-shadow
+      type: ephemeral
+      mode: local_pass_shadow
+    - name: test-distributed-passthrough
+      type: fixed
+      mode: distributed_pass
+    - name: test-external-assignment
+      mode: distributed_pass
+      type: ephemeral
+  leaderStore:
+    storageParams:
+      endpoints: [localhost:2379]
+      dialTimeout: 1s
+      prefix: "leader"
+  store:
+    storageParams:
+      endpoints: [localhost:2379]
+      dialTimeout: 1s
+      prefix: "store"
+  process:
+    period: 1s
+    heartbeatTTL: 2s
+
+shard-distributor-matching:
+  namespaces:
+    - namespace: cadence-matching-dev
+      heartbeat_interval: 1s
+      migration_mode: local_pass
+      ttl_shard: 5m
+      ttl_report: 1m
