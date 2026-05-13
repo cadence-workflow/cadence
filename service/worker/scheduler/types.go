@@ -43,7 +43,11 @@ const (
 	SchedulerMissedFiredCountPerDomain    = "scheduler_missed_fired_count_per_domain"
 	SchedulerMissedSkippedCountPerDomain  = "scheduler_missed_skipped_count_per_domain"
 	SchedulerBackfillFiredCountPerDomain  = "scheduler_backfill_fired_count_per_domain"
-	SchedulerContinueAsNewCountPerDomain  = "scheduler_continue_as_new_count_per_domain"
+	// SchedulerBackfillRejectedCountPerDomain counts backfill signals dropped by
+	// the workflow after the RPC has already returned success. Tagged with the
+	// rejection reason (invalid_range, queue_full).
+	SchedulerBackfillRejectedCountPerDomain = "scheduler_backfill_rejected_count_per_domain"
+	SchedulerContinueAsNewCountPerDomain    = "scheduler_continue_as_new_count_per_domain"
 	// SchedulerBufferOverflowCountPerDomain measures fires dropped because the
 	// BUFFER overlap policy queue is full. Tagged with the drop reason so
 	// operators can distinguish drops driven by the user's buffer_limit
@@ -68,6 +72,10 @@ const (
 	// the server-side cap that protects ContinueAsNew payload size.
 	BufferOverflowReasonUserLimit   = "user_limit"
 	BufferOverflowReasonSystemLimit = "system_limit"
+
+	// Reason tag values for scheduler_backfill_rejected_count_per_domain.
+	BackfillRejectedReasonInvalidRange = "invalid_range"
+	BackfillRejectedReasonQueueFull    = "queue_full"
 
 	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
 	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the

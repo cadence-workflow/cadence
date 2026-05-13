@@ -343,6 +343,7 @@ const (
 	TestGetIntPropertyFilteredByWorkflowTypeKey
 	TestGetIntPropertyFilteredByTaskListInfoKey
 	TestGetIntPropertyFilteredByShardIDKey
+	TestGetIntPropertyFilteredByDomainAndTaskListKey
 
 	// key for common & admin
 
@@ -1633,6 +1634,13 @@ const (
 	// Allowed filters: N/A
 	ShardDistributorMaxEtcdTxnOps
 
+	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
+	// KeyName: history.taskListNiceValue
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName
+	HistoryTaskListNiceValue
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -1724,6 +1732,15 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
+	// EnableWorkflowTimerTaskCleanup enables deletion of tracked workflow timer tasks when
+	// the workflow execution record is cleaned up at the end of the retention period. This
+	// prevents orphaned timer task rows from accumulating in Cassandra. Feature flag,
+	// intended to be defaulted to true once validated.
+	// KeyName: system.enableWorkflowTimerTaskCleanup
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableWorkflowTimerTaskCleanup
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -1784,14 +1801,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainID
 	MatchingEnableTaskInfoLogByDomainID
-	// MatchingEnableTasklistGuardAgainstOwnershipShardLoss
-	// enables guards to prevent tasklists from processing if there is any detection that the host
-	// no longer is active or owns the shard
-	// KeyName: matching.enableTasklistGuardAgainstOwnershipLoss
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
@@ -2362,6 +2371,13 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
+	// MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager.
+	// When true, all task lists fall back to the hash ring, ignoring MatchingPercentageOnboardedToShardManager.
+	// KeyName: matching.emergencyOffboardingFromShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingEmergencyOffboardingFromShardManager
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -2376,6 +2392,13 @@ const (
 	// Default value: false
 	// Allowed filters: DomainName
 	EnableTaskListAwareTaskSchedulerByDomain
+
+	// HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages.
+	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
+	// KeyName: history.historyTaskDLQProcessorEnabled
+	// Value type: Bool
+	// Default value: false
+	HistoryTaskDLQProcessorEnabled
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -2728,12 +2751,17 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
-	// HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue
-	// KeyName: history.historyTaskDeadLetterQueueMode
+	// HistoryTaskDLQMode enables writing tasks to the History Task Dead Letter Queue rather than discarding them.
+	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
+	//
+	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
+	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
+	// KeyName: history.HistoryTaskDLQMode
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
 	// Allowed filters: domainName
-	HistoryTaskDeadLetterQueueMode
+	HistoryTaskDLQMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -2918,6 +2946,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
+	// WorkflowTimerTaskCleanupMinTTL is the minimum remaining time before a timer task is
+	// worth explicitly deleting at workflow execution cleanup. Timers scheduled to fire within
+	// this window are skipped — they will fire and clean up naturally.
+	// KeyName: history.workflowTimerTaskCleanupMinTTL
+	// Value type: Duration
+	// Default value: 240h (10 days)
+	// Allowed filters: N/A
+	WorkflowTimerTaskCleanupMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -3431,6 +3467,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "",
 		DefaultValue: 0,
 		Filters:      nil,
+	},
+	TestGetIntPropertyFilteredByDomainAndTaskListKey: {
+		KeyName:      "testGetIntPropertyFilteredByDomainAndTaskListKey",
+		Description:  "",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
 	},
 	TransactionSizeLimit: {
 		KeyName:      "system.transactionSizeLimit",
@@ -4486,6 +4528,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
 		DefaultValue: 128,
 	},
+	HistoryTaskListNiceValue: {
+		KeyName:      "history.taskListNiceValue",
+		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -4602,6 +4650,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
 	},
+	EnableWorkflowTimerTaskCleanup: {
+		KeyName:      "system.enableWorkflowTimerTaskCleanup",
+		Description:  "Enables deletion of tracked workflow timer tasks when the execution record is cleaned up at the end of the retention period. Prevents orphaned timer rows from accumulating in Cassandra. Feature flag, intended to be defaulted to true once validated.",
+		DefaultValue: false,
+	},
 	EnableSQLAsyncTransaction: {
 		KeyName:      "system.enableSQLAsyncTransaction",
 		Description:  "EnableSQLAsyncTransaction is the key for enabling async transaction",
@@ -4644,11 +4697,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableTaskInfoLogByDomainID",
 		Filters:      []Filter{DomainID},
 		Description:  "MatchingEnableTaskInfoLogByDomainID is enables info level logs for decision/activity task based on the request domainID",
-		DefaultValue: false,
-	},
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss: {
-		KeyName:      "matching.enableTasklistGuardAgainstOwnershipLoss",
-		Description:  "allows guards to ensure that tasklists don't continue processing if there's signal that they've lost ownership",
 		DefaultValue: false,
 	},
 	MatchingEnableGetNumberOfPartitionsFromCache: {
@@ -5131,6 +5179,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
 	},
+	MatchingEmergencyOffboardingFromShardManager: {
+		KeyName:      "matching.emergencyOffboardingFromShardManager",
+		Description:  "MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager, ignoring the onboarding percentage",
+		DefaultValue: false,
+	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
 		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
@@ -5140,6 +5193,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",
 		Description:  "EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain",
 		Filters:      []Filter{DomainName},
+		DefaultValue: false,
+	},
+	HistoryTaskDLQProcessorEnabled: {
+		KeyName:      "history.historyTaskDLQProcessorEnabled",
+		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
 		DefaultValue: false,
 	},
 }
@@ -5420,9 +5478,9 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
 		DefaultValue: "naive",
 	},
-	HistoryTaskDeadLetterQueueMode: {
-		KeyName:      "history.historyTaskDeadLetterQueueMode",
-		Description:  "HistoryTaskDeadLetterQueueMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+	HistoryTaskDLQMode: {
+		KeyName:      "history.historyTaskDLQMode",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
 	},
@@ -5607,6 +5665,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.standbyClusterDelay",
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
+	},
+	WorkflowTimerTaskCleanupMinTTL: {
+		KeyName:      "history.workflowTimerTaskCleanupMinTTL",
+		Description:  "Minimum remaining time before a timer task is worth explicitly deleting at workflow execution cleanup. Timers firing within this window are skipped and will clean up naturally.",
+		DefaultValue: time.Hour * 24 * 10,
 	},
 	StandbyTaskMissingEventsResendDelay: {
 		KeyName:      "history.standbyTaskMissingEventsResendDelay",

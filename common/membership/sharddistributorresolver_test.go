@@ -72,6 +72,7 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 		nil, // nil spectator
 		dynamicproperties.GetBoolPropertyFn(false),
 		dynamicproperties.GetIntPropertyFn(100),
+		dynamicproperties.GetBoolPropertyFn(false),
 		ring,
 		logger,
 	).(*shardDistributorResolver)
@@ -83,8 +84,19 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	assert.Equal(t, "hash-ring-addr", host.addr)
 }
 
-/* Test all the simple proxies
- */
+func TestShardDistributorResolver_Lookup_EmergencyOffboardingFallsBackToHashRing(t *testing.T) {
+	resolver, ring, _ := newShardDistributorResolver(t)
+	// Emergency offboarding overrides the onboarding percentage
+	resolver.emergencyOffboarding = dynamicproperties.GetBoolPropertyFn(true)
+	resolver.percentageOnboarded = dynamicproperties.GetIntPropertyFn(100)
+
+	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
+
+	host, err := resolver.Lookup("test-key")
+	assert.NoError(t, err)
+	assert.Equal(t, "hash-ring-addr", host.addr)
+}
+
 func TestShardDistributorResolver_Start(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	ring.EXPECT().Start().Times(1)
@@ -171,6 +183,7 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 				spectator,
 				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
 				dynamicproperties.GetIntPropertyFn(100),
+				dynamicproperties.GetBoolPropertyFn(false),
 				ring,
 				logger,
 			).(*shardDistributorResolver)
@@ -209,7 +222,7 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(spectator, excludeShortLivedTaskLists, percentageOnboarded, ring, logger).(*shardDistributorResolver)
+	resolver := NewShardDistributorResolver(spectator, excludeShortLivedTaskLists, percentageOnboarded, dynamicproperties.GetBoolPropertyFn(false), ring, logger).(*shardDistributorResolver)
 
 	return resolver, ring, spectator
 }

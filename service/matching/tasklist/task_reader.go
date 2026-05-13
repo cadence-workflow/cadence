@@ -477,7 +477,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 		isolationGroup = defaultTaskBufferIsolationGroup
 		isolationDuration = noIsolationTimeout
 	}
-	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, nil, isolationGroup)
+	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, isolationGroup)
 	dispatchCtx, cancel := tr.newDispatchContext(isolationGroup, isolationDuration)
 	asyncMatchStart := time.Now()
 	timerScope := tr.scope.StartTimer(metrics.AsyncMatchLatencyPerTaskList)

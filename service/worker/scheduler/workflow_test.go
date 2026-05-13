@@ -475,13 +475,13 @@ func TestHandlePause(t *testing.T) {
 			wantChanged:  true,
 		},
 		{
-			name:         "pause overwrites previous pause reason",
+			name:         "pause when already paused is a no-op",
 			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "old", PausedBy: "old-user"},
 			sig:          PauseSignal{Reason: "new reason", PausedBy: "new-user"},
 			wantPaused:   true,
-			wantReason:   "new reason",
-			wantPausedBy: "new-user",
-			wantChanged:  true,
+			wantReason:   "old",
+			wantPausedBy: "old-user",
+			wantChanged:  false,
 		},
 		{
 			name:         "pause with empty reason",
@@ -694,11 +694,12 @@ func TestHandleUpdate(t *testing.T) {
 
 func TestHandleBackfill(t *testing.T) {
 	tests := []struct {
-		name           string
-		sig            BackfillSignal
-		initialPending int
-		wantQueued     bool
-		wantPendingLen int
+		name             string
+		sig              BackfillSignal
+		initialPending   int
+		wantQueued       bool
+		wantPendingLen   int
+		wantRejectReason string
 	}{
 		{
 			name: "valid backfill is queued",
@@ -717,8 +718,9 @@ func TestHandleBackfill(t *testing.T) {
 				StartTime: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 			},
-			wantQueued:     false,
-			wantPendingLen: 0,
+			wantQueued:       false,
+			wantPendingLen:   0,
+			wantRejectReason: BackfillRejectedReasonInvalidRange,
 		},
 		{
 			name: "equal start and end is rejected",
@@ -726,8 +728,9 @@ func TestHandleBackfill(t *testing.T) {
 				StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 			},
-			wantQueued:     false,
-			wantPendingLen: 0,
+			wantQueued:       false,
+			wantPendingLen:   0,
+			wantRejectReason: BackfillRejectedReasonInvalidRange,
 		},
 		{
 			name: "multiple backfills accumulate",
@@ -758,9 +761,10 @@ func TestHandleBackfill(t *testing.T) {
 				EndTime:    time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC),
 				BackfillID: "bf-over-cap",
 			},
-			initialPending: maxPendingBackfills,
-			wantQueued:     false,
-			wantPendingLen: maxPendingBackfills,
+			initialPending:   maxPendingBackfills,
+			wantQueued:       false,
+			wantPendingLen:   maxPendingBackfills,
+			wantRejectReason: BackfillRejectedReasonQueueFull,
 		},
 	}
 
@@ -773,9 +777,21 @@ func TestHandleBackfill(t *testing.T) {
 					EndTime:   time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
 				})
 			}
-			got := handleBackfill(testLogger, tt.sig, state)
+			scope := tally.NewTestScope("", nil)
+			got := handleBackfill(testLogger, scope, tt.sig, state)
 			assert.Equal(t, tt.wantQueued, got)
 			assert.Equal(t, tt.wantPendingLen, len(state.PendingBackfills))
+
+			counters := scope.Snapshot().Counters()
+			if tt.wantRejectReason == "" {
+				_, ok := findCounter(counters, SchedulerBackfillRejectedCountPerDomain, nil)
+				assert.False(t, ok)
+				return
+			}
+			c, ok := findCounter(counters, SchedulerBackfillRejectedCountPerDomain,
+				map[string]string{ReasonTag: tt.wantRejectReason})
+			require.True(t, ok)
+			assert.Equal(t, int64(1), c.Value())
 		})
 	}
 }

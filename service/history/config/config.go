@@ -110,6 +110,7 @@ type Config struct {
 	ResurrectionCheckMinDelay                         dynamicproperties.DurationPropertyFnWithDomainFilter
 	EnableHierarchicalWeightedRoundRobinTaskScheduler dynamicproperties.BoolPropertyFn
 	EnableTaskListAwareTaskSchedulerByDomain          dynamicproperties.BoolPropertyFnWithDomainFilter
+	TaskListNiceValue                                 dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 
 	// History Queue (v2) settings
 	EnableTimerQueueV2                         dynamicproperties.BoolPropertyFnWithShardIDFilter
@@ -296,6 +297,8 @@ type Config struct {
 	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
+	EnableWorkflowTimerTaskCleanup dynamicproperties.BoolPropertyFn
+
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
 	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
 
@@ -346,8 +349,9 @@ type Config struct {
 	GlobalRatelimiterGCAfter        dynamicproperties.DurationPropertyFn
 
 	// History Task DLQ Configuration
-	HistoryTaskDLQMode            dynamicproperties.StringPropertyFnWithDomainFilter
-	HistoryTaskProcessingInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
+	HistoryTaskDLQMode              dynamicproperties.StringPropertyFnWithDomainFilter
+	HistoryTaskDLQProcessorInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
+	HistoryTaskDLQProcessorEnabled  dynamicproperties.BoolPropertyFn
 
 	// HostName for machine running the service
 	HostName string
@@ -423,6 +427,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ResurrectionCheckMinDelay:                         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
 		EnableHierarchicalWeightedRoundRobinTaskScheduler: dc.GetBoolProperty(dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler),
 		EnableTaskListAwareTaskSchedulerByDomain:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain),
+		TaskListNiceValue:                                 dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.HistoryTaskListNiceValue),
 
 		EnableTimerQueueV2:                         dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
 		EnableTransferQueueV2:                      dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
@@ -583,6 +588,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
+		EnableWorkflowTimerTaskCleanup:        dc.GetBoolProperty(dynamicproperties.EnableWorkflowTimerTaskCleanup),
 
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
 		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),
@@ -616,8 +622,9 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		GlobalRatelimiterDecayAfter:     dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterDecayAfter),
 		GlobalRatelimiterGCAfter:        dc.GetDurationProperty(dynamicproperties.HistoryGlobalRatelimiterGCAfter),
 
-		HistoryTaskDLQMode:            dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDeadLetterQueueMode),
-		HistoryTaskProcessingInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
+		HistoryTaskDLQMode:              dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDLQMode),
+		HistoryTaskDLQProcessorInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
+		HistoryTaskDLQProcessorEnabled:  dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
 
 		HostName: hostname,
 	}

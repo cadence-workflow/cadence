@@ -3085,22 +3085,24 @@ func TestCompleteHistoryTask(t *testing.T) {
 	tests := []struct {
 		name          string
 		request       *persistence.CompleteHistoryTaskRequest
-		setupMock     func(any)
+		setupMock     func(*sqlplugin.MockDB, *sqlplugin.MockTx)
 		expectedError error
 	}{
 		{
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
-			setupMock: func(mockDB any) {
-				mock := mockDB.(*sqlplugin.MockDB)
-				mock.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
 					ShardID:             shardID,
 					VisibilityTimestamp: time.Unix(10, 10),
 					TaskID:              1,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -3108,14 +3110,16 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.NewImmediateTaskKey(2),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
-			setupMock: func(mockDB any) {
-				mock := mockDB.(*sqlplugin.MockDB)
-				mock.EXPECT().DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
 					ShardID: shardID,
 					TaskID:  2,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -3123,14 +3127,42 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.NewImmediateTaskKey(3),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
-			setupMock: func(mockDB any) {
-				mock := mockDB.(*sqlplugin.MockDB)
-				mock.EXPECT().DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 					ShardID: shardID,
 					TaskID:  3,
 				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name: "success - multi-key timer batch",
+			request: &persistence.CompleteHistoryTaskRequest{
+				TaskCategory: persistence.HistoryTaskCategoryTimer,
+				TaskKeys: []persistence.HistoryTaskKey{
+					persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+					persistence.NewHistoryTaskKey(time.Unix(20, 20), 2),
+				},
+			},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:             shardID,
+					VisibilityTimestamp: time.Unix(10, 10),
+					TaskID:              1,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+					ShardID:             shardID,
+					VisibilityTimestamp: time.Unix(20, 20),
+					TaskID:              2,
+				}).Return(&sqlResult{rowsAffected: 1}, nil)
+				mockTx.EXPECT().Commit().Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -3139,23 +3171,30 @@ func TestCompleteHistoryTask(t *testing.T) {
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategory{},
 			},
-			setupMock:     func(mockDB any) {},
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().Rollback().Return(nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+			},
 			expectedError: &types.BadRequestError{},
 		},
 		{
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
-			setupMock: func(mockDB any) {
-				mock := mockDB.(*sqlplugin.MockDB)
-				mock.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
 					ShardID:             shardID,
 					VisibilityTimestamp: time.Unix(10, 10),
 					TaskID:              1,
 				}).Return(&sqlResult{rowsAffected: 0}, errors.New("db error"))
-				mock.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+				mockTx.EXPECT().Rollback().Return(nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
 		},
@@ -3163,15 +3202,17 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.NewImmediateTaskKey(2),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
-			setupMock: func(mockDB any) {
-				mock := mockDB.(*sqlplugin.MockDB)
-				mock.EXPECT().DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
 					ShardID: shardID,
 					TaskID:  2,
 				}).Return(&sqlResult{rowsAffected: 0}, errors.New("db error"))
-				mock.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+				mockTx.EXPECT().Rollback().Return(nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
 		},
@@ -3179,15 +3220,17 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.NewImmediateTaskKey(3),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
-			setupMock: func(mockDB any) {
-				mock := mockDB.(*sqlplugin.MockDB)
-				mock.EXPECT().DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
+				mockDB.EXPECT().GetTotalNumDBShards().Return(1)
+				mockDB.EXPECT().BeginTx(ctx, gomock.Any()).Return(mockTx, nil)
+				mockTx.EXPECT().DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
 					ShardID: shardID,
 					TaskID:  3,
 				}).Return(&sqlResult{rowsAffected: 0}, errors.New("db error"))
-				mock.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
+				mockTx.EXPECT().Rollback().Return(nil)
+				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
 		},
@@ -3199,9 +3242,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			defer controller.Finish()
 
 			mockDB := sqlplugin.NewMockDB(controller)
-			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+			mockTx := sqlplugin.NewMockTx(controller)
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB, logger: testlogger.New(t)}, shardID: shardID}
 
-			tc.setupMock(mockDB)
+			tc.setupMock(mockDB, mockTx)
 
 			err := store.CompleteHistoryTask(ctx, tc.request)
 			if tc.expectedError != nil {

@@ -27,6 +27,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -34,10 +35,6 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
-
-type retryCountKeyType string
-
-const retryCountKey = retryCountKeyType("retryCount")
 
 type base struct {
 	metricClient                  metrics.Client
@@ -359,8 +356,5 @@ func getCustomMetricTags(req any) (res []metrics.Tag) {
 }
 
 func getRetryCountFromContext(ctx context.Context) int {
-	if retryCount, ok := ctx.Value(retryCountKey).(int); ok {
-		return retryCount
-	}
-	return 0
+	return backoff.GetRetryCountFromContext(ctx)
 }
