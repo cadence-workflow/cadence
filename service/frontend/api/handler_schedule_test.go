@@ -32,10 +32,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
+	"github.com/uber/cadence/common/constants"
 	dc "github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
@@ -710,6 +712,33 @@ func TestDeleteSchedule(t *testing.T) {
 					Return(&types.WorkflowExecutionAlreadyCompletedError{Message: "workflow execution already completed"})
 			},
 			wantErr: false,
+		},
+		"transient signal failure returns error without terminate": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.ServiceBusyError{Message: "busy"})
+			},
+			wantErr: true,
+		},
+		"workflow id rate limit returns error without terminate": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.ServiceBusyError{Reason: constants.WorkflowIDRateLimitReason})
+			},
+			wantErr: true,
+		},
+		"deadline exceeded signal failure returns error without terminate": {
+			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(yarpcerrors.DeadlineExceededErrorf("deadline exceeded"))
+			},
+			wantErr: true,
 		},
 		"signal failure falls back to terminate and returns success": {
 			request: &types.DeleteScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
