@@ -48,6 +48,16 @@ const (
 	CustomDomain           = "CustomDomain" // to support batch workflow
 	Operator               = "Operator"     // to support batch workflow
 
+	// Schedule search attributes set on target workflows started by the scheduler.
+	CadenceScheduleID       = "CadenceScheduleID"
+	CadenceScheduleTime     = "CadenceScheduleTime"
+	CadenceScheduleIsBackfill = "CadenceScheduleIsBackfill"
+
+	// Schedule search attributes set on the scheduler workflow itself (used by ListSchedules).
+	CadenceScheduleState        = "CadenceScheduleState"
+	CadenceScheduleCron         = "CadenceScheduleCron"
+	CadenceScheduleWorkflowType = "CadenceScheduleWorkflowType"
+
 	CustomStringField    = "CustomStringField"
 	CustomKeywordField   = "CustomKeywordField"
 	CustomIntField       = "CustomIntField"
@@ -113,6 +123,13 @@ var systemIndexedKeys = map[string]interface{}{
 	ScheduledExecutionTime: types.IndexedValueTypeInt,
 	ClusterAttributeScope:  types.IndexedValueTypeKeyword,
 	ClusterAttributeName:   types.IndexedValueTypeKeyword,
+	// Schedule search attributes — set on target workflows and on scheduler workflows.
+	CadenceScheduleID:         types.IndexedValueTypeKeyword,
+	CadenceScheduleTime:       types.IndexedValueTypeDatetime,
+	CadenceScheduleIsBackfill: types.IndexedValueTypeBool,
+	CadenceScheduleState:      types.IndexedValueTypeKeyword,
+	CadenceScheduleCron:       types.IndexedValueTypeKeyword,
+	CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
 }
 
 // IsSystemIndexedKey return true is key is system added
