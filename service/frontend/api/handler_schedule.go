@@ -207,6 +207,11 @@ func (wh *WorkflowHandler) DescribeSchedule(
 	}
 
 	wfID := scheduleWorkflowID(scheduleID)
+	// Reject the query if the scheduler workflow did not complete cleanly (e.g. FAILED,
+	// TERMINATED, TIMED_OUT). Without this, Cadence replays the closed workflow history
+	// and returns whatever state the query handler last saw — which is ACTIVE even for a
+	// scheduler that failed immediately (e.g. due to an invalid cron expression).
+	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
 	queryResp, err := wh.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
 		Domain: domainName,
 		Execution: &types.WorkflowExecution{
@@ -215,12 +220,30 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		Query: &types.WorkflowQuery{
 			QueryType: scheduler.QueryTypeDescribe,
 		},
+		QueryRejectCondition: &rejectCondition,
 	})
 	if err != nil {
 		return nil, normalizeScheduleError(err, scheduleID, domainName)
 	}
 
-	if queryResp == nil || queryResp.GetQueryResult() == nil {
+	if queryResp == nil {
+		return nil, &types.InternalServiceError{Message: "nil query response from scheduler workflow"}
+	}
+
+	if queryResp.QueryRejected != nil {
+		closeStatus := "unknown"
+		if queryResp.QueryRejected.CloseStatus != nil {
+			closeStatus = queryResp.QueryRejected.CloseStatus.String()
+		}
+		return nil, &types.InternalServiceError{
+			Message: fmt.Sprintf(
+				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
+				scheduleID, domainName, closeStatus,
+			),
+		}
+	}
+
+	if queryResp.GetQueryResult() == nil {
 		return nil, &types.InternalServiceError{Message: "empty query result from scheduler workflow"}
 	}
 

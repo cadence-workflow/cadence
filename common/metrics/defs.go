@@ -325,6 +325,8 @@ const (
 	PersistenceGetActiveClusterSelectionPolicyScope
 	// PersistenceDeleteActiveClusterSelectionPolicyScope tracks DeleteActiveClusterSelectionPolicy calls made by service to persistence layer
 	PersistenceDeleteActiveClusterSelectionPolicyScope
+	// PersistenceFetchWorkflowTimerTasksForCleanupScope tracks FetchWorkflowTimerTasksForCleanup calls
+	PersistenceFetchWorkflowTimerTasksForCleanupScope
 
 	// ResolverHostNotFoundScope is a simple low level error indicating a lookup failed in the membership resolver
 	ResolverHostNotFoundScope
@@ -1659,6 +1661,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistencePerHostScope:                                  {operation: "persistence_operations"},
 		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
 		PersistenceDeleteActiveClusterSelectionPolicyScope:       {operation: "DeleteActiveClusterSelectionPolicy"},
+		PersistenceFetchWorkflowTimerTasksForCleanupScope:        {operation: "FetchWorkflowTimerTasksForCleanup"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
 
 		ClusterMetadataArchivalConfigScope: {operation: "ArchivalConfig"},
@@ -2851,6 +2854,7 @@ const (
 	WorkflowCleanupArchiveCount
 	WorkflowCleanupNopCount
 	WorkflowCleanupDeleteHistoryInlineCount
+	WorkflowCleanupTimerTasksSentForDeletionCount
 	WorkflowSuccessCount
 	WorkflowCancelCount
 	WorkflowFailedCount
@@ -3846,6 +3850,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowCleanupArchiveCount:                                   {metricName: "workflow_cleanup_archive", metricType: Counter},
 		WorkflowCleanupNopCount:                                       {metricName: "workflow_cleanup_nop", metricType: Counter},
 		WorkflowCleanupDeleteHistoryInlineCount:                       {metricName: "workflow_cleanup_delete_history_inline", metricType: Counter},
+		WorkflowCleanupTimerTasksSentForDeletionCount:                 {metricName: "workflow_cleanup_timer_tasks_sent_for_deletion", metricType: Counter},
 		WorkflowSuccessCount:                                          {metricName: "workflow_success", metricType: Counter},
 		WorkflowCancelCount:                                           {metricName: "workflow_cancel", metricType: Counter},
 		WorkflowFailedCount:                                           {metricName: "workflow_failed", metricType: Counter},

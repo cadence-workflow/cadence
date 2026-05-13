@@ -254,7 +254,7 @@ func applyAllInputs(
 		var sig BackfillSignal
 		c.Receive(ctx, &sig)
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagBackfill}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handleBackfill(logger, sig, state) {
+		if handleBackfill(logger, scope, sig, state) {
 			stateChanged = true
 		}
 	})
@@ -327,7 +327,7 @@ func drainBufferedSignals(
 			break
 		}
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagBackfill}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handleBackfill(logger, sig, state) {
+		if handleBackfill(logger, scope, sig, state) {
 			stateChanged = true
 		}
 	}
@@ -447,8 +447,10 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	return changed
 }
 
-func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWorkflowState) bool {
+func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, state *SchedulerWorkflowState) bool {
 	if !sig.EndTime.After(sig.StartTime) {
+		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonInvalidRange}).
+			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
 		logger.Warn("ignoring backfill with invalid time range",
 			zap.Time("startTime", sig.StartTime),
 			zap.Time("endTime", sig.EndTime),
@@ -456,6 +458,8 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 		return false
 	}
 	if len(state.PendingBackfills) >= maxPendingBackfills {
+		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonQueueFull}).
+			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
 		logger.Warn("ignoring backfill: pending backfill queue is full",
 			zap.String("backfillId", sig.BackfillID),
 			zap.Int("queueSize", len(state.PendingBackfills)),

@@ -372,6 +372,21 @@ func (mr *MockExecutionStoreMockRecorder) RangeDeleteReplicationTaskFromDLQ(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTaskFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).RangeDeleteReplicationTaskFromDLQ), ctx, request)
 }
 
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MockExecutionStore) SelectWorkflowTimerTasks(ctx context.Context, request *SelectWorkflowTimerTasksRequest) ([]HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, request)
+	ret0, _ := ret[0].([]HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MockExecutionStoreMockRecorder) SelectWorkflowTimerTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MockExecutionStore)(nil).SelectWorkflowTimerTasks), ctx, request)
+}
+
 // UpdateWorkflowExecution mocks base method.
 func (m *MockExecutionStore) UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error {
 	m.ctrl.T.Helper()

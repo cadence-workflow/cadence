@@ -120,6 +120,7 @@ func (s *IntegrationBase) setupSuite() {
 			SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 			ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 			HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
+			EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(true),
 		}
 		params := pt.TestBaseParams{
 			DefaultTestCluster:    s.DefaultTestCluster,

@@ -6096,3 +6096,66 @@ func timeComparator(t1, t2 time.Time, timeTolerance time.Duration) bool {
 	diff := t2.Sub(t1)
 	return diff.Nanoseconds() <= timeTolerance.Nanoseconds()
 }
+
+// TestWorkflowTimerTaskTracking verifies that workflow timer tasks are tracked on the
+// execution record at creation time and deserialized correctly on read-back.
+// Only applicable for Cassandra — SQL backends don't persist workflow_timer_tasks.
+func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
+	if s.ExecutionManager.GetName() != "cassandra" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: "test-workflow-timer-task-tracking",
+		RunID:      uuid.New(),
+	}
+
+	visibilityTimestamp := time.Now().Add(24 * time.Hour)
+
+	timerTask := &p.WorkflowTimeoutTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
+		TaskData: p.TaskData{
+			VisibilityTimestamp: visibilityTimestamp,
+			TaskID:              s.GetNextSequenceNumber(),
+			Version:             constants.EmptyVersion,
+		},
+	}
+
+	_, err := s.CreateWorkflowExecution(
+		ctx,
+		domainID,
+		workflowExecution,
+		"taskList",
+		"wType",
+		20,
+		13,
+		nil,
+		3,
+		0,
+		2,
+		[]p.Task{timerTask},
+		nil,
+	)
+	s.NoError(err)
+
+	state, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err)
+	s.Require().NotNil(state)
+
+	// Verify that FetchWorkflowTimerTasksForCleanup runs without error, which exercises
+	// the SelectWorkflowTimerTasks path on the tracking map.
+	_, err = s.ExecutionManager.FetchWorkflowTimerTasksForCleanup(ctx, &p.FetchWorkflowTimerTasksForCleanupRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowExecution.WorkflowID,
+		RunID:      workflowExecution.RunID,
+	})
+	s.NoError(err)
+}

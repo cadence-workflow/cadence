@@ -317,10 +317,11 @@ func TestDescribeSchedule(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		request *types.DescribeScheduleRequest
-		mockFn  func(*scheduleTestFixture)
-		wantErr bool
-		check   func(*testing.T, *types.DescribeScheduleResponse)
+		request  *types.DescribeScheduleRequest
+		mockFn   func(*scheduleTestFixture)
+		wantErr  bool
+		checkErr func(*testing.T, error)
+		check    func(*testing.T, *types.DescribeScheduleResponse)
 	}{
 		"nil request": {
 			request: nil,
@@ -362,6 +363,47 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		// Regression: a scheduler workflow that ended FAILED (e.g. invalid cron) must not
+		// surface as ACTIVE. The handler sets QueryRejectConditionNotCompletedCleanly so
+		// Cadence rejects the query for any non-clean close status.
+		"scheduler workflow failed - query rejected": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				closeStatus := types.WorkflowExecutionCloseStatusFailed
+				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.HistoryQueryWorkflowResponse{
+						Response: &types.QueryWorkflowResponse{
+							QueryRejected: &types.QueryRejected{CloseStatus: &closeStatus},
+						},
+					}, nil)
+			},
+			wantErr: true,
+			checkErr: func(t *testing.T, err error) {
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "FAILED")
+			},
+		},
+		"scheduler workflow terminated - query rejected": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				closeStatus := types.WorkflowExecutionCloseStatusTerminated
+				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.HistoryQueryWorkflowResponse{
+						Response: &types.QueryWorkflowResponse{
+							QueryRejected: &types.QueryRejected{CloseStatus: &closeStatus},
+						},
+					}, nil)
+			},
+			wantErr: true,
+			checkErr: func(t *testing.T, err error) {
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "TERMINATED")
+			},
+		},
 		"success": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -371,6 +413,9 @@ func TestDescribeSchedule(t *testing.T) {
 						assert.Equal(t, testDomainID, req.DomainUUID)
 						assert.Equal(t, "cadence-scheduler:my-schedule", req.Request.Execution.WorkflowID)
 						assert.Equal(t, scheduler.QueryTypeDescribe, req.Request.Query.QueryType)
+						// Verify the reject condition is set so closed/failed workflows are detected.
+						require.NotNil(t, req.Request.QueryRejectCondition)
+						assert.Equal(t, types.QueryRejectConditionNotCompletedCleanly, *req.Request.QueryRejectCondition)
 
 						return &types.HistoryQueryWorkflowResponse{
 							Response: &types.QueryWorkflowResponse{
@@ -399,6 +444,9 @@ func TestDescribeSchedule(t *testing.T) {
 			resp, err := f.handler.DescribeSchedule(context.Background(), tt.request)
 			if tt.wantErr {
 				assert.Error(t, err)
+				if tt.checkErr != nil {
+					tt.checkErr(t, err)
+				}
 			} else {
 				assert.NoError(t, err)
 				if tt.check != nil {
