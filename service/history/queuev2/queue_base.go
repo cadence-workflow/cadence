@@ -140,10 +140,7 @@ func newQueueBase(
 			shard.GetConfig().TaskCriticalRetryCount,
 		)
 	}
-	queueReader := NewQueueReader(
-		shard,
-		category,
-	)
+	queueReader := NewQueueReader(shard, category, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient)
 	monitor := NewMonitor(
 		category,
 		&MonitorOptions{
