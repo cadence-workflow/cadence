@@ -611,3 +611,79 @@ func TestVirtualQueueManager_AddNewVirtualSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualQueueManager_GetMinReadLevel(t *testing.T) {
+	tests := []struct {
+		name               string
+		setupVirtualQueues func(ctrl *gomock.Controller) map[int64]VirtualQueue
+		expectedReadLevel  persistence.HistoryTaskKey
+	}{
+		{
+			name: "no virtual queues returns MaximumHistoryTaskKey",
+			setupVirtualQueues: func(ctrl *gomock.Controller) map[int64]VirtualQueue {
+				return map[int64]VirtualQueue{}
+			},
+			expectedReadLevel: persistence.MaximumHistoryTaskKey,
+		},
+		{
+			name: "single queue with one slice returns that slice read level",
+			setupVirtualQueues: func(ctrl *gomock.Controller) map[int64]VirtualQueue {
+				mockSlice := NewMockVirtualSlice(ctrl)
+				mockSlice.EXPECT().GetReadLevel().Return(persistence.NewImmediateTaskKey(5))
+
+				mockQueue := NewMockVirtualQueue(ctrl)
+				mockQueue.EXPECT().IterateSlices(gomock.Any()).Do(func(fn func(VirtualSlice)) {
+					fn(mockSlice)
+				})
+
+				return map[int64]VirtualQueue{
+					0: mockQueue,
+				}
+			},
+			expectedReadLevel: persistence.NewImmediateTaskKey(5),
+		},
+		{
+			name: "multiple queues returns minimum read level across all slices",
+			setupVirtualQueues: func(ctrl *gomock.Controller) map[int64]VirtualQueue {
+				mockSlice1 := NewMockVirtualSlice(ctrl)
+				mockSlice1.EXPECT().GetReadLevel().Return(persistence.NewImmediateTaskKey(10))
+
+				mockSlice2 := NewMockVirtualSlice(ctrl)
+				mockSlice2.EXPECT().GetReadLevel().Return(persistence.NewImmediateTaskKey(3))
+
+				mockSlice3 := NewMockVirtualSlice(ctrl)
+				mockSlice3.EXPECT().GetReadLevel().Return(persistence.NewImmediateTaskKey(7))
+
+				mockQueue1 := NewMockVirtualQueue(ctrl)
+				mockQueue1.EXPECT().IterateSlices(gomock.Any()).Do(func(fn func(VirtualSlice)) {
+					fn(mockSlice1)
+					fn(mockSlice2)
+				})
+
+				mockQueue2 := NewMockVirtualQueue(ctrl)
+				mockQueue2.EXPECT().IterateSlices(gomock.Any()).Do(func(fn func(VirtualSlice)) {
+					fn(mockSlice3)
+				})
+
+				return map[int64]VirtualQueue{
+					0: mockQueue1,
+					1: mockQueue2,
+				}
+			},
+			expectedReadLevel: persistence.NewImmediateTaskKey(3),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			manager := &virtualQueueManagerImpl{
+				virtualQueues: tt.setupVirtualQueues(ctrl),
+			}
+
+			result := manager.GetMinReadLevel()
+			assert.Equal(t, tt.expectedReadLevel, result)
+		})
+	}
+}

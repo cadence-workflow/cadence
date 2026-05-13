@@ -3472,3 +3472,54 @@ func TestMergeVirtualSlicesWithDifferentPredicate(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualSlice_GetReadLevel(t *testing.T) {
+	tests := []struct {
+		name     string
+		slice    *virtualSliceImpl
+		expected persistence.HistoryTaskKey
+	}{
+		{
+			name: "slice with progress returns progress[0].NextTaskKey",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				progress: []*GetTaskProgress{
+					{
+						Range: Range{
+							InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+							ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+						},
+						NextTaskKey: persistence.NewImmediateTaskKey(5),
+					},
+				},
+			},
+			expected: persistence.NewImmediateTaskKey(5),
+		},
+		{
+			name: "slice with empty progress returns state.Range.ExclusiveMaxTaskKey",
+			slice: &virtualSliceImpl{
+				state: VirtualSliceState{
+					Range: Range{
+						InclusiveMinTaskKey: persistence.NewImmediateTaskKey(1),
+						ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(10),
+					},
+					Predicate: NewUniversalPredicate(),
+				},
+				progress: []*GetTaskProgress{},
+			},
+			expected: persistence.NewImmediateTaskKey(10),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.slice.GetReadLevel())
+		})
+	}
+}
