@@ -106,6 +106,7 @@ func newQueueBase(
 	category persistence.HistoryTaskCategory,
 	taskExecutor task.Executor,
 	options *Options,
+	reader QueueReader,
 ) *queueBase {
 	timeSource := shard.GetTimeSource()
 	persistenceQueueState, err := shard.GetQueueState(category)
@@ -140,10 +141,10 @@ func newQueueBase(
 			shard.GetConfig().TaskCriticalRetryCount,
 		)
 	}
-	queueReader := NewQueueReader(
-		shard,
-		category,
-	)
+	queueReader := reader
+	if queueReader == nil {
+		queueReader = NewQueueReader(shard, category, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient)
+	}
 	monitor := NewMonitor(
 		category,
 		&MonitorOptions{

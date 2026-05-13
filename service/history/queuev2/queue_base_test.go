@@ -523,6 +523,7 @@ func TestNewQueueBase(t *testing.T) {
 			RedispatchInterval: dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 			MaxPollRPS:         dynamicproperties.GetIntPropertyFn(100),
 		},
+		nil,
 	)
 
 	assert.Equal(t, persistence.NewImmediateTaskKey(400), queueBase.newVirtualSliceState.Range.InclusiveMinTaskKey)

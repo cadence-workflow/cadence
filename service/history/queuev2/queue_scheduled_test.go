@@ -94,6 +94,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		mockMetricsClient,
 		mockMetricsScope,
 		options,
+		nil,
 	).(*scheduledQueue)
 
 	// Test Start
@@ -125,31 +126,20 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	tests := []struct {
-		name           string
-		setupMocks     func(*gomock.Controller, *MockQueueReader, clock.TimeSource, *clock.MockTimerGate)
-		expectedUpdate time.Time
+		name       string
+		setupMocks func(*gomock.Controller, *MockQueueReader, clock.TimeSource, *clock.MockTimerGate)
 	}{
 		{
 			name: "successful look ahead with future task",
 			setupMocks: func(ctrl *gomock.Controller, mockReader *MockQueueReader, mockTimeSource clock.TimeSource, mockTimerGate *clock.MockTimerGate) {
 				now := mockTimeSource.Now()
 				futureTime := now.Add(time.Hour)
-				mockReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
-					Progress: &GetTaskProgress{
-						Range: Range{
-							InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
-							ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-						},
-						NextTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-					},
-					Predicate: NewUniversalPredicate(),
-					PageSize:  1,
-				}).Return(&GetTaskResponse{
-					Tasks: []persistence.Task{
-						&persistence.DecisionTimeoutTask{
-							TaskData: persistence.TaskData{
-								VisibilityTimestamp: futureTime,
-							},
+				mockReader.EXPECT().LookAHead(gomock.Any(), &LookAHeadRequest{
+					InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
+				}).Return(&LookAHeadResponse{
+					Task: &persistence.DecisionTimeoutTask{
+						TaskData: persistence.TaskData{
+							VisibilityTimestamp: futureTime,
 						},
 					},
 				}, nil)
@@ -160,36 +150,21 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 			name: "no tasks found",
 			setupMocks: func(ctrl *gomock.Controller, mockReader *MockQueueReader, mockTimeSource clock.TimeSource, mockTimerGate *clock.MockTimerGate) {
 				now := mockTimeSource.Now()
-				mockReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
-					Progress: &GetTaskProgress{
-						Range: Range{
-							InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
-							ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-						},
-						NextTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-					},
-					Predicate: NewUniversalPredicate(),
-					PageSize:  1,
-				}).Return(&GetTaskResponse{
-					Tasks: []persistence.Task{},
+				lookAheadMaxTime := now.Add(time.Second * 10)
+				mockReader.EXPECT().LookAHead(gomock.Any(), &LookAHeadRequest{
+					InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
+				}).Return(&LookAHeadResponse{
+					LookAheadMaxTime: lookAheadMaxTime,
 				}, nil)
-				mockTimerGate.EXPECT().Update(now.Add(time.Second * 10))
+				mockTimerGate.EXPECT().Update(lookAheadMaxTime)
 			},
 		},
 		{
 			name: "error during look ahead",
 			setupMocks: func(ctrl *gomock.Controller, mockReader *MockQueueReader, mockTimeSource clock.TimeSource, mockTimerGate *clock.MockTimerGate) {
 				now := mockTimeSource.Now()
-				mockReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
-					Progress: &GetTaskProgress{
-						Range: Range{
-							InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
-							ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-						},
-						NextTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-					},
-					Predicate: NewUniversalPredicate(),
-					PageSize:  1,
+				mockReader.EXPECT().LookAHead(gomock.Any(), &LookAHeadRequest{
+					InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
 				}).Return(nil, errors.New("test error"))
 				mockTimerGate.EXPECT().Update(now)
 			},
@@ -243,11 +218,11 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 				newTimerCh: make(chan struct{}, 1),
 			}
 
-			// Setup test-specific mocks and get expected update time
+			// Setup test-specific mocks
 			tt.setupMocks(ctrl, mockQueueReader, mockTimeSource, mockTimerGate)
 
-			// Execute lookAheadTask
-			queue.lookAheadTask()
+			// Execute lookAhead directly instead of inlining its logic
+			queue.lookAhead()
 		})
 	}
 }

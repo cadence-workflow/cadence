@@ -54,3 +54,18 @@ func (mr *MockQueueReaderMockRecorder) GetTask(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTask", reflect.TypeOf((*MockQueueReader)(nil).GetTask), arg0, arg1)
 }
+
+// LookAHead mocks base method.
+func (m *MockQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LookAHead", ctx, req)
+	ret0, _ := ret[0].(*LookAHeadResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LookAHead indicates an expected call of LookAHead.
+func (mr *MockQueueReaderMockRecorder) LookAHead(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LookAHead", reflect.TypeOf((*MockQueueReader)(nil).LookAHead), ctx, req)
+}

@@ -76,6 +76,7 @@ func NewImmediateQueue(
 			category,
 			taskExecutor,
 			options,
+			nil,
 		),
 		notifyCh: make(chan struct{}, 1),
 		ctx:      ctx,
