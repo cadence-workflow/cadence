@@ -1,0 +1,101 @@
+frontend.enableClientVersionCheck:
+- value: true
+  constraints: {}
+system.minRetentionDays:
+- value: 0
+  constraints: {}
+matching.enableStandbyTaskCompletion:
+- value: true
+  constraints: {}
+history.standbyClusterDelay:
+- value: 30s
+  constraints: {}
+history.standbyTaskMissingEventsResendDelay:
+- value: 30s
+  constraints: {}
+history.EnableConsistentQueryByDomain:
+- value: true
+  constraints: {}
+history.useNewInitialFailoverVersion:
+- value: true
+  constraints: {}
+system.enableDomainAuditLogging:
+- value: true
+  constraints: {}
+history.enableStrongIdempotency:
+- value: true
+  constraints: {}
+frontend.globalRatelimiterMode:
+- value: local
+frontend.validSearchAttributes:
+- value:
+    BinaryChecksums: 1
+    CadenceChangeVersion: 1
+    CadenceScheduleID: 1
+    CadenceScheduleTime: 5
+    CadenceScheduleIsBackfill: 4
+    CadenceScheduleState: 1
+    CadenceScheduleCron: 1
+    CadenceScheduleWorkflowType: 1
+    CloseStatus: 2
+    CloseTime: 2
+    CustomBoolField: 4
+    CustomDatetimeField: 5
+    CustomDomain: 1
+    CustomDoubleField: 3
+    CustomIntField: 2
+    CustomKeywordField: 1
+    CustomStringField: 0
+    DomainID: 1
+    ExecutionTime: 2
+    HistoryLength: 2
+    IsCron: 1
+    NewKey: 1
+    NumClusters: 2
+    Operator: 1
+    Passed: 4
+    RolloutID: 1
+    RunID: 1
+    ShardID: 2
+    StartTime: 2
+    TaskList: 1
+    UpdateTime: 2
+    WorkflowID: 1
+    WorkflowType: 1
+    addon: 1
+    addon-type: 1
+    environment: 1
+    project: 1
+    service: 1
+    user: 1
+    IsDeleted: 4
+    ExecutionStatus: 2
+    CronSchedule: 1
+    ScheduledExecutionTime: 2
+  constraints: {}
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+system.domainAuditLogTTL:
+  - value: "15m"
+matching.enableClientAutoConfig:
+- value: true
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
+history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
+- value: true
+shardDistributor.migrationMode:
+  - value: "onboarded"
+  - value: "local_pass"
+    constraints:
+      namespace: "test-local-passthrough"
+  - value: "local_pass_shadow"
+    constraints:
+      namespace: "test-local-passthrough-shadow"
+  - value: "distributed_pass"
+    constraints:
+      namespace: "test-distributed-passthrough"
+  - value: "distributed_pass"
+    constraints:
+      namespace: "test-external-assignment"
