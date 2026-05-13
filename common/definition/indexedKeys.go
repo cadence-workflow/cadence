@@ -49,8 +49,8 @@ const (
 	Operator               = "Operator"     // to support batch workflow
 
 	// Schedule search attributes set on target workflows started by the scheduler.
-	CadenceScheduleID       = "CadenceScheduleID"
-	CadenceScheduleTime     = "CadenceScheduleTime"
+	CadenceScheduleID         = "CadenceScheduleID"
+	CadenceScheduleTime       = "CadenceScheduleTime"
 	CadenceScheduleIsBackfill = "CadenceScheduleIsBackfill"
 
 	// Schedule search attributes set on the scheduler workflow itself (used by ListSchedules).
@@ -124,11 +124,11 @@ var systemIndexedKeys = map[string]interface{}{
 	ClusterAttributeScope:  types.IndexedValueTypeKeyword,
 	ClusterAttributeName:   types.IndexedValueTypeKeyword,
 	// Schedule search attributes — set on target workflows and on scheduler workflows.
-	CadenceScheduleID:         types.IndexedValueTypeKeyword,
-	CadenceScheduleTime:       types.IndexedValueTypeDatetime,
-	CadenceScheduleIsBackfill: types.IndexedValueTypeBool,
-	CadenceScheduleState:      types.IndexedValueTypeKeyword,
-	CadenceScheduleCron:       types.IndexedValueTypeKeyword,
+	CadenceScheduleID:           types.IndexedValueTypeKeyword,
+	CadenceScheduleTime:         types.IndexedValueTypeDatetime,
+	CadenceScheduleIsBackfill:   types.IndexedValueTypeBool,
+	CadenceScheduleState:        types.IndexedValueTypeKeyword,
+	CadenceScheduleCron:         types.IndexedValueTypeKeyword,
 	CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
 }
 
