@@ -65,6 +65,9 @@ type (
 
 		GetConfigStoreManager() persistence.ConfigStoreManager
 		SetConfigStoreManager(persistence.ConfigStoreManager)
+
+		GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
+		SetHistoryTaskDLQManager(persistence.HistoryTaskDLQManager)
 	}
 
 	// BeanImpl stores persistence managers
@@ -77,6 +80,7 @@ type (
 		shardManager                  persistence.ShardManager
 		historyManager                persistence.HistoryManager
 		configStoreManager            persistence.ConfigStoreManager
+		historyTaskDLQManager         persistence.HistoryTaskDLQManager
 		executionManagerFactory       persistence.ExecutionManagerFactory
 
 		sync.RWMutex
@@ -144,6 +148,11 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
+	historyTaskDLQMgr, err := factory.NewHistoryTaskDLQManager()
+	if err != nil {
+		return nil, err
+	}
+
 	return NewBean(
 		metadataMgr,
 		domainAuditMgr,
@@ -153,6 +162,7 @@ func NewBeanFromFactory(
 		shardMgr,
 		historyMgr,
 		configStoreMgr,
+		historyTaskDLQMgr,
 		factory,
 	), nil
 }
@@ -167,6 +177,7 @@ func NewBean(
 	shardManager persistence.ShardManager,
 	historyManager persistence.HistoryManager,
 	configStoreManager persistence.ConfigStoreManager,
+	historyTaskDLQManager persistence.HistoryTaskDLQManager,
 	executionManagerFactory persistence.ExecutionManagerFactory,
 ) *BeanImpl {
 	return &BeanImpl{
@@ -178,6 +189,7 @@ func NewBean(
 		shardManager:                  shardManager,
 		historyManager:                historyManager,
 		configStoreManager:            configStoreManager,
+		historyTaskDLQManager:         historyTaskDLQManager,
 		executionManagerFactory:       executionManagerFactory,
 
 		shardIDToExecutionManager: make(map[int]persistence.ExecutionManager),
@@ -384,6 +396,26 @@ func (s *BeanImpl) SetConfigStoreManager(
 	defer s.Unlock()
 
 	s.configStoreManager = configStoreManager
+}
+
+// GetHistoryTaskDLQManager gets HistoryTaskDLQManager
+func (s *BeanImpl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.historyTaskDLQManager
+}
+
+// SetHistoryTaskDLQManager sets HistoryTaskDLQManager
+func (s *BeanImpl) SetHistoryTaskDLQManager(
+	historyTaskDLQManager persistence.HistoryTaskDLQManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.historyTaskDLQManager = historyTaskDLQManager
 }
 
 // Close cleanup connections

@@ -109,7 +109,7 @@ type historyEngineImpl struct {
 	clientChecker             client.VersionChecker
 	replicationDLQHandler     replication.DLQHandler
 	failoverMarkerNotifier    failover.MarkerNotifier
-	dlqProcessor              taskdlq.Processor // nil if DLQ storage is unavailable
+	dlqProcessor              taskdlq.Processor
 
 	updateWithActionFn func(
 		context.Context,
@@ -294,19 +294,17 @@ func NewEngineWithShardContext(
 	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors)
 	historyEngImpl.replicationDLQHandler = replicationMessageHandler
 
-	if dlqMgr := shard.GetService().GetHistoryTaskDLQManager(); dlqMgr != nil {
-		historyEngImpl.dlqProcessor = taskdlq.NewProcessor(
-			shard.GetShardID(),
-			dlqMgr,
-			map[int]taskdlq.TaskExecutor{},
-			100,
-			config.HistoryTaskDLQProcessorInterval,
-			config.HistoryTaskDLQMode,
-			config.HistoryTaskDLQProcessorEnabled,
-			shard.GetTimeSource(),
-			logger,
-		)
-	}
+	historyEngImpl.dlqProcessor = taskdlq.NewProcessor(
+		shard.GetShardID(),
+		shard.GetService().GetHistoryTaskDLQManager(),
+		map[int]taskdlq.TaskExecutor{},
+		100,
+		config.HistoryTaskDLQProcessorInterval,
+		config.HistoryTaskDLQMode,
+		config.HistoryTaskDLQProcessorEnabled,
+		shard.GetTimeSource(),
+		logger,
+	)
 
 	shard.SetEngine(historyEngImpl)
 	return historyEngImpl
@@ -322,9 +320,7 @@ func (e *historyEngineImpl) Start() {
 	for _, processor := range e.queueProcessors {
 		processor.Start()
 	}
-	if e.dlqProcessor != nil {
-		e.dlqProcessor.Start()
-	}
+	e.dlqProcessor.Start()
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -352,9 +348,7 @@ func (e *historyEngineImpl) Stop() {
 	for _, processor := range e.queueProcessors {
 		processor.Stop()
 	}
-	if e.dlqProcessor != nil {
-		e.dlqProcessor.Stop()
-	}
+	e.dlqProcessor.Stop()
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 

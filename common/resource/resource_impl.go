@@ -126,8 +126,7 @@ type Impl struct {
 	clientBean                        client.Bean
 
 	// persistence clients
-	persistenceBean       persistenceClient.Bean
-	historyTaskDLQManager persistence.HistoryTaskDLQManager
+	persistenceBean persistenceClient.Bean
 
 	// loggers
 	logger          log.Logger
@@ -228,13 +227,6 @@ func New(
 	}, serviceConfig)
 	if err != nil {
 		return nil, err
-	}
-
-	var historyTaskDLQMgr persistence.HistoryTaskDLQManager
-	if dlqMgr, dlqErr := persistenceFactory.NewHistoryTaskDLQManager(); dlqErr == nil {
-		historyTaskDLQMgr = dlqMgr
-	} else {
-		logger.Warn("History task DLQ manager unavailable", tag.Error(dlqErr))
 	}
 
 	domainCache := cache.NewDomainCache(
@@ -405,8 +397,7 @@ func New(
 		clientBean:                        clientBean,
 
 		// persistence clients
-		persistenceBean:       persistenceBean,
-		historyTaskDLQManager: historyTaskDLQMgr,
+		persistenceBean: persistenceBean,
 
 		// loggers
 		logger:          logger,
@@ -686,9 +677,9 @@ func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 	return h.persistenceBean.GetHistoryManager()
 }
 
-// GetHistoryTaskDLQManager returns the history task DLQ manager (nil if unsupported by the datastore).
+// GetHistoryTaskDLQManager returns the history task DLQ manager.
 func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
-	return h.historyTaskDLQManager
+	return h.persistenceBean.GetHistoryTaskDLQManager()
 }
 
 // GetExecutionManager return execution manager for given shard ID

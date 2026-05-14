@@ -67,6 +67,20 @@ func (mr *MockBeanMockRecorder) GetConfigStoreManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfigStoreManager", reflect.TypeOf((*MockBean)(nil).GetConfigStoreManager))
 }
 
+// GetHistoryTaskDLQManager mocks base method.
+func (m *MockBean) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQManager")
+	ret0, _ := ret[0].(persistence.HistoryTaskDLQManager)
+	return ret0
+}
+
+// GetHistoryTaskDLQManager indicates an expected call of GetHistoryTaskDLQManager.
+func (mr *MockBeanMockRecorder) GetHistoryTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQManager", reflect.TypeOf((*MockBean)(nil).GetHistoryTaskDLQManager))
+}
+
 // GetDomainAuditManager mocks base method.
 func (m *MockBean) GetDomainAuditManager() persistence.DomainAuditManager {
 	m.ctrl.T.Helper()
@@ -190,6 +204,18 @@ func (m *MockBean) SetConfigStoreManager(arg0 persistence.ConfigStoreManager) {
 func (mr *MockBeanMockRecorder) SetConfigStoreManager(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetConfigStoreManager", reflect.TypeOf((*MockBean)(nil).SetConfigStoreManager), arg0)
+}
+
+// SetHistoryTaskDLQManager mocks base method.
+func (m *MockBean) SetHistoryTaskDLQManager(arg0 persistence.HistoryTaskDLQManager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetHistoryTaskDLQManager", arg0)
+}
+
+// SetHistoryTaskDLQManager indicates an expected call of SetHistoryTaskDLQManager.
+func (mr *MockBeanMockRecorder) SetHistoryTaskDLQManager(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHistoryTaskDLQManager", reflect.TypeOf((*MockBean)(nil).SetHistoryTaskDLQManager), arg0)
 }
 
 // SetDomainAuditManager mocks base method.

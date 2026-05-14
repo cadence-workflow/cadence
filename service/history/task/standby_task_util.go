@@ -101,17 +101,11 @@ func standbyTaskPostActionTaskDiscarded(
 }
 
 // standbyTaskPostActionWriteToDLQ returns a standbyPostActionFn that writes the task to the DLQ.
-// If writer is nil, it falls back to standbyTaskPostActionTaskDiscarded (preserving the old discard
-// behavior until the DLQ persistence backend is wired up).
 func standbyTaskPostActionWriteToDLQ(
 	writer TaskDLQWriter,
 	shard shard.Context,
 	enabled dynamicproperties.StringPropertyFnWithDomainFilter,
 ) standbyPostActionFn {
-	if writer == nil {
-		return standbyTaskPostActionTaskDiscarded
-	}
-
 	shardID := shard.GetShardID()
 
 	return func(ctx context.Context, task persistence.Task, postActionInfo interface{}, logger log.Logger) error {
