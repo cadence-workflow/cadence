@@ -13,6 +13,13 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+type moveCandidate struct {
+	shardID         string
+	from            string
+	to              string
+	assignmentIndex int
+}
+
 // PlanRebalance returns planned shard moves for the current assignment state.
 func PlanRebalance(
 	cfg config.LoadBalancingGreedyConfig,
@@ -104,7 +111,16 @@ func computeMoveBudget(totalShards int, proportion float64) int {
 // the in-memory working assignments, executor loads, and moved-shard set. It
 // returns moved=false when no eligible move is available and the caller should
 // stop the rebalance pass.
-func planAndApplyNextMove(cfg config.LoadBalancingGreedyConfig, namespace string, namespaceState *store.NamespaceState, workingAssignments map[string][]string, loads map[string]float64, meanLoad float64, movedShards map[string]struct{}, now time.Time) (plan.Move, bool, error) {
+func planAndApplyNextMove(
+	cfg config.LoadBalancingGreedyConfig,
+	namespace string,
+	namespaceState *store.NamespaceState,
+	workingAssignments map[string][]string,
+	loads map[string]float64,
+	meanLoad float64,
+	movedShards map[string]struct{},
+	now time.Time,
+) (plan.Move, bool, error) {
 	sourceExecutors, destinationExecutors := classifySourcesAndDestinations(
 		loads,
 		namespaceState,
@@ -116,63 +132,116 @@ func planAndApplyNextMove(cfg config.LoadBalancingGreedyConfig, namespace string
 		return plan.Move{}, false, nil
 	}
 
-	// If we have sources but no destinations under the normal lower band,
-	// allow moving to the least-loaded ACTIVE executor when imbalance is severe.
-	if len(destinationExecutors) == 0 {
-		if !isSevereImbalance(loads, meanLoad, cfg.SevereImbalanceRatio(namespace)) {
-			return plan.Move{}, false, nil
-		}
-		relaxed := make(map[string]struct{})
-		for executorID := range workingAssignments {
-			if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
-				relaxed[executorID] = struct{}{}
-			}
-		}
-		if len(relaxed) == 0 {
-			return plan.Move{}, false, nil
-		}
-		destinationExecutors = relaxed
-	}
-
-	destExecutor := findBestDestination(destinationExecutors, loads)
-	if destExecutor == "" {
+	destinationExecutor, ok := selectDestinationExecutor(
+		destinationExecutors,
+		workingAssignments,
+		namespaceState,
+		loads,
+		meanLoad,
+		cfg.SevereImbalanceRatio(namespace),
+	)
+	if !ok {
 		return plan.Move{}, false, nil
 	}
 
-	// Try sources in priority order to find a shard that is not in per-shard cooldown.
-	// If no source has an eligible shard (e.g., all are cooling down), stop early.
+	candidate, found := findNextMoveCandidate(
+		sourceExecutors,
+		destinationExecutor,
+		workingAssignments,
+		namespaceState,
+		loads,
+		movedShards,
+		now,
+		cfg.PerShardCooldown(namespace),
+	)
+	if !found {
+		return plan.Move{}, false, nil
+	}
+
+	if err := applyMoveCandidate(workingAssignments, candidate); err != nil {
+		return plan.Move{}, false, err
+	}
+
+	movedShards[candidate.shardID] = struct{}{}
+	updateExecutorLoadsAfterMove(namespaceState, candidate.from, candidate.to, loads, candidate.shardID)
+
+	return plan.Move{
+		ShardID: candidate.shardID,
+		From:    candidate.from,
+		To:      candidate.to,
+	}, true, nil
+}
+
+// selectDestinationExecutor picks the least-loaded destination executor. If
+// there are no destination executors, it falls back to all ACTIVE executors only
+// when the namespace is severely imbalanced.
+func selectDestinationExecutor(
+	destinationExecutors map[string]struct{},
+	workingAssignments map[string][]string,
+	namespaceState *store.NamespaceState,
+	loads map[string]float64,
+	meanLoad float64,
+	severeImbalanceRatio float64,
+) (string, bool) {
+	if len(destinationExecutors) == 0 {
+		if !isSevereImbalance(loads, meanLoad, severeImbalanceRatio) {
+			return "", false
+		}
+		allActiveExecutors := make(map[string]struct{})
+		for executorID := range workingAssignments {
+			if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
+				allActiveExecutors[executorID] = struct{}{}
+			}
+		}
+		if len(allActiveExecutors) == 0 {
+			return "", false
+		}
+		destinationExecutors = allActiveExecutors
+	}
+
+	return findBestDestination(destinationExecutors, loads)
+}
+
+// findNextMoveCandidate searches sources by descending load and returns the
+// first eligible source/shard pair for the destination.
+func findNextMoveCandidate(
+	sourceExecutors map[string]struct{},
+	destinationExecutor string,
+	workingAssignments map[string][]string,
+	namespaceState *store.NamespaceState,
+	loads map[string]float64,
+	movedShards map[string]struct{},
+	now time.Time,
+	perShardCooldown time.Duration,
+) (moveCandidate, bool) {
 	for _, sourceExecutor := range sourcesSortedByDescendingLoad(sourceExecutors, loads) {
-		if sourceExecutor == destExecutor {
+		if sourceExecutor == destinationExecutor {
 			continue
 		}
-		shardToMove, idx, found := findShardToMove(
+		shardID, idx, found := findBestShardForMove(
 			workingAssignments,
 			namespaceState,
 			sourceExecutor,
-			destExecutor,
+			destinationExecutor,
 			loads,
 			movedShards,
 			now,
-			cfg.PerShardCooldown(namespace),
+			perShardCooldown,
 		)
 		if !found {
 			// No eligible shard for this source+destination (cooldown, or no beneficial move), try the next source.
 			continue
 		}
 
-		if err := moveShard(workingAssignments, sourceExecutor, destExecutor, shardToMove, idx); err != nil {
-			return plan.Move{}, false, err
-		}
-		movedShards[shardToMove] = struct{}{}
-		updateExecutorLoadsAfterMove(namespaceState, sourceExecutor, destExecutor, loads, shardToMove)
-		return plan.Move{
-			ShardID: shardToMove,
-			From:    sourceExecutor,
-			To:      destExecutor,
-		}, true, nil
+		return moveCandidate{
+			shardID:         shardID,
+			from:            sourceExecutor,
+			to:              destinationExecutor,
+			assignmentIndex: idx,
+		}, true
 	}
 
-	return plan.Move{}, false, nil
+	return moveCandidate{}, false
 }
 
 func classifySourcesAndDestinations(
@@ -212,17 +281,19 @@ func isSevereImbalance(executorLoads map[string]float64, meanLoad, severeImbalan
 	return maxLoad/meanLoad >= severeImbalanceRatio
 }
 
-func findBestDestination(destinationExecutors map[string]struct{}, executorLoads map[string]float64) string {
-	minLoad := math.MaxFloat64
+func findBestDestination(destinationExecutors map[string]struct{}, executorLoads map[string]float64) (string, bool) {
 	minExecutor := ""
+	found := false
+	var minLoad float64
 	for executor := range destinationExecutors {
 		load := executorLoads[executor]
-		if load < minLoad {
+		if !found || load < minLoad {
 			minLoad = load
 			minExecutor = executor
+			found = true
 		}
 	}
-	return minExecutor
+	return minExecutor, found
 }
 
 func sourcesSortedByDescendingLoad(sourceExecutors map[string]struct{}, executorLoads map[string]float64) []string {
@@ -246,7 +317,7 @@ func sourcesSortedByDescendingLoad(sourceExecutors map[string]struct{}, executor
 	return sources
 }
 
-func findShardToMove(
+func findBestShardForMove(
 	currentAssignments map[string][]string,
 	state *store.NamespaceState,
 	source string,
@@ -296,18 +367,18 @@ func computeBenefitOfMove(sourceLoad, destLoad, shardLoad float64) float64 {
 	return 2*shardLoad*(sourceLoad-destLoad) - 2*shardLoad*shardLoad
 }
 
-func moveShard(currentAssignments map[string][]string, sourceExecutor string, destExecutor string, shardID string, idx int) error {
-	// Defensive fallback in case index is stale.
-	if idx < 0 || idx >= len(currentAssignments[sourceExecutor]) || currentAssignments[sourceExecutor][idx] != shardID {
-		idx = slices.Index(currentAssignments[sourceExecutor], shardID)
+// applyMoveCandidate applies a planned move to the in-memory assignment state.
+func applyMoveCandidate(currentAssignments map[string][]string, candidate moveCandidate) error {
+	if candidate.assignmentIndex < 0 || candidate.assignmentIndex >= len(currentAssignments[candidate.from]) {
+		return fmt.Errorf("candidate assignment index out of range for shard %s on source executor %s", candidate.shardID, candidate.from)
 	}
-	if idx == -1 {
-		return fmt.Errorf("shard %s not found in source executor %s", shardID, sourceExecutor)
+	if currentAssignments[candidate.from][candidate.assignmentIndex] != candidate.shardID {
+		return fmt.Errorf("candidate assignment index mismatch for shard %s on source executor %s", candidate.shardID, candidate.from)
 	}
 
-	currentAssignments[sourceExecutor][idx] = currentAssignments[sourceExecutor][len(currentAssignments[sourceExecutor])-1]
-	currentAssignments[sourceExecutor] = currentAssignments[sourceExecutor][:len(currentAssignments[sourceExecutor])-1]
-	currentAssignments[destExecutor] = append(currentAssignments[destExecutor], shardID)
+	currentAssignments[candidate.from][candidate.assignmentIndex] = currentAssignments[candidate.from][len(currentAssignments[candidate.from])-1]
+	currentAssignments[candidate.from] = currentAssignments[candidate.from][:len(currentAssignments[candidate.from])-1]
+	currentAssignments[candidate.to] = append(currentAssignments[candidate.to], candidate.shardID)
 	return nil
 }
 
