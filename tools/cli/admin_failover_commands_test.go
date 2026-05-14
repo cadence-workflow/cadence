@@ -65,7 +65,7 @@ func TestAdminFailoverStart(t *testing.T) {
 		wantErr                 bool
 	}{
 		{
-			desc:                    "success",
+			desc:                    "when valid params it should start the failover workflow",
 			sourceCluster:           "cluster1",
 			targetCluster:           "cluster2",
 			failoverBatchSize:       10,
@@ -103,7 +103,7 @@ func TestAdminFailoverStart(t *testing.T) {
 			},
 		},
 		{
-			desc:          "startworkflow fails",
+			desc:          "when StartWorkflowExecution fails it should return error",
 			wantErr:       true,
 			sourceCluster: "cluster1",
 			targetCluster: "cluster2",
@@ -119,7 +119,7 @@ func TestAdminFailoverStart(t *testing.T) {
 			},
 		},
 		{
-			desc:          "source and target cluster same",
+			desc:          "when source and target cluster are the same it should return error",
 			wantErr:       true,
 			sourceCluster: "cluster1",
 			targetCluster: "cluster1",
@@ -128,7 +128,7 @@ func TestAdminFailoverStart(t *testing.T) {
 			},
 		},
 		{
-			desc:          "no source cluster specified",
+			desc:          "when no source cluster specified it should return error",
 			wantErr:       true,
 			sourceCluster: "",
 			targetCluster: "cluster2",
@@ -137,7 +137,7 @@ func TestAdminFailoverStart(t *testing.T) {
 			},
 		},
 		{
-			desc:          "no target cluster specified",
+			desc:          "when no target cluster specified it should return error",
 			wantErr:       true,
 			sourceCluster: "cluster1",
 			targetCluster: "",
@@ -146,7 +146,7 @@ func TestAdminFailoverStart(t *testing.T) {
 			},
 		},
 		{
-			desc:                    "success with cron",
+			desc:                    "when cron schedule specified it should start the drill workflow",
 			sourceCluster:           "cluster1",
 			targetCluster:           "cluster2",
 			failoverBatchSize:       10,
@@ -224,11 +224,12 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 		desc          string
 		runID         string
 		pauseOrResume string
+		useDrill      bool
 		mockFn        func(*testing.T, *frontend.MockClient)
 		wantErr       bool
 	}{
 		{
-			desc:          "pause success",
+			desc:          "when pause requested it should signal PauseSignal to FailoverWorkflowID",
 			pauseOrResume: "pause",
 			runID:         "runid1",
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
@@ -251,7 +252,7 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 			},
 		},
 		{
-			desc:          "pause signal workflow fails",
+			desc:          "when pause and SignalWorkflowExecution fails it should return error",
 			pauseOrResume: "pause",
 			wantErr:       true,
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
@@ -262,7 +263,7 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 			},
 		},
 		{
-			desc:          "resume success",
+			desc:          "when resume requested it should signal ResumeSignal to FailoverWorkflowID",
 			pauseOrResume: "resume",
 			runID:         "runid1",
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
@@ -285,13 +286,27 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 			},
 		},
 		{
-			desc:          "resume signal workflow fails",
+			desc:          "when resume and SignalWorkflowExecution fails it should return error",
 			pauseOrResume: "resume",
 			wantErr:       true,
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, r *types.SignalWorkflowExecutionRequest, opts ...yarpc.CallOption) error {
 						return fmt.Errorf("failed to signal workflow")
+					}).Times(1)
+			},
+		},
+		{
+			desc:          "when pause and drill flag set it should signal DrillWorkflowID",
+			pauseOrResume: "pause",
+			useDrill:      true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, gotReq *types.SignalWorkflowExecutionRequest, opts ...yarpc.CallOption) error {
+						if gotReq.WorkflowExecution.WorkflowID != failovermanager.DrillWorkflowID {
+							t.Fatalf("expected DrillWorkflowID, got %s", gotReq.WorkflowExecution.WorkflowID)
+						}
+						return nil
 					}).Times(1)
 			},
 		},
@@ -314,6 +329,9 @@ func TestAdminFailoverPauseResume(t *testing.T) {
 			args := []string{"", "admin", "cluster", "failover", tc.pauseOrResume,
 				"--rid", tc.runID,
 			}
+			if tc.useDrill {
+				args = append(args, "--failover_drill")
+			}
 			err := app.Run(args)
 
 			if (err != nil) != tc.wantErr {
@@ -335,7 +353,7 @@ func TestAdminFailoverQuery(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			desc: "success",
+			desc: "when workflow is terminated it should return aborted state",
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.QueryWorkflowRequest, opts ...yarpc.CallOption) (*types.QueryWorkflowResponse, error) {
@@ -378,7 +396,7 @@ func TestAdminFailoverQuery(t *testing.T) {
 			},
 		},
 		{
-			desc:    "query failed",
+			desc:    "when QueryWorkflow fails it should return error",
 			wantErr: true,
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
@@ -388,7 +406,7 @@ func TestAdminFailoverQuery(t *testing.T) {
 			},
 		},
 		{
-			desc:    "describe failed",
+			desc:    "when DescribeWorkflowExecution fails it should return error",
 			wantErr: true,
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
@@ -415,6 +433,35 @@ func TestAdminFailoverQuery(t *testing.T) {
 					DoAndReturn(func(ctx context.Context, gotReq *types.DescribeWorkflowExecutionRequest, opts ...yarpc.CallOption) (*types.DescribeWorkflowExecutionResponse, error) {
 						return nil, fmt.Errorf("failed to describe workflow")
 					}).Times(1)
+			},
+		},
+		{
+			desc:    "when QueryResult is nil it should return error",
+			wantErr: true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.QueryWorkflowResponse{QueryResult: nil}, nil).Times(1)
+			},
+		},
+		{
+			desc:    "when QueryResult is invalid JSON it should return error",
+			wantErr: true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.QueryWorkflowResponse{QueryResult: []byte("not-valid-json")}, nil).Times(1)
+			},
+		},
+		{
+			desc: "when workflow is not terminated it should return state unchanged",
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.QueryWorkflowResponse{
+						QueryResult: mustMarshalQueryResult(t, queryResult),
+					}, nil).Times(1)
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil).Times(1)
 			},
 		},
 	}
@@ -450,7 +497,7 @@ func TestAdminFailoverAbort(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			desc: "success",
+			desc: "when called it should terminate FailoverWorkflowID",
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(ctx context.Context, gotReq *types.TerminateWorkflowExecutionRequest, opts ...yarpc.CallOption) error {
@@ -511,7 +558,7 @@ func TestAdminFailoverRollback(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			desc: "success",
+			desc: "when workflow is running it should terminate and start failback",
 			mockFn: func(t *testing.T, m *frontend.MockClient) {
 				// query to check if it's running.
 				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
@@ -616,6 +663,42 @@ func TestAdminFailoverRollback(t *testing.T) {
 					}).Times(1)
 			},
 		},
+		{
+			desc:    "when first QueryWorkflow fails it should return error",
+			wantErr: true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("query failed")).Times(1)
+			},
+		},
+		{
+			desc:    "when workflow running and TerminateWorkflowExecution fails it should return error",
+			wantErr: true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.QueryWorkflowResponse{
+						QueryResult: mustMarshalQueryResult(t, failovermanager.QueryResult{
+							State: failovermanager.WorkflowRunning,
+						}),
+					}, nil).Times(1)
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("terminate failed")).Times(1)
+			},
+		},
+		{
+			desc:    "when workflow not running and second QueryWorkflow fails it should return error",
+			wantErr: true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.QueryWorkflowResponse{
+						QueryResult: mustMarshalQueryResult(t, failovermanager.QueryResult{
+							State: failovermanager.WorkflowCompleted,
+						}),
+					}, nil).Times(1)
+				m.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("second query failed")).Times(1)
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -633,6 +716,71 @@ func TestAdminFailoverRollback(t *testing.T) {
 			})
 
 			args := []string{"", "admin", "cluster", "failover", "rollback"}
+			err := app.Run(args)
+
+			if (err != nil) != tc.wantErr {
+				t.Errorf("Got error: %v, wantErr?: %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestAdminFailoverList(t *testing.T) {
+	tests := []struct {
+		desc     string
+		useDrill bool
+		wantWFID string
+		mockFn   func(*testing.T, *frontend.MockClient)
+		wantErr  bool
+	}{
+		{
+			desc:     "when drill flag not set it should list FailoverWorkflowID executions",
+			wantWFID: failovermanager.FailoverWorkflowID,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
+					Return(&types.CountWorkflowExecutionsResponse{Count: 0}, nil).Times(1)
+				m.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, req *types.ListClosedWorkflowExecutionsRequest, opts ...yarpc.CallOption) (*types.ListClosedWorkflowExecutionsResponse, error) {
+						if req.ExecutionFilter == nil || req.ExecutionFilter.WorkflowID != failovermanager.FailoverWorkflowID {
+							t.Fatalf("expected WorkflowID %s, got %v", failovermanager.FailoverWorkflowID, req.ExecutionFilter)
+						}
+						return &types.ListClosedWorkflowExecutionsResponse{}, nil
+					}).Times(1)
+			},
+		},
+		{
+			desc:     "when drill flag set it should list DrillWorkflowID executions",
+			useDrill: true,
+			wantWFID: failovermanager.DrillWorkflowID,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).
+					Return(&types.CountWorkflowExecutionsResponse{Count: 0}, nil).Times(1)
+				m.EXPECT().ListClosedWorkflowExecutions(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, req *types.ListClosedWorkflowExecutionsRequest, opts ...yarpc.CallOption) (*types.ListClosedWorkflowExecutionsResponse, error) {
+						if req.ExecutionFilter == nil || req.ExecutionFilter.WorkflowID != failovermanager.DrillWorkflowID {
+							t.Fatalf("expected WorkflowID %s, got %v", failovermanager.DrillWorkflowID, req.ExecutionFilter)
+						}
+						return &types.ListClosedWorkflowExecutionsResponse{}, nil
+					}).Times(1)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			frontendCl := frontend.NewMockClient(ctrl)
+			tc.mockFn(t, frontendCl)
+
+			app := NewCliApp(&clientFactoryMock{
+				serverFrontendClient: frontendCl,
+			})
+
+			args := []string{"", "admin", "cluster", "failover", "list"}
+			if tc.useDrill {
+				args = append(args, "--failover_drill")
+			}
 			err := app.Run(args)
 
 			if (err != nil) != tc.wantErr {
