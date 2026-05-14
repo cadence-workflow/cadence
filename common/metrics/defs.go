@@ -3270,8 +3270,6 @@ const (
 	ShardDistributorAssignmentSmoothedLoadCV
 	// ShardDistributorAssignmentSmoothedLoadMissingRatio measures the fraction of assigned shards with no smoothed load
 	ShardDistributorAssignmentSmoothedLoadMissingRatio
-	// ShardDistributorAssignmentSmoothedLoadStaleRatio measures the fraction of assigned shards with stale smoothed load
-	ShardDistributorAssignmentSmoothedLoadStaleRatio
 	// ShardDistributorIsLeader reports whether this instance is currently the leader (1) or not (0) for a namespace
 	ShardDistributorIsLeader
 
@@ -4229,10 +4227,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignmentSmoothedLoadCV:          {metricName: "shard_distributor_assignment_smoothed_load_cv", metricType: Gauge},
 		ShardDistributorAssignmentSmoothedLoadMissingRatio: {
 			metricName: "shard_distributor_assignment_smoothed_load_missing_ratio",
-			metricType: Gauge,
-		},
-		ShardDistributorAssignmentSmoothedLoadStaleRatio: {
-			metricName: "shard_distributor_assignment_smoothed_load_stale_ratio",
 			metricType: Gauge,
 		},
 		ShardDistributorIsLeader: {metricName: "shard_distributor_is_leader", metricType: Gauge},

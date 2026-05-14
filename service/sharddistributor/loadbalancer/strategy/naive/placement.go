@@ -15,7 +15,7 @@ func PlanInitialPlacement(state *store.NamespaceState, shardIDs []string) ([]pla
 	counts := assignmentCounts(state)
 	placements := make([]plan.Placement, 0, len(shardIDs))
 	for _, shardID := range shardIDs {
-		executorID, err := chooseExecutor(counts)
+		executorID, err := chooseExecutorAndUpdateCounts(counts)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +38,7 @@ func assignmentCounts(state *store.NamespaceState) map[string]int {
 	return counts
 }
 
-func chooseExecutor(counts map[string]int) (string, error) {
+func chooseExecutorAndUpdateCounts(counts map[string]int) (string, error) {
 	if len(counts) == 0 {
 		return "", plan.ErrNoActiveExecutors
 	}

@@ -829,9 +829,6 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 		return
 	}
 
-	now := p.timeSource.Now().UTC()
-	staleAfter := p.cfg.HeartbeatTTL
-
 	reportedLoads := make([]float64, 0, len(assignments))
 	var smoothedLoads []float64
 	if emitSmoothedLoadMetrics {
@@ -840,7 +837,6 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 
 	totalAssigned := 0
 	smoothedMissing := 0
-	smoothedStale := 0
 
 	for executorID, shards := range assignments {
 		reportedLoad := 0.0
@@ -868,9 +864,6 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 				smoothedMissing++
 				continue
 			}
-			if staleAfter > 0 && now.Sub(stats.LastUpdateTime) > staleAfter {
-				smoothedStale++
-			}
 			smoothedLoad += stats.SmoothedLoad
 		}
 
@@ -891,12 +884,10 @@ func (p *namespaceProcessor) emitAssignmentImbalanceMetrics(
 
 	if totalAssigned == 0 {
 		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMissingRatio, 0)
-		metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadStaleRatio, 0)
 		return
 	}
 
 	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadMissingRatio, float64(smoothedMissing)/float64(totalAssigned))
-	metricsLoopScope.UpdateGauge(metrics.ShardDistributorAssignmentSmoothedLoadStaleRatio, float64(smoothedStale)/float64(totalAssigned))
 }
 
 func maxOverMean(values []float64) float64 {

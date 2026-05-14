@@ -20,7 +20,7 @@ func PlanInitialPlacement(state *store.NamespaceState, shardIDs []string) ([]pla
 	loads, averageShardLoad := executorLoads(state)
 	placements := make([]plan.Placement, 0, len(shardIDs))
 	for _, shardID := range shardIDs {
-		executorID, err := chooseExecutor(loads, averageShardLoad)
+		executorID, err := chooseExecutorAndUpdateLoads(loads, averageShardLoad)
 		if err != nil {
 			return nil, err
 		}
@@ -60,7 +60,7 @@ func executorLoads(state *store.NamespaceState) (map[string]executorLoad, float6
 	return loads, averageShardLoad
 }
 
-func chooseExecutor(loads map[string]executorLoad, averageShardLoad float64) (string, error) {
+func chooseExecutorAndUpdateLoads(loads map[string]executorLoad, averageShardLoad float64) (string, error) {
 	if len(loads) == 0 {
 		return "", plan.ErrNoActiveExecutors
 	}
