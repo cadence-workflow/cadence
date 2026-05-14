@@ -96,7 +96,7 @@ type (
 		// HistoryClientFn is used by integration tests to mock a history client
 		HistoryClientFn func() history.Client
 		// NewPersistenceBeanFn can be used to override the default persistence bean creation in unit tests to avoid DB setup
-		NewPersistenceBeanFn func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
+		NewPersistenceBeanFn  func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
 		DiagnosticsInvariants []invariant.Invariant
 
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
