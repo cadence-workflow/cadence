@@ -8580,6 +8580,1166 @@ func (v *AutoConfigHint) IsSetPollerWaitTimeInMs() bool {
 	return v != nil && v.PollerWaitTimeInMs != nil
 }
 
+type BackfillInfo struct {
+	BackfillId    *string `json:"backfillId,omitempty"`
+	StartTimeNano *int64  `json:"startTimeNano,omitempty"`
+	EndTimeNano   *int64  `json:"endTimeNano,omitempty"`
+	RunsCompleted *int32  `json:"runsCompleted,omitempty"`
+	RunsTotal     *int32  `json:"runsTotal,omitempty"`
+}
+
+// ToWire translates a BackfillInfo struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *BackfillInfo) ToWire() (wire.Value, error) {
+	var (
+		fields [5]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.BackfillId != nil {
+		w, err = wire.NewValueString(*(v.BackfillId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.StartTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.StartTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.EndTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.EndTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.RunsCompleted != nil {
+		w, err = wire.NewValueI32(*(v.RunsCompleted)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.RunsTotal != nil {
+		w, err = wire.NewValueI32(*(v.RunsTotal)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a BackfillInfo struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a BackfillInfo struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v BackfillInfo
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *BackfillInfo) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.BackfillId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.StartTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.EndTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.RunsCompleted = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.RunsTotal = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a BackfillInfo struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a BackfillInfo struct could not be encoded.
+func (v *BackfillInfo) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.BackfillId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.BackfillId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.StartTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.StartTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EndTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.EndTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.RunsCompleted != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.RunsCompleted)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.RunsTotal != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.RunsTotal)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a BackfillInfo struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a BackfillInfo struct could not be generated from the wire
+// representation.
+func (v *BackfillInfo) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.BackfillId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.StartTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.EndTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.RunsCompleted = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.RunsTotal = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a BackfillInfo
+// struct.
+func (v *BackfillInfo) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [5]string
+	i := 0
+	if v.BackfillId != nil {
+		fields[i] = fmt.Sprintf("BackfillId: %v", *(v.BackfillId))
+		i++
+	}
+	if v.StartTimeNano != nil {
+		fields[i] = fmt.Sprintf("StartTimeNano: %v", *(v.StartTimeNano))
+		i++
+	}
+	if v.EndTimeNano != nil {
+		fields[i] = fmt.Sprintf("EndTimeNano: %v", *(v.EndTimeNano))
+		i++
+	}
+	if v.RunsCompleted != nil {
+		fields[i] = fmt.Sprintf("RunsCompleted: %v", *(v.RunsCompleted))
+		i++
+	}
+	if v.RunsTotal != nil {
+		fields[i] = fmt.Sprintf("RunsTotal: %v", *(v.RunsTotal))
+		i++
+	}
+
+	return fmt.Sprintf("BackfillInfo{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this BackfillInfo match the
+// provided BackfillInfo.
+//
+// This function performs a deep comparison.
+func (v *BackfillInfo) Equals(rhs *BackfillInfo) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.BackfillId, rhs.BackfillId) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.StartTimeNano, rhs.StartTimeNano) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.EndTimeNano, rhs.EndTimeNano) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.RunsCompleted, rhs.RunsCompleted) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.RunsTotal, rhs.RunsTotal) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of BackfillInfo.
+func (v *BackfillInfo) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.BackfillId != nil {
+		enc.AddString("backfillId", *v.BackfillId)
+	}
+	if v.StartTimeNano != nil {
+		enc.AddInt64("startTimeNano", *v.StartTimeNano)
+	}
+	if v.EndTimeNano != nil {
+		enc.AddInt64("endTimeNano", *v.EndTimeNano)
+	}
+	if v.RunsCompleted != nil {
+		enc.AddInt32("runsCompleted", *v.RunsCompleted)
+	}
+	if v.RunsTotal != nil {
+		enc.AddInt32("runsTotal", *v.RunsTotal)
+	}
+	return err
+}
+
+// GetBackfillId returns the value of BackfillId if it is set or its
+// zero value if it is unset.
+func (v *BackfillInfo) GetBackfillId() (o string) {
+	if v != nil && v.BackfillId != nil {
+		return *v.BackfillId
+	}
+
+	return
+}
+
+// IsSetBackfillId returns true if BackfillId is not nil.
+func (v *BackfillInfo) IsSetBackfillId() bool {
+	return v != nil && v.BackfillId != nil
+}
+
+// GetStartTimeNano returns the value of StartTimeNano if it is set or its
+// zero value if it is unset.
+func (v *BackfillInfo) GetStartTimeNano() (o int64) {
+	if v != nil && v.StartTimeNano != nil {
+		return *v.StartTimeNano
+	}
+
+	return
+}
+
+// IsSetStartTimeNano returns true if StartTimeNano is not nil.
+func (v *BackfillInfo) IsSetStartTimeNano() bool {
+	return v != nil && v.StartTimeNano != nil
+}
+
+// GetEndTimeNano returns the value of EndTimeNano if it is set or its
+// zero value if it is unset.
+func (v *BackfillInfo) GetEndTimeNano() (o int64) {
+	if v != nil && v.EndTimeNano != nil {
+		return *v.EndTimeNano
+	}
+
+	return
+}
+
+// IsSetEndTimeNano returns true if EndTimeNano is not nil.
+func (v *BackfillInfo) IsSetEndTimeNano() bool {
+	return v != nil && v.EndTimeNano != nil
+}
+
+// GetRunsCompleted returns the value of RunsCompleted if it is set or its
+// zero value if it is unset.
+func (v *BackfillInfo) GetRunsCompleted() (o int32) {
+	if v != nil && v.RunsCompleted != nil {
+		return *v.RunsCompleted
+	}
+
+	return
+}
+
+// IsSetRunsCompleted returns true if RunsCompleted is not nil.
+func (v *BackfillInfo) IsSetRunsCompleted() bool {
+	return v != nil && v.RunsCompleted != nil
+}
+
+// GetRunsTotal returns the value of RunsTotal if it is set or its
+// zero value if it is unset.
+func (v *BackfillInfo) GetRunsTotal() (o int32) {
+	if v != nil && v.RunsTotal != nil {
+		return *v.RunsTotal
+	}
+
+	return
+}
+
+// IsSetRunsTotal returns true if RunsTotal is not nil.
+func (v *BackfillInfo) IsSetRunsTotal() bool {
+	return v != nil && v.RunsTotal != nil
+}
+
+type BackfillScheduleRequest struct {
+	Domain        *string                `json:"domain,omitempty"`
+	ScheduleId    *string                `json:"scheduleId,omitempty"`
+	StartTimeNano *int64                 `json:"startTimeNano,omitempty"`
+	EndTimeNano   *int64                 `json:"endTimeNano,omitempty"`
+	OverlapPolicy *ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
+	BackfillId    *string                `json:"backfillId,omitempty"`
+}
+
+// ToWire translates a BackfillScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *BackfillScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [6]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.StartTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.StartTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.EndTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.EndTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.OverlapPolicy != nil {
+		w, err = v.OverlapPolicy.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.BackfillId != nil {
+		w, err = wire.NewValueString(*(v.BackfillId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ScheduleOverlapPolicy_Read(w wire.Value) (ScheduleOverlapPolicy, error) {
+	var v ScheduleOverlapPolicy
+	err := v.FromWire(w)
+	return v, err
+}
+
+// FromWire deserializes a BackfillScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a BackfillScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v BackfillScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *BackfillScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.StartTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.EndTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TI32 {
+				var x ScheduleOverlapPolicy
+				x, err = _ScheduleOverlapPolicy_Read(field.Value)
+				v.OverlapPolicy = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.BackfillId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a BackfillScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a BackfillScheduleRequest struct could not be encoded.
+func (v *BackfillScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.StartTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.StartTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EndTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.EndTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.OverlapPolicy != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := v.OverlapPolicy.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BackfillId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.BackfillId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ScheduleOverlapPolicy_Decode(sr stream.Reader) (ScheduleOverlapPolicy, error) {
+	var v ScheduleOverlapPolicy
+	err := v.Decode(sr)
+	return v, err
+}
+
+// Decode deserializes a BackfillScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a BackfillScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *BackfillScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.StartTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.EndTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TI32:
+			var x ScheduleOverlapPolicy
+			x, err = _ScheduleOverlapPolicy_Decode(sr)
+			v.OverlapPolicy = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.BackfillId = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a BackfillScheduleRequest
+// struct.
+func (v *BackfillScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [6]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+	if v.StartTimeNano != nil {
+		fields[i] = fmt.Sprintf("StartTimeNano: %v", *(v.StartTimeNano))
+		i++
+	}
+	if v.EndTimeNano != nil {
+		fields[i] = fmt.Sprintf("EndTimeNano: %v", *(v.EndTimeNano))
+		i++
+	}
+	if v.OverlapPolicy != nil {
+		fields[i] = fmt.Sprintf("OverlapPolicy: %v", *(v.OverlapPolicy))
+		i++
+	}
+	if v.BackfillId != nil {
+		fields[i] = fmt.Sprintf("BackfillId: %v", *(v.BackfillId))
+		i++
+	}
+
+	return fmt.Sprintf("BackfillScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _ScheduleOverlapPolicy_EqualsPtr(lhs, rhs *ScheduleOverlapPolicy) bool {
+	if lhs != nil && rhs != nil {
+
+		x := *lhs
+		y := *rhs
+		return x.Equals(y)
+	}
+	return lhs == nil && rhs == nil
+}
+
+// Equals returns true if all the fields of this BackfillScheduleRequest match the
+// provided BackfillScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *BackfillScheduleRequest) Equals(rhs *BackfillScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.StartTimeNano, rhs.StartTimeNano) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.EndTimeNano, rhs.EndTimeNano) {
+		return false
+	}
+	if !_ScheduleOverlapPolicy_EqualsPtr(v.OverlapPolicy, rhs.OverlapPolicy) {
+		return false
+	}
+	if !_String_EqualsPtr(v.BackfillId, rhs.BackfillId) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of BackfillScheduleRequest.
+func (v *BackfillScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	if v.StartTimeNano != nil {
+		enc.AddInt64("startTimeNano", *v.StartTimeNano)
+	}
+	if v.EndTimeNano != nil {
+		enc.AddInt64("endTimeNano", *v.EndTimeNano)
+	}
+	if v.OverlapPolicy != nil {
+		err = multierr.Append(err, enc.AddObject("overlapPolicy", *v.OverlapPolicy))
+	}
+	if v.BackfillId != nil {
+		enc.AddString("backfillId", *v.BackfillId)
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *BackfillScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *BackfillScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *BackfillScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *BackfillScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+// GetStartTimeNano returns the value of StartTimeNano if it is set or its
+// zero value if it is unset.
+func (v *BackfillScheduleRequest) GetStartTimeNano() (o int64) {
+	if v != nil && v.StartTimeNano != nil {
+		return *v.StartTimeNano
+	}
+
+	return
+}
+
+// IsSetStartTimeNano returns true if StartTimeNano is not nil.
+func (v *BackfillScheduleRequest) IsSetStartTimeNano() bool {
+	return v != nil && v.StartTimeNano != nil
+}
+
+// GetEndTimeNano returns the value of EndTimeNano if it is set or its
+// zero value if it is unset.
+func (v *BackfillScheduleRequest) GetEndTimeNano() (o int64) {
+	if v != nil && v.EndTimeNano != nil {
+		return *v.EndTimeNano
+	}
+
+	return
+}
+
+// IsSetEndTimeNano returns true if EndTimeNano is not nil.
+func (v *BackfillScheduleRequest) IsSetEndTimeNano() bool {
+	return v != nil && v.EndTimeNano != nil
+}
+
+// GetOverlapPolicy returns the value of OverlapPolicy if it is set or its
+// zero value if it is unset.
+func (v *BackfillScheduleRequest) GetOverlapPolicy() (o ScheduleOverlapPolicy) {
+	if v != nil && v.OverlapPolicy != nil {
+		return *v.OverlapPolicy
+	}
+
+	return
+}
+
+// IsSetOverlapPolicy returns true if OverlapPolicy is not nil.
+func (v *BackfillScheduleRequest) IsSetOverlapPolicy() bool {
+	return v != nil && v.OverlapPolicy != nil
+}
+
+// GetBackfillId returns the value of BackfillId if it is set or its
+// zero value if it is unset.
+func (v *BackfillScheduleRequest) GetBackfillId() (o string) {
+	if v != nil && v.BackfillId != nil {
+		return *v.BackfillId
+	}
+
+	return
+}
+
+// IsSetBackfillId returns true if BackfillId is not nil.
+func (v *BackfillScheduleRequest) IsSetBackfillId() bool {
+	return v != nil && v.BackfillId != nil
+}
+
+type BackfillScheduleResponse struct {
+}
+
+// ToWire translates a BackfillScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *BackfillScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a BackfillScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a BackfillScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v BackfillScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *BackfillScheduleResponse) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a BackfillScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a BackfillScheduleResponse struct could not be encoded.
+func (v *BackfillScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a BackfillScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a BackfillScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *BackfillScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a BackfillScheduleResponse
+// struct.
+func (v *BackfillScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("BackfillScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this BackfillScheduleResponse match the
+// provided BackfillScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *BackfillScheduleResponse) Equals(rhs *BackfillScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of BackfillScheduleResponse.
+func (v *BackfillScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
+}
+
 type BadBinaries struct {
 	Binaries map[string]*BadBinaryInfo `json:"binaries,omitempty"`
 }
@@ -18013,6 +19173,826 @@ func (v *CountWorkflowExecutionsResponse) GetCount() (o int64) {
 // IsSetCount returns true if Count is not nil.
 func (v *CountWorkflowExecutionsResponse) IsSetCount() bool {
 	return v != nil && v.Count != nil
+}
+
+type CreateScheduleRequest struct {
+	Domain           *string           `json:"domain,omitempty"`
+	ScheduleId       *string           `json:"scheduleId,omitempty"`
+	Spec             *ScheduleSpec     `json:"spec,omitempty"`
+	Action           *ScheduleAction   `json:"action,omitempty"`
+	Policies         *SchedulePolicies `json:"policies,omitempty"`
+	Memo             *Memo             `json:"memo,omitempty"`
+	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
+}
+
+// ToWire translates a CreateScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *CreateScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [7]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Spec != nil {
+		w, err = v.Spec.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.Action != nil {
+		w, err = v.Action.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.Policies != nil {
+		w, err = v.Policies.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.Memo != nil {
+		w, err = v.Memo.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+	if v.SearchAttributes != nil {
+		w, err = v.SearchAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 70, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ScheduleSpec_Read(w wire.Value) (*ScheduleSpec, error) {
+	var v ScheduleSpec
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _ScheduleAction_Read(w wire.Value) (*ScheduleAction, error) {
+	var v ScheduleAction
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _SchedulePolicies_Read(w wire.Value) (*SchedulePolicies, error) {
+	var v SchedulePolicies
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a CreateScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a CreateScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v CreateScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *CreateScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TStruct {
+				v.Spec, err = _ScheduleSpec_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TStruct {
+				v.Action, err = _ScheduleAction_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TStruct {
+				v.Policies, err = _SchedulePolicies_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TStruct {
+				v.Memo, err = _Memo_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 70:
+			if field.Value.Type() == wire.TStruct {
+				v.SearchAttributes, err = _SearchAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a CreateScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a CreateScheduleRequest struct could not be encoded.
+func (v *CreateScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Spec != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Spec.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Action != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Action.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Policies != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Policies.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Memo != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Memo.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.SearchAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 70, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.SearchAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ScheduleSpec_Decode(sr stream.Reader) (*ScheduleSpec, error) {
+	var v ScheduleSpec
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _ScheduleAction_Decode(sr stream.Reader) (*ScheduleAction, error) {
+	var v ScheduleAction
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _SchedulePolicies_Decode(sr stream.Reader) (*SchedulePolicies, error) {
+	var v SchedulePolicies
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a CreateScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a CreateScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *CreateScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TStruct:
+			v.Spec, err = _ScheduleSpec_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TStruct:
+			v.Action, err = _ScheduleAction_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TStruct:
+			v.Policies, err = _SchedulePolicies_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TStruct:
+			v.Memo, err = _Memo_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 70 && fh.Type == wire.TStruct:
+			v.SearchAttributes, err = _SearchAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a CreateScheduleRequest
+// struct.
+func (v *CreateScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [7]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+	if v.Spec != nil {
+		fields[i] = fmt.Sprintf("Spec: %v", v.Spec)
+		i++
+	}
+	if v.Action != nil {
+		fields[i] = fmt.Sprintf("Action: %v", v.Action)
+		i++
+	}
+	if v.Policies != nil {
+		fields[i] = fmt.Sprintf("Policies: %v", v.Policies)
+		i++
+	}
+	if v.Memo != nil {
+		fields[i] = fmt.Sprintf("Memo: %v", v.Memo)
+		i++
+	}
+	if v.SearchAttributes != nil {
+		fields[i] = fmt.Sprintf("SearchAttributes: %v", v.SearchAttributes)
+		i++
+	}
+
+	return fmt.Sprintf("CreateScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this CreateScheduleRequest match the
+// provided CreateScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *CreateScheduleRequest) Equals(rhs *CreateScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+	if !((v.Spec == nil && rhs.Spec == nil) || (v.Spec != nil && rhs.Spec != nil && v.Spec.Equals(rhs.Spec))) {
+		return false
+	}
+	if !((v.Action == nil && rhs.Action == nil) || (v.Action != nil && rhs.Action != nil && v.Action.Equals(rhs.Action))) {
+		return false
+	}
+	if !((v.Policies == nil && rhs.Policies == nil) || (v.Policies != nil && rhs.Policies != nil && v.Policies.Equals(rhs.Policies))) {
+		return false
+	}
+	if !((v.Memo == nil && rhs.Memo == nil) || (v.Memo != nil && rhs.Memo != nil && v.Memo.Equals(rhs.Memo))) {
+		return false
+	}
+	if !((v.SearchAttributes == nil && rhs.SearchAttributes == nil) || (v.SearchAttributes != nil && rhs.SearchAttributes != nil && v.SearchAttributes.Equals(rhs.SearchAttributes))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of CreateScheduleRequest.
+func (v *CreateScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	if v.Spec != nil {
+		err = multierr.Append(err, enc.AddObject("spec", v.Spec))
+	}
+	if v.Action != nil {
+		err = multierr.Append(err, enc.AddObject("action", v.Action))
+	}
+	if v.Policies != nil {
+		err = multierr.Append(err, enc.AddObject("policies", v.Policies))
+	}
+	if v.Memo != nil {
+		err = multierr.Append(err, enc.AddObject("memo", v.Memo))
+	}
+	if v.SearchAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("searchAttributes", v.SearchAttributes))
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *CreateScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *CreateScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+// GetSpec returns the value of Spec if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetSpec() (o *ScheduleSpec) {
+	if v != nil && v.Spec != nil {
+		return v.Spec
+	}
+
+	return
+}
+
+// IsSetSpec returns true if Spec is not nil.
+func (v *CreateScheduleRequest) IsSetSpec() bool {
+	return v != nil && v.Spec != nil
+}
+
+// GetAction returns the value of Action if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetAction() (o *ScheduleAction) {
+	if v != nil && v.Action != nil {
+		return v.Action
+	}
+
+	return
+}
+
+// IsSetAction returns true if Action is not nil.
+func (v *CreateScheduleRequest) IsSetAction() bool {
+	return v != nil && v.Action != nil
+}
+
+// GetPolicies returns the value of Policies if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetPolicies() (o *SchedulePolicies) {
+	if v != nil && v.Policies != nil {
+		return v.Policies
+	}
+
+	return
+}
+
+// IsSetPolicies returns true if Policies is not nil.
+func (v *CreateScheduleRequest) IsSetPolicies() bool {
+	return v != nil && v.Policies != nil
+}
+
+// GetMemo returns the value of Memo if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetMemo() (o *Memo) {
+	if v != nil && v.Memo != nil {
+		return v.Memo
+	}
+
+	return
+}
+
+// IsSetMemo returns true if Memo is not nil.
+func (v *CreateScheduleRequest) IsSetMemo() bool {
+	return v != nil && v.Memo != nil
+}
+
+// GetSearchAttributes returns the value of SearchAttributes if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleRequest) GetSearchAttributes() (o *SearchAttributes) {
+	if v != nil && v.SearchAttributes != nil {
+		return v.SearchAttributes
+	}
+
+	return
+}
+
+// IsSetSearchAttributes returns true if SearchAttributes is not nil.
+func (v *CreateScheduleRequest) IsSetSearchAttributes() bool {
+	return v != nil && v.SearchAttributes != nil
+}
+
+type CreateScheduleResponse struct {
+	ScheduleId *string `json:"scheduleId,omitempty"`
+}
+
+// ToWire translates a CreateScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *CreateScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a CreateScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a CreateScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v CreateScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *CreateScheduleResponse) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a CreateScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a CreateScheduleResponse struct could not be encoded.
+func (v *CreateScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a CreateScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a CreateScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *CreateScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a CreateScheduleResponse
+// struct.
+func (v *CreateScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+
+	return fmt.Sprintf("CreateScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this CreateScheduleResponse match the
+// provided CreateScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *CreateScheduleResponse) Equals(rhs *CreateScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of CreateScheduleResponse.
+func (v *CreateScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	return err
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *CreateScheduleResponse) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *CreateScheduleResponse) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
 }
 
 type CronOverlapPolicy int32
@@ -30169,6 +32149,422 @@ func (v *DeleteDomainRequest) IsSetSecurityToken() bool {
 	return v != nil && v.SecurityToken != nil
 }
 
+type DeleteScheduleRequest struct {
+	Domain     *string `json:"domain,omitempty"`
+	ScheduleId *string `json:"scheduleId,omitempty"`
+}
+
+// ToWire translates a DeleteScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *DeleteScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [2]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a DeleteScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a DeleteScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v DeleteScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *DeleteScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a DeleteScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a DeleteScheduleRequest struct could not be encoded.
+func (v *DeleteScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a DeleteScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a DeleteScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *DeleteScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a DeleteScheduleRequest
+// struct.
+func (v *DeleteScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [2]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+
+	return fmt.Sprintf("DeleteScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this DeleteScheduleRequest match the
+// provided DeleteScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *DeleteScheduleRequest) Equals(rhs *DeleteScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of DeleteScheduleRequest.
+func (v *DeleteScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *DeleteScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *DeleteScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *DeleteScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *DeleteScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+type DeleteScheduleResponse struct {
+}
+
+// ToWire translates a DeleteScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *DeleteScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a DeleteScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a DeleteScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v DeleteScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *DeleteScheduleResponse) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a DeleteScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a DeleteScheduleResponse struct could not be encoded.
+func (v *DeleteScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a DeleteScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a DeleteScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *DeleteScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a DeleteScheduleResponse
+// struct.
+func (v *DeleteScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("DeleteScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this DeleteScheduleResponse match the
+// provided DeleteScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *DeleteScheduleResponse) Equals(rhs *DeleteScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of DeleteScheduleResponse.
+func (v *DeleteScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
+}
+
 type DeprecateDomainRequest struct {
 	Name          *string `json:"name,omitempty"`
 	SecurityToken *string `json:"securityToken,omitempty"`
@@ -32861,6 +35257,870 @@ func (v *DescribeQueueResponse) GetProcessingQueueStates() (o []string) {
 // IsSetProcessingQueueStates returns true if ProcessingQueueStates is not nil.
 func (v *DescribeQueueResponse) IsSetProcessingQueueStates() bool {
 	return v != nil && v.ProcessingQueueStates != nil
+}
+
+type DescribeScheduleRequest struct {
+	Domain     *string `json:"domain,omitempty"`
+	ScheduleId *string `json:"scheduleId,omitempty"`
+}
+
+// ToWire translates a DescribeScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *DescribeScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [2]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a DescribeScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a DescribeScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v DescribeScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *DescribeScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a DescribeScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a DescribeScheduleRequest struct could not be encoded.
+func (v *DescribeScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a DescribeScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a DescribeScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *DescribeScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a DescribeScheduleRequest
+// struct.
+func (v *DescribeScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [2]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+
+	return fmt.Sprintf("DescribeScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this DescribeScheduleRequest match the
+// provided DescribeScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *DescribeScheduleRequest) Equals(rhs *DescribeScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of DescribeScheduleRequest.
+func (v *DescribeScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *DescribeScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *DescribeScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+type DescribeScheduleResponse struct {
+	Spec             *ScheduleSpec     `json:"spec,omitempty"`
+	Action           *ScheduleAction   `json:"action,omitempty"`
+	Policies         *SchedulePolicies `json:"policies,omitempty"`
+	State            *ScheduleState    `json:"state,omitempty"`
+	Info             *ScheduleInfo     `json:"info,omitempty"`
+	Memo             *Memo             `json:"memo,omitempty"`
+	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
+}
+
+// ToWire translates a DescribeScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *DescribeScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [7]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Spec != nil {
+		w, err = v.Spec.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.Action != nil {
+		w, err = v.Action.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Policies != nil {
+		w, err = v.Policies.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.State != nil {
+		w, err = v.State.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.Info != nil {
+		w, err = v.Info.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.Memo != nil {
+		w, err = v.Memo.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+	if v.SearchAttributes != nil {
+		w, err = v.SearchAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 70, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ScheduleState_Read(w wire.Value) (*ScheduleState, error) {
+	var v ScheduleState
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _ScheduleInfo_Read(w wire.Value) (*ScheduleInfo, error) {
+	var v ScheduleInfo
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a DescribeScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a DescribeScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v DescribeScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *DescribeScheduleResponse) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TStruct {
+				v.Spec, err = _ScheduleSpec_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TStruct {
+				v.Action, err = _ScheduleAction_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TStruct {
+				v.Policies, err = _SchedulePolicies_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TStruct {
+				v.State, err = _ScheduleState_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TStruct {
+				v.Info, err = _ScheduleInfo_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TStruct {
+				v.Memo, err = _Memo_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 70:
+			if field.Value.Type() == wire.TStruct {
+				v.SearchAttributes, err = _SearchAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a DescribeScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a DescribeScheduleResponse struct could not be encoded.
+func (v *DescribeScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Spec != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Spec.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Action != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Action.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Policies != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Policies.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.State != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.State.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Info != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Info.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Memo != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Memo.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.SearchAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 70, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.SearchAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ScheduleState_Decode(sr stream.Reader) (*ScheduleState, error) {
+	var v ScheduleState
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _ScheduleInfo_Decode(sr stream.Reader) (*ScheduleInfo, error) {
+	var v ScheduleInfo
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a DescribeScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a DescribeScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *DescribeScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TStruct:
+			v.Spec, err = _ScheduleSpec_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TStruct:
+			v.Action, err = _ScheduleAction_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TStruct:
+			v.Policies, err = _SchedulePolicies_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TStruct:
+			v.State, err = _ScheduleState_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TStruct:
+			v.Info, err = _ScheduleInfo_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TStruct:
+			v.Memo, err = _Memo_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 70 && fh.Type == wire.TStruct:
+			v.SearchAttributes, err = _SearchAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a DescribeScheduleResponse
+// struct.
+func (v *DescribeScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [7]string
+	i := 0
+	if v.Spec != nil {
+		fields[i] = fmt.Sprintf("Spec: %v", v.Spec)
+		i++
+	}
+	if v.Action != nil {
+		fields[i] = fmt.Sprintf("Action: %v", v.Action)
+		i++
+	}
+	if v.Policies != nil {
+		fields[i] = fmt.Sprintf("Policies: %v", v.Policies)
+		i++
+	}
+	if v.State != nil {
+		fields[i] = fmt.Sprintf("State: %v", v.State)
+		i++
+	}
+	if v.Info != nil {
+		fields[i] = fmt.Sprintf("Info: %v", v.Info)
+		i++
+	}
+	if v.Memo != nil {
+		fields[i] = fmt.Sprintf("Memo: %v", v.Memo)
+		i++
+	}
+	if v.SearchAttributes != nil {
+		fields[i] = fmt.Sprintf("SearchAttributes: %v", v.SearchAttributes)
+		i++
+	}
+
+	return fmt.Sprintf("DescribeScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this DescribeScheduleResponse match the
+// provided DescribeScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *DescribeScheduleResponse) Equals(rhs *DescribeScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Spec == nil && rhs.Spec == nil) || (v.Spec != nil && rhs.Spec != nil && v.Spec.Equals(rhs.Spec))) {
+		return false
+	}
+	if !((v.Action == nil && rhs.Action == nil) || (v.Action != nil && rhs.Action != nil && v.Action.Equals(rhs.Action))) {
+		return false
+	}
+	if !((v.Policies == nil && rhs.Policies == nil) || (v.Policies != nil && rhs.Policies != nil && v.Policies.Equals(rhs.Policies))) {
+		return false
+	}
+	if !((v.State == nil && rhs.State == nil) || (v.State != nil && rhs.State != nil && v.State.Equals(rhs.State))) {
+		return false
+	}
+	if !((v.Info == nil && rhs.Info == nil) || (v.Info != nil && rhs.Info != nil && v.Info.Equals(rhs.Info))) {
+		return false
+	}
+	if !((v.Memo == nil && rhs.Memo == nil) || (v.Memo != nil && rhs.Memo != nil && v.Memo.Equals(rhs.Memo))) {
+		return false
+	}
+	if !((v.SearchAttributes == nil && rhs.SearchAttributes == nil) || (v.SearchAttributes != nil && rhs.SearchAttributes != nil && v.SearchAttributes.Equals(rhs.SearchAttributes))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of DescribeScheduleResponse.
+func (v *DescribeScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Spec != nil {
+		err = multierr.Append(err, enc.AddObject("spec", v.Spec))
+	}
+	if v.Action != nil {
+		err = multierr.Append(err, enc.AddObject("action", v.Action))
+	}
+	if v.Policies != nil {
+		err = multierr.Append(err, enc.AddObject("policies", v.Policies))
+	}
+	if v.State != nil {
+		err = multierr.Append(err, enc.AddObject("state", v.State))
+	}
+	if v.Info != nil {
+		err = multierr.Append(err, enc.AddObject("info", v.Info))
+	}
+	if v.Memo != nil {
+		err = multierr.Append(err, enc.AddObject("memo", v.Memo))
+	}
+	if v.SearchAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("searchAttributes", v.SearchAttributes))
+	}
+	return err
+}
+
+// GetSpec returns the value of Spec if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetSpec() (o *ScheduleSpec) {
+	if v != nil && v.Spec != nil {
+		return v.Spec
+	}
+
+	return
+}
+
+// IsSetSpec returns true if Spec is not nil.
+func (v *DescribeScheduleResponse) IsSetSpec() bool {
+	return v != nil && v.Spec != nil
+}
+
+// GetAction returns the value of Action if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetAction() (o *ScheduleAction) {
+	if v != nil && v.Action != nil {
+		return v.Action
+	}
+
+	return
+}
+
+// IsSetAction returns true if Action is not nil.
+func (v *DescribeScheduleResponse) IsSetAction() bool {
+	return v != nil && v.Action != nil
+}
+
+// GetPolicies returns the value of Policies if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetPolicies() (o *SchedulePolicies) {
+	if v != nil && v.Policies != nil {
+		return v.Policies
+	}
+
+	return
+}
+
+// IsSetPolicies returns true if Policies is not nil.
+func (v *DescribeScheduleResponse) IsSetPolicies() bool {
+	return v != nil && v.Policies != nil
+}
+
+// GetState returns the value of State if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetState() (o *ScheduleState) {
+	if v != nil && v.State != nil {
+		return v.State
+	}
+
+	return
+}
+
+// IsSetState returns true if State is not nil.
+func (v *DescribeScheduleResponse) IsSetState() bool {
+	return v != nil && v.State != nil
+}
+
+// GetInfo returns the value of Info if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetInfo() (o *ScheduleInfo) {
+	if v != nil && v.Info != nil {
+		return v.Info
+	}
+
+	return
+}
+
+// IsSetInfo returns true if Info is not nil.
+func (v *DescribeScheduleResponse) IsSetInfo() bool {
+	return v != nil && v.Info != nil
+}
+
+// GetMemo returns the value of Memo if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetMemo() (o *Memo) {
+	if v != nil && v.Memo != nil {
+		return v.Memo
+	}
+
+	return
+}
+
+// IsSetMemo returns true if Memo is not nil.
+func (v *DescribeScheduleResponse) IsSetMemo() bool {
+	return v != nil && v.Memo != nil
+}
+
+// GetSearchAttributes returns the value of SearchAttributes if it is set or its
+// zero value if it is unset.
+func (v *DescribeScheduleResponse) GetSearchAttributes() (o *SearchAttributes) {
+	if v != nil && v.SearchAttributes != nil {
+		return v.SearchAttributes
+	}
+
+	return
+}
+
+// IsSetSearchAttributes returns true if SearchAttributes is not nil.
+func (v *DescribeScheduleResponse) IsSetSearchAttributes() bool {
+	return v != nil && v.SearchAttributes != nil
 }
 
 type DescribeShardDistributionRequest struct {
@@ -59168,6 +62428,742 @@ func (v *ListOpenWorkflowExecutionsResponse) IsSetNextPageToken() bool {
 	return v != nil && v.NextPageToken != nil
 }
 
+type ListSchedulesRequest struct {
+	Domain        *string `json:"domain,omitempty"`
+	PageSize      *int32  `json:"pageSize,omitempty"`
+	NextPageToken []byte  `json:"nextPageToken,omitempty"`
+}
+
+// ToWire translates a ListSchedulesRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ListSchedulesRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [3]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.PageSize != nil {
+		w, err = wire.NewValueI32(*(v.PageSize)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.NextPageToken != nil {
+		w, err = wire.NewValueBinary(v.NextPageToken), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a ListSchedulesRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ListSchedulesRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ListSchedulesRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ListSchedulesRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.PageSize = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TBinary {
+				v.NextPageToken, err = field.Value.GetBinary(), error(nil)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a ListSchedulesRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ListSchedulesRequest struct could not be encoded.
+func (v *ListSchedulesRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.PageSize != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.PageSize)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.NextPageToken != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteBinary(v.NextPageToken); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a ListSchedulesRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ListSchedulesRequest struct could not be generated from the wire
+// representation.
+func (v *ListSchedulesRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.PageSize = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TBinary:
+			v.NextPageToken, err = sr.ReadBinary()
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ListSchedulesRequest
+// struct.
+func (v *ListSchedulesRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [3]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.PageSize != nil {
+		fields[i] = fmt.Sprintf("PageSize: %v", *(v.PageSize))
+		i++
+	}
+	if v.NextPageToken != nil {
+		fields[i] = fmt.Sprintf("NextPageToken: %v", v.NextPageToken)
+		i++
+	}
+
+	return fmt.Sprintf("ListSchedulesRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this ListSchedulesRequest match the
+// provided ListSchedulesRequest.
+//
+// This function performs a deep comparison.
+func (v *ListSchedulesRequest) Equals(rhs *ListSchedulesRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.PageSize, rhs.PageSize) {
+		return false
+	}
+	if !((v.NextPageToken == nil && rhs.NextPageToken == nil) || (v.NextPageToken != nil && rhs.NextPageToken != nil && bytes.Equal(v.NextPageToken, rhs.NextPageToken))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ListSchedulesRequest.
+func (v *ListSchedulesRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.PageSize != nil {
+		enc.AddInt32("pageSize", *v.PageSize)
+	}
+	if v.NextPageToken != nil {
+		enc.AddString("nextPageToken", base64.StdEncoding.EncodeToString(v.NextPageToken))
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *ListSchedulesRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *ListSchedulesRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetPageSize returns the value of PageSize if it is set or its
+// zero value if it is unset.
+func (v *ListSchedulesRequest) GetPageSize() (o int32) {
+	if v != nil && v.PageSize != nil {
+		return *v.PageSize
+	}
+
+	return
+}
+
+// IsSetPageSize returns true if PageSize is not nil.
+func (v *ListSchedulesRequest) IsSetPageSize() bool {
+	return v != nil && v.PageSize != nil
+}
+
+// GetNextPageToken returns the value of NextPageToken if it is set or its
+// zero value if it is unset.
+func (v *ListSchedulesRequest) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+
+	return
+}
+
+// IsSetNextPageToken returns true if NextPageToken is not nil.
+func (v *ListSchedulesRequest) IsSetNextPageToken() bool {
+	return v != nil && v.NextPageToken != nil
+}
+
+type ListSchedulesResponse struct {
+	Schedules     []*ScheduleListEntry `json:"schedules,omitempty"`
+	NextPageToken []byte               `json:"nextPageToken,omitempty"`
+}
+
+type _List_ScheduleListEntry_ValueList []*ScheduleListEntry
+
+func (v _List_ScheduleListEntry_ValueList) ForEach(f func(wire.Value) error) error {
+	for i, x := range v {
+		if x == nil {
+			return fmt.Errorf("invalid list '[]*ScheduleListEntry', index [%v]: value is nil", i)
+		}
+		w, err := x.ToWire()
+		if err != nil {
+			return err
+		}
+		err = f(w)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (v _List_ScheduleListEntry_ValueList) Size() int {
+	return len(v)
+}
+
+func (_List_ScheduleListEntry_ValueList) ValueType() wire.Type {
+	return wire.TStruct
+}
+
+func (_List_ScheduleListEntry_ValueList) Close() {}
+
+// ToWire translates a ListSchedulesResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ListSchedulesResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [2]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Schedules != nil {
+		w, err = wire.NewValueList(_List_ScheduleListEntry_ValueList(v.Schedules)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.NextPageToken != nil {
+		w, err = wire.NewValueBinary(v.NextPageToken), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ScheduleListEntry_Read(w wire.Value) (*ScheduleListEntry, error) {
+	var v ScheduleListEntry
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _List_ScheduleListEntry_Read(l wire.ValueList) ([]*ScheduleListEntry, error) {
+	if l.ValueType() != wire.TStruct {
+		return nil, nil
+	}
+
+	o := make([]*ScheduleListEntry, 0, l.Size())
+	err := l.ForEach(func(x wire.Value) error {
+		i, err := _ScheduleListEntry_Read(x)
+		if err != nil {
+			return err
+		}
+		o = append(o, i)
+		return nil
+	})
+	l.Close()
+	return o, err
+}
+
+// FromWire deserializes a ListSchedulesResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ListSchedulesResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ListSchedulesResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ListSchedulesResponse) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TList {
+				v.Schedules, err = _List_ScheduleListEntry_Read(field.Value.GetList())
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				v.NextPageToken, err = field.Value.GetBinary(), error(nil)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+func _List_ScheduleListEntry_Encode(val []*ScheduleListEntry, sw stream.Writer) error {
+
+	lh := stream.ListHeader{
+		Type:   wire.TStruct,
+		Length: len(val),
+	}
+	if err := sw.WriteListBegin(lh); err != nil {
+		return err
+	}
+
+	for i, v := range val {
+		if v == nil {
+			return fmt.Errorf("invalid list '[]*ScheduleListEntry', index [%v]: value is nil", i)
+		}
+		if err := v.Encode(sw); err != nil {
+			return err
+		}
+	}
+	return sw.WriteListEnd()
+}
+
+// Encode serializes a ListSchedulesResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ListSchedulesResponse struct could not be encoded.
+func (v *ListSchedulesResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Schedules != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TList}); err != nil {
+			return err
+		}
+		if err := _List_ScheduleListEntry_Encode(v.Schedules, sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.NextPageToken != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteBinary(v.NextPageToken); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ScheduleListEntry_Decode(sr stream.Reader) (*ScheduleListEntry, error) {
+	var v ScheduleListEntry
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _List_ScheduleListEntry_Decode(sr stream.Reader) ([]*ScheduleListEntry, error) {
+	lh, err := sr.ReadListBegin()
+	if err != nil {
+		return nil, err
+	}
+
+	if lh.Type != wire.TStruct {
+		for i := 0; i < lh.Length; i++ {
+			if err := sr.Skip(lh.Type); err != nil {
+				return nil, err
+			}
+		}
+		return nil, sr.ReadListEnd()
+	}
+
+	o := make([]*ScheduleListEntry, 0, lh.Length)
+	for i := 0; i < lh.Length; i++ {
+		v, err := _ScheduleListEntry_Decode(sr)
+		if err != nil {
+			return nil, err
+		}
+		o = append(o, v)
+	}
+
+	if err = sr.ReadListEnd(); err != nil {
+		return nil, err
+	}
+	return o, err
+}
+
+// Decode deserializes a ListSchedulesResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ListSchedulesResponse struct could not be generated from the wire
+// representation.
+func (v *ListSchedulesResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TList:
+			v.Schedules, err = _List_ScheduleListEntry_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			v.NextPageToken, err = sr.ReadBinary()
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ListSchedulesResponse
+// struct.
+func (v *ListSchedulesResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [2]string
+	i := 0
+	if v.Schedules != nil {
+		fields[i] = fmt.Sprintf("Schedules: %v", v.Schedules)
+		i++
+	}
+	if v.NextPageToken != nil {
+		fields[i] = fmt.Sprintf("NextPageToken: %v", v.NextPageToken)
+		i++
+	}
+
+	return fmt.Sprintf("ListSchedulesResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _List_ScheduleListEntry_Equals(lhs, rhs []*ScheduleListEntry) bool {
+	if len(lhs) != len(rhs) {
+		return false
+	}
+
+	for i, lv := range lhs {
+		rv := rhs[i]
+		if !lv.Equals(rv) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Equals returns true if all the fields of this ListSchedulesResponse match the
+// provided ListSchedulesResponse.
+//
+// This function performs a deep comparison.
+func (v *ListSchedulesResponse) Equals(rhs *ListSchedulesResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Schedules == nil && rhs.Schedules == nil) || (v.Schedules != nil && rhs.Schedules != nil && _List_ScheduleListEntry_Equals(v.Schedules, rhs.Schedules))) {
+		return false
+	}
+	if !((v.NextPageToken == nil && rhs.NextPageToken == nil) || (v.NextPageToken != nil && rhs.NextPageToken != nil && bytes.Equal(v.NextPageToken, rhs.NextPageToken))) {
+		return false
+	}
+
+	return true
+}
+
+type _List_ScheduleListEntry_Zapper []*ScheduleListEntry
+
+// MarshalLogArray implements zapcore.ArrayMarshaler, enabling
+// fast logging of _List_ScheduleListEntry_Zapper.
+func (l _List_ScheduleListEntry_Zapper) MarshalLogArray(enc zapcore.ArrayEncoder) (err error) {
+	for _, v := range l {
+		err = multierr.Append(err, enc.AppendObject(v))
+	}
+	return err
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ListSchedulesResponse.
+func (v *ListSchedulesResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Schedules != nil {
+		err = multierr.Append(err, enc.AddArray("schedules", (_List_ScheduleListEntry_Zapper)(v.Schedules)))
+	}
+	if v.NextPageToken != nil {
+		enc.AddString("nextPageToken", base64.StdEncoding.EncodeToString(v.NextPageToken))
+	}
+	return err
+}
+
+// GetSchedules returns the value of Schedules if it is set or its
+// zero value if it is unset.
+func (v *ListSchedulesResponse) GetSchedules() (o []*ScheduleListEntry) {
+	if v != nil && v.Schedules != nil {
+		return v.Schedules
+	}
+
+	return
+}
+
+// IsSetSchedules returns true if Schedules is not nil.
+func (v *ListSchedulesResponse) IsSetSchedules() bool {
+	return v != nil && v.Schedules != nil
+}
+
+// GetNextPageToken returns the value of NextPageToken if it is set or its
+// zero value if it is unset.
+func (v *ListSchedulesResponse) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+
+	return
+}
+
+// IsSetNextPageToken returns true if NextPageToken is not nil.
+func (v *ListSchedulesResponse) IsSetNextPageToken() bool {
+	return v != nil && v.NextPageToken != nil
+}
+
 type ListTaskListPartitionsRequest struct {
 	Domain   *string   `json:"domain,omitempty"`
 	TaskList *TaskList `json:"taskList,omitempty"`
@@ -61584,6 +65580,550 @@ func (v *ParentClosePolicy) UnmarshalJSON(text []byte) error {
 	default:
 		return fmt.Errorf("invalid JSON value %q (%T) to unmarshal into %q", t, t, "ParentClosePolicy")
 	}
+}
+
+type PauseScheduleRequest struct {
+	Domain     *string `json:"domain,omitempty"`
+	ScheduleId *string `json:"scheduleId,omitempty"`
+	Reason     *string `json:"reason,omitempty"`
+	Identity   *string `json:"identity,omitempty"`
+}
+
+// ToWire translates a PauseScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *PauseScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [4]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Reason != nil {
+		w, err = wire.NewValueString(*(v.Reason)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.Identity != nil {
+		w, err = wire.NewValueString(*(v.Identity)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a PauseScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a PauseScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v PauseScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *PauseScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Reason = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Identity = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a PauseScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a PauseScheduleRequest struct could not be encoded.
+func (v *PauseScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Reason != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Reason)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Identity != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Identity)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a PauseScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a PauseScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *PauseScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Reason = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Identity = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a PauseScheduleRequest
+// struct.
+func (v *PauseScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [4]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+	if v.Reason != nil {
+		fields[i] = fmt.Sprintf("Reason: %v", *(v.Reason))
+		i++
+	}
+	if v.Identity != nil {
+		fields[i] = fmt.Sprintf("Identity: %v", *(v.Identity))
+		i++
+	}
+
+	return fmt.Sprintf("PauseScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this PauseScheduleRequest match the
+// provided PauseScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *PauseScheduleRequest) Equals(rhs *PauseScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+	if !_String_EqualsPtr(v.Reason, rhs.Reason) {
+		return false
+	}
+	if !_String_EqualsPtr(v.Identity, rhs.Identity) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of PauseScheduleRequest.
+func (v *PauseScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	if v.Reason != nil {
+		enc.AddString("reason", *v.Reason)
+	}
+	if v.Identity != nil {
+		enc.AddString("identity", *v.Identity)
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *PauseScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *PauseScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *PauseScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *PauseScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+// GetReason returns the value of Reason if it is set or its
+// zero value if it is unset.
+func (v *PauseScheduleRequest) GetReason() (o string) {
+	if v != nil && v.Reason != nil {
+		return *v.Reason
+	}
+
+	return
+}
+
+// IsSetReason returns true if Reason is not nil.
+func (v *PauseScheduleRequest) IsSetReason() bool {
+	return v != nil && v.Reason != nil
+}
+
+// GetIdentity returns the value of Identity if it is set or its
+// zero value if it is unset.
+func (v *PauseScheduleRequest) GetIdentity() (o string) {
+	if v != nil && v.Identity != nil {
+		return *v.Identity
+	}
+
+	return
+}
+
+// IsSetIdentity returns true if Identity is not nil.
+func (v *PauseScheduleRequest) IsSetIdentity() bool {
+	return v != nil && v.Identity != nil
+}
+
+type PauseScheduleResponse struct {
+}
+
+// ToWire translates a PauseScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *PauseScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a PauseScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a PauseScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v PauseScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *PauseScheduleResponse) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a PauseScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a PauseScheduleResponse struct could not be encoded.
+func (v *PauseScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a PauseScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a PauseScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *PauseScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a PauseScheduleResponse
+// struct.
+func (v *PauseScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("PauseScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this PauseScheduleResponse match the
+// provided PauseScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *PauseScheduleResponse) Equals(rhs *PauseScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of PauseScheduleResponse.
+func (v *PauseScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
 }
 
 type PendingActivityInfo struct {
@@ -87422,6 +91962,224 @@ func (v *RetryTaskV2Error) Error() string {
 	return v.String()
 }
 
+type ScheduleAction struct {
+	StartWorkflow *ScheduleStartWorkflowAction `json:"startWorkflow,omitempty"`
+}
+
+// ToWire translates a ScheduleAction struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ScheduleAction) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.StartWorkflow != nil {
+		w, err = v.StartWorkflow.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ScheduleStartWorkflowAction_Read(w wire.Value) (*ScheduleStartWorkflowAction, error) {
+	var v ScheduleStartWorkflowAction
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a ScheduleAction struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ScheduleAction struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ScheduleAction
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ScheduleAction) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TStruct {
+				v.StartWorkflow, err = _ScheduleStartWorkflowAction_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a ScheduleAction struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ScheduleAction struct could not be encoded.
+func (v *ScheduleAction) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.StartWorkflow != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.StartWorkflow.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ScheduleStartWorkflowAction_Decode(sr stream.Reader) (*ScheduleStartWorkflowAction, error) {
+	var v ScheduleStartWorkflowAction
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a ScheduleAction struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ScheduleAction struct could not be generated from the wire
+// representation.
+func (v *ScheduleAction) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TStruct:
+			v.StartWorkflow, err = _ScheduleStartWorkflowAction_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ScheduleAction
+// struct.
+func (v *ScheduleAction) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.StartWorkflow != nil {
+		fields[i] = fmt.Sprintf("StartWorkflow: %v", v.StartWorkflow)
+		i++
+	}
+
+	return fmt.Sprintf("ScheduleAction{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this ScheduleAction match the
+// provided ScheduleAction.
+//
+// This function performs a deep comparison.
+func (v *ScheduleAction) Equals(rhs *ScheduleAction) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.StartWorkflow == nil && rhs.StartWorkflow == nil) || (v.StartWorkflow != nil && rhs.StartWorkflow != nil && v.StartWorkflow.Equals(rhs.StartWorkflow))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleAction.
+func (v *ScheduleAction) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.StartWorkflow != nil {
+		err = multierr.Append(err, enc.AddObject("startWorkflow", v.StartWorkflow))
+	}
+	return err
+}
+
+// GetStartWorkflow returns the value of StartWorkflow if it is set or its
+// zero value if it is unset.
+func (v *ScheduleAction) GetStartWorkflow() (o *ScheduleStartWorkflowAction) {
+	if v != nil && v.StartWorkflow != nil {
+		return v.StartWorkflow
+	}
+
+	return
+}
+
+// IsSetStartWorkflow returns true if StartWorkflow is not nil.
+func (v *ScheduleAction) IsSetStartWorkflow() bool {
+	return v != nil && v.StartWorkflow != nil
+}
+
 type ScheduleActivityTaskDecisionAttributes struct {
 	ActivityId                    *string       `json:"activityId,omitempty"`
 	ActivityType                  *ActivityType `json:"activityType,omitempty"`
@@ -88314,6 +93072,3810 @@ func (v *ScheduleActivityTaskDecisionAttributes) GetRequestLocalDispatch() (o bo
 // IsSetRequestLocalDispatch returns true if RequestLocalDispatch is not nil.
 func (v *ScheduleActivityTaskDecisionAttributes) IsSetRequestLocalDispatch() bool {
 	return v != nil && v.RequestLocalDispatch != nil
+}
+
+type ScheduleCatchUpPolicy int32
+
+const (
+	ScheduleCatchUpPolicyInvalid ScheduleCatchUpPolicy = 0
+	ScheduleCatchUpPolicySkip    ScheduleCatchUpPolicy = 1
+	ScheduleCatchUpPolicyOne     ScheduleCatchUpPolicy = 2
+	ScheduleCatchUpPolicyAll     ScheduleCatchUpPolicy = 3
+)
+
+// ScheduleCatchUpPolicy_Values returns all recognized values of ScheduleCatchUpPolicy.
+func ScheduleCatchUpPolicy_Values() []ScheduleCatchUpPolicy {
+	return []ScheduleCatchUpPolicy{
+		ScheduleCatchUpPolicyInvalid,
+		ScheduleCatchUpPolicySkip,
+		ScheduleCatchUpPolicyOne,
+		ScheduleCatchUpPolicyAll,
+	}
+}
+
+// UnmarshalText tries to decode ScheduleCatchUpPolicy from a byte slice
+// containing its name.
+//
+//	var v ScheduleCatchUpPolicy
+//	err := v.UnmarshalText([]byte("INVALID"))
+func (v *ScheduleCatchUpPolicy) UnmarshalText(value []byte) error {
+	switch s := string(value); s {
+	case "INVALID":
+		*v = ScheduleCatchUpPolicyInvalid
+		return nil
+	case "SKIP":
+		*v = ScheduleCatchUpPolicySkip
+		return nil
+	case "ONE":
+		*v = ScheduleCatchUpPolicyOne
+		return nil
+	case "ALL":
+		*v = ScheduleCatchUpPolicyAll
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "ScheduleCatchUpPolicy", err)
+		}
+		*v = ScheduleCatchUpPolicy(val)
+		return nil
+	}
+}
+
+// MarshalText encodes ScheduleCatchUpPolicy to text.
+//
+// If the enum value is recognized, its name is returned.
+// Otherwise, its integer value is returned.
+//
+// This implements the TextMarshaler interface.
+func (v ScheduleCatchUpPolicy) MarshalText() ([]byte, error) {
+	switch int32(v) {
+	case 0:
+		return []byte("INVALID"), nil
+	case 1:
+		return []byte("SKIP"), nil
+	case 2:
+		return []byte("ONE"), nil
+	case 3:
+		return []byte("ALL"), nil
+	}
+	return []byte(strconv.FormatInt(int64(v), 10)), nil
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleCatchUpPolicy.
+// Enums are logged as objects, where the value is logged with key "value", and
+// if this value's name is known, the name is logged with key "name".
+func (v ScheduleCatchUpPolicy) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddInt32("value", int32(v))
+	switch int32(v) {
+	case 0:
+		enc.AddString("name", "INVALID")
+	case 1:
+		enc.AddString("name", "SKIP")
+	case 2:
+		enc.AddString("name", "ONE")
+	case 3:
+		enc.AddString("name", "ALL")
+	}
+	return nil
+}
+
+// Ptr returns a pointer to this enum value.
+func (v ScheduleCatchUpPolicy) Ptr() *ScheduleCatchUpPolicy {
+	return &v
+}
+
+// Encode encodes ScheduleCatchUpPolicy directly to bytes.
+//
+//	sWriter := BinaryStreamer.Writer(writer)
+//
+//	var v ScheduleCatchUpPolicy
+//	return v.Encode(sWriter)
+func (v ScheduleCatchUpPolicy) Encode(sw stream.Writer) error {
+	return sw.WriteInt32(int32(v))
+}
+
+// ToWire translates ScheduleCatchUpPolicy into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// Enums are represented as 32-bit integers over the wire.
+func (v ScheduleCatchUpPolicy) ToWire() (wire.Value, error) {
+	return wire.NewValueI32(int32(v)), nil
+}
+
+// FromWire deserializes ScheduleCatchUpPolicy from its Thrift-level
+// representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TI32)
+//	if err != nil {
+//	    return ScheduleCatchUpPolicy(0), err
+//	}
+//
+//	var v ScheduleCatchUpPolicy
+//	if err := v.FromWire(x); err != nil {
+//	    return ScheduleCatchUpPolicy(0), err
+//	}
+//	return v, nil
+func (v *ScheduleCatchUpPolicy) FromWire(w wire.Value) error {
+	*v = (ScheduleCatchUpPolicy)(w.GetI32())
+	return nil
+}
+
+// Decode reads off the encoded ScheduleCatchUpPolicy directly off of the wire.
+//
+//	sReader := BinaryStreamer.Reader(reader)
+//
+//	var v ScheduleCatchUpPolicy
+//	if err := v.Decode(sReader); err != nil {
+//	    return ScheduleCatchUpPolicy(0), err
+//	}
+//	return v, nil
+func (v *ScheduleCatchUpPolicy) Decode(sr stream.Reader) error {
+	i, err := sr.ReadInt32()
+	if err != nil {
+		return err
+	}
+	*v = (ScheduleCatchUpPolicy)(i)
+	return nil
+}
+
+// String returns a readable string representation of ScheduleCatchUpPolicy.
+func (v ScheduleCatchUpPolicy) String() string {
+	w := int32(v)
+	switch w {
+	case 0:
+		return "INVALID"
+	case 1:
+		return "SKIP"
+	case 2:
+		return "ONE"
+	case 3:
+		return "ALL"
+	}
+	return fmt.Sprintf("ScheduleCatchUpPolicy(%d)", w)
+}
+
+// Equals returns true if this ScheduleCatchUpPolicy value matches the provided
+// value.
+func (v ScheduleCatchUpPolicy) Equals(rhs ScheduleCatchUpPolicy) bool {
+	return v == rhs
+}
+
+// MarshalJSON serializes ScheduleCatchUpPolicy into JSON.
+//
+// If the enum value is recognized, its name is returned.
+// Otherwise, its integer value is returned.
+//
+// This implements json.Marshaler.
+func (v ScheduleCatchUpPolicy) MarshalJSON() ([]byte, error) {
+	switch int32(v) {
+	case 0:
+		return ([]byte)("\"INVALID\""), nil
+	case 1:
+		return ([]byte)("\"SKIP\""), nil
+	case 2:
+		return ([]byte)("\"ONE\""), nil
+	case 3:
+		return ([]byte)("\"ALL\""), nil
+	}
+	return ([]byte)(strconv.FormatInt(int64(v), 10)), nil
+}
+
+// UnmarshalJSON attempts to decode ScheduleCatchUpPolicy from its JSON
+// representation.
+//
+// This implementation supports both, numeric and string inputs. If a
+// string is provided, it must be a known enum name.
+//
+// This implements json.Unmarshaler.
+func (v *ScheduleCatchUpPolicy) UnmarshalJSON(text []byte) error {
+	d := json.NewDecoder(bytes.NewReader(text))
+	d.UseNumber()
+	t, err := d.Token()
+	if err != nil {
+		return err
+	}
+
+	switch w := t.(type) {
+	case json.Number:
+		x, err := w.Int64()
+		if err != nil {
+			return err
+		}
+		if x > math.MaxInt32 {
+			return fmt.Errorf("enum overflow from JSON %q for %q", text, "ScheduleCatchUpPolicy")
+		}
+		if x < math.MinInt32 {
+			return fmt.Errorf("enum underflow from JSON %q for %q", text, "ScheduleCatchUpPolicy")
+		}
+		*v = (ScheduleCatchUpPolicy)(x)
+		return nil
+	case string:
+		return v.UnmarshalText([]byte(w))
+	default:
+		return fmt.Errorf("invalid JSON value %q (%T) to unmarshal into %q", t, t, "ScheduleCatchUpPolicy")
+	}
+}
+
+type ScheduleInfo struct {
+	LastRunTimeNano    *int64          `json:"lastRunTimeNano,omitempty"`
+	NextRunTimeNano    *int64          `json:"nextRunTimeNano,omitempty"`
+	TotalRuns          *int64          `json:"totalRuns,omitempty"`
+	CreateTimeNano     *int64          `json:"createTimeNano,omitempty"`
+	LastUpdateTimeNano *int64          `json:"lastUpdateTimeNano,omitempty"`
+	OngoingBackfills   []*BackfillInfo `json:"ongoingBackfills,omitempty"`
+}
+
+type _List_BackfillInfo_ValueList []*BackfillInfo
+
+func (v _List_BackfillInfo_ValueList) ForEach(f func(wire.Value) error) error {
+	for i, x := range v {
+		if x == nil {
+			return fmt.Errorf("invalid list '[]*BackfillInfo', index [%v]: value is nil", i)
+		}
+		w, err := x.ToWire()
+		if err != nil {
+			return err
+		}
+		err = f(w)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (v _List_BackfillInfo_ValueList) Size() int {
+	return len(v)
+}
+
+func (_List_BackfillInfo_ValueList) ValueType() wire.Type {
+	return wire.TStruct
+}
+
+func (_List_BackfillInfo_ValueList) Close() {}
+
+// ToWire translates a ScheduleInfo struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ScheduleInfo) ToWire() (wire.Value, error) {
+	var (
+		fields [6]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.LastRunTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.LastRunTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.NextRunTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.NextRunTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.TotalRuns != nil {
+		w, err = wire.NewValueI64(*(v.TotalRuns)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.CreateTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.CreateTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.LastUpdateTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.LastUpdateTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.OngoingBackfills != nil {
+		w, err = wire.NewValueList(_List_BackfillInfo_ValueList(v.OngoingBackfills)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _BackfillInfo_Read(w wire.Value) (*BackfillInfo, error) {
+	var v BackfillInfo
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _List_BackfillInfo_Read(l wire.ValueList) ([]*BackfillInfo, error) {
+	if l.ValueType() != wire.TStruct {
+		return nil, nil
+	}
+
+	o := make([]*BackfillInfo, 0, l.Size())
+	err := l.ForEach(func(x wire.Value) error {
+		i, err := _BackfillInfo_Read(x)
+		if err != nil {
+			return err
+		}
+		o = append(o, i)
+		return nil
+	})
+	l.Close()
+	return o, err
+}
+
+// FromWire deserializes a ScheduleInfo struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ScheduleInfo struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ScheduleInfo
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ScheduleInfo) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.LastRunTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.NextRunTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.TotalRuns = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.CreateTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.LastUpdateTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TList {
+				v.OngoingBackfills, err = _List_BackfillInfo_Read(field.Value.GetList())
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+func _List_BackfillInfo_Encode(val []*BackfillInfo, sw stream.Writer) error {
+
+	lh := stream.ListHeader{
+		Type:   wire.TStruct,
+		Length: len(val),
+	}
+	if err := sw.WriteListBegin(lh); err != nil {
+		return err
+	}
+
+	for i, v := range val {
+		if v == nil {
+			return fmt.Errorf("invalid list '[]*BackfillInfo', index [%v]: value is nil", i)
+		}
+		if err := v.Encode(sw); err != nil {
+			return err
+		}
+	}
+	return sw.WriteListEnd()
+}
+
+// Encode serializes a ScheduleInfo struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ScheduleInfo struct could not be encoded.
+func (v *ScheduleInfo) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.LastRunTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.LastRunTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.NextRunTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.NextRunTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.TotalRuns != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.TotalRuns)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.CreateTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.CreateTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LastUpdateTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.LastUpdateTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.OngoingBackfills != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TList}); err != nil {
+			return err
+		}
+		if err := _List_BackfillInfo_Encode(v.OngoingBackfills, sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _BackfillInfo_Decode(sr stream.Reader) (*BackfillInfo, error) {
+	var v BackfillInfo
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _List_BackfillInfo_Decode(sr stream.Reader) ([]*BackfillInfo, error) {
+	lh, err := sr.ReadListBegin()
+	if err != nil {
+		return nil, err
+	}
+
+	if lh.Type != wire.TStruct {
+		for i := 0; i < lh.Length; i++ {
+			if err := sr.Skip(lh.Type); err != nil {
+				return nil, err
+			}
+		}
+		return nil, sr.ReadListEnd()
+	}
+
+	o := make([]*BackfillInfo, 0, lh.Length)
+	for i := 0; i < lh.Length; i++ {
+		v, err := _BackfillInfo_Decode(sr)
+		if err != nil {
+			return nil, err
+		}
+		o = append(o, v)
+	}
+
+	if err = sr.ReadListEnd(); err != nil {
+		return nil, err
+	}
+	return o, err
+}
+
+// Decode deserializes a ScheduleInfo struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ScheduleInfo struct could not be generated from the wire
+// representation.
+func (v *ScheduleInfo) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.LastRunTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.NextRunTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.TotalRuns = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.CreateTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.LastUpdateTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TList:
+			v.OngoingBackfills, err = _List_BackfillInfo_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ScheduleInfo
+// struct.
+func (v *ScheduleInfo) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [6]string
+	i := 0
+	if v.LastRunTimeNano != nil {
+		fields[i] = fmt.Sprintf("LastRunTimeNano: %v", *(v.LastRunTimeNano))
+		i++
+	}
+	if v.NextRunTimeNano != nil {
+		fields[i] = fmt.Sprintf("NextRunTimeNano: %v", *(v.NextRunTimeNano))
+		i++
+	}
+	if v.TotalRuns != nil {
+		fields[i] = fmt.Sprintf("TotalRuns: %v", *(v.TotalRuns))
+		i++
+	}
+	if v.CreateTimeNano != nil {
+		fields[i] = fmt.Sprintf("CreateTimeNano: %v", *(v.CreateTimeNano))
+		i++
+	}
+	if v.LastUpdateTimeNano != nil {
+		fields[i] = fmt.Sprintf("LastUpdateTimeNano: %v", *(v.LastUpdateTimeNano))
+		i++
+	}
+	if v.OngoingBackfills != nil {
+		fields[i] = fmt.Sprintf("OngoingBackfills: %v", v.OngoingBackfills)
+		i++
+	}
+
+	return fmt.Sprintf("ScheduleInfo{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _List_BackfillInfo_Equals(lhs, rhs []*BackfillInfo) bool {
+	if len(lhs) != len(rhs) {
+		return false
+	}
+
+	for i, lv := range lhs {
+		rv := rhs[i]
+		if !lv.Equals(rv) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Equals returns true if all the fields of this ScheduleInfo match the
+// provided ScheduleInfo.
+//
+// This function performs a deep comparison.
+func (v *ScheduleInfo) Equals(rhs *ScheduleInfo) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_I64_EqualsPtr(v.LastRunTimeNano, rhs.LastRunTimeNano) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.NextRunTimeNano, rhs.NextRunTimeNano) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.TotalRuns, rhs.TotalRuns) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.CreateTimeNano, rhs.CreateTimeNano) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.LastUpdateTimeNano, rhs.LastUpdateTimeNano) {
+		return false
+	}
+	if !((v.OngoingBackfills == nil && rhs.OngoingBackfills == nil) || (v.OngoingBackfills != nil && rhs.OngoingBackfills != nil && _List_BackfillInfo_Equals(v.OngoingBackfills, rhs.OngoingBackfills))) {
+		return false
+	}
+
+	return true
+}
+
+type _List_BackfillInfo_Zapper []*BackfillInfo
+
+// MarshalLogArray implements zapcore.ArrayMarshaler, enabling
+// fast logging of _List_BackfillInfo_Zapper.
+func (l _List_BackfillInfo_Zapper) MarshalLogArray(enc zapcore.ArrayEncoder) (err error) {
+	for _, v := range l {
+		err = multierr.Append(err, enc.AppendObject(v))
+	}
+	return err
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleInfo.
+func (v *ScheduleInfo) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.LastRunTimeNano != nil {
+		enc.AddInt64("lastRunTimeNano", *v.LastRunTimeNano)
+	}
+	if v.NextRunTimeNano != nil {
+		enc.AddInt64("nextRunTimeNano", *v.NextRunTimeNano)
+	}
+	if v.TotalRuns != nil {
+		enc.AddInt64("totalRuns", *v.TotalRuns)
+	}
+	if v.CreateTimeNano != nil {
+		enc.AddInt64("createTimeNano", *v.CreateTimeNano)
+	}
+	if v.LastUpdateTimeNano != nil {
+		enc.AddInt64("lastUpdateTimeNano", *v.LastUpdateTimeNano)
+	}
+	if v.OngoingBackfills != nil {
+		err = multierr.Append(err, enc.AddArray("ongoingBackfills", (_List_BackfillInfo_Zapper)(v.OngoingBackfills)))
+	}
+	return err
+}
+
+// GetLastRunTimeNano returns the value of LastRunTimeNano if it is set or its
+// zero value if it is unset.
+func (v *ScheduleInfo) GetLastRunTimeNano() (o int64) {
+	if v != nil && v.LastRunTimeNano != nil {
+		return *v.LastRunTimeNano
+	}
+
+	return
+}
+
+// IsSetLastRunTimeNano returns true if LastRunTimeNano is not nil.
+func (v *ScheduleInfo) IsSetLastRunTimeNano() bool {
+	return v != nil && v.LastRunTimeNano != nil
+}
+
+// GetNextRunTimeNano returns the value of NextRunTimeNano if it is set or its
+// zero value if it is unset.
+func (v *ScheduleInfo) GetNextRunTimeNano() (o int64) {
+	if v != nil && v.NextRunTimeNano != nil {
+		return *v.NextRunTimeNano
+	}
+
+	return
+}
+
+// IsSetNextRunTimeNano returns true if NextRunTimeNano is not nil.
+func (v *ScheduleInfo) IsSetNextRunTimeNano() bool {
+	return v != nil && v.NextRunTimeNano != nil
+}
+
+// GetTotalRuns returns the value of TotalRuns if it is set or its
+// zero value if it is unset.
+func (v *ScheduleInfo) GetTotalRuns() (o int64) {
+	if v != nil && v.TotalRuns != nil {
+		return *v.TotalRuns
+	}
+
+	return
+}
+
+// IsSetTotalRuns returns true if TotalRuns is not nil.
+func (v *ScheduleInfo) IsSetTotalRuns() bool {
+	return v != nil && v.TotalRuns != nil
+}
+
+// GetCreateTimeNano returns the value of CreateTimeNano if it is set or its
+// zero value if it is unset.
+func (v *ScheduleInfo) GetCreateTimeNano() (o int64) {
+	if v != nil && v.CreateTimeNano != nil {
+		return *v.CreateTimeNano
+	}
+
+	return
+}
+
+// IsSetCreateTimeNano returns true if CreateTimeNano is not nil.
+func (v *ScheduleInfo) IsSetCreateTimeNano() bool {
+	return v != nil && v.CreateTimeNano != nil
+}
+
+// GetLastUpdateTimeNano returns the value of LastUpdateTimeNano if it is set or its
+// zero value if it is unset.
+func (v *ScheduleInfo) GetLastUpdateTimeNano() (o int64) {
+	if v != nil && v.LastUpdateTimeNano != nil {
+		return *v.LastUpdateTimeNano
+	}
+
+	return
+}
+
+// IsSetLastUpdateTimeNano returns true if LastUpdateTimeNano is not nil.
+func (v *ScheduleInfo) IsSetLastUpdateTimeNano() bool {
+	return v != nil && v.LastUpdateTimeNano != nil
+}
+
+// GetOngoingBackfills returns the value of OngoingBackfills if it is set or its
+// zero value if it is unset.
+func (v *ScheduleInfo) GetOngoingBackfills() (o []*BackfillInfo) {
+	if v != nil && v.OngoingBackfills != nil {
+		return v.OngoingBackfills
+	}
+
+	return
+}
+
+// IsSetOngoingBackfills returns true if OngoingBackfills is not nil.
+func (v *ScheduleInfo) IsSetOngoingBackfills() bool {
+	return v != nil && v.OngoingBackfills != nil
+}
+
+type ScheduleListEntry struct {
+	ScheduleId     *string        `json:"scheduleId,omitempty"`
+	WorkflowType   *WorkflowType  `json:"workflowType,omitempty"`
+	State          *ScheduleState `json:"state,omitempty"`
+	CronExpression *string        `json:"cronExpression,omitempty"`
+}
+
+// ToWire translates a ScheduleListEntry struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ScheduleListEntry) ToWire() (wire.Value, error) {
+	var (
+		fields [4]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.WorkflowType != nil {
+		w, err = v.WorkflowType.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.State != nil {
+		w, err = v.State.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.CronExpression != nil {
+		w, err = wire.NewValueString(*(v.CronExpression)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a ScheduleListEntry struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ScheduleListEntry struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ScheduleListEntry
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ScheduleListEntry) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowType, err = _WorkflowType_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TStruct {
+				v.State, err = _ScheduleState_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.CronExpression = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a ScheduleListEntry struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ScheduleListEntry struct could not be encoded.
+func (v *ScheduleListEntry) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowType != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowType.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.State != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.State.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.CronExpression != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.CronExpression)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a ScheduleListEntry struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ScheduleListEntry struct could not be generated from the wire
+// representation.
+func (v *ScheduleListEntry) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TStruct:
+			v.WorkflowType, err = _WorkflowType_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TStruct:
+			v.State, err = _ScheduleState_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.CronExpression = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ScheduleListEntry
+// struct.
+func (v *ScheduleListEntry) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [4]string
+	i := 0
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+	if v.WorkflowType != nil {
+		fields[i] = fmt.Sprintf("WorkflowType: %v", v.WorkflowType)
+		i++
+	}
+	if v.State != nil {
+		fields[i] = fmt.Sprintf("State: %v", v.State)
+		i++
+	}
+	if v.CronExpression != nil {
+		fields[i] = fmt.Sprintf("CronExpression: %v", *(v.CronExpression))
+		i++
+	}
+
+	return fmt.Sprintf("ScheduleListEntry{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this ScheduleListEntry match the
+// provided ScheduleListEntry.
+//
+// This function performs a deep comparison.
+func (v *ScheduleListEntry) Equals(rhs *ScheduleListEntry) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+	if !((v.WorkflowType == nil && rhs.WorkflowType == nil) || (v.WorkflowType != nil && rhs.WorkflowType != nil && v.WorkflowType.Equals(rhs.WorkflowType))) {
+		return false
+	}
+	if !((v.State == nil && rhs.State == nil) || (v.State != nil && rhs.State != nil && v.State.Equals(rhs.State))) {
+		return false
+	}
+	if !_String_EqualsPtr(v.CronExpression, rhs.CronExpression) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleListEntry.
+func (v *ScheduleListEntry) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	if v.WorkflowType != nil {
+		err = multierr.Append(err, enc.AddObject("workflowType", v.WorkflowType))
+	}
+	if v.State != nil {
+		err = multierr.Append(err, enc.AddObject("state", v.State))
+	}
+	if v.CronExpression != nil {
+		enc.AddString("cronExpression", *v.CronExpression)
+	}
+	return err
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *ScheduleListEntry) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *ScheduleListEntry) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+// GetWorkflowType returns the value of WorkflowType if it is set or its
+// zero value if it is unset.
+func (v *ScheduleListEntry) GetWorkflowType() (o *WorkflowType) {
+	if v != nil && v.WorkflowType != nil {
+		return v.WorkflowType
+	}
+
+	return
+}
+
+// IsSetWorkflowType returns true if WorkflowType is not nil.
+func (v *ScheduleListEntry) IsSetWorkflowType() bool {
+	return v != nil && v.WorkflowType != nil
+}
+
+// GetState returns the value of State if it is set or its
+// zero value if it is unset.
+func (v *ScheduleListEntry) GetState() (o *ScheduleState) {
+	if v != nil && v.State != nil {
+		return v.State
+	}
+
+	return
+}
+
+// IsSetState returns true if State is not nil.
+func (v *ScheduleListEntry) IsSetState() bool {
+	return v != nil && v.State != nil
+}
+
+// GetCronExpression returns the value of CronExpression if it is set or its
+// zero value if it is unset.
+func (v *ScheduleListEntry) GetCronExpression() (o string) {
+	if v != nil && v.CronExpression != nil {
+		return *v.CronExpression
+	}
+
+	return
+}
+
+// IsSetCronExpression returns true if CronExpression is not nil.
+func (v *ScheduleListEntry) IsSetCronExpression() bool {
+	return v != nil && v.CronExpression != nil
+}
+
+type ScheduleOverlapPolicy int32
+
+const (
+	ScheduleOverlapPolicyInvalid           ScheduleOverlapPolicy = 0
+	ScheduleOverlapPolicySkipNew           ScheduleOverlapPolicy = 1
+	ScheduleOverlapPolicyBuffer            ScheduleOverlapPolicy = 2
+	ScheduleOverlapPolicyConcurrent        ScheduleOverlapPolicy = 3
+	ScheduleOverlapPolicyCancelPrevious    ScheduleOverlapPolicy = 4
+	ScheduleOverlapPolicyTerminatePrevious ScheduleOverlapPolicy = 5
+)
+
+// ScheduleOverlapPolicy_Values returns all recognized values of ScheduleOverlapPolicy.
+func ScheduleOverlapPolicy_Values() []ScheduleOverlapPolicy {
+	return []ScheduleOverlapPolicy{
+		ScheduleOverlapPolicyInvalid,
+		ScheduleOverlapPolicySkipNew,
+		ScheduleOverlapPolicyBuffer,
+		ScheduleOverlapPolicyConcurrent,
+		ScheduleOverlapPolicyCancelPrevious,
+		ScheduleOverlapPolicyTerminatePrevious,
+	}
+}
+
+// UnmarshalText tries to decode ScheduleOverlapPolicy from a byte slice
+// containing its name.
+//
+//	var v ScheduleOverlapPolicy
+//	err := v.UnmarshalText([]byte("INVALID"))
+func (v *ScheduleOverlapPolicy) UnmarshalText(value []byte) error {
+	switch s := string(value); s {
+	case "INVALID":
+		*v = ScheduleOverlapPolicyInvalid
+		return nil
+	case "SKIP_NEW":
+		*v = ScheduleOverlapPolicySkipNew
+		return nil
+	case "BUFFER":
+		*v = ScheduleOverlapPolicyBuffer
+		return nil
+	case "CONCURRENT":
+		*v = ScheduleOverlapPolicyConcurrent
+		return nil
+	case "CANCEL_PREVIOUS":
+		*v = ScheduleOverlapPolicyCancelPrevious
+		return nil
+	case "TERMINATE_PREVIOUS":
+		*v = ScheduleOverlapPolicyTerminatePrevious
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "ScheduleOverlapPolicy", err)
+		}
+		*v = ScheduleOverlapPolicy(val)
+		return nil
+	}
+}
+
+// MarshalText encodes ScheduleOverlapPolicy to text.
+//
+// If the enum value is recognized, its name is returned.
+// Otherwise, its integer value is returned.
+//
+// This implements the TextMarshaler interface.
+func (v ScheduleOverlapPolicy) MarshalText() ([]byte, error) {
+	switch int32(v) {
+	case 0:
+		return []byte("INVALID"), nil
+	case 1:
+		return []byte("SKIP_NEW"), nil
+	case 2:
+		return []byte("BUFFER"), nil
+	case 3:
+		return []byte("CONCURRENT"), nil
+	case 4:
+		return []byte("CANCEL_PREVIOUS"), nil
+	case 5:
+		return []byte("TERMINATE_PREVIOUS"), nil
+	}
+	return []byte(strconv.FormatInt(int64(v), 10)), nil
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleOverlapPolicy.
+// Enums are logged as objects, where the value is logged with key "value", and
+// if this value's name is known, the name is logged with key "name".
+func (v ScheduleOverlapPolicy) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddInt32("value", int32(v))
+	switch int32(v) {
+	case 0:
+		enc.AddString("name", "INVALID")
+	case 1:
+		enc.AddString("name", "SKIP_NEW")
+	case 2:
+		enc.AddString("name", "BUFFER")
+	case 3:
+		enc.AddString("name", "CONCURRENT")
+	case 4:
+		enc.AddString("name", "CANCEL_PREVIOUS")
+	case 5:
+		enc.AddString("name", "TERMINATE_PREVIOUS")
+	}
+	return nil
+}
+
+// Ptr returns a pointer to this enum value.
+func (v ScheduleOverlapPolicy) Ptr() *ScheduleOverlapPolicy {
+	return &v
+}
+
+// Encode encodes ScheduleOverlapPolicy directly to bytes.
+//
+//	sWriter := BinaryStreamer.Writer(writer)
+//
+//	var v ScheduleOverlapPolicy
+//	return v.Encode(sWriter)
+func (v ScheduleOverlapPolicy) Encode(sw stream.Writer) error {
+	return sw.WriteInt32(int32(v))
+}
+
+// ToWire translates ScheduleOverlapPolicy into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// Enums are represented as 32-bit integers over the wire.
+func (v ScheduleOverlapPolicy) ToWire() (wire.Value, error) {
+	return wire.NewValueI32(int32(v)), nil
+}
+
+// FromWire deserializes ScheduleOverlapPolicy from its Thrift-level
+// representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TI32)
+//	if err != nil {
+//	    return ScheduleOverlapPolicy(0), err
+//	}
+//
+//	var v ScheduleOverlapPolicy
+//	if err := v.FromWire(x); err != nil {
+//	    return ScheduleOverlapPolicy(0), err
+//	}
+//	return v, nil
+func (v *ScheduleOverlapPolicy) FromWire(w wire.Value) error {
+	*v = (ScheduleOverlapPolicy)(w.GetI32())
+	return nil
+}
+
+// Decode reads off the encoded ScheduleOverlapPolicy directly off of the wire.
+//
+//	sReader := BinaryStreamer.Reader(reader)
+//
+//	var v ScheduleOverlapPolicy
+//	if err := v.Decode(sReader); err != nil {
+//	    return ScheduleOverlapPolicy(0), err
+//	}
+//	return v, nil
+func (v *ScheduleOverlapPolicy) Decode(sr stream.Reader) error {
+	i, err := sr.ReadInt32()
+	if err != nil {
+		return err
+	}
+	*v = (ScheduleOverlapPolicy)(i)
+	return nil
+}
+
+// String returns a readable string representation of ScheduleOverlapPolicy.
+func (v ScheduleOverlapPolicy) String() string {
+	w := int32(v)
+	switch w {
+	case 0:
+		return "INVALID"
+	case 1:
+		return "SKIP_NEW"
+	case 2:
+		return "BUFFER"
+	case 3:
+		return "CONCURRENT"
+	case 4:
+		return "CANCEL_PREVIOUS"
+	case 5:
+		return "TERMINATE_PREVIOUS"
+	}
+	return fmt.Sprintf("ScheduleOverlapPolicy(%d)", w)
+}
+
+// Equals returns true if this ScheduleOverlapPolicy value matches the provided
+// value.
+func (v ScheduleOverlapPolicy) Equals(rhs ScheduleOverlapPolicy) bool {
+	return v == rhs
+}
+
+// MarshalJSON serializes ScheduleOverlapPolicy into JSON.
+//
+// If the enum value is recognized, its name is returned.
+// Otherwise, its integer value is returned.
+//
+// This implements json.Marshaler.
+func (v ScheduleOverlapPolicy) MarshalJSON() ([]byte, error) {
+	switch int32(v) {
+	case 0:
+		return ([]byte)("\"INVALID\""), nil
+	case 1:
+		return ([]byte)("\"SKIP_NEW\""), nil
+	case 2:
+		return ([]byte)("\"BUFFER\""), nil
+	case 3:
+		return ([]byte)("\"CONCURRENT\""), nil
+	case 4:
+		return ([]byte)("\"CANCEL_PREVIOUS\""), nil
+	case 5:
+		return ([]byte)("\"TERMINATE_PREVIOUS\""), nil
+	}
+	return ([]byte)(strconv.FormatInt(int64(v), 10)), nil
+}
+
+// UnmarshalJSON attempts to decode ScheduleOverlapPolicy from its JSON
+// representation.
+//
+// This implementation supports both, numeric and string inputs. If a
+// string is provided, it must be a known enum name.
+//
+// This implements json.Unmarshaler.
+func (v *ScheduleOverlapPolicy) UnmarshalJSON(text []byte) error {
+	d := json.NewDecoder(bytes.NewReader(text))
+	d.UseNumber()
+	t, err := d.Token()
+	if err != nil {
+		return err
+	}
+
+	switch w := t.(type) {
+	case json.Number:
+		x, err := w.Int64()
+		if err != nil {
+			return err
+		}
+		if x > math.MaxInt32 {
+			return fmt.Errorf("enum overflow from JSON %q for %q", text, "ScheduleOverlapPolicy")
+		}
+		if x < math.MinInt32 {
+			return fmt.Errorf("enum underflow from JSON %q for %q", text, "ScheduleOverlapPolicy")
+		}
+		*v = (ScheduleOverlapPolicy)(x)
+		return nil
+	case string:
+		return v.UnmarshalText([]byte(w))
+	default:
+		return fmt.Errorf("invalid JSON value %q (%T) to unmarshal into %q", t, t, "ScheduleOverlapPolicy")
+	}
+}
+
+type SchedulePauseInfo struct {
+	Reason         *string `json:"reason,omitempty"`
+	PausedTimeNano *int64  `json:"pausedTimeNano,omitempty"`
+	PausedBy       *string `json:"pausedBy,omitempty"`
+}
+
+// ToWire translates a SchedulePauseInfo struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *SchedulePauseInfo) ToWire() (wire.Value, error) {
+	var (
+		fields [3]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Reason != nil {
+		w, err = wire.NewValueString(*(v.Reason)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.PausedTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.PausedTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.PausedBy != nil {
+		w, err = wire.NewValueString(*(v.PausedBy)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a SchedulePauseInfo struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a SchedulePauseInfo struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v SchedulePauseInfo
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *SchedulePauseInfo) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Reason = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.PausedTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.PausedBy = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a SchedulePauseInfo struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a SchedulePauseInfo struct could not be encoded.
+func (v *SchedulePauseInfo) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Reason != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Reason)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.PausedTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.PausedTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.PausedBy != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.PausedBy)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a SchedulePauseInfo struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a SchedulePauseInfo struct could not be generated from the wire
+// representation.
+func (v *SchedulePauseInfo) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Reason = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.PausedTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.PausedBy = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a SchedulePauseInfo
+// struct.
+func (v *SchedulePauseInfo) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [3]string
+	i := 0
+	if v.Reason != nil {
+		fields[i] = fmt.Sprintf("Reason: %v", *(v.Reason))
+		i++
+	}
+	if v.PausedTimeNano != nil {
+		fields[i] = fmt.Sprintf("PausedTimeNano: %v", *(v.PausedTimeNano))
+		i++
+	}
+	if v.PausedBy != nil {
+		fields[i] = fmt.Sprintf("PausedBy: %v", *(v.PausedBy))
+		i++
+	}
+
+	return fmt.Sprintf("SchedulePauseInfo{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this SchedulePauseInfo match the
+// provided SchedulePauseInfo.
+//
+// This function performs a deep comparison.
+func (v *SchedulePauseInfo) Equals(rhs *SchedulePauseInfo) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Reason, rhs.Reason) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.PausedTimeNano, rhs.PausedTimeNano) {
+		return false
+	}
+	if !_String_EqualsPtr(v.PausedBy, rhs.PausedBy) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of SchedulePauseInfo.
+func (v *SchedulePauseInfo) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Reason != nil {
+		enc.AddString("reason", *v.Reason)
+	}
+	if v.PausedTimeNano != nil {
+		enc.AddInt64("pausedTimeNano", *v.PausedTimeNano)
+	}
+	if v.PausedBy != nil {
+		enc.AddString("pausedBy", *v.PausedBy)
+	}
+	return err
+}
+
+// GetReason returns the value of Reason if it is set or its
+// zero value if it is unset.
+func (v *SchedulePauseInfo) GetReason() (o string) {
+	if v != nil && v.Reason != nil {
+		return *v.Reason
+	}
+
+	return
+}
+
+// IsSetReason returns true if Reason is not nil.
+func (v *SchedulePauseInfo) IsSetReason() bool {
+	return v != nil && v.Reason != nil
+}
+
+// GetPausedTimeNano returns the value of PausedTimeNano if it is set or its
+// zero value if it is unset.
+func (v *SchedulePauseInfo) GetPausedTimeNano() (o int64) {
+	if v != nil && v.PausedTimeNano != nil {
+		return *v.PausedTimeNano
+	}
+
+	return
+}
+
+// IsSetPausedTimeNano returns true if PausedTimeNano is not nil.
+func (v *SchedulePauseInfo) IsSetPausedTimeNano() bool {
+	return v != nil && v.PausedTimeNano != nil
+}
+
+// GetPausedBy returns the value of PausedBy if it is set or its
+// zero value if it is unset.
+func (v *SchedulePauseInfo) GetPausedBy() (o string) {
+	if v != nil && v.PausedBy != nil {
+		return *v.PausedBy
+	}
+
+	return
+}
+
+// IsSetPausedBy returns true if PausedBy is not nil.
+func (v *SchedulePauseInfo) IsSetPausedBy() bool {
+	return v != nil && v.PausedBy != nil
+}
+
+type SchedulePolicies struct {
+	OverlapPolicy          *ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
+	CatchUpPolicy          *ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
+	CatchUpWindowInSeconds *int32                 `json:"catchUpWindowInSeconds,omitempty"`
+	PauseOnFailure         *bool                  `json:"pauseOnFailure,omitempty"`
+	BufferLimit            *int32                 `json:"bufferLimit,omitempty"`
+	ConcurrencyLimit       *int32                 `json:"concurrencyLimit,omitempty"`
+}
+
+// ToWire translates a SchedulePolicies struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *SchedulePolicies) ToWire() (wire.Value, error) {
+	var (
+		fields [6]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.OverlapPolicy != nil {
+		w, err = v.OverlapPolicy.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.CatchUpPolicy != nil {
+		w, err = v.CatchUpPolicy.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.CatchUpWindowInSeconds != nil {
+		w, err = wire.NewValueI32(*(v.CatchUpWindowInSeconds)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.PauseOnFailure != nil {
+		w, err = wire.NewValueBool(*(v.PauseOnFailure)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.BufferLimit != nil {
+		w, err = wire.NewValueI32(*(v.BufferLimit)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.ConcurrencyLimit != nil {
+		w, err = wire.NewValueI32(*(v.ConcurrencyLimit)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ScheduleCatchUpPolicy_Read(w wire.Value) (ScheduleCatchUpPolicy, error) {
+	var v ScheduleCatchUpPolicy
+	err := v.FromWire(w)
+	return v, err
+}
+
+// FromWire deserializes a SchedulePolicies struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a SchedulePolicies struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v SchedulePolicies
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *SchedulePolicies) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TI32 {
+				var x ScheduleOverlapPolicy
+				x, err = _ScheduleOverlapPolicy_Read(field.Value)
+				v.OverlapPolicy = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TI32 {
+				var x ScheduleCatchUpPolicy
+				x, err = _ScheduleCatchUpPolicy_Read(field.Value)
+				v.CatchUpPolicy = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.CatchUpWindowInSeconds = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TBool {
+				var x bool
+				x, err = field.Value.GetBool(), error(nil)
+				v.PauseOnFailure = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.BufferLimit = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.ConcurrencyLimit = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a SchedulePolicies struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a SchedulePolicies struct could not be encoded.
+func (v *SchedulePolicies) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.OverlapPolicy != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := v.OverlapPolicy.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.CatchUpPolicy != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := v.CatchUpPolicy.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.CatchUpWindowInSeconds != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.CatchUpWindowInSeconds)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.PauseOnFailure != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TBool}); err != nil {
+			return err
+		}
+		if err := sw.WriteBool(*(v.PauseOnFailure)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BufferLimit != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.BufferLimit)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ConcurrencyLimit != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.ConcurrencyLimit)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ScheduleCatchUpPolicy_Decode(sr stream.Reader) (ScheduleCatchUpPolicy, error) {
+	var v ScheduleCatchUpPolicy
+	err := v.Decode(sr)
+	return v, err
+}
+
+// Decode deserializes a SchedulePolicies struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a SchedulePolicies struct could not be generated from the wire
+// representation.
+func (v *SchedulePolicies) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TI32:
+			var x ScheduleOverlapPolicy
+			x, err = _ScheduleOverlapPolicy_Decode(sr)
+			v.OverlapPolicy = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TI32:
+			var x ScheduleCatchUpPolicy
+			x, err = _ScheduleCatchUpPolicy_Decode(sr)
+			v.CatchUpPolicy = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.CatchUpWindowInSeconds = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TBool:
+			var x bool
+			x, err = sr.ReadBool()
+			v.PauseOnFailure = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.BufferLimit = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.ConcurrencyLimit = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a SchedulePolicies
+// struct.
+func (v *SchedulePolicies) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [6]string
+	i := 0
+	if v.OverlapPolicy != nil {
+		fields[i] = fmt.Sprintf("OverlapPolicy: %v", *(v.OverlapPolicy))
+		i++
+	}
+	if v.CatchUpPolicy != nil {
+		fields[i] = fmt.Sprintf("CatchUpPolicy: %v", *(v.CatchUpPolicy))
+		i++
+	}
+	if v.CatchUpWindowInSeconds != nil {
+		fields[i] = fmt.Sprintf("CatchUpWindowInSeconds: %v", *(v.CatchUpWindowInSeconds))
+		i++
+	}
+	if v.PauseOnFailure != nil {
+		fields[i] = fmt.Sprintf("PauseOnFailure: %v", *(v.PauseOnFailure))
+		i++
+	}
+	if v.BufferLimit != nil {
+		fields[i] = fmt.Sprintf("BufferLimit: %v", *(v.BufferLimit))
+		i++
+	}
+	if v.ConcurrencyLimit != nil {
+		fields[i] = fmt.Sprintf("ConcurrencyLimit: %v", *(v.ConcurrencyLimit))
+		i++
+	}
+
+	return fmt.Sprintf("SchedulePolicies{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _ScheduleCatchUpPolicy_EqualsPtr(lhs, rhs *ScheduleCatchUpPolicy) bool {
+	if lhs != nil && rhs != nil {
+
+		x := *lhs
+		y := *rhs
+		return x.Equals(y)
+	}
+	return lhs == nil && rhs == nil
+}
+
+// Equals returns true if all the fields of this SchedulePolicies match the
+// provided SchedulePolicies.
+//
+// This function performs a deep comparison.
+func (v *SchedulePolicies) Equals(rhs *SchedulePolicies) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_ScheduleOverlapPolicy_EqualsPtr(v.OverlapPolicy, rhs.OverlapPolicy) {
+		return false
+	}
+	if !_ScheduleCatchUpPolicy_EqualsPtr(v.CatchUpPolicy, rhs.CatchUpPolicy) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.CatchUpWindowInSeconds, rhs.CatchUpWindowInSeconds) {
+		return false
+	}
+	if !_Bool_EqualsPtr(v.PauseOnFailure, rhs.PauseOnFailure) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.BufferLimit, rhs.BufferLimit) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.ConcurrencyLimit, rhs.ConcurrencyLimit) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of SchedulePolicies.
+func (v *SchedulePolicies) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.OverlapPolicy != nil {
+		err = multierr.Append(err, enc.AddObject("overlapPolicy", *v.OverlapPolicy))
+	}
+	if v.CatchUpPolicy != nil {
+		err = multierr.Append(err, enc.AddObject("catchUpPolicy", *v.CatchUpPolicy))
+	}
+	if v.CatchUpWindowInSeconds != nil {
+		enc.AddInt32("catchUpWindowInSeconds", *v.CatchUpWindowInSeconds)
+	}
+	if v.PauseOnFailure != nil {
+		enc.AddBool("pauseOnFailure", *v.PauseOnFailure)
+	}
+	if v.BufferLimit != nil {
+		enc.AddInt32("bufferLimit", *v.BufferLimit)
+	}
+	if v.ConcurrencyLimit != nil {
+		enc.AddInt32("concurrencyLimit", *v.ConcurrencyLimit)
+	}
+	return err
+}
+
+// GetOverlapPolicy returns the value of OverlapPolicy if it is set or its
+// zero value if it is unset.
+func (v *SchedulePolicies) GetOverlapPolicy() (o ScheduleOverlapPolicy) {
+	if v != nil && v.OverlapPolicy != nil {
+		return *v.OverlapPolicy
+	}
+
+	return
+}
+
+// IsSetOverlapPolicy returns true if OverlapPolicy is not nil.
+func (v *SchedulePolicies) IsSetOverlapPolicy() bool {
+	return v != nil && v.OverlapPolicy != nil
+}
+
+// GetCatchUpPolicy returns the value of CatchUpPolicy if it is set or its
+// zero value if it is unset.
+func (v *SchedulePolicies) GetCatchUpPolicy() (o ScheduleCatchUpPolicy) {
+	if v != nil && v.CatchUpPolicy != nil {
+		return *v.CatchUpPolicy
+	}
+
+	return
+}
+
+// IsSetCatchUpPolicy returns true if CatchUpPolicy is not nil.
+func (v *SchedulePolicies) IsSetCatchUpPolicy() bool {
+	return v != nil && v.CatchUpPolicy != nil
+}
+
+// GetCatchUpWindowInSeconds returns the value of CatchUpWindowInSeconds if it is set or its
+// zero value if it is unset.
+func (v *SchedulePolicies) GetCatchUpWindowInSeconds() (o int32) {
+	if v != nil && v.CatchUpWindowInSeconds != nil {
+		return *v.CatchUpWindowInSeconds
+	}
+
+	return
+}
+
+// IsSetCatchUpWindowInSeconds returns true if CatchUpWindowInSeconds is not nil.
+func (v *SchedulePolicies) IsSetCatchUpWindowInSeconds() bool {
+	return v != nil && v.CatchUpWindowInSeconds != nil
+}
+
+// GetPauseOnFailure returns the value of PauseOnFailure if it is set or its
+// zero value if it is unset.
+func (v *SchedulePolicies) GetPauseOnFailure() (o bool) {
+	if v != nil && v.PauseOnFailure != nil {
+		return *v.PauseOnFailure
+	}
+
+	return
+}
+
+// IsSetPauseOnFailure returns true if PauseOnFailure is not nil.
+func (v *SchedulePolicies) IsSetPauseOnFailure() bool {
+	return v != nil && v.PauseOnFailure != nil
+}
+
+// GetBufferLimit returns the value of BufferLimit if it is set or its
+// zero value if it is unset.
+func (v *SchedulePolicies) GetBufferLimit() (o int32) {
+	if v != nil && v.BufferLimit != nil {
+		return *v.BufferLimit
+	}
+
+	return
+}
+
+// IsSetBufferLimit returns true if BufferLimit is not nil.
+func (v *SchedulePolicies) IsSetBufferLimit() bool {
+	return v != nil && v.BufferLimit != nil
+}
+
+// GetConcurrencyLimit returns the value of ConcurrencyLimit if it is set or its
+// zero value if it is unset.
+func (v *SchedulePolicies) GetConcurrencyLimit() (o int32) {
+	if v != nil && v.ConcurrencyLimit != nil {
+		return *v.ConcurrencyLimit
+	}
+
+	return
+}
+
+// IsSetConcurrencyLimit returns true if ConcurrencyLimit is not nil.
+func (v *SchedulePolicies) IsSetConcurrencyLimit() bool {
+	return v != nil && v.ConcurrencyLimit != nil
+}
+
+type ScheduleSpec struct {
+	CronExpression  *string `json:"cronExpression,omitempty"`
+	StartTimeNano   *int64  `json:"startTimeNano,omitempty"`
+	EndTimeNano     *int64  `json:"endTimeNano,omitempty"`
+	JitterInSeconds *int32  `json:"jitterInSeconds,omitempty"`
+}
+
+// ToWire translates a ScheduleSpec struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ScheduleSpec) ToWire() (wire.Value, error) {
+	var (
+		fields [4]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.CronExpression != nil {
+		w, err = wire.NewValueString(*(v.CronExpression)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.StartTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.StartTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.EndTimeNano != nil {
+		w, err = wire.NewValueI64(*(v.EndTimeNano)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.JitterInSeconds != nil {
+		w, err = wire.NewValueI32(*(v.JitterInSeconds)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a ScheduleSpec struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ScheduleSpec struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ScheduleSpec
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ScheduleSpec) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.CronExpression = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.StartTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TI64 {
+				var x int64
+				x, err = field.Value.GetI64(), error(nil)
+				v.EndTimeNano = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.JitterInSeconds = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a ScheduleSpec struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ScheduleSpec struct could not be encoded.
+func (v *ScheduleSpec) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.CronExpression != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.CronExpression)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.StartTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.StartTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EndTimeNano != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TI64}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt64(*(v.EndTimeNano)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.JitterInSeconds != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.JitterInSeconds)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a ScheduleSpec struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ScheduleSpec struct could not be generated from the wire
+// representation.
+func (v *ScheduleSpec) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.CronExpression = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.StartTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TI64:
+			var x int64
+			x, err = sr.ReadInt64()
+			v.EndTimeNano = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.JitterInSeconds = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ScheduleSpec
+// struct.
+func (v *ScheduleSpec) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [4]string
+	i := 0
+	if v.CronExpression != nil {
+		fields[i] = fmt.Sprintf("CronExpression: %v", *(v.CronExpression))
+		i++
+	}
+	if v.StartTimeNano != nil {
+		fields[i] = fmt.Sprintf("StartTimeNano: %v", *(v.StartTimeNano))
+		i++
+	}
+	if v.EndTimeNano != nil {
+		fields[i] = fmt.Sprintf("EndTimeNano: %v", *(v.EndTimeNano))
+		i++
+	}
+	if v.JitterInSeconds != nil {
+		fields[i] = fmt.Sprintf("JitterInSeconds: %v", *(v.JitterInSeconds))
+		i++
+	}
+
+	return fmt.Sprintf("ScheduleSpec{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this ScheduleSpec match the
+// provided ScheduleSpec.
+//
+// This function performs a deep comparison.
+func (v *ScheduleSpec) Equals(rhs *ScheduleSpec) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.CronExpression, rhs.CronExpression) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.StartTimeNano, rhs.StartTimeNano) {
+		return false
+	}
+	if !_I64_EqualsPtr(v.EndTimeNano, rhs.EndTimeNano) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.JitterInSeconds, rhs.JitterInSeconds) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleSpec.
+func (v *ScheduleSpec) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.CronExpression != nil {
+		enc.AddString("cronExpression", *v.CronExpression)
+	}
+	if v.StartTimeNano != nil {
+		enc.AddInt64("startTimeNano", *v.StartTimeNano)
+	}
+	if v.EndTimeNano != nil {
+		enc.AddInt64("endTimeNano", *v.EndTimeNano)
+	}
+	if v.JitterInSeconds != nil {
+		enc.AddInt32("jitterInSeconds", *v.JitterInSeconds)
+	}
+	return err
+}
+
+// GetCronExpression returns the value of CronExpression if it is set or its
+// zero value if it is unset.
+func (v *ScheduleSpec) GetCronExpression() (o string) {
+	if v != nil && v.CronExpression != nil {
+		return *v.CronExpression
+	}
+
+	return
+}
+
+// IsSetCronExpression returns true if CronExpression is not nil.
+func (v *ScheduleSpec) IsSetCronExpression() bool {
+	return v != nil && v.CronExpression != nil
+}
+
+// GetStartTimeNano returns the value of StartTimeNano if it is set or its
+// zero value if it is unset.
+func (v *ScheduleSpec) GetStartTimeNano() (o int64) {
+	if v != nil && v.StartTimeNano != nil {
+		return *v.StartTimeNano
+	}
+
+	return
+}
+
+// IsSetStartTimeNano returns true if StartTimeNano is not nil.
+func (v *ScheduleSpec) IsSetStartTimeNano() bool {
+	return v != nil && v.StartTimeNano != nil
+}
+
+// GetEndTimeNano returns the value of EndTimeNano if it is set or its
+// zero value if it is unset.
+func (v *ScheduleSpec) GetEndTimeNano() (o int64) {
+	if v != nil && v.EndTimeNano != nil {
+		return *v.EndTimeNano
+	}
+
+	return
+}
+
+// IsSetEndTimeNano returns true if EndTimeNano is not nil.
+func (v *ScheduleSpec) IsSetEndTimeNano() bool {
+	return v != nil && v.EndTimeNano != nil
+}
+
+// GetJitterInSeconds returns the value of JitterInSeconds if it is set or its
+// zero value if it is unset.
+func (v *ScheduleSpec) GetJitterInSeconds() (o int32) {
+	if v != nil && v.JitterInSeconds != nil {
+		return *v.JitterInSeconds
+	}
+
+	return
+}
+
+// IsSetJitterInSeconds returns true if JitterInSeconds is not nil.
+func (v *ScheduleSpec) IsSetJitterInSeconds() bool {
+	return v != nil && v.JitterInSeconds != nil
+}
+
+type ScheduleStartWorkflowAction struct {
+	WorkflowType                        *WorkflowType     `json:"workflowType,omitempty"`
+	TaskList                            *TaskList         `json:"taskList,omitempty"`
+	Input                               []byte            `json:"input,omitempty"`
+	WorkflowIdPrefix                    *string           `json:"workflowIdPrefix,omitempty"`
+	ExecutionStartToCloseTimeoutSeconds *int32            `json:"executionStartToCloseTimeoutSeconds,omitempty"`
+	TaskStartToCloseTimeoutSeconds      *int32            `json:"taskStartToCloseTimeoutSeconds,omitempty"`
+	RetryPolicy                         *RetryPolicy      `json:"retryPolicy,omitempty"`
+	Memo                                *Memo             `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes `json:"searchAttributes,omitempty"`
+}
+
+// ToWire translates a ScheduleStartWorkflowAction struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ScheduleStartWorkflowAction) ToWire() (wire.Value, error) {
+	var (
+		fields [9]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.WorkflowType != nil {
+		w, err = v.WorkflowType.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.TaskList != nil {
+		w, err = v.TaskList.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Input != nil {
+		w, err = wire.NewValueBinary(v.Input), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.WorkflowIdPrefix != nil {
+		w, err = wire.NewValueString(*(v.WorkflowIdPrefix)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.ExecutionStartToCloseTimeoutSeconds != nil {
+		w, err = wire.NewValueI32(*(v.ExecutionStartToCloseTimeoutSeconds)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.TaskStartToCloseTimeoutSeconds != nil {
+		w, err = wire.NewValueI32(*(v.TaskStartToCloseTimeoutSeconds)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+	if v.RetryPolicy != nil {
+		w, err = v.RetryPolicy.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 70, Value: w}
+		i++
+	}
+	if v.Memo != nil {
+		w, err = v.Memo.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 80, Value: w}
+		i++
+	}
+	if v.SearchAttributes != nil {
+		w, err = v.SearchAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 90, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a ScheduleStartWorkflowAction struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ScheduleStartWorkflowAction struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ScheduleStartWorkflowAction
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ScheduleStartWorkflowAction) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowType, err = _WorkflowType_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TStruct {
+				v.TaskList, err = _TaskList_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TBinary {
+				v.Input, err = field.Value.GetBinary(), error(nil)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.WorkflowIdPrefix = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.ExecutionStartToCloseTimeoutSeconds = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TI32 {
+				var x int32
+				x, err = field.Value.GetI32(), error(nil)
+				v.TaskStartToCloseTimeoutSeconds = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 70:
+			if field.Value.Type() == wire.TStruct {
+				v.RetryPolicy, err = _RetryPolicy_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 80:
+			if field.Value.Type() == wire.TStruct {
+				v.Memo, err = _Memo_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 90:
+			if field.Value.Type() == wire.TStruct {
+				v.SearchAttributes, err = _SearchAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a ScheduleStartWorkflowAction struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ScheduleStartWorkflowAction struct could not be encoded.
+func (v *ScheduleStartWorkflowAction) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.WorkflowType != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowType.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.TaskList != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.TaskList.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Input != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteBinary(v.Input); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowIdPrefix != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.WorkflowIdPrefix)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ExecutionStartToCloseTimeoutSeconds != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.ExecutionStartToCloseTimeoutSeconds)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.TaskStartToCloseTimeoutSeconds != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := sw.WriteInt32(*(v.TaskStartToCloseTimeoutSeconds)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.RetryPolicy != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 70, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.RetryPolicy.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Memo != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 80, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Memo.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.SearchAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 90, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.SearchAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a ScheduleStartWorkflowAction struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ScheduleStartWorkflowAction struct could not be generated from the wire
+// representation.
+func (v *ScheduleStartWorkflowAction) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TStruct:
+			v.WorkflowType, err = _WorkflowType_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TStruct:
+			v.TaskList, err = _TaskList_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TBinary:
+			v.Input, err = sr.ReadBinary()
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.WorkflowIdPrefix = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.ExecutionStartToCloseTimeoutSeconds = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TI32:
+			var x int32
+			x, err = sr.ReadInt32()
+			v.TaskStartToCloseTimeoutSeconds = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 70 && fh.Type == wire.TStruct:
+			v.RetryPolicy, err = _RetryPolicy_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 80 && fh.Type == wire.TStruct:
+			v.Memo, err = _Memo_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 90 && fh.Type == wire.TStruct:
+			v.SearchAttributes, err = _SearchAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ScheduleStartWorkflowAction
+// struct.
+func (v *ScheduleStartWorkflowAction) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [9]string
+	i := 0
+	if v.WorkflowType != nil {
+		fields[i] = fmt.Sprintf("WorkflowType: %v", v.WorkflowType)
+		i++
+	}
+	if v.TaskList != nil {
+		fields[i] = fmt.Sprintf("TaskList: %v", v.TaskList)
+		i++
+	}
+	if v.Input != nil {
+		fields[i] = fmt.Sprintf("Input: %v", v.Input)
+		i++
+	}
+	if v.WorkflowIdPrefix != nil {
+		fields[i] = fmt.Sprintf("WorkflowIdPrefix: %v", *(v.WorkflowIdPrefix))
+		i++
+	}
+	if v.ExecutionStartToCloseTimeoutSeconds != nil {
+		fields[i] = fmt.Sprintf("ExecutionStartToCloseTimeoutSeconds: %v", *(v.ExecutionStartToCloseTimeoutSeconds))
+		i++
+	}
+	if v.TaskStartToCloseTimeoutSeconds != nil {
+		fields[i] = fmt.Sprintf("TaskStartToCloseTimeoutSeconds: %v", *(v.TaskStartToCloseTimeoutSeconds))
+		i++
+	}
+	if v.RetryPolicy != nil {
+		fields[i] = fmt.Sprintf("RetryPolicy: %v", v.RetryPolicy)
+		i++
+	}
+	if v.Memo != nil {
+		fields[i] = fmt.Sprintf("Memo: %v", v.Memo)
+		i++
+	}
+	if v.SearchAttributes != nil {
+		fields[i] = fmt.Sprintf("SearchAttributes: %v", v.SearchAttributes)
+		i++
+	}
+
+	return fmt.Sprintf("ScheduleStartWorkflowAction{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this ScheduleStartWorkflowAction match the
+// provided ScheduleStartWorkflowAction.
+//
+// This function performs a deep comparison.
+func (v *ScheduleStartWorkflowAction) Equals(rhs *ScheduleStartWorkflowAction) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.WorkflowType == nil && rhs.WorkflowType == nil) || (v.WorkflowType != nil && rhs.WorkflowType != nil && v.WorkflowType.Equals(rhs.WorkflowType))) {
+		return false
+	}
+	if !((v.TaskList == nil && rhs.TaskList == nil) || (v.TaskList != nil && rhs.TaskList != nil && v.TaskList.Equals(rhs.TaskList))) {
+		return false
+	}
+	if !((v.Input == nil && rhs.Input == nil) || (v.Input != nil && rhs.Input != nil && bytes.Equal(v.Input, rhs.Input))) {
+		return false
+	}
+	if !_String_EqualsPtr(v.WorkflowIdPrefix, rhs.WorkflowIdPrefix) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.ExecutionStartToCloseTimeoutSeconds, rhs.ExecutionStartToCloseTimeoutSeconds) {
+		return false
+	}
+	if !_I32_EqualsPtr(v.TaskStartToCloseTimeoutSeconds, rhs.TaskStartToCloseTimeoutSeconds) {
+		return false
+	}
+	if !((v.RetryPolicy == nil && rhs.RetryPolicy == nil) || (v.RetryPolicy != nil && rhs.RetryPolicy != nil && v.RetryPolicy.Equals(rhs.RetryPolicy))) {
+		return false
+	}
+	if !((v.Memo == nil && rhs.Memo == nil) || (v.Memo != nil && rhs.Memo != nil && v.Memo.Equals(rhs.Memo))) {
+		return false
+	}
+	if !((v.SearchAttributes == nil && rhs.SearchAttributes == nil) || (v.SearchAttributes != nil && rhs.SearchAttributes != nil && v.SearchAttributes.Equals(rhs.SearchAttributes))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleStartWorkflowAction.
+func (v *ScheduleStartWorkflowAction) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.WorkflowType != nil {
+		err = multierr.Append(err, enc.AddObject("workflowType", v.WorkflowType))
+	}
+	if v.TaskList != nil {
+		err = multierr.Append(err, enc.AddObject("taskList", v.TaskList))
+	}
+	if v.Input != nil {
+		enc.AddString("input", base64.StdEncoding.EncodeToString(v.Input))
+	}
+	if v.WorkflowIdPrefix != nil {
+		enc.AddString("workflowIdPrefix", *v.WorkflowIdPrefix)
+	}
+	if v.ExecutionStartToCloseTimeoutSeconds != nil {
+		enc.AddInt32("executionStartToCloseTimeoutSeconds", *v.ExecutionStartToCloseTimeoutSeconds)
+	}
+	if v.TaskStartToCloseTimeoutSeconds != nil {
+		enc.AddInt32("taskStartToCloseTimeoutSeconds", *v.TaskStartToCloseTimeoutSeconds)
+	}
+	if v.RetryPolicy != nil {
+		err = multierr.Append(err, enc.AddObject("retryPolicy", v.RetryPolicy))
+	}
+	if v.Memo != nil {
+		err = multierr.Append(err, enc.AddObject("memo", v.Memo))
+	}
+	if v.SearchAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("searchAttributes", v.SearchAttributes))
+	}
+	return err
+}
+
+// GetWorkflowType returns the value of WorkflowType if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetWorkflowType() (o *WorkflowType) {
+	if v != nil && v.WorkflowType != nil {
+		return v.WorkflowType
+	}
+
+	return
+}
+
+// IsSetWorkflowType returns true if WorkflowType is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetWorkflowType() bool {
+	return v != nil && v.WorkflowType != nil
+}
+
+// GetTaskList returns the value of TaskList if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetTaskList() (o *TaskList) {
+	if v != nil && v.TaskList != nil {
+		return v.TaskList
+	}
+
+	return
+}
+
+// IsSetTaskList returns true if TaskList is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetTaskList() bool {
+	return v != nil && v.TaskList != nil
+}
+
+// GetInput returns the value of Input if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetInput() (o []byte) {
+	if v != nil && v.Input != nil {
+		return v.Input
+	}
+
+	return
+}
+
+// IsSetInput returns true if Input is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetInput() bool {
+	return v != nil && v.Input != nil
+}
+
+// GetWorkflowIdPrefix returns the value of WorkflowIdPrefix if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetWorkflowIdPrefix() (o string) {
+	if v != nil && v.WorkflowIdPrefix != nil {
+		return *v.WorkflowIdPrefix
+	}
+
+	return
+}
+
+// IsSetWorkflowIdPrefix returns true if WorkflowIdPrefix is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetWorkflowIdPrefix() bool {
+	return v != nil && v.WorkflowIdPrefix != nil
+}
+
+// GetExecutionStartToCloseTimeoutSeconds returns the value of ExecutionStartToCloseTimeoutSeconds if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetExecutionStartToCloseTimeoutSeconds() (o int32) {
+	if v != nil && v.ExecutionStartToCloseTimeoutSeconds != nil {
+		return *v.ExecutionStartToCloseTimeoutSeconds
+	}
+
+	return
+}
+
+// IsSetExecutionStartToCloseTimeoutSeconds returns true if ExecutionStartToCloseTimeoutSeconds is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetExecutionStartToCloseTimeoutSeconds() bool {
+	return v != nil && v.ExecutionStartToCloseTimeoutSeconds != nil
+}
+
+// GetTaskStartToCloseTimeoutSeconds returns the value of TaskStartToCloseTimeoutSeconds if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetTaskStartToCloseTimeoutSeconds() (o int32) {
+	if v != nil && v.TaskStartToCloseTimeoutSeconds != nil {
+		return *v.TaskStartToCloseTimeoutSeconds
+	}
+
+	return
+}
+
+// IsSetTaskStartToCloseTimeoutSeconds returns true if TaskStartToCloseTimeoutSeconds is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetTaskStartToCloseTimeoutSeconds() bool {
+	return v != nil && v.TaskStartToCloseTimeoutSeconds != nil
+}
+
+// GetRetryPolicy returns the value of RetryPolicy if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetRetryPolicy() (o *RetryPolicy) {
+	if v != nil && v.RetryPolicy != nil {
+		return v.RetryPolicy
+	}
+
+	return
+}
+
+// IsSetRetryPolicy returns true if RetryPolicy is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetRetryPolicy() bool {
+	return v != nil && v.RetryPolicy != nil
+}
+
+// GetMemo returns the value of Memo if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetMemo() (o *Memo) {
+	if v != nil && v.Memo != nil {
+		return v.Memo
+	}
+
+	return
+}
+
+// IsSetMemo returns true if Memo is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetMemo() bool {
+	return v != nil && v.Memo != nil
+}
+
+// GetSearchAttributes returns the value of SearchAttributes if it is set or its
+// zero value if it is unset.
+func (v *ScheduleStartWorkflowAction) GetSearchAttributes() (o *SearchAttributes) {
+	if v != nil && v.SearchAttributes != nil {
+		return v.SearchAttributes
+	}
+
+	return
+}
+
+// IsSetSearchAttributes returns true if SearchAttributes is not nil.
+func (v *ScheduleStartWorkflowAction) IsSetSearchAttributes() bool {
+	return v != nil && v.SearchAttributes != nil
+}
+
+type ScheduleState struct {
+	Paused    *bool              `json:"paused,omitempty"`
+	PauseInfo *SchedulePauseInfo `json:"pauseInfo,omitempty"`
+}
+
+// ToWire translates a ScheduleState struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *ScheduleState) ToWire() (wire.Value, error) {
+	var (
+		fields [2]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Paused != nil {
+		w, err = wire.NewValueBool(*(v.Paused)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.PauseInfo != nil {
+		w, err = v.PauseInfo.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _SchedulePauseInfo_Read(w wire.Value) (*SchedulePauseInfo, error) {
+	var v SchedulePauseInfo
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a ScheduleState struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a ScheduleState struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v ScheduleState
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *ScheduleState) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBool {
+				var x bool
+				x, err = field.Value.GetBool(), error(nil)
+				v.Paused = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TStruct {
+				v.PauseInfo, err = _SchedulePauseInfo_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a ScheduleState struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a ScheduleState struct could not be encoded.
+func (v *ScheduleState) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Paused != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBool}); err != nil {
+			return err
+		}
+		if err := sw.WriteBool(*(v.Paused)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.PauseInfo != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.PauseInfo.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _SchedulePauseInfo_Decode(sr stream.Reader) (*SchedulePauseInfo, error) {
+	var v SchedulePauseInfo
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a ScheduleState struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a ScheduleState struct could not be generated from the wire
+// representation.
+func (v *ScheduleState) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBool:
+			var x bool
+			x, err = sr.ReadBool()
+			v.Paused = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TStruct:
+			v.PauseInfo, err = _SchedulePauseInfo_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a ScheduleState
+// struct.
+func (v *ScheduleState) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [2]string
+	i := 0
+	if v.Paused != nil {
+		fields[i] = fmt.Sprintf("Paused: %v", *(v.Paused))
+		i++
+	}
+	if v.PauseInfo != nil {
+		fields[i] = fmt.Sprintf("PauseInfo: %v", v.PauseInfo)
+		i++
+	}
+
+	return fmt.Sprintf("ScheduleState{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this ScheduleState match the
+// provided ScheduleState.
+//
+// This function performs a deep comparison.
+func (v *ScheduleState) Equals(rhs *ScheduleState) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_Bool_EqualsPtr(v.Paused, rhs.Paused) {
+		return false
+	}
+	if !((v.PauseInfo == nil && rhs.PauseInfo == nil) || (v.PauseInfo != nil && rhs.PauseInfo != nil && v.PauseInfo.Equals(rhs.PauseInfo))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of ScheduleState.
+func (v *ScheduleState) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Paused != nil {
+		enc.AddBool("paused", *v.Paused)
+	}
+	if v.PauseInfo != nil {
+		err = multierr.Append(err, enc.AddObject("pauseInfo", v.PauseInfo))
+	}
+	return err
+}
+
+// GetPaused returns the value of Paused if it is set or its
+// zero value if it is unset.
+func (v *ScheduleState) GetPaused() (o bool) {
+	if v != nil && v.Paused != nil {
+		return *v.Paused
+	}
+
+	return
+}
+
+// IsSetPaused returns true if Paused is not nil.
+func (v *ScheduleState) IsSetPaused() bool {
+	return v != nil && v.Paused != nil
+}
+
+// GetPauseInfo returns the value of PauseInfo if it is set or its
+// zero value if it is unset.
+func (v *ScheduleState) GetPauseInfo() (o *SchedulePauseInfo) {
+	if v != nil && v.PauseInfo != nil {
+		return v.PauseInfo
+	}
+
+	return
+}
+
+// IsSetPauseInfo returns true if PauseInfo is not nil.
+func (v *ScheduleState) IsSetPauseInfo() bool {
+	return v != nil && v.PauseInfo != nil
 }
 
 type SearchAttributes struct {
@@ -105115,6 +113677,550 @@ func (v *UniversalPredicateAttributes) MarshalLogObject(enc zapcore.ObjectEncode
 	return err
 }
 
+type UnpauseScheduleRequest struct {
+	Domain        *string                `json:"domain,omitempty"`
+	ScheduleId    *string                `json:"scheduleId,omitempty"`
+	Reason        *string                `json:"reason,omitempty"`
+	CatchUpPolicy *ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
+}
+
+// ToWire translates a UnpauseScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *UnpauseScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [4]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Reason != nil {
+		w, err = wire.NewValueString(*(v.Reason)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.CatchUpPolicy != nil {
+		w, err = v.CatchUpPolicy.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a UnpauseScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a UnpauseScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v UnpauseScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *UnpauseScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Reason = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TI32 {
+				var x ScheduleCatchUpPolicy
+				x, err = _ScheduleCatchUpPolicy_Read(field.Value)
+				v.CatchUpPolicy = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a UnpauseScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a UnpauseScheduleRequest struct could not be encoded.
+func (v *UnpauseScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Reason != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Reason)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.CatchUpPolicy != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TI32}); err != nil {
+			return err
+		}
+		if err := v.CatchUpPolicy.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a UnpauseScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a UnpauseScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *UnpauseScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Reason = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TI32:
+			var x ScheduleCatchUpPolicy
+			x, err = _ScheduleCatchUpPolicy_Decode(sr)
+			v.CatchUpPolicy = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a UnpauseScheduleRequest
+// struct.
+func (v *UnpauseScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [4]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+	if v.Reason != nil {
+		fields[i] = fmt.Sprintf("Reason: %v", *(v.Reason))
+		i++
+	}
+	if v.CatchUpPolicy != nil {
+		fields[i] = fmt.Sprintf("CatchUpPolicy: %v", *(v.CatchUpPolicy))
+		i++
+	}
+
+	return fmt.Sprintf("UnpauseScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this UnpauseScheduleRequest match the
+// provided UnpauseScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *UnpauseScheduleRequest) Equals(rhs *UnpauseScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+	if !_String_EqualsPtr(v.Reason, rhs.Reason) {
+		return false
+	}
+	if !_ScheduleCatchUpPolicy_EqualsPtr(v.CatchUpPolicy, rhs.CatchUpPolicy) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of UnpauseScheduleRequest.
+func (v *UnpauseScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	if v.Reason != nil {
+		enc.AddString("reason", *v.Reason)
+	}
+	if v.CatchUpPolicy != nil {
+		err = multierr.Append(err, enc.AddObject("catchUpPolicy", *v.CatchUpPolicy))
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *UnpauseScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *UnpauseScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *UnpauseScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *UnpauseScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+// GetReason returns the value of Reason if it is set or its
+// zero value if it is unset.
+func (v *UnpauseScheduleRequest) GetReason() (o string) {
+	if v != nil && v.Reason != nil {
+		return *v.Reason
+	}
+
+	return
+}
+
+// IsSetReason returns true if Reason is not nil.
+func (v *UnpauseScheduleRequest) IsSetReason() bool {
+	return v != nil && v.Reason != nil
+}
+
+// GetCatchUpPolicy returns the value of CatchUpPolicy if it is set or its
+// zero value if it is unset.
+func (v *UnpauseScheduleRequest) GetCatchUpPolicy() (o ScheduleCatchUpPolicy) {
+	if v != nil && v.CatchUpPolicy != nil {
+		return *v.CatchUpPolicy
+	}
+
+	return
+}
+
+// IsSetCatchUpPolicy returns true if CatchUpPolicy is not nil.
+func (v *UnpauseScheduleRequest) IsSetCatchUpPolicy() bool {
+	return v != nil && v.CatchUpPolicy != nil
+}
+
+type UnpauseScheduleResponse struct {
+}
+
+// ToWire translates a UnpauseScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *UnpauseScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a UnpauseScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a UnpauseScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v UnpauseScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *UnpauseScheduleResponse) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a UnpauseScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a UnpauseScheduleResponse struct could not be encoded.
+func (v *UnpauseScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a UnpauseScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a UnpauseScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *UnpauseScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a UnpauseScheduleResponse
+// struct.
+func (v *UnpauseScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("UnpauseScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this UnpauseScheduleResponse match the
+// provided UnpauseScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *UnpauseScheduleResponse) Equals(rhs *UnpauseScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of UnpauseScheduleResponse.
+func (v *UnpauseScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
+}
+
 type UpdateDomainInfo struct {
 	Description *string           `json:"description,omitempty"`
 	OwnerEmail  *string           `json:"ownerEmail,omitempty"`
@@ -106495,6 +115601,662 @@ func (v *UpdateDomainResponse) GetIsGlobalDomain() (o bool) {
 // IsSetIsGlobalDomain returns true if IsGlobalDomain is not nil.
 func (v *UpdateDomainResponse) IsSetIsGlobalDomain() bool {
 	return v != nil && v.IsGlobalDomain != nil
+}
+
+type UpdateScheduleRequest struct {
+	Domain           *string           `json:"domain,omitempty"`
+	ScheduleId       *string           `json:"scheduleId,omitempty"`
+	Spec             *ScheduleSpec     `json:"spec,omitempty"`
+	Action           *ScheduleAction   `json:"action,omitempty"`
+	Policies         *SchedulePolicies `json:"policies,omitempty"`
+	SearchAttributes *SearchAttributes `json:"searchAttributes,omitempty"`
+}
+
+// ToWire translates a UpdateScheduleRequest struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *UpdateScheduleRequest) ToWire() (wire.Value, error) {
+	var (
+		fields [6]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Domain != nil {
+		w, err = wire.NewValueString(*(v.Domain)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.ScheduleId != nil {
+		w, err = wire.NewValueString(*(v.ScheduleId)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Spec != nil {
+		w, err = v.Spec.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.Action != nil {
+		w, err = v.Action.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+	if v.Policies != nil {
+		w, err = v.Policies.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 50, Value: w}
+		i++
+	}
+	if v.SearchAttributes != nil {
+		w, err = v.SearchAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 60, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a UpdateScheduleRequest struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a UpdateScheduleRequest struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v UpdateScheduleRequest
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *UpdateScheduleRequest) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Domain = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.ScheduleId = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TStruct {
+				v.Spec, err = _ScheduleSpec_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TStruct {
+				v.Action, err = _ScheduleAction_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 50:
+			if field.Value.Type() == wire.TStruct {
+				v.Policies, err = _SchedulePolicies_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 60:
+			if field.Value.Type() == wire.TStruct {
+				v.SearchAttributes, err = _SearchAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a UpdateScheduleRequest struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a UpdateScheduleRequest struct could not be encoded.
+func (v *UpdateScheduleRequest) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Domain != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Domain)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ScheduleId != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.ScheduleId)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Spec != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Spec.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Action != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Action.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Policies != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 50, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Policies.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.SearchAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 60, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.SearchAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a UpdateScheduleRequest struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a UpdateScheduleRequest struct could not be generated from the wire
+// representation.
+func (v *UpdateScheduleRequest) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Domain = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.ScheduleId = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TStruct:
+			v.Spec, err = _ScheduleSpec_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TStruct:
+			v.Action, err = _ScheduleAction_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 50 && fh.Type == wire.TStruct:
+			v.Policies, err = _SchedulePolicies_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 60 && fh.Type == wire.TStruct:
+			v.SearchAttributes, err = _SearchAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a UpdateScheduleRequest
+// struct.
+func (v *UpdateScheduleRequest) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [6]string
+	i := 0
+	if v.Domain != nil {
+		fields[i] = fmt.Sprintf("Domain: %v", *(v.Domain))
+		i++
+	}
+	if v.ScheduleId != nil {
+		fields[i] = fmt.Sprintf("ScheduleId: %v", *(v.ScheduleId))
+		i++
+	}
+	if v.Spec != nil {
+		fields[i] = fmt.Sprintf("Spec: %v", v.Spec)
+		i++
+	}
+	if v.Action != nil {
+		fields[i] = fmt.Sprintf("Action: %v", v.Action)
+		i++
+	}
+	if v.Policies != nil {
+		fields[i] = fmt.Sprintf("Policies: %v", v.Policies)
+		i++
+	}
+	if v.SearchAttributes != nil {
+		fields[i] = fmt.Sprintf("SearchAttributes: %v", v.SearchAttributes)
+		i++
+	}
+
+	return fmt.Sprintf("UpdateScheduleRequest{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this UpdateScheduleRequest match the
+// provided UpdateScheduleRequest.
+//
+// This function performs a deep comparison.
+func (v *UpdateScheduleRequest) Equals(rhs *UpdateScheduleRequest) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.Domain, rhs.Domain) {
+		return false
+	}
+	if !_String_EqualsPtr(v.ScheduleId, rhs.ScheduleId) {
+		return false
+	}
+	if !((v.Spec == nil && rhs.Spec == nil) || (v.Spec != nil && rhs.Spec != nil && v.Spec.Equals(rhs.Spec))) {
+		return false
+	}
+	if !((v.Action == nil && rhs.Action == nil) || (v.Action != nil && rhs.Action != nil && v.Action.Equals(rhs.Action))) {
+		return false
+	}
+	if !((v.Policies == nil && rhs.Policies == nil) || (v.Policies != nil && rhs.Policies != nil && v.Policies.Equals(rhs.Policies))) {
+		return false
+	}
+	if !((v.SearchAttributes == nil && rhs.SearchAttributes == nil) || (v.SearchAttributes != nil && rhs.SearchAttributes != nil && v.SearchAttributes.Equals(rhs.SearchAttributes))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of UpdateScheduleRequest.
+func (v *UpdateScheduleRequest) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Domain != nil {
+		enc.AddString("domain", *v.Domain)
+	}
+	if v.ScheduleId != nil {
+		enc.AddString("scheduleId", *v.ScheduleId)
+	}
+	if v.Spec != nil {
+		err = multierr.Append(err, enc.AddObject("spec", v.Spec))
+	}
+	if v.Action != nil {
+		err = multierr.Append(err, enc.AddObject("action", v.Action))
+	}
+	if v.Policies != nil {
+		err = multierr.Append(err, enc.AddObject("policies", v.Policies))
+	}
+	if v.SearchAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("searchAttributes", v.SearchAttributes))
+	}
+	return err
+}
+
+// GetDomain returns the value of Domain if it is set or its
+// zero value if it is unset.
+func (v *UpdateScheduleRequest) GetDomain() (o string) {
+	if v != nil && v.Domain != nil {
+		return *v.Domain
+	}
+
+	return
+}
+
+// IsSetDomain returns true if Domain is not nil.
+func (v *UpdateScheduleRequest) IsSetDomain() bool {
+	return v != nil && v.Domain != nil
+}
+
+// GetScheduleId returns the value of ScheduleId if it is set or its
+// zero value if it is unset.
+func (v *UpdateScheduleRequest) GetScheduleId() (o string) {
+	if v != nil && v.ScheduleId != nil {
+		return *v.ScheduleId
+	}
+
+	return
+}
+
+// IsSetScheduleId returns true if ScheduleId is not nil.
+func (v *UpdateScheduleRequest) IsSetScheduleId() bool {
+	return v != nil && v.ScheduleId != nil
+}
+
+// GetSpec returns the value of Spec if it is set or its
+// zero value if it is unset.
+func (v *UpdateScheduleRequest) GetSpec() (o *ScheduleSpec) {
+	if v != nil && v.Spec != nil {
+		return v.Spec
+	}
+
+	return
+}
+
+// IsSetSpec returns true if Spec is not nil.
+func (v *UpdateScheduleRequest) IsSetSpec() bool {
+	return v != nil && v.Spec != nil
+}
+
+// GetAction returns the value of Action if it is set or its
+// zero value if it is unset.
+func (v *UpdateScheduleRequest) GetAction() (o *ScheduleAction) {
+	if v != nil && v.Action != nil {
+		return v.Action
+	}
+
+	return
+}
+
+// IsSetAction returns true if Action is not nil.
+func (v *UpdateScheduleRequest) IsSetAction() bool {
+	return v != nil && v.Action != nil
+}
+
+// GetPolicies returns the value of Policies if it is set or its
+// zero value if it is unset.
+func (v *UpdateScheduleRequest) GetPolicies() (o *SchedulePolicies) {
+	if v != nil && v.Policies != nil {
+		return v.Policies
+	}
+
+	return
+}
+
+// IsSetPolicies returns true if Policies is not nil.
+func (v *UpdateScheduleRequest) IsSetPolicies() bool {
+	return v != nil && v.Policies != nil
+}
+
+// GetSearchAttributes returns the value of SearchAttributes if it is set or its
+// zero value if it is unset.
+func (v *UpdateScheduleRequest) GetSearchAttributes() (o *SearchAttributes) {
+	if v != nil && v.SearchAttributes != nil {
+		return v.SearchAttributes
+	}
+
+	return
+}
+
+// IsSetSearchAttributes returns true if SearchAttributes is not nil.
+func (v *UpdateScheduleRequest) IsSetSearchAttributes() bool {
+	return v != nil && v.SearchAttributes != nil
+}
+
+type UpdateScheduleResponse struct {
+}
+
+// ToWire translates a UpdateScheduleResponse struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *UpdateScheduleResponse) ToWire() (wire.Value, error) {
+	var (
+		fields [0]wire.Field
+		i      int = 0
+	)
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a UpdateScheduleResponse struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a UpdateScheduleResponse struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v UpdateScheduleResponse
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *UpdateScheduleResponse) FromWire(w wire.Value) error {
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a UpdateScheduleResponse struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a UpdateScheduleResponse struct could not be encoded.
+func (v *UpdateScheduleResponse) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a UpdateScheduleResponse struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a UpdateScheduleResponse struct could not be generated from the wire
+// representation.
+func (v *UpdateScheduleResponse) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a UpdateScheduleResponse
+// struct.
+func (v *UpdateScheduleResponse) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [0]string
+	i := 0
+
+	return fmt.Sprintf("UpdateScheduleResponse{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this UpdateScheduleResponse match the
+// provided UpdateScheduleResponse.
+//
+// This function performs a deep comparison.
+func (v *UpdateScheduleResponse) Equals(rhs *UpdateScheduleResponse) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of UpdateScheduleResponse.
+func (v *UpdateScheduleResponse) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	return err
 }
 
 type UpsertWorkflowSearchAttributesDecisionAttributes struct {
@@ -119379,8 +129141,8 @@ var ThriftModule = &thriftreflect.ThriftModule{
 	Name:     "shared",
 	Package:  "github.com/uber/cadence/.gen/go/shared",
 	FilePath: "shared.thrift",
-	SHA1:     "a9450bbd2212b689df13362f3470c8589d8946fa",
+	SHA1:     "1d5792036ba84db38a287002f452e0b0abf6a269",
 	Raw:      rawIDL,
 }
 
-const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence\n\nexception BadRequestError {\n  1: required string message\n} (rpc.code = \"INVALID_ARGUMENT\")\n\nexception InternalServiceError {\n  1: required string message\n} (rpc.code = \"INTERNAL\")\n\nexception InternalDataInconsistencyError {\n  1: required string message\n} (rpc.code = \"DATA_LOSS\")\n\nexception DomainAlreadyExistsError {\n  1: required string message\n} (rpc.code = \"ALREADY_EXISTS\")\n\nexception WorkflowExecutionAlreadyStartedError {\n  10: optional string message\n  20: optional string startRequestId\n  30: optional string runId\n} (rpc.code = \"ALREADY_EXISTS\")\n\nexception WorkflowExecutionAlreadyCompletedError {\n  1: required string message\n} (rpc.code = \"NOT_FOUND\")\n\nexception EntityNotExistsError {\n  1: required string message\n  2: optional string currentCluster\n  3: optional string activeCluster\n  4: required list<string> activeClusters // todo(david.porter) remove as its disused\n} (rpc.code = \"NOT_FOUND\")\n\nexception ServiceBusyError {\n  1: required string message\n  2: optional string reason\n} (rpc.code = \"RESOURCE_EXHAUSTED\")\n\nexception CancellationAlreadyRequestedError {\n  1: required string message\n} (rpc.code = \"ALREADY_EXISTS\")\n\nexception QueryFailedError {\n  1: required string message\n} (rpc.code = \"INVALID_ARGUMENT\")\n\nexception DomainNotActiveError {\n  1: required string message\n  2: required string domainName\n  3: required string currentCluster\n  4: required string activeCluster\n  5: required list<string> activeClusters // todo (david.porter) remove this field as it's disused\n} (rpc.code = \"FAILED_PRECONDITION\")\n\nexception LimitExceededError {\n  1: required string message\n} (rpc.code = \"RESOURCE_EXHAUSTED\")\n\nexception AccessDeniedError {\n  1: required string message\n} (rpc.code = \"PERMISSION_DENIED\")\n\nexception RetryTaskV2Error {\n  1: required string message\n  2: optional string domainId\n  3: optional string workflowId\n  4: optional string runId\n  5: optional i64 (js.type = \"Long\") startEventId\n  6: optional i64 (js.type = \"Long\") startEventVersion\n  7: optional i64 (js.type = \"Long\") endEventId\n  8: optional i64 (js.type = \"Long\") endEventVersion\n} (rpc.code = \"ABORTED\")\n\nexception ClientVersionNotSupportedError {\n  1: required string featureVersion\n  2: required string clientImpl\n  3: required string supportedVersions\n} (rpc.code = \"FAILED_PRECONDITION\")\n\nexception FeatureNotEnabledError {\n  1: required string featureFlag\n} (rpc.code = \"FAILED_PRECONDITION\")\n\nexception CurrentBranchChangedError {\n  10: required string message\n  20: required binary currentBranchToken\n} (rpc.code = \"ABORTED\")\n\nexception RemoteSyncMatchedError {\n  10: required string message\n} (rpc.code = \"UNAVAILABLE\")\n\nexception StickyWorkerUnavailableError {\n  1: required string message\n} (rpc.code = \"UNAVAILABLE\")\n\nexception TaskListNotOwnedByHostError {\n    1: required string ownedByIdentity\n    2: required string myIdentity\n    3: required string tasklistName\n} (rpc.code = \"ABORTED\")\n\nenum WorkflowIdReusePolicy {\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running, and the last execution close state is in\n   * [terminated, cancelled, timeouted, failed].\n   */\n  AllowDuplicateFailedOnly,\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running.\n   */\n  AllowDuplicate,\n  /*\n   * do not allow start a workflow execution using the same workflow ID at all\n   */\n  RejectDuplicate,\n  /*\n   * if a workflow is running using the same workflow ID, terminate it and start a new one\n   */\n  TerminateIfRunning,\n}\n\nenum DomainStatus {\n  REGISTERED,\n  DEPRECATED,\n  DELETED,\n}\n\nenum TimeoutType {\n  START_TO_CLOSE,\n  SCHEDULE_TO_START,\n  SCHEDULE_TO_CLOSE,\n  HEARTBEAT,\n}\n\nenum ParentClosePolicy {\n  ABANDON,\n  REQUEST_CANCEL,\n  TERMINATE,\n}\n\n\n// whenever this list of decision is changed\n// do change the mutableStateBuilder.go\n// function shouldBufferEvent\n// to make sure wo do the correct event ordering\nenum DecisionType {\n  ScheduleActivityTask,\n  RequestCancelActivityTask,\n  StartTimer,\n  CompleteWorkflowExecution,\n  FailWorkflowExecution,\n  CancelTimer,\n  CancelWorkflowExecution,\n  RequestCancelExternalWorkflowExecution,\n  RecordMarker,\n  ContinueAsNewWorkflowExecution,\n  StartChildWorkflowExecution,\n  SignalExternalWorkflowExecution,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum EventType {\n  WorkflowExecutionStarted,\n  WorkflowExecutionCompleted,\n  WorkflowExecutionFailed,\n  WorkflowExecutionTimedOut,\n  DecisionTaskScheduled,\n  DecisionTaskStarted,\n  DecisionTaskCompleted,\n  DecisionTaskTimedOut\n  DecisionTaskFailed,\n  ActivityTaskScheduled,\n  ActivityTaskStarted,\n  ActivityTaskCompleted,\n  ActivityTaskFailed,\n  ActivityTaskTimedOut,\n  ActivityTaskCancelRequested,\n  RequestCancelActivityTaskFailed,\n  ActivityTaskCanceled,\n  TimerStarted,\n  TimerFired,\n  CancelTimerFailed,\n  TimerCanceled,\n  WorkflowExecutionCancelRequested,\n  WorkflowExecutionCanceled,\n  RequestCancelExternalWorkflowExecutionInitiated,\n  RequestCancelExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionCancelRequested,\n  MarkerRecorded,\n  WorkflowExecutionSignaled,\n  WorkflowExecutionTerminated,\n  WorkflowExecutionContinuedAsNew,\n  StartChildWorkflowExecutionInitiated,\n  StartChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionStarted,\n  ChildWorkflowExecutionCompleted,\n  ChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionCanceled,\n  ChildWorkflowExecutionTimedOut,\n  ChildWorkflowExecutionTerminated,\n  SignalExternalWorkflowExecutionInitiated,\n  SignalExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionSignaled,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum DecisionTaskFailedCause {\n  UNHANDLED_DECISION,\n  BAD_SCHEDULE_ACTIVITY_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_ACTIVITY_ATTRIBUTES,\n  BAD_START_TIMER_ATTRIBUTES,\n  BAD_CANCEL_TIMER_ATTRIBUTES,\n  BAD_RECORD_MARKER_ATTRIBUTES,\n  BAD_COMPLETE_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_FAIL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CANCEL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CONTINUE_AS_NEW_ATTRIBUTES,\n  START_TIMER_DUPLICATE_ID,\n  RESET_STICKY_TASKLIST,\n  WORKFLOW_WORKER_UNHANDLED_FAILURE,\n  BAD_SIGNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_START_CHILD_EXECUTION_ATTRIBUTES,\n  FORCE_CLOSE_DECISION,\n  FAILOVER_CLOSE_DECISION,\n  BAD_SIGNAL_INPUT_SIZE,\n  RESET_WORKFLOW,\n  BAD_BINARY,\n  SCHEDULE_ACTIVITY_DUPLICATE_ID,\n  BAD_SEARCH_ATTRIBUTES,\n}\n\nenum DecisionTaskTimedOutCause {\n  TIMEOUT,\n  RESET,\n}\n\nenum CancelExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum SignalExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum ChildWorkflowExecutionFailedCause {\n  WORKFLOW_ALREADY_RUNNING,\n}\n\n// TODO: when migrating to gRPC, add a running / none status,\n//  currently, customer is using null / nil as an indication\n//  that workflow is still running\nenum WorkflowExecutionCloseStatus {\n  COMPLETED,\n  FAILED,\n  CANCELED,\n  TERMINATED,\n  CONTINUED_AS_NEW,\n  TIMED_OUT,\n}\n\nenum WorkflowExecutionStatus {\n  PENDING,\n  STARTED,\n  COMPLETED,\n  FAILED,\n  CANCELED,\n  TERMINATED,\n  CONTINUED_AS_NEW,\n  TIMED_OUT,\n}\n\nenum QueryTaskCompletedType {\n  COMPLETED,\n  FAILED,\n}\n\nenum QueryResultType {\n  ANSWERED,\n  FAILED,\n}\n\nenum PendingActivityState {\n  SCHEDULED,\n  STARTED,\n  CANCEL_REQUESTED,\n}\n\nenum PendingDecisionState {\n  SCHEDULED,\n  STARTED,\n}\n\nenum HistoryEventFilterType {\n  ALL_EVENT,\n  CLOSE_EVENT,\n}\n\nenum TaskListKind {\n  NORMAL,\n  STICKY,\n  EPHEMERAL,\n}\n\nenum ArchivalStatus {\n  DISABLED,\n  ENABLED,\n}\n\nenum CronOverlapPolicy {\n  SKIPPED,\n  BUFFERONE,\n}\n\nenum IndexedValueType {\n  STRING,\n  KEYWORD,\n  INT,\n  DOUBLE,\n  BOOL,\n  DATETIME,\n}\n\nstruct Header {\n    10: optional map<string, binary> fields\n}\n\nstruct WorkflowType {\n  10: optional string name\n}\n\nstruct ActivityType {\n  10: optional string name\n}\n\nstruct TaskList {\n  10: optional string name\n  20: optional TaskListKind kind\n  30: optional string baseName\n}\n\nenum EncodingType {\n  ThriftRW,\n  JSON,\n}\n\nenum QueryRejectCondition {\n  // NOT_OPEN indicates that query should be rejected if workflow is not open\n  NOT_OPEN\n  // NOT_COMPLETED_CLEANLY indicates that query should be rejected if workflow did not complete cleanly\n  NOT_COMPLETED_CLEANLY\n}\n\nenum QueryConsistencyLevel {\n  // EVENTUAL indicates that query should be eventually consistent\n  EVENTUAL\n  // STRONG indicates that any events that came before query should be reflected in workflow state before running query\n  STRONG\n}\n\nstruct DataBlob {\n  10: optional EncodingType EncodingType\n  20: optional binary Data\n}\n\nstruct TaskListMetadata {\n  10: optional double maxTasksPerSecond\n}\n\nstruct WorkflowExecution {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct Memo {\n  10: optional map<string,binary> fields\n}\n\nstruct SearchAttributes {\n  10: optional map<string,binary> indexedFields\n}\n\nstruct WorkerVersionInfo {\n  10: optional string impl\n  20: optional string featureVersion\n}\n\nstruct WorkflowExecutionInfo {\n  10: optional WorkflowExecution execution\n  20: optional WorkflowType type\n  30: optional i64 (js.type = \"Long\") startTime\n  40: optional i64 (js.type = \"Long\") closeTime\n  50: optional WorkflowExecutionCloseStatus closeStatus\n  60: optional i64 (js.type = \"Long\") historyLength\n  70: optional string parentDomainId\n  71: optional string parentDomainName\n  72: optional i64 parentInitatedId\n  80: optional WorkflowExecution parentExecution\n  90: optional i64 (js.type = \"Long\") executionTime\n  100: optional Memo memo\n  101: optional SearchAttributes searchAttributes\n  110: optional ResetPoints autoResetPoints\n  120: optional string taskList\n  121: optional TaskList taskListInfo\n  130: optional bool isCron\n  140: optional i64 (js.type = \"Long\") updateTime\n  150: optional map<string, string> partitionConfig\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n  180: optional string cronSchedule\n  190: optional WorkflowExecutionStatus executionStatus\n  200: optional i64 (js.type = \"Long\") scheduledExecutionTime\n}\n\nstruct WorkflowExecutionConfiguration {\n  10: optional TaskList taskList\n  20: optional i32 executionStartToCloseTimeoutSeconds\n  30: optional i32 taskStartToCloseTimeoutSeconds\n//  40: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n}\n\nstruct TransientDecisionInfo {\n  10: optional HistoryEvent scheduledEvent\n  20: optional HistoryEvent startedEvent\n}\n\nstruct ScheduleActivityTaskDecisionAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional Header header\n  90: optional bool requestLocalDispatch\n}\n\nstruct ActivityLocalDispatchInfo{\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  50: optional binary taskToken\n}\n\nstruct RequestCancelActivityTaskDecisionAttributes {\n  10: optional string activityId\n}\n\nstruct StartTimerDecisionAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n}\n\nstruct CompleteWorkflowExecutionDecisionAttributes {\n  10: optional binary result\n}\n\nstruct FailWorkflowExecutionDecisionAttributes {\n  10: optional string reason\n  20: optional binary details\n}\n\nstruct CancelTimerDecisionAttributes {\n  10: optional string timerId\n}\n\nstruct CancelWorkflowExecutionDecisionAttributes {\n  10: optional binary details\n}\n\nstruct RequestCancelExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional string runId\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional string signalName\n  40: optional binary input\n  50: optional binary control\n  60: optional bool childWorkflowOnly\n}\n\nstruct UpsertWorkflowSearchAttributesDecisionAttributes {\n  10: optional SearchAttributes searchAttributes\n}\n\nstruct RecordMarkerDecisionAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional Header header\n}\n\nstruct ContinueAsNewWorkflowExecutionDecisionAttributes {\n  10: optional WorkflowType workflowType\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n  60: optional i32 backoffStartIntervalInSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional ContinueAsNewInitiator initiator\n  90: optional string failureReason\n  100: optional binary failureDetails\n  110: optional binary lastCompletionResult\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional i32 jitterStartSeconds\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n//  80: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81: optional ParentClosePolicy parentClosePolicy\n  90: optional binary control\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional RetryPolicy retryPolicy\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct Decision {\n  10:  optional DecisionType decisionType\n  20:  optional ScheduleActivityTaskDecisionAttributes scheduleActivityTaskDecisionAttributes\n  25:  optional StartTimerDecisionAttributes startTimerDecisionAttributes\n  30:  optional CompleteWorkflowExecutionDecisionAttributes completeWorkflowExecutionDecisionAttributes\n  35:  optional FailWorkflowExecutionDecisionAttributes failWorkflowExecutionDecisionAttributes\n  40:  optional RequestCancelActivityTaskDecisionAttributes requestCancelActivityTaskDecisionAttributes\n  50:  optional CancelTimerDecisionAttributes cancelTimerDecisionAttributes\n  60:  optional CancelWorkflowExecutionDecisionAttributes cancelWorkflowExecutionDecisionAttributes\n  70:  optional RequestCancelExternalWorkflowExecutionDecisionAttributes requestCancelExternalWorkflowExecutionDecisionAttributes\n  80:  optional RecordMarkerDecisionAttributes recordMarkerDecisionAttributes\n  90:  optional ContinueAsNewWorkflowExecutionDecisionAttributes continueAsNewWorkflowExecutionDecisionAttributes\n  100: optional StartChildWorkflowExecutionDecisionAttributes startChildWorkflowExecutionDecisionAttributes\n  110: optional SignalExternalWorkflowExecutionDecisionAttributes signalExternalWorkflowExecutionDecisionAttributes\n  120: optional UpsertWorkflowSearchAttributesDecisionAttributes upsertWorkflowSearchAttributesDecisionAttributes\n}\n\nstruct WorkflowExecutionStartedEventAttributes {\n  10: optional WorkflowType workflowType\n  12: optional string parentWorkflowDomain\n  14: optional WorkflowExecution parentWorkflowExecution\n  16: optional i64 (js.type = \"Long\") parentInitiatedEventId\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n//  52: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  54: optional string continuedExecutionRunId\n  55: optional ContinueAsNewInitiator initiator\n  56: optional string continuedFailureReason\n  57: optional binary continuedFailureDetails\n  58: optional binary lastCompletionResult\n  59: optional string originalExecutionRunId // This is the runID when the WorkflowExecutionStarted event is written\n  60: optional string identity\n  61: optional string firstExecutionRunId // This is the very first runID along the chain of ContinueAsNew and Reset.\n  62: optional i64 (js.type = \"Long\") firstScheduledTimeNano\n  70: optional RetryPolicy retryPolicy\n  80: optional i32 attempt\n  90: optional i64 (js.type = \"Long\") expirationTimestamp\n  100: optional string cronSchedule\n  110: optional i32 firstDecisionTaskBackoffSeconds\n  120: optional Memo memo\n  121: optional SearchAttributes searchAttributes\n  130: optional ResetPoints prevAutoResetPoints\n  140: optional Header header\n  150: optional map<string, string> partitionConfig\n  160: optional string requestId\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct ResetPoints{\n  10: optional list<ResetPointInfo> points\n}\n\n struct ResetPointInfo{\n  10: optional string binaryChecksum\n  20: optional string runId\n  30: optional i64 firstDecisionCompletedId\n  40: optional i64 (js.type = \"Long\") createdTimeNano\n  50: optional i64 (js.type = \"Long\") expiringTimeNano //the time that the run is deleted due to retention\n  60: optional bool resettable                         // false if the resset point has pending childWFs/reqCancels/signalExternals.\n}\n\nstruct WorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n}\n\nenum ContinueAsNewInitiator {\n  Decider,\n  RetryPolicy,\n  CronSchedule,\n}\n\nstruct WorkflowExecutionContinuedAsNewEventAttributes {\n  10: optional string newExecutionRunId\n  20: optional WorkflowType workflowType\n  30: optional TaskList taskList\n  40: optional binary input\n  50: optional i32 executionStartToCloseTimeoutSeconds\n  60: optional i32 taskStartToCloseTimeoutSeconds\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  80: optional i32 backoffStartIntervalInSeconds\n  90: optional ContinueAsNewInitiator initiator\n  100: optional string failureReason\n  110: optional binary failureDetails\n  120: optional binary lastCompletionResult\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct DecisionTaskScheduledEventAttributes {\n  10: optional TaskList taskList\n  20: optional i32 startToCloseTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") attempt\n}\n\nstruct DecisionTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n}\n\nstruct DecisionTaskCompletedEventAttributes {\n  10: optional binary executionContext\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct DecisionTaskTimedOutEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // for reset workflow\n  40: optional string baseRunId\n  50: optional string newRunId\n  60: optional i64 (js.type = \"Long\") forkEventVersion\n  70: optional string reason\n  80: optional DecisionTaskTimedOutCause cause\n  90: optional string requestId\n}\n\nstruct DecisionTaskFailedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional DecisionTaskFailedCause cause\n  35: optional binary details\n  40: optional string identity\n  50: optional string reason\n  // for reset workflow\n  60: optional string baseRunId\n  70: optional string newRunId\n  80: optional i64 (js.type = \"Long\") forkEventVersion\n  90: optional string binaryChecksum\n  100: optional string requestId\n}\n\nstruct ActivityTaskScheduledEventAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  90: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional RetryPolicy retryPolicy\n  120: optional Header header\n}\n\nstruct ActivityTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n  40: optional i32 attempt\n  50: optional string lastFailureReason\n  60: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n}\n\nstruct ActivityTaskFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct ActivityTaskTimedOutEventAttributes {\n  05: optional binary details\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // For retry activity, it may have a failure before timeout. It's important to keep those information for debug.\n  // Client can also provide the info for making next decision\n  40: optional string lastFailureReason\n  50: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCancelRequestedEventAttributes {\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct RequestCancelActivityTaskFailedEventAttributes{\n  10: optional string activityId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ActivityTaskCanceledEventAttributes {\n  10: optional binary details\n  20: optional i64 (js.type = \"Long\") latestCancelRequestedEventId\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct TimerStartedEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct TimerFiredEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct TimerCanceledEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct CancelTimerFailedEventAttributes {\n  10: optional string timerId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct WorkflowExecutionCancelRequestedEventAttributes {\n  10: optional string cause\n  20: optional i64 (js.type = \"Long\") externalInitiatedEventId\n  30: optional WorkflowExecution externalWorkflowExecution\n  40: optional string identity\n  50: optional string requestId\n}\n\nstruct WorkflowExecutionCanceledEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional binary details\n}\n\nstruct MarkerRecordedEventAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional Header header\n}\n\nstruct WorkflowExecutionSignaledEventAttributes {\n  10: optional string signalName\n  20: optional binary input\n  30: optional string identity\n  40: optional string requestId\n}\n\nstruct WorkflowExecutionTerminatedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RequestCancelExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct RequestCancelExternalWorkflowExecutionFailedEventAttributes {\n  10: optional CancelExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionCancelRequestedEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n}\n\nstruct SignalExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional string signalName\n  50: optional binary input\n  60: optional binary control\n  70: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionFailedEventAttributes {\n  10: optional SignalExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionSignaledEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n}\n\nstruct UpsertWorkflowSearchAttributesEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional SearchAttributes searchAttributes\n}\n\nstruct StartChildWorkflowExecutionInitiatedEventAttributes {\n  10:  optional string domain\n  20:  optional string workflowId\n  30:  optional WorkflowType workflowType\n  40:  optional TaskList taskList\n  50:  optional binary input\n  60:  optional i32 executionStartToCloseTimeoutSeconds\n  70:  optional i32 taskStartToCloseTimeoutSeconds\n//  80:  optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81:  optional ParentClosePolicy parentClosePolicy\n  90:  optional binary control\n  100: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Header header\n  150: optional Memo memo\n  160: optional SearchAttributes searchAttributes\n  170: optional i32 delayStartSeconds\n  180: optional i32 jitterStartSeconds\n  190: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  200: optional CronOverlapPolicy cronOverlapPolicy\n  210: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionFailedEventAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional ChildWorkflowExecutionFailedCause cause\n  50: optional binary control\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ChildWorkflowExecutionStartedEventAttributes {\n  10: optional string domain\n  20: optional i64 (js.type = \"Long\") initiatedEventId\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional Header header\n}\n\nstruct ChildWorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional WorkflowType workflowType\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionCanceledEventAttributes {\n  10: optional binary details\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTerminatedEventAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") initiatedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct HistoryEvent {\n  10:  optional i64 (js.type = \"Long\") eventId\n  20:  optional i64 (js.type = \"Long\") timestamp\n  30:  optional EventType eventType\n  35:  optional i64 (js.type = \"Long\") version\n  36:  optional i64 (js.type = \"Long\") taskId\n  40:  optional WorkflowExecutionStartedEventAttributes workflowExecutionStartedEventAttributes\n  50:  optional WorkflowExecutionCompletedEventAttributes workflowExecutionCompletedEventAttributes\n  60:  optional WorkflowExecutionFailedEventAttributes workflowExecutionFailedEventAttributes\n  70:  optional WorkflowExecutionTimedOutEventAttributes workflowExecutionTimedOutEventAttributes\n  80:  optional DecisionTaskScheduledEventAttributes decisionTaskScheduledEventAttributes\n  90:  optional DecisionTaskStartedEventAttributes decisionTaskStartedEventAttributes\n  100: optional DecisionTaskCompletedEventAttributes decisionTaskCompletedEventAttributes\n  110: optional DecisionTaskTimedOutEventAttributes decisionTaskTimedOutEventAttributes\n  120: optional DecisionTaskFailedEventAttributes decisionTaskFailedEventAttributes\n  130: optional ActivityTaskScheduledEventAttributes activityTaskScheduledEventAttributes\n  140: optional ActivityTaskStartedEventAttributes activityTaskStartedEventAttributes\n  150: optional ActivityTaskCompletedEventAttributes activityTaskCompletedEventAttributes\n  160: optional ActivityTaskFailedEventAttributes activityTaskFailedEventAttributes\n  170: optional ActivityTaskTimedOutEventAttributes activityTaskTimedOutEventAttributes\n  180: optional TimerStartedEventAttributes timerStartedEventAttributes\n  190: optional TimerFiredEventAttributes timerFiredEventAttributes\n  200: optional ActivityTaskCancelRequestedEventAttributes activityTaskCancelRequestedEventAttributes\n  210: optional RequestCancelActivityTaskFailedEventAttributes requestCancelActivityTaskFailedEventAttributes\n  220: optional ActivityTaskCanceledEventAttributes activityTaskCanceledEventAttributes\n  230: optional TimerCanceledEventAttributes timerCanceledEventAttributes\n  240: optional CancelTimerFailedEventAttributes cancelTimerFailedEventAttributes\n  250: optional MarkerRecordedEventAttributes markerRecordedEventAttributes\n  260: optional WorkflowExecutionSignaledEventAttributes workflowExecutionSignaledEventAttributes\n  270: optional WorkflowExecutionTerminatedEventAttributes workflowExecutionTerminatedEventAttributes\n  280: optional WorkflowExecutionCancelRequestedEventAttributes workflowExecutionCancelRequestedEventAttributes\n  290: optional WorkflowExecutionCanceledEventAttributes workflowExecutionCanceledEventAttributes\n  300: optional RequestCancelExternalWorkflowExecutionInitiatedEventAttributes requestCancelExternalWorkflowExecutionInitiatedEventAttributes\n  310: optional RequestCancelExternalWorkflowExecutionFailedEventAttributes requestCancelExternalWorkflowExecutionFailedEventAttributes\n  320: optional ExternalWorkflowExecutionCancelRequestedEventAttributes externalWorkflowExecutionCancelRequestedEventAttributes\n  330: optional WorkflowExecutionContinuedAsNewEventAttributes workflowExecutionContinuedAsNewEventAttributes\n  340: optional StartChildWorkflowExecutionInitiatedEventAttributes startChildWorkflowExecutionInitiatedEventAttributes\n  350: optional StartChildWorkflowExecutionFailedEventAttributes startChildWorkflowExecutionFailedEventAttributes\n  360: optional ChildWorkflowExecutionStartedEventAttributes childWorkflowExecutionStartedEventAttributes\n  370: optional ChildWorkflowExecutionCompletedEventAttributes childWorkflowExecutionCompletedEventAttributes\n  380: optional ChildWorkflowExecutionFailedEventAttributes childWorkflowExecutionFailedEventAttributes\n  390: optional ChildWorkflowExecutionCanceledEventAttributes childWorkflowExecutionCanceledEventAttributes\n  400: optional ChildWorkflowExecutionTimedOutEventAttributes childWorkflowExecutionTimedOutEventAttributes\n  410: optional ChildWorkflowExecutionTerminatedEventAttributes childWorkflowExecutionTerminatedEventAttributes\n  420: optional SignalExternalWorkflowExecutionInitiatedEventAttributes signalExternalWorkflowExecutionInitiatedEventAttributes\n  430: optional SignalExternalWorkflowExecutionFailedEventAttributes signalExternalWorkflowExecutionFailedEventAttributes\n  440: optional ExternalWorkflowExecutionSignaledEventAttributes externalWorkflowExecutionSignaledEventAttributes\n  450: optional UpsertWorkflowSearchAttributesEventAttributes upsertWorkflowSearchAttributesEventAttributes\n}\n\nstruct History {\n  10: optional list<HistoryEvent> events\n}\n\nstruct WorkflowExecutionFilter {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct WorkflowTypeFilter {\n  10: optional string name\n}\n\nstruct StartTimeFilter {\n  10: optional i64 (js.type = \"Long\") earliestTime\n  20: optional i64 (js.type = \"Long\") latestTime\n}\n\nstruct DomainInfo {\n  10: optional string name\n  20: optional DomainStatus status\n  30: optional string description\n  40: optional string ownerEmail\n  // A key-value map for any customized purpose\n  50: optional map<string,string> data\n  60: optional string uuid\n}\n\nstruct DomainConfiguration {\n  10: optional i32 workflowExecutionRetentionPeriodInDays\n  20: optional bool emitMetric\n  60: optional IsolationGroupConfiguration isolationgroups\n  70: optional BadBinaries badBinaries\n  80: optional ArchivalStatus historyArchivalStatus\n  90: optional string historyArchivalURI\n  100: optional ArchivalStatus visibilityArchivalStatus\n  110: optional string visibilityArchivalURI\n  120: optional AsyncWorkflowConfiguration AsyncWorkflowConfiguration\n}\n\nstruct FailoverInfo {\n    10: optional i64 (js.type = \"Long\") failoverVersion\n    20: optional i64 (js.type = \"Long\") failoverStartTimestamp\n    30: optional i64 (js.type = \"Long\") failoverExpireTimestamp\n    40: optional i32 completedShardCount\n    50: optional list<i32> pendingShards\n}\n\nstruct BadBinaries{\n  10: optional map<string, BadBinaryInfo> binaries\n}\n\nstruct BadBinaryInfo{\n  10: optional string reason\n  20: optional string operator\n  30: optional i64 (js.type = \"Long\") createdTimeNano\n}\n\nstruct UpdateDomainInfo {\n  10: optional string description\n  20: optional string ownerEmail\n  // A key-value map for any customized purpose\n  30: optional map<string,string> data\n}\n\nstruct ClusterReplicationConfiguration {\n 10: optional string clusterName\n}\n\nstruct DomainReplicationConfiguration {\n // activeClusterName is the name of the active cluster for active-passive domain\n 10: optional string activeClusterName\n\n //  clusters is list of all active and passive clusters of domain\n 20: optional list<ClusterReplicationConfiguration> clusters\n\n // activeClusters contains active cluster(s) information for active-active domain\n 30: optional ActiveClusters activeClusters\n}\n\n// ClusterAttributeScope is a mapping of the cluster atribute to the scope's\n// current stae and failover version, indicating how recently the change was made\nstruct ClusterAttributeScope {\n  10: optional map<string, ActiveClusterInfo> clusterAttributes;\n}\n\n// activeClustersByClusterAttribute is a map of whatever subdivision of the domain chosen\n// to active cluster info for active-active domains. The key refers to the type of\n// cluster attribute and the value refers to its cluster mappings.\n//\n// For example, a request to update the domain for two locations\n//\n// UpdateDomainRequest{\n//    ReplicationConfiguration: {\n//       ActiveClusters: {\n//           ActiveClustersByClusterAttribute: {\n//             \"location\": ClusterAttributeScope{\n//                   \"Tokyo\": {ActiveClusterInfo: \"cluster0, FailoverVersion: 123},\n//                   \"Morocco\": {ActiveClusterInfo: \"cluster1\", FailoverVersion: 100},\n//             }\n//          }\n//       }\n//    }\n//  }\nstruct ActiveClusters {\n  10: optional map<string, ActiveClusterInfo> activeClustersByRegion // todo (david.porter) remove this as it's no longer used\n  11: optional map<string, ClusterAttributeScope> activeClustersByClusterAttribute\n}\n\n// ActiveClusterInfo contains the configuration of active-active domain's active\n// cluster & failover version for a specific region\nstruct ActiveClusterInfo {\n  10: optional string activeClusterName\n  20: optional i64 (js.type = \"Long\") failoverVersion\n}\n\nstruct RegisterDomainRequest {\n  10: optional string name\n  20: optional string description\n  30: optional string ownerEmail\n  40: optional i32 workflowExecutionRetentionPeriodInDays\n  50: optional bool emitMetric = true\n  60: optional list<ClusterReplicationConfiguration> clusters\n  70: optional string activeClusterName\n  // todo (david.porter) remove this field as it's not going to be used\n  75: optional map<string, string> activeClustersByRegion\n  // activeClusters is a map of cluster-attribute name to active cluster name for active-active domain\n  76: optional ActiveClusters activeClusters\n  // A key-value map for any customized purpose\n  80: optional map<string,string> data\n  90: optional string securityToken\n  120: optional bool isGlobalDomain\n  130: optional ArchivalStatus historyArchivalStatus\n  140: optional string historyArchivalURI\n  150: optional ArchivalStatus visibilityArchivalStatus\n  160: optional string visibilityArchivalURI\n}\n\nstruct ListDomainsRequest {\n  10: optional i32 pageSize\n  20: optional binary nextPageToken\n}\n\nstruct ListDomainsResponse {\n  10: optional list<DescribeDomainResponse> domains\n  20: optional binary nextPageToken\n}\n\nstruct DescribeDomainRequest {\n  10: optional string name\n  20: optional string uuid\n}\n\nstruct DescribeDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n  60: optional FailoverInfo failoverInfo\n}\n\nstruct UpdateDomainRequest {\n 10: optional string name\n 20: optional UpdateDomainInfo updatedInfo\n 30: optional DomainConfiguration configuration\n 40: optional DomainReplicationConfiguration replicationConfiguration\n 50: optional string securityToken\n 60: optional string deleteBadBinary\n 70: optional i32 failoverTimeoutInSeconds\n}\n\nstruct UpdateDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n}\n\nstruct FailoverDomainRequest {\n 10: optional string domainName\n 20: optional string domainActiveClusterName\n // only applicable to active-active domains where\n // specific cluster-attributes are being failed over\n 30: optional ActiveClusters activeClusters\n // user-requested addition \"reason\" variable created to increase transparency around failovers\n 40: optional string reason\n}\n\nstruct FailoverDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n}\n\nstruct DeprecateDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct DeleteDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct ListFailoverHistoryRequest {\n  // ListFailoverHistoryRequestFilters specifies the filters to apply to the request.\n  // If not provided all failover events will be returned.\n  10: optional ListFailoverHistoryRequestFilters filters\n  // PaginationOptions will be used to paginate the results.\n  // If not provided the first 5 events will be returned.\n  20: optional PaginationOptions pagination\n}\n\n// ListFailoverHistoryRequestFilters is used to filter the failover history.\n// It will be extended with additional filters (e.g ClusterAttributes) as the active-active feature is developed.\nstruct ListFailoverHistoryRequestFilters {\n  // domain_id is the id of the domain to list failover history for.\n  10: optional string domainID\n}\n\nstruct ListFailoverHistoryResponse {\n  10: optional list<FailoverEvent> failoverEvents\n  // next_page_token can be passed in a subsequent request to fetch the next set of events.\n  20: optional binary nextPageToken\n}\n\nstruct FailoverEvent {\n  // id of the failover event\n  // Can be passed with the created time to fetch a specific event.\n  10: optional string id\n  // created_time is the time the failover event was created.\n  // Can be passed with the ID to fetch a specific event.\n  20: optional i64 (js.type = \"Long\") createdTime\n  30: optional FailoverType failoverType\n  40: optional list<ClusterFailover> clusterFailovers\n}\n\nstruct ClusterFailover {\n  10: optional ActiveClusterInfo fromCluster\n  20: optional ActiveClusterInfo toCluster\n  // cluster_attribute is the scope and name for the attribute that was failed over.\n  // If the cluster_attribute is not defined this failover can be assumed to be the default ActiveCluster.\n  30: optional ClusterAttribute clusterAttribute\n}\n\nstruct StartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n//  110: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Memo memo\n  141: optional SearchAttributes searchAttributes\n  150: optional Header header\n  160: optional i32 delayStartSeconds\n  170: optional i32 jitterStartSeconds\n  180: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  190: optional CronOverlapPolicy cronOverlapPolicy\n  200: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct StartWorkflowExecutionAsyncRequest {\n  10: optional StartWorkflowExecutionRequest request\n}\n\nstruct StartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct DiagnoseWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n}\n\nstruct DiagnoseWorkflowExecutionResponse {\n  10: optional string domain\n  20: optional WorkflowExecution diagnosticWorkflowExecution\n}\n\nstruct PollForDecisionTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional string binaryChecksum\n}\n\nstruct PollForDecisionTaskResponse {\n  10: optional binary taskToken\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") previousStartedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n  51: optional i64 (js.type = 'Long') attempt\n  54: optional i64 (js.type = \"Long\") backlogCountHint\n  60: optional History history\n  70: optional binary nextPageToken\n  80: optional WorkflowQuery query\n  90: optional TaskList WorkflowExecutionTaskList\n  100: optional i64 (js.type = \"Long\") scheduledTimestamp\n  110: optional i64 (js.type = \"Long\") startedTimestamp\n  120: optional map<string, WorkflowQuery> queries\n  130: optional i64 (js.type = 'Long') nextEventId\n  140: optional i64 (js.type = 'Long') totalHistoryBytes\n  150: optional AutoConfigHint autoConfigHint\n}\n\nstruct StickyExecutionAttributes {\n  10: optional TaskList workerTaskList\n  20: optional i32 scheduleToStartTimeoutSeconds\n}\n\nstruct RespondDecisionTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional list<Decision> decisions\n  30: optional binary executionContext\n  40: optional string identity\n  50: optional StickyExecutionAttributes stickyAttributes\n  60: optional bool returnNewDecisionTask\n  70: optional bool forceCreateNewDecisionTask\n  80: optional string binaryChecksum\n  90: optional map<string, WorkflowQueryResult> queryResults\n}\n\nstruct RespondDecisionTaskCompletedResponse {\n  10: optional PollForDecisionTaskResponse decisionTask\n  20: optional map<string,ActivityLocalDispatchInfo> activitiesToDispatchLocally\n}\n\nstruct RespondDecisionTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional DecisionTaskFailedCause cause\n  30: optional binary details\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct PollForActivityTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional TaskListMetadata taskListMetadata\n}\n\nstruct PollForActivityTaskResponse {\n  10:  optional binary taskToken\n  20:  optional WorkflowExecution workflowExecution\n  30:  optional string activityId\n  40:  optional ActivityType activityType\n  50:  optional binary input\n  70:  optional i64 (js.type = \"Long\") scheduledTimestamp\n  80:  optional i32 scheduleToCloseTimeoutSeconds\n  90:  optional i64 (js.type = \"Long\") startedTimestamp\n  100: optional i32 startToCloseTimeoutSeconds\n  110: optional i32 heartbeatTimeoutSeconds\n  120: optional i32 attempt\n  130: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  140: optional binary heartbeatDetails\n  150: optional WorkflowType workflowType\n  160: optional string workflowDomain\n  170: optional Header header\n  180: optional AutoConfigHint autoConfigHint\n}\n\nstruct RecordActivityTaskHeartbeatRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatResponse {\n  10: optional bool cancelRequested\n}\n\nstruct RespondActivityTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional binary result\n  30: optional string identity\n}\n\nstruct RespondActivityTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional string reason\n  30: optional binary details\n  40: optional string identity\n}\n\nstruct RespondActivityTaskCanceledRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RespondActivityTaskCompletedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary result\n  60: optional string identity\n}\n\nstruct RespondActivityTaskFailedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional string reason\n  60: optional binary details\n  70: optional string identity\n}\n\nstruct RespondActivityTaskCanceledByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RequestCancelWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n  40: optional string requestId\n  50: optional string cause\n  60: optional string firstExecutionRunID\n}\n\nstruct GetWorkflowExecutionHistoryRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional i32 maximumPageSize\n  40: optional binary nextPageToken\n  50: optional bool waitForNewEvent\n  60: optional HistoryEventFilterType HistoryEventFilterType\n  70: optional bool skipArchival\n  80: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct GetWorkflowExecutionHistoryResponse {\n  10: optional History history\n  11: optional list<DataBlob> rawHistory\n  20: optional binary nextPageToken\n  30: optional bool archived\n}\n\nstruct SignalWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string signalName\n  40: optional binary input\n  50: optional string identity\n  60: optional string requestId\n  70: optional binary control\n}\n\nstruct SignalWithStartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional string signalName\n  120: optional binary signalInput\n  130: optional binary control\n  140: optional RetryPolicy retryPolicy\n  150: optional string cronSchedule\n  160: optional Memo memo\n  161: optional SearchAttributes searchAttributes\n  170: optional Header header\n  180: optional i32 delayStartSeconds\n  190: optional i32 jitterStartSeconds\n  200: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  210: optional CronOverlapPolicy cronOverlapPolicy\n  220: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncRequest {\n  10: optional SignalWithStartWorkflowExecutionRequest request\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional string identity\n}\nstruct TerminateWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional binary details\n  50: optional string identity\n  60: optional string firstExecutionRunID\n}\n\nstruct ResetWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional i64 (js.type = \"Long\") decisionFinishEventId\n  50: optional string requestId\n  60: optional bool skipSignalReapply\n}\n\nstruct ResetWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct ListOpenWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n}\n\nstruct ListOpenWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListClosedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n  70: optional WorkflowExecutionCloseStatus statusFilter\n}\n\nstruct ListClosedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListArchivedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListArchivedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct CountWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional string query\n}\n\nstruct CountWorkflowExecutionsResponse {\n  10: optional i64 count\n}\n\nstruct GetSearchAttributesResponse {\n  10: optional map<string, IndexedValueType> keys\n}\n\nstruct QueryWorkflowRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional WorkflowQuery query\n  // QueryRejectCondition can used to reject the query if workflow state does not satisify condition\n  40: optional QueryRejectCondition queryRejectCondition\n  50: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct QueryRejected {\n  10: optional WorkflowExecutionCloseStatus closeStatus\n}\n\nstruct QueryWorkflowResponse {\n  10: optional binary queryResult\n  20: optional QueryRejected queryRejected\n}\n\nstruct WorkflowQuery {\n  10: optional string queryType\n  20: optional binary queryArgs\n}\n\nstruct ResetStickyTaskListRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\nstruct ResetStickyTaskListResponse {\n    // The reason to keep this response is to allow returning\n    // information in the future.\n}\n\nstruct RespondQueryTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional QueryTaskCompletedType completedType\n  30: optional binary queryResult\n  40: optional string errorMessage\n  50: optional WorkerVersionInfo workerVersionInfo\n}\n\nstruct WorkflowQueryResult {\n  10: optional QueryResultType resultType\n  20: optional binary answer\n  30: optional string errorMessage\n}\n\nstruct DescribeWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct PendingActivityInfo {\n  10: optional string activityID\n  20: optional ActivityType activityType\n  30: optional PendingActivityState state\n  40: optional binary heartbeatDetails\n  50: optional i64 (js.type = \"Long\") lastHeartbeatTimestamp\n  60: optional i64 (js.type = \"Long\") lastStartedTimestamp\n  70: optional i32 attempt\n  80: optional i32 maximumAttempts\n  90: optional i64 (js.type = \"Long\") scheduledTimestamp\n  100: optional i64 (js.type = \"Long\") expirationTimestamp\n  110: optional string lastFailureReason\n  120: optional string lastWorkerIdentity\n  130: optional binary lastFailureDetails\n  140: optional string startedWorkerIdentity\n  150: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingDecisionInfo {\n  10: optional PendingDecisionState state\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 attempt\n  50: optional i64 (js.type = \"Long\") originalScheduledTimestamp\n  60: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingChildExecutionInfo {\n  1: optional string domain\n  10: optional string workflowID\n  20: optional string runID\n  30: optional string workflowTypName\n  40: optional i64 (js.type = \"Long\") initiatedID\n  50: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct DescribeWorkflowExecutionResponse {\n  10: optional WorkflowExecutionConfiguration executionConfiguration\n  20: optional WorkflowExecutionInfo workflowExecutionInfo\n  30: optional list<PendingActivityInfo> pendingActivities\n  40: optional list<PendingChildExecutionInfo> pendingChildren\n  50: optional PendingDecisionInfo pendingDecision\n}\n\nstruct DescribeTaskListRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional TaskListType taskListType\n  40: optional bool includeTaskListStatus\n}\n\nstruct DescribeTaskListResponse {\n  10: optional list<PollerInfo> pollers\n  20: optional TaskListStatus taskListStatus\n  // The TaskList being described\n  30: optional TaskList taskList\n}\n\nstruct GetTaskListsByDomainRequest {\n  10: optional string domainName\n}\n\nstruct GetTaskListsByDomainResponse {\n  10: optional map<string,DescribeTaskListResponse> decisionTaskListMap\n  20: optional map<string,DescribeTaskListResponse> activityTaskListMap\n}\n\nstruct ListTaskListPartitionsRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n}\n\nstruct TaskListPartitionMetadata {\n  10: optional string key\n  20: optional string ownerHostName\n}\n\nstruct ListTaskListPartitionsResponse {\n  10: optional list<TaskListPartitionMetadata> activityTaskListPartitions\n  20: optional list<TaskListPartitionMetadata> decisionTaskListPartitions\n}\n\nstruct IsolationGroupMetrics {\n  10: optional double newTasksPerSecond\n  20: optional i64 (js.type = \"Long\") pollerCount\n}\n\nstruct TaskListStatus {\n  10: optional i64 (js.type = \"Long\") backlogCountHint\n  20: optional i64 (js.type = \"Long\") readLevel\n  30: optional i64 (js.type = \"Long\") ackLevel\n  35: optional double ratePerSecond\n  40: optional TaskIDBlock taskIDBlock\n  50: optional map<string, IsolationGroupMetrics> isolationGroupMetrics\n  60: optional double newTasksPerSecond\n  70: optional bool empty\n}\n\nstruct TaskIDBlock {\n  10: optional i64 (js.type = \"Long\")  startID\n  20: optional i64 (js.type = \"Long\")  endID\n}\n\n//At least one of the parameters needs to be provided\nstruct DescribeHistoryHostRequest {\n  10: optional string               hostAddress //ip:port\n  20: optional i32                  shardIdForHost\n  30: optional WorkflowExecution    executionForHost\n}\n\nstruct RemoveTaskRequest {\n  10: optional i32                      shardID\n  20: optional i32                      type\n  30: optional i64 (js.type = \"Long\")   taskID\n  40: optional i64 (js.type = \"Long\")   visibilityTimestamp\n  50: optional string                   clusterName\n}\n\nstruct CloseShardRequest {\n  10: optional i32               shardID\n}\n\nstruct ResetQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueResponse {\n  10: optional list<string> processingQueueStates\n}\n\nstruct DescribeShardDistributionRequest {\n  10: optional i32 pageSize\n  20: optional i32 pageID\n}\n\nstruct DescribeShardDistributionResponse {\n  10: optional i32              numberOfShards\n\n  // ShardID to Address (ip:port) map\n  20: optional map<i32, string> shards\n}\n\nstruct DescribeHistoryHostResponse{\n  10: optional i32                  numberOfShards\n  20: optional list<i32>            shardIDs\n  30: optional DomainCacheInfo      domainCache\n  40: optional string               shardControllerStatus\n  50: optional string               address\n}\n\nstruct DomainCacheInfo{\n  10: optional i64 numOfItemsInCacheByID\n  20: optional i64 numOfItemsInCacheByName\n}\n\nenum TaskListType {\n  /*\n   * Decision type of tasklist\n   */\n  Decision,\n  /*\n   * Activity type of tasklist\n   */\n  Activity,\n}\n\nstruct PollerInfo {\n  // Unix Nano\n  10: optional i64 (js.type = \"Long\")  lastAccessTime\n  20: optional string identity\n  30: optional double ratePerSecond\n}\n\nstruct RetryPolicy {\n  // Interval of the first retry. If coefficient is 1.0 then it is used for all retries.\n  10: optional i32 initialIntervalInSeconds\n\n  // Coefficient used to calculate the next retry interval.\n  // The next retry interval is previous interval multiplied by the coefficient.\n  // Must be 1 or larger.\n  20: optional double backoffCoefficient\n\n  // Maximum interval between retries. Exponential backoff leads to interval increase.\n  // This value is the cap of the increase. Default is 100x of initial interval.\n  30: optional i32 maximumIntervalInSeconds\n\n  // Maximum number of attempts. When exceeded the retries stop even if not expired yet.\n  // Must be 1 or bigger. Default is unlimited.\n  40: optional i32 maximumAttempts\n\n  // Non-Retriable errors. Will stop retrying if error matches this list.\n  50: optional list<string> nonRetriableErrorReasons\n\n  // Expiration time for the whole retry process.\n  60: optional i32 expirationIntervalInSeconds\n}\n\n// HistoryBranchRange represents a piece of range for a branch.\nstruct HistoryBranchRange{\n  // branchID of original branch forked from\n  10: optional string branchID\n  // beinning node for the range, inclusive\n  20: optional i64 beginNodeID\n  // ending node for the range, exclusive\n  30: optional i64 endNodeID\n}\n\n// For history persistence to serialize/deserialize branch details\nstruct HistoryBranch{\n  10: optional string treeID\n  20: optional string branchID\n  30: optional list<HistoryBranchRange> ancestors\n}\n\n// VersionHistoryItem contains signal eventID and the corresponding version\nstruct VersionHistoryItem{\n  10: optional i64 (js.type = \"Long\") eventID\n  20: optional i64 (js.type = \"Long\") version\n}\n\n// VersionHistory contains the version history of a branch\nstruct VersionHistory{\n  10: optional binary branchToken\n  20: optional list<VersionHistoryItem> items\n}\n\n// VersionHistories contains all version histories from all branches\nstruct VersionHistories{\n  10: optional i32 currentVersionHistoryIndex\n  20: optional list<VersionHistory> histories\n}\n\n// ReapplyEventsRequest is the request for reapply events API\nstruct ReapplyEventsRequest{\n  10: optional string domainName\n  20: optional WorkflowExecution workflowExecution\n  30: optional DataBlob events\n}\n\n// SupportedClientVersions contains the support versions for client library\nstruct SupportedClientVersions{\n  10: optional string goSdk\n  20: optional string javaSdk\n}\n\n// ClusterInfo contains information about cadence cluster\nstruct ClusterInfo{\n  10: optional SupportedClientVersions supportedClientVersions\n}\n\nstruct RefreshWorkflowTasksRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\n// DEPRECATED: use proto definition instead\nstruct FeatureFlags {\n  10: optional bool WorkflowExecutionAlreadyCompletedErrorEnabled\n  20: optional bool AutoForwardingEnabled\n}\n\nenum CrossClusterTaskType {\n  StartChildExecution\n  CancelExecution\n  SignalExecution\n  RecordChildWorkflowExecutionComplete\n  ApplyParentClosePolicy\n}\n\nenum CrossClusterTaskFailedCause {\n  DOMAIN_NOT_ACTIVE\n  DOMAIN_NOT_EXISTS\n  WORKFLOW_ALREADY_RUNNING\n  WORKFLOW_NOT_EXISTS\n  WORKFLOW_ALREADY_COMPLETED\n  UNCATEGORIZED\n}\n\nenum GetTaskFailedCause {\n  SERVICE_BUSY\n  TIMEOUT\n  SHARD_OWNERSHIP_LOST\n  UNCATEGORIZED\n}\n\nstruct CrossClusterTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional CrossClusterTaskType taskType\n  50: optional i16 taskState\n  60: optional i64 (js.type = \"Long\") taskID\n  70: optional i64 (js.type = \"Long\") visibilityTimestamp\n}\n\nstruct CrossClusterStartChildExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string requestID\n  30: optional i64 (js.type = \"Long\") initiatedEventID\n  40: optional StartChildWorkflowExecutionInitiatedEventAttributes initiatedEventAttributes\n  // targetRunID is for scheduling first decision task\n  // targetWorkflowID is available in initiatedEventAttributes\n  50: optional string targetRunID\n  60: optional map<string, string> partitionConfig\n}\n\nstruct CrossClusterStartChildExecutionResponseAttributes {\n  10: optional string runID\n}\n\nstruct CrossClusterCancelExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n}\n\nstruct CrossClusterCancelExecutionResponseAttributes {\n}\n\nstruct CrossClusterSignalExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n  70: optional string signalName\n  80: optional binary signalInput\n  90: optional binary control\n}\n\nstruct CrossClusterSignalExecutionResponseAttributes {\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional i64 (js.type = \"Long\") initiatedEventID\n  50: optional HistoryEvent completionEvent\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes {\n}\n\nstruct ApplyParentClosePolicyAttributes {\n  10: optional string childDomainID\n  20: optional string childWorkflowID\n  30: optional string childRunID\n  40: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct ApplyParentClosePolicyStatus {\n  10: optional bool completed\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct ApplyParentClosePolicyRequest {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional ApplyParentClosePolicyStatus status\n}\n\nstruct CrossClusterApplyParentClosePolicyRequestAttributes {\n  10: optional list<ApplyParentClosePolicyRequest> children\n}\n\nstruct ApplyParentClosePolicyResult {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct CrossClusterApplyParentClosePolicyResponseAttributes {\n  10: optional list<ApplyParentClosePolicyResult> childrenStatus\n}\n\nstruct CrossClusterTaskRequest {\n  10: optional CrossClusterTaskInfo taskInfo\n  20: optional CrossClusterStartChildExecutionRequestAttributes startChildExecutionAttributes\n  30: optional CrossClusterCancelExecutionRequestAttributes cancelExecutionAttributes\n  40: optional CrossClusterSignalExecutionRequestAttributes signalExecutionAttributes\n  50: optional CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes recordChildWorkflowExecutionCompleteAttributes\n  60: optional CrossClusterApplyParentClosePolicyRequestAttributes applyParentClosePolicyAttributes\n}\n\nstruct CrossClusterTaskResponse {\n  10: optional i64 (js.type = \"Long\") taskID\n  20: optional CrossClusterTaskType taskType\n  30: optional i16 taskState\n  40: optional CrossClusterTaskFailedCause failedCause\n  50: optional CrossClusterStartChildExecutionResponseAttributes startChildExecutionAttributes\n  60: optional CrossClusterCancelExecutionResponseAttributes cancelExecutionAttributes\n  70: optional CrossClusterSignalExecutionResponseAttributes signalExecutionAttributes\n  80: optional CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes recordChildWorkflowExecutionCompleteAttributes\n  90: optional CrossClusterApplyParentClosePolicyResponseAttributes applyParentClosePolicyAttributes\n}\n\nstruct GetCrossClusterTasksRequest {\n  10: optional list<i32> shardIDs\n  20: optional string targetCluster\n}\n\nstruct GetCrossClusterTasksResponse {\n  10: optional map<i32, list<CrossClusterTaskRequest>> tasksByShard\n  20: optional map<i32, GetTaskFailedCause> failedCauseByShard\n}\n\nstruct RespondCrossClusterTasksCompletedRequest {\n  10: optional i32 shardID\n  20: optional string targetCluster\n  30: optional list<CrossClusterTaskResponse> taskResponses\n  40: optional bool fetchNewTasks\n}\n\nstruct RespondCrossClusterTasksCompletedResponse {\n  10: optional list<CrossClusterTaskRequest> tasks\n}\n\nenum IsolationGroupState {\n  INVALID,\n  HEALTHY,\n  DRAINED,\n}\n\nstruct IsolationGroupPartition {\n  10: optional string name\n  20: optional IsolationGroupState state\n}\n\nstruct IsolationGroupConfiguration {\n  10: optional list<IsolationGroupPartition> isolationGroups\n}\n\nstruct AsyncWorkflowConfiguration {\n  10: optional bool enabled\n  // PredefinedQueueName is the name of the predefined queue in cadence server config's asyncWorkflowQueues\n  20: optional string predefinedQueueName\n  // queueType is the type of the queue if predefined_queue_name is not used\n  30: optional string queueType\n  // queueConfig is the configuration for the queue if predefined_queue_name is not used\n  40: optional DataBlob queueConfig\n}\n\n/**\n* Any is a logical duplicate of google.protobuf.Any.\n*\n* The intent of the type is the same, but it is not intended to be directly\n* compatible with google.protobuf.Any or any Thrift equivalent - this blob is\n* RPC-type agnostic by design (as the underlying data may be transported over\n* proto or thrift), and the data-bytes may be in any encoding.\n*\n* This is intentionally different from DataBlob, which supports only a handful\n* of known encodings so it can be interpreted everywhere.  Any supports literally\n* any contents, and needs to be considered opaque until it is given to something\n* that is expecting it.\n*\n* See ValueType to interpret the contents.\n**/\nstruct Any {\n  // Type-string describing value's contents, and intentionally avoiding the\n  // name \"type\" as it is often a special term.\n  // This should usually be a hard-coded string of some kind.\n  10: optional string ValueType\n  // Arbitrarily-encoded bytes, to be deserialized by a runtime implementation.\n  // The contents are described by ValueType.\n  20: optional binary Value\n}\n\nstruct AutoConfigHint {\n  10: optional bool enableAutoConfig\n  20: optional i64 pollerWaitTimeInMs\n}\n\nstruct QueueState {\n  10: optional map<i64, VirtualQueueState> virtualQueueStates\n  20: optional TaskKey exclusiveMaxReadLevel\n}\n\nstruct VirtualQueueState {\n  10: optional list<VirtualSliceState> virtualSliceStates\n}\n\nstruct VirtualSliceState {\n  10: optional TaskRange taskRange\n  20: optional Predicate predicate\n}\n\nstruct TaskRange {\n  10: optional TaskKey inclusiveMin\n  20: optional TaskKey exclusiveMax\n}\n\nstruct TaskKey {\n  10: optional i64 scheduledTimeNano\n  20: optional i64 taskID\n}\n\n// ActiveClusterSelectionPolicy is for active-active domains, it serves as a means to select\n// the active cluster, by specifying the attribute by which to divide the workflows\n// in that domain.\nstruct ActiveClusterSelectionPolicy {\n  1: optional ClusterAttribute clusterAttribute\n\n  10: optional ActiveClusterSelectionStrategy strategy // todo (david.porter) remove these as they're not used anymore\n  20: optional string stickyRegion                     // todo (david.porter) remove these as they're not used anymore\n  30: optional string externalEntityType               // todo (david.porter) remove these as they're not used anymore\n  40: optional string externalEntityKey                // todo (david.porter) remove these as they're not used anymore\n}\n\n// ClusterAttribute is used for subdividing workflows in a domain into their active\n// and passive clusters. Examples of this might be 'region' and 'cluster1' as\n// respective region and scope fields.\n//\n// for example, a workflow may specify this in it's start request:\n//\n//   StartWorkflowRequest{\n//     ActiveClusterSelectionPolicy: {\n//       ClusterAttribute: {\n//            Scope: \"cityID\",\n//            Name: \"Lisbon\"\n//        }\n//     }\n//   }\n//\n// and this means that this workflow will be associate with the domain's cluster attribute 'Lisbon',\n// be active in the cluster that has Lisbon active and\n// failover when that cluster-attribute is set to failover.\nstruct ClusterAttribute {\n  1: optional string scope\n  2: optional string name\n}\n\n// FailoverType describes how a failover operation will be performed.\nenum FailoverType {\n  INVALID\n  FORCE\n  GRACEFUL\n}\n\n// PaginationOptions provides common options for paginated RPCs.\nstruct PaginationOptions {\n  // page_size configures the number of results to be returned as part of each page\n  10: optional i32 pageSize\n  // next_page_token should be provided from a previous response to fetch the next page.\n  // if empty, the first page will be returned.\n  20: optional binary nextPageToken\n}\n\n// todo (david.porter) Remove this, as it's no longer needed\n// with the active/active configuration we have\nenum ActiveClusterSelectionStrategy {\n  REGION_STICKY,\n  EXTERNAL_ENTITY,\n}\n\nenum PredicateType {\n  Universal,\n  Empty,\n  DomainID,\n}\n\nstruct UniversalPredicateAttributes {}\n\nstruct EmptyPredicateAttributes {}\n\nstruct DomainIDPredicateAttributes {\n  10: optional list<string> domainIDs\n  20: optional bool isExclusive\n}\n\nstruct Predicate {\n  10: optional PredicateType predicateType\n  20: optional UniversalPredicateAttributes universalPredicateAttributes\n  30: optional EmptyPredicateAttributes emptyPredicateAttributes\n  40: optional DomainIDPredicateAttributes domainIDPredicateAttributes\n}\n"
+const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence\n\nexception BadRequestError {\n  1: required string message\n} (rpc.code = \"INVALID_ARGUMENT\")\n\nexception InternalServiceError {\n  1: required string message\n} (rpc.code = \"INTERNAL\")\n\nexception InternalDataInconsistencyError {\n  1: required string message\n} (rpc.code = \"DATA_LOSS\")\n\nexception DomainAlreadyExistsError {\n  1: required string message\n} (rpc.code = \"ALREADY_EXISTS\")\n\nexception WorkflowExecutionAlreadyStartedError {\n  10: optional string message\n  20: optional string startRequestId\n  30: optional string runId\n} (rpc.code = \"ALREADY_EXISTS\")\n\nexception WorkflowExecutionAlreadyCompletedError {\n  1: required string message\n} (rpc.code = \"NOT_FOUND\")\n\nexception EntityNotExistsError {\n  1: required string message\n  2: optional string currentCluster\n  3: optional string activeCluster\n  4: required list<string> activeClusters // todo(david.porter) remove as its disused\n} (rpc.code = \"NOT_FOUND\")\n\nexception ServiceBusyError {\n  1: required string message\n  2: optional string reason\n} (rpc.code = \"RESOURCE_EXHAUSTED\")\n\nexception CancellationAlreadyRequestedError {\n  1: required string message\n} (rpc.code = \"ALREADY_EXISTS\")\n\nexception QueryFailedError {\n  1: required string message\n} (rpc.code = \"INVALID_ARGUMENT\")\n\nexception DomainNotActiveError {\n  1: required string message\n  2: required string domainName\n  3: required string currentCluster\n  4: required string activeCluster\n  5: required list<string> activeClusters // todo (david.porter) remove this field as it's disused\n} (rpc.code = \"FAILED_PRECONDITION\")\n\nexception LimitExceededError {\n  1: required string message\n} (rpc.code = \"RESOURCE_EXHAUSTED\")\n\nexception AccessDeniedError {\n  1: required string message\n} (rpc.code = \"PERMISSION_DENIED\")\n\nexception RetryTaskV2Error {\n  1: required string message\n  2: optional string domainId\n  3: optional string workflowId\n  4: optional string runId\n  5: optional i64 (js.type = \"Long\") startEventId\n  6: optional i64 (js.type = \"Long\") startEventVersion\n  7: optional i64 (js.type = \"Long\") endEventId\n  8: optional i64 (js.type = \"Long\") endEventVersion\n} (rpc.code = \"ABORTED\")\n\nexception ClientVersionNotSupportedError {\n  1: required string featureVersion\n  2: required string clientImpl\n  3: required string supportedVersions\n} (rpc.code = \"FAILED_PRECONDITION\")\n\nexception FeatureNotEnabledError {\n  1: required string featureFlag\n} (rpc.code = \"FAILED_PRECONDITION\")\n\nexception CurrentBranchChangedError {\n  10: required string message\n  20: required binary currentBranchToken\n} (rpc.code = \"ABORTED\")\n\nexception RemoteSyncMatchedError {\n  10: required string message\n} (rpc.code = \"UNAVAILABLE\")\n\nexception StickyWorkerUnavailableError {\n  1: required string message\n} (rpc.code = \"UNAVAILABLE\")\n\nexception TaskListNotOwnedByHostError {\n    1: required string ownedByIdentity\n    2: required string myIdentity\n    3: required string tasklistName\n} (rpc.code = \"ABORTED\")\n\nenum WorkflowIdReusePolicy {\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running, and the last execution close state is in\n   * [terminated, cancelled, timeouted, failed].\n   */\n  AllowDuplicateFailedOnly,\n  /*\n   * allow start a workflow execution using the same workflow ID,\n   * when workflow not running.\n   */\n  AllowDuplicate,\n  /*\n   * do not allow start a workflow execution using the same workflow ID at all\n   */\n  RejectDuplicate,\n  /*\n   * if a workflow is running using the same workflow ID, terminate it and start a new one\n   */\n  TerminateIfRunning,\n}\n\nenum DomainStatus {\n  REGISTERED,\n  DEPRECATED,\n  DELETED,\n}\n\nenum TimeoutType {\n  START_TO_CLOSE,\n  SCHEDULE_TO_START,\n  SCHEDULE_TO_CLOSE,\n  HEARTBEAT,\n}\n\nenum ParentClosePolicy {\n  ABANDON,\n  REQUEST_CANCEL,\n  TERMINATE,\n}\n\n\n// whenever this list of decision is changed\n// do change the mutableStateBuilder.go\n// function shouldBufferEvent\n// to make sure wo do the correct event ordering\nenum DecisionType {\n  ScheduleActivityTask,\n  RequestCancelActivityTask,\n  StartTimer,\n  CompleteWorkflowExecution,\n  FailWorkflowExecution,\n  CancelTimer,\n  CancelWorkflowExecution,\n  RequestCancelExternalWorkflowExecution,\n  RecordMarker,\n  ContinueAsNewWorkflowExecution,\n  StartChildWorkflowExecution,\n  SignalExternalWorkflowExecution,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum EventType {\n  WorkflowExecutionStarted,\n  WorkflowExecutionCompleted,\n  WorkflowExecutionFailed,\n  WorkflowExecutionTimedOut,\n  DecisionTaskScheduled,\n  DecisionTaskStarted,\n  DecisionTaskCompleted,\n  DecisionTaskTimedOut\n  DecisionTaskFailed,\n  ActivityTaskScheduled,\n  ActivityTaskStarted,\n  ActivityTaskCompleted,\n  ActivityTaskFailed,\n  ActivityTaskTimedOut,\n  ActivityTaskCancelRequested,\n  RequestCancelActivityTaskFailed,\n  ActivityTaskCanceled,\n  TimerStarted,\n  TimerFired,\n  CancelTimerFailed,\n  TimerCanceled,\n  WorkflowExecutionCancelRequested,\n  WorkflowExecutionCanceled,\n  RequestCancelExternalWorkflowExecutionInitiated,\n  RequestCancelExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionCancelRequested,\n  MarkerRecorded,\n  WorkflowExecutionSignaled,\n  WorkflowExecutionTerminated,\n  WorkflowExecutionContinuedAsNew,\n  StartChildWorkflowExecutionInitiated,\n  StartChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionStarted,\n  ChildWorkflowExecutionCompleted,\n  ChildWorkflowExecutionFailed,\n  ChildWorkflowExecutionCanceled,\n  ChildWorkflowExecutionTimedOut,\n  ChildWorkflowExecutionTerminated,\n  SignalExternalWorkflowExecutionInitiated,\n  SignalExternalWorkflowExecutionFailed,\n  ExternalWorkflowExecutionSignaled,\n  UpsertWorkflowSearchAttributes,\n}\n\nenum DecisionTaskFailedCause {\n  UNHANDLED_DECISION,\n  BAD_SCHEDULE_ACTIVITY_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_ACTIVITY_ATTRIBUTES,\n  BAD_START_TIMER_ATTRIBUTES,\n  BAD_CANCEL_TIMER_ATTRIBUTES,\n  BAD_RECORD_MARKER_ATTRIBUTES,\n  BAD_COMPLETE_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_FAIL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CANCEL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_CONTINUE_AS_NEW_ATTRIBUTES,\n  START_TIMER_DUPLICATE_ID,\n  RESET_STICKY_TASKLIST,\n  WORKFLOW_WORKER_UNHANDLED_FAILURE,\n  BAD_SIGNAL_WORKFLOW_EXECUTION_ATTRIBUTES,\n  BAD_START_CHILD_EXECUTION_ATTRIBUTES,\n  FORCE_CLOSE_DECISION,\n  FAILOVER_CLOSE_DECISION,\n  BAD_SIGNAL_INPUT_SIZE,\n  RESET_WORKFLOW,\n  BAD_BINARY,\n  SCHEDULE_ACTIVITY_DUPLICATE_ID,\n  BAD_SEARCH_ATTRIBUTES,\n}\n\nenum DecisionTaskTimedOutCause {\n  TIMEOUT,\n  RESET,\n}\n\nenum CancelExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum SignalExternalWorkflowExecutionFailedCause {\n  UNKNOWN_EXTERNAL_WORKFLOW_EXECUTION,\n  WORKFLOW_ALREADY_COMPLETED,\n}\n\nenum ChildWorkflowExecutionFailedCause {\n  WORKFLOW_ALREADY_RUNNING,\n}\n\n// TODO: when migrating to gRPC, add a running / none status,\n//  currently, customer is using null / nil as an indication\n//  that workflow is still running\nenum WorkflowExecutionCloseStatus {\n  COMPLETED,\n  FAILED,\n  CANCELED,\n  TERMINATED,\n  CONTINUED_AS_NEW,\n  TIMED_OUT,\n}\n\nenum WorkflowExecutionStatus {\n  PENDING,\n  STARTED,\n  COMPLETED,\n  FAILED,\n  CANCELED,\n  TERMINATED,\n  CONTINUED_AS_NEW,\n  TIMED_OUT,\n}\n\nenum QueryTaskCompletedType {\n  COMPLETED,\n  FAILED,\n}\n\nenum QueryResultType {\n  ANSWERED,\n  FAILED,\n}\n\nenum PendingActivityState {\n  SCHEDULED,\n  STARTED,\n  CANCEL_REQUESTED,\n}\n\nenum PendingDecisionState {\n  SCHEDULED,\n  STARTED,\n}\n\nenum HistoryEventFilterType {\n  ALL_EVENT,\n  CLOSE_EVENT,\n}\n\nenum TaskListKind {\n  NORMAL,\n  STICKY,\n  EPHEMERAL,\n}\n\nenum ArchivalStatus {\n  DISABLED,\n  ENABLED,\n}\n\nenum CronOverlapPolicy {\n  SKIPPED,\n  BUFFERONE,\n}\n\nenum IndexedValueType {\n  STRING,\n  KEYWORD,\n  INT,\n  DOUBLE,\n  BOOL,\n  DATETIME,\n}\n\nstruct Header {\n    10: optional map<string, binary> fields\n}\n\nstruct WorkflowType {\n  10: optional string name\n}\n\nstruct ActivityType {\n  10: optional string name\n}\n\nstruct TaskList {\n  10: optional string name\n  20: optional TaskListKind kind\n  30: optional string baseName\n}\n\nenum EncodingType {\n  ThriftRW,\n  JSON,\n}\n\nenum QueryRejectCondition {\n  // NOT_OPEN indicates that query should be rejected if workflow is not open\n  NOT_OPEN\n  // NOT_COMPLETED_CLEANLY indicates that query should be rejected if workflow did not complete cleanly\n  NOT_COMPLETED_CLEANLY\n}\n\nenum QueryConsistencyLevel {\n  // EVENTUAL indicates that query should be eventually consistent\n  EVENTUAL\n  // STRONG indicates that any events that came before query should be reflected in workflow state before running query\n  STRONG\n}\n\nstruct DataBlob {\n  10: optional EncodingType EncodingType\n  20: optional binary Data\n}\n\nstruct TaskListMetadata {\n  10: optional double maxTasksPerSecond\n}\n\nstruct WorkflowExecution {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct Memo {\n  10: optional map<string,binary> fields\n}\n\nstruct SearchAttributes {\n  10: optional map<string,binary> indexedFields\n}\n\nstruct WorkerVersionInfo {\n  10: optional string impl\n  20: optional string featureVersion\n}\n\nstruct WorkflowExecutionInfo {\n  10: optional WorkflowExecution execution\n  20: optional WorkflowType type\n  30: optional i64 (js.type = \"Long\") startTime\n  40: optional i64 (js.type = \"Long\") closeTime\n  50: optional WorkflowExecutionCloseStatus closeStatus\n  60: optional i64 (js.type = \"Long\") historyLength\n  70: optional string parentDomainId\n  71: optional string parentDomainName\n  72: optional i64 parentInitatedId\n  80: optional WorkflowExecution parentExecution\n  90: optional i64 (js.type = \"Long\") executionTime\n  100: optional Memo memo\n  101: optional SearchAttributes searchAttributes\n  110: optional ResetPoints autoResetPoints\n  120: optional string taskList\n  121: optional TaskList taskListInfo\n  130: optional bool isCron\n  140: optional i64 (js.type = \"Long\") updateTime\n  150: optional map<string, string> partitionConfig\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n  180: optional string cronSchedule\n  190: optional WorkflowExecutionStatus executionStatus\n  200: optional i64 (js.type = \"Long\") scheduledExecutionTime\n}\n\nstruct WorkflowExecutionConfiguration {\n  10: optional TaskList taskList\n  20: optional i32 executionStartToCloseTimeoutSeconds\n  30: optional i32 taskStartToCloseTimeoutSeconds\n//  40: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n}\n\nstruct TransientDecisionInfo {\n  10: optional HistoryEvent scheduledEvent\n  20: optional HistoryEvent startedEvent\n}\n\nstruct ScheduleActivityTaskDecisionAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional Header header\n  90: optional bool requestLocalDispatch\n}\n\nstruct ActivityLocalDispatchInfo{\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  50: optional binary taskToken\n}\n\nstruct RequestCancelActivityTaskDecisionAttributes {\n  10: optional string activityId\n}\n\nstruct StartTimerDecisionAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n}\n\nstruct CompleteWorkflowExecutionDecisionAttributes {\n  10: optional binary result\n}\n\nstruct FailWorkflowExecutionDecisionAttributes {\n  10: optional string reason\n  20: optional binary details\n}\n\nstruct CancelTimerDecisionAttributes {\n  10: optional string timerId\n}\n\nstruct CancelWorkflowExecutionDecisionAttributes {\n  10: optional binary details\n}\n\nstruct RequestCancelExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional string runId\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional string signalName\n  40: optional binary input\n  50: optional binary control\n  60: optional bool childWorkflowOnly\n}\n\nstruct UpsertWorkflowSearchAttributesDecisionAttributes {\n  10: optional SearchAttributes searchAttributes\n}\n\nstruct RecordMarkerDecisionAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional Header header\n}\n\nstruct ContinueAsNewWorkflowExecutionDecisionAttributes {\n  10: optional WorkflowType workflowType\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n  60: optional i32 backoffStartIntervalInSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional ContinueAsNewInitiator initiator\n  90: optional string failureReason\n  100: optional binary failureDetails\n  110: optional binary lastCompletionResult\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional i32 jitterStartSeconds\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionDecisionAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n//  80: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81: optional ParentClosePolicy parentClosePolicy\n  90: optional binary control\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional RetryPolicy retryPolicy\n  120: optional string cronSchedule\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct Decision {\n  10:  optional DecisionType decisionType\n  20:  optional ScheduleActivityTaskDecisionAttributes scheduleActivityTaskDecisionAttributes\n  25:  optional StartTimerDecisionAttributes startTimerDecisionAttributes\n  30:  optional CompleteWorkflowExecutionDecisionAttributes completeWorkflowExecutionDecisionAttributes\n  35:  optional FailWorkflowExecutionDecisionAttributes failWorkflowExecutionDecisionAttributes\n  40:  optional RequestCancelActivityTaskDecisionAttributes requestCancelActivityTaskDecisionAttributes\n  50:  optional CancelTimerDecisionAttributes cancelTimerDecisionAttributes\n  60:  optional CancelWorkflowExecutionDecisionAttributes cancelWorkflowExecutionDecisionAttributes\n  70:  optional RequestCancelExternalWorkflowExecutionDecisionAttributes requestCancelExternalWorkflowExecutionDecisionAttributes\n  80:  optional RecordMarkerDecisionAttributes recordMarkerDecisionAttributes\n  90:  optional ContinueAsNewWorkflowExecutionDecisionAttributes continueAsNewWorkflowExecutionDecisionAttributes\n  100: optional StartChildWorkflowExecutionDecisionAttributes startChildWorkflowExecutionDecisionAttributes\n  110: optional SignalExternalWorkflowExecutionDecisionAttributes signalExternalWorkflowExecutionDecisionAttributes\n  120: optional UpsertWorkflowSearchAttributesDecisionAttributes upsertWorkflowSearchAttributesDecisionAttributes\n}\n\nstruct WorkflowExecutionStartedEventAttributes {\n  10: optional WorkflowType workflowType\n  12: optional string parentWorkflowDomain\n  14: optional WorkflowExecution parentWorkflowExecution\n  16: optional i64 (js.type = \"Long\") parentInitiatedEventId\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional i32 executionStartToCloseTimeoutSeconds\n  50: optional i32 taskStartToCloseTimeoutSeconds\n//  52: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  54: optional string continuedExecutionRunId\n  55: optional ContinueAsNewInitiator initiator\n  56: optional string continuedFailureReason\n  57: optional binary continuedFailureDetails\n  58: optional binary lastCompletionResult\n  59: optional string originalExecutionRunId // This is the runID when the WorkflowExecutionStarted event is written\n  60: optional string identity\n  61: optional string firstExecutionRunId // This is the very first runID along the chain of ContinueAsNew and Reset.\n  62: optional i64 (js.type = \"Long\") firstScheduledTimeNano\n  70: optional RetryPolicy retryPolicy\n  80: optional i32 attempt\n  90: optional i64 (js.type = \"Long\") expirationTimestamp\n  100: optional string cronSchedule\n  110: optional i32 firstDecisionTaskBackoffSeconds\n  120: optional Memo memo\n  121: optional SearchAttributes searchAttributes\n  130: optional ResetPoints prevAutoResetPoints\n  140: optional Header header\n  150: optional map<string, string> partitionConfig\n  160: optional string requestId\n  170: optional CronOverlapPolicy cronOverlapPolicy\n  180: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct ResetPoints{\n  10: optional list<ResetPointInfo> points\n}\n\n struct ResetPointInfo{\n  10: optional string binaryChecksum\n  20: optional string runId\n  30: optional i64 firstDecisionCompletedId\n  40: optional i64 (js.type = \"Long\") createdTimeNano\n  50: optional i64 (js.type = \"Long\") expiringTimeNano //the time that the run is deleted due to retention\n  60: optional bool resettable                         // false if the resset point has pending childWFs/reqCancels/signalExternals.\n}\n\nstruct WorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct WorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n}\n\nenum ContinueAsNewInitiator {\n  Decider,\n  RetryPolicy,\n  CronSchedule,\n}\n\nstruct WorkflowExecutionContinuedAsNewEventAttributes {\n  10: optional string newExecutionRunId\n  20: optional WorkflowType workflowType\n  30: optional TaskList taskList\n  40: optional binary input\n  50: optional i32 executionStartToCloseTimeoutSeconds\n  60: optional i32 taskStartToCloseTimeoutSeconds\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  80: optional i32 backoffStartIntervalInSeconds\n  90: optional ContinueAsNewInitiator initiator\n  100: optional string failureReason\n  110: optional binary failureDetails\n  120: optional binary lastCompletionResult\n  130: optional Header header\n  140: optional Memo memo\n  150: optional SearchAttributes searchAttributes\n  160: optional CronOverlapPolicy cronOverlapPolicy\n  170: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct DecisionTaskScheduledEventAttributes {\n  10: optional TaskList taskList\n  20: optional i32 startToCloseTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") attempt\n}\n\nstruct DecisionTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n}\n\nstruct DecisionTaskCompletedEventAttributes {\n  10: optional binary executionContext\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct DecisionTaskTimedOutEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // for reset workflow\n  40: optional string baseRunId\n  50: optional string newRunId\n  60: optional i64 (js.type = \"Long\") forkEventVersion\n  70: optional string reason\n  80: optional DecisionTaskTimedOutCause cause\n  90: optional string requestId\n}\n\nstruct DecisionTaskFailedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional DecisionTaskFailedCause cause\n  35: optional binary details\n  40: optional string identity\n  50: optional string reason\n  // for reset workflow\n  60: optional string baseRunId\n  70: optional string newRunId\n  80: optional i64 (js.type = \"Long\") forkEventVersion\n  90: optional string binaryChecksum\n  100: optional string requestId\n}\n\nstruct ActivityTaskScheduledEventAttributes {\n  10: optional string activityId\n  20: optional ActivityType activityType\n  25: optional string domain\n  30: optional TaskList taskList\n  40: optional binary input\n  45: optional i32 scheduleToCloseTimeoutSeconds\n  50: optional i32 scheduleToStartTimeoutSeconds\n  55: optional i32 startToCloseTimeoutSeconds\n  60: optional i32 heartbeatTimeoutSeconds\n  90: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional RetryPolicy retryPolicy\n  120: optional Header header\n}\n\nstruct ActivityTaskStartedEventAttributes {\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional string identity\n  30: optional string requestId\n  40: optional i32 attempt\n  50: optional string lastFailureReason\n  60: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCompletedEventAttributes {\n  10: optional binary result\n  20: optional i64 (js.type = \"Long\") scheduledEventId\n  30: optional i64 (js.type = \"Long\") startedEventId\n  40: optional string identity\n}\n\nstruct ActivityTaskFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct ActivityTaskTimedOutEventAttributes {\n  05: optional binary details\n  10: optional i64 (js.type = \"Long\") scheduledEventId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional TimeoutType timeoutType\n  // For retry activity, it may have a failure before timeout. It's important to keep those information for debug.\n  // Client can also provide the info for making next decision\n  40: optional string lastFailureReason\n  50: optional binary lastFailureDetails\n}\n\nstruct ActivityTaskCancelRequestedEventAttributes {\n  10: optional string activityId\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct RequestCancelActivityTaskFailedEventAttributes{\n  10: optional string activityId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ActivityTaskCanceledEventAttributes {\n  10: optional binary details\n  20: optional i64 (js.type = \"Long\") latestCancelRequestedEventId\n  30: optional i64 (js.type = \"Long\") scheduledEventId\n  40: optional i64 (js.type = \"Long\") startedEventId\n  50: optional string identity\n}\n\nstruct TimerStartedEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startToFireTimeoutSeconds\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct TimerFiredEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct TimerCanceledEventAttributes {\n  10: optional string timerId\n  20: optional i64 (js.type = \"Long\") startedEventId\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct CancelTimerFailedEventAttributes {\n  10: optional string timerId\n  20: optional string cause\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional string identity\n}\n\nstruct WorkflowExecutionCancelRequestedEventAttributes {\n  10: optional string cause\n  20: optional i64 (js.type = \"Long\") externalInitiatedEventId\n  30: optional WorkflowExecution externalWorkflowExecution\n  40: optional string identity\n  50: optional string requestId\n}\n\nstruct WorkflowExecutionCanceledEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional binary details\n}\n\nstruct MarkerRecordedEventAttributes {\n  10: optional string markerName\n  20: optional binary details\n  30: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  40: optional Header header\n}\n\nstruct WorkflowExecutionSignaledEventAttributes {\n  10: optional string signalName\n  20: optional binary input\n  30: optional string identity\n  40: optional string requestId\n}\n\nstruct WorkflowExecutionTerminatedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RequestCancelExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n  50: optional bool childWorkflowOnly\n}\n\nstruct RequestCancelExternalWorkflowExecutionFailedEventAttributes {\n  10: optional CancelExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionCancelRequestedEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n}\n\nstruct SignalExternalWorkflowExecutionInitiatedEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional string signalName\n  50: optional binary input\n  60: optional binary control\n  70: optional bool childWorkflowOnly\n}\n\nstruct SignalExternalWorkflowExecutionFailedEventAttributes {\n  10: optional SignalExternalWorkflowExecutionFailedCause cause\n  20: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional binary control\n}\n\nstruct ExternalWorkflowExecutionSignaledEventAttributes {\n  10: optional i64 (js.type = \"Long\") initiatedEventId\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional binary control\n}\n\nstruct UpsertWorkflowSearchAttributesEventAttributes {\n  10: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  20: optional SearchAttributes searchAttributes\n}\n\nstruct StartChildWorkflowExecutionInitiatedEventAttributes {\n  10:  optional string domain\n  20:  optional string workflowId\n  30:  optional WorkflowType workflowType\n  40:  optional TaskList taskList\n  50:  optional binary input\n  60:  optional i32 executionStartToCloseTimeoutSeconds\n  70:  optional i32 taskStartToCloseTimeoutSeconds\n//  80:  optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  81:  optional ParentClosePolicy parentClosePolicy\n  90:  optional binary control\n  100: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n  110: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Header header\n  150: optional Memo memo\n  160: optional SearchAttributes searchAttributes\n  170: optional i32 delayStartSeconds\n  180: optional i32 jitterStartSeconds\n  190: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  200: optional CronOverlapPolicy cronOverlapPolicy\n  210: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartChildWorkflowExecutionFailedEventAttributes {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional ChildWorkflowExecutionFailedCause cause\n  50: optional binary control\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") decisionTaskCompletedEventId\n}\n\nstruct ChildWorkflowExecutionStartedEventAttributes {\n  10: optional string domain\n  20: optional i64 (js.type = \"Long\") initiatedEventId\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional Header header\n}\n\nstruct ChildWorkflowExecutionCompletedEventAttributes {\n  10: optional binary result\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionFailedEventAttributes {\n  10: optional string reason\n  20: optional binary details\n  30: optional string domain\n  40: optional WorkflowExecution workflowExecution\n  50: optional WorkflowType workflowType\n  60: optional i64 (js.type = \"Long\") initiatedEventId\n  70: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionCanceledEventAttributes {\n  10: optional binary details\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTimedOutEventAttributes {\n  10: optional TimeoutType timeoutType\n  20: optional string domain\n  30: optional WorkflowExecution workflowExecution\n  40: optional WorkflowType workflowType\n  50: optional i64 (js.type = \"Long\") initiatedEventId\n  60: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct ChildWorkflowExecutionTerminatedEventAttributes {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") initiatedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n}\n\nstruct HistoryEvent {\n  10:  optional i64 (js.type = \"Long\") eventId\n  20:  optional i64 (js.type = \"Long\") timestamp\n  30:  optional EventType eventType\n  35:  optional i64 (js.type = \"Long\") version\n  36:  optional i64 (js.type = \"Long\") taskId\n  40:  optional WorkflowExecutionStartedEventAttributes workflowExecutionStartedEventAttributes\n  50:  optional WorkflowExecutionCompletedEventAttributes workflowExecutionCompletedEventAttributes\n  60:  optional WorkflowExecutionFailedEventAttributes workflowExecutionFailedEventAttributes\n  70:  optional WorkflowExecutionTimedOutEventAttributes workflowExecutionTimedOutEventAttributes\n  80:  optional DecisionTaskScheduledEventAttributes decisionTaskScheduledEventAttributes\n  90:  optional DecisionTaskStartedEventAttributes decisionTaskStartedEventAttributes\n  100: optional DecisionTaskCompletedEventAttributes decisionTaskCompletedEventAttributes\n  110: optional DecisionTaskTimedOutEventAttributes decisionTaskTimedOutEventAttributes\n  120: optional DecisionTaskFailedEventAttributes decisionTaskFailedEventAttributes\n  130: optional ActivityTaskScheduledEventAttributes activityTaskScheduledEventAttributes\n  140: optional ActivityTaskStartedEventAttributes activityTaskStartedEventAttributes\n  150: optional ActivityTaskCompletedEventAttributes activityTaskCompletedEventAttributes\n  160: optional ActivityTaskFailedEventAttributes activityTaskFailedEventAttributes\n  170: optional ActivityTaskTimedOutEventAttributes activityTaskTimedOutEventAttributes\n  180: optional TimerStartedEventAttributes timerStartedEventAttributes\n  190: optional TimerFiredEventAttributes timerFiredEventAttributes\n  200: optional ActivityTaskCancelRequestedEventAttributes activityTaskCancelRequestedEventAttributes\n  210: optional RequestCancelActivityTaskFailedEventAttributes requestCancelActivityTaskFailedEventAttributes\n  220: optional ActivityTaskCanceledEventAttributes activityTaskCanceledEventAttributes\n  230: optional TimerCanceledEventAttributes timerCanceledEventAttributes\n  240: optional CancelTimerFailedEventAttributes cancelTimerFailedEventAttributes\n  250: optional MarkerRecordedEventAttributes markerRecordedEventAttributes\n  260: optional WorkflowExecutionSignaledEventAttributes workflowExecutionSignaledEventAttributes\n  270: optional WorkflowExecutionTerminatedEventAttributes workflowExecutionTerminatedEventAttributes\n  280: optional WorkflowExecutionCancelRequestedEventAttributes workflowExecutionCancelRequestedEventAttributes\n  290: optional WorkflowExecutionCanceledEventAttributes workflowExecutionCanceledEventAttributes\n  300: optional RequestCancelExternalWorkflowExecutionInitiatedEventAttributes requestCancelExternalWorkflowExecutionInitiatedEventAttributes\n  310: optional RequestCancelExternalWorkflowExecutionFailedEventAttributes requestCancelExternalWorkflowExecutionFailedEventAttributes\n  320: optional ExternalWorkflowExecutionCancelRequestedEventAttributes externalWorkflowExecutionCancelRequestedEventAttributes\n  330: optional WorkflowExecutionContinuedAsNewEventAttributes workflowExecutionContinuedAsNewEventAttributes\n  340: optional StartChildWorkflowExecutionInitiatedEventAttributes startChildWorkflowExecutionInitiatedEventAttributes\n  350: optional StartChildWorkflowExecutionFailedEventAttributes startChildWorkflowExecutionFailedEventAttributes\n  360: optional ChildWorkflowExecutionStartedEventAttributes childWorkflowExecutionStartedEventAttributes\n  370: optional ChildWorkflowExecutionCompletedEventAttributes childWorkflowExecutionCompletedEventAttributes\n  380: optional ChildWorkflowExecutionFailedEventAttributes childWorkflowExecutionFailedEventAttributes\n  390: optional ChildWorkflowExecutionCanceledEventAttributes childWorkflowExecutionCanceledEventAttributes\n  400: optional ChildWorkflowExecutionTimedOutEventAttributes childWorkflowExecutionTimedOutEventAttributes\n  410: optional ChildWorkflowExecutionTerminatedEventAttributes childWorkflowExecutionTerminatedEventAttributes\n  420: optional SignalExternalWorkflowExecutionInitiatedEventAttributes signalExternalWorkflowExecutionInitiatedEventAttributes\n  430: optional SignalExternalWorkflowExecutionFailedEventAttributes signalExternalWorkflowExecutionFailedEventAttributes\n  440: optional ExternalWorkflowExecutionSignaledEventAttributes externalWorkflowExecutionSignaledEventAttributes\n  450: optional UpsertWorkflowSearchAttributesEventAttributes upsertWorkflowSearchAttributesEventAttributes\n}\n\nstruct History {\n  10: optional list<HistoryEvent> events\n}\n\nstruct WorkflowExecutionFilter {\n  10: optional string workflowId\n  20: optional string runId\n}\n\nstruct WorkflowTypeFilter {\n  10: optional string name\n}\n\nstruct StartTimeFilter {\n  10: optional i64 (js.type = \"Long\") earliestTime\n  20: optional i64 (js.type = \"Long\") latestTime\n}\n\nstruct DomainInfo {\n  10: optional string name\n  20: optional DomainStatus status\n  30: optional string description\n  40: optional string ownerEmail\n  // A key-value map for any customized purpose\n  50: optional map<string,string> data\n  60: optional string uuid\n}\n\nstruct DomainConfiguration {\n  10: optional i32 workflowExecutionRetentionPeriodInDays\n  20: optional bool emitMetric\n  60: optional IsolationGroupConfiguration isolationgroups\n  70: optional BadBinaries badBinaries\n  80: optional ArchivalStatus historyArchivalStatus\n  90: optional string historyArchivalURI\n  100: optional ArchivalStatus visibilityArchivalStatus\n  110: optional string visibilityArchivalURI\n  120: optional AsyncWorkflowConfiguration AsyncWorkflowConfiguration\n}\n\nstruct FailoverInfo {\n    10: optional i64 (js.type = \"Long\") failoverVersion\n    20: optional i64 (js.type = \"Long\") failoverStartTimestamp\n    30: optional i64 (js.type = \"Long\") failoverExpireTimestamp\n    40: optional i32 completedShardCount\n    50: optional list<i32> pendingShards\n}\n\nstruct BadBinaries{\n  10: optional map<string, BadBinaryInfo> binaries\n}\n\nstruct BadBinaryInfo{\n  10: optional string reason\n  20: optional string operator\n  30: optional i64 (js.type = \"Long\") createdTimeNano\n}\n\nstruct UpdateDomainInfo {\n  10: optional string description\n  20: optional string ownerEmail\n  // A key-value map for any customized purpose\n  30: optional map<string,string> data\n}\n\nstruct ClusterReplicationConfiguration {\n 10: optional string clusterName\n}\n\nstruct DomainReplicationConfiguration {\n // activeClusterName is the name of the active cluster for active-passive domain\n 10: optional string activeClusterName\n\n //  clusters is list of all active and passive clusters of domain\n 20: optional list<ClusterReplicationConfiguration> clusters\n\n // activeClusters contains active cluster(s) information for active-active domain\n 30: optional ActiveClusters activeClusters\n}\n\n// ClusterAttributeScope is a mapping of the cluster atribute to the scope's\n// current stae and failover version, indicating how recently the change was made\nstruct ClusterAttributeScope {\n  10: optional map<string, ActiveClusterInfo> clusterAttributes;\n}\n\n// activeClustersByClusterAttribute is a map of whatever subdivision of the domain chosen\n// to active cluster info for active-active domains. The key refers to the type of\n// cluster attribute and the value refers to its cluster mappings.\n//\n// For example, a request to update the domain for two locations\n//\n// UpdateDomainRequest{\n//    ReplicationConfiguration: {\n//       ActiveClusters: {\n//           ActiveClustersByClusterAttribute: {\n//             \"location\": ClusterAttributeScope{\n//                   \"Tokyo\": {ActiveClusterInfo: \"cluster0, FailoverVersion: 123},\n//                   \"Morocco\": {ActiveClusterInfo: \"cluster1\", FailoverVersion: 100},\n//             }\n//          }\n//       }\n//    }\n//  }\nstruct ActiveClusters {\n  10: optional map<string, ActiveClusterInfo> activeClustersByRegion // todo (david.porter) remove this as it's no longer used\n  11: optional map<string, ClusterAttributeScope> activeClustersByClusterAttribute\n}\n\n// ActiveClusterInfo contains the configuration of active-active domain's active\n// cluster & failover version for a specific region\nstruct ActiveClusterInfo {\n  10: optional string activeClusterName\n  20: optional i64 (js.type = \"Long\") failoverVersion\n}\n\nstruct RegisterDomainRequest {\n  10: optional string name\n  20: optional string description\n  30: optional string ownerEmail\n  40: optional i32 workflowExecutionRetentionPeriodInDays\n  50: optional bool emitMetric = true\n  60: optional list<ClusterReplicationConfiguration> clusters\n  70: optional string activeClusterName\n  // todo (david.porter) remove this field as it's not going to be used\n  75: optional map<string, string> activeClustersByRegion\n  // activeClusters is a map of cluster-attribute name to active cluster name for active-active domain\n  76: optional ActiveClusters activeClusters\n  // A key-value map for any customized purpose\n  80: optional map<string,string> data\n  90: optional string securityToken\n  120: optional bool isGlobalDomain\n  130: optional ArchivalStatus historyArchivalStatus\n  140: optional string historyArchivalURI\n  150: optional ArchivalStatus visibilityArchivalStatus\n  160: optional string visibilityArchivalURI\n}\n\nstruct ListDomainsRequest {\n  10: optional i32 pageSize\n  20: optional binary nextPageToken\n}\n\nstruct ListDomainsResponse {\n  10: optional list<DescribeDomainResponse> domains\n  20: optional binary nextPageToken\n}\n\nstruct DescribeDomainRequest {\n  10: optional string name\n  20: optional string uuid\n}\n\nstruct DescribeDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n  60: optional FailoverInfo failoverInfo\n}\n\nstruct UpdateDomainRequest {\n 10: optional string name\n 20: optional UpdateDomainInfo updatedInfo\n 30: optional DomainConfiguration configuration\n 40: optional DomainReplicationConfiguration replicationConfiguration\n 50: optional string securityToken\n 60: optional string deleteBadBinary\n 70: optional i32 failoverTimeoutInSeconds\n}\n\nstruct UpdateDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n}\n\nstruct FailoverDomainRequest {\n 10: optional string domainName\n 20: optional string domainActiveClusterName\n // only applicable to active-active domains where\n // specific cluster-attributes are being failed over\n 30: optional ActiveClusters activeClusters\n // user-requested addition \"reason\" variable created to increase transparency around failovers\n 40: optional string reason\n}\n\nstruct FailoverDomainResponse {\n  10: optional DomainInfo domainInfo\n  20: optional DomainConfiguration configuration\n  30: optional DomainReplicationConfiguration replicationConfiguration\n  40: optional i64 (js.type = \"Long\") failoverVersion\n  50: optional bool isGlobalDomain\n}\n\nstruct DeprecateDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct DeleteDomainRequest {\n 10: optional string name\n 20: optional string securityToken\n}\n\nstruct ListFailoverHistoryRequest {\n  // ListFailoverHistoryRequestFilters specifies the filters to apply to the request.\n  // If not provided all failover events will be returned.\n  10: optional ListFailoverHistoryRequestFilters filters\n  // PaginationOptions will be used to paginate the results.\n  // If not provided the first 5 events will be returned.\n  20: optional PaginationOptions pagination\n}\n\n// ListFailoverHistoryRequestFilters is used to filter the failover history.\n// It will be extended with additional filters (e.g ClusterAttributes) as the active-active feature is developed.\nstruct ListFailoverHistoryRequestFilters {\n  // domain_id is the id of the domain to list failover history for.\n  10: optional string domainID\n}\n\nstruct ListFailoverHistoryResponse {\n  10: optional list<FailoverEvent> failoverEvents\n  // next_page_token can be passed in a subsequent request to fetch the next set of events.\n  20: optional binary nextPageToken\n}\n\nstruct FailoverEvent {\n  // id of the failover event\n  // Can be passed with the created time to fetch a specific event.\n  10: optional string id\n  // created_time is the time the failover event was created.\n  // Can be passed with the ID to fetch a specific event.\n  20: optional i64 (js.type = \"Long\") createdTime\n  30: optional FailoverType failoverType\n  40: optional list<ClusterFailover> clusterFailovers\n}\n\nstruct ClusterFailover {\n  10: optional ActiveClusterInfo fromCluster\n  20: optional ActiveClusterInfo toCluster\n  // cluster_attribute is the scope and name for the attribute that was failed over.\n  // If the cluster_attribute is not defined this failover can be assumed to be the default ActiveCluster.\n  30: optional ClusterAttribute clusterAttribute\n}\n\nstruct StartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n//  110: optional ChildPolicy childPolicy -- Removed but reserve the IDL order number\n  120: optional RetryPolicy retryPolicy\n  130: optional string cronSchedule\n  140: optional Memo memo\n  141: optional SearchAttributes searchAttributes\n  150: optional Header header\n  160: optional i32 delayStartSeconds\n  170: optional i32 jitterStartSeconds\n  180: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  190: optional CronOverlapPolicy cronOverlapPolicy\n  200: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct StartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct StartWorkflowExecutionAsyncRequest {\n  10: optional StartWorkflowExecutionRequest request\n}\n\nstruct StartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct DiagnoseWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n}\n\nstruct DiagnoseWorkflowExecutionResponse {\n  10: optional string domain\n  20: optional WorkflowExecution diagnosticWorkflowExecution\n}\n\nstruct PollForDecisionTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional string binaryChecksum\n}\n\nstruct PollForDecisionTaskResponse {\n  10: optional binary taskToken\n  20: optional WorkflowExecution workflowExecution\n  30: optional WorkflowType workflowType\n  40: optional i64 (js.type = \"Long\") previousStartedEventId\n  50: optional i64 (js.type = \"Long\") startedEventId\n  51: optional i64 (js.type = 'Long') attempt\n  54: optional i64 (js.type = \"Long\") backlogCountHint\n  60: optional History history\n  70: optional binary nextPageToken\n  80: optional WorkflowQuery query\n  90: optional TaskList WorkflowExecutionTaskList\n  100: optional i64 (js.type = \"Long\") scheduledTimestamp\n  110: optional i64 (js.type = \"Long\") startedTimestamp\n  120: optional map<string, WorkflowQuery> queries\n  130: optional i64 (js.type = 'Long') nextEventId\n  140: optional i64 (js.type = 'Long') totalHistoryBytes\n  150: optional AutoConfigHint autoConfigHint\n}\n\nstruct StickyExecutionAttributes {\n  10: optional TaskList workerTaskList\n  20: optional i32 scheduleToStartTimeoutSeconds\n}\n\nstruct RespondDecisionTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional list<Decision> decisions\n  30: optional binary executionContext\n  40: optional string identity\n  50: optional StickyExecutionAttributes stickyAttributes\n  60: optional bool returnNewDecisionTask\n  70: optional bool forceCreateNewDecisionTask\n  80: optional string binaryChecksum\n  90: optional map<string, WorkflowQueryResult> queryResults\n}\n\nstruct RespondDecisionTaskCompletedResponse {\n  10: optional PollForDecisionTaskResponse decisionTask\n  20: optional map<string,ActivityLocalDispatchInfo> activitiesToDispatchLocally\n}\n\nstruct RespondDecisionTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional DecisionTaskFailedCause cause\n  30: optional binary details\n  40: optional string identity\n  50: optional string binaryChecksum\n}\n\nstruct PollForActivityTaskRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional string identity\n  40: optional TaskListMetadata taskListMetadata\n}\n\nstruct PollForActivityTaskResponse {\n  10:  optional binary taskToken\n  20:  optional WorkflowExecution workflowExecution\n  30:  optional string activityId\n  40:  optional ActivityType activityType\n  50:  optional binary input\n  70:  optional i64 (js.type = \"Long\") scheduledTimestamp\n  80:  optional i32 scheduleToCloseTimeoutSeconds\n  90:  optional i64 (js.type = \"Long\") startedTimestamp\n  100: optional i32 startToCloseTimeoutSeconds\n  110: optional i32 heartbeatTimeoutSeconds\n  120: optional i32 attempt\n  130: optional i64 (js.type = \"Long\") scheduledTimestampOfThisAttempt\n  140: optional binary heartbeatDetails\n  150: optional WorkflowType workflowType\n  160: optional string workflowDomain\n  170: optional Header header\n  180: optional AutoConfigHint autoConfigHint\n}\n\nstruct RecordActivityTaskHeartbeatRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RecordActivityTaskHeartbeatResponse {\n  10: optional bool cancelRequested\n}\n\nstruct RespondActivityTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional binary result\n  30: optional string identity\n}\n\nstruct RespondActivityTaskFailedRequest {\n  10: optional binary taskToken\n  20: optional string reason\n  30: optional binary details\n  40: optional string identity\n}\n\nstruct RespondActivityTaskCanceledRequest {\n  10: optional binary taskToken\n  20: optional binary details\n  30: optional string identity\n}\n\nstruct RespondActivityTaskCompletedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary result\n  60: optional string identity\n}\n\nstruct RespondActivityTaskFailedByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional string reason\n  60: optional binary details\n  70: optional string identity\n}\n\nstruct RespondActivityTaskCanceledByIDRequest {\n  10: optional string domain\n  20: optional string workflowID\n  30: optional string runID\n  40: optional string activityID\n  50: optional binary details\n  60: optional string identity\n}\n\nstruct RequestCancelWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string identity\n  40: optional string requestId\n  50: optional string cause\n  60: optional string firstExecutionRunID\n}\n\nstruct GetWorkflowExecutionHistoryRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional i32 maximumPageSize\n  40: optional binary nextPageToken\n  50: optional bool waitForNewEvent\n  60: optional HistoryEventFilterType HistoryEventFilterType\n  70: optional bool skipArchival\n  80: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct GetWorkflowExecutionHistoryResponse {\n  10: optional History history\n  11: optional list<DataBlob> rawHistory\n  20: optional binary nextPageToken\n  30: optional bool archived\n}\n\nstruct SignalWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string signalName\n  40: optional binary input\n  50: optional string identity\n  60: optional string requestId\n  70: optional binary control\n}\n\nstruct SignalWithStartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional string workflowId\n  30: optional WorkflowType workflowType\n  40: optional TaskList taskList\n  50: optional binary input\n  60: optional i32 executionStartToCloseTimeoutSeconds\n  70: optional i32 taskStartToCloseTimeoutSeconds\n  80: optional string identity\n  90: optional string requestId\n  100: optional WorkflowIdReusePolicy workflowIdReusePolicy\n  110: optional string signalName\n  120: optional binary signalInput\n  130: optional binary control\n  140: optional RetryPolicy retryPolicy\n  150: optional string cronSchedule\n  160: optional Memo memo\n  161: optional SearchAttributes searchAttributes\n  170: optional Header header\n  180: optional i32 delayStartSeconds\n  190: optional i32 jitterStartSeconds\n  200: optional i64 (js.type = \"Long\") firstRunAtTimestamp\n  210: optional CronOverlapPolicy cronOverlapPolicy\n  220: optional ActiveClusterSelectionPolicy activeClusterSelectionPolicy\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncRequest {\n  10: optional SignalWithStartWorkflowExecutionRequest request\n}\n\nstruct SignalWithStartWorkflowExecutionAsyncResponse {\n}\n\nstruct RestartWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional string identity\n}\nstruct TerminateWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional binary details\n  50: optional string identity\n  60: optional string firstExecutionRunID\n}\n\nstruct ResetWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution workflowExecution\n  30: optional string reason\n  40: optional i64 (js.type = \"Long\") decisionFinishEventId\n  50: optional string requestId\n  60: optional bool skipSignalReapply\n}\n\nstruct ResetWorkflowExecutionResponse {\n  10: optional string runId\n}\n\nstruct ListOpenWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n}\n\nstruct ListOpenWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListClosedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 maximumPageSize\n  30: optional binary nextPageToken\n  40: optional StartTimeFilter StartTimeFilter\n  50: optional WorkflowExecutionFilter executionFilter\n  60: optional WorkflowTypeFilter typeFilter\n  70: optional WorkflowExecutionCloseStatus statusFilter\n}\n\nstruct ListClosedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct ListArchivedWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n  40: optional string query\n}\n\nstruct ListArchivedWorkflowExecutionsResponse {\n  10: optional list<WorkflowExecutionInfo> executions\n  20: optional binary nextPageToken\n}\n\nstruct CountWorkflowExecutionsRequest {\n  10: optional string domain\n  20: optional string query\n}\n\nstruct CountWorkflowExecutionsResponse {\n  10: optional i64 count\n}\n\nstruct GetSearchAttributesResponse {\n  10: optional map<string, IndexedValueType> keys\n}\n\nstruct QueryWorkflowRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional WorkflowQuery query\n  // QueryRejectCondition can used to reject the query if workflow state does not satisify condition\n  40: optional QueryRejectCondition queryRejectCondition\n  50: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct QueryRejected {\n  10: optional WorkflowExecutionCloseStatus closeStatus\n}\n\nstruct QueryWorkflowResponse {\n  10: optional binary queryResult\n  20: optional QueryRejected queryRejected\n}\n\nstruct WorkflowQuery {\n  10: optional string queryType\n  20: optional binary queryArgs\n}\n\nstruct ResetStickyTaskListRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\nstruct ResetStickyTaskListResponse {\n    // The reason to keep this response is to allow returning\n    // information in the future.\n}\n\nstruct RespondQueryTaskCompletedRequest {\n  10: optional binary taskToken\n  20: optional QueryTaskCompletedType completedType\n  30: optional binary queryResult\n  40: optional string errorMessage\n  50: optional WorkerVersionInfo workerVersionInfo\n}\n\nstruct WorkflowQueryResult {\n  10: optional QueryResultType resultType\n  20: optional binary answer\n  30: optional string errorMessage\n}\n\nstruct DescribeWorkflowExecutionRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n  30: optional QueryConsistencyLevel queryConsistencyLevel\n}\n\nstruct PendingActivityInfo {\n  10: optional string activityID\n  20: optional ActivityType activityType\n  30: optional PendingActivityState state\n  40: optional binary heartbeatDetails\n  50: optional i64 (js.type = \"Long\") lastHeartbeatTimestamp\n  60: optional i64 (js.type = \"Long\") lastStartedTimestamp\n  70: optional i32 attempt\n  80: optional i32 maximumAttempts\n  90: optional i64 (js.type = \"Long\") scheduledTimestamp\n  100: optional i64 (js.type = \"Long\") expirationTimestamp\n  110: optional string lastFailureReason\n  120: optional string lastWorkerIdentity\n  130: optional binary lastFailureDetails\n  140: optional string startedWorkerIdentity\n  150: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingDecisionInfo {\n  10: optional PendingDecisionState state\n  20: optional i64 (js.type = \"Long\") scheduledTimestamp\n  30: optional i64 (js.type = \"Long\") startedTimestamp\n  40: optional i64 attempt\n  50: optional i64 (js.type = \"Long\") originalScheduledTimestamp\n  60: optional i64 (js.type = \"Long\") scheduleID\n}\n\nstruct PendingChildExecutionInfo {\n  1: optional string domain\n  10: optional string workflowID\n  20: optional string runID\n  30: optional string workflowTypName\n  40: optional i64 (js.type = \"Long\") initiatedID\n  50: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct DescribeWorkflowExecutionResponse {\n  10: optional WorkflowExecutionConfiguration executionConfiguration\n  20: optional WorkflowExecutionInfo workflowExecutionInfo\n  30: optional list<PendingActivityInfo> pendingActivities\n  40: optional list<PendingChildExecutionInfo> pendingChildren\n  50: optional PendingDecisionInfo pendingDecision\n}\n\nstruct DescribeTaskListRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n  30: optional TaskListType taskListType\n  40: optional bool includeTaskListStatus\n}\n\nstruct DescribeTaskListResponse {\n  10: optional list<PollerInfo> pollers\n  20: optional TaskListStatus taskListStatus\n  // The TaskList being described\n  30: optional TaskList taskList\n}\n\nstruct GetTaskListsByDomainRequest {\n  10: optional string domainName\n}\n\nstruct GetTaskListsByDomainResponse {\n  10: optional map<string,DescribeTaskListResponse> decisionTaskListMap\n  20: optional map<string,DescribeTaskListResponse> activityTaskListMap\n}\n\nstruct ListTaskListPartitionsRequest {\n  10: optional string domain\n  20: optional TaskList taskList\n}\n\nstruct TaskListPartitionMetadata {\n  10: optional string key\n  20: optional string ownerHostName\n}\n\nstruct ListTaskListPartitionsResponse {\n  10: optional list<TaskListPartitionMetadata> activityTaskListPartitions\n  20: optional list<TaskListPartitionMetadata> decisionTaskListPartitions\n}\n\nstruct IsolationGroupMetrics {\n  10: optional double newTasksPerSecond\n  20: optional i64 (js.type = \"Long\") pollerCount\n}\n\nstruct TaskListStatus {\n  10: optional i64 (js.type = \"Long\") backlogCountHint\n  20: optional i64 (js.type = \"Long\") readLevel\n  30: optional i64 (js.type = \"Long\") ackLevel\n  35: optional double ratePerSecond\n  40: optional TaskIDBlock taskIDBlock\n  50: optional map<string, IsolationGroupMetrics> isolationGroupMetrics\n  60: optional double newTasksPerSecond\n  70: optional bool empty\n}\n\nstruct TaskIDBlock {\n  10: optional i64 (js.type = \"Long\")  startID\n  20: optional i64 (js.type = \"Long\")  endID\n}\n\n//At least one of the parameters needs to be provided\nstruct DescribeHistoryHostRequest {\n  10: optional string               hostAddress //ip:port\n  20: optional i32                  shardIdForHost\n  30: optional WorkflowExecution    executionForHost\n}\n\nstruct RemoveTaskRequest {\n  10: optional i32                      shardID\n  20: optional i32                      type\n  30: optional i64 (js.type = \"Long\")   taskID\n  40: optional i64 (js.type = \"Long\")   visibilityTimestamp\n  50: optional string                   clusterName\n}\n\nstruct CloseShardRequest {\n  10: optional i32               shardID\n}\n\nstruct ResetQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueRequest {\n  10: optional i32    shardID\n  20: optional string clusterName\n  30: optional i32    type\n}\n\nstruct DescribeQueueResponse {\n  10: optional list<string> processingQueueStates\n}\n\nstruct DescribeShardDistributionRequest {\n  10: optional i32 pageSize\n  20: optional i32 pageID\n}\n\nstruct DescribeShardDistributionResponse {\n  10: optional i32              numberOfShards\n\n  // ShardID to Address (ip:port) map\n  20: optional map<i32, string> shards\n}\n\nstruct DescribeHistoryHostResponse{\n  10: optional i32                  numberOfShards\n  20: optional list<i32>            shardIDs\n  30: optional DomainCacheInfo      domainCache\n  40: optional string               shardControllerStatus\n  50: optional string               address\n}\n\nstruct DomainCacheInfo{\n  10: optional i64 numOfItemsInCacheByID\n  20: optional i64 numOfItemsInCacheByName\n}\n\nenum TaskListType {\n  /*\n   * Decision type of tasklist\n   */\n  Decision,\n  /*\n   * Activity type of tasklist\n   */\n  Activity,\n}\n\nstruct PollerInfo {\n  // Unix Nano\n  10: optional i64 (js.type = \"Long\")  lastAccessTime\n  20: optional string identity\n  30: optional double ratePerSecond\n}\n\nstruct RetryPolicy {\n  // Interval of the first retry. If coefficient is 1.0 then it is used for all retries.\n  10: optional i32 initialIntervalInSeconds\n\n  // Coefficient used to calculate the next retry interval.\n  // The next retry interval is previous interval multiplied by the coefficient.\n  // Must be 1 or larger.\n  20: optional double backoffCoefficient\n\n  // Maximum interval between retries. Exponential backoff leads to interval increase.\n  // This value is the cap of the increase. Default is 100x of initial interval.\n  30: optional i32 maximumIntervalInSeconds\n\n  // Maximum number of attempts. When exceeded the retries stop even if not expired yet.\n  // Must be 1 or bigger. Default is unlimited.\n  40: optional i32 maximumAttempts\n\n  // Non-Retriable errors. Will stop retrying if error matches this list.\n  50: optional list<string> nonRetriableErrorReasons\n\n  // Expiration time for the whole retry process.\n  60: optional i32 expirationIntervalInSeconds\n}\n\n// HistoryBranchRange represents a piece of range for a branch.\nstruct HistoryBranchRange{\n  // branchID of original branch forked from\n  10: optional string branchID\n  // beinning node for the range, inclusive\n  20: optional i64 beginNodeID\n  // ending node for the range, exclusive\n  30: optional i64 endNodeID\n}\n\n// For history persistence to serialize/deserialize branch details\nstruct HistoryBranch{\n  10: optional string treeID\n  20: optional string branchID\n  30: optional list<HistoryBranchRange> ancestors\n}\n\n// VersionHistoryItem contains signal eventID and the corresponding version\nstruct VersionHistoryItem{\n  10: optional i64 (js.type = \"Long\") eventID\n  20: optional i64 (js.type = \"Long\") version\n}\n\n// VersionHistory contains the version history of a branch\nstruct VersionHistory{\n  10: optional binary branchToken\n  20: optional list<VersionHistoryItem> items\n}\n\n// VersionHistories contains all version histories from all branches\nstruct VersionHistories{\n  10: optional i32 currentVersionHistoryIndex\n  20: optional list<VersionHistory> histories\n}\n\n// ReapplyEventsRequest is the request for reapply events API\nstruct ReapplyEventsRequest{\n  10: optional string domainName\n  20: optional WorkflowExecution workflowExecution\n  30: optional DataBlob events\n}\n\n// SupportedClientVersions contains the support versions for client library\nstruct SupportedClientVersions{\n  10: optional string goSdk\n  20: optional string javaSdk\n}\n\n// ClusterInfo contains information about cadence cluster\nstruct ClusterInfo{\n  10: optional SupportedClientVersions supportedClientVersions\n}\n\nstruct RefreshWorkflowTasksRequest {\n  10: optional string domain\n  20: optional WorkflowExecution execution\n}\n\n// DEPRECATED: use proto definition instead\nstruct FeatureFlags {\n  10: optional bool WorkflowExecutionAlreadyCompletedErrorEnabled\n  20: optional bool AutoForwardingEnabled\n}\n\nenum CrossClusterTaskType {\n  StartChildExecution\n  CancelExecution\n  SignalExecution\n  RecordChildWorkflowExecutionComplete\n  ApplyParentClosePolicy\n}\n\nenum CrossClusterTaskFailedCause {\n  DOMAIN_NOT_ACTIVE\n  DOMAIN_NOT_EXISTS\n  WORKFLOW_ALREADY_RUNNING\n  WORKFLOW_NOT_EXISTS\n  WORKFLOW_ALREADY_COMPLETED\n  UNCATEGORIZED\n}\n\nenum GetTaskFailedCause {\n  SERVICE_BUSY\n  TIMEOUT\n  SHARD_OWNERSHIP_LOST\n  UNCATEGORIZED\n}\n\nstruct CrossClusterTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional CrossClusterTaskType taskType\n  50: optional i16 taskState\n  60: optional i64 (js.type = \"Long\") taskID\n  70: optional i64 (js.type = \"Long\") visibilityTimestamp\n}\n\nstruct CrossClusterStartChildExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string requestID\n  30: optional i64 (js.type = \"Long\") initiatedEventID\n  40: optional StartChildWorkflowExecutionInitiatedEventAttributes initiatedEventAttributes\n  // targetRunID is for scheduling first decision task\n  // targetWorkflowID is available in initiatedEventAttributes\n  50: optional string targetRunID\n  60: optional map<string, string> partitionConfig\n}\n\nstruct CrossClusterStartChildExecutionResponseAttributes {\n  10: optional string runID\n}\n\nstruct CrossClusterCancelExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n}\n\nstruct CrossClusterCancelExecutionResponseAttributes {\n}\n\nstruct CrossClusterSignalExecutionRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional string requestID\n  50: optional i64 (js.type = \"Long\") initiatedEventID\n  60: optional bool childWorkflowOnly\n  70: optional string signalName\n  80: optional binary signalInput\n  90: optional binary control\n}\n\nstruct CrossClusterSignalExecutionResponseAttributes {\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes {\n  10: optional string targetDomainID\n  20: optional string targetWorkflowID\n  30: optional string targetRunID\n  40: optional i64 (js.type = \"Long\") initiatedEventID\n  50: optional HistoryEvent completionEvent\n}\n\nstruct CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes {\n}\n\nstruct ApplyParentClosePolicyAttributes {\n  10: optional string childDomainID\n  20: optional string childWorkflowID\n  30: optional string childRunID\n  40: optional ParentClosePolicy parentClosePolicy\n}\n\nstruct ApplyParentClosePolicyStatus {\n  10: optional bool completed\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct ApplyParentClosePolicyRequest {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional ApplyParentClosePolicyStatus status\n}\n\nstruct CrossClusterApplyParentClosePolicyRequestAttributes {\n  10: optional list<ApplyParentClosePolicyRequest> children\n}\n\nstruct ApplyParentClosePolicyResult {\n  10: optional ApplyParentClosePolicyAttributes child\n  20: optional CrossClusterTaskFailedCause failedCause\n}\n\nstruct CrossClusterApplyParentClosePolicyResponseAttributes {\n  10: optional list<ApplyParentClosePolicyResult> childrenStatus\n}\n\nstruct CrossClusterTaskRequest {\n  10: optional CrossClusterTaskInfo taskInfo\n  20: optional CrossClusterStartChildExecutionRequestAttributes startChildExecutionAttributes\n  30: optional CrossClusterCancelExecutionRequestAttributes cancelExecutionAttributes\n  40: optional CrossClusterSignalExecutionRequestAttributes signalExecutionAttributes\n  50: optional CrossClusterRecordChildWorkflowExecutionCompleteRequestAttributes recordChildWorkflowExecutionCompleteAttributes\n  60: optional CrossClusterApplyParentClosePolicyRequestAttributes applyParentClosePolicyAttributes\n}\n\nstruct CrossClusterTaskResponse {\n  10: optional i64 (js.type = \"Long\") taskID\n  20: optional CrossClusterTaskType taskType\n  30: optional i16 taskState\n  40: optional CrossClusterTaskFailedCause failedCause\n  50: optional CrossClusterStartChildExecutionResponseAttributes startChildExecutionAttributes\n  60: optional CrossClusterCancelExecutionResponseAttributes cancelExecutionAttributes\n  70: optional CrossClusterSignalExecutionResponseAttributes signalExecutionAttributes\n  80: optional CrossClusterRecordChildWorkflowExecutionCompleteResponseAttributes recordChildWorkflowExecutionCompleteAttributes\n  90: optional CrossClusterApplyParentClosePolicyResponseAttributes applyParentClosePolicyAttributes\n}\n\nstruct GetCrossClusterTasksRequest {\n  10: optional list<i32> shardIDs\n  20: optional string targetCluster\n}\n\nstruct GetCrossClusterTasksResponse {\n  10: optional map<i32, list<CrossClusterTaskRequest>> tasksByShard\n  20: optional map<i32, GetTaskFailedCause> failedCauseByShard\n}\n\nstruct RespondCrossClusterTasksCompletedRequest {\n  10: optional i32 shardID\n  20: optional string targetCluster\n  30: optional list<CrossClusterTaskResponse> taskResponses\n  40: optional bool fetchNewTasks\n}\n\nstruct RespondCrossClusterTasksCompletedResponse {\n  10: optional list<CrossClusterTaskRequest> tasks\n}\n\nenum IsolationGroupState {\n  INVALID,\n  HEALTHY,\n  DRAINED,\n}\n\nstruct IsolationGroupPartition {\n  10: optional string name\n  20: optional IsolationGroupState state\n}\n\nstruct IsolationGroupConfiguration {\n  10: optional list<IsolationGroupPartition> isolationGroups\n}\n\nstruct AsyncWorkflowConfiguration {\n  10: optional bool enabled\n  // PredefinedQueueName is the name of the predefined queue in cadence server config's asyncWorkflowQueues\n  20: optional string predefinedQueueName\n  // queueType is the type of the queue if predefined_queue_name is not used\n  30: optional string queueType\n  // queueConfig is the configuration for the queue if predefined_queue_name is not used\n  40: optional DataBlob queueConfig\n}\n\n/**\n* Any is a logical duplicate of google.protobuf.Any.\n*\n* The intent of the type is the same, but it is not intended to be directly\n* compatible with google.protobuf.Any or any Thrift equivalent - this blob is\n* RPC-type agnostic by design (as the underlying data may be transported over\n* proto or thrift), and the data-bytes may be in any encoding.\n*\n* This is intentionally different from DataBlob, which supports only a handful\n* of known encodings so it can be interpreted everywhere.  Any supports literally\n* any contents, and needs to be considered opaque until it is given to something\n* that is expecting it.\n*\n* See ValueType to interpret the contents.\n**/\nstruct Any {\n  // Type-string describing value's contents, and intentionally avoiding the\n  // name \"type\" as it is often a special term.\n  // This should usually be a hard-coded string of some kind.\n  10: optional string ValueType\n  // Arbitrarily-encoded bytes, to be deserialized by a runtime implementation.\n  // The contents are described by ValueType.\n  20: optional binary Value\n}\n\nstruct AutoConfigHint {\n  10: optional bool enableAutoConfig\n  20: optional i64 pollerWaitTimeInMs\n}\n\nstruct QueueState {\n  10: optional map<i64, VirtualQueueState> virtualQueueStates\n  20: optional TaskKey exclusiveMaxReadLevel\n}\n\nstruct VirtualQueueState {\n  10: optional list<VirtualSliceState> virtualSliceStates\n}\n\nstruct VirtualSliceState {\n  10: optional TaskRange taskRange\n  20: optional Predicate predicate\n}\n\nstruct TaskRange {\n  10: optional TaskKey inclusiveMin\n  20: optional TaskKey exclusiveMax\n}\n\nstruct TaskKey {\n  10: optional i64 scheduledTimeNano\n  20: optional i64 taskID\n}\n\n// ActiveClusterSelectionPolicy is for active-active domains, it serves as a means to select\n// the active cluster, by specifying the attribute by which to divide the workflows\n// in that domain.\nstruct ActiveClusterSelectionPolicy {\n  1: optional ClusterAttribute clusterAttribute\n\n  10: optional ActiveClusterSelectionStrategy strategy (deprecated = \"unused active-active field\")\n  20: optional string stickyRegion                     (deprecated = \"unused active-active field\")\n  30: optional string externalEntityType               (deprecated = \"unused active-active field\")\n  40: optional string externalEntityKey                (deprecated = \"unused active-active field\")\n}\n\n// ClusterAttribute is used for subdividing workflows in a domain into their active\n// and passive clusters. Examples of this might be 'region' and 'cluster1' as\n// respective region and scope fields.\n//\n// for example, a workflow may specify this in it's start request:\n//\n//   StartWorkflowRequest{\n//     ActiveClusterSelectionPolicy: {\n//       ClusterAttribute: {\n//            Scope: \"cityID\",\n//            Name: \"Lisbon\"\n//        }\n//     }\n//   }\n//\n// and this means that this workflow will be associate with the domain's cluster attribute 'Lisbon',\n// be active in the cluster that has Lisbon active and\n// failover when that cluster-attribute is set to failover.\nstruct ClusterAttribute {\n  1: optional string scope\n  2: optional string name\n}\n\n// FailoverType describes how a failover operation will be performed.\nenum FailoverType {\n  INVALID\n  FORCE\n  GRACEFUL\n}\n\n// PaginationOptions provides common options for paginated RPCs.\nstruct PaginationOptions {\n  // page_size configures the number of results to be returned as part of each page\n  10: optional i32 pageSize\n  // next_page_token should be provided from a previous response to fetch the next page.\n  // if empty, the first page will be returned.\n  20: optional binary nextPageToken\n}\n\n// with the active/active configuration we have\nenum ActiveClusterSelectionStrategy {\n  REGION_STICKY,\n  EXTERNAL_ENTITY,\n} (deprecated = \"unused active-active field\")\n\nenum PredicateType {\n  Universal,\n  Empty,\n  DomainID,\n}\n\nstruct UniversalPredicateAttributes {}\n\nstruct EmptyPredicateAttributes {}\n\nstruct DomainIDPredicateAttributes {\n  10: optional list<string> domainIDs\n  20: optional bool isExclusive\n}\n\nstruct Predicate {\n  10: optional PredicateType predicateType\n  20: optional UniversalPredicateAttributes universalPredicateAttributes\n  30: optional EmptyPredicateAttributes emptyPredicateAttributes\n  40: optional DomainIDPredicateAttributes domainIDPredicateAttributes\n}\n\n// ── Schedule API ──────────────────────────────────────────────────────────────\n\n// ScheduleOverlapPolicy defines behavior when a new run is triggered while a previous run is still active.\nenum ScheduleOverlapPolicy {\n  INVALID\n  SKIP_NEW\n  BUFFER\n  CONCURRENT\n  CANCEL_PREVIOUS\n  TERMINATE_PREVIOUS\n}\n\n// ScheduleCatchUpPolicy defines how missed runs are handled when a schedule resumes.\nenum ScheduleCatchUpPolicy {\n  INVALID\n  SKIP\n  ONE\n  ALL\n}\n\n// ScheduleSpec defines when a schedule triggers.\nstruct ScheduleSpec {\n  // Standard cron expression (e.g., \"0 6 * * *\").\n  // Prefix with CRON_TZ to set timezone (e.g., \"CRON_TZ=America/Los_Angeles 0 6 * * *\").\n  10: optional string cronExpression\n  // Earliest time the schedule may trigger. If not set, starts immediately.\n  20: optional i64 (js.type = \"Long\") startTimeNano\n  // Latest time the schedule may trigger. If not set, runs indefinitely.\n  30: optional i64 (js.type = \"Long\") endTimeNano\n  // Random jitter applied to each trigger time to spread load.\n  // Thrift duration convention: whole seconds only (proto uses nanosecond-precision Duration).\n  // Sub-second jitter from proto is truncated to the nearest second.\n  40: optional i32 jitterInSeconds\n}\n\n// ScheduleStartWorkflowAction describes the workflow to start when the schedule triggers.\nstruct ScheduleStartWorkflowAction {\n  10: optional WorkflowType workflowType\n  20: optional TaskList taskList\n  30: optional binary input\n  40: optional string workflowIdPrefix\n  50: optional i32 executionStartToCloseTimeoutSeconds\n  60: optional i32 taskStartToCloseTimeoutSeconds\n  70: optional RetryPolicy retryPolicy\n  80: optional Memo memo\n  90: optional SearchAttributes searchAttributes\n}\n\n// ScheduleAction defines what the schedule does when it triggers.\n// Exactly one field must be set.\nstruct ScheduleAction {\n  10: optional ScheduleStartWorkflowAction startWorkflow\n}\n\n// SchedulePolicies controls the runtime behavior of a schedule.\nstruct SchedulePolicies {\n  10: optional ScheduleOverlapPolicy overlapPolicy\n  20: optional ScheduleCatchUpPolicy catchUpPolicy\n  // Maximum time to look back for missed runs on resume. Runs older than this window are skipped.\n  // Thrift duration convention: whole seconds only (proto uses nanosecond-precision Duration).\n  // Sub-second windows from proto are truncated to the nearest second.\n  30: optional i32 catchUpWindowInSeconds\n  // If true, pause the schedule when a triggered workflow fails.\n  40: optional bool pauseOnFailure\n  // Maximum number of buffered runs. 0 means unlimited. Only used with BUFFER overlap policy.\n  50: optional i32 bufferLimit\n  // Maximum number of concurrent runs. 0 means unlimited. Only used with CONCURRENT overlap policy.\n  60: optional i32 concurrencyLimit\n}\n\n// SchedulePauseInfo records when and why a schedule was paused.\nstruct SchedulePauseInfo {\n  10: optional string reason\n  20: optional i64 (js.type = \"Long\") pausedTimeNano\n  30: optional string pausedBy\n}\n\n// ScheduleState is the runtime pause/unpause state of a schedule.\nstruct ScheduleState {\n  10: optional bool paused\n  20: optional SchedulePauseInfo pauseInfo\n}\n\n// BackfillInfo tracks the progress of an active or completed backfill operation.\nstruct BackfillInfo {\n  10: optional string backfillId\n  20: optional i64 (js.type = \"Long\") startTimeNano\n  30: optional i64 (js.type = \"Long\") endTimeNano\n  40: optional i32 runsCompleted\n  50: optional i32 runsTotal\n}\n\n// ScheduleInfo contains runtime statistics for a schedule.\nstruct ScheduleInfo {\n  10: optional i64 (js.type = \"Long\") lastRunTimeNano\n  20: optional i64 (js.type = \"Long\") nextRunTimeNano\n  // Total number of workflows started by this schedule.\n  30: optional i64 (js.type = \"Long\") totalRuns\n  40: optional i64 (js.type = \"Long\") createTimeNano\n  50: optional i64 (js.type = \"Long\") lastUpdateTimeNano\n  // Currently active backfill operations. Removed when complete.\n  60: optional list<BackfillInfo> ongoingBackfills\n}\n\n// ScheduleListEntry is a summary of a schedule returned by ListSchedules.\nstruct ScheduleListEntry {\n  10: optional string scheduleId\n  20: optional WorkflowType workflowType\n  30: optional ScheduleState state\n  40: optional string cronExpression\n}\n\nstruct CreateScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n  30: optional ScheduleSpec spec\n  40: optional ScheduleAction action\n  50: optional SchedulePolicies policies\n  60: optional Memo memo\n  70: optional SearchAttributes searchAttributes\n}\n\nstruct CreateScheduleResponse {\n  10: optional string scheduleId\n}\n\nstruct DescribeScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n}\n\nstruct DescribeScheduleResponse {\n  10: optional ScheduleSpec spec\n  20: optional ScheduleAction action\n  30: optional SchedulePolicies policies\n  40: optional ScheduleState state\n  50: optional ScheduleInfo info\n  60: optional Memo memo\n  70: optional SearchAttributes searchAttributes\n}\n\nstruct ListSchedulesRequest {\n  10: optional string domain\n  20: optional i32 pageSize\n  30: optional binary nextPageToken\n}\n\nstruct ListSchedulesResponse {\n  10: optional list<ScheduleListEntry> schedules\n  20: optional binary nextPageToken\n}\n\nstruct DeleteScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n}\n\nstruct DeleteScheduleResponse {}\n\nstruct PauseScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n  30: optional string reason\n  40: optional string identity\n}\n\nstruct PauseScheduleResponse {}\n\nstruct UnpauseScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n  30: optional string reason\n  // Override the schedule's catch-up policy for this unpause only.\n  // If not set, uses the catch_up_policy from SchedulePolicies.\n  40: optional ScheduleCatchUpPolicy catchUpPolicy\n}\n\nstruct UnpauseScheduleResponse {}\n\nstruct BackfillScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n  30: optional i64 (js.type = \"Long\") startTimeNano\n  40: optional i64 (js.type = \"Long\") endTimeNano\n  50: optional ScheduleOverlapPolicy overlapPolicy\n  // Client-provided identifier for idempotency and progress tracking.\n  // If not set, the server generates a UUID. Retries with the same backfillId are deduplicated.\n  60: optional string backfillId\n}\n\nstruct BackfillScheduleResponse {}\n\nstruct UpdateScheduleRequest {\n  10: optional string domain\n  20: optional string scheduleId\n  30: optional ScheduleSpec spec\n  40: optional ScheduleAction action\n  50: optional SchedulePolicies policies\n  60: optional SearchAttributes searchAttributes\n}\n\nstruct UpdateScheduleResponse {}\n"

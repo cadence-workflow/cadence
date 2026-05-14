@@ -122,6 +122,7 @@ func (f *timerQueueFactory) createQueuev2(
 		shard.GetMetricsClient(),
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
+		nil, // TODO(c-warren): wire DLQ writer once persistence layer is written
 	)
 	executorWrapper := task.NewExecutorWrapper(
 		shard.GetClusterMetadata().GetCurrentClusterName(),

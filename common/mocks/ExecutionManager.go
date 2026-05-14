@@ -533,6 +533,29 @@ func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Conte
 	return r0
 }
 
+// FetchWorkflowTimerTasksForCleanup provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) ([]persistence.HistoryTaskKey, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 []persistence.HistoryTaskKey
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) []persistence.HistoryTaskKey); ok {
+		r0 = rf(ctx, request)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).([]persistence.HistoryTaskKey)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// NewExecutionManager
+
 // NewExecutionManager creates a new instance of ExecutionManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewExecutionManager(t interface {

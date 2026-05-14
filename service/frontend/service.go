@@ -236,10 +236,10 @@ type ratelimiterCollections struct {
 
 // taskListRPS adapts an IntPropertyFnWithTaskListInfoFilters into an IntPropertyFnWithDomainFilter
 // by parsing the composite task list key into its domain/taskList components.
-func taskListRPS(fn dynamicproperties.IntPropertyFnWithTaskListInfoFilters) dynamicproperties.IntPropertyFnWithDomainFilter {
+func taskListRPS(fn dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter) dynamicproperties.IntPropertyFnWithDomainFilter {
 	return func(key string) int {
 		k := quotas.ParseTaskListKey(key)
-		return fn(k.Domain, k.TaskList, 0) // ignore the task list type filter
+		return fn(k.Domain, k.TaskList)
 	}
 }
 

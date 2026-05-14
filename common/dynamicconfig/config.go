@@ -180,6 +180,25 @@ func (c *Collection) GetIntPropertyFilteredByTaskListInfo(key dynamicproperties.
 	}
 }
 
+// GetIntPropertyFilteredByDomainAndTaskList gets property with domain and taskList as filters and asserts that it's an integer
+func (c *Collection) GetIntPropertyFilteredByDomainAndTaskList(key dynamicproperties.IntKey) dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter {
+	return func(domain string, taskList string) int {
+		filters := c.toFilterMap(
+			dynamicproperties.DomainFilter(domain),
+			dynamicproperties.TaskListFilter(taskList),
+		)
+		val, err := c.client.GetIntValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultInt()
+		}
+		return val
+	}
+}
+
 // GetIntPropertyFilteredByShardID gets property with shardID as filter and asserts that it's an integer
 func (c *Collection) GetIntPropertyFilteredByShardID(key dynamicproperties.IntKey) dynamicproperties.IntPropertyFnWithShardIDFilter {
 	return func(shardID int) int {

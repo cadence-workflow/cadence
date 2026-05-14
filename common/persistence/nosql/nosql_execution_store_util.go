@@ -57,6 +57,7 @@ func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newW
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTasks = newWorkflow.WorkflowTimerTasks
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(newWorkflow.ChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -123,7 +124,7 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	if err != nil {
 		return nil, err
 	}
-	// reset 6 maps
+	// reset maps
 	executionRequest.ActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(resetWorkflow.ActivityInfos)
 	if err != nil {
 		return nil, err
@@ -132,6 +133,7 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTasks = resetWorkflow.WorkflowTimerTasks
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(resetWorkflow.ChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -168,7 +170,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 		return nil, err
 	}
 
-	// merge 6 maps
+	// merge maps
 	executionRequest.ActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(workflowMutation.UpsertActivityInfos)
 	if err != nil {
 		return nil, err
@@ -177,6 +179,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTasks = workflowMutation.WorkflowTimerTasks
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(workflowMutation.UpsertChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -191,7 +194,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	}
 	executionRequest.SignalRequestedIDs = workflowMutation.UpsertSignalRequestedIDs
 
-	// delete from 6 maps
+	// delete from maps
 	executionRequest.ActivityInfoKeysToDelete = workflowMutation.DeleteActivityInfos
 	executionRequest.TimerInfoKeysToDelete = workflowMutation.DeleteTimerInfos
 	executionRequest.ChildWorkflowInfoKeysToDelete = workflowMutation.DeleteChildExecutionInfos

@@ -1,8 +1,8 @@
 # Overview
 Cadence has a well defined API interface at the persistence layer. Any database that supports multi-row transactions on
 a single shard or partition can be made to work with cadence. This includes cassandra, dynamoDB, auroraDB, MySQL,
-Postgres and may others. There are currently three supported database implementations at the persistence layer -
-cassandra and MySQL/Postgres. This doc shows how to run cadence with cassandra and MySQL(Postgres is mostly the same). It also describes the steps involved
+PostgreSQL and many others. There are currently three supported database implementations at the persistence layer - 
+cassandra and MySQL/PostgreSQL. This doc shows how to run cadence with cassandra and MySQL(PostgreSQL is mostly the same). It also describes the steps involved
 in adding support for a new database at the persistence layer.
 
 # Getting started on mac
@@ -14,14 +14,14 @@ brew services start cassandra
 ```
 ### Install cadence schema
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 make install-schema
 ```
 > NOTE: See [CONTRIBUTING](/CONTRIBUTING.md) for prerequisite of make command.
 >
 ### Start cadence server
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 ./cadence-server start --services=frontend,matching,history,worker
 ```
 
@@ -33,7 +33,7 @@ brew services start mysql
 ```
 ### Install cadence schema
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 make install-schema-mysql
 ```
 When run tests and CLI command locally, Cadence by default uses a user `uber` with password `uber`, with privileges of creating databases.
@@ -45,13 +45,13 @@ In the mysql shell:
 ```
 ### Start cadence server
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 cp config/development_mysql.yaml config/development.yaml
 ./cadence-server start --services=frontend,matching,history,worker
 ```
 
-## PostgresQL
-### Start PostgresQL server
+## PostgreSQL
+### Start PostgreSQL server
 ```
 brew install postgres
 brew services start postgres
@@ -59,7 +59,8 @@ brew services start postgres
 When run tests and CLI command locally, Cadence by default uses a superuser `postgres` with password `cadence`.
 You can use the following command to create user(role) and grant access:
 ```
-$psql postgres
+psql postgres
+
 postgres=# CREATE USER postgres WITH PASSWORD 'cadence';
 CREATE ROLE
 postgres=# ALTER USER postgres WITH SUPERUSER;
@@ -67,13 +68,13 @@ ALTER ROLE
 ```
 ### Install cadence schema
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 make install-schema-postgres
 ```
 
 ### Start cadence server
 ```
-cd $GOPATH/github.com/uber/cadence
+cd $GOPATH/github.com/cadence-workflow/cadence
 cp config/development_postgres.yaml config/development.yaml
 ./cadence-server start --services=frontend,matching,history,worker
 ```
@@ -130,8 +131,8 @@ persistence:
         maxConns: 2                   -- Number of tcp conns to cassandra server (single sub-system on one host) (optional)
 ```
 
-## MySQL/Postgres
-The default isolation level for MySQL/Postgres is READ-COMMITTED.
+## MySQL/PostgreSQL
+The default isolation level for MySQL/PostgreSQL is READ-COMMITTED. 
 
 Note that for MySQL 5.6 and below only, the isolation level needs to be
 specified explicitly in the config via connectAttributes.
@@ -155,8 +156,8 @@ persistence:
           tx_isolation: "READ-COMMITTED"   -- required only for mysql 5.6 and below, optional otherwise
 ```
 
-## Multiple SQL(MySQL/Postgres) databases
-To run Cadence clusters in a much larger scale using SQL database, multiple databases can be used as a sharded SQL database cluster.
+## Multiple SQL(MySQL/PostgreSQL) databases
+To run Cadence clusters in a much larger scale using SQL database, multiple databases can be used as a sharded SQL database cluster. 
 
 Set `useMultipleDatabases` to `true` and specify all databases' user/password/address using `multipleDatabasesConfig`:
 ```yaml
@@ -211,15 +212,15 @@ types are not fixed). The API interface can be found [here](https://github.com/c
 It's basically a CRUD API for every table in the schema. A sample schema definition for mysql that uses this interface
 can be found [here](https://github.com/cadence-workflow/cadence/blob/master/schema/mysql/v8/cadence/schema.sql)
 
-Any database that supports this interface can be plugged in with cadence server.
-We have implemented Postgres within the repo, and also here is [**an example**](https://github.com/longquanzheng/cadence-extensions/tree/master/cadence-sqlite) to implement any database externally.
+Any database that supports this interface can be plugged in with cadence server. 
+We have implemented PostgreSQL within the repo, and also here is [**an example**](https://github.com/longquanzheng/cadence-extensions/tree/master/cadence-sqlite) to implement any database externally. 
 
 
 ## For other Non-SQL Database
 For databases that don't support SQL operations like explicit transaction(with pessimistic locking),
 Cadence requires at least supporting:
  1. Multi-row single shard conditional write(also called LightWeight transaction by Cassandra terminology)
- 2. Strong consistency Read/Write operations
-
+ 2. Strong consistency Read/Write operations   
+ 
 This NoSQL persistence API interface can be found [here](https://github.com/cadence-workflow/cadence/blob/master/common/persistence/nosql/nosqlplugin/interfaces.go).
-Currently this is only implemented with Cassandra. DynamoDB and MongoDB are in progress.
+Currently this is only implemented with Cassandra. DynamoDB and MongoDB are in progress.  

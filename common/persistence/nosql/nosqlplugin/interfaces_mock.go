@@ -290,17 +290,17 @@ func (mr *MockDBMockRecorder) DeleteReplicationDLQTask(ctx, shardID, sourceClust
 }
 
 // DeleteReplicationTask mocks base method.
-func (m *MockDB) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockDB) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteReplicationTask indicates an expected call of DeleteReplicationTask.
-func (mr *MockDBMockRecorder) DeleteReplicationTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteReplicationTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockDB)(nil).DeleteReplicationTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockDB)(nil).DeleteReplicationTask), ctx, shardID, keys)
 }
 
 // DeleteTaskList mocks base method.
@@ -318,31 +318,31 @@ func (mr *MockDBMockRecorder) DeleteTaskList(ctx, filter, previousRangeID any) *
 }
 
 // DeleteTimerTask mocks base method.
-func (m *MockDB) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (m *MockDB) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, taskID, visibilityTimestamp)
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTimerTask indicates an expected call of DeleteTimerTask.
-func (mr *MockDBMockRecorder) DeleteTimerTask(ctx, shardID, taskID, visibilityTimestamp any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteTimerTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockDB)(nil).DeleteTimerTask), ctx, shardID, taskID, visibilityTimestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockDB)(nil).DeleteTimerTask), ctx, shardID, keys)
 }
 
 // DeleteTransferTask mocks base method.
-func (m *MockDB) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockDB) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTransferTask indicates an expected call of DeleteTransferTask.
-func (mr *MockDBMockRecorder) DeleteTransferTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockDBMockRecorder) DeleteTransferTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockDB)(nil).DeleteTransferTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockDB)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
 // DeleteVisibility mocks base method.
@@ -445,6 +445,20 @@ func (mr *MockDBMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MockDB)(nil).InsertDomainAuditLog), ctx, row)
 }
 
+// InsertHistoryDLQTaskRow mocks base method.
+func (m *MockDB) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryDLQTaskRow", ctx, task)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryDLQTaskRow indicates an expected call of InsertHistoryDLQTaskRow.
+func (mr *MockDBMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MockDB)(nil).InsertHistoryDLQTaskRow), ctx, task)
+}
+
 // InsertIntoHistoryTreeAndNode mocks base method.
 func (m *MockDB) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *HistoryTreeRow, nodeRow *HistoryNodeRow) error {
 	m.ctrl.T.Helper()
@@ -471,6 +485,20 @@ func (m *MockDB) InsertIntoQueue(ctx context.Context, row *QueueMessageRow) erro
 func (mr *MockDBMockRecorder) InsertIntoQueue(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoQueue", reflect.TypeOf((*MockDB)(nil).InsertIntoQueue), ctx, row)
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow mocks base method.
+func (m *MockDB) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrUpdateHistoryDLQAckLevelRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow indicates an expected call of InsertOrUpdateHistoryDLQAckLevelRow.
+func (mr *MockDBMockRecorder) InsertOrUpdateHistoryDLQAckLevelRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdateHistoryDLQAckLevelRow", reflect.TypeOf((*MockDB)(nil).InsertOrUpdateHistoryDLQAckLevelRow), ctx, row)
 }
 
 // InsertQueueMetadata mocks base method.
@@ -683,6 +711,20 @@ func (m *MockDB) PluginName() string {
 func (mr *MockDBMockRecorder) PluginName() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PluginName", reflect.TypeOf((*MockDB)(nil).PluginName))
+}
+
+// RangeDeleteHistoryDLQTaskRows mocks base method.
+func (m *MockDB) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryDLQTaskRows indicates an expected call of RangeDeleteHistoryDLQTaskRows.
+func (mr *MockDBMockRecorder) RangeDeleteHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryDLQTaskRows", reflect.TypeOf((*MockDB)(nil).RangeDeleteHistoryDLQTaskRows), ctx, filter)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
@@ -925,6 +967,37 @@ func (m *MockDB) SelectFromHistoryTree(ctx context.Context, filter *HistoryTreeF
 func (mr *MockDBMockRecorder) SelectFromHistoryTree(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromHistoryTree", reflect.TypeOf((*MockDB)(nil).SelectFromHistoryTree), ctx, filter)
+}
+
+// SelectHistoryDLQAckLevelRows mocks base method.
+func (m *MockDB) SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQAckLevelRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQAckLevelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectHistoryDLQAckLevelRows indicates an expected call of SelectHistoryDLQAckLevelRows.
+func (mr *MockDBMockRecorder) SelectHistoryDLQAckLevelRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQAckLevelRows", reflect.TypeOf((*MockDB)(nil).SelectHistoryDLQAckLevelRows), ctx, filter)
+}
+
+// SelectHistoryDLQTaskRows mocks base method.
+func (m *MockDB) SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQTaskRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectHistoryDLQTaskRows indicates an expected call of SelectHistoryDLQTaskRows.
+func (mr *MockDBMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MockDB)(nil).SelectHistoryDLQTaskRows), ctx, filter)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
@@ -1170,6 +1243,21 @@ func (m *MockDB) SelectWorkflowExecution(ctx context.Context, shardID int, domai
 func (mr *MockDBMockRecorder) SelectWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowExecution", reflect.TypeOf((*MockDB)(nil).SelectWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MockDB) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].([]persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MockDBMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MockDB)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
 }
 
 // UpdateDomain mocks base method.
@@ -1435,17 +1523,17 @@ func (mr *MocktableCRUDMockRecorder) DeleteReplicationDLQTask(ctx, shardID, sour
 }
 
 // DeleteReplicationTask mocks base method.
-func (m *MocktableCRUD) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MocktableCRUD) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteReplicationTask indicates an expected call of DeleteReplicationTask.
-func (mr *MocktableCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteReplicationTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteReplicationTask), ctx, shardID, keys)
 }
 
 // DeleteTaskList mocks base method.
@@ -1463,31 +1551,31 @@ func (mr *MocktableCRUDMockRecorder) DeleteTaskList(ctx, filter, previousRangeID
 }
 
 // DeleteTimerTask mocks base method.
-func (m *MocktableCRUD) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (m *MocktableCRUD) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, taskID, visibilityTimestamp)
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTimerTask indicates an expected call of DeleteTimerTask.
-func (mr *MocktableCRUDMockRecorder) DeleteTimerTask(ctx, shardID, taskID, visibilityTimestamp any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteTimerTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTimerTask), ctx, shardID, taskID, visibilityTimestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTimerTask), ctx, shardID, keys)
 }
 
 // DeleteTransferTask mocks base method.
-func (m *MocktableCRUD) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MocktableCRUD) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTransferTask indicates an expected call of DeleteTransferTask.
-func (mr *MocktableCRUDMockRecorder) DeleteTransferTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) DeleteTransferTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTransferTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MocktableCRUD)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
 // DeleteVisibility mocks base method.
@@ -1590,6 +1678,20 @@ func (mr *MocktableCRUDMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MocktableCRUD)(nil).InsertDomainAuditLog), ctx, row)
 }
 
+// InsertHistoryDLQTaskRow mocks base method.
+func (m *MocktableCRUD) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryDLQTaskRow", ctx, task)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryDLQTaskRow indicates an expected call of InsertHistoryDLQTaskRow.
+func (mr *MocktableCRUDMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertHistoryDLQTaskRow), ctx, task)
+}
+
 // InsertIntoHistoryTreeAndNode mocks base method.
 func (m *MocktableCRUD) InsertIntoHistoryTreeAndNode(ctx context.Context, treeRow *HistoryTreeRow, nodeRow *HistoryNodeRow) error {
 	m.ctrl.T.Helper()
@@ -1616,6 +1718,20 @@ func (m *MocktableCRUD) InsertIntoQueue(ctx context.Context, row *QueueMessageRo
 func (mr *MocktableCRUDMockRecorder) InsertIntoQueue(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoQueue", reflect.TypeOf((*MocktableCRUD)(nil).InsertIntoQueue), ctx, row)
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow mocks base method.
+func (m *MocktableCRUD) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrUpdateHistoryDLQAckLevelRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow indicates an expected call of InsertOrUpdateHistoryDLQAckLevelRow.
+func (mr *MocktableCRUDMockRecorder) InsertOrUpdateHistoryDLQAckLevelRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdateHistoryDLQAckLevelRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertOrUpdateHistoryDLQAckLevelRow), ctx, row)
 }
 
 // InsertQueueMetadata mocks base method.
@@ -1758,6 +1874,20 @@ func (m *MocktableCRUD) ListTaskList(ctx context.Context, pageSize int, nextPage
 func (mr *MocktableCRUDMockRecorder) ListTaskList(ctx, pageSize, nextPageToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTaskList", reflect.TypeOf((*MocktableCRUD)(nil).ListTaskList), ctx, pageSize, nextPageToken)
+}
+
+// RangeDeleteHistoryDLQTaskRows mocks base method.
+func (m *MocktableCRUD) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryDLQTaskRows indicates an expected call of RangeDeleteHistoryDLQTaskRows.
+func (mr *MocktableCRUDMockRecorder) RangeDeleteHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryDLQTaskRows", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteHistoryDLQTaskRows), ctx, filter)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
@@ -2000,6 +2130,37 @@ func (m *MocktableCRUD) SelectFromHistoryTree(ctx context.Context, filter *Histo
 func (mr *MocktableCRUDMockRecorder) SelectFromHistoryTree(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromHistoryTree", reflect.TypeOf((*MocktableCRUD)(nil).SelectFromHistoryTree), ctx, filter)
+}
+
+// SelectHistoryDLQAckLevelRows mocks base method.
+func (m *MocktableCRUD) SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQAckLevelRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQAckLevelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectHistoryDLQAckLevelRows indicates an expected call of SelectHistoryDLQAckLevelRows.
+func (mr *MocktableCRUDMockRecorder) SelectHistoryDLQAckLevelRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQAckLevelRows", reflect.TypeOf((*MocktableCRUD)(nil).SelectHistoryDLQAckLevelRows), ctx, filter)
+}
+
+// SelectHistoryDLQTaskRows mocks base method.
+func (m *MocktableCRUD) SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQTaskRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectHistoryDLQTaskRows indicates an expected call of SelectHistoryDLQTaskRows.
+func (mr *MocktableCRUDMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MocktableCRUD)(nil).SelectHistoryDLQTaskRows), ctx, filter)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
@@ -2245,6 +2406,21 @@ func (m *MocktableCRUD) SelectWorkflowExecution(ctx context.Context, shardID int
 func (mr *MocktableCRUDMockRecorder) SelectWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowExecution", reflect.TypeOf((*MocktableCRUD)(nil).SelectWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MocktableCRUD) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].([]persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MocktableCRUDMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MocktableCRUD)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
 }
 
 // UpdateDomain mocks base method.
@@ -3261,45 +3437,45 @@ func (mr *MockWorkflowCRUDMockRecorder) DeleteReplicationDLQTask(ctx, shardID, s
 }
 
 // DeleteReplicationTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockWorkflowCRUD) DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteReplicationTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteReplicationTask indicates an expected call of DeleteReplicationTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteReplicationTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteReplicationTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicationTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteReplicationTask), ctx, shardID, keys)
 }
 
 // DeleteTimerTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error {
+func (m *MockWorkflowCRUD) DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, taskID, visibilityTimestamp)
+	ret := m.ctrl.Call(m, "DeleteTimerTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTimerTask indicates an expected call of DeleteTimerTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteTimerTask(ctx, shardID, taskID, visibilityTimestamp any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteTimerTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTimerTask), ctx, shardID, taskID, visibilityTimestamp)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTimerTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTimerTask), ctx, shardID, keys)
 }
 
 // DeleteTransferTask mocks base method.
-func (m *MockWorkflowCRUD) DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error {
+func (m *MockWorkflowCRUD) DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, taskID)
+	ret := m.ctrl.Call(m, "DeleteTransferTask", ctx, shardID, keys)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteTransferTask indicates an expected call of DeleteTransferTask.
-func (mr *MockWorkflowCRUDMockRecorder) DeleteTransferTask(ctx, shardID, taskID any) *gomock.Call {
+func (mr *MockWorkflowCRUDMockRecorder) DeleteTransferTask(ctx, shardID, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTransferTask), ctx, shardID, taskID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransferTask", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteTransferTask), ctx, shardID, keys)
 }
 
 // DeleteWorkflowExecution mocks base method.
@@ -3585,6 +3761,21 @@ func (mr *MockWorkflowCRUDMockRecorder) SelectWorkflowExecution(ctx, shardID, do
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowExecution", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
+// SelectWorkflowTimerTasks mocks base method.
+func (m *MockWorkflowCRUD) SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectWorkflowTimerTasks", ctx, shardID, domainID, workflowID, runID)
+	ret0, _ := ret[0].([]persistence.HistoryTaskKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectWorkflowTimerTasks indicates an expected call of SelectWorkflowTimerTasks.
+func (mr *MockWorkflowCRUDMockRecorder) SelectWorkflowTimerTasks(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectWorkflowTimerTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).SelectWorkflowTimerTasks), ctx, shardID, domainID, workflowID, runID)
+}
+
 // UpdateWorkflowExecutionWithTasks mocks base method.
 func (m *MockWorkflowCRUD) UpdateWorkflowExecutionWithTasks(ctx context.Context, requests *WorkflowRequestsWriteRequest, currentWorkflowRequest *CurrentWorkflowWriteRequest, mutatedExecution, insertedExecution *WorkflowExecutionRequest, activeClusterSelectionPolicyRow *ActiveClusterSelectionPolicyRow, resetExecution *WorkflowExecutionRequest, tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask, shardCondition *ShardCondition) error {
 	m.ctrl.T.Helper()
@@ -3704,4 +3895,101 @@ func (m *MockDomainAuditLogCRUD) SelectDomainAuditLogs(ctx context.Context, filt
 func (mr *MockDomainAuditLogCRUDMockRecorder) SelectDomainAuditLogs(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectDomainAuditLogs", reflect.TypeOf((*MockDomainAuditLogCRUD)(nil).SelectDomainAuditLogs), ctx, filter)
+}
+
+// MockHistoryDLQTaskCRUD is a mock of HistoryDLQTaskCRUD interface.
+type MockHistoryDLQTaskCRUD struct {
+	ctrl     *gomock.Controller
+	recorder *MockHistoryDLQTaskCRUDMockRecorder
+	isgomock struct{}
+}
+
+// MockHistoryDLQTaskCRUDMockRecorder is the mock recorder for MockHistoryDLQTaskCRUD.
+type MockHistoryDLQTaskCRUDMockRecorder struct {
+	mock *MockHistoryDLQTaskCRUD
+}
+
+// NewMockHistoryDLQTaskCRUD creates a new mock instance.
+func NewMockHistoryDLQTaskCRUD(ctrl *gomock.Controller) *MockHistoryDLQTaskCRUD {
+	mock := &MockHistoryDLQTaskCRUD{ctrl: ctrl}
+	mock.recorder = &MockHistoryDLQTaskCRUDMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockHistoryDLQTaskCRUD) EXPECT() *MockHistoryDLQTaskCRUDMockRecorder {
+	return m.recorder
+}
+
+// InsertHistoryDLQTaskRow mocks base method.
+func (m *MockHistoryDLQTaskCRUD) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryDLQTaskRow", ctx, task)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryDLQTaskRow indicates an expected call of InsertHistoryDLQTaskRow.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertHistoryDLQTaskRow), ctx, task)
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow mocks base method.
+func (m *MockHistoryDLQTaskCRUD) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrUpdateHistoryDLQAckLevelRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow indicates an expected call of InsertOrUpdateHistoryDLQAckLevelRow.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertOrUpdateHistoryDLQAckLevelRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdateHistoryDLQAckLevelRow", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertOrUpdateHistoryDLQAckLevelRow), ctx, row)
+}
+
+// RangeDeleteHistoryDLQTaskRows mocks base method.
+func (m *MockHistoryDLQTaskCRUD) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryDLQTaskRows indicates an expected call of RangeDeleteHistoryDLQTaskRows.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) RangeDeleteHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryDLQTaskRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).RangeDeleteHistoryDLQTaskRows), ctx, filter)
+}
+
+// SelectHistoryDLQAckLevelRows mocks base method.
+func (m *MockHistoryDLQTaskCRUD) SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQAckLevelRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQAckLevelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectHistoryDLQAckLevelRows indicates an expected call of SelectHistoryDLQAckLevelRows.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) SelectHistoryDLQAckLevelRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQAckLevelRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).SelectHistoryDLQAckLevelRows), ctx, filter)
+}
+
+// SelectHistoryDLQTaskRows mocks base method.
+func (m *MockHistoryDLQTaskCRUD) SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQTaskRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectHistoryDLQTaskRows indicates an expected call of SelectHistoryDLQTaskRows.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).SelectHistoryDLQTaskRows), ctx, filter)
 }

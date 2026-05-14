@@ -25,15 +25,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	p "github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/serialization"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -48,8 +51,9 @@ const (
 type sqlExecutionStore struct {
 	sqlStore
 	shardID                                int
+	inconsistentShardIDLogs                sync.Map
 	taskSerializer                         serialization.TaskSerializer
-	txExecuteShardLockedFn                 func(context.Context, int, string, int64, func(sqlplugin.Tx) error) error
+	txExecuteShardLockedFn                 func(context.Context, int, int, string, int64, func(sqlplugin.Tx) error) error
 	lockCurrentExecutionIfExistsFn         func(context.Context, sqlplugin.Tx, int, serialization.UUID, string) (*sqlplugin.CurrentExecutionsRow, error)
 	createOrUpdateCurrentExecutionFn       func(context.Context, sqlplugin.Tx, p.CreateWorkflowMode, int, serialization.UUID, string, serialization.UUID, int, int, string, int64, int64) error
 	assertNotCurrentExecutionFn            func(context.Context, sqlplugin.Tx, int, serialization.UUID, string, serialization.UUID) error
@@ -92,9 +96,40 @@ func NewSQLExecutionStore(
 	return store, nil
 }
 
+func resolveShardID(requestShardID *int, storeShardID int) (shardID int, reason string) {
+	if requestShardID == nil {
+		return storeShardID, "missing"
+	}
+	if *requestShardID != storeShardID {
+		return storeShardID, "mismatch"
+	}
+	return storeShardID, ""
+}
+
+func (m *sqlExecutionStore) effectiveShardID(requestShardID *int, operation string) int {
+	shardID, reason := resolveShardID(requestShardID, m.shardID)
+	if reason == "" || m.logger == nil {
+		return shardID
+	}
+	if _, loaded := m.inconsistentShardIDLogs.LoadOrStore(operation, struct{}{}); loaded {
+		return shardID
+	}
+	tags := []tag.Tag{
+		tag.ShardID(m.shardID),
+		tag.OperationName(operation),
+		tag.Dynamic("reason", reason),
+	}
+	if requestShardID != nil {
+		tags = append(tags, tag.Dynamic("request-shard-id", *requestShardID))
+	}
+	m.logger.Warn("execution store request inconsistent with store shard ID; using store shard ID", tags...)
+	return shardID
+}
+
 // txExecuteShardLocked executes f under transaction and with read lock on shard row
 func (m *sqlExecutionStore) txExecuteShardLocked(
 	ctx context.Context,
+	shardID int,
 	dbShardID int,
 	operation string,
 	rangeID int64,
@@ -102,7 +137,7 @@ func (m *sqlExecutionStore) txExecuteShardLocked(
 ) error {
 
 	return m.txExecute(ctx, dbShardID, operation, func(tx sqlplugin.Tx) error {
-		if err := readLockShard(ctx, tx, m.shardID, rangeID); err != nil {
+		if err := readLockShard(ctx, tx, shardID, rangeID); err != nil {
 			return err
 		}
 		err := fn(tx)
@@ -121,10 +156,11 @@ func (m *sqlExecutionStore) CreateWorkflowExecution(
 	ctx context.Context,
 	request *p.InternalCreateWorkflowExecutionRequest,
 ) (response *p.CreateWorkflowExecutionResponse, err error) {
-	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(m.shardID, m.db.GetTotalNumDBShards())
+	shardID := m.effectiveShardID(request.ShardID, "CreateWorkflowExecution")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
 
-	err = m.txExecuteShardLockedFn(ctx, dbShardID, "CreateWorkflowExecution", request.RangeID, func(tx sqlplugin.Tx) error {
-		response, err = m.createWorkflowExecutionTx(ctx, tx, request)
+	err = m.txExecuteShardLockedFn(ctx, shardID, dbShardID, "CreateWorkflowExecution", request.RangeID, func(tx sqlplugin.Tx) error {
+		response, err = m.createWorkflowExecutionTx(ctx, tx, request, shardID)
 		return err
 	})
 	return
@@ -134,13 +170,13 @@ func (m *sqlExecutionStore) createWorkflowExecutionTx(
 	ctx context.Context,
 	tx sqlplugin.Tx,
 	request *p.InternalCreateWorkflowExecutionRequest,
+	shardID int,
 ) (*p.CreateWorkflowExecutionResponse, error) {
 
 	newWorkflow := request.NewWorkflowSnapshot
 	executionInfo := newWorkflow.ExecutionInfo
 	startVersion := newWorkflow.StartVersion
 	lastWriteVersion := newWorkflow.LastWriteVersion
-	shardID := m.shardID
 	domainID := serialization.MustParseUUID(executionInfo.DomainID)
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
@@ -154,7 +190,7 @@ func (m *sqlExecutionStore) createWorkflowExecutionTx(
 
 	var err error
 	var row *sqlplugin.CurrentExecutionsRow
-	if row, err = m.lockCurrentExecutionIfExistsFn(ctx, tx, m.shardID, domainID, workflowID); err != nil {
+	if row, err = m.lockCurrentExecutionIfExistsFn(ctx, tx, shardID, domainID, workflowID); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +262,7 @@ func (m *sqlExecutionStore) createWorkflowExecutionTx(
 		ctx,
 		tx,
 		request.Mode,
-		m.shardID,
+		shardID,
 		domainID,
 		workflowID,
 		runID,
@@ -248,12 +284,13 @@ func (m *sqlExecutionStore) createWorkflowExecutionTx(
 func (m *sqlExecutionStore) getExecutions(
 	ctx context.Context,
 	request *p.InternalGetWorkflowExecutionRequest,
+	shardID int,
 	domainID serialization.UUID,
 	wfID string,
 	runID serialization.UUID,
 ) ([]sqlplugin.ExecutionsRow, error) {
 	executions, err := m.db.SelectFromExecutions(ctx, &sqlplugin.ExecutionsFilter{
-		ShardID: m.shardID, DomainID: domainID, WorkflowID: wfID, RunID: runID})
+		ShardID: shardID, DomainID: domainID, WorkflowID: wfID, RunID: runID})
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -299,6 +336,7 @@ func (m *sqlExecutionStore) GetWorkflowExecution(
 	domainID := serialization.MustParseUUID(request.DomainID)
 	runID := serialization.MustParseUUID(request.Execution.RunID)
 	wfID := request.Execution.WorkflowID
+	shardID := m.effectiveShardID(request.ShardID, "GetWorkflowExecution")
 
 	var executions []sqlplugin.ExecutionsRow
 	var activityInfos map[int64]*p.InternalActivityInfo
@@ -314,49 +352,49 @@ func (m *sqlExecutionStore) GetWorkflowExecution(
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		activityInfos, e = getActivityInfoMap(
-			childCtx, m.db, m.shardID, domainID, wfID, runID, m.parser)
+			childCtx, m.db, shardID, domainID, wfID, runID, m.parser)
 		return e
 	})
 
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		timerInfos, e = getTimerInfoMap(
-			childCtx, m.db, m.shardID, domainID, wfID, runID, m.parser)
+			childCtx, m.db, shardID, domainID, wfID, runID, m.parser)
 		return e
 	})
 
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		childExecutionInfos, e = getChildExecutionInfoMap(
-			childCtx, m.db, m.shardID, domainID, wfID, runID, m.parser)
+			childCtx, m.db, shardID, domainID, wfID, runID, m.parser)
 		return e
 	})
 
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		requestCancelInfos, e = getRequestCancelInfoMap(
-			childCtx, m.db, m.shardID, domainID, wfID, runID, m.parser)
+			childCtx, m.db, shardID, domainID, wfID, runID, m.parser)
 		return e
 	})
 
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		signalInfos, e = getSignalInfoMap(
-			childCtx, m.db, m.shardID, domainID, wfID, runID, m.parser)
+			childCtx, m.db, shardID, domainID, wfID, runID, m.parser)
 		return e
 	})
 
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		bufferedEvents, e = getBufferedEvents(
-			childCtx, m.db, m.shardID, domainID, wfID, runID)
+			childCtx, m.db, shardID, domainID, wfID, runID)
 		return e
 	})
 
 	g.Go(func() (e error) {
 		defer func() { recoverPanic(recover(), &e) }()
 		signalsRequested, e = getSignalsRequested(
-			childCtx, m.db, m.shardID, domainID, wfID, runID)
+			childCtx, m.db, shardID, domainID, wfID, runID)
 		return e
 	})
 
@@ -370,7 +408,7 @@ func (m *sqlExecutionStore) GetWorkflowExecution(
 	// and in that case we can get checksum error because data is partially read.
 	// Since checksum is stored in the executions table, we make it the last step of reading,
 	// in this case, either we read full data with checksum or we don't get checksum and return error.
-	executions, err = m.getExecutions(ctx, request, domainID, wfID, runID)
+	executions, err = m.getExecutions(ctx, request, shardID, domainID, wfID, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +425,7 @@ func (m *sqlExecutionStore) GetWorkflowExecution(
 	// we read might not be from a consistent view, the checksum validation might fail
 	// in that case, we clear the checksum data so that we will not perform the validation
 	if state.ChecksumData != nil {
-		row, err := m.db.SelectFromShards(ctx, &sqlplugin.ShardsFilter{ShardID: int64(m.shardID)})
+		row, err := m.db.SelectFromShards(ctx, &sqlplugin.ShardsFilter{ShardID: int64(shardID)})
 		if err != nil {
 			return nil, convertCommonErrors(m.db, "GetWorkflowExecution", "", err)
 		}
@@ -413,9 +451,10 @@ func (m *sqlExecutionStore) UpdateWorkflowExecution(
 	ctx context.Context,
 	request *p.InternalUpdateWorkflowExecutionRequest,
 ) error {
-	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(m.shardID, m.db.GetTotalNumDBShards())
-	return m.txExecuteShardLockedFn(ctx, dbShardID, "UpdateWorkflowExecution", request.RangeID, func(tx sqlplugin.Tx) error {
-		return m.updateWorkflowExecutionTx(ctx, tx, request)
+	shardID := m.effectiveShardID(request.ShardID, "UpdateWorkflowExecution")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
+	return m.txExecuteShardLockedFn(ctx, shardID, dbShardID, "UpdateWorkflowExecution", request.RangeID, func(tx sqlplugin.Tx) error {
+		return m.updateWorkflowExecutionTx(ctx, tx, request, shardID)
 	})
 }
 
@@ -423,6 +462,7 @@ func (m *sqlExecutionStore) updateWorkflowExecutionTx(
 	ctx context.Context,
 	tx sqlplugin.Tx,
 	request *p.InternalUpdateWorkflowExecutionRequest,
+	shardID int,
 ) error {
 
 	updateWorkflow := request.UpdateWorkflowMutation
@@ -432,7 +472,6 @@ func (m *sqlExecutionStore) updateWorkflowExecutionTx(
 	domainID := serialization.MustParseUUID(executionInfo.DomainID)
 	workflowID := executionInfo.WorkflowID
 	runID := serialization.MustParseUUID(executionInfo.RunID)
-	shardID := m.shardID
 
 	if err := p.ValidateUpdateWorkflowModeState(
 		request.Mode,
@@ -527,9 +566,10 @@ func (m *sqlExecutionStore) ConflictResolveWorkflowExecution(
 	ctx context.Context,
 	request *p.InternalConflictResolveWorkflowExecutionRequest,
 ) error {
-	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(m.shardID, m.db.GetTotalNumDBShards())
-	return m.txExecuteShardLockedFn(ctx, dbShardID, "ConflictResolveWorkflowExecution", request.RangeID, func(tx sqlplugin.Tx) error {
-		return m.conflictResolveWorkflowExecutionTx(ctx, tx, request)
+	shardID := m.effectiveShardID(request.ShardID, "ConflictResolveWorkflowExecution")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
+	return m.txExecuteShardLockedFn(ctx, shardID, dbShardID, "ConflictResolveWorkflowExecution", request.RangeID, func(tx sqlplugin.Tx) error {
+		return m.conflictResolveWorkflowExecutionTx(ctx, tx, request, shardID)
 	})
 }
 
@@ -537,13 +577,12 @@ func (m *sqlExecutionStore) conflictResolveWorkflowExecutionTx(
 	ctx context.Context,
 	tx sqlplugin.Tx,
 	request *p.InternalConflictResolveWorkflowExecutionRequest,
+	shardID int,
 ) error {
 
 	currentWorkflow := request.CurrentWorkflowMutation
 	resetWorkflow := request.ResetWorkflowSnapshot
 	newWorkflow := request.NewWorkflowSnapshot
-
-	shardID := m.shardID
 
 	domainID := serialization.MustParseUUID(resetWorkflow.ExecutionInfo.DomainID)
 	workflowID := resetWorkflow.ExecutionInfo.WorkflowID
@@ -589,7 +628,7 @@ func (m *sqlExecutionStore) conflictResolveWorkflowExecutionTx(
 			if err := m.assertRunIDAndUpdateCurrentExecutionFn(
 				ctx,
 				tx,
-				m.shardID,
+				shardID,
 				domainID,
 				workflowID,
 				runID,
@@ -608,7 +647,7 @@ func (m *sqlExecutionStore) conflictResolveWorkflowExecutionTx(
 			if err := m.assertRunIDAndUpdateCurrentExecutionFn(
 				ctx,
 				tx,
-				m.shardID,
+				shardID,
 				domainID,
 				workflowID,
 				runID,
@@ -648,13 +687,14 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 	ctx context.Context,
 	request *p.DeleteWorkflowExecutionRequest,
 ) error {
-	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(m.shardID, m.db.GetTotalNumDBShards())
+	shardID := m.effectiveShardID(request.ShardID, "DeleteWorkflowExecution")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
 	domainID := serialization.MustParseUUID(request.DomainID)
 	runID := serialization.MustParseUUID(request.RunID)
 	wfID := request.WorkflowID
 	return m.txExecute(ctx, dbShardID, "DeleteWorkflowExecution", func(tx sqlplugin.Tx) error {
 		if _, err := tx.DeleteFromExecutions(ctx, &sqlplugin.ExecutionsFilter{
-			ShardID:    m.shardID,
+			ShardID:    shardID,
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -662,7 +702,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteWorkflowExecution", "", err)
 		}
 		if _, err := tx.DeleteFromActivityInfoMaps(ctx, &sqlplugin.ActivityInfoMapsFilter{
-			ShardID:    int64(m.shardID),
+			ShardID:    int64(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -670,7 +710,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteFromActivityInfoMaps", "", err)
 		}
 		if _, err := tx.DeleteFromTimerInfoMaps(ctx, &sqlplugin.TimerInfoMapsFilter{
-			ShardID:    int64(m.shardID),
+			ShardID:    int64(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -678,7 +718,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteFromTimerInfoMaps", "", err)
 		}
 		if _, err := tx.DeleteFromChildExecutionInfoMaps(ctx, &sqlplugin.ChildExecutionInfoMapsFilter{
-			ShardID:    int64(m.shardID),
+			ShardID:    int64(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -686,7 +726,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteFromChildExecutionInfoMaps", "", err)
 		}
 		if _, err := tx.DeleteFromRequestCancelInfoMaps(ctx, &sqlplugin.RequestCancelInfoMapsFilter{
-			ShardID:    int64(m.shardID),
+			ShardID:    int64(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -694,7 +734,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteFromRequestCancelInfoMaps", "", err)
 		}
 		if _, err := tx.DeleteFromSignalInfoMaps(ctx, &sqlplugin.SignalInfoMapsFilter{
-			ShardID:    int64(m.shardID),
+			ShardID:    int64(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -702,7 +742,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteFromSignalInfoMaps", "", err)
 		}
 		if _, err := tx.DeleteFromBufferedEvents(ctx, &sqlplugin.BufferedEventsFilter{
-			ShardID:    m.shardID,
+			ShardID:    shardID,
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -710,7 +750,7 @@ func (m *sqlExecutionStore) DeleteWorkflowExecution(
 			return convertCommonErrors(tx, "DeleteFromBufferedEvents", "", err)
 		}
 		if _, err := tx.DeleteFromSignalsRequestedSets(ctx, &sqlplugin.SignalsRequestedSetsFilter{
-			ShardID:    int64(m.shardID),
+			ShardID:    int64(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 			RunID:      runID,
@@ -730,10 +770,11 @@ func (m *sqlExecutionStore) DeleteCurrentWorkflowExecution(
 	request *p.DeleteCurrentWorkflowExecutionRequest,
 ) error {
 
+	shardID := m.effectiveShardID(request.ShardID, "DeleteCurrentWorkflowExecution")
 	domainID := serialization.MustParseUUID(request.DomainID)
 	runID := serialization.MustParseUUID(request.RunID)
 	_, err := m.db.DeleteFromCurrentExecutions(ctx, &sqlplugin.CurrentExecutionsFilter{
-		ShardID:    int64(m.shardID),
+		ShardID:    int64(shardID),
 		DomainID:   domainID,
 		WorkflowID: request.WorkflowID,
 		RunID:      runID,
@@ -749,8 +790,9 @@ func (m *sqlExecutionStore) GetCurrentExecution(
 	request *p.GetCurrentExecutionRequest,
 ) (*p.GetCurrentExecutionResponse, error) {
 
+	shardID := m.effectiveShardID(request.ShardID, "GetCurrentExecution")
 	row, err := m.db.SelectFromCurrentExecutions(ctx, &sqlplugin.CurrentExecutionsFilter{
-		ShardID:    int64(m.shardID),
+		ShardID:    int64(shardID),
 		DomainID:   serialization.MustParseUUID(request.DomainID),
 		WorkflowID: request.WorkflowID,
 	})
@@ -785,6 +827,7 @@ func (m *sqlExecutionStore) ListConcreteExecutions(
 	request *p.ListConcreteExecutionsRequest,
 ) (*p.InternalListConcreteExecutionsResponse, error) {
 
+	shardID := m.effectiveShardID(request.ShardID, "ListConcreteExecutions")
 	filter := &sqlplugin.ExecutionsFilter{}
 	if len(request.PageToken) > 0 {
 		err := gobDeserialize(request.PageToken, &filter)
@@ -795,7 +838,7 @@ func (m *sqlExecutionStore) ListConcreteExecutions(
 		}
 	} else {
 		filter = &sqlplugin.ExecutionsFilter{
-			ShardID:    m.shardID,
+			ShardID:    shardID,
 			WorkflowID: "",
 		}
 	}
@@ -814,7 +857,7 @@ func (m *sqlExecutionStore) ListConcreteExecutions(
 	}
 	lastExecution := executions[len(executions)-1]
 	nextFilter := &sqlplugin.ExecutionsFilter{
-		ShardID:    m.shardID,
+		ShardID:    shardID,
 		WorkflowID: lastExecution.WorkflowID,
 	}
 	token, err := gobSerialize(nextFilter)
@@ -854,13 +897,14 @@ func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 	request *p.GetReplicationTasksFromDLQRequest,
 ) (*p.GetHistoryTasksResponse, error) {
 
+	shardID := m.effectiveShardID(request.ShardID, "GetReplicationTasksFromDLQ")
 	readLevel, maxReadLevel, err := getReadLevels(request)
 	if err != nil {
 		return nil, err
 	}
 
 	filter := sqlplugin.ReplicationTasksFilter{
-		ShardID:            m.shardID,
+		ShardID:            shardID,
 		InclusiveMinTaskID: readLevel,
 		ExclusiveMaxTaskID: maxReadLevel,
 		PageSize:           request.BatchSize,
@@ -898,9 +942,10 @@ func (m *sqlExecutionStore) GetReplicationDLQSize(
 	request *p.GetReplicationDLQSizeRequest,
 ) (*p.GetReplicationDLQSizeResponse, error) {
 
+	shardID := m.effectiveShardID(request.ShardID, "GetReplicationDLQSize")
 	size, err := m.db.SelectFromReplicationDLQ(ctx, &sqlplugin.ReplicationTaskDLQFilter{
 		SourceClusterName: request.SourceClusterName,
-		ShardID:           m.shardID,
+		ShardID:           shardID,
 	})
 
 	switch err {
@@ -922,8 +967,9 @@ func (m *sqlExecutionStore) DeleteReplicationTaskFromDLQ(
 	request *p.DeleteReplicationTaskFromDLQRequest,
 ) error {
 
+	shardID := m.effectiveShardID(request.ShardID, "DeleteReplicationTaskFromDLQ")
 	filter := sqlplugin.ReplicationTasksFilter{
-		ShardID: m.shardID,
+		ShardID: shardID,
 		TaskID:  request.TaskID,
 	}
 
@@ -940,8 +986,9 @@ func (m *sqlExecutionStore) RangeDeleteReplicationTaskFromDLQ(
 	ctx context.Context,
 	request *p.RangeDeleteReplicationTaskFromDLQRequest,
 ) (*p.RangeDeleteReplicationTaskFromDLQResponse, error) {
+	shardID := m.effectiveShardID(request.ShardID, "RangeDeleteReplicationTaskFromDLQ")
 	filter := sqlplugin.ReplicationTasksFilter{
-		ShardID:            m.shardID,
+		ShardID:            shardID,
 		InclusiveMinTaskID: request.InclusiveBeginTaskID,
 		ExclusiveMaxTaskID: request.ExclusiveEndTaskID,
 		PageSize:           request.PageSize,
@@ -964,8 +1011,9 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 	ctx context.Context,
 	request *p.CreateFailoverMarkersRequest,
 ) error {
-	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(m.shardID, m.db.GetTotalNumDBShards())
-	return m.txExecuteShardLockedFn(ctx, dbShardID, "CreateFailoverMarkerTasks", request.RangeID, func(tx sqlplugin.Tx) error {
+	shardID := m.effectiveShardID(request.ShardID, "CreateFailoverMarkerTasks")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
+	return m.txExecuteShardLockedFn(ctx, shardID, dbShardID, "CreateFailoverMarkerTasks", request.RangeID, func(tx sqlplugin.Tx) error {
 		replicationTasksRows := make([]sqlplugin.ReplicationTasksRow, len(request.Markers))
 		for i, task := range request.Markers {
 			blob, err := m.parser.ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
@@ -986,7 +1034,7 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 			if err != nil {
 				return err
 			}
-			replicationTasksRows[i].ShardID = m.shardID
+			replicationTasksRows[i].ShardID = shardID
 			replicationTasksRows[i].TaskID = task.GetTaskID()
 			replicationTasksRows[i].Data = blob.Data
 			replicationTasksRows[i].DataEncoding = string(blob.Encoding)
@@ -1023,6 +1071,7 @@ func (m *sqlExecutionStore) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *p.InternalPutReplicationTaskToDLQRequest,
 ) error {
+	shardID := m.effectiveShardID(request.ShardID, "PutReplicationTaskToDLQ")
 	replicationTask := request.TaskInfo
 	blob, err := m.parser.ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
 		DomainID:                serialization.MustParseUUID(replicationTask.DomainID),
@@ -1045,7 +1094,7 @@ func (m *sqlExecutionStore) PutReplicationTaskToDLQ(
 
 	row := &sqlplugin.ReplicationTaskDLQRow{
 		SourceClusterName: request.SourceClusterName,
-		ShardID:           m.shardID,
+		ShardID:           shardID,
 		TaskID:            replicationTask.TaskID,
 		Data:              blob.Data,
 		DataEncoding:      string(blob.Encoding),
@@ -1126,11 +1175,12 @@ func (m *sqlExecutionStore) GetHistoryTasks(
 	ctx context.Context,
 	request *p.GetHistoryTasksRequest,
 ) (*p.GetHistoryTasksResponse, error) {
+	shardID := m.effectiveShardID(request.ShardID, "GetHistoryTasks")
 	switch request.TaskCategory.Type() {
 	case p.HistoryTaskCategoryTypeImmediate:
-		return m.getImmediateHistoryTasks(ctx, request)
+		return m.getImmediateHistoryTasks(ctx, request, shardID)
 	case p.HistoryTaskCategoryTypeScheduled:
-		return m.getScheduledHistoryTasks(ctx, request)
+		return m.getScheduledHistoryTasks(ctx, request, shardID)
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -1139,6 +1189,7 @@ func (m *sqlExecutionStore) GetHistoryTasks(
 func (m *sqlExecutionStore) getImmediateHistoryTasks(
 	ctx context.Context,
 	request *p.GetHistoryTasksRequest,
+	shardID int,
 ) (*p.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTransfer:
@@ -1151,7 +1202,7 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 			}
 		}
 		rows, err := m.db.SelectFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-			ShardID:            m.shardID,
+			ShardID:            shardID,
 			InclusiveMinTaskID: inclusiveMinTaskID,
 			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.GetTaskID(),
 			PageSize:           request.PageSize,
@@ -1191,7 +1242,7 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 			exclusiveMaxTaskID = max(inclusiveMinTaskID+int64(request.PageSize), exclusiveMaxTaskID)
 		}
 		rows, err := m.db.SelectFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
-			ShardID:            m.shardID,
+			ShardID:            shardID,
 			InclusiveMinTaskID: inclusiveMinTaskID,
 			ExclusiveMaxTaskID: exclusiveMaxTaskID,
 			PageSize:           request.PageSize,
@@ -1226,6 +1277,7 @@ func (m *sqlExecutionStore) getImmediateHistoryTasks(
 func (m *sqlExecutionStore) getScheduledHistoryTasks(
 	ctx context.Context,
 	request *p.GetHistoryTasksRequest,
+	shardID int,
 ) (*p.GetHistoryTasksResponse, error) {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTimer:
@@ -1238,7 +1290,7 @@ func (m *sqlExecutionStore) getScheduledHistoryTasks(
 			}
 		}
 		rows, err := m.db.SelectFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
-			ShardID:                m.shardID,
+			ShardID:                shardID,
 			MinVisibilityTimestamp: pageToken.Timestamp,
 			TaskID:                 pageToken.TaskID,
 			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.GetScheduledTime(),
@@ -1284,28 +1336,36 @@ func (m *sqlExecutionStore) CompleteHistoryTask(
 	ctx context.Context,
 	request *p.CompleteHistoryTaskRequest,
 ) error {
-	switch request.TaskCategory.Type() {
-	case p.HistoryTaskCategoryTypeScheduled:
-		return m.completeScheduledHistoryTask(ctx, request)
-	case p.HistoryTaskCategoryTypeImmediate:
-		return m.completeImmediateHistoryTask(ctx, request)
-	default:
-		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
-	}
+	shardID := m.effectiveShardID(request.ShardID, "CompleteHistoryTask")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
+	return m.txExecute(ctx, dbShardID, "CompleteHistoryTask", func(tx sqlplugin.Tx) error {
+		switch request.TaskCategory.Type() {
+		case p.HistoryTaskCategoryTypeScheduled:
+			return m.completeScheduledHistoryTask(ctx, tx, request, shardID)
+		case p.HistoryTaskCategoryTypeImmediate:
+			return m.completeImmediateHistoryTask(ctx, tx, request, shardID)
+		default:
+			return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+		}
+	})
 }
 
 func (m *sqlExecutionStore) completeScheduledHistoryTask(
 	ctx context.Context,
+	tx sqlplugin.Tx,
 	request *p.CompleteHistoryTaskRequest,
+	shardID int,
 ) error {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTimer:
-		if _, err := m.db.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
-			ShardID:             m.shardID,
-			VisibilityTimestamp: request.TaskKey.GetScheduledTime(),
-			TaskID:              request.TaskKey.GetTaskID(),
-		}); err != nil {
-			return convertCommonErrors(m.db, "CompleteScheduledHistoryTask", "", err)
+		for _, key := range request.TaskKeys {
+			if _, err := tx.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+				ShardID:             shardID,
+				VisibilityTimestamp: key.GetScheduledTime(),
+				TaskID:              key.GetTaskID(),
+			}); err != nil {
+				return convertCommonErrors(m.db, "CompleteScheduledHistoryTask", "", err)
+			}
 		}
 		return nil
 	default:
@@ -1315,23 +1375,29 @@ func (m *sqlExecutionStore) completeScheduledHistoryTask(
 
 func (m *sqlExecutionStore) completeImmediateHistoryTask(
 	ctx context.Context,
+	tx sqlplugin.Tx,
 	request *p.CompleteHistoryTaskRequest,
+	shardID int,
 ) error {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTransfer:
-		if _, err := m.db.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-			ShardID: m.shardID,
-			TaskID:  request.TaskKey.GetTaskID(),
-		}); err != nil {
-			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+		for _, key := range request.TaskKeys {
+			if _, err := tx.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+				ShardID: shardID,
+				TaskID:  key.GetTaskID(),
+			}); err != nil {
+				return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+			}
 		}
 		return nil
 	case p.HistoryTaskCategoryIDReplication:
-		if _, err := m.db.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
-			ShardID: m.shardID,
-			TaskID:  request.TaskKey.GetTaskID(),
-		}); err != nil {
-			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+		for _, key := range request.TaskKeys {
+			if _, err := tx.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+				ShardID: shardID,
+				TaskID:  key.GetTaskID(),
+			}); err != nil {
+				return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+			}
 		}
 		return nil
 	default:
@@ -1343,11 +1409,12 @@ func (m *sqlExecutionStore) RangeCompleteHistoryTask(
 	ctx context.Context,
 	request *p.RangeCompleteHistoryTaskRequest,
 ) (*p.RangeCompleteHistoryTaskResponse, error) {
+	shardID := m.effectiveShardID(request.ShardID, "RangeCompleteHistoryTask")
 	switch request.TaskCategory.Type() {
 	case p.HistoryTaskCategoryTypeScheduled:
-		return m.rangeCompleteScheduledHistoryTask(ctx, request)
+		return m.rangeCompleteScheduledHistoryTask(ctx, request, shardID)
 	case p.HistoryTaskCategoryTypeImmediate:
-		return m.rangeCompleteImmediateHistoryTask(ctx, request)
+		return m.rangeCompleteImmediateHistoryTask(ctx, request, shardID)
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -1356,11 +1423,12 @@ func (m *sqlExecutionStore) RangeCompleteHistoryTask(
 func (m *sqlExecutionStore) rangeCompleteScheduledHistoryTask(
 	ctx context.Context,
 	request *p.RangeCompleteHistoryTaskRequest,
+	shardID int,
 ) (*p.RangeCompleteHistoryTaskResponse, error) {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTimer:
 		result, err := m.db.RangeDeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
-			ShardID:                m.shardID,
+			ShardID:                shardID,
 			MinVisibilityTimestamp: request.InclusiveMinTaskKey.GetScheduledTime(),
 			MaxVisibilityTimestamp: request.ExclusiveMaxTaskKey.GetScheduledTime(),
 			PageSize:               request.PageSize,
@@ -1381,11 +1449,12 @@ func (m *sqlExecutionStore) rangeCompleteScheduledHistoryTask(
 func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	ctx context.Context,
 	request *p.RangeCompleteHistoryTaskRequest,
+	shardID int,
 ) (*p.RangeCompleteHistoryTaskResponse, error) {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTransfer:
 		result, err := m.db.RangeDeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-			ShardID:            m.shardID,
+			ShardID:            shardID,
 			InclusiveMinTaskID: request.InclusiveMinTaskKey.GetTaskID(),
 			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.GetTaskID(),
 			PageSize:           request.PageSize,
@@ -1400,7 +1469,7 @@ func (m *sqlExecutionStore) rangeCompleteImmediateHistoryTask(
 		return &p.RangeCompleteHistoryTaskResponse{TasksCompleted: int(rowsDeleted)}, nil
 	case p.HistoryTaskCategoryIDReplication:
 		result, err := m.db.RangeDeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
-			ShardID:            m.shardID,
+			ShardID:            shardID,
 			ExclusiveMaxTaskID: request.ExclusiveMaxTaskKey.GetTaskID(),
 			PageSize:           request.PageSize,
 		})
@@ -1421,16 +1490,52 @@ func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *p.GetActiveClusterSelectionPolicyRequest,
 ) (*p.DataBlob, error) {
-	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
-	// It requires creating a new table in the database to store the active cluster selection policy
-	return nil, &types.InternalServiceError{Message: "Not yet implemented"}
+	domainID := serialization.MustParseUUID(request.DomainID)
+	runID := serialization.MustParseUUID(request.RunID)
+	row, err := m.db.SelectFromActiveClusterSelectionPolicy(ctx, &sqlplugin.ActiveClusterSelectionPolicyFilter{
+		ShardID:    m.shardID,
+		DomainID:   domainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      runID,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows || errors.Is(err, sqlplugin.ErrNotImplemented) {
+			return nil, &types.EntityNotExistsError{
+				Message: fmt.Sprintf(
+					"Active cluster selection policy not found. DomainId: %v, WorkflowId: %v, RunId: %v",
+					request.DomainID, request.WorkflowID, request.RunID,
+				),
+			}
+		}
+		return nil, convertCommonErrors(m.db, "GetActiveClusterSelectionPolicy", "", err)
+	}
+	return p.NewDataBlob(row.Data, constants.EncodingType(row.DataEncoding)), nil
 }
 
 func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *p.DeleteActiveClusterSelectionPolicyRequest,
 ) error {
-	// TODO(active-active): Active cluster selection policy for SQL stores is not yet implemented
-	// It requires creating a new table in the database to store the active cluster selection policy
+	domainID := serialization.MustParseUUID(request.DomainID)
+	runID := serialization.MustParseUUID(request.RunID)
+	if _, err := m.db.DeleteFromActiveClusterSelectionPolicy(ctx, &sqlplugin.ActiveClusterSelectionPolicyFilter{
+		ShardID:    m.shardID,
+		DomainID:   domainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      runID,
+	}); err != nil {
+		if errors.Is(err, sqlplugin.ErrNotImplemented) {
+			return nil
+		}
+		return convertCommonErrors(m.db, "DeleteActiveClusterSelectionPolicy", "", err)
+	}
 	return nil
+}
+
+func (m *sqlExecutionStore) SelectWorkflowTimerTasks(
+	ctx context.Context,
+	request *p.SelectWorkflowTimerTasksRequest,
+) ([]p.HistoryTaskKey, error) {
+	// TODO: workflow_timer_tasks tracking is not yet implemented for SQL stores
+	return nil, nil
 }

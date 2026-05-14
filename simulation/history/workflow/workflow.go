@@ -1,14 +1,19 @@
 package workflow
 
 import (
+	"time"
+
 	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 )
 
 func RegisterWorker(w worker.Registry) {
-	w.RegisterWorkflow(NoopWorkflow)
+	w.RegisterWorkflow(SimulationWorkflow)
 }
 
-func NoopWorkflow(ctx workflow.Context) error {
+func SimulationWorkflow(ctx workflow.Context, numSleeps int) error {
+	for i := 0; i < numSleeps; i++ {
+		workflow.Sleep(ctx, time.Second)
+	}
 	return nil
 }

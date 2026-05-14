@@ -23,6 +23,7 @@ package scheduler
 import (
 	"time"
 
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -43,7 +44,11 @@ const (
 	SchedulerMissedFiredCountPerDomain    = "scheduler_missed_fired_count_per_domain"
 	SchedulerMissedSkippedCountPerDomain  = "scheduler_missed_skipped_count_per_domain"
 	SchedulerBackfillFiredCountPerDomain  = "scheduler_backfill_fired_count_per_domain"
-	SchedulerContinueAsNewCountPerDomain  = "scheduler_continue_as_new_count_per_domain"
+	// SchedulerBackfillRejectedCountPerDomain counts backfill signals dropped by
+	// the workflow after the RPC has already returned success. Tagged with the
+	// rejection reason (invalid_range, queue_full).
+	SchedulerBackfillRejectedCountPerDomain = "scheduler_backfill_rejected_count_per_domain"
+	SchedulerContinueAsNewCountPerDomain    = "scheduler_continue_as_new_count_per_domain"
 	// SchedulerBufferOverflowCountPerDomain measures fires dropped because the
 	// BUFFER overlap policy queue is full. Tagged with the drop reason so
 	// operators can distinguish drops driven by the user's buffer_limit
@@ -69,6 +74,10 @@ const (
 	BufferOverflowReasonUserLimit   = "user_limit"
 	BufferOverflowReasonSystemLimit = "system_limit"
 
+	// Reason tag values for scheduler_backfill_rejected_count_per_domain.
+	BackfillRejectedReasonInvalidRange = "invalid_range"
+	BackfillRejectedReasonQueueFull    = "queue_full"
+
 	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
 	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the
 	// ContinueAsNew payload size: each BufferedFire is ~50 bytes JSON, so 1000
@@ -91,9 +100,11 @@ const (
 	signalTypeTagDelete   = "delete"
 
 	// Search attribute keys set on target workflows started by the scheduler.
-	SearchAttrScheduleID   = "CadenceScheduleID"
-	SearchAttrScheduleTime = "CadenceScheduleTime"
-	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
+	// The string values are defined in common/definition to make them part of
+	// the default indexed keys for all visibility backends.
+	SearchAttrScheduleID   = definition.CadenceScheduleID
+	SearchAttrScheduleTime = definition.CadenceScheduleTime
+	SearchAttrIsBackfill   = definition.CadenceScheduleIsBackfill
 
 	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
 	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
@@ -101,14 +112,14 @@ const (
 	// be extended to additional states (e.g. "expired") without introducing new
 	// search attributes. "Deleted" is not a value because a deleted schedule's
 	// workflow is closed and filtered by workflow status instead.
-	SearchAttrScheduleState = "CadenceScheduleState"
+	SearchAttrScheduleState = definition.CadenceScheduleState
 	// CadenceScheduleCron holds the current cron expression so ListSchedules
 	// can display it without querying each scheduler workflow. Refreshed on
 	// workflow start (including after ContinueAsNew triggered by UpdateSchedule).
-	SearchAttrScheduleCron = "CadenceScheduleCron"
+	SearchAttrScheduleCron = definition.CadenceScheduleCron
 	// CadenceScheduleWorkflowType holds the target workflow type name that the
 	// schedule starts on each fire. Same refresh semantics as the cron SA.
-	SearchAttrScheduleWorkflowType = "CadenceScheduleWorkflowType"
+	SearchAttrScheduleWorkflowType = definition.CadenceScheduleWorkflowType
 
 	ScheduleStateActive = "active"
 	ScheduleStatePaused = "paused"

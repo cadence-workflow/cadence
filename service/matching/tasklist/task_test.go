@@ -133,14 +133,12 @@ func TestNewInternalTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			completionFunc := func(_ *persistence.TaskInfo, _ error) {}
 			taskInfo := defaultTaskInfo(tc.partitionConfig)
-			activityDispatchInfo := &types.ActivityTaskDispatchInfo{WorkflowDomain: "domain"}
-			task := newInternalTask(taskInfo, completionFunc, tc.source, tc.forwardedFrom, tc.forSyncMatch, activityDispatchInfo, tc.isolationGroup)
+			task := newInternalTask(taskInfo, completionFunc, tc.source, tc.forwardedFrom, tc.forSyncMatch, tc.isolationGroup)
 			assert.Equal(t, defaultTaskInfo(tc.expectedPartitionConfig), task.Event.TaskInfo)
 			assert.NotNil(t, task.Event.completionFunc)
 			assert.Equal(t, tc.source, task.source)
 			assert.Equal(t, tc.forwardedFrom, task.forwardedFrom)
 			assert.Equal(t, tc.isolationGroup, task.isolationGroup)
-			assert.Equal(t, activityDispatchInfo, task.ActivityTaskDispatchInfo)
 			if tc.additionalAssertions != nil {
 				tc.additionalAssertions(t, task)
 			}

@@ -90,6 +90,11 @@ func (f *Factory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
 	return newNoSQLDomainAuditStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
+// NewHistoryDLQTaskStore returns a history DLQ task store
+func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
+	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewExecutionStore returns an ExecutionStore for a given shardID
 func (f *Factory) NewExecutionStore(shardID int) (persistence.ExecutionStore, error) {
 	factory, err := f.executionStoreFactory()

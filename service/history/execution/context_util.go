@@ -210,25 +210,10 @@ func emitWorkflowCompletionStats(
 		scope.IncCounter(metrics.WorkflowFailedCount)
 	case types.EventTypeWorkflowExecutionTimedOut:
 		scope.IncCounter(metrics.WorkflowTimeoutCount)
-		logger.Info("workflow execution timed out",
-			tag.WorkflowID(workflowID),
-			tag.WorkflowRunID(runID),
-			tag.WorkflowDomainName(domainName),
-		)
 	case types.EventTypeWorkflowExecutionTerminated:
 		scope.IncCounter(metrics.WorkflowTerminateCount)
-		logger.Info("workflow terminated",
-			tag.WorkflowID(workflowID),
-			tag.WorkflowRunID(runID),
-			tag.WorkflowDomainName(domainName),
-		)
 	case types.EventTypeWorkflowExecutionContinuedAsNew:
 		scope.IncCounter(metrics.WorkflowContinuedAsNew)
-		logger.Debug("workflow continued as new",
-			tag.WorkflowID(workflowID),
-			tag.WorkflowRunID(runID),
-			tag.WorkflowDomainName(domainName),
-		)
 	default:
 		scope.IncCounter(metrics.WorkflowCompletedUnknownType)
 		logger.Warn("Workflow completed with an unknown event type",

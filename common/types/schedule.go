@@ -178,16 +178,19 @@ func (v *ScheduleSpec) GetJitter() (o time.Duration) {
 }
 
 // StartWorkflowAction defines a workflow to start when the schedule triggers.
+// Input, Memo, and SearchAttributes must JSON-round-trip: the scheduler workflow
+// encodes types.ScheduleAction with encoding/json (create input, update signals,
+// ContinueAsNew, local-activity payloads).
 type StartWorkflowAction struct {
 	WorkflowType                        *WorkflowType     `json:"workflowType,omitempty"`
 	TaskList                            *TaskList         `json:"taskList,omitempty"`
-	Input                               []byte            `json:"-"` // Potential PII
+	Input                               []byte            `json:"input,omitempty"`
 	WorkflowIDPrefix                    string            `json:"workflowIdPrefix,omitempty"`
 	ExecutionStartToCloseTimeoutSeconds *int32            `json:"executionStartToCloseTimeoutSeconds,omitempty"`
 	TaskStartToCloseTimeoutSeconds      *int32            `json:"taskStartToCloseTimeoutSeconds,omitempty"`
 	RetryPolicy                         *RetryPolicy      `json:"retryPolicy,omitempty"`
-	Memo                                *Memo             `json:"-"` // Filtering PII
-	SearchAttributes                    *SearchAttributes `json:"-"` // Filtering PII
+	Memo                                *Memo             `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 func (v *StartWorkflowAction) GetWorkflowType() *WorkflowType {

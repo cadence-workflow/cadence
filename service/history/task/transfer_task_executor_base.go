@@ -58,6 +58,7 @@ const (
 type (
 	transferTaskExecutorBase struct {
 		shard          shard.Context
+		dlqWriter      TaskDLQWriter
 		archiverClient archiver.Client
 		executionCache execution.Cache
 		logger         log.Logger
@@ -75,9 +76,11 @@ func newTransferTaskExecutorBase(
 	executionCache execution.Cache,
 	logger log.Logger,
 	config *config.Config,
+	dlqWriter TaskDLQWriter,
 ) *transferTaskExecutorBase {
 	return &transferTaskExecutorBase{
 		shard:          shard,
+		dlqWriter:      dlqWriter,
 		archiverClient: archiverClient,
 		executionCache: executionCache,
 		logger:         logger,
@@ -109,6 +112,7 @@ func (t *transferTaskExecutorBase) pushActivity(
 	if err != nil {
 		return err
 	}
+
 	if !shouldPush {
 		// The domain is an active-active domain and the task is pending
 		// For the first few minutes, we will retry the task and then discard it if it is still pending.
@@ -116,7 +120,12 @@ func (t *transferTaskExecutorBase) pushActivity(
 			err = standbyTaskPostActionNoOp(ctx, task, pushActivityInfo, t.logger)
 			return err
 		}
-		return standbyTaskPostActionTaskDiscarded(ctx, task, pushActivityInfo, t.logger)
+
+		return standbyTaskPostActionWriteToDLQ(
+			t.dlqWriter,
+			t.shard,
+			t.config.HistoryTaskDLQMode,
+		)(ctx, task, pushActivityInfo, t.logger)
 	}
 
 	activityScheduleToStartTimeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)

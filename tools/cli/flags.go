@@ -190,6 +190,7 @@ const (
 	FlagMaxMessageCount                = "max_message_count"
 	FlagLastMessageID                  = "last_message_id"
 	FlagConcurrency                    = "concurrency"
+	FlagConcurrencyLimit               = "concurrency_limit"
 	FlagReportRate                     = "report_rate"
 	FlagLowerShardBound                = "lower_shard_bound"
 	FlagUpperShardBound                = "upper_shard_bound"

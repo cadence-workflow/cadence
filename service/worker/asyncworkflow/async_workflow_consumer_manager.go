@@ -71,6 +71,10 @@ func WithEmitConsumerCountMetrifFn(fn func(int)) ConsumerManagerOptions {
 	}
 }
 
+func withAfterIterFn(fn func()) ConsumerManagerOptions {
+	return func(c *ConsumerManager) { c.afterIterFn = fn }
+}
+
 func NewConsumerManager(
 	logger log.Logger,
 	metricsClient metrics.Client,
@@ -119,6 +123,7 @@ type ConsumerManager struct {
 	wg                        sync.WaitGroup
 	activeConsumers           map[string]provider.Consumer
 	emitConsumerCountMetricFn func(int)
+	afterIterFn               func() // test hook: called after each ticker iteration, nil in production
 }
 
 func (c *ConsumerManager) Start() {
@@ -175,6 +180,9 @@ func (c *ConsumerManager) run() {
 		case <-c.ctx.Done():
 			c.logger.Info("ConsumerManager background loop stopped because context is done")
 			return
+		}
+		if c.afterIterFn != nil {
+			c.afterIterFn()
 		}
 	}
 }

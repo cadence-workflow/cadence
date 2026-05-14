@@ -37,6 +37,8 @@ import (
 var (
 	// ErrTTLNotSupported indicates the sql plugin does not support ttl
 	ErrTTLNotSupported = errors.New("plugin implementation does not support ttl")
+	// ErrNotImplemented indicates the sql database does not implement the method
+	ErrNotImplemented = errors.New("method not implemented for datastore")
 )
 
 type (
@@ -186,6 +188,25 @@ type (
 	// BufferedEventsFilter contains the column names within buffered_events table that
 	// can be used to filter results through a WHERE clause
 	BufferedEventsFilter struct {
+		ShardID    int
+		DomainID   serialization.UUID
+		WorkflowID string
+		RunID      serialization.UUID
+	}
+
+	// ActiveClusterSelectionPolicyRow represents a row in active_cluster_selection_policy table
+	ActiveClusterSelectionPolicyRow struct {
+		ShardID      int                `db:"shard_id"`
+		DomainID     serialization.UUID `db:"domain_id"`
+		WorkflowID   string             `db:"workflow_id"`
+		RunID        serialization.UUID `db:"run_id"`
+		Data         []byte             `db:"data"`
+		DataEncoding string             `db:"data_encoding"`
+	}
+
+	// ActiveClusterSelectionPolicyFilter contains the column names within
+	// active_cluster_selection_policy table that can be used to filter results
+	ActiveClusterSelectionPolicyFilter struct {
 		ShardID    int
 		DomainID   serialization.UUID
 		WorkflowID string
@@ -728,6 +749,14 @@ type (
 		InsertIntoBufferedEvents(ctx context.Context, rows []BufferedEventsRow) (sql.Result, error)
 		SelectFromBufferedEvents(ctx context.Context, filter *BufferedEventsFilter) ([]BufferedEventsRow, error)
 		DeleteFromBufferedEvents(ctx context.Context, filter *BufferedEventsFilter) (sql.Result, error)
+
+		InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *ActiveClusterSelectionPolicyRow) (sql.Result, error)
+		// SelectFromActiveClusterSelectionPolicy returns 0 or 1 row from active_cluster_selection_policy table
+		// Required filter Params: {shardID, domainID, workflowID, runID}
+		SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (*ActiveClusterSelectionPolicyRow, error)
+		// DeleteFromActiveClusterSelectionPolicy deletes 0 or 1 row from active_cluster_selection_policy table
+		// Required filter Params: {shardID, domainID, workflowID, runID}
+		DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (sql.Result, error)
 
 		InsertIntoReplicationTasks(ctx context.Context, rows []ReplicationTasksRow) (sql.Result, error)
 		// SelectFromReplicationTasks returns one or more rows from replication_tasks table

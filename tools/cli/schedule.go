@@ -70,6 +70,10 @@ var (
 			Name:  FlagOverlapPolicy,
 			Usage: "Overlap policy: SkipNew, Buffer, Concurrent, CancelPrevious, TerminatePrevious",
 		},
+		&cli.IntFlag{
+			Name:  FlagConcurrencyLimit,
+			Usage: "Max concurrent target workflows (only effective with --overlap_policy concurrent; 0 = unlimited)",
+		},
 		&cli.StringFlag{
 			Name:  FlagCatchUpPolicy,
 			Usage: "Catch-up policy: Skip, One, All",
@@ -95,6 +99,10 @@ var (
 		&cli.StringFlag{
 			Name:  FlagOverlapPolicy,
 			Usage: "New overlap policy: SkipNew, Buffer, Concurrent, CancelPrevious, TerminatePrevious",
+		},
+		&cli.IntFlag{
+			Name:  FlagConcurrencyLimit,
+			Usage: "Max concurrent target workflows (only effective with --overlap_policy concurrent; 0 = unlimited)",
 		},
 		&cli.StringFlag{
 			Name:  FlagCatchUpPolicy,

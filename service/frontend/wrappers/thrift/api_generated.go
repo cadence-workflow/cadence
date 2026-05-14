@@ -11,14 +11,29 @@ import (
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
+func (g APIHandler) BackfillSchedule(ctx context.Context, Request *shared.BackfillScheduleRequest) (bp1 *shared.BackfillScheduleResponse, err error) {
+	response, err := g.h.BackfillSchedule(ctx, thrift.ToBackfillScheduleRequest(Request))
+	return thrift.FromBackfillScheduleResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) CountWorkflowExecutions(ctx context.Context, CountRequest *shared.CountWorkflowExecutionsRequest) (cp1 *shared.CountWorkflowExecutionsResponse, err error) {
 	response, err := g.h.CountWorkflowExecutions(ctx, thrift.ToCountWorkflowExecutionsRequest(CountRequest))
 	return thrift.FromCountWorkflowExecutionsResponse(response), thrift.FromError(err)
 }
 
+func (g APIHandler) CreateSchedule(ctx context.Context, Request *shared.CreateScheduleRequest) (cp1 *shared.CreateScheduleResponse, err error) {
+	response, err := g.h.CreateSchedule(ctx, thrift.ToCreateScheduleRequest(Request))
+	return thrift.FromCreateScheduleResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) DeleteDomain(ctx context.Context, DeleteRequest *shared.DeleteDomainRequest) (err error) {
 	err = g.h.DeleteDomain(ctx, thrift.ToDeleteDomainRequest(DeleteRequest))
 	return thrift.FromError(err)
+}
+
+func (g APIHandler) DeleteSchedule(ctx context.Context, Request *shared.DeleteScheduleRequest) (dp1 *shared.DeleteScheduleResponse, err error) {
+	response, err := g.h.DeleteSchedule(ctx, thrift.ToDeleteScheduleRequest(Request))
+	return thrift.FromDeleteScheduleResponse(response), thrift.FromError(err)
 }
 
 func (g APIHandler) DeprecateDomain(ctx context.Context, DeprecateRequest *shared.DeprecateDomainRequest) (err error) {
@@ -29,6 +44,11 @@ func (g APIHandler) DeprecateDomain(ctx context.Context, DeprecateRequest *share
 func (g APIHandler) DescribeDomain(ctx context.Context, DescribeRequest *shared.DescribeDomainRequest) (dp1 *shared.DescribeDomainResponse, err error) {
 	response, err := g.h.DescribeDomain(ctx, thrift.ToDescribeDomainRequest(DescribeRequest))
 	return thrift.FromDescribeDomainResponse(response), thrift.FromError(err)
+}
+
+func (g APIHandler) DescribeSchedule(ctx context.Context, Request *shared.DescribeScheduleRequest) (dp1 *shared.DescribeScheduleResponse, err error) {
+	response, err := g.h.DescribeSchedule(ctx, thrift.ToDescribeScheduleRequest(Request))
+	return thrift.FromDescribeScheduleResponse(response), thrift.FromError(err)
 }
 
 func (g APIHandler) DescribeTaskList(ctx context.Context, Request *shared.DescribeTaskListRequest) (dp1 *shared.DescribeTaskListResponse, err error) {
@@ -96,6 +116,11 @@ func (g APIHandler) ListOpenWorkflowExecutions(ctx context.Context, ListRequest 
 	return thrift.FromListOpenWorkflowExecutionsResponse(response), thrift.FromError(err)
 }
 
+func (g APIHandler) ListSchedules(ctx context.Context, Request *shared.ListSchedulesRequest) (lp1 *shared.ListSchedulesResponse, err error) {
+	response, err := g.h.ListSchedules(ctx, thrift.ToListSchedulesRequest(Request))
+	return thrift.FromListSchedulesResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) ListTaskListPartitions(ctx context.Context, Request *shared.ListTaskListPartitionsRequest) (lp1 *shared.ListTaskListPartitionsResponse, err error) {
 	response, err := g.h.ListTaskListPartitions(ctx, thrift.ToListTaskListPartitionsRequest(Request))
 	return thrift.FromListTaskListPartitionsResponse(response), thrift.FromError(err)
@@ -104,6 +129,11 @@ func (g APIHandler) ListTaskListPartitions(ctx context.Context, Request *shared.
 func (g APIHandler) ListWorkflowExecutions(ctx context.Context, ListRequest *shared.ListWorkflowExecutionsRequest) (lp1 *shared.ListWorkflowExecutionsResponse, err error) {
 	response, err := g.h.ListWorkflowExecutions(ctx, thrift.ToListWorkflowExecutionsRequest(ListRequest))
 	return thrift.FromListWorkflowExecutionsResponse(response), thrift.FromError(err)
+}
+
+func (g APIHandler) PauseSchedule(ctx context.Context, Request *shared.PauseScheduleRequest) (pp1 *shared.PauseScheduleResponse, err error) {
+	response, err := g.h.PauseSchedule(ctx, thrift.ToPauseScheduleRequest(Request))
+	return thrift.FromPauseScheduleResponse(response), thrift.FromError(err)
 }
 
 func (g APIHandler) PollForActivityTask(ctx context.Context, PollRequest *shared.PollForActivityTaskRequest) (pp1 *shared.PollForActivityTaskResponse, err error) {
@@ -241,7 +271,17 @@ func (g APIHandler) TerminateWorkflowExecution(ctx context.Context, TerminateReq
 	return thrift.FromError(err)
 }
 
+func (g APIHandler) UnpauseSchedule(ctx context.Context, Request *shared.UnpauseScheduleRequest) (up1 *shared.UnpauseScheduleResponse, err error) {
+	response, err := g.h.UnpauseSchedule(ctx, thrift.ToUnpauseScheduleRequest(Request))
+	return thrift.FromUnpauseScheduleResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) UpdateDomain(ctx context.Context, UpdateRequest *shared.UpdateDomainRequest) (up1 *shared.UpdateDomainResponse, err error) {
 	response, err := g.h.UpdateDomain(ctx, thrift.ToUpdateDomainRequest(UpdateRequest))
 	return thrift.FromUpdateDomainResponse(response), thrift.FromError(err)
+}
+
+func (g APIHandler) UpdateSchedule(ctx context.Context, Request *shared.UpdateScheduleRequest) (up1 *shared.UpdateScheduleResponse, err error) {
+	response, err := g.h.UpdateSchedule(ctx, thrift.ToUpdateScheduleRequest(Request))
+	return thrift.FromUpdateScheduleResponse(response), thrift.FromError(err)
 }

@@ -299,6 +299,7 @@ func builderForPassThrough(t *testing.T, injector any, errorRate float64, logger
 			mocked.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{}, expectedErr)
 			mocked.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(&types.ActiveClusterSelectionPolicy{}, expectedErr)
 			mocked.EXPECT().DeleteActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(expectedErr)
+			mocked.EXPECT().FetchWorkflowTimerTasksForCleanup(gomock.Any(), gomock.Any()).Return(nil, expectedErr)
 		}
 	default:
 		t.Errorf("unsupported type %v", reflect.TypeOf(injector))

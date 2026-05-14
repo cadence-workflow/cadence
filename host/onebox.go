@@ -78,6 +78,7 @@ import (
 	"github.com/uber/cadence/service/worker/asyncworkflow"
 	"github.com/uber/cadence/service/worker/indexer"
 	"github.com/uber/cadence/service/worker/replicator"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 // Cadence hosts all of cadence services in one process
@@ -117,6 +118,7 @@ type (
 		replicator                    *replicator.Replicator
 		clientWorker                  archiver.ClientWorker
 		indexer                       *indexer.Indexer
+		schedulerWorkerManager        *scheduler.WorkerManager
 		archiverMetadata              carchiver.ArchivalMetadata
 		archiverProvider              provider.ArchiverProvider
 		historyConfig                 *HistoryConfig
@@ -154,6 +156,7 @@ type (
 	}
 
 	HistorySimulationConfig struct {
+		// NumWorkflows is how many workflows the test starts in total. Defaults to 100.
 		NumWorkflows int
 		// WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering
 		// defaults to 0 to remove jittering
@@ -162,6 +165,24 @@ type (
 		EnableTransferQueueV2 bool
 		// EnableTimerQueueV2 enables queue v2 framework for timer queue
 		EnableTimerQueueV2 bool
+
+		// SleepBetweenWorkflowStarts is how long the test waits between starting each workflow.
+		// A short gap keeps the frontend from getting hit with a burst on startup. Defaults to 0.
+		SleepBetweenWorkflowStarts time.Duration
+
+		// Timeout is the context deadline the test uses when waiting for all workflows to complete.
+		// Must be less than the go test -timeout ceiling (1800s in docker-compose). Defaults to 5 minutes.
+		Timeout time.Duration
+
+		// NumWorkflowSleeps is how many workflow.Sleep calls each workflow makes.
+		// Each sleep becomes a timer task, so this is the main knob for timer queue load
+		// without changing the number of workflows. Defaults to 0.
+		NumWorkflowSleeps int
+
+		// SleepAfterAllWorkflows is how long the test waits after all workflows complete.
+		// This allows pending timer tasks (e.g. workflow timeout timers) to be processed
+		// before the simulation ends. Defaults to 120 seconds.
+		SleepAfterAllWorkflows time.Duration
 	}
 
 	MatchingConfig struct {
@@ -353,7 +374,11 @@ func NewCadence(params *CadenceParams) Cadence {
 }
 
 func (c *cadenceImpl) enableWorker() bool {
-	return c.workerConfig.EnableArchiver || c.workerConfig.EnableIndexer || c.workerConfig.EnableReplicator || c.workerConfig.EnableAsyncWFConsumer
+	return c.workerConfig.EnableArchiver ||
+		c.workerConfig.EnableIndexer ||
+		c.workerConfig.EnableReplicator ||
+		c.workerConfig.EnableAsyncWFConsumer ||
+		c.workerConfig.EnableScheduler
 }
 
 func (c *cadenceImpl) Start() error {
@@ -966,6 +991,13 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 		defer cm.Stop()
 	}
 
+	var schedulerDomainCache cache.DomainCache
+	if c.workerConfig.EnableScheduler {
+		schedulerDomainCache = c.startSchedulerWorkerManager(params, service)
+		defer c.schedulerWorkerManager.Stop()
+		defer schedulerDomainCache.Stop()
+	}
+
 	c.logger.Info("Started worker service")
 	startWG.Done()
 
@@ -1042,6 +1074,38 @@ func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Servic
 		c.indexer.Stop()
 		c.logger.Fatal("Fail to start indexer when start worker", tag.Error(err))
 	}
+}
+
+// startSchedulerWorkerManager mirrors the production wiring in
+// service/worker/service.go so host/ tests can exercise the schedule pipeline.
+// Returns a domain cache the caller must stop on shutdown.
+//
+// TODO: this duplicates startup logic from service/worker/service.go. The
+// rest of the worker subsystems in this onebox (replicator/archiver/indexer/
+// async-wf) are wired the same hand-rolled way, so the right long-term fix
+// is to have host/ tests boot the worker service via worker.NewService(...)
+// and let it manage the WorkerManager (and friends) end-to-end, rather than
+// reaching into the bootstrap params here.
+func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc Service) cache.DomainCache {
+	metadataManager := metered.NewDomainManager(c.domainManager, svc.GetMetricsClient(), c.logger, &c.persistenceConfig)
+	domainCache := cache.NewDomainCache(metadataManager, c.clusterMetadata, svc.GetMetricsClient(), svc.GetLogger())
+	domainCache.Start()
+
+	dc := dynamicconfig.NewCollection(params.DynamicConfig, svc.GetLogger())
+	bp := &scheduler.BootstrapParams{
+		ServiceClient:      params.PublicClient,
+		FrontendClient:     c.frontendClient,
+		MetricsClient:      svc.GetMetricsClient(),
+		Logger:             svc.GetLogger(),
+		DomainCache:        domainCache,
+		MembershipResolver: svc.GetMembershipResolver(),
+		HostInfo:           svc.GetHostInfo(),
+		RefreshInterval:    dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval),
+	}
+	enabledFn := dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler)
+	c.schedulerWorkerManager = scheduler.NewWorkerManager(bp, enabledFn)
+	c.schedulerWorkerManager.Start()
+	return domainCache
 }
 
 func (c *cadenceImpl) createSystemDomain() error {

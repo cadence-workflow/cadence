@@ -690,6 +690,27 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ?`
 
+	templateAppendWorkflowTimerTaskQuery = `UPDATE executions ` +
+		`SET workflow_timer_tasks = workflow_timer_tasks + ? ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateGetWorkflowTimerTasksQuery = `SELECT workflow_timer_tasks ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
 	templateRangeCompleteTimerTaskQuery = `DELETE FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

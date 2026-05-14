@@ -774,19 +774,19 @@ func (h *handlerImpl) RemoveTask(
 	case commonconstants.TaskTypeTransfer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(request.GetTaskID())},
 			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	case commonconstants.TaskTypeTimer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID())},
 			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	case commonconstants.TaskTypeReplication:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(request.GetTaskID())},
 			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	default:

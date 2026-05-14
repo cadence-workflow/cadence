@@ -126,7 +126,7 @@ func (s *mutableStateSuite) TearDownTest() {
 }
 
 func (s *mutableStateSuite) TestErrorReturnedWhenSchedulingTooManyPendingActivities() {
-	for i := 0; i < s.msBuilder.config.PendingActivitiesCountLimitError(); i++ {
+	for i := 0; i < s.msBuilder.config.PendingActivitiesCountLimitError(constants.TestDomainName); i++ {
 		s.msBuilder.pendingActivityInfoIDs[int64(i)] = &persistence.ActivityInfo{}
 	}
 

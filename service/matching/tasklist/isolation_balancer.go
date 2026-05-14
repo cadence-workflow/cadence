@@ -178,7 +178,7 @@ func (i *isolationBalancer) calculatePartitionGoal(aggregateMetrics *aggregatePa
 		sustainedOverLoad := state.overLoad.Check(groupQPS > upscaleThreshold)
 		sustainedUnderLoad := state.underLoad.Check(groupQPS < downscaleThreshold)
 
-		idealPartitions := getNumberOfPartitions(groupQPS, upscaleRps)
+		idealPartitions := getNumberOfPartitions(groupQPS, upscaleRps, 1)
 		// partitions must be >= minPartitions and <= writePartitionCount
 		targetPartitions := min(max(minPartitions, idealPartitions), writePartitionCount)
 

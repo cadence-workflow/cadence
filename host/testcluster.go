@@ -122,6 +122,7 @@ type (
 		EnableIndexer         bool
 		EnableReplicator      bool
 		EnableAsyncWFConsumer bool
+		EnableScheduler       bool
 	}
 )
 

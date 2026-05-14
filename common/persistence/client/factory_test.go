@@ -23,6 +23,7 @@
 package client
 
 import (
+	"errors"
 	"math/rand"
 	"testing"
 
@@ -137,6 +138,21 @@ func TestFactoryMethods(t *testing.T) {
 
 		ds.EXPECT().NewConfigStore().Return(nil, nil).MinTimes(1)
 		check(t, fact.NewConfigStoreManager)
+	})
+	t.Run("NewHistoryTaskDLQManager returns error when store is nil", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		ds.EXPECT().NewHistoryDLQTaskStore().Return(nil, nil).MinTimes(1)
+		_, err := fact.NewHistoryTaskDLQManager()
+		assert.ErrorIs(t, err, errDatastoreNotSupported)
+	})
+	t.Run("NewHistoryTaskDLQManager propagates store creation error", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		storeErr := errors.New("connection failed")
+		ds.EXPECT().NewHistoryDLQTaskStore().Return(nil, storeErr).MinTimes(1)
+		_, err := fact.NewHistoryTaskDLQManager()
+		assert.ErrorIs(t, err, storeErr)
 	})
 	t.Run("NewVisibilityManager_TripleVisibilityManager_Pinot", func(t *testing.T) {
 		fact := makeFactory(t)
