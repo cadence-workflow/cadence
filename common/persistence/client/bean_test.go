@@ -273,6 +273,7 @@ func TestBeanCoverage(t *testing.T) {
 		m.configManager.EXPECT().Close().Return().Times(1)
 		ex1.EXPECT().Close().Return().Times(1)
 		ex2.EXPECT().Close().Return().Times(1)
+		m.historyTaskDLQManager.EXPECT().Close().Return().Times(1)
 		// which includes the execution-manager-factory itself
 		f.EXPECT().Close().Return().Times(1)
 
