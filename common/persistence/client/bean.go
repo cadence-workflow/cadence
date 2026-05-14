@@ -441,4 +441,8 @@ func (s *BeanImpl) Close() {
 	for _, executionMgr := range s.shardIDToExecutionManager {
 		executionMgr.Close()
 	}
+
+	if s.historyTaskDLQManager != nil {
+		s.historyTaskDLQManager.Close()
+	}
 }
