@@ -363,8 +363,15 @@ func findBestShardForMove(
 	return bestShard, idx, bestShard != ""
 }
 
+// computeBenefitOfMove returns the reduction in squared executor load from
+// moving shardLoad from source to destination. Positive values mean the move
+// improves balance between the two executors.
 func computeBenefitOfMove(sourceLoad, destLoad, shardLoad float64) float64 {
-	return 2*shardLoad*(sourceLoad-destLoad) - 2*shardLoad*shardLoad
+	squaredLoadBeforeMove := sourceLoad*sourceLoad + destLoad*destLoad
+	afterSourceLoad := sourceLoad - shardLoad
+	afterDestLoad := destLoad + shardLoad
+	squaredLoadAfterMove := afterSourceLoad*afterSourceLoad + afterDestLoad*afterDestLoad
+	return squaredLoadBeforeMove - squaredLoadAfterMove
 }
 
 // applyMoveCandidate applies a planned move to the in-memory assignment state.
