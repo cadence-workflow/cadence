@@ -80,7 +80,6 @@ type (
 	dlqHandlerImpl struct {
 		taskExecutors map[string]TaskExecutor
 		shard         shard.Context
-		serializer    persistence.PayloadSerializer
 		logger        log.Logger
 		metricsClient metrics.Client
 		done          chan struct{}
@@ -107,7 +106,6 @@ func NewDLQHandler(
 	return &dlqHandlerImpl{
 		shard:         shard,
 		taskExecutors: taskExecutors,
-		serializer:    persistence.NewPayloadSerializer(),
 		logger:        shard.GetLogger(),
 		metricsClient: shard.GetMetricsClient(),
 		done:          make(chan struct{}),
@@ -244,11 +242,11 @@ func (r *dlqHandlerImpl) readMessagesWithAckLevel(
 	return replicationTasks, taskInfo, resp.NextPageToken, nil
 }
 
-// hydrateDLQTasks resolves the full replication task payload for each raw DLQ entry.
-// It first attempts local deserialization from the stored blob; tasks without a blob
-// or with a corrupt blob are fetched from the source cluster via GetDLQReplicationMessages.
-// Both returned slices are always the same length and parallel — replicationTasks[i] is nil
-// when the task could not be resolved (e.g. source workflow deleted).
+// hydrateDLQTasks resolves the full replication task payload for each DLQ entry.
+// Entries whose payload was not delivered by the persistence layer are fetched
+// from the source cluster via GetDLQReplicationMessages. Both returned slices are
+// always the same length and parallel — replicationTasks[i] is nil when the task
+// could not be resolved (e.g. source workflow deleted).
 func (r *dlqHandlerImpl) hydrateDLQTasks(
 	ctx context.Context,
 	sourceCluster string,
@@ -278,14 +276,7 @@ func (r *dlqHandlerImpl) hydrateDLQTasks(
 		taskInfos = append(taskInfos, ti)
 
 		if task.Task != nil {
-			replicationTask, err := r.serializer.DeserializeReplicationDLQTask(task.Task)
-			if err != nil {
-				r.logger.Warn("failed to deserialize DLQ task blob, falling back to cross-cluster hydration",
-					tag.WorkflowDomainID(info.DomainID), tag.WorkflowID(info.WorkflowID), tag.WorkflowRunID(info.RunID), tag.TaskID(info.TaskID), tag.Error(err))
-				needHydration = append(needHydration, ti)
-			} else {
-				hydrated[info.TaskID] = replicationTask
-			}
+			hydrated[info.TaskID] = task.Task
 		} else {
 			needHydration = append(needHydration, ti)
 		}

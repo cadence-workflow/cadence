@@ -37,7 +37,6 @@ import (
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
@@ -58,7 +57,6 @@ type (
 		adminClient      *admin.MockClient
 		executionManager *mocks.ExecutionManager
 		shardManager     *mocks.ShardManager
-		mockSerializer   *persistence.MockPayloadSerializer
 		taskExecutor     *fakeTaskExecutor
 		taskExecutors    map[string]TaskExecutor
 		sourceCluster    string
@@ -111,9 +109,6 @@ func (s *dlqHandlerSuite) SetupTest() {
 		s.mockShard,
 		s.taskExecutors,
 	).(*dlqHandlerImpl)
-
-	s.mockSerializer = persistence.NewMockPayloadSerializer(s.controller)
-	s.messageHandler.serializer = s.mockSerializer
 }
 
 func (s *dlqHandlerSuite) TearDownTest() {
@@ -456,8 +451,7 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_GetDLQReplicationMessages
 }
 
 func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_LocalBlob() {
-	// When task.Task blob is available, it should be deserialized locally without a cross-cluster call.
-	blob := &persistence.DataBlob{Data: []byte("task"), Encoding: constants.EncodingTypeThriftRW}
+	// When the manager hydrates the task, no cross-cluster call is needed.
 	replicationTask := &types.ReplicationTask{
 		TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
 		SourceTaskID: 123,
@@ -467,12 +461,11 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_LocalBlob() {
 		Tasks: []*persistence.ReplicationDLQTask{
 			{
 				Info: &persistence.ReplicationTaskInfo{DomainID: "domainID", TaskID: 123},
-				Task: blob,
+				Task: replicationTask,
 			},
 		},
 	}
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, mock.Anything).Return(resp, nil).Times(1)
-	s.mockSerializer.EXPECT().DeserializeReplicationDLQTask(blob).Return(replicationTask, nil).Times(1)
 
 	// No GetRemoteAdminClient or GetDLQReplicationMessages calls expected.
 	replicationTasks, taskInfo, _, err := s.messageHandler.readMessagesWithAckLevel(context.Background(), s.sourceCluster, 123, 12, nil)
@@ -484,19 +477,16 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_LocalBlob() {
 }
 
 func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_CorruptBlob_FallsBackToCrossCluster() {
-	// If the blob cannot be deserialized, fall back to cross-cluster hydration rather than failing.
-	blob := &persistence.DataBlob{Data: []byte("corrupt"), Encoding: constants.EncodingTypeThriftRW}
-
+	// If the manager could not hydrate the payload (corrupt blob), Task is nil
+	// and the handler falls back to cross-cluster hydration rather than failing.
 	resp := &persistence.GetReplicationDLQTasksResponse{
 		Tasks: []*persistence.ReplicationDLQTask{
 			{
 				Info: &persistence.ReplicationTaskInfo{DomainID: "domainID", TaskID: 123},
-				Task: blob,
 			},
 		},
 	}
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, mock.Anything).Return(resp, nil).Times(1)
-	s.mockSerializer.EXPECT().DeserializeReplicationDLQTask(blob).Return(nil, errors.New("corrupt blob")).Times(1)
 
 	s.adminClient.EXPECT().
 		GetDLQReplicationMessages(context.Background(), gomock.Any()).
@@ -513,8 +503,7 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_CorruptBlob_FallsBackToCr
 }
 
 func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_MixedLocalAndRemote() {
-	// Task 1 has a local blob; task 2 requires cross-cluster hydration.
-	blob := &persistence.DataBlob{Data: []byte("task1"), Encoding: constants.EncodingTypeThriftRW}
+	// Task 1 is hydrated by the manager; task 2 has no payload and needs cross-cluster hydration.
 	replicationTask1 := &types.ReplicationTask{
 		TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
 		SourceTaskID: 1,
@@ -524,7 +513,7 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_MixedLocalAndRemote() {
 		Tasks: []*persistence.ReplicationDLQTask{
 			{
 				Info: &persistence.ReplicationTaskInfo{DomainID: "domainID", TaskID: 1},
-				Task: blob,
+				Task: replicationTask1,
 			},
 			{
 				Info: &persistence.ReplicationTaskInfo{DomainID: "domainID", TaskID: 2},
@@ -532,7 +521,6 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_MixedLocalAndRemote() {
 		},
 	}
 	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, mock.Anything).Return(resp, nil).Times(1)
-	s.mockSerializer.EXPECT().DeserializeReplicationDLQTask(blob).Return(replicationTask1, nil).Times(1)
 
 	s.adminClient.EXPECT().
 		GetDLQReplicationMessages(context.Background(), gomock.Any()).

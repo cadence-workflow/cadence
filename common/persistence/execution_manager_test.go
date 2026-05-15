@@ -24,6 +24,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -601,7 +602,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 func TestGetReplicationTasksFromDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), &DynamicConfiguration{
 		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	})
 
@@ -613,8 +614,8 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 		NextPageToken:     nil,
 	}
 
-	expected := &GetReplicationDLQTasksResponse{
-		Tasks: []*ReplicationDLQTask{
+	storeResp := &InternalGetReplicationDLQTasksResponse{
+		Tasks: []*InternalReplicationDLQTask{
 			{
 				Info: &ReplicationTaskInfo{
 					DomainID:   testDomainID,
@@ -628,18 +629,21 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 		NextPageToken: []byte("test-token"),
 	}
 
-	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), request).Return(expected, nil)
+	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), request).Return(storeResp, nil)
 
 	res, err := manager.GetReplicationTasksFromDLQ(context.Background(), request)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, res)
+	assert.Len(t, res.Tasks, 1)
+	assert.Equal(t, storeResp.Tasks[0].Info, res.Tasks[0].Info)
 	assert.Nil(t, res.Tasks[0].Task)
+	assert.Equal(t, storeResp.NextPageToken, res.NextPageToken)
 }
 
 func TestGetReplicationTasksFromDLQ_WithBlob(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)
-	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
 		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
 	})
 
@@ -652,8 +656,12 @@ func TestGetReplicationTasksFromDLQ_WithBlob(t *testing.T) {
 	}
 
 	blob := &DataBlob{Data: []byte("serialized-task"), Encoding: constants.EncodingTypeThriftRW}
-	expected := &GetReplicationDLQTasksResponse{
-		Tasks: []*ReplicationDLQTask{
+	hydrated := &types.ReplicationTask{
+		TaskType:     types.ReplicationTaskTypeHistory.Ptr(),
+		SourceTaskID: 1,
+	}
+	storeResp := &InternalGetReplicationDLQTasksResponse{
+		Tasks: []*InternalReplicationDLQTask{
 			{
 				Info: &ReplicationTaskInfo{
 					DomainID:   testDomainID,
@@ -667,12 +675,58 @@ func TestGetReplicationTasksFromDLQ_WithBlob(t *testing.T) {
 		NextPageToken: []byte("test-token"),
 	}
 
-	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), request).Return(expected, nil)
+	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), request).Return(storeResp, nil)
+	mockedSerializer.EXPECT().DeserializeReplicationDLQTask(blob).Return(hydrated, nil)
 
 	res, err := manager.GetReplicationTasksFromDLQ(context.Background(), request)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, res)
-	assert.Equal(t, blob, res.Tasks[0].Task)
+	assert.Len(t, res.Tasks, 1)
+	assert.Equal(t, storeResp.Tasks[0].Info, res.Tasks[0].Info)
+	assert.Equal(t, hydrated, res.Tasks[0].Task)
+	assert.Equal(t, storeResp.NextPageToken, res.NextPageToken)
+}
+
+func TestGetReplicationTasksFromDLQ_CorruptBlob(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	mockedSerializer := NewMockPayloadSerializer(ctrl)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), mockedSerializer, &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
+
+	request := &GetReplicationTasksFromDLQRequest{
+		SourceClusterName: "test-cluster",
+		ReadLevel:         1,
+		MaxReadLevel:      2,
+		BatchSize:         10,
+		NextPageToken:     nil,
+	}
+
+	blob := &DataBlob{Data: []byte("corrupt"), Encoding: constants.EncodingTypeThriftRW}
+	storeResp := &InternalGetReplicationDLQTasksResponse{
+		Tasks: []*InternalReplicationDLQTask{
+			{
+				Info: &ReplicationTaskInfo{
+					DomainID:   testDomainID,
+					WorkflowID: testWorkflowID,
+					TaskID:     1,
+					TaskType:   ReplicationTaskTypeHistory,
+				},
+				Task: blob,
+			},
+		},
+		NextPageToken: []byte("test-token"),
+	}
+
+	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), request).Return(storeResp, nil)
+	mockedSerializer.EXPECT().DeserializeReplicationDLQTask(blob).Return(nil, errors.New("deser failed"))
+
+	res, err := manager.GetReplicationTasksFromDLQ(context.Background(), request)
+	assert.NoError(t, err)
+	assert.Len(t, res.Tasks, 1)
+	assert.Equal(t, storeResp.Tasks[0].Info, res.Tasks[0].Info)
+	assert.Nil(t, res.Tasks[0].Task)
+	assert.Equal(t, storeResp.NextPageToken, res.NextPageToken)
 }
 
 func TestDeserializeChildExecutionInfos(t *testing.T) {

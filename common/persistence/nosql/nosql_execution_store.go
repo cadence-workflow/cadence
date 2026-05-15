@@ -636,7 +636,7 @@ func (d *nosqlExecutionStore) PutReplicationTaskToDLQ(
 func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *persistence.GetReplicationTasksFromDLQRequest,
-) (*persistence.GetReplicationDLQTasksResponse, error) {
+) (*persistence.InternalGetReplicationDLQTasksResponse, error) {
 	if request.ReadLevel > request.MaxReadLevel {
 		return nil, &types.BadRequestError{Message: "ReadLevel cannot be higher than MaxReadLevel"}
 	}
@@ -644,10 +644,10 @@ func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "GetReplicationTasksFromDLQ", err)
 	}
-	var dlqTasks []*persistence.ReplicationDLQTask
+	var dlqTasks []*persistence.InternalReplicationDLQTask
 	for _, t := range tasks {
 		r := t.Replication
-		dlqTasks = append(dlqTasks, &persistence.ReplicationDLQTask{
+		dlqTasks = append(dlqTasks, &persistence.InternalReplicationDLQTask{
 			Info: &persistence.ReplicationTaskInfo{
 				DomainID:          r.DomainID,
 				WorkflowID:        r.WorkflowID,
@@ -665,7 +665,7 @@ func (d *nosqlExecutionStore) GetReplicationTasksFromDLQ(
 			Task: t.Task,
 		})
 	}
-	return &persistence.GetReplicationDLQTasksResponse{
+	return &persistence.InternalGetReplicationDLQTasksResponse{
 		Tasks:         dlqTasks,
 		NextPageToken: nextPageToken,
 	}, nil

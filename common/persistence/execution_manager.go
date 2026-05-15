@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -886,7 +887,33 @@ func (m *executionManagerImpl) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *GetReplicationTasksFromDLQRequest,
 ) (*GetReplicationDLQTasksResponse, error) {
-	return m.persistence.GetReplicationTasksFromDLQ(ctx, request)
+	internalResp, err := m.persistence.GetReplicationTasksFromDLQ(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	tasks := make([]*ReplicationDLQTask, len(internalResp.Tasks))
+	for i, internalTask := range internalResp.Tasks {
+		hydrated := &ReplicationDLQTask{Info: internalTask.Info}
+		if internalTask.Task != nil {
+			task, err := m.serializer.DeserializeReplicationDLQTask(internalTask.Task)
+			if err != nil {
+				// Surface a nil hydrated task so the caller can fall back to cross-cluster hydration.
+				m.logger.Warn("failed to deserialize DLQ task blob",
+					tag.WorkflowDomainID(internalTask.Info.DomainID),
+					tag.WorkflowID(internalTask.Info.WorkflowID),
+					tag.WorkflowRunID(internalTask.Info.RunID),
+					tag.TaskID(internalTask.Info.TaskID),
+					tag.Error(err))
+			} else {
+				hydrated.Task = task
+			}
+		}
+		tasks[i] = hydrated
+	}
+	return &GetReplicationDLQTasksResponse{
+		Tasks:         tasks,
+		NextPageToken: internalResp.NextPageToken,
+	}, nil
 }
 
 func (m *executionManagerImpl) GetReplicationDLQSize(

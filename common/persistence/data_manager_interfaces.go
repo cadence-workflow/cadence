@@ -985,11 +985,11 @@ type (
 		NextPageToken     []byte
 	}
 
-	// ReplicationDLQTask pairs DLQ task metadata with its stored full task payload.
-	// Task may be nil for entries written before payload storage was implemented.
+	// ReplicationDLQTask pairs DLQ task metadata with its hydrated full task payload.
+	// Task may be nil for entries with no stored payload or whose payload could not be hydrated.
 	ReplicationDLQTask struct {
 		Info *ReplicationTaskInfo
-		Task *DataBlob
+		Task *types.ReplicationTask
 	}
 
 	// GetReplicationDLQTasksResponse is returned by GetReplicationDLQTasks.

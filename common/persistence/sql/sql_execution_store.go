@@ -852,7 +852,7 @@ func getReadLevels(request *p.GetReplicationTasksFromDLQRequest) (readLevel int6
 func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *p.GetReplicationTasksFromDLQRequest,
-) (*p.GetReplicationDLQTasksResponse, error) {
+) (*p.InternalGetReplicationDLQTasksResponse, error) {
 
 	readLevel, maxReadLevel, err := getReadLevels(request)
 	if err != nil {
@@ -874,13 +874,13 @@ func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 			return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
 		}
 	}
-	var dlqTasks []*p.ReplicationDLQTask
+	var dlqTasks []*p.InternalReplicationDLQTask
 	for _, row := range rows {
 		info, err := m.parser.ReplicationTaskInfoFromBlob(row.Data, row.DataEncoding)
 		if err != nil {
 			return nil, convertCommonErrors(m.db, "GetReplicationTasksFromDLQ", "", err)
 		}
-		dlqTasks = append(dlqTasks, &p.ReplicationDLQTask{
+		dlqTasks = append(dlqTasks, &p.InternalReplicationDLQTask{
 			Info: &p.ReplicationTaskInfo{
 				DomainID:          info.DomainID.String(),
 				WorkflowID:        info.GetWorkflowID(),
@@ -898,7 +898,7 @@ func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 			// SQL has no separate column for the full task blob; Task is nil here.
 		})
 	}
-	resp := &p.GetReplicationDLQTasksResponse{Tasks: dlqTasks}
+	resp := &p.InternalGetReplicationDLQTasksResponse{Tasks: dlqTasks}
 	if len(rows) > 0 {
 		nextTaskID := rows[len(rows)-1].TaskID + 1
 		if nextTaskID < maxReadLevel {

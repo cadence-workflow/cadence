@@ -120,7 +120,7 @@ type (
 
 		// Replication task related methods
 		PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationDLQTasksResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationDLQTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
@@ -327,6 +327,18 @@ type (
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
 		Task              *DataBlob
+	}
+
+	// InternalReplicationDLQTask is the store-layer ReplicationDLQTask: payload is a raw blob.
+	InternalReplicationDLQTask struct {
+		Info *ReplicationTaskInfo
+		Task *DataBlob
+	}
+
+	// InternalGetReplicationDLQTasksResponse is the store-layer GetReplicationDLQTasksResponse.
+	InternalGetReplicationDLQTasksResponse struct {
+		Tasks         []*InternalReplicationDLQTask
+		NextPageToken []byte
 	}
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events

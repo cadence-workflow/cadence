@@ -194,7 +194,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 		name      string
 		req       *persistence.GetReplicationTasksFromDLQRequest
 		mockSetup func(*sqlplugin.MockDB, *serialization.MockParser)
-		want      *persistence.GetReplicationDLQTasksResponse
+		want      *persistence.InternalGetReplicationDLQTasksResponse
 		wantErr   bool
 	}{
 		{
@@ -236,8 +236,8 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 					NewRunBranchToken: []byte(`nbt`),
 				}, nil)
 			},
-			want: &persistence.GetReplicationDLQTasksResponse{
-				Tasks: []*persistence.ReplicationDLQTask{
+			want: &persistence.InternalGetReplicationDLQTasksResponse{
+				Tasks: []*persistence.InternalReplicationDLQTask{
 					{
 						Info: &persistence.ReplicationTaskInfo{
 							DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
