@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -3619,7 +3621,9 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
-			assert.Equal(t, td.expectedMutation, mutation)
+			if diff := cmp.Diff(td.expectedMutation, mutation, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("mutation mismatch (-want +got):\n%s", diff)
+			}
 			assert.Equal(t, td.expectedEvent, workflowEvents)
 			assert.Equal(t, td.expectedErr, err)
 		})
