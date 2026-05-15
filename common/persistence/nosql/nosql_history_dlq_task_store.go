@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Uber Technologies, Inc.
+// Copyright (c) 2020 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -69,6 +70,9 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		ClusterAttributeName:  request.ClusterAttributeName,
 		TaskType:              request.TaskType,
 		TaskID:                request.TaskID,
+		WorkflowID:            request.WorkflowID,
+		RunID:                 request.RunID,
+		Version:               request.Version,
 		VisibilityTimestamp:   request.VisibilityTimestamp,
 		Data:                  request.TaskBlob.Data,
 		DataEncoding:          string(request.TaskBlob.Encoding),
@@ -87,3 +91,118 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 
 func (m *nosqlHistoryDLQTaskStore) GetName() string { return m.db.PluginName() }
 func (m *nosqlHistoryDLQTaskStore) Close()          {}
+
+// GetHistoryDLQTasks reads paginated tasks from the history DLQ.
+func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
+	ctx context.Context,
+	request persistence.HistoryDLQGetTasksRequest,
+) (persistence.InternalGetHistoryDLQTasksResponse, error) {
+	rows, nextPageToken, err := m.db.SelectHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskFilter{
+		ShardID:                  request.ShardID,
+		DomainID:                 request.DomainID,
+		ClusterAttributeScope:    request.ClusterAttributeScope,
+		ClusterAttributeName:     request.ClusterAttributeName,
+		TaskType:                 request.TaskCategory.ID(),
+		InclusiveMinVisibilityTS: request.InclusiveMinTaskKey.GetScheduledTime(),
+		InclusiveMinTaskID:       request.InclusiveMinTaskKey.GetTaskID(),
+		ExclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
+		ExclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID(),
+		PageSize:                 request.PageSize,
+		NextPageToken:            request.NextPageToken,
+	})
+	if err != nil {
+		return persistence.InternalGetHistoryDLQTasksResponse{}, convertCommonErrors(m.db, "GetHistoryDLQTasks", err)
+	}
+
+	tasks := make([]*persistence.InternalHistoryDLQTask, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, &persistence.InternalHistoryDLQTask{
+			DomainID:              row.DomainID,
+			ClusterAttributeScope: row.ClusterAttributeScope,
+			ClusterAttributeName:  row.ClusterAttributeName,
+			TaskCategory:          row.TaskType,
+			VisibilityTimestamp:   row.VisibilityTimestamp,
+			TaskID:                row.TaskID,
+			TaskPayload:           &persistence.DataBlob{Data: row.Data, Encoding: constants.EncodingType(row.DataEncoding)},
+			CreatedAt:             row.CreatedAt,
+		})
+	}
+	return persistence.InternalGetHistoryDLQTasksResponse{
+		Tasks:         tasks,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
+// RangeDeleteHistoryDLQTasks deletes all tasks strictly before the exclusive max key.
+func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
+	ctx context.Context,
+	request persistence.HistoryDLQDeleteTasksRequest,
+) error {
+	err := m.db.RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
+		ShardID:                  request.ShardID,
+		DomainID:                 request.DomainID,
+		ClusterAttributeScope:    request.ClusterAttributeScope,
+		ClusterAttributeName:     request.ClusterAttributeName,
+		TaskType:                 request.TaskCategory.ID(),
+		ExclusiveMaxVisibilityTS: request.ExclusiveMaxTaskKey.GetScheduledTime(),
+		ExclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID(),
+	})
+	if err != nil {
+		return convertCommonErrors(m.db, "RangeDeleteHistoryDLQTasks", err)
+	}
+	return nil
+}
+
+// GetHistoryDLQAckLevels reads ack-level rows for a shard, filtered by task category in application code.
+func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
+	ctx context.Context,
+	request persistence.HistoryDLQGetAckLevelsRequest,
+) (persistence.InternalGetHistoryDLQAckLevelsResponse, error) {
+	rows, err := m.db.SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+	})
+	if err != nil {
+		return persistence.InternalGetHistoryDLQAckLevelsResponse{}, convertCommonErrors(m.db, "GetHistoryDLQAckLevels", err)
+	}
+
+	ackLevels := make([]*persistence.InternalHistoryDLQAckLevel, 0, len(rows))
+	for _, row := range rows {
+		ackLevels = append(ackLevels, &persistence.InternalHistoryDLQAckLevel{
+			ShardID:               row.ShardID,
+			DomainID:              row.DomainID,
+			ClusterAttributeScope: row.ClusterAttributeScope,
+			ClusterAttributeName:  row.ClusterAttributeName,
+			TaskCategory:          row.TaskType,
+			AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
+			AckLevelTaskID:        row.AckLevelTaskID,
+			LastUpdatedAt:         row.LastUpdatedAt,
+		})
+	}
+	return persistence.InternalGetHistoryDLQAckLevelsResponse{
+		AckLevels: ackLevels,
+	}, nil
+}
+
+// UpdateHistoryDLQAckLevel upserts a single ack-level row.
+func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
+	ctx context.Context,
+	request persistence.InternalUpdateHistoryDLQAckLevelRequest,
+) error {
+	err := m.db.InsertOrUpdateHistoryDLQAckLevelRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
+		ShardID:               request.Row.ShardID,
+		DomainID:              request.Row.DomainID,
+		ClusterAttributeScope: request.Row.ClusterAttributeScope,
+		ClusterAttributeName:  request.Row.ClusterAttributeName,
+		TaskType:              request.Row.TaskCategory,
+		AckLevelVisibilityTS:  request.Row.AckLevelVisibilityTS,
+		AckLevelTaskID:        request.Row.AckLevelTaskID,
+		LastUpdatedAt:         request.Row.LastUpdatedAt,
+	})
+	if err != nil {
+		return convertCommonErrors(m.db, "UpdateHistoryDLQAckLevel", err)
+	}
+	return nil
+}

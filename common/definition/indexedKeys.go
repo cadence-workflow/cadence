@@ -48,6 +48,16 @@ const (
 	CustomDomain           = "CustomDomain" // to support batch workflow
 	Operator               = "Operator"     // to support batch workflow
 
+	// Schedule search attributes set on target workflows started by the scheduler.
+	CadenceScheduleID         = "CadenceScheduleID"
+	CadenceScheduleTime       = "CadenceScheduleTime"
+	CadenceScheduleIsBackfill = "CadenceScheduleIsBackfill"
+
+	// Schedule search attributes set on the scheduler workflow itself (used by ListSchedules).
+	CadenceScheduleState        = "CadenceScheduleState"
+	CadenceScheduleCron         = "CadenceScheduleCron"
+	CadenceScheduleWorkflowType = "CadenceScheduleWorkflowType"
+
 	CustomStringField    = "CustomStringField"
 	CustomKeywordField   = "CustomKeywordField"
 	CustomIntField       = "CustomIntField"
@@ -81,6 +91,14 @@ func createDefaultIndexedKeys() map[string]interface{} {
 		BinaryChecksums:      types.IndexedValueTypeKeyword,
 		CustomDomain:         types.IndexedValueTypeString,
 		Operator:             types.IndexedValueTypeString,
+		// Schedule search attributes are set by the scheduler workflow/activity via
+		// UpsertSearchAttributes and StartWorkflow
+		CadenceScheduleID:           types.IndexedValueTypeKeyword,
+		CadenceScheduleTime:         types.IndexedValueTypeDatetime,
+		CadenceScheduleIsBackfill:   types.IndexedValueTypeBool,
+		CadenceScheduleState:        types.IndexedValueTypeKeyword,
+		CadenceScheduleCron:         types.IndexedValueTypeKeyword,
+		CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
 	}
 	for k, v := range systemIndexedKeys {
 		defaultIndexedKeys[k] = v

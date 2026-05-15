@@ -170,16 +170,22 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 			if task.ResponseC != nil {
 				// if there is a response channel, block until resp is received
 				// and return error if the response contains error
-				err := <-task.ResponseC
-				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
-				if err == nil {
+				select {
+				case err := <-task.ResponseC:
+					tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+					if err != nil {
+						return false, err
+					}
 					e.EventName = "Offer task due to local wait"
 					e.Payload = map[string]any{
 						"TaskIsForwarded": task.IsForwarded(),
 					}
 					event.Log(e)
+					return true, nil
+				// If the context expires while waiting for the poller's response
+				case <-ctx.Done():
+					return false, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
 				}
-				return true, err
 			}
 			return false, nil
 		case <-childCtx.Done():
@@ -191,9 +197,17 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 		if task.ResponseC != nil {
 			// if there is a response channel, block until resp is received
 			// and return error if the response contains error
-			err := <-task.ResponseC
-			tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
-			return true, err
+			select {
+			case err := <-task.ResponseC:
+				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+				if err != nil {
+					return false, err
+				}
+				return true, nil
+			// If the context expires while waiting for the poller's response
+			case <-ctx.Done():
+				return false, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
+			}
 		}
 		return false, nil
 	default:
@@ -251,7 +265,7 @@ func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time,
 				return false, nil
 			}
 		}
-		return task.ActivityTaskDispatchInfo != nil, nil
+		return false, nil
 	case <-ctx.Done():
 		return false, nil
 	}

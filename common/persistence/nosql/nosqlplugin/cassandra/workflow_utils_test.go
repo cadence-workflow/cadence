@@ -31,8 +31,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
@@ -52,6 +54,7 @@ type fakeSession struct {
 	mapExecuteBatchCASApplied bool
 	mapExecuteBatchCASPrev    map[string]any
 	mapExecuteBatchCASErr     error
+	executeBatchErr           error
 	query                     gocql.Query
 
 	// outputs
@@ -71,7 +74,7 @@ func (s *fakeSession) NewBatch(gocql.BatchType) gocql.Batch {
 }
 
 func (s *fakeSession) ExecuteBatch(gocql.Batch) error {
-	return nil
+	return s.executeBatchErr
 }
 
 func (s *fakeSession) MapExecuteBatchCAS(batch gocql.Batch, prev map[string]interface{}) (bool, gocql.Iter, error) {
@@ -215,6 +218,7 @@ var _ (gocql.Query) = &fakeQuery{}
 type fakeQuery struct {
 	iter              *fakeIter
 	mapScan           map[string]interface{}
+	scanValues        []interface{}
 	err               error
 	scanCASApplied    bool
 	mapScanCASApplied bool
@@ -224,7 +228,12 @@ func (q *fakeQuery) Exec() error {
 	return q.err
 }
 
-func (q *fakeQuery) Scan(...interface{}) error {
+func (q *fakeQuery) Scan(dest ...interface{}) error {
+	for i := 0; i < len(q.scanValues) && i < len(dest); i++ {
+		if q.scanValues[i] != nil {
+			reflect.ValueOf(dest[i]).Elem().Set(reflect.ValueOf(q.scanValues[i]))
+		}
+	}
 	return q.err
 }
 
@@ -2593,6 +2602,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					CronOverlapPolicy:    0,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
+				WorkflowTimerTasks:           nil,
 				VersionHistories:             &persistence.DataBlob{},
 				Checksums:                    &checksum.Checksum{},
 			},
@@ -2679,6 +2689,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					CronOverlapPolicy: types.CronOverlapPolicyBufferOne,
 				},
 				PreviousNextEventIDCondition: common.Int64Ptr(10),
+				WorkflowTimerTasks:           nil,
 				VersionHistories:             &persistence.DataBlob{},
 				Checksums:                    &checksum.Checksum{},
 			},
@@ -2941,6 +2952,82 @@ func TestIsRequestRowType(t *testing.T) {
 	assert.True(t, isRequestRowType(rowTypeWorkflowRequestSignal))
 	assert.True(t, isRequestRowType(rowTypeWorkflowRequestCancel))
 	assert.True(t, isRequestRowType(rowTypeWorkflowRequestReset))
+}
+
+func TestAppendWorkflowTimerTasks(t *testing.T) {
+	visTS := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		desc             string
+		timerTasks       []persistence.HistoryTaskKey
+		wantQueries      []string
+		wantQueriesAnyOf []string
+	}{
+		{
+			desc:        "nil produces no queries",
+			timerTasks:  nil,
+			wantQueries: nil,
+		},
+		{
+			desc:        "empty produces no queries",
+			timerTasks:  []persistence.HistoryTaskKey{},
+			wantQueries: nil,
+		},
+		{
+			desc:       "single entry produces one UPDATE query",
+			timerTasks: []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(visTS, 100)},
+			wantQueries: []string{
+				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 00:00:00 +0000 UTC 100}] ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z ` +
+					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc: "multiple entries produce one query with all tuples",
+			timerTasks: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(visTS, 100),
+				persistence.NewHistoryTaskKey(visTS.Add(time.Hour), 200),
+			},
+			// two tuples in one set addition — order within the slice is non-deterministic
+			// so we accept either ordering
+			wantQueriesAnyOf: []string{
+				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 00:00:00 +0000 UTC 100} {2025-02-01 01:00:00 +0000 UTC 200}] ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z ` +
+					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`UPDATE executions SET workflow_timer_tasks = workflow_timer_tasks + [{2025-02-01 01:00:00 +0000 UTC 200} {2025-02-01 00:00:00 +0000 UTC 100}] ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z ` +
+					`WHERE shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wf1 and run_id = run1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+	}
+
+	sortStrings := cmpopts.SortSlices(func(a, b string) bool { return a < b })
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			batch := &fakeBatch{}
+			appendWorkflowTimerTasks(batch, 1, "domain1", "wf1", "run1", tc.timerTasks, FixedTime)
+			if tc.wantQueriesAnyOf != nil {
+				require.Len(t, batch.queries, 1, "expected exactly one batch query")
+				got := batch.queries[0]
+				var matched bool
+				for _, candidate := range tc.wantQueriesAnyOf {
+					if got == candidate {
+						matched = true
+						break
+					}
+				}
+				if !matched {
+					t.Fatalf("Query did not match any expected variant.\nGot: %q\nExpected one of: %v", got, tc.wantQueriesAnyOf)
+				}
+				return
+			}
+			if diff := cmp.Diff(tc.wantQueries, batch.queries, sortStrings); diff != "" {
+				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
 }
 
 func errDiff(want, got error) string {

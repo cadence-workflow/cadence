@@ -241,6 +241,31 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 	return
 }
 
+func (c *meteredExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (ha1 []persistence.HistoryTaskKey, err error) {
+	op := func() error {
+		ha1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+		c.emptyMetric("ExecutionManager.FetchWorkflowTimerTasksForCleanup", request, ha1, err)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence FetchWorkflowTimerTasksForCleanup called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
 	op := func() error {
 		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, request)

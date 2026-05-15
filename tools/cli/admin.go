@@ -1109,6 +1109,11 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional cron schedule on failover drill. Please specify failover drill wait time " +
 						"if this field is specific",
 				},
+				&cli.StringFlag{
+					Name: FlagClusterAttributesJSON,
+					Usage: "Optional cluster attributes to restrict active-active failover scope, in JSON format. " +
+						`Example: [{"scope":"region","name":"us-west"},{"scope":"region","name":"us-east"}]`,
+				},
 			},
 			Action: AdminFailoverStart,
 		},

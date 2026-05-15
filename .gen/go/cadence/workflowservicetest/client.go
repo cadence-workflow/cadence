@@ -44,6 +44,39 @@ func (m *MockClient) EXPECT() *_MockClientRecorder {
 	return m.recorder
 }
 
+// BackfillSchedule responds to a BackfillSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().BackfillSchedule(gomock.Any(), ...).Return(...)
+//	... := client.BackfillSchedule(...)
+func (m *MockClient) BackfillSchedule(
+	ctx context.Context,
+	_Request *shared.BackfillScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.BackfillScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "BackfillSchedule", args...)
+	success, _ = ret[i].(*shared.BackfillScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) BackfillSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "BackfillSchedule", args...)
+}
+
 // CountWorkflowExecutions responds to a CountWorkflowExecutions call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
@@ -77,6 +110,39 @@ func (mr *_MockClientRecorder) CountWorkflowExecutions(
 	return mr.mock.ctrl.RecordCall(mr.mock, "CountWorkflowExecutions", args...)
 }
 
+// CreateSchedule responds to a CreateSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().CreateSchedule(gomock.Any(), ...).Return(...)
+//	... := client.CreateSchedule(...)
+func (m *MockClient) CreateSchedule(
+	ctx context.Context,
+	_Request *shared.CreateScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.CreateScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "CreateSchedule", args...)
+	success, _ = ret[i].(*shared.CreateScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) CreateSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "CreateSchedule", args...)
+}
+
 // DeleteDomain responds to a DeleteDomain call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
@@ -106,6 +172,39 @@ func (mr *_MockClientRecorder) DeleteDomain(
 ) *gomock.Call {
 	args := append([]interface{}{ctx, _DeleteRequest}, opts...)
 	return mr.mock.ctrl.RecordCall(mr.mock, "DeleteDomain", args...)
+}
+
+// DeleteSchedule responds to a DeleteSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().DeleteSchedule(gomock.Any(), ...).Return(...)
+//	... := client.DeleteSchedule(...)
+func (m *MockClient) DeleteSchedule(
+	ctx context.Context,
+	_Request *shared.DeleteScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.DeleteScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "DeleteSchedule", args...)
+	success, _ = ret[i].(*shared.DeleteScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) DeleteSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "DeleteSchedule", args...)
 }
 
 // DeprecateDomain responds to a DeprecateDomain call based on the mock expectations. This
@@ -170,6 +269,39 @@ func (mr *_MockClientRecorder) DescribeDomain(
 ) *gomock.Call {
 	args := append([]interface{}{ctx, _DescribeRequest}, opts...)
 	return mr.mock.ctrl.RecordCall(mr.mock, "DescribeDomain", args...)
+}
+
+// DescribeSchedule responds to a DescribeSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().DescribeSchedule(gomock.Any(), ...).Return(...)
+//	... := client.DescribeSchedule(...)
+func (m *MockClient) DescribeSchedule(
+	ctx context.Context,
+	_Request *shared.DescribeScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.DescribeScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "DescribeSchedule", args...)
+	success, _ = ret[i].(*shared.DescribeScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) DescribeSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "DescribeSchedule", args...)
 }
 
 // DescribeTaskList responds to a DescribeTaskList call based on the mock expectations. This
@@ -597,6 +729,39 @@ func (mr *_MockClientRecorder) ListOpenWorkflowExecutions(
 	return mr.mock.ctrl.RecordCall(mr.mock, "ListOpenWorkflowExecutions", args...)
 }
 
+// ListSchedules responds to a ListSchedules call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().ListSchedules(gomock.Any(), ...).Return(...)
+//	... := client.ListSchedules(...)
+func (m *MockClient) ListSchedules(
+	ctx context.Context,
+	_Request *shared.ListSchedulesRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ListSchedulesResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "ListSchedules", args...)
+	success, _ = ret[i].(*shared.ListSchedulesResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) ListSchedules(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "ListSchedules", args...)
+}
+
 // ListTaskListPartitions responds to a ListTaskListPartitions call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
@@ -661,6 +826,39 @@ func (mr *_MockClientRecorder) ListWorkflowExecutions(
 ) *gomock.Call {
 	args := append([]interface{}{ctx, _ListRequest}, opts...)
 	return mr.mock.ctrl.RecordCall(mr.mock, "ListWorkflowExecutions", args...)
+}
+
+// PauseSchedule responds to a PauseSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().PauseSchedule(gomock.Any(), ...).Return(...)
+//	... := client.PauseSchedule(...)
+func (m *MockClient) PauseSchedule(
+	ctx context.Context,
+	_Request *shared.PauseScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.PauseScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "PauseSchedule", args...)
+	success, _ = ret[i].(*shared.PauseScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) PauseSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "PauseSchedule", args...)
 }
 
 // PollForActivityTask responds to a PollForActivityTask call based on the mock expectations. This
@@ -1528,6 +1726,39 @@ func (mr *_MockClientRecorder) TerminateWorkflowExecution(
 	return mr.mock.ctrl.RecordCall(mr.mock, "TerminateWorkflowExecution", args...)
 }
 
+// UnpauseSchedule responds to a UnpauseSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().UnpauseSchedule(gomock.Any(), ...).Return(...)
+//	... := client.UnpauseSchedule(...)
+func (m *MockClient) UnpauseSchedule(
+	ctx context.Context,
+	_Request *shared.UnpauseScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.UnpauseScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "UnpauseSchedule", args...)
+	success, _ = ret[i].(*shared.UnpauseScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) UnpauseSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "UnpauseSchedule", args...)
+}
+
 // UpdateDomain responds to a UpdateDomain call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
@@ -1559,4 +1790,37 @@ func (mr *_MockClientRecorder) UpdateDomain(
 ) *gomock.Call {
 	args := append([]interface{}{ctx, _UpdateRequest}, opts...)
 	return mr.mock.ctrl.RecordCall(mr.mock, "UpdateDomain", args...)
+}
+
+// UpdateSchedule responds to a UpdateSchedule call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().UpdateSchedule(gomock.Any(), ...).Return(...)
+//	... := client.UpdateSchedule(...)
+func (m *MockClient) UpdateSchedule(
+	ctx context.Context,
+	_Request *shared.UpdateScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.UpdateScheduleResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "UpdateSchedule", args...)
+	success, _ = ret[i].(*shared.UpdateScheduleResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) UpdateSchedule(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "UpdateSchedule", args...)
 }

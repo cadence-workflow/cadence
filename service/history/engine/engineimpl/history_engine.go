@@ -55,6 +55,7 @@ import (
 	"github.com/uber/cadence/service/history/replication"
 	"github.com/uber/cadence/service/history/reset"
 	"github.com/uber/cadence/service/history/shard"
+	"github.com/uber/cadence/service/history/taskdlq"
 	"github.com/uber/cadence/service/history/workflow"
 	"github.com/uber/cadence/service/worker/archiver"
 )
@@ -108,6 +109,7 @@ type historyEngineImpl struct {
 	clientChecker             client.VersionChecker
 	replicationDLQHandler     replication.DLQHandler
 	failoverMarkerNotifier    failover.MarkerNotifier
+	dlqProcessor              taskdlq.Processor
 
 	updateWithActionFn func(
 		context.Context,
@@ -292,6 +294,18 @@ func NewEngineWithShardContext(
 	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors)
 	historyEngImpl.replicationDLQHandler = replicationMessageHandler
 
+	historyEngImpl.dlqProcessor = taskdlq.NewProcessor(
+		shard.GetShardID(),
+		shard.GetService().GetHistoryTaskDLQManager(),
+		map[int]taskdlq.TaskExecutor{},
+		100,
+		config.HistoryTaskDLQProcessorInterval,
+		config.HistoryTaskDLQMode,
+		config.HistoryTaskDLQProcessorEnabled,
+		shard.GetTimeSource(),
+		logger,
+	)
+
 	shard.SetEngine(historyEngImpl)
 	return historyEngImpl
 }
@@ -306,6 +320,7 @@ func (e *historyEngineImpl) Start() {
 	for _, processor := range e.queueProcessors {
 		processor.Start()
 	}
+	e.dlqProcessor.Start()
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -333,6 +348,7 @@ func (e *historyEngineImpl) Stop() {
 	for _, processor := range e.queueProcessors {
 		processor.Stop()
 	}
+	e.dlqProcessor.Stop()
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 

@@ -199,7 +199,7 @@ func New(
 
 	params.PersistenceConfig.HostName = hostname
 
-	persistenceBean, err := newPersistenceBeanFn(persistenceClient.NewFactory(
+	persistenceFactory := persistenceClient.NewFactory(
 		&params.PersistenceConfig,
 		func() float64 {
 			return permember.PerMember(
@@ -213,7 +213,8 @@ func New(
 		params.MetricsClient,
 		logger,
 		persistence.NewDynamicConfiguration(dynamicCollection),
-	), &persistenceClient.Params{
+	)
+	persistenceBean, err := newPersistenceBeanFn(persistenceFactory, &persistenceClient.Params{
 		PersistenceConfig: params.PersistenceConfig,
 		MetricsClient:     params.MetricsClient,
 		MessagingClient:   params.MessagingClient,
@@ -674,6 +675,11 @@ func (h *Impl) GetShardManager() persistence.ShardManager {
 // GetHistoryManager return history manager
 func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 	return h.persistenceBean.GetHistoryManager()
+}
+
+// GetHistoryTaskDLQManager returns the history task DLQ manager.
+func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return h.persistenceBean.GetHistoryTaskDLQManager()
 }
 
 // GetExecutionManager return execution manager for given shard ID

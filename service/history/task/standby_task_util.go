@@ -45,9 +45,9 @@ type (
 
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 
-	// TaskDLQWriter is the subset of taskdlq.HistoryTaskDLQStore used by standby task executors.
+	// TaskDLQWriter is the subset of persistence.HistoryTaskDLQManager used by standby task executors.
 	TaskDLQWriter interface {
-		AddTask(ctx context.Context, request taskdlq.AddTaskRequest) error
+		CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error
 	}
 )
 
@@ -101,17 +101,11 @@ func standbyTaskPostActionTaskDiscarded(
 }
 
 // standbyTaskPostActionWriteToDLQ returns a standbyPostActionFn that writes the task to the DLQ.
-// If writer is nil, it falls back to standbyTaskPostActionTaskDiscarded (preserving the old discard
-// behavior until the DLQ persistence backend is wired up).
 func standbyTaskPostActionWriteToDLQ(
 	writer TaskDLQWriter,
 	shard shard.Context,
 	enabled dynamicproperties.StringPropertyFnWithDomainFilter,
 ) standbyPostActionFn {
-	if writer == nil {
-		return standbyTaskPostActionTaskDiscarded
-	}
-
 	shardID := shard.GetShardID()
 
 	return func(ctx context.Context, task persistence.Task, postActionInfo interface{}, logger log.Logger) error {
@@ -151,7 +145,7 @@ func standbyTaskPostActionWriteToDLQ(
 		// TODO(c-warren): Move this logic into the writer instead, and return a ErrHistoryDLQNotEnabled error to be handled here
 		switch isDeadLetterQueueEnabled {
 		case constants.HistoryTaskDLQModeEnabled:
-			return writer.AddTask(ctx, taskdlq.AddTaskRequest{
+			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
 				ClusterAttributeScope: clusterAttribute.Scope,
@@ -159,7 +153,7 @@ func standbyTaskPostActionWriteToDLQ(
 				Task:                  task,
 			})
 		case constants.HistoryTaskDLQModeShadow:
-			err := writer.AddTask(ctx, taskdlq.AddTaskRequest{
+			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
 				ClusterAttributeScope: clusterAttribute.Scope,

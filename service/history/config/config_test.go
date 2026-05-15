@@ -94,6 +94,7 @@ func TestNewConfig(t *testing.T) {
 		"StandbyClusterDelay":                                  {dynamicproperties.StandbyClusterDelay, time.Second},
 		"StandbyTaskMissingEventsResendDelay":                  {dynamicproperties.StandbyTaskMissingEventsResendDelay, time.Second},
 		"StandbyTaskMissingEventsDiscardDelay":                 {dynamicproperties.StandbyTaskMissingEventsDiscardDelay, time.Second},
+		"EnableWorkflowTimerTaskCleanup":                       {dynamicproperties.EnableWorkflowTimerTaskCleanup, true},
 		"TaskProcessRPS":                                       {dynamicproperties.TaskProcessRPS, 30},
 		"TaskSchedulerType":                                    {dynamicproperties.TaskSchedulerType, 31},
 		"TaskSchedulerWorkerCount":                             {dynamicproperties.TaskSchedulerWorkerCount, 32},
@@ -279,6 +280,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
 		"EnableHierarchicalWeightedRoundRobinTaskScheduler":    {dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler, true},
 		"EnableTaskListAwareTaskSchedulerByDomain":             {dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain, true},
+		"TaskListNiceValue":                                    {dynamicproperties.HistoryTaskListNiceValue, 5},
 		"EnableCorruptionAutoRepair":                           {dynamicproperties.EnableCorruptionAutoRepair, true},
 		"CorruptionRepairTimeout":                              {dynamicproperties.CorruptionRepairTimeout, time.Duration(1)},
 		"RequireChecksumMatchAfterRebuildRepair":               {dynamicproperties.RequireChecksumMatchAfterRebuildRepair, true},
@@ -338,6 +340,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain")
 		case dynamicproperties.IntPropertyFnWithTaskListInfoFilters:
 			return fn("domain", "tasklist", int(types.TaskListTypeDecision))
+		case dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter:
+			return fn("domain", "tasklist")
 		case dynamicproperties.BoolPropertyFn:
 			return fn()
 		case dynamicproperties.BoolPropertyFnWithDomainFilter:

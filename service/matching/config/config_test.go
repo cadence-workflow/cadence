@@ -83,7 +83,6 @@ func TestNewConfig(t *testing.T) {
 		"TaskDispatchRPSTTL":                         {nil, time.Minute},
 		"MaxTimeBetweenTaskDeletes":                  {nil, time.Second},
 		"AllIsolationGroups":                         {nil, []string{"zone-1", "zone-2"}},
-		"EnableTasklistOwnershipGuard":               {dynamicproperties.MatchingEnableTasklistGuardAgainstOwnershipShardLoss, false},
 		"EnableGetNumberOfPartitionsFromCache":       {dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, false},
 		"EnablePartitionEmptyCheck":                  {dynamicproperties.MatchingEnablePartitionEmptyCheck, true},
 		"PartitionUpscaleRPS":                        {dynamicproperties.MatchingPartitionUpscaleRPS, 30},
@@ -107,6 +106,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableReturnAllTaskListKinds":               {dynamicproperties.MatchingEnableReturnAllTaskListKinds, true},
 		"AppendTaskTimeout":                          {dynamicproperties.AppendTaskTimeout, time.Duration(42)},
 		"ExcludeShortLivedTaskListsFromShardManager": {dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager, false},
+		"EmergencyOffboardingFromShardManager":       {dynamicproperties.MatchingEmergencyOffboardingFromShardManager, false},
 		"PercentageOnboardedToShardManager":          {dynamicproperties.MatchingPercentageOnboardedToShardManager, 0},
 		"MinTaskListWritePartitions":                 {dynamicproperties.MatchingTaskListMinimumWritePartitions, 1},
 	}

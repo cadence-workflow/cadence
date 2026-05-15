@@ -161,6 +161,7 @@ func NewTestBaseWithNoSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 		DomainAuditLogTTL:                        func(domainID string) time.Duration { return time.Hour * 24 * 365 }, // 1 year default
 		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
+		EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(true),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -194,6 +195,7 @@ func NewTestBaseWithSQL(t *testing.T, options *TestBaseOptions) *TestBase {
 		ReadNoSQLShardFromDataBlob:               dynamicproperties.GetBoolPropertyFn(true),
 		DomainAuditLogTTL:                        func(domainID string) time.Duration { return time.Hour * 24 * 365 }, // 1 year default
 		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
+		EnableWorkflowTimerTaskCleanup:           dynamicproperties.GetBoolPropertyFn(false),
 	}
 	params := TestBaseParams{
 		DefaultTestCluster:    testCluster,
@@ -1610,7 +1612,7 @@ func (s *TestBase) CompleteTransferTask(ctx context.Context, taskID int64) error
 
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryTransfer,
-		TaskKey:      persistence.NewImmediateTaskKey(taskID),
+		TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(taskID)},
 	})
 }
 
@@ -1648,7 +1650,7 @@ func (s *TestBase) CompleteReplicationTask(ctx context.Context, taskID int64) er
 
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryReplication,
-		TaskKey:      persistence.NewImmediateTaskKey(taskID),
+		TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(taskID)},
 	})
 }
 
@@ -1684,7 +1686,7 @@ Loop:
 func (s *TestBase) CompleteTimerTask(ctx context.Context, ts time.Time, taskID int64) error {
 	return s.ExecutionManager.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 		TaskCategory: persistence.HistoryTaskCategoryTimer,
-		TaskKey:      persistence.NewHistoryTaskKey(ts, taskID),
+		TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(ts, taskID)},
 	})
 }
 

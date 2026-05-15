@@ -99,6 +99,8 @@ func (s *timerQueueTaskExecutorBaseSuite) SetupTest() {
 	s.mockVisibilityManager = s.mockShard.Resource.VisibilityMgr
 	s.mockHistoryV2Manager = s.mockShard.Resource.HistoryMgr
 	s.mockArchivalClient = archiver.NewMockClient(s.controller)
+	// best-effort timer task cleanup — allow but don't require in any test
+	s.mockExecutionManager.On("FetchWorkflowTimerTasksForCleanup", mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 
 	logger := s.mockShard.GetLogger()
 

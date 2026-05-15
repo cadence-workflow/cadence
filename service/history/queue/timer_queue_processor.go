@@ -128,7 +128,7 @@ func NewTimerQueueProcessor(
 			shard.GetMetricsClient(),
 			clusterName,
 			config,
-			nil, // TODO(c-warren): wire DLQ writer once persistence layer is written
+			shard.GetService().GetHistoryTaskDLQManager(),
 		)
 		standbyTaskExecutors = append(standbyTaskExecutors, standbyTaskExecutor)
 		standbyQueueProcessors[clusterName], standbyQueueTimerGates[clusterName] = newTimerQueueStandbyProcessor(

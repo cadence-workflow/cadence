@@ -30,6 +30,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -123,6 +126,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if request.GetSpec().GetCronExpression() == "" {
 		return nil, &types.BadRequestError{Message: "CronExpression is not set on request."}
 	}
+	if _, err := backoff.ValidateSchedule(request.GetSpec().GetCronExpression()); err != nil {
+		return nil, err
+	}
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
@@ -202,6 +208,11 @@ func (wh *WorkflowHandler) DescribeSchedule(
 	}
 
 	wfID := scheduleWorkflowID(scheduleID)
+	// Reject the query if the scheduler workflow did not complete cleanly (e.g. FAILED,
+	// TERMINATED, TIMED_OUT). Without this, Cadence replays the closed workflow history
+	// and returns whatever state the query handler last saw — which is ACTIVE even for a
+	// scheduler that failed immediately (e.g. due to an invalid cron expression).
+	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
 	queryResp, err := wh.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
 		Domain: domainName,
 		Execution: &types.WorkflowExecution{
@@ -210,12 +221,30 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		Query: &types.WorkflowQuery{
 			QueryType: scheduler.QueryTypeDescribe,
 		},
+		QueryRejectCondition: &rejectCondition,
 	})
 	if err != nil {
 		return nil, normalizeScheduleError(err, scheduleID, domainName)
 	}
 
-	if queryResp == nil || queryResp.GetQueryResult() == nil {
+	if queryResp == nil {
+		return nil, &types.InternalServiceError{Message: "nil query response from scheduler workflow"}
+	}
+
+	if queryResp.QueryRejected != nil {
+		closeStatus := "unknown"
+		if queryResp.QueryRejected.CloseStatus != nil {
+			closeStatus = queryResp.QueryRejected.CloseStatus.String()
+		}
+		return nil, &types.InternalServiceError{
+			Message: fmt.Sprintf(
+				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
+				scheduleID, domainName, closeStatus,
+			),
+		}
+	}
+
+	if queryResp.GetQueryResult() == nil {
 		return nil, &types.InternalServiceError{Message: "empty query result from scheduler workflow"}
 	}
 
@@ -274,6 +303,11 @@ func (wh *WorkflowHandler) UpdateSchedule(
 		return nil, err
 	}
 	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
+	if spec := request.GetSpec(); spec != nil && spec.GetCronExpression() != "" {
+		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {
+			return nil, err
+		}
+	}
 
 	signal := scheduler.UpdateSignal{
 		Spec:     request.GetSpec(),
@@ -307,10 +341,65 @@ func (wh *WorkflowHandler) DeleteSchedule(
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
 	}
 
-	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameDelete, nil); err != nil {
-		return nil, err
+	signalErr := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameDelete, nil)
+	if signalErr == nil || isScheduleAlreadyGone(signalErr) {
+		return &types.DeleteScheduleResponse{}, nil
 	}
-	return &types.DeleteScheduleResponse{}, nil
+
+	if shouldSkipTerminateOnDeleteScheduleSignalFailure(signalErr) {
+		return nil, signalErr
+	}
+
+	// Non-transient signal failure: fall back to terminating the scheduler workflow.
+	// If SignalWorkflowExecution returned nil, the signal was accepted by history but
+	// may still never run in the worker; that case is outside this fallback.
+	wh.GetLogger().Info("DeleteSchedule: signal failed, falling back to terminate",
+		tag.WorkflowDomainName(domainName),
+		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+		tag.Error(signalErr))
+
+	terminateErr := wh.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
+		Domain: domainName,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: scheduleWorkflowID(scheduleID),
+		},
+		Reason: "terminated by DeleteSchedule",
+	})
+	if terminateErr == nil || isScheduleAlreadyGone(terminateErr) {
+		return &types.DeleteScheduleResponse{}, nil
+	}
+
+	wh.GetLogger().Error("DeleteSchedule: both signal and terminate failed",
+		tag.WorkflowDomainName(domainName),
+		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
+		tag.Error(signalErr),
+		tag.Dynamic("terminateError", terminateErr))
+
+	// Return the original signal error since signal is the primary path and the
+	// one a caller would normally retry against.
+	return nil, signalErr
+}
+
+// isScheduleAlreadyGone reports whether an error from the scheduler workflow
+// signal or terminate path indicates that the underlying workflow no longer
+// exists or is already closed. Such errors satisfy the idempotent contract of
+// DeleteSchedule and are returned to the caller as success.
+func isScheduleAlreadyGone(err error) bool {
+	return errors.As(err, new(*types.EntityNotExistsError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError))
+}
+
+// shouldSkipTerminateOnDeleteScheduleSignalFailure is true for errors where the
+// client should retry DeleteSchedule without terminating the scheduler workflow:
+// transient service/transport failures (common.FrontendRetry,
+// common.IsContextTimeoutError) and workflow-ID rate limiting, which is surfaced
+// as ServiceBusy but is not classified as retryable by FrontendRetry.
+func shouldSkipTerminateOnDeleteScheduleSignalFailure(err error) bool {
+	if common.FrontendRetry(err) || common.IsContextTimeoutError(err) {
+		return true
+	}
+	var sb *types.ServiceBusyError
+	return errors.As(err, &sb) && sb.Reason == constants.WorkflowIDRateLimitReason
 }
 
 func (wh *WorkflowHandler) PauseSchedule(
@@ -438,28 +527,74 @@ func (wh *WorkflowHandler) ListSchedules(
 		pageSize = defaultListSchedulesPageSize
 	}
 
-	// NOTE: this calls wh.ListWorkflowExecutions directly (not via frontend client),
-	// which skips the cluster redirection middleware. For global (XDC) domains, the
-	// passive region may return stale visibility data. This applies to all schedule
-	// read APIs (Describe, List) and will be addressed when adding XDC support.
-	//
-	// CloseTime = missing restricts results to open scheduler workflows, so deleted
-	// schedules (closed workflows with state.Deleted=true returned nil) no longer
-	// surface here. This is the canonical "open only" filter used across the
-	// visibility layer (ES, Pinot, SQL-backed stores all recognize it).
-	listResp, err := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
-		Domain:        domainName,
-		PageSize:      pageSize,
-		NextPageToken: request.GetNextPageToken(),
-		Query:         fmt.Sprintf("WorkflowType = '%s' and CloseTime = missing", scheduler.WorkflowTypeName),
-	})
+	// NOTE: schedule read handlers call visibility via the embedded WorkflowHandler
+	// methods below (not via the frontend client), so cluster redirection middleware
+	// is skipped. For global (XDC) domains, the passive region may return stale
+	// visibility data; that applies to Describe and List schedules until XDC support.
+	var executions []*types.WorkflowExecutionInfo
+	var nextPageToken []byte
+	var err error
+
+	if wh.config.DisableListVisibilityByFilter(domainName) {
+		// When filtered list visibility APIs are disabled, only list-by-query remains
+		// (advanced visibility: ES / Pinot / SQL with custom query support).
+		listResp, e := wh.ListWorkflowExecutions(ctx, &types.ListWorkflowExecutionsRequest{
+			Domain:        domainName,
+			PageSize:      pageSize,
+			NextPageToken: request.GetNextPageToken(),
+			Query:         fmt.Sprintf("WorkflowType = '%s' and CloseTime = missing", scheduler.WorkflowTypeName),
+		})
+		err = e
+		if listResp != nil {
+			executions = listResp.Executions
+			nextPageToken = listResp.NextPageToken
+		}
+	} else {
+		// Default path: list open workflows by scheduler workflow type. This uses
+		// ListOpenWorkflowExecutionsByType and works on basic Cassandra/SQL visibility
+		// stores that do not support ListWorkflowExecutions custom queries (which
+		// previously made ListSchedules look empty in those deployments).
+		nowNanos := wh.GetTimeSource().Now().UnixNano()
+		openResp, e := wh.ListOpenWorkflowExecutions(ctx, &types.ListOpenWorkflowExecutionsRequest{
+			Domain:          domainName,
+			MaximumPageSize: pageSize,
+			NextPageToken:   request.GetNextPageToken(),
+			StartTimeFilter: &types.StartTimeFilter{
+				EarliestTime: common.Int64Ptr(0),
+				LatestTime:   common.Int64Ptr(nowNanos),
+			},
+			TypeFilter: &types.WorkflowTypeFilter{Name: scheduler.WorkflowTypeName},
+		})
+		err = e
+		if openResp != nil {
+			executions = openResp.Executions
+			nextPageToken = openResp.NextPageToken
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	entries := make([]*types.ScheduleListEntry, 0, len(listResp.GetExecutions()))
-	for _, exec := range listResp.GetExecutions() {
+	entries := buildScheduleListEntriesFromExecutions(wh, domainName, executions)
+
+	return &types.ListSchedulesResponse{
+		Schedules:     entries,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
+func buildScheduleListEntriesFromExecutions(wh *WorkflowHandler, domainName string, executions []*types.WorkflowExecutionInfo) []*types.ScheduleListEntry {
+	logger := wh.GetLogger()
+	entries := make([]*types.ScheduleListEntry, 0, len(executions))
+	for _, exec := range executions {
 		wfID := exec.GetExecution().GetWorkflowID()
+		if !strings.HasPrefix(wfID, scheduleWorkflowIDPrefix) {
+			logger.Warn("skipping visibility row without schedule workflow id prefix",
+				tag.WorkflowDomainName(domainName),
+				tag.WorkflowID(wfID),
+			)
+			continue
+		}
 		scheduleID := strings.TrimPrefix(wfID, scheduleWorkflowIDPrefix)
 
 		entry := &types.ScheduleListEntry{
@@ -477,7 +612,7 @@ func (wh *WorkflowHandler) ListSchedules(
 			if stateBytes, ok := idx[scheduler.SearchAttrScheduleState]; ok {
 				var stateStr string
 				if err := json.Unmarshal(stateBytes, &stateStr); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
+					logger.Warn("failed to unmarshal CadenceScheduleState search attribute, defaulting to active",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
@@ -487,7 +622,7 @@ func (wh *WorkflowHandler) ListSchedules(
 			}
 			if cronBytes, ok := idx[scheduler.SearchAttrScheduleCron]; ok {
 				if err := json.Unmarshal(cronBytes, &cronExpr); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleCron search attribute, defaulting to empty",
+					logger.Warn("failed to unmarshal CadenceScheduleCron search attribute, defaulting to empty",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
@@ -495,7 +630,7 @@ func (wh *WorkflowHandler) ListSchedules(
 			}
 			if typeBytes, ok := idx[scheduler.SearchAttrScheduleWorkflowType]; ok {
 				if err := json.Unmarshal(typeBytes, &workflowTypeName); err != nil {
-					wh.GetLogger().Warn("failed to unmarshal CadenceScheduleWorkflowType search attribute, defaulting to empty",
+					logger.Warn("failed to unmarshal CadenceScheduleWorkflowType search attribute, defaulting to empty",
 						tag.WorkflowID(scheduleWorkflowID(scheduleID)),
 						tag.Error(err),
 					)
@@ -510,11 +645,7 @@ func (wh *WorkflowHandler) ListSchedules(
 
 		entries = append(entries, entry)
 	}
-
-	return &types.ListSchedulesResponse{
-		Schedules:     entries,
-		NextPageToken: listResp.GetNextPageToken(),
-	}, nil
+	return entries
 }
 
 func (wh *WorkflowHandler) signalScheduleWorkflow(

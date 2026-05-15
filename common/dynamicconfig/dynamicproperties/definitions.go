@@ -41,6 +41,9 @@ type IntPropertyFnWithDomainFilter func(domain string) int
 // IntPropertyFnWithTaskListInfoFilters is a wrapper to get int property from dynamic config with three filters: domain, taskList, taskType
 type IntPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) int
 
+// IntPropertyFnWithDomainAndTaskListFilter is a wrapper to get int property from dynamic config with two filters: domain, taskList
+type IntPropertyFnWithDomainAndTaskListFilter func(domain string, taskList string) int
+
 // IntPropertyFnWithShardIDFilter is a wrapper to get int property from dynamic config with shardID as filter
 type IntPropertyFnWithShardIDFilter func(shardID int) int
 

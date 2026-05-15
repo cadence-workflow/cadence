@@ -144,6 +144,7 @@ func TestStartStop(t *testing.T) {
 	persistenceClientBean.EXPECT().GetExecutionManager(gomock.Any()).Return(execMgr, nil).AnyTimes()
 	persistenceClientBean.EXPECT().GetDomainReplicationQueueManager().Return(domainReplMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
+	persistenceClientBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(ctrl)).AnyTimes()
 	persistenceClientBean.EXPECT().Close().Times(1)
 
 	// archiver provider mocks

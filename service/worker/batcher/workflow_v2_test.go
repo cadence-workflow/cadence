@@ -185,9 +185,24 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	// activity has confirmed it is running. This avoids relying on the test
 	// framework's 0ms timer mechanism (which uses a wall-clock AfterFunc path
 	// when runningCount > 0 and can occasionally miss the 3-second deadline).
+	//
+	// stopSig is closed by t.Cleanup (registered after firstActivityDone's cleanup,
+	// so it runs first in LIFO order): the goroutine exits via the stopSig arm,
+	// closes sigDone, then firstActivityDone is closed to unblock the activity mock.
+	stopSig := make(chan struct{})
+	sigDone := make(chan struct{})
+	t.Cleanup(func() {
+		close(stopSig) // unblock the goroutine if still waiting
+		<-sigDone      // wait for it to exit before firstActivityDone is closed
+	})
 	go func() {
-		<-firstActivityStarted
-		env.SignalWorkflow(SignalNameTune, TuneSignal{RPS: 20, Concurrency: 5})
+		defer close(sigDone)
+		select {
+		case <-firstActivityStarted:
+			env.SignalWorkflow(SignalNameTune, TuneSignal{RPS: 20, Concurrency: 5})
+		case <-stopSig:
+			// workflow ended before first activity started — nothing to signal
+		}
 	}()
 
 	params := createParams(BatchTypeCancel)

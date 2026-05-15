@@ -374,6 +374,20 @@ func (mr *MockResourceMockRecorder) GetHistoryRawClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryRawClient", reflect.TypeOf((*MockResource)(nil).GetHistoryRawClient))
 }
 
+// GetHistoryTaskDLQManager mocks base method.
+func (m *MockResource) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQManager")
+	ret0, _ := ret[0].(persistence.HistoryTaskDLQManager)
+	return ret0
+}
+
+// GetHistoryTaskDLQManager indicates an expected call of GetHistoryTaskDLQManager.
+func (mr *MockResourceMockRecorder) GetHistoryTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQManager", reflect.TypeOf((*MockResource)(nil).GetHistoryTaskDLQManager))
+}
+
 // GetHostInfo mocks base method.
 func (m *MockResource) GetHostInfo() membership.HostInfo {
 	m.ctrl.T.Helper()

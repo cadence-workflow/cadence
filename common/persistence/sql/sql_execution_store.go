@@ -1337,29 +1337,35 @@ func (m *sqlExecutionStore) CompleteHistoryTask(
 	request *p.CompleteHistoryTaskRequest,
 ) error {
 	shardID := m.effectiveShardID(request.ShardID, "CompleteHistoryTask")
-	switch request.TaskCategory.Type() {
-	case p.HistoryTaskCategoryTypeScheduled:
-		return m.completeScheduledHistoryTask(ctx, request, shardID)
-	case p.HistoryTaskCategoryTypeImmediate:
-		return m.completeImmediateHistoryTask(ctx, request, shardID)
-	default:
-		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
-	}
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
+	return m.txExecute(ctx, dbShardID, "CompleteHistoryTask", func(tx sqlplugin.Tx) error {
+		switch request.TaskCategory.Type() {
+		case p.HistoryTaskCategoryTypeScheduled:
+			return m.completeScheduledHistoryTask(ctx, tx, request, shardID)
+		case p.HistoryTaskCategoryTypeImmediate:
+			return m.completeImmediateHistoryTask(ctx, tx, request, shardID)
+		default:
+			return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
+		}
+	})
 }
 
 func (m *sqlExecutionStore) completeScheduledHistoryTask(
 	ctx context.Context,
+	tx sqlplugin.Tx,
 	request *p.CompleteHistoryTaskRequest,
 	shardID int,
 ) error {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTimer:
-		if _, err := m.db.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
-			ShardID:             shardID,
-			VisibilityTimestamp: request.TaskKey.GetScheduledTime(),
-			TaskID:              request.TaskKey.GetTaskID(),
-		}); err != nil {
-			return convertCommonErrors(m.db, "CompleteScheduledHistoryTask", "", err)
+		for _, key := range request.TaskKeys {
+			if _, err := tx.DeleteFromTimerTasks(ctx, &sqlplugin.TimerTasksFilter{
+				ShardID:             shardID,
+				VisibilityTimestamp: key.GetScheduledTime(),
+				TaskID:              key.GetTaskID(),
+			}); err != nil {
+				return convertCommonErrors(m.db, "CompleteScheduledHistoryTask", "", err)
+			}
 		}
 		return nil
 	default:
@@ -1369,24 +1375,29 @@ func (m *sqlExecutionStore) completeScheduledHistoryTask(
 
 func (m *sqlExecutionStore) completeImmediateHistoryTask(
 	ctx context.Context,
+	tx sqlplugin.Tx,
 	request *p.CompleteHistoryTaskRequest,
 	shardID int,
 ) error {
 	switch request.TaskCategory.ID() {
 	case p.HistoryTaskCategoryIDTransfer:
-		if _, err := m.db.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
-			ShardID: shardID,
-			TaskID:  request.TaskKey.GetTaskID(),
-		}); err != nil {
-			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+		for _, key := range request.TaskKeys {
+			if _, err := tx.DeleteFromTransferTasks(ctx, &sqlplugin.TransferTasksFilter{
+				ShardID: shardID,
+				TaskID:  key.GetTaskID(),
+			}); err != nil {
+				return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+			}
 		}
 		return nil
 	case p.HistoryTaskCategoryIDReplication:
-		if _, err := m.db.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
-			ShardID: shardID,
-			TaskID:  request.TaskKey.GetTaskID(),
-		}); err != nil {
-			return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+		for _, key := range request.TaskKeys {
+			if _, err := tx.DeleteFromReplicationTasks(ctx, &sqlplugin.ReplicationTasksFilter{
+				ShardID: shardID,
+				TaskID:  key.GetTaskID(),
+			}); err != nil {
+				return convertCommonErrors(m.db, "CompleteImmediateHistoryTask", "", err)
+			}
 		}
 		return nil
 	default:
@@ -1519,4 +1530,12 @@ func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 		return convertCommonErrors(m.db, "DeleteActiveClusterSelectionPolicy", "", err)
 	}
 	return nil
+}
+
+func (m *sqlExecutionStore) SelectWorkflowTimerTasks(
+	ctx context.Context,
+	request *p.SelectWorkflowTimerTasksRequest,
+) ([]p.HistoryTaskKey, error) {
+	// TODO: workflow_timer_tasks tracking is not yet implemented for SQL stores
+	return nil, nil
 }
