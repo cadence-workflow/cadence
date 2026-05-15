@@ -781,8 +781,7 @@ func TestHistoryRefreshWorkflowTasksRequestFuzz(t *testing.T) {
 }
 
 func TestHistoryStartWorkflowExecutionRequestFuzz(t *testing.T) {
-	// [BUG] StartRequest contains WorkflowIDReusePolicy (out-of-range → nil) and
-	// ExternalEntityType/ExternalEntityKey fields not mapped through proto (silently dropped).
+	// [BUG] StartRequest contains WorkflowIDReusePolicy (out-of-range → nil).
 	// Exclude StartRequest; it is tested via api_test.go.
 	// ContinueAsNewInitiator is an enum (0-2); HistoryContinueAsNewInitiatorFuzzer constrains it.
 	// [BUG] ContinuedFailureDetails dropped when ContinuedFailureReason is nil (FromFailure);
