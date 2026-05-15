@@ -180,7 +180,7 @@ func planAndApplyNextMove(
 // there are no destination executors, it falls back to all ACTIVE executors only
 // when the namespace is severely imbalanced.
 func selectDestinationExecutor(
-	destinationExecutors map[string]struct{},
+	destinationExecutors []string,
 	workingAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
 	loads map[string]float64,
@@ -191,10 +191,10 @@ func selectDestinationExecutor(
 		if !isSevereImbalance(loads, meanLoad, severeImbalanceRatio) {
 			return "", false
 		}
-		allActiveExecutors := make(map[string]struct{})
+		allActiveExecutors := make([]string, 0, len(workingAssignments))
 		for executorID := range workingAssignments {
 			if namespaceState.Executors[executorID].Status == types.ExecutorStatusACTIVE {
-				allActiveExecutors[executorID] = struct{}{}
+				allActiveExecutors = append(allActiveExecutors, executorID)
 			}
 		}
 		if len(allActiveExecutors) == 0 {
@@ -209,7 +209,7 @@ func selectDestinationExecutor(
 // findNextMoveCandidate searches sources by descending load and returns the
 // first eligible source/shard pair for the destination.
 func findNextMoveCandidate(
-	sourceExecutors map[string]struct{},
+	sourceExecutors []string,
 	destinationExecutor string,
 	workingAssignments map[string][]string,
 	namespaceState *store.NamespaceState,
@@ -218,7 +218,8 @@ func findNextMoveCandidate(
 	now time.Time,
 	perShardCooldown time.Duration,
 ) (moveCandidate, bool) {
-	for _, sourceExecutor := range sourcesSortedByDescendingLoad(sourceExecutors, loads) {
+	sortByDescendingLoad(sourceExecutors, loads)
+	for _, sourceExecutor := range sourceExecutors {
 		if sourceExecutor == destinationExecutor {
 			continue
 		}
@@ -254,17 +255,17 @@ func classifySourcesAndDestinations(
 	meanLoad float64,
 	upperBand float64,
 	lowerBand float64,
-) (map[string]struct{}, map[string]struct{}) {
-	sources := make(map[string]struct{})
-	destinations := make(map[string]struct{})
+) ([]string, []string) {
+	sources := make([]string, 0)
+	destinations := make([]string, 0)
 
 	for executorID, load := range executorLoads {
 		executor := state.Executors[executorID]
 		// Intentionally allow DRAINING executors as sources so they can shed shards
 		if load > meanLoad*upperBand {
-			sources[executorID] = struct{}{}
+			sources = append(sources, executorID)
 		} else if executor.Status == types.ExecutorStatusACTIVE && load < meanLoad*lowerBand {
-			destinations[executorID] = struct{}{}
+			destinations = append(destinations, executorID)
 		}
 	}
 
@@ -285,11 +286,11 @@ func isSevereImbalance(executorLoads map[string]float64, meanLoad, severeImbalan
 	return maxLoad/meanLoad >= severeImbalanceRatio
 }
 
-func findBestDestination(destinationExecutors map[string]struct{}, executorLoads map[string]float64) (string, bool) {
+func findBestDestination(destinationExecutors []string, executorLoads map[string]float64) (string, bool) {
 	minExecutor := ""
 	found := false
 	var minLoad float64
-	for executor := range destinationExecutors {
+	for _, executor := range destinationExecutors {
 		load := executorLoads[executor]
 		if !found || load < minLoad {
 			minLoad = load
@@ -300,17 +301,10 @@ func findBestDestination(destinationExecutors map[string]struct{}, executorLoads
 	return minExecutor, found
 }
 
-func sourcesSortedByDescendingLoad(sourceExecutors map[string]struct{}, executorLoads map[string]float64) []string {
-	sources := make([]string, 0, len(sourceExecutors))
-	for executorID := range sourceExecutors {
-		sources = append(sources, executorID)
-	}
-
-	slices.SortFunc(sources, func(a, b string) int {
+func sortByDescendingLoad(executors []string, executorLoads map[string]float64) {
+	slices.SortFunc(executors, func(a, b string) int {
 		return cmp.Compare(executorLoads[b], executorLoads[a])
 	})
-
-	return sources
 }
 
 func findBestShardForMove(
