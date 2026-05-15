@@ -14,6 +14,11 @@ import (
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+// This module provides simulated dynamic dispatch based on the value of the
+// dynamic config, which can change at any time. A regular strategy pattern
+// would still need to switch implementations dynamically based on the current
+// value of the dynamic config.
+
 // PlanInitialPlacement returns planned placements for a batch of unassigned shards.
 func PlanInitialPlacement(
 	cfg *config.Config,
