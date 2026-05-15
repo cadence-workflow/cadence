@@ -24,7 +24,7 @@ flowchart TD
 
     subgraph BufferedPath ["Buffered / Piggyback Path (plural Queries)"]
         Buffer --> RDTS["RecordDecisionTaskStarted\n(drains registry → resp.Queries)"]
-        RDTS --> Poll2[Worker: "PollForDecisionTask\n(resp.Queries set, regular TaskToken)"]
+        RDTS --> Poll2["Worker: PollForDecisionTask\n(resp.Queries set, regular TaskToken)"]
         Poll2 --> Worker2["Worker: process events\nthen evaluate queries"]
         Worker2 --> RDTC["RespondDecisionTaskCompleted\n(.QueryResults map)"]
         RDTC --> Handle["handleBufferedQueries\n(SetTerminationState, unblocks termCh)"]
