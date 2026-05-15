@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -76,7 +77,7 @@ func TestLoadBalance_Convergence(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)
@@ -114,7 +115,7 @@ func TestLoadBalance_SkipsNonBeneficialHotShard(t *testing.T) {
 		},
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)
@@ -160,7 +161,7 @@ func TestLoadBalance_NoMoveNeeded(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.Empty(t, moves)
 	assert.Len(t, currentAssignments[execA], 51)
@@ -228,7 +229,7 @@ func TestLoadBalance_SevereImbalance_AllowsMoveWithoutDestinations(t *testing.T)
 	initialOther := len(currentAssignments[execB]) + len(currentAssignments[execC]) + len(currentAssignments[execD]) + len(currentAssignments[execE])
 	expectedBudget := computeMoveBudget(len(shardStats), cfg.MoveBudgetProportion(testNamespace))
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)
@@ -279,7 +280,7 @@ func TestLoadBalance_NoDestinations_NotSevere(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.Empty(t, moves)
 	assert.Len(t, currentAssignments[execA], 10)
@@ -350,7 +351,7 @@ func TestLoadBalance_BudgetConstraint(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)
@@ -404,7 +405,7 @@ func TestLoadBalance_MultiMovePerCycle(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)
@@ -454,7 +455,7 @@ func TestLoadBalance_PerShardCooldownSkipsHotShard(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)
@@ -506,7 +507,7 @@ func TestLoadBalance_NoDestinations(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.Empty(t, moves)
 	assert.Equal(t, []string{"s1"}, currentAssignments[execA])
@@ -562,7 +563,7 @@ func TestLoadBalance_ExecutorRemovedFromDestination(t *testing.T) {
 		ShardStats:       shardStats,
 	}
 
-	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, metrics.NoopScope)
+	moves, err := PlanRebalance(cfg, testNamespace, namespaceState, currentAssignments, now, log.NewNoop(), metrics.NoopScope)
 	require.NoError(t, err)
 	require.NotEmpty(t, moves)
 	applyMoves(t, currentAssignments, moves)

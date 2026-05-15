@@ -7,6 +7,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
@@ -28,6 +30,7 @@ func PlanRebalance(
 	namespaceState *store.NamespaceState,
 	currentAssignments map[string][]string,
 	now time.Time,
+	logger log.Logger,
 	metricsScope metrics.Scope,
 ) ([]plan.Move, error) {
 	now = now.UTC()
@@ -61,8 +64,10 @@ func PlanRebalance(
 		}
 
 		moves = append(moves, move)
+		shardLoad := namespaceState.ShardStats[move.ShardID].SmoothedLoad
+		logGreedyMove(logger, loads, move, shardLoad)
 		if metricsScope != nil {
-			metricsScope.UpdateGauge(metrics.ShardDistributorAssignLoopMovedShardLoad, namespaceState.ShardStats[move.ShardID].SmoothedLoad)
+			metricsScope.UpdateGauge(metrics.ShardDistributorAssignLoopMovedShardLoad, shardLoad)
 		}
 		moveBudget--
 	}
@@ -393,4 +398,17 @@ func updateExecutorLoadsAfterMove(
 	}
 	executorLoads[source] -= stats.SmoothedLoad
 	executorLoads[destination] += stats.SmoothedLoad
+}
+
+func logGreedyMove(logger log.Logger, loads map[string]float64, move plan.Move, shardLoad float64) {
+	sourceLoadBefore := loads[move.From] + shardLoad
+	destinationLoadBefore := loads[move.To] - shardLoad
+	logger.Info("Greedy load-based shard move",
+		tag.ShardKey(move.ShardID),
+		tag.ShardExecutor(move.From),
+		tag.Dynamic("destination_executor", move.To),
+		tag.ShardLoad(fmt.Sprintf("%f", shardLoad)),
+		tag.Dynamic("source_executor_load_before", sourceLoadBefore),
+		tag.Dynamic("destination_executor_load_before", destinationLoadBefore),
+	)
 }
