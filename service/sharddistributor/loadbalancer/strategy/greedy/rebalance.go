@@ -35,12 +35,11 @@ func PlanRebalance(
 ) ([]plan.Move, error) {
 	now = now.UTC()
 	workingAssignments := cloneAssignments(currentAssignments)
-	loads, totalLoad := computeExecutorLoads(workingAssignments, namespaceState)
-	if len(loads) == 0 {
+	loads, meanLoad, ok := computeExecutorLoads(workingAssignments, namespaceState)
+	if !ok {
 		return nil, nil
 	}
 
-	meanLoad := totalLoad / float64(len(loads))
 	totalShards := 0
 	for _, shards := range currentAssignments {
 		totalShards += len(shards)
@@ -87,7 +86,7 @@ func cloneAssignments(assignments map[string][]string) map[string][]string {
 	return cloned
 }
 
-func computeExecutorLoads(currentAssignments map[string][]string, state *store.NamespaceState) (map[string]float64, float64) {
+func computeExecutorLoads(currentAssignments map[string][]string, state *store.NamespaceState) (map[string]float64, float64, bool) {
 	loads := make(map[string]float64, len(currentAssignments))
 	total := 0.0
 
@@ -100,8 +99,12 @@ func computeExecutorLoads(currentAssignments map[string][]string, state *store.N
 			}
 		}
 	}
+	if len(loads) == 0 {
+		return loads, 0, false
+	}
 
-	return loads, total
+	mean := total / float64(len(loads))
+	return loads, mean, true
 }
 
 func computeMoveBudget(totalShards int, proportion float64) int {
