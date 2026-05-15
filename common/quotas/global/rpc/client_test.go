@@ -183,7 +183,7 @@ func (a matchrequest) Matches(x interface{}) bool {
 	for _, k := range stringy(slices.Collect(maps.Keys(up.Load))) {
 		gotKeys[k] = struct{}{}
 	}
-	a.t.Logf("want keys: %v, got keys: %v", maps.Keys(keys), maps.Keys(gotKeys))
+	a.t.Logf("want keys: %v, got keys: %v", slices.Collect(maps.Keys(keys)), slices.Collect(maps.Keys(gotKeys)))
 	return reflect.DeepEqual(keys, gotKeys)
 }
 
