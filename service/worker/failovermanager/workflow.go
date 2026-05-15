@@ -73,6 +73,7 @@ const (
 	failoverActivityName            = "cadence-sys-failover-activity"
 	getDomainsActivityName          = "cadence-sys-getDomains-activity"
 	getRebalanceDomainsActivityName = "cadence-sys-getRebalanceDomains-activity"
+	rebalanceDomainsActivityName    = "cadence-sys-rebalanceDomains-activity"
 
 	defaultBatchFailoverSize              = 20
 	defaultBatchFailoverWaitTimeInSeconds = 30

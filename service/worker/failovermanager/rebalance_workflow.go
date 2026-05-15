@@ -22,6 +22,7 @@ package failovermanager
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/cadence/activity"
@@ -33,15 +34,25 @@ import (
 )
 
 type (
+	// RebalanceClusterAttribute specifies the preferred cluster for a scope:name pair,
+	// mirroring the []ClusterAttribute input of the failover workflow but with an added
+	// preferred-cluster dimension.
+	RebalanceClusterAttribute struct {
+		Scope           string `json:"scope"`
+		Name            string `json:"name"`
+		PreferredCluster string `json:"preferredCluster"`
+	}
+
 	// RebalanceParams contains parameters for rebalance workflow
 	RebalanceParams struct {
 		// BatchFailoverSize is number of domains to failover in one batch
 		BatchFailoverSize int
 		// BatchFailoverWaitTimeInSeconds is the waiting time between batch failover
 		BatchFailoverWaitTimeInSeconds int
-		// ClusterAttributeRebalanceMap maps scope type -> attribute name -> cadence cluster name.
-		// When non-nil, AA domains are rebalanced using this mapping.
-		ClusterAttributeRebalanceMap ClusterAttributeRebalanceMap
+		// ClusterAttributePreferences is the list of preferred clusters for active-active scopes.
+		// Duplicate scope:name pairs with the same preferredCluster are silently collapsed;
+		// conflicting preferredClusters for the same scope:name cause the workflow to fail.
+		ClusterAttributePreferences []RebalanceClusterAttribute `json:",omitempty"`
 	}
 
 	// RebalanceResult contains the result from the rebalance workflow
@@ -69,8 +80,12 @@ type (
 // RebalanceWorkflow rebalances domains across clusters based on rebalance policy.
 // It fetches all domains that need rebalancing in one step, then applies the updates in batches.
 func RebalanceWorkflow(ctx workflow.Context, params *RebalanceParams) (*RebalanceResult, error) {
+	clusterAttributeRebalanceMap, err := rebalanceClusterAttributesToMap(params.ClusterAttributePreferences)
+	if err != nil {
+		return nil, err
+	}
 	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
-	activityParams := &GetDomainsForRebalanceActivityParams{ClusterAttributeRebalanceMap: params.ClusterAttributeRebalanceMap}
+	activityParams := &GetDomainsForRebalanceActivityParams{ClusterAttributeRebalanceMap: clusterAttributeRebalanceMap}
 	var domainData []*DomainRebalanceData
 	if err := workflow.ExecuteActivity(ao, getRebalanceDomainsActivityName, activityParams).Get(ctx, &domainData); err != nil {
 		return nil, err
@@ -201,6 +216,28 @@ func rebalanceEntryForScopedDomain(domain *types.DescribeDomainResponse, cluster
 		DomainName:              domain.GetDomainInfo().GetName(),
 		ClusterAttributeUpdates: updates,
 	}
+}
+
+// rebalanceClusterAttributesToMap converts the slice input to the internal ClusterAttributeRebalanceMap.
+// Identical duplicates (same scope, name, and preferredCluster) are silently collapsed.
+// An error is returned if the same scope:name pair appears with two different preferredCluster values.
+func rebalanceClusterAttributesToMap(attrs []RebalanceClusterAttribute) (ClusterAttributeRebalanceMap, error) {
+	if len(attrs) == 0 {
+		return nil, nil
+	}
+	result := make(ClusterAttributeRebalanceMap, len(attrs))
+	for _, attr := range attrs {
+		scope := clusterAttributeScope(attr.Scope)
+		name := clusterAttributeName(attr.Name)
+		if _, ok := result[scope]; !ok {
+			result[scope] = make(ClusterAttributeToClusterMap)
+		}
+		if existing, exists := result[scope][name]; exists && existing != attr.PreferredCluster {
+			return nil, fmt.Errorf("conflicting preferred cluster for scope=%q name=%q: %q vs %q", attr.Scope, attr.Name, existing, attr.PreferredCluster)
+		}
+		result[scope][name] = attr.PreferredCluster
+	}
+	return result, nil
 }
 
 func getPreferredClusterName(domain *types.DescribeDomainResponse) string {

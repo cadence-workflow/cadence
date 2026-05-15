@@ -266,7 +266,7 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_AAAndNonAA_Success() {
 	params := &RebalanceParams{
 		BatchFailoverWaitTimeInSeconds: 10,
 		BatchFailoverSize:              10,
-		ClusterAttributeRebalanceMap:  ClusterAttributeRebalanceMap{"region": ClusterAttributeToClusterMap{"phx": "c1"}},
+		ClusterAttributePreferences:   []RebalanceClusterAttribute{{Scope: "region", Name: "phx", PreferredCluster: "c1"}},
 	}
 	domainData := []*DomainRebalanceData{
 		{
@@ -290,6 +290,118 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_AAAndNonAA_Success() {
 	s.NoError(err)
 	s.Equal(2, len(result.SuccessDomains))
 	s.Equal(0, len(result.FailedDomains))
+}
+
+func (s *rebalanceWorkflowTestSuite) TestWorkflow_ConflictingClusterAttributePreferences_Fails() {
+	params := &RebalanceParams{
+		BatchFailoverWaitTimeInSeconds: 10,
+		BatchFailoverSize:              10,
+		ClusterAttributePreferences: []RebalanceClusterAttribute{
+			{Scope: "region", Name: "phx", PreferredCluster: "c1"},
+			{Scope: "region", Name: "phx", PreferredCluster: "c2"}, // conflicts with above
+		},
+	}
+	s.workflowEnv.ExecuteWorkflow(RebalanceWorkflowTypeName, params)
+	var result RebalanceResult
+	err := s.workflowEnv.GetWorkflowResult(&result)
+	s.Error(err)
+	s.Contains(err.Error(), "conflicting preferred cluster")
+}
+
+func TestRebalanceClusterAttributesToMap(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []RebalanceClusterAttribute
+		wantMap   ClusterAttributeRebalanceMap
+		wantError bool
+	}{
+		{
+			name:    "empty input returns nil map",
+			input:   nil,
+			wantMap: nil,
+		},
+		{
+			name:  "single entry",
+			input: []RebalanceClusterAttribute{{Scope: "region", Name: "phx", PreferredCluster: "c1"}},
+			wantMap: ClusterAttributeRebalanceMap{
+				"region": ClusterAttributeToClusterMap{"phx": "c1"},
+			},
+		},
+		{
+			name: "multiple distinct entries",
+			input: []RebalanceClusterAttribute{
+				{Scope: "region", Name: "phx", PreferredCluster: "c1"},
+				{Scope: "region", Name: "dca", PreferredCluster: "c2"},
+				{Scope: "dc", Name: "east", PreferredCluster: "c3"},
+			},
+			wantMap: ClusterAttributeRebalanceMap{
+				"region": ClusterAttributeToClusterMap{"phx": "c1", "dca": "c2"},
+				"dc":     ClusterAttributeToClusterMap{"east": "c3"},
+			},
+		},
+		{
+			name: "identical duplicate is silently deduplicated",
+			input: []RebalanceClusterAttribute{
+				{Scope: "region", Name: "phx", PreferredCluster: "c1"},
+				{Scope: "region", Name: "phx", PreferredCluster: "c1"},
+			},
+			wantMap: ClusterAttributeRebalanceMap{
+				"region": ClusterAttributeToClusterMap{"phx": "c1"},
+			},
+		},
+		{
+			name: "conflicting preferred cluster returns error",
+			input: []RebalanceClusterAttribute{
+				{Scope: "region", Name: "phx", PreferredCluster: "c1"},
+				{Scope: "region", Name: "phx", PreferredCluster: "c2"},
+			},
+			wantError: true,
+		},
+		{
+			name: "conflict in different scope is independent — no error",
+			input: []RebalanceClusterAttribute{
+				{Scope: "region", Name: "phx", PreferredCluster: "c1"},
+				{Scope: "dc", Name: "phx", PreferredCluster: "c2"}, // same name but different scope
+			},
+			wantMap: ClusterAttributeRebalanceMap{
+				"region": ClusterAttributeToClusterMap{"phx": "c1"},
+				"dc":     ClusterAttributeToClusterMap{"phx": "c2"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := rebalanceClusterAttributesToMap(tt.input)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.wantMap) {
+				t.Fatalf("map length mismatch: got %d, want %d", len(got), len(tt.wantMap))
+			}
+			for scope, wantAttrs := range tt.wantMap {
+				gotAttrs, ok := got[clusterAttributeScope(scope)]
+				if !ok {
+					t.Fatalf("scope %q missing from result", scope)
+				}
+				for name, wantCluster := range wantAttrs {
+					gotCluster, ok := gotAttrs[clusterAttributeName(name)]
+					if !ok {
+						t.Fatalf("name %q missing from scope %q", name, scope)
+					}
+					if gotCluster != wantCluster {
+						t.Fatalf("scope=%q name=%q: got %q, want %q", scope, name, gotCluster, wantCluster)
+					}
+				}
+			}
+		})
+	}
 }
 
 func (s *rebalanceWorkflowTestSuite) TestShouldAllowRebalance() {
