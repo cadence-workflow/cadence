@@ -1,6 +1,7 @@
 package greedy
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
@@ -88,12 +89,10 @@ func computeExecutorLoads(currentAssignments map[string][]string, state *store.N
 	for executorID, shards := range currentAssignments {
 		for _, shardID := range shards {
 			stats, ok := state.ShardStats[shardID]
-			load := 0.0
 			if ok {
-				load = stats.SmoothedLoad
+				loads[executorID] += stats.SmoothedLoad
+				total += stats.SmoothedLoad
 			}
-			loads[executorID] += load
-			total += load
 		}
 	}
 
@@ -303,15 +302,7 @@ func sourcesSortedByDescendingLoad(sourceExecutors map[string]struct{}, executor
 	}
 
 	slices.SortFunc(sources, func(a, b string) int {
-		la, lb := executorLoads[a], executorLoads[b]
-		switch {
-		case la > lb:
-			return -1
-		case la < lb:
-			return 1
-		default:
-			return 0
-		}
+		return cmp.Compare(executorLoads[b], executorLoads[a])
 	})
 
 	return sources
