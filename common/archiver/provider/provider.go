@@ -167,12 +167,6 @@ func (p *archiverProvider) GetHistoryArchiver(scheme, serviceName string) (histo
 	}
 	p.RUnlock()
 
-	p.Lock()
-	defer p.Unlock()
-	if historyArchiver, ok := p.historyArchivers[archiverKey]; ok {
-		return historyArchiver, nil
-	}
-
 	container, ok := p.historyContainers[serviceName]
 	if !ok {
 		return nil, ErrBootstrapContainerNotFound
@@ -193,6 +187,11 @@ func (p *archiverProvider) GetHistoryArchiver(scheme, serviceName string) (histo
 		return nil, fmt.Errorf("history archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
 	}
 
+	p.Lock()
+	defer p.Unlock()
+	if existingHistoryArchiver, ok := p.historyArchivers[archiverKey]; ok {
+		return existingHistoryArchiver, nil
+	}
 	p.historyArchivers[archiverKey] = historyArchiver
 	return historyArchiver, nil
 }
@@ -205,12 +204,6 @@ func (p *archiverProvider) GetVisibilityArchiver(scheme, serviceName string) (ar
 		return visibilityArchiver, nil
 	}
 	p.RUnlock()
-
-	p.Lock()
-	defer p.Unlock()
-	if visibilityArchiver, ok := p.visibilityArchivers[archiverKey]; ok {
-		return visibilityArchiver, nil
-	}
 
 	container, ok := p.visibilityContainers[serviceName]
 	if !ok {
@@ -232,6 +225,11 @@ func (p *archiverProvider) GetVisibilityArchiver(scheme, serviceName string) (ar
 		return nil, fmt.Errorf("visibility archiver constructor failed for scheme %q, config key %q: err: %w", scheme, constructor.configKey, err)
 	}
 
+	p.Lock()
+	defer p.Unlock()
+	if existingVisibilityArchiver, ok := p.visibilityArchivers[archiverKey]; ok {
+		return existingVisibilityArchiver, nil
+	}
 	p.visibilityArchivers[archiverKey] = visibilityArchiver
 	return visibilityArchiver, nil
 
