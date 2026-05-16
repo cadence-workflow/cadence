@@ -3375,6 +3375,14 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingGreedyPerShardCooldown
 
+	// ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant
+	// for exponential smoothing of shard load in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant
+
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
 )
@@ -6076,6 +6084,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "shardDistributor.loadBalancingGreedy.perShardCooldown",
 		Filters:      []Filter{Namespace},
 		Description:  "ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between moving the same shard in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant for exponential smoothing of shard load in greedy load balancing mode",
 		DefaultValue: time.Minute,
 	},
 }

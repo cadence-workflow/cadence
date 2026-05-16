@@ -22,6 +22,7 @@ func TestNewDynamicConfigCreatesInstanceWithProperties(t *testing.T) {
 	assert.NotNil(t, config.MigrationMode)
 	assert.NotNil(t, config.LoadBalancingNaive.MaxDeviation)
 	assert.NotNil(t, config.LoadBalancingGreedy.PerShardCooldown)
+	assert.NotNil(t, config.LoadBalancingGreedy.LoadSmoothingTimeConstant)
 	assert.NotNil(t, config.LoadBalancingGreedy.MoveBudgetProportion)
 	assert.NotNil(t, config.LoadBalancingGreedy.HysteresisUpperBand)
 	assert.NotNil(t, config.LoadBalancingGreedy.HysteresisLowerBand)
