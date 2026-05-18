@@ -44,8 +44,9 @@ import (
 )
 
 const (
-	defaultBeginningMessageID    = -1
-	dlqProcessorTimerCoefficient = 0.05
+	defaultBeginningMessageID         = -1
+	dlqProcessorTimerCoefficient      = 0.05
+	dlqProcessorRetryInitialInterval  = 100 * time.Millisecond
 )
 
 var (
@@ -201,7 +202,9 @@ func (r *dlqHandlerImpl) fetchAndEmitMessageCount(ctx context.Context) error {
 	}
 
 	r.mu.Lock()
-	r.latestCounts = result
+	if lastErr == nil {
+		r.latestCounts = result
+	}
 	r.mu.Unlock()
 
 	return lastErr
@@ -332,33 +335,53 @@ func (r *dlqHandlerImpl) processTask(sourceCluster string, task *types.Replicati
 	}
 
 	maxRetries := r.config.ReplicationDLQProcessorMaxRetries()
-	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		select {
-		case <-r.done:
-			return
-		default:
-		}
-		if _, err := executor.execute(task, true); err != nil {
-			lastErr = err
+	retryPolicy := backoff.NewExponentialRetryPolicy(dlqProcessorRetryInitialInterval)
+	retryPolicy.SetMaximumAttempts(maxRetries)
+	throttle := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(retryPolicy),
+		backoff.WithRetryableError(func(error) bool {
+			select {
+			case <-r.done:
+				return false
+			default:
+				return true
+			}
+		}),
+	)
+
+	attempt := int32(0)
+	err := throttle.Do(r.ctx, func(context.Context) error {
+		_, execErr := executor.execute(task, true)
+		if execErr != nil {
 			taskLogger.Warn("DLQ processor failed to execute task",
-				tag.Attempt(int32(attempt)),
-				tag.Error(err),
+				tag.Attempt(attempt),
+				tag.Error(execErr),
 			)
-			continue
+			attempt++
 		}
+		return execErr
+	})
+
+	if err == nil {
 		// Success — point-delete so the next rescan skips this task.
-		if err := r.shard.GetExecutionManager().DeleteReplicationTaskFromDLQ(
+		if delErr := r.shard.GetExecutionManager().DeleteReplicationTaskFromDLQ(
 			r.ctx,
 			&persistence.DeleteReplicationTaskFromDLQRequest{
 				SourceClusterName: sourceCluster,
 				TaskID:            task.SourceTaskID,
 				ShardID:           common.Ptr(r.shard.GetShardID()),
 			},
-		); err != nil {
-			taskLogger.Error("DLQ processor failed to delete task after successful execution", tag.Error(err))
+		); delErr != nil {
+			taskLogger.Error("DLQ processor failed to delete task after successful execution", tag.Error(delErr))
 		}
 		return
+	}
+
+	// Shutdown is observed by IsRetryable above; bail without invoking fixer.
+	select {
+	case <-r.done:
+		return
+	default:
 	}
 
 	// All retries exhausted — invoke fixer and move on. Fixer is idempotent:
@@ -367,7 +390,7 @@ func (r *dlqHandlerImpl) processTask(sourceCluster string, task *types.Replicati
 	// point-delete if the fix succeeded.
 	taskLogger.Error("DLQ processor exhausted retries, invoking fixer",
 		tag.Attempt(int32(maxRetries)),
-		tag.Error(lastErr),
+		tag.Error(err),
 	)
 	if r.fixer == nil {
 		return

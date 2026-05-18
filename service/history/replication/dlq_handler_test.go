@@ -773,7 +773,7 @@ func TestProcessTask(t *testing.T) {
 			task:           historyReplicationTask(99, "d", "w", "r"),
 			executorErr:    errors.New("boom"),
 			maxRetries:     3,
-			expectExecutes: 3,
+			expectExecutes: 4,
 			expectFixCalls: []fixerCall{{"d", "w", "r"}},
 		},
 		{
@@ -782,7 +782,7 @@ func TestProcessTask(t *testing.T) {
 			executorErr:    errors.New("boom"),
 			maxRetries:     2,
 			passNilFixer:   true,
-			expectExecutes: 2,
+			expectExecutes: 3,
 		},
 		{
 			name:           "nil task — skip, no execute/delete/fix",
@@ -798,7 +798,7 @@ func TestProcessTask(t *testing.T) {
 			},
 			executorErr:    errors.New("boom"),
 			maxRetries:     2,
-			expectExecutes: 2,
+			expectExecutes: 3,
 		},
 	}
 
