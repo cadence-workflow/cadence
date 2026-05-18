@@ -288,6 +288,12 @@ type Config struct {
 	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation dynamicproperties.BoolPropertyFnWithDomainFilter
 	ReplicationTaskProcessorLatencyLogThreshold          dynamicproperties.DurationPropertyFn
 
+	// The following are used by the DLQ background processor
+	ReplicationDLQProcessorEnabled        dynamicproperties.BoolPropertyFn
+	ReplicationDLQProcessorRescanInterval dynamicproperties.DurationPropertyFn
+	ReplicationDLQProcessorMaxRetries     dynamicproperties.IntPropertyFn
+	ReplicationDLQProcessorPageSize       dynamicproperties.IntPropertyFn
+
 	// The following are used by the history workflowID cache
 	WorkflowIDExternalRPS dynamicproperties.IntPropertyFnWithDomainFilter
 	WorkflowIDInternalRPS dynamicproperties.IntPropertyFnWithDomainFilter
@@ -576,6 +582,11 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		EnableRecordWorkflowExecutionUninitialized:           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableRecordWorkflowExecutionUninitialized),
 		EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation),
 		ReplicationTaskProcessorLatencyLogThreshold:          dc.GetDurationProperty(dynamicproperties.ReplicationTaskProcessorLatencyLogThreshold),
+
+		ReplicationDLQProcessorEnabled:        dc.GetBoolProperty(dynamicproperties.ReplicationDLQProcessorEnabled),
+		ReplicationDLQProcessorRescanInterval: dc.GetDurationProperty(dynamicproperties.ReplicationDLQProcessorRescanInterval),
+		ReplicationDLQProcessorMaxRetries:     dc.GetIntProperty(dynamicproperties.ReplicationDLQProcessorMaxRetries),
+		ReplicationDLQProcessorPageSize:       dc.GetIntProperty(dynamicproperties.ReplicationDLQProcessorPageSize),
 
 		WorkflowIDExternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDExternalRPS),
 		WorkflowIDInternalRPS: dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDInternalRPS),
