@@ -122,6 +122,16 @@ func AdminRebalanceStart(c *cli.Context) error {
 		BatchFailoverSize:              100,
 		BatchFailoverWaitTimeInSeconds: 10,
 	}
+	if raw := c.String(FlagClusterAttributePreferencesJSON); raw != "" {
+		var attrs []failovermanager.RebalanceClusterAttribute
+		if err := json.Unmarshal([]byte(raw), &attrs); err != nil {
+			return commoncli.Problem("Invalid cluster_attribute_preferences_json", err)
+		}
+		if err := validateRebalanceClusterAttributePreferences(attrs); err != nil {
+			return commoncli.Problem("Invalid cluster_attribute_preferences_json", err)
+		}
+		rbParams.ClusterAttributePreferences = attrs
+	}
 	input, err := json.Marshal(rbParams)
 	if err != nil {
 		return commoncli.Problem("Failed to serialize params for failover workflow", err)
@@ -142,7 +152,7 @@ func AdminRebalanceStart(c *cli.Context) error {
 		RequestID:                           uuid.New(),
 		Identity:                            getCliIdentity(),
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
-		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(1200),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(int32(defaultDecisionTimeoutInSeconds)),
 		Input:                               input,
 		TaskList: &types.TaskList{
@@ -164,6 +174,21 @@ func AdminRebalanceStart(c *cli.Context) error {
 	output.Write([]byte("wid: " + workflowID + "\n"))
 	output.Write([]byte("rid: " + resp.GetRunID() + "\n"))
 
+	return nil
+}
+
+// validateRebalanceClusterAttributePreferences checks that no two entries share the same
+// scope+name pair with different preferredCluster values.
+func validateRebalanceClusterAttributePreferences(attrs []failovermanager.RebalanceClusterAttribute) error {
+	seen := make(map[[2]string]string, len(attrs))
+	for _, attr := range attrs {
+		key := [2]string{attr.Scope, attr.Name}
+		if existing, ok := seen[key]; ok && existing != attr.PreferredCluster {
+			return fmt.Errorf("conflicting preferred cluster for scope=%q name=%q: %q vs %q",
+				attr.Scope, attr.Name, existing, attr.PreferredCluster)
+		}
+		seen[key] = attr.PreferredCluster
+	}
 	return nil
 }
 

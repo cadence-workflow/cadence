@@ -1274,8 +1274,14 @@ func newAdminRebalanceCommands() []*cli.Command {
 			Name:    "start",
 			Aliases: []string{"s"},
 			Usage:   "start rebalance workflow",
-			Flags:   []cli.Flag{},
-			Action:  AdminRebalanceStart,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name: FlagClusterAttributePreferencesJSON,
+					Usage: `Optional preferred-cluster mapping for active-active scopes, in JSON format. ` +
+						`Example: [{"scope":"region","name":"phx","preferredCluster":"prod_phx11"}]`,
+				},
+			},
+			Action: AdminRebalanceStart,
 		},
 		{
 			Name:    "list",
