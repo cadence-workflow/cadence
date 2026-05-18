@@ -160,6 +160,120 @@ func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_Error() 
 	s.Error(err)
 }
 
+// TestGetDomainsForRebalanceActivity_ActiveActiveDomainWithBothUpdates verifies that an active-active domain
+// whose ActiveClusterName also differs from the preferred cluster gets a single DomainRebalanceData entry
+// with both PreferredCluster and ClusterAttributeUpdates set — the two checks are additive, not exclusive.
+func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ActiveActiveDomainWithBothUpdates() {
+	actEnv, mockResource := s.prepareTestActivityEnv()
+
+	// Domain has ActiveClusterName = "c2" but preferred cluster = "c1" (domain-level mismatch).
+	// It also has a cluster attribute region:dca currently pointing to "c1" but preferred "c2" (attribute mismatch).
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "active-active-both",
+					Data: map[string]string{
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c1",
+					},
+					Status: types.DomainStatusRegistered.Ptr(),
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c2",
+					Clusters:          aaClusters,
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"dca": {ActiveClusterName: "c1"}, // currently c1, preferred c2
+							}},
+						},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	params := &GetDomainsForRebalanceActivityParams{
+		ClusterAttributeRebalanceMap: ClusterAttributeRebalanceMap{
+			"region": ClusterAttributeToClusterMap{"dca": "c2"},
+		},
+	}
+	actFuture, err := actEnv.ExecuteActivity(GetDomainsForRebalanceActivity, params)
+	s.NoError(err)
+	var domainData []*DomainRebalanceData
+	err = actFuture.Get(&domainData)
+	s.NoError(err)
+
+	s.Require().Equal(1, len(domainData), "expected exactly one combined entry for the domain")
+	entry := domainData[0]
+	s.Equal("active-active-both", entry.DomainName)
+	s.Equal("c1", entry.PreferredCluster, "domain-level ActiveClusterName update should be present")
+	s.Require().Equal(1, len(entry.ClusterAttributeUpdates), "cluster attribute update should be present")
+	s.Equal("region", entry.ClusterAttributeUpdates[0].Scope)
+	s.Equal("dca", entry.ClusterAttributeUpdates[0].AttributeName)
+	s.Equal("c2", entry.ClusterAttributeUpdates[0].PreferredCluster)
+}
+
+// TestGetDomainsForRebalanceActivity_ActiveActiveDomainOnlyAttributeMismatch verifies that an active-active
+// domain whose ActiveClusterName already matches the preferred cluster but has attribute mismatches
+// produces an entry with only ClusterAttributeUpdates (no PreferredCluster).
+func (s *rebalanceWorkflowTestSuite) TestGetDomainsForRebalanceActivity_ActiveActiveDomainOnlyAttributeMismatch() {
+	actEnv, mockResource := s.prepareTestActivityEnv()
+
+	// ActiveClusterName = "c1" matches preferred cluster = "c1" → no domain-level update.
+	// But region:phx is currently "c2" while preferred is "c1" → attribute update needed.
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "active-active-attr-only",
+					Data: map[string]string{
+						constants.DomainDataKeyForManagedFailover:  "true",
+						constants.DomainDataKeyForPreferredCluster: "c1",
+					},
+					Status: types.DomainStatusRegistered.Ptr(),
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					Clusters:          aaClusters,
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"phx": {ActiveClusterName: "c2"}, // currently c2, preferred c1
+							}},
+						},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	params := &GetDomainsForRebalanceActivityParams{
+		ClusterAttributeRebalanceMap: ClusterAttributeRebalanceMap{
+			"region": ClusterAttributeToClusterMap{"phx": "c1"},
+		},
+	}
+	actFuture, err := actEnv.ExecuteActivity(GetDomainsForRebalanceActivity, params)
+	s.NoError(err)
+	var domainData []*DomainRebalanceData
+	err = actFuture.Get(&domainData)
+	s.NoError(err)
+
+	s.Require().Equal(1, len(domainData))
+	entry := domainData[0]
+	s.Equal("active-active-attr-only", entry.DomainName)
+	s.Equal("", entry.PreferredCluster, "no domain-level update expected when ActiveClusterName already matches")
+	s.Require().Equal(1, len(entry.ClusterAttributeUpdates))
+	s.Equal("region", entry.ClusterAttributeUpdates[0].Scope)
+	s.Equal("phx", entry.ClusterAttributeUpdates[0].AttributeName)
+	s.Equal("c1", entry.ClusterAttributeUpdates[0].PreferredCluster)
+}
+
 func (s *rebalanceWorkflowTestSuite) TestWorkflow_Success() {
 	params := &RebalanceParams{
 		BatchFailoverWaitTimeInSeconds: 10,
@@ -266,17 +380,13 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_AAAndNonAA_Success() {
 	params := &RebalanceParams{
 		BatchFailoverWaitTimeInSeconds: 10,
 		BatchFailoverSize:              10,
-		ClusterAttributePreferences:   []RebalanceClusterAttribute{{Scope: "region", Name: "phx", PreferredCluster: "c1"}},
+		ClusterAttributePreferences:    []RebalanceClusterAttribute{{Scope: "region", Name: "phx", PreferredCluster: "c1"}},
 	}
 	domainData := []*DomainRebalanceData{
 		{
 			DomainName: "aa1",
-			ClusterAttributeUpdates: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
-						"phx": {ActiveClusterName: "c1"},
-					}},
-				},
+			ClusterAttributeUpdates: []*ClusterAttributeUpdate{
+				{Scope: "region", AttributeName: "phx", PreferredCluster: "c1"},
 			},
 		},
 		{DomainName: "non1", PreferredCluster: "c2"},
@@ -572,7 +682,7 @@ var aaClusters = []*types.ClusterReplicationConfiguration{
 	{ClusterName: "c2"},
 }
 
-func makeManagedAADomain(name string, activeClusters *types.ActiveClusters) *types.DescribeDomainResponse {
+func makeManagedActiveActiveDomain(name string, activeClusters *types.ActiveClusters) *types.DescribeDomainResponse {
 	return &types.DescribeDomainResponse{
 		DomainInfo: &types.DomainInfo{
 			Name: name,
@@ -589,7 +699,7 @@ func makeManagedAADomain(name string, activeClusters *types.ActiveClusters) *typ
 	}
 }
 
-func TestRebalanceEntryForScopedDomain(t *testing.T) {
+func TestClusterAttributeUpdatesForActiveActiveDomain(t *testing.T) {
 	scopeMap := ClusterAttributeRebalanceMap{
 		"region": ClusterAttributeToClusterMap{"phx": "c1", "dca": "c2"},
 	}
@@ -605,24 +715,24 @@ func TestRebalanceEntryForScopedDomain(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		domain     *types.DescribeDomainResponse
-		scopeMap   ClusterAttributeRebalanceMap
-		wantNil    bool
-		wantScopes map[string]map[string]string // scopeType -> attrName -> expectedCluster
+		name        string
+		domain      *types.DescribeDomainResponse
+		scopeMap    ClusterAttributeRebalanceMap
+		wantNil     bool
+		wantUpdates map[string]map[string]string // scopeType -> attrName -> expectedCluster
 	}{
 		{
-			name:     "one mismatched attribute → entry with update",
-			domain:   makeManagedAADomain("d1", activeClusters),
+			name:     "one mismatched attribute → update returned",
+			domain:   makeManagedActiveActiveDomain("d1", activeClusters),
 			scopeMap: scopeMap,
 			wantNil:  false,
-			wantScopes: map[string]map[string]string{
+			wantUpdates: map[string]map[string]string{
 				"region": {"phx": "c1"},
 			},
 		},
 		{
 			name: "all attributes match → nil",
-			domain: makeManagedAADomain("d2", &types.ActiveClusters{
+			domain: makeManagedActiveActiveDomain("d2", &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -636,8 +746,8 @@ func TestRebalanceEntryForScopedDomain(t *testing.T) {
 			wantNil:  true,
 		},
 		{
-			name:     "no AA scopes on domain → nil",
-			domain:   makeManagedAADomain("d3", nil),
+			name:     "no active-active scopes on domain → nil",
+			domain:   makeManagedActiveActiveDomain("d3", nil),
 			scopeMap: scopeMap,
 			wantNil:  true,
 		},
@@ -660,13 +770,13 @@ func TestRebalanceEntryForScopedDomain(t *testing.T) {
 		},
 		{
 			name:     "scope type not in scopeMap → nil",
-			domain:   makeManagedAADomain("d5", activeClusters),
+			domain:   makeManagedActiveActiveDomain("d5", activeClusters),
 			scopeMap: ClusterAttributeRebalanceMap{"datacenter": ClusterAttributeToClusterMap{"phx": "c1"}},
 			wantNil:  true,
 		},
 		{
 			name: "preferred cluster not in domain's cluster list → skipped, nil",
-			domain: makeManagedAADomain("d6", &types.ActiveClusters{
+			domain: makeManagedActiveActiveDomain("d6", &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -682,29 +792,32 @@ func TestRebalanceEntryForScopedDomain(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			entry := rebalanceEntryForScopedDomain(tc.domain, tc.scopeMap)
+			updates := clusterAttributeUpdatesForActiveActiveDomain(tc.domain, tc.scopeMap)
 			if tc.wantNil {
-				if entry != nil {
-					t.Fatalf("expected nil, got %+v", entry)
+				if len(updates) != 0 {
+					t.Fatalf("expected nil/empty, got %+v", updates)
 				}
 				return
 			}
-			if entry == nil {
-				t.Fatal("expected non-nil entry")
+			if len(updates) == 0 {
+				t.Fatal("expected non-empty updates")
 			}
-			updates := entry.ClusterAttributeUpdates
-			for scopeType, wantAttrs := range tc.wantScopes {
-				scope, ok := updates.AttributeScopes[scopeType]
-				if !ok {
-					t.Fatalf("missing scope %q in updates", scopeType)
+			// Index returned updates by scope→name for assertion.
+			got := make(map[string]map[string]string)
+			for _, u := range updates {
+				if got[u.Scope] == nil {
+					got[u.Scope] = make(map[string]string)
 				}
+				got[u.Scope][u.AttributeName] = u.PreferredCluster
+			}
+			for scopeType, wantAttrs := range tc.wantUpdates {
 				for attrName, wantCluster := range wantAttrs {
-					info, ok := scope.ClusterAttributes[attrName]
+					gotCluster, ok := got[scopeType][attrName]
 					if !ok {
-						t.Fatalf("missing attribute %q in scope %q", attrName, scopeType)
+						t.Fatalf("missing scope=%q attr=%q in updates", scopeType, attrName)
 					}
-					if info.ActiveClusterName != wantCluster {
-						t.Fatalf("scope %q attr %q: want cluster %q, got %q", scopeType, attrName, wantCluster, info.ActiveClusterName)
+					if gotCluster != wantCluster {
+						t.Fatalf("scope=%q attr=%q: want cluster %q, got %q", scopeType, attrName, wantCluster, gotCluster)
 					}
 				}
 			}
@@ -717,13 +830,9 @@ func (s *rebalanceWorkflowTestSuite) TestRebalanceDomainsActivity_AllSuccess() {
 
 	domainData := []*DomainRebalanceData{
 		{
-			DomainName: "aa1",
-			ClusterAttributeUpdates: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
-						"phx": {ActiveClusterName: "c1"},
-					}},
-				},
+			DomainName: "active-active-1",
+			ClusterAttributeUpdates: []*ClusterAttributeUpdate{
+				{Scope: "region", AttributeName: "phx", PreferredCluster: "c1"},
 			},
 		},
 		{DomainName: "non1", PreferredCluster: "c2"},
@@ -745,13 +854,9 @@ func (s *rebalanceWorkflowTestSuite) TestRebalanceDomainsActivity_OneFailure() {
 
 	domainData := []*DomainRebalanceData{
 		{
-			DomainName: "aa1",
-			ClusterAttributeUpdates: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
-						"phx": {ActiveClusterName: "c1"},
-					}},
-				},
+			DomainName: "active-active-1",
+			ClusterAttributeUpdates: []*ClusterAttributeUpdate{
+				{Scope: "region", AttributeName: "phx", PreferredCluster: "c1"},
 			},
 		},
 		{DomainName: "non1", PreferredCluster: "c2"},
@@ -767,4 +872,46 @@ func (s *rebalanceWorkflowTestSuite) TestRebalanceDomainsActivity_OneFailure() {
 	s.NoError(err)
 	s.Equal(1, len(result.SuccessDomains))
 	s.Equal(1, len(result.FailedDomains))
+}
+
+func (s *rebalanceWorkflowTestSuite) TestRebalanceDomainsActivity_BothActiveClusterNameAndAttributes() {
+	actEnv, mockResource := s.prepareTestActivityEnv()
+
+	// Domain needs both ActiveClusterName updated and a cluster attribute updated in one call.
+	domainData := []*DomainRebalanceData{
+		{
+			DomainName:       "active-active-combined",
+			PreferredCluster: "c1",
+			ClusterAttributeUpdates: []*ClusterAttributeUpdate{
+				{Scope: "region", AttributeName: "dca", PreferredCluster: "c2"},
+			},
+		},
+	}
+
+	var capturedReq *types.UpdateDomainRequest
+	mockResource.FrontendClient.EXPECT().
+		UpdateDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ interface{}, req *types.UpdateDomainRequest, _ ...interface{}) (*types.UpdateDomainResponse, error) {
+			capturedReq = req
+			return &types.UpdateDomainResponse{}, nil
+		}).Times(1)
+
+	actFuture, err := actEnv.ExecuteActivity(RebalanceDomainsActivity, domainData)
+	s.NoError(err)
+	var result RebalanceResult
+	err = actFuture.Get(&result)
+	s.NoError(err)
+	s.Equal(1, len(result.SuccessDomains))
+	s.Equal(0, len(result.FailedDomains))
+
+	// Verify both ActiveClusterName and ActiveClusters were set in the single call.
+	s.Require().NotNil(capturedReq)
+	s.Require().NotNil(capturedReq.ActiveClusterName)
+	s.Equal("c1", *capturedReq.ActiveClusterName)
+	s.Require().NotNil(capturedReq.ActiveClusters)
+	regionScope, ok := capturedReq.ActiveClusters.AttributeScopes["region"]
+	s.True(ok, "region scope missing from ActiveClusters")
+	dcaInfo, ok := regionScope.ClusterAttributes["dca"]
+	s.True(ok, "dca attribute missing from region scope")
+	s.Equal("c2", dcaInfo.ActiveClusterName)
 }

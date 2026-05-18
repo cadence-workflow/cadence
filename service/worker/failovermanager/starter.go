@@ -102,6 +102,7 @@ func (s *FailoverManager) Start() error {
 	failoverWorker.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
 	failoverWorker.RegisterActivityWithOptions(GetDomainsActivity, activity.RegisterOptions{Name: getDomainsActivityName})
 	failoverWorker.RegisterActivityWithOptions(GetDomainsForRebalanceActivity, activity.RegisterOptions{Name: getRebalanceDomainsActivityName})
+	failoverWorker.RegisterActivityWithOptions(RebalanceDomainsActivity, activity.RegisterOptions{Name: rebalanceDomainsActivityName})
 	s.worker = failoverWorker
 	return failoverWorker.Start()
 }
