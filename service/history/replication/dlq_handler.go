@@ -44,9 +44,9 @@ import (
 )
 
 const (
-	defaultBeginningMessageID         = -1
-	dlqProcessorTimerCoefficient      = 0.05
-	dlqProcessorRetryInitialInterval  = 100 * time.Millisecond
+	defaultBeginningMessageID        = -1
+	dlqProcessorTimerCoefficient     = 0.05
+	dlqProcessorRetryInitialInterval = 100 * time.Millisecond
 )
 
 var (
