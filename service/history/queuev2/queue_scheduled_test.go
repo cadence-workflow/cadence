@@ -220,8 +220,8 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 			// Setup test-specific mocks
 			tt.setupMocks(ctrl, mockQueueReader, mockTimeSource, mockTimerGate)
 
-			// Execute lookAhead directly instead of inlining its logic
-			queue.lookAhead()
+			// Execute lookAheadTask directly instead of inlining its logic
+			queue.lookAheadTask()
 		})
 	}
 }
