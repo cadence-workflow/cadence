@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -100,7 +101,7 @@ type Cadence interface {
 	StopHistoryHost(index int)
 	// StartHistoryHost starts the history host at the given index. It is a no-op
 	// if the host is already running. Panics if index is out of range.
-	StartHistoryHost(index int)
+	StartHistoryHost(index int) error
 	// HistoryHostIdentity returns the membership identity string of the history
 	// host at the given index, matching the Host field in simulation events emitted
 	// by the shard controller (e.g. "127.0.0.1_7201").
@@ -740,14 +741,13 @@ func (c *cadenceImpl) StopHistoryHost(index int) {
 	c.logger.Info("StopHistoryHost: done", tag.Dynamic("index", index))
 }
 
-func (c *cadenceImpl) StartHistoryHost(index int) {
+func (c *cadenceImpl) StartHistoryHost(index int) error {
 	if index < 0 || index >= len(c.historyHostInfos) {
-		c.logger.Error("StartHistoryHost: invalid index", tag.Dynamic("index", index))
-		return
+		return fmt.Errorf("StartHistoryHost: invalid index %d (max %d)", index, len(c.historyHostInfos)-1)
 	}
 	if c.historyServices[index] != nil {
 		c.logger.Info("StartHistoryHost: host already running", tag.Dynamic("index", index))
-		return
+		return nil
 	}
 
 	hostport := c.historyHostInfos[index]
@@ -757,8 +757,7 @@ func (c *cadenceImpl) StartHistoryHost(index int) {
 
 	historyService, err := history.NewService(params)
 	if err != nil {
-		c.logger.Error("StartHistoryHost: unable to create history service", tag.Error(err))
-		return
+		return fmt.Errorf("StartHistoryHost: unable to create history service: %w", err)
 	}
 
 	if c.mockAdminClient != nil {
@@ -772,14 +771,30 @@ func (c *cadenceImpl) StartHistoryHost(index int) {
 
 	c.historyServices[index] = historyService
 
+	// Start the service in a goroutine; Start() blocks until Stop() is called.
+	go historyService.Start()
+
+	// Resource.Start() (called at the top of historyService.Start()) starts the
+	// gRPC dispatcher synchronously. Probe the TCP port before advertising so
+	// other hosts don't route requests here before we're accepting connections.
+	addr := hostport.GetAddress()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, dialErr := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if dialErr == nil {
+			conn.Close()
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
 	c.historyHashring.AddHost(hostport)
 	c.notifyHistoryChange(&membership.ChangedEvent{
 		HostsAdded: []string{hostport.Identity()},
 	})
 
-	go historyService.Start()
-
 	c.logger.Info("StartHistoryHost: done", tag.Dynamic("index", index))
+	return nil
 }
 
 func (c *cadenceImpl) HistoryHostIdentity(index int) string {

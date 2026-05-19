@@ -32,8 +32,8 @@ func (h *historyCadenceController) StopHost(index int) {
 	h.cadence.StopHistoryHost(index)
 }
 
-func (h *historyCadenceController) StartHost(index int) {
-	h.cadence.StartHistoryHost(index)
+func (h *historyCadenceController) StartHost(index int) error {
+	return h.cadence.StartHistoryHost(index)
 }
 
 func (h *historyCadenceController) HostIdentity(index int) string {

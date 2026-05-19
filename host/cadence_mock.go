@@ -173,9 +173,11 @@ func (mr *MockCadenceMockRecorder) Start() *gomock.Call {
 }
 
 // StartHistoryHost mocks base method.
-func (m *MockCadence) StartHistoryHost(index int) {
+func (m *MockCadence) StartHistoryHost(index int) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "StartHistoryHost", index)
+	ret := m.ctrl.Call(m, "StartHistoryHost", index)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // StartHistoryHost indicates an expected call of StartHistoryHost.

@@ -41,7 +41,7 @@ const minSleepMs = 100
 // making it reusable across history, matching, and other services.
 type HostController interface {
 	StopHost(index int)
-	StartHost(index int)
+	StartHost(index int) error
 	HostIdentity(index int) string
 }
 
@@ -194,7 +194,14 @@ func (c *ChaosMonkey) startAction(stoppedIndices []int) {
 		tag.Dynamic("index", idx),
 		tag.Dynamic("host", hostID),
 	)
-	c.controller.StartHost(idx)
+	if err := c.controller.StartHost(idx); err != nil {
+		c.logger.Error("Chaos monkey: failed to start host",
+			tag.Dynamic("index", idx),
+			tag.Dynamic("host", hostID),
+			tag.Error(err),
+		)
+		return
+	}
 	simulation.LogEvents(simulation.E{
 		EventName: simulation.EventNameHostStarted,
 		Host:      hostID,
@@ -212,7 +219,14 @@ func (c *ChaosMonkey) restartAll() {
 				tag.Dynamic("index", i),
 				tag.Dynamic("host", hostID),
 			)
-			c.controller.StartHost(i)
+			if err := c.controller.StartHost(i); err != nil {
+				c.logger.Error("Chaos monkey: failed to restart host on exit",
+					tag.Dynamic("index", i),
+					tag.Dynamic("host", hostID),
+					tag.Error(err),
+				)
+				continue
+			}
 			simulation.LogEvents(simulation.E{
 				EventName: simulation.EventNameHostStarted,
 				Host:      hostID,

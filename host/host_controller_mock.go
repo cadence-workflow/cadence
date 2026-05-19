@@ -54,9 +54,11 @@ func (mr *MockHostControllerMockRecorder) HostIdentity(index any) *gomock.Call {
 }
 
 // StartHost mocks base method.
-func (m *MockHostController) StartHost(index int) {
+func (m *MockHostController) StartHost(index int) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "StartHost", index)
+	ret := m.ctrl.Call(m, "StartHost", index)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // StartHost indicates an expected call of StartHost.
