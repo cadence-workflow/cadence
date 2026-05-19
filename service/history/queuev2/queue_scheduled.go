@@ -185,7 +185,7 @@ func (q *scheduledQueue) processEventLoop() {
 			q.processNextTime()
 		case <-q.timerGate.Chan():
 			q.base.processNewTasks()
-			q.lookAhead()
+			q.lookAheadTask()
 		case <-q.base.updateQueueStateTimer.Chan():
 			q.base.updateQueueStateFn(q.ctx)
 		case alert := <-q.base.alertCh:
@@ -196,10 +196,10 @@ func (q *scheduledQueue) processEventLoop() {
 	}
 }
 
-// lookAhead asks the queue reader for the next scheduled task and updates the
+// lookAheadTask asks the queue reader for the next scheduled task and updates the
 // timer gate accordingly. It is called after processNewTasks on each timer-gate
 // expiry so the gate is re-armed to the earliest pending task.
-func (q *scheduledQueue) lookAhead() {
+func (q *scheduledQueue) lookAheadTask() {
 	resp, err := q.base.queueReader.LookAHead(q.ctx, &LookAHeadRequest{
 		InclusiveMinTaskKey: q.base.newVirtualSliceState.Range.InclusiveMinTaskKey,
 	})
