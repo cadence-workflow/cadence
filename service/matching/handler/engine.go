@@ -448,7 +448,7 @@ func (e *matchingEngineImpl) AddDecisionTask(
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
-		hCtx.scope.RecordHistogramDuration(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddDecisionTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -524,7 +524,7 @@ func (e *matchingEngineImpl) AddActivityTask(
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
-		hCtx.scope.RecordHistogramDuration(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddActivityTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -1245,7 +1245,7 @@ func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 		token, _ = e.tokenSerializer.Serialize(taskToken)
 		if task.ResponseC == nil {
 			scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
-			scope.RecordHistogramDuration(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
+			scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 		}
 	}
 
@@ -1279,7 +1279,7 @@ func (e *matchingEngineImpl) createPollForActivityTaskResponse(
 	}
 	if task.ResponseC == nil {
 		scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
-		scope.RecordHistogramDuration(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
+		scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 	}
 
 	response := &types.MatchingPollForActivityTaskResponse{}

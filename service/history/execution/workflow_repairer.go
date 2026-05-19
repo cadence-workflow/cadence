@@ -186,7 +186,7 @@ func (r *workflowRepairerImpl) repairWorkflow(
 	}
 
 	defer func() {
-		taggedScope.RecordHistogramDuration(metrics.WorkflowRepairDuration, time.Since(startTime))
+		taggedScope.ExponentialHistogram(metrics.WorkflowRepairDuration, time.Since(startTime))
 
 		if retErr != nil {
 			isTimeout := errors.Is(retErr, context.DeadlineExceeded) || errors.Is(retErr, context.Canceled)

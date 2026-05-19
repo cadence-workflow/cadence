@@ -455,7 +455,7 @@ func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*In
 	// try local match first without blocking until context timeout
 	if task, err = tm.pollNonBlocking(ctxWithCancelPropagation, isolatedTaskC, tm.taskC, tm.queryTaskC); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		return task, nil
 	}
 	// there is no local poller available to pickup this task. Now block waiting
@@ -484,7 +484,7 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 	// try local match first without blocking until context timeout
 	if task, err := tm.pollNonBlocking(ctx, nil, nil, tm.queryTaskC); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		return task, nil
 	}
 
@@ -517,7 +517,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -538,7 +538,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -580,7 +580,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 		if task, err := tm.fwdr.ForwardPoll(ctx); err == nil {
 			token.release()
 			tm.scope.RecordTimer(metrics.PollForwardMatchLatencyPerTaskList, time.Since(startT))
-			tm.scope.RecordHistogramDuration(metrics.PollForwardMatchLatencyPerTaskListHistogram, time.Since(startT))
+			tm.scope.ExponentialHistogram(metrics.PollForwardMatchLatencyPerTaskListHistogram, time.Since(startT))
 			event.Log(event.E{
 				TaskListName: tm.tasklist.GetName(),
 				TaskListType: tm.tasklist.GetType(),
@@ -607,7 +607,7 @@ func (tm *taskMatcherImpl) poll(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -628,7 +628,7 @@ func (tm *taskMatcherImpl) poll(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),

@@ -682,7 +682,7 @@ func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
 	sw := c.scope.StartTimer(metrics.DomainCachePrepareCallbacksLatency)
 	defer func() {
 		sw.Stop()
-		c.scope.RecordHistogramDuration(metrics.DomainCachePrepareCallbacksLatencyHistogram, time.Since(start))
+		c.scope.ExponentialHistogram(metrics.DomainCachePrepareCallbacksLatencyHistogram, time.Since(start))
 	}()
 
 	for _, prepareCallback := range c.prepareCallbacks {
@@ -695,7 +695,7 @@ func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*Do
 	sw := c.scope.StartTimer(metrics.DomainCacheCallbacksLatency)
 	defer func() {
 		sw.Stop()
-		c.scope.RecordHistogramDuration(metrics.DomainCacheCallbacksLatencyHistogram, time.Since(start))
+		c.scope.ExponentialHistogram(metrics.DomainCacheCallbacksLatencyHistogram, time.Since(start))
 	}()
 
 	c.logger.Debug("Domain change callbacks are going to triggered", tag.Number(int64(len(nextDomains))))

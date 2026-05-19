@@ -483,7 +483,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	timerScope := tr.scope.StartTimer(metrics.AsyncMatchLatencyPerTaskList)
 	err := tr.dispatchTask(dispatchCtx, task)
 	timerScope.Stop()
-	tr.scope.RecordHistogramDuration(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(asyncMatchStart))
+	tr.scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(asyncMatchStart))
 	cancel()
 
 	if err == nil {
