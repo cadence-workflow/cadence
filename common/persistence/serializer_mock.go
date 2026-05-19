@@ -208,6 +208,21 @@ func (mr *MockPayloadSerializerMockRecorder) DeserializeProcessingQueueStates(da
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeProcessingQueueStates", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeProcessingQueueStates), data)
 }
 
+// DeserializeReplicationDLQTask mocks base method.
+func (m *MockPayloadSerializer) DeserializeReplicationDLQTask(data *DataBlob) (*types.ReplicationTask, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeserializeReplicationDLQTask", data)
+	ret0, _ := ret[0].(*types.ReplicationTask)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeserializeReplicationDLQTask indicates an expected call of DeserializeReplicationDLQTask.
+func (mr *MockPayloadSerializerMockRecorder) DeserializeReplicationDLQTask(data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeserializeReplicationDLQTask", reflect.TypeOf((*MockPayloadSerializer)(nil).DeserializeReplicationDLQTask), data)
+}
+
 // DeserializeResetPoints mocks base method.
 func (m *MockPayloadSerializer) DeserializeResetPoints(data *DataBlob) (*types.ResetPoints, error) {
 	m.ctrl.T.Helper()
@@ -416,6 +431,21 @@ func (m *MockPayloadSerializer) SerializeProcessingQueueStates(states *types.Pro
 func (mr *MockPayloadSerializerMockRecorder) SerializeProcessingQueueStates(states, encodingType any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SerializeProcessingQueueStates", reflect.TypeOf((*MockPayloadSerializer)(nil).SerializeProcessingQueueStates), states, encodingType)
+}
+
+// SerializeReplicationDLQTask mocks base method.
+func (m *MockPayloadSerializer) SerializeReplicationDLQTask(task *types.ReplicationTask, encodingType constants.EncodingType) (*DataBlob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SerializeReplicationDLQTask", task, encodingType)
+	ret0, _ := ret[0].(*DataBlob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SerializeReplicationDLQTask indicates an expected call of SerializeReplicationDLQTask.
+func (mr *MockPayloadSerializerMockRecorder) SerializeReplicationDLQTask(task, encodingType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SerializeReplicationDLQTask", reflect.TypeOf((*MockPayloadSerializer)(nil).SerializeReplicationDLQTask), task, encodingType)
 }
 
 // SerializeResetPoints mocks base method.

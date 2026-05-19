@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
@@ -39,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
@@ -254,5 +256,49 @@ func TestStartStop(t *testing.T) {
 	assert.NotNil(t, i.GetDispatcher())
 	assert.NotNil(t, i.GetIsolationGroupState())
 	assert.Nil(t, i.GetIsolationGroupStore())
+	assert.Nil(t, i.GetOperationalConfigStore())
+	assert.NotNil(t, i.GetOperationalDynamicConfig())
 	assert.Equal(t, params.AsyncWorkflowQueueProvider, i.GetAsyncWorkflowQueueProvider())
+}
+
+func TestCreateOperationalConfigStoreOrDefault_OverrideIsReturned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	override := configstore.NewMockClient(ctrl)
+	got := createOperationalConfigStoreOrDefault(&Params{OperationalConfigStore: override}, nil)
+	assert.Same(t, override, got)
+}
+
+func TestCreateOperationalConfigStoreOrDefault_NilWhenPersistenceUnsupported(t *testing.T) {
+	logger := testlogger.New(t)
+	dc := dynamicconfig.NewCollection(dynamicconfig.NewInMemoryClient(), logger)
+	// PersistenceConfig with no DefaultStore configured cannot back a configstore.
+	got := createOperationalConfigStoreOrDefault(&Params{
+		Logger:            logger,
+		MetricsClient:     metrics.NewNoopMetricsClient(),
+		PersistenceConfig: config.Persistence{},
+	}, dc)
+	assert.Nil(t, got)
+}
+
+func TestNewOperationalDynamicConfigCollection_NilStoreFallsBackToNop(t *testing.T) {
+	logger := testlogger.New(t)
+	dc := newOperationalDynamicConfigCollection(nil, logger, "primary-cluster")
+	require.NotNil(t, dc)
+	// A no-op client returns defaults; for an unset Int property that means 0.
+	v := dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)()
+	assert.Equal(t, 0, v)
+}
+
+func TestNewOperationalDynamicConfigCollection_UsesStoreWhenPresent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	logger := testlogger.New(t)
+	store := configstore.NewMockClient(ctrl)
+	store.EXPECT().GetIntValue(
+		dynamicproperties.MatchingPercentageOnboardedToShardManager,
+		gomock.Any(),
+	).Return(42, nil)
+
+	dc := newOperationalDynamicConfigCollection(store, logger, "primary-cluster")
+	require.NotNil(t, dc)
+	assert.Equal(t, 42, dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)())
 }

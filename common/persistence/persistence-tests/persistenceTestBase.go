@@ -1544,7 +1544,7 @@ func (s *TestBase) GetReplicationTasksFromDLQ(
 	maxReadLevel int64,
 	pageSize int,
 	pageToken []byte,
-) (*persistence.GetHistoryTasksResponse, error) {
+) (*persistence.GetReplicationDLQTasksResponse, error) {
 
 	return s.ExecutionManager.GetReplicationTasksFromDLQ(ctx, &persistence.GetReplicationTasksFromDLQRequest{
 		SourceClusterName: sourceCluster,

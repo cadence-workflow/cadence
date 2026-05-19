@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -21,6 +20,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -446,8 +447,26 @@ func (p *namespaceProcessor) rebalanceShardsImpl(ctx context.Context, metricsLoo
 	// If there are deleted shards or stale executors, the distribution has changed.
 	assignedToEmptyExecutors := assignShardsToEmptyExecutors(currentAssignments)
 	updatedAssignments := p.updateAssignments(shardsToReassign, activeExecutors, currentAssignments)
-	isRebalancedByShardLoad := p.rebalanceByShardLoad(calcShardLoad(namespaceState), currentAssignments, metricsLoopScope)
+
+	loadBalanceMoves, err := loadbalancer.PlanRebalance(
+		p.sdConfig,
+		p.namespaceCfg.Name,
+		namespaceState,
+		currentAssignments,
+		p.timeSource.Now(),
+		p.logger,
+		metricsLoopScope,
+	)
+	if err != nil {
+		return fmt.Errorf("load balance: %w", err)
+	}
+	if err := applyMoves(currentAssignments, loadBalanceMoves); err != nil {
+		return fmt.Errorf("apply load balance moves: %w", err)
+	}
+	isRebalancedByShardLoad := len(loadBalanceMoves) > 0
+
 	p.emitExecutorMetric(namespaceState, metricsLoopScope)
+	loadbalancer.EmitAssignmentImbalanceMetrics(p.sdConfig, p.namespaceCfg.Name, metricsLoopScope, currentAssignments, namespaceState)
 
 	distributionChanged := len(deletedShards) > 0 || len(staleExecutors) > 0 || assignedToEmptyExecutors || updatedAssignments || isRebalancedByShardLoad
 	if !distributionChanged {
@@ -591,97 +610,18 @@ func (*namespaceProcessor) updateAssignments(shardsToReassign []string, activeEx
 	return true
 }
 
-// calcShardLoad returns a map of shardID to its load based on the latest reported shard loads from executors
-func calcShardLoad(namespaceState *store.NamespaceState) map[string]float64 {
-	shardLoad := make(map[string]float64)
-	for _, state := range namespaceState.Executors {
-		for shardID, report := range state.ReportedShards {
-			shardLoad[shardID] = report.ShardLoad
-		}
-	}
-	return shardLoad
-}
-
-// rebalanceByShardLoad does a rebalance if a difference between hottest and coldest executors' loads is more than maxDeviation
-// in this case the hottest shard will be moved to the coldest executor
-func (p *namespaceProcessor) rebalanceByShardLoad(shardLoad map[string]float64, currentAssignments map[string][]string, metricsScope metrics.Scope) (distributedChanged bool) {
-	// no rebalance if there are no more than 1 executor
-	if len(currentAssignments) < 2 {
-		return false
-	}
-
-	var (
-		hottestExecutorLoad = float64(0)
-		hottestExecutorID   = ""
-
-		hottestShardID   = ""
-		hottestShardLoad = float64(0)
-
-		coldestExecutorLoad = math.MaxFloat64
-		coldestExecutorID   = ""
-	)
-
-	// finding loads of hottest, coldest executors and hottest shard
-	executorLoad := make(map[string]float64)
-	for executorID, shardIDs := range currentAssignments {
-		for _, shardID := range shardIDs {
-			executorLoad[executorID] += shardLoad[shardID]
+func applyMoves(currentAssignments map[string][]string, moves []plan.Move) error {
+	for _, move := range moves {
+		idx := slices.Index(currentAssignments[move.From], move.ShardID)
+		if idx == -1 {
+			return fmt.Errorf("shard %s not found in source executor %s", move.ShardID, move.From)
 		}
 
-		if executorLoad[executorID] <= coldestExecutorLoad {
-			coldestExecutorLoad = executorLoad[executorID]
-			coldestExecutorID = executorID
-		}
-
-		if executorLoad[executorID] >= hottestExecutorLoad {
-			hottestExecutorLoad = executorLoad[executorID]
-			hottestExecutorID = executorID
-
-			var maxShardLoad = float64(0)
-			for _, shardID := range shardIDs {
-				if shardLoad[shardID] >= maxShardLoad {
-					hottestShardID = shardID
-					maxShardLoad = shardLoad[shardID]
-				}
-			}
-			hottestShardLoad = maxShardLoad
-		}
+		currentAssignments[move.From][idx] = currentAssignments[move.From][len(currentAssignments[move.From])-1]
+		currentAssignments[move.From] = currentAssignments[move.From][:len(currentAssignments[move.From])-1]
+		currentAssignments[move.To] = append(currentAssignments[move.To], move.ShardID)
 	}
-
-	// no rebalance if a deviation between coldest and hottest executors less than maxDeviation
-	if hottestExecutorLoad/coldestExecutorLoad < p.sdConfig.LoadBalancingNaive.MaxDeviation(p.namespaceCfg.Name) {
-		return false
-	}
-
-	// no rebalance if coldest executor becomes a hottest
-	if coldestExecutorLoad+hottestShardLoad >= hottestExecutorLoad {
-		return false
-	}
-
-	p.logger.Info("Load-based shard move",
-		tag.ShardKey(hottestShardID),
-		tag.ShardExecutor(hottestExecutorID),
-		tag.Dynamic("destination_executor", coldestExecutorID),
-		tag.ShardLoad(fmt.Sprintf("%f", hottestShardLoad)),
-		tag.Dynamic("hottest_executor_load", hottestExecutorLoad),
-		tag.Dynamic("coldest_executor_load", coldestExecutorLoad),
-		tag.Dynamic("load_ratio", hottestExecutorLoad/coldestExecutorLoad),
-		tag.Dynamic("hottest_executor_shard_count", len(currentAssignments[hottestExecutorID])),
-		tag.Dynamic("coldest_executor_shard_count", len(currentAssignments[coldestExecutorID])),
-	)
-	metricsScope.AddCounter(metrics.ShardDistributorAssignLoopLoadBasedMoves, 1)
-	metricsScope.UpdateGauge(metrics.ShardDistributorAssignLoopMovedShardLoad, hottestShardLoad)
-
-	// remove the hottest Shard from the hottest executor
-	// put it to the coldest executor
-	for i, shardID := range currentAssignments[hottestExecutorID] {
-		if shardID == hottestShardID {
-			currentAssignments[hottestExecutorID] = append(currentAssignments[hottestExecutorID][:i], currentAssignments[hottestExecutorID][i+1:]...)
-		}
-	}
-	currentAssignments[coldestExecutorID] = append(currentAssignments[coldestExecutorID], hottestShardID)
-
-	return true
+	return nil
 }
 
 func (p *namespaceProcessor) getNewAssignmentsState(namespaceState *store.NamespaceState, currentAssignments map[string][]string) map[string]store.AssignedState {

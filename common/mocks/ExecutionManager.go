@@ -258,19 +258,19 @@ func (_m *ExecutionManager) GetReplicationDLQSize(ctx context.Context, request *
 }
 
 // GetReplicationTasksFromDLQ provides a mock function with given fields: ctx, request
-func (_m *ExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error) {
+func (_m *ExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error) {
 	ret := _m.Called(ctx, request)
 
-	var r0 *persistence.GetHistoryTasksResponse
+	var r0 *persistence.GetReplicationDLQTasksResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error)); ok {
 		return rf(ctx, request)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) *persistence.GetHistoryTasksResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) *persistence.GetReplicationDLQTasksResponse); ok {
 		r0 = rf(ctx, request)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetHistoryTasksResponse)
+			r0 = ret.Get(0).(*persistence.GetReplicationDLQTasksResponse)
 		}
 	}
 

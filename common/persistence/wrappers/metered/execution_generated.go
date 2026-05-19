@@ -370,7 +370,7 @@ func (c *meteredExecutionManager) GetReplicationDLQSize(ctx context.Context, req
 	return
 }
 
-func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
+func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetReplicationDLQTasksResponse, err error) {
 	op := func() error {
 		gp1, err = c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
 		c.emptyMetric("ExecutionManager.GetReplicationTasksFromDLQ", request, gp1, err)

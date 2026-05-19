@@ -144,6 +144,8 @@ type Impl struct {
 
 	isolationGroups           isolationgroup.State
 	isolationGroupConfigStore configstore.Client
+	operationalConfigStore    configstore.Client
+	operationalDynamicConfig  *dynamicconfig.Collection
 
 	asyncWorkflowQueueProvider queue.Provider
 
@@ -336,6 +338,8 @@ func New(
 	}
 
 	isolationGroupStore := createConfigStoreOrDefault(params, dynamicCollection)
+	operationalConfigStore := createOperationalConfigStoreOrDefault(params, dynamicCollection)
+	operationalDynamicConfig := newOperationalDynamicConfigCollection(operationalConfigStore, logger, params.ClusterMetadata.GetCurrentClusterName())
 
 	isolationGroupState, err := ensureIsolationGroupStateHandlerOrDefault(
 		params,
@@ -417,7 +421,9 @@ func New(
 		),
 		rpcFactory:                params.RPCFactory,
 		isolationGroups:           isolationGroupState,
-		isolationGroupConfigStore: isolationGroupStore, // can be nil where persistence is not available
+		isolationGroupConfigStore: isolationGroupStore,    // can be nil where persistence is not available
+		operationalConfigStore:    operationalConfigStore, // can be nil where persistence is not available
+		operationalDynamicConfig:  operationalDynamicConfig,
 
 		asyncWorkflowQueueProvider: params.AsyncWorkflowQueueProvider,
 
@@ -463,6 +469,9 @@ func (h *Impl) Start() {
 	if h.isolationGroupConfigStore != nil {
 		h.isolationGroupConfigStore.Start()
 	}
+	if h.operationalConfigStore != nil {
+		h.operationalConfigStore.Start()
+	}
 	// The service is now started up
 	h.logger.Info("service started")
 	// seed the random generator once for this service
@@ -492,6 +501,9 @@ func (h *Impl) Stop() {
 	h.persistenceBean.Close()
 	if h.isolationGroupConfigStore != nil {
 		h.isolationGroupConfigStore.Stop()
+	}
+	if h.operationalConfigStore != nil {
+		h.operationalConfigStore.Stop()
 	}
 	h.isolationGroups.Stop()
 }
@@ -724,6 +736,20 @@ func (h *Impl) GetIsolationGroupStore() configstore.Client {
 	return h.isolationGroupConfigStore
 }
 
+// GetOperationalConfigStore returns the operational dynamic config store or nil
+// when the persistence layer does not support a config store.
+func (h *Impl) GetOperationalConfigStore() configstore.Client {
+	return h.operationalConfigStore
+}
+
+// GetOperationalDynamicConfig returns a Collection wrapping the operational
+// dynamic config store. It is always non-nil: when the underlying store is
+// unavailable, the Collection is backed by a no-op client that returns
+// default values, so callers can read operational values unconditionally.
+func (h *Impl) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	return h.operationalDynamicConfig
+}
+
 // GetAsyncWorkflowQueueProvider returns the async workflow queue provider
 func (h *Impl) GetAsyncWorkflowQueueProvider() queue.Provider {
 	return h.asyncWorkflowQueueProvider
@@ -758,6 +784,52 @@ func createConfigStoreOrDefault(
 		return nil
 	}
 	return cfgStoreClient
+}
+
+// createOperationalConfigStoreOrDefault returns the operational dynamic config store.
+// Like the isolation group config store, it is only available where the persistence
+// layer supports a config store; otherwise nil is returned.
+func createOperationalConfigStoreOrDefault(
+	params *Params,
+	dc *dynamicconfig.Collection,
+) configstore.Client {
+	if params.OperationalConfigStore != nil {
+		return params.OperationalConfigStore
+	}
+	cscConfig := &csc.ClientConfig{
+		PollInterval:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStorePollInterval)(),
+		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.OperationalConfigStoreUpdateRetryAttempts)(),
+		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreFetchTimeout)(),
+		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreUpdateTimeout)(),
+	}
+	cfgStoreClient, err := configstore.NewConfigStoreClient(
+		cscConfig, &params.PersistenceConfig, params.Logger, params.MetricsClient,
+		persistence.OperationalDynamicConfig,
+	)
+	if err != nil {
+		params.Logger.Warn("not instantiating operational dynamic config store, this feature will not be enabled", tag.Error(err))
+		return nil
+	}
+	return cfgStoreClient
+}
+
+// newOperationalDynamicConfigCollection wraps the operational config store in a
+// Collection. Falls back to a no-op client when the store is unavailable, so
+// callers always get a usable Collection that returns defaults.
+func newOperationalDynamicConfigCollection(
+	store configstore.Client,
+	logger log.Logger,
+	currentClusterName string,
+) *dynamicconfig.Collection {
+	var client dynamicconfig.Client = store
+	if store == nil {
+		client = dynamicconfig.NewNopClient()
+	}
+	return dynamicconfig.NewCollection(
+		client,
+		logger,
+		dynamicproperties.ClusterNameFilter(currentClusterName),
+	)
 }
 
 // Use the provided IsolationGroupStateHandler or the default one
