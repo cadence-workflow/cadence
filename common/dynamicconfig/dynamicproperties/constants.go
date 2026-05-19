@@ -1641,6 +1641,13 @@ const (
 	// Allowed filters: DomainName, TaskListName
 	HistoryTaskListNiceValue
 
+	// OperationalConfigStoreUpdateRetryAttempts is the number of attempts
+	// to push a value to the operational dynamic config store on conflict.
+	// KeyName: system.operationalConfigStoreUpdateRetryAttempts
+	// Value type: Int
+	// Default value: 1
+	OperationalConfigStoreUpdateRetryAttempts
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -2378,6 +2385,16 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	MatchingEmergencyOffboardingFromShardManager
+	// MatchingPercentageOnboardedReadFromOperationalStore selects the source of
+	// MatchingPercentageOnboardedToShardManager during the migration to the cassandra-backed
+	// operational dynamic config store.
+	// When false (default), cadence reads the value from the generic dynamic config.
+	// When true, cadence reads the value from the operational dynamic config store.
+	// KeyName: matching.percentageOnboardedReadFromOperationalStore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedReadFromOperationalStore
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -2613,6 +2630,42 @@ const (
 	// Default value: 2.0
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingNaiveMaxDeviation
+
+	// ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards
+	// that may be moved per greedy load-balance pass.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.moveBudgetProportion
+	// Value type: Float64
+	// Default value: 0.01
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyMoveBudgetProportion
+
+	// ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load
+	// that qualifies an executor as a greedy rebalance source.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisUpperBand
+	// Value type: Float64
+	// Default value: 1.15
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyHysteresisUpperBand
+
+	// ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load
+	// that qualifies an executor as a greedy rebalance destination.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisLowerBand
+	// Value type: Float64
+	// Default value: 0.90
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyHysteresisLowerBand
+
+	// ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination
+	// selection when maxLoad/meanLoad reaches this value.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.severeImbalanceRatio
+	// Value type: Float64
+	// Default value: 1.3
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedySevereImbalanceRatio
 
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
@@ -3330,6 +3383,43 @@ const (
 	// Default value: 30m (30 * time.Minute)
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
+
+	// ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between
+	// moving the same shard in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.perShardCooldown
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyPerShardCooldown
+
+	// ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant
+	// for exponential smoothing of shard load in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant
+
+	// OperationalConfigStorePollInterval controls how often the operational
+	// dynamic config store re-reads its snapshot from the primary database.
+	// KeyName: system.operationalConfigStorePollInterval
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStorePollInterval
+
+	// OperationalConfigStoreFetchTimeout is the per-call timeout used when
+	// fetching the operational dynamic config snapshot from the primary database.
+	// KeyName: system.operationalConfigStoreFetchTimeout
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStoreFetchTimeout
+
+	// OperationalConfigStoreUpdateTimeout is the per-call timeout used when
+	// writing an operational dynamic config snapshot to the primary database.
+	// KeyName: system.operationalConfigStoreUpdateTimeout
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStoreUpdateTimeout
 
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
@@ -4534,6 +4624,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: 0,
 		Filters:      []Filter{DomainName, TaskListName},
 	},
+	OperationalConfigStoreUpdateRetryAttempts: {
+		KeyName:      "system.operationalConfigStoreUpdateRetryAttempts",
+		Description:  "Number of attempts to push a value to the operational dynamic config store on conflict",
+		DefaultValue: 1,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -5184,6 +5279,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager, ignoring the onboarding percentage",
 		DefaultValue: false,
 	},
+	MatchingPercentageOnboardedReadFromOperationalStore: {
+		KeyName:      "matching.percentageOnboardedReadFromOperationalStore",
+		Description:  "MatchingPercentageOnboardedReadFromOperationalStore selects the source of MatchingPercentageOnboardedToShardManager: false (default) reads from the generic dynamic config, true reads from the cassandra-backed operational dynamic config store",
+		DefaultValue: false,
+	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
 		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
@@ -5373,6 +5473,30 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		KeyName:      "shardDistributor.loadBalancingNaive.maxDeviation",
 		Description:  "ShardDistributorLoadBalancingNaiveMaxDeviation is max deviation between the coldest and hottest executors in naive load balancing mode",
 		DefaultValue: 2.0,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyMoveBudgetProportion: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.moveBudgetProportion",
+		Description:  "ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards that may be moved per greedy load-balance pass",
+		DefaultValue: 0.01,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyHysteresisUpperBand: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisUpperBand",
+		Description:  "ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load that qualifies an executor as a greedy rebalance source",
+		DefaultValue: 1.15,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyHysteresisLowerBand: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisLowerBand",
+		Description:  "ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load that qualifies an executor as a greedy rebalance destination",
+		DefaultValue: 0.90,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedySevereImbalanceRatio: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.severeImbalanceRatio",
+		Description:  "ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination selection when maxLoad/meanLoad reaches this value",
+		DefaultValue: 1.3,
 		Filters:      []Filter{Namespace},
 	},
 }
@@ -6003,6 +6127,33 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
+	},
+	ShardDistributorLoadBalancingGreedyPerShardCooldown: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.perShardCooldown",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between moving the same shard in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant for exponential smoothing of shard load in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	OperationalConfigStorePollInterval: {
+		KeyName:      "system.operationalConfigStorePollInterval",
+		Description:  "How often the operational dynamic config store re-reads its snapshot from the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	OperationalConfigStoreFetchTimeout: {
+		KeyName:      "system.operationalConfigStoreFetchTimeout",
+		Description:  "Per-call timeout for fetching the operational dynamic config snapshot from the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	OperationalConfigStoreUpdateTimeout: {
+		KeyName:      "system.operationalConfigStoreUpdateTimeout",
+		Description:  "Per-call timeout for writing an operational dynamic config snapshot to the primary database",
+		DefaultValue: time.Second * 2,
 	},
 }
 

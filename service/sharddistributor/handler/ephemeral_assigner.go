@@ -28,7 +28,8 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/handler/loadbalance"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -38,9 +39,10 @@ import (
 //  1. GetState     — read current namespace state once for the whole batch.
 //  2. AssignShards — write all new assignments atomically in one operation.
 //
-// After the write, GetExecutor is called once per unique chosen executor (not
-// per shard) to fetch metadata for the response, since metadata is stored
-// separately in the shard cache and is not returned by GetState.
+// After the write, GetExecutor is called once per unique executor referenced by
+// the placements (not per shard) to fetch metadata for the response, since
+// metadata is stored separately in the shard cache and is not returned by
+// GetState.
 //
 // Within the batch, each shard is assigned to an ACTIVE executor according to
 // the configured load balancing mode. The balancer updates its in-batch load
@@ -51,17 +53,12 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("get namespace state: %v", err)}
 	}
 
-	balancer, err := loadbalance.New(h.cfg.GetLoadBalancingMode(namespace), state)
+	placements, err := loadbalancer.PlanInitialPlacement(h.cfg, namespace, state, shardKeys)
 	if err != nil {
-		return nil, &types.InternalServiceError{Message: err.Error()}
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("plan initial placement: %v", err)}
 	}
 
-	chosenExecutors, err := pickExecutors(namespace, balancer, shardKeys)
-	if err != nil {
-		return nil, err
-	}
-
-	mergeAssignments(state, chosenExecutors)
+	mergePlacements(state, placements)
 
 	if err := h.storage.AssignShards(ctx, namespace, store.AssignShardsRequest{NewState: state}, store.NopGuard()); err != nil {
 		if errors.Is(err, store.ErrVersionConflict) {
@@ -72,36 +69,22 @@ func (h *handlerImpl) assignEphemeralBatch(ctx context.Context, namespace string
 		return nil, &types.InternalServiceError{Message: fmt.Sprintf("assign ephemeral shards: %v", err)}
 	}
 
-	executorOwners, err := h.fetchExecutorMetadata(ctx, namespace, chosenExecutors)
+	executorOwners, err := h.fetchPlacementExecutorMetadata(ctx, namespace, placements)
 	if err != nil {
 		return nil, err
 	}
 
-	return buildResults(namespace, shardKeys, chosenExecutors, executorOwners), nil
+	return buildResults(namespace, shardKeys, placements, executorOwners), nil
 }
 
-// pickExecutors asks the balancer to choose an executor for each shard key.
-// Returns a map of shardKey -> chosen executorID.
-func pickExecutors(namespace string, balancer loadbalance.Balancer, shardKeys []string) (map[string]string, error) {
-	chosen := make(map[string]string, len(shardKeys))
-	for _, shardKey := range shardKeys {
-		executor, err := balancer.Pick()
-		if err != nil {
-			if errors.Is(err, loadbalance.ErrNoActiveExecutors) {
-				return nil, &types.InternalServiceError{Message: "no active executors available for namespace: " + namespace}
-			}
-			return nil, &types.InternalServiceError{Message: fmt.Sprintf("pick executor: %v", err)}
-		}
-		chosen[shardKey] = executor
-	}
-	return chosen, nil
-}
-
-// mergeAssignments folds the chosen shard→executor assignments back into state.
+// mergePlacements folds the planned shard→executor placements back into state.
 // The AssignedShards maps are copied to avoid mutating the object returned by
 // GetState.
-func mergeAssignments(state *store.NamespaceState, chosenExecutors map[string]string) {
-	for executorID, shardsForExecutor := range invertMap(chosenExecutors) {
+func mergePlacements(state *store.NamespaceState, placements []plan.Placement) {
+	if state.ShardAssignments == nil {
+		state.ShardAssignments = make(map[string]store.AssignedState)
+	}
+	for executorID, shardsForExecutor := range placementsByExecutor(placements) {
 		existing := state.ShardAssignments[executorID]
 		newShards := make(map[string]*types.ShardAssignment, len(existing.AssignedShards)+len(shardsForExecutor))
 		for k, v := range existing.AssignedShards {
@@ -115,12 +98,13 @@ func mergeAssignments(state *store.NamespaceState, chosenExecutors map[string]st
 	}
 }
 
-// fetchExecutorMetadata calls GetExecutor once per unique chosen executor to
-// retrieve metadata. Metadata is stored separately from HeartbeatState and is
-// not returned by GetState.
-func (h *handlerImpl) fetchExecutorMetadata(ctx context.Context, namespace string, chosenExecutors map[string]string) (map[string]*store.ShardOwner, error) {
-	executorOwners := make(map[string]*store.ShardOwner, len(chosenExecutors))
-	for _, executorID := range chosenExecutors {
+// fetchPlacementExecutorMetadata calls GetExecutor once per unique executor
+// referenced by the placements. Metadata is stored separately from
+// HeartbeatState and is not returned by GetState.
+func (h *handlerImpl) fetchPlacementExecutorMetadata(ctx context.Context, namespace string, placements []plan.Placement) (map[string]*store.ShardOwner, error) {
+	executorOwners := make(map[string]*store.ShardOwner, len(placements))
+	for _, placement := range placements {
+		executorID := placement.ExecutorID
 		if _, already := executorOwners[executorID]; already {
 			continue
 		}
@@ -134,11 +118,12 @@ func (h *handlerImpl) fetchExecutorMetadata(ctx context.Context, namespace strin
 }
 
 // buildResults constructs the shardKey -> GetShardOwnerResponse map from the
-// chosen executors and their fetched metadata.
-func buildResults(namespace string, shardKeys []string, chosenExecutors map[string]string, executorOwners map[string]*store.ShardOwner) map[string]*types.GetShardOwnerResponse {
+// planned placements and their fetched metadata.
+func buildResults(namespace string, shardKeys []string, placements []plan.Placement, executorOwners map[string]*store.ShardOwner) map[string]*types.GetShardOwnerResponse {
+	executorByShard := placementsByShard(placements)
 	results := make(map[string]*types.GetShardOwnerResponse, len(shardKeys))
 	for _, shardKey := range shardKeys {
-		executorID := chosenExecutors[shardKey]
+		executorID := executorByShard[shardKey]
 		owner := executorOwners[executorID]
 		results[shardKey] = &types.GetShardOwnerResponse{
 			Owner:     owner.ExecutorID,
@@ -149,11 +134,20 @@ func buildResults(namespace string, shardKeys []string, chosenExecutors map[stri
 	return results
 }
 
-// invertMap turns map[shardKey]executorID into map[executorID][]shardKey.
-func invertMap(m map[string]string) map[string][]string {
+// placementsByExecutor turns planned placements into map[executorID][]shardKey.
+func placementsByExecutor(placements []plan.Placement) map[string][]string {
 	out := make(map[string][]string)
-	for shardKey, executorID := range m {
-		out[executorID] = append(out[executorID], shardKey)
+	for _, placement := range placements {
+		out[placement.ExecutorID] = append(out[placement.ExecutorID], placement.ShardID)
+	}
+	return out
+}
+
+// placementsByShard turns planned placements into map[shardKey]executorID.
+func placementsByShard(placements []plan.Placement) map[string]string {
+	out := make(map[string]string, len(placements))
+	for _, placement := range placements {
+		out[placement.ShardID] = placement.ExecutorID
 	}
 	return out
 }

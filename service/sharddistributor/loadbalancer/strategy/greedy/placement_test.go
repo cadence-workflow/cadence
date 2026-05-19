@@ -1,4 +1,4 @@
-package loadbalance
+package greedy
 
 import (
 	"errors"
@@ -8,10 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func TestGreedy(t *testing.T) {
+func TestPlanInitialPlacement(t *testing.T) {
 	t.Run("picks lowest smoothed load and bumps by average after each pick", func(t *testing.T) {
 		state := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
@@ -32,21 +33,19 @@ func TestGreedy(t *testing.T) {
 				"s5": {SmoothedLoad: 1.0},
 			},
 		}
-		g := newGreedy(state)
 
-		// cold has the lowest smoothed load (2.0).
-		first, err := g.Pick()
+		placements, err := PlanInitialPlacement(state, []string{"new-1", "new-2"})
 		require.NoError(t, err)
-		assert.Equal(t, "cold", first)
-		// After bumping cold by the namespace average, warm (2.5) becomes the lowest.
-		second, err := g.Pick()
-		require.NoError(t, err)
-		assert.Equal(t, "warm", second)
+
+		// cold has the lowest smoothed load. After bumping cold by the
+		// namespace average, warm becomes the lowest.
+		assert.Equal(t, []plan.Placement{
+			{ShardID: "new-1", ExecutorID: "cold"},
+			{ShardID: "new-2", ExecutorID: "warm"},
+		}, placements)
 	})
 
-	t.Run("ties on smoothed load fall through to shard count (cold start)", func(t *testing.T) {
-		// All shard stats missing — every executor's smoothedLoad is 0.
-		// The pick must fall through to the count tie-breaker, picking "few".
+	t.Run("ties on smoothed load fall through to shard count", func(t *testing.T) {
 		state := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
 				"few":  {Status: types.ExecutorStatusACTIVE},
@@ -57,30 +56,27 @@ func TestGreedy(t *testing.T) {
 				"many": {AssignedShards: map[string]*types.ShardAssignment{"s2": {}, "s3": {}, "s4": {}}},
 			},
 		}
-		g := newGreedy(state)
 
-		pick, err := g.Pick()
+		placements, err := PlanInitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
-		assert.Equal(t, "few", pick)
+
+		// All shard stats are missing, so smoothed loads tie and shard count breaks the tie.
+		assert.Equal(t, []plan.Placement{{ShardID: "new-1", ExecutorID: "few"}}, placements)
 	})
 
 	t.Run("includes active executors with no assignments", func(t *testing.T) {
 		state := &store.NamespaceState{
-			Executors: map[string]store.HeartbeatState{
-				"new": {Status: types.ExecutorStatusACTIVE},
-			},
+			Executors:        map[string]store.HeartbeatState{"new": {Status: types.ExecutorStatusACTIVE}},
 			ShardAssignments: map[string]store.AssignedState{},
 		}
-		g := newGreedy(state)
 
-		pick, err := g.Pick()
+		placements, err := PlanInitialPlacement(state, []string{"new-1"})
 		require.NoError(t, err)
-		assert.Equal(t, "new", pick)
+		assert.Equal(t, []plan.Placement{{ShardID: "new-1", ExecutorID: "new"}}, placements)
 	})
 
-	t.Run("empty active executors returns sentinel", func(t *testing.T) {
-		g := newGreedy(&store.NamespaceState{})
-		_, err := g.Pick()
-		assert.True(t, errors.Is(err, ErrNoActiveExecutors))
+	t.Run("empty active executors returns error", func(t *testing.T) {
+		_, err := PlanInitialPlacement(&store.NamespaceState{}, []string{"new-1"})
+		assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 	})
 }

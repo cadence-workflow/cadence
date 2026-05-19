@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/service/history/task"
 )
@@ -56,6 +57,9 @@ type (
 		// Add a new virtual slice to the root queue. This is used when new tasks are generated and max read level is updated.
 		// By default, all new tasks belong to the root queue, so we need to add a new virtual slice to the root queue.
 		AddNewVirtualSliceToRootQueue(VirtualSlice)
+		// GetMinReadLevel returns the minimum read level across all virtual queues and their slices.
+		// Returns persistence.MaximumHistoryTaskKey if there are no virtual queues or slices.
+		GetMinReadLevel() persistence.HistoryTaskKey
 	}
 
 	virtualQueueManagerImpl struct {
@@ -216,6 +220,22 @@ func (m *virtualQueueManagerImpl) AddNewVirtualSliceToRootQueue(s VirtualSlice) 
 
 	m.virtualQueues[rootQueueID] = m.createVirtualQueueFn(rootQueueID, s)
 	m.virtualQueues[rootQueueID].Start()
+}
+
+func (m *virtualQueueManagerImpl) GetMinReadLevel() persistence.HistoryTaskKey {
+	m.RLock()
+	defer m.RUnlock()
+
+	minReadLevel := persistence.MaximumHistoryTaskKey
+	for _, vq := range m.virtualQueues {
+		vq.IterateSlices(func(s VirtualSlice) {
+			readLevel := s.GetReadLevel()
+			if readLevel.Compare(minReadLevel) < 0 {
+				minReadLevel = readLevel
+			}
+		})
+	}
+	return minReadLevel
 }
 
 func (m *virtualQueueManagerImpl) appendOrMergeSlice(vq VirtualQueue, s VirtualSlice) {

@@ -86,6 +86,7 @@ type (
 		AuthorizationConfig        config.Authorization     // NOTE: empty(default) struct will get a authorization.NoopAuthorizer
 		IsolationGroupStore        configstore.Client       // This can be nil, the default config store will be created if so
 		IsolationGroupState        isolationgroup.State     // This can be nil, the default state store will be chosen if so
+		OperationalConfigStore     configstore.Client       // This can be nil, the default operational config store will be created if so
 		PinotConfig                *config.PinotVisibilityConfig
 		KafkaConfig                config.KafkaConfig
 		PinotClient                pinot.GenericClient

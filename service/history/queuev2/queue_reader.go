@@ -25,8 +25,11 @@ package queuev2
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -34,6 +37,16 @@ import (
 type (
 	QueueReader interface {
 		GetTask(context.Context, *GetTaskRequest) (*GetTaskResponse, error)
+		LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error)
+	}
+
+	LookAHeadRequest struct {
+		InclusiveMinTaskKey persistence.HistoryTaskKey
+	}
+
+	LookAHeadResponse struct {
+		Task             persistence.Task
+		LookAheadMaxTime time.Time
 	}
 
 	GetTaskRequest struct {
@@ -55,18 +68,24 @@ type (
 	}
 
 	simpleQueueReader struct {
-		shard    shard.Context
-		category persistence.HistoryTaskCategory
+		shard                      shard.Context
+		category                   persistence.HistoryTaskCategory
+		maxPollInterval            dynamicproperties.DurationPropertyFn
+		maxPollIntervalJitterCoeff dynamicproperties.FloatPropertyFn
 	}
 )
 
 func NewQueueReader(
 	shard shard.Context,
 	category persistence.HistoryTaskCategory,
+	maxPollInterval dynamicproperties.DurationPropertyFn,
+	maxPollIntervalJitterCoeff dynamicproperties.FloatPropertyFn,
 ) QueueReader {
 	return &simpleQueueReader{
-		shard:    shard,
-		category: category,
+		shard:                      shard,
+		category:                   category,
+		maxPollInterval:            maxPollInterval,
+		maxPollIntervalJitterCoeff: maxPollIntervalJitterCoeff,
 	}
 }
 
@@ -103,5 +122,28 @@ func (r *simpleQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 			NextPageToken: resp.NextPageToken,
 			NextTaskKey:   nextTaskKey,
 		},
+	}, nil
+}
+
+func (r *simpleQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
+	maxTime := req.InclusiveMinTaskKey.GetScheduledTime().Add(
+		backoff.JitDuration(r.maxPollInterval(), r.maxPollIntervalJitterCoeff()),
+	)
+	resp, err := r.shard.GetExecutionManager().GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		TaskCategory:        r.category,
+		InclusiveMinTaskKey: req.InclusiveMinTaskKey,
+		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTime, 0),
+		PageSize:            1,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var firstTask persistence.Task
+	if len(resp.Tasks) > 0 {
+		firstTask = resp.Tasks[0]
+	}
+	return &LookAHeadResponse{
+		Task:             firstTask,
+		LookAheadMaxTime: maxTime,
 	}, nil
 }
