@@ -85,17 +85,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),
 	}
 
-	queue := NewScheduledQueue(
-		mockShard,
-		persistence.HistoryTaskCategoryTimer,
-		mockTaskProcessor,
-		mockTaskExecutor,
-		mockLogger,
-		mockMetricsClient,
-		mockMetricsScope,
-		options,
-		NewQueueReader(mockShard, persistence.HistoryTaskCategoryTimer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient),
-	).(*scheduledQueue)
+	queue := NewScheduledQueue(mockShard, persistence.HistoryTaskCategoryTimer, mockTaskProcessor, mockTaskExecutor, mockLogger, mockMetricsClient, mockMetricsScope, NewQueueReader(mockShard, persistence.HistoryTaskCategoryTimer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient), options).(*scheduledQueue)
 
 	// Test Start
 	queue.Start()

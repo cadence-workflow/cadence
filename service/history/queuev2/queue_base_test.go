@@ -518,12 +518,12 @@ func TestNewQueueBase(t *testing.T) {
 		metrics.NoopScope,
 		persistence.HistoryTaskCategoryTransfer,
 		nil,
+		NewMockQueueReader(ctrl),
 		&Options{
 			DeleteBatchSize:    dynamicproperties.GetIntPropertyFn(100),
 			RedispatchInterval: dynamicproperties.GetDurationPropertyFn(time.Second * 10),
 			MaxPollRPS:         dynamicproperties.GetIntPropertyFn(100),
 		},
-		NewMockQueueReader(ctrl),
 	)
 
 	assert.Equal(t, persistence.NewImmediateTaskKey(400), queueBase.newVirtualSliceState.Range.InclusiveMinTaskKey)

@@ -64,8 +64,8 @@ func NewScheduledQueue(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	metricsScope metrics.Scope,
-	options *Options,
 	queueReader QueueReader,
+	options *Options,
 ) Queue {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &scheduledQueue{
@@ -77,8 +77,8 @@ func NewScheduledQueue(
 			metricsScope,
 			category,
 			taskExecutor,
-			options,
 			queueReader,
+			options,
 		),
 		timerGate:  clock.NewTimerGate(shard.GetTimeSource()),
 		newTimerCh: make(chan struct{}, 1),

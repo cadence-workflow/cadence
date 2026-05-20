@@ -84,17 +84,7 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),
 	}
 
-	queue := NewImmediateQueue(
-		mockShard,
-		persistence.HistoryTaskCategoryTransfer,
-		mockTaskProcessor,
-		mockTaskExecutor,
-		mockLogger,
-		mockMetricsClient,
-		mockMetricsScope,
-		options,
-		NewQueueReader(mockShard, persistence.HistoryTaskCategoryTransfer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient),
-	).(*immediateQueue)
+	queue := NewImmediateQueue(mockShard, persistence.HistoryTaskCategoryTransfer, mockTaskProcessor, mockTaskExecutor, mockLogger, mockMetricsClient, mockMetricsScope, NewQueueReader(mockShard, persistence.HistoryTaskCategoryTransfer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient), options).(*immediateQueue)
 
 	// Test Start
 	queue.Start()

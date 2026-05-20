@@ -105,8 +105,8 @@ func newQueueBase(
 	metricsScope metrics.Scope,
 	category persistence.HistoryTaskCategory,
 	taskExecutor task.Executor,
-	options *Options,
 	queueReader QueueReader,
+	options *Options,
 ) *queueBase {
 	timeSource := shard.GetTimeSource()
 	persistenceQueueState, err := shard.GetQueueState(category)

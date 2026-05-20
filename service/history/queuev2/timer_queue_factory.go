@@ -132,32 +132,30 @@ func (f *timerQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
-	return NewScheduledQueue(
+
+	queueReader := NewQueueReader(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
-		f.taskProcessor,
-		executorWrapper,
-		logger,
-		shard.GetMetricsClient(),
-		shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())),
-		&Options{
-			PageSize:                             config.TimerTaskBatchSize,
-			DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
-			MaxPollRPS:                           config.TimerProcessorMaxPollRPS,
-			MaxPollInterval:                      config.TimerProcessorMaxPollInterval,
-			MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
-			UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
-			UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
-			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
-			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
-			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
-			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
-			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
-			RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
-			CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
-			EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
-			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
-		},
-		NewQueueReader(shard, persistence.HistoryTaskCategoryTimer, config.TimerProcessorMaxPollInterval, config.TimerProcessorMaxPollIntervalJitterCoefficient),
+		config.TimerProcessorMaxPollInterval,
+		config.TimerProcessorMaxPollIntervalJitterCoefficient,
 	)
+
+	return NewScheduledQueue(shard, persistence.HistoryTaskCategoryTimer, f.taskProcessor, executorWrapper, logger, shard.GetMetricsClient(), shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())), queueReader, &Options{
+		PageSize:                             config.TimerTaskBatchSize,
+		DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
+		MaxPollRPS:                           config.TimerProcessorMaxPollRPS,
+		MaxPollInterval:                      config.TimerProcessorMaxPollInterval,
+		MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
+		UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
+		UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
+		MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
+		PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
+		PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+		VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
+		MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
+		RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
+		CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
+		EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
+		MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
+	})
 }
