@@ -158,5 +158,6 @@ func (f *timerQueueFactory) createQueuev2(
 			EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
 			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
 		},
+		NewQueueReader(shard, persistence.HistoryTaskCategoryTimer, config.TimerProcessorMaxPollInterval, config.TimerProcessorMaxPollIntervalJitterCoefficient),
 	)
 }

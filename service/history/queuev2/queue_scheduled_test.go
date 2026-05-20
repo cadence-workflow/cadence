@@ -94,6 +94,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		mockMetricsClient,
 		mockMetricsScope,
 		options,
+		NewQueueReader(mockShard, persistence.HistoryTaskCategoryTimer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient),
 	).(*scheduledQueue)
 
 	// Test Start

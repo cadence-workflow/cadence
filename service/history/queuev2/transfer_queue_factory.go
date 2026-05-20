@@ -167,5 +167,6 @@ func (f *transferQueueFactory) createQueuev2(
 			EnablePendingTaskCountAlert:          func() bool { return config.EnableTransferQueueV2PendingTaskCountAlert(shard.GetShardID()) },
 			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
 		},
+		NewQueueReader(shard, persistence.HistoryTaskCategoryTransfer, config.TransferProcessorMaxPollInterval, config.TransferProcessorMaxPollIntervalJitterCoefficient),
 	)
 }

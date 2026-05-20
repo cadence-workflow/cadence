@@ -93,6 +93,7 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 		mockMetricsClient,
 		mockMetricsScope,
 		options,
+		NewQueueReader(mockShard, persistence.HistoryTaskCategoryTransfer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient),
 	).(*immediateQueue)
 
 	// Test Start
