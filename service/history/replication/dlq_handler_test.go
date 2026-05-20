@@ -45,7 +45,6 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/shard"
-	workerfixer "github.com/uber/cadence/service/worker/fixer"
 )
 
 type (
@@ -111,7 +110,6 @@ func (s *dlqHandlerSuite) SetupTest() {
 	s.messageHandler = NewDLQHandler(
 		s.mockShard,
 		s.taskExecutors,
-		nil,
 	).(*dlqHandlerImpl)
 }
 
@@ -121,7 +119,7 @@ func (s *dlqHandlerSuite) TearDownTest() {
 }
 
 func (s *dlqHandlerSuite) TestNewDLQHandler_panic() {
-	s.Panics(func() { NewDLQHandler(s.mockShard, nil, nil) }, "Failed to initialize replication DLQ handler due to nil task executors")
+	s.Panics(func() { NewDLQHandler(s.mockShard, nil) }, "Failed to initialize replication DLQ handler due to nil task executors")
 }
 
 func (s *dlqHandlerSuite) TestStartStop() {
@@ -722,22 +720,6 @@ func (e *fakeTaskExecutor) execute(replicationTask *types.ReplicationTask, _ boo
 	return e.scope, e.err
 }
 
-// fakeFixer records every Fix call so tests can assert on count and arguments.
-type fakeFixer struct {
-	calls []fixerCall
-}
-
-var _ workerfixer.Fixer = (*fakeFixer)(nil)
-
-type fixerCall struct {
-	domainID, workflowID, runID string
-}
-
-func (f *fakeFixer) Fix(_ context.Context, domainID, workflowID, runID string) error {
-	f.calls = append(f.calls, fixerCall{domainID, workflowID, runID})
-	return nil
-}
-
 func historyReplicationTask(taskID int64, domainID, workflowID, runID string) *types.ReplicationTask {
 	return &types.ReplicationTask{
 		SourceTaskID: taskID,
@@ -756,42 +738,31 @@ func TestProcessTask(t *testing.T) {
 		task           *types.ReplicationTask
 		executorErr    error
 		maxRetries     int
-		passNilFixer   bool
 		expectExecutes int
 		expectDelete   bool
-		expectFixCalls []fixerCall
 	}{
 		{
-			name:           "success on first attempt — point-delete, no fixer",
+			name:           "success on first attempt — point-delete",
 			task:           historyReplicationTask(42, "d", "w", "r"),
 			maxRetries:     3,
 			expectExecutes: 1,
 			expectDelete:   true,
 		},
 		{
-			name:           "retries exhausted — fixer invoked, no delete",
+			name:           "retries exhausted — task remains in DLQ, no delete",
 			task:           historyReplicationTask(99, "d", "w", "r"),
 			executorErr:    errors.New("boom"),
 			maxRetries:     3,
 			expectExecutes: 4,
-			expectFixCalls: []fixerCall{{"d", "w", "r"}},
 		},
 		{
-			name:           "retries exhausted, fixer is nil — no panic, no calls",
-			task:           historyReplicationTask(99, "d", "w", "r"),
-			executorErr:    errors.New("boom"),
-			maxRetries:     2,
-			passNilFixer:   true,
-			expectExecutes: 3,
-		},
-		{
-			name:           "nil task — skip, no execute/delete/fix",
+			name:           "nil task — skip, no execute/delete",
 			task:           nil,
 			maxRetries:     3,
 			expectExecutes: 0,
 		},
 		{
-			name: "failover marker (no workflowID/runID) — fixer NOT invoked",
+			name: "failover marker — retries exhaust, no delete",
 			task: &types.ReplicationTask{
 				SourceTaskID:             7,
 				FailoverMarkerAttributes: &types.FailoverMarkerAttributes{DomainID: "d"},
@@ -821,13 +792,7 @@ func TestProcessTask(t *testing.T) {
 			defer mockShard.Finish(t)
 
 			executor := &fakeTaskExecutor{err: tt.executorErr}
-			fixer := &fakeFixer{}
-			var fixerArg workerfixer.Fixer = fixer
-			if tt.passNilFixer {
-				fixerArg = nil
-			}
-
-			h := NewDLQHandler(mockShard, map[string]TaskExecutor{sourceCluster: executor}, fixerArg).(*dlqHandlerImpl)
+			h := NewDLQHandler(mockShard, map[string]TaskExecutor{sourceCluster: executor}).(*dlqHandlerImpl)
 
 			if tt.expectDelete {
 				mockShard.Resource.ExecutionMgr.On("DeleteReplicationTaskFromDLQ", mock.Anything,
@@ -841,9 +806,6 @@ func TestProcessTask(t *testing.T) {
 			h.processTask(sourceCluster, tt.task)
 
 			assert.Len(t, executor.executedTasks, tt.expectExecutes, "executor.execute call count")
-			if !tt.passNilFixer {
-				assert.Equal(t, tt.expectFixCalls, fixer.calls, "fixer.Fix calls")
-			}
 		})
 	}
 }
@@ -906,7 +868,7 @@ func TestScanAndProcess(t *testing.T) {
 			defer mockShard.Finish(t)
 
 			executor := &fakeTaskExecutor{}
-			h := NewDLQHandler(mockShard, map[string]TaskExecutor{sourceCluster: executor}, &fakeFixer{}).(*dlqHandlerImpl)
+			h := NewDLQHandler(mockShard, map[string]TaskExecutor{sourceCluster: executor}).(*dlqHandlerImpl)
 
 			// Wire one expectation per page; pre-store the raw DLQ task blobs so
 			// hydrateDLQTasks finds them locally (no remote admin RPC).
@@ -954,28 +916,34 @@ type scanPage struct {
 	getErr    error
 }
 
-func TestInitialDLQProcessorDelay(t *testing.T) {
-	tests := []struct {
-		name     string
-		interval time.Duration
-		wantZero bool
-		wantMax  time.Duration
-	}{
-		{name: "zero interval", interval: 0, wantZero: true},
-		{name: "negative interval", interval: -time.Second, wantZero: true},
-		{name: "positive interval", interval: 5 * time.Minute, wantMax: 5 * time.Minute},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := initialDLQProcessorDelay(tt.interval)
-			if tt.wantZero {
-				assert.Equal(t, time.Duration(0), got)
-				return
-			}
-			assert.GreaterOrEqual(t, got, time.Duration(0))
-			assert.Less(t, got, tt.wantMax)
-		})
-	}
+func TestScanAndProcess_HydrateError(t *testing.T) {
+	const sourceCluster = "src"
+	ctrl := gomock.NewController(t)
+	cfg := config.NewForTest()
+	cfg.ReplicationDLQProcessorMaxRetries = dynamicproperties.GetIntPropertyFn(1)
+	cfg.ReplicationDLQProcessorPageSize = dynamicproperties.GetIntPropertyFn(10)
+
+	mockShard := shard.NewTestContext(t, ctrl, &persistence.ShardInfo{
+		ShardID:                0,
+		RangeID:                1,
+		ReplicationDLQAckLevel: map[string]int64{sourceCluster: -1},
+	}, cfg)
+	defer mockShard.Finish(t)
+
+	executor := &fakeTaskExecutor{}
+	h := NewDLQHandler(mockShard, map[string]TaskExecutor{sourceCluster: executor}).(*dlqHandlerImpl)
+
+	// Persistence returns one DLQ entry whose Info is nil — hydrateDLQTasks treats
+	// this as a corrupt response and returns an error, which scanAndProcess logs
+	// and returns from without executing or deleting anything.
+	mockShard.Resource.ExecutionMgr.On("GetReplicationTasksFromDLQ", mock.Anything, mock.Anything).
+		Return(&persistence.GetReplicationDLQTasksResponse{
+			Tasks: []*persistence.ReplicationDLQTask{{Info: nil}},
+		}, nil).Times(1)
+
+	h.scanAndProcess(sourceCluster)
+
+	assert.Empty(t, executor.executedTasks)
 }
 
 func TestStart_LaunchesAndStopsProcessorLoop(t *testing.T) {
@@ -990,7 +958,7 @@ func TestStart_LaunchesAndStopsProcessorLoop(t *testing.T) {
 	}, cfg)
 	defer mockShard.Finish(t)
 
-	h := NewDLQHandler(mockShard, map[string]TaskExecutor{"src": &fakeTaskExecutor{}}, &fakeFixer{}).(*dlqHandlerImpl)
+	h := NewDLQHandler(mockShard, map[string]TaskExecutor{"src": &fakeTaskExecutor{}}).(*dlqHandlerImpl)
 	h.Start()
 
 	done := make(chan struct{})

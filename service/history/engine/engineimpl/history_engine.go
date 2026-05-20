@@ -291,7 +291,7 @@ func NewEngineWithShardContext(
 		replicationTaskProcessors = append(replicationTaskProcessors, replicationTaskProcessor)
 	}
 	historyEngImpl.replicationTaskProcessors = replicationTaskProcessors
-	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors, nil)
+	replicationMessageHandler := replication.NewDLQHandler(shard, replicationTaskExecutors)
 	historyEngImpl.replicationDLQHandler = replicationMessageHandler
 
 	historyEngImpl.dlqProcessor = taskdlq.NewProcessor(

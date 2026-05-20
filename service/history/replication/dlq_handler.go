@@ -40,7 +40,6 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/shard"
-	workerfixer "github.com/uber/cadence/service/worker/fixer"
 )
 
 const (
@@ -95,7 +94,6 @@ type (
 		wg            sync.WaitGroup
 		status        int32
 		timeSource    clock.TimeSource
-		fixer         workerfixer.Fixer
 
 		mu           sync.Mutex
 		latestCounts map[string]int64
@@ -108,7 +106,6 @@ var _ DLQHandler = (*dlqHandlerImpl)(nil)
 func NewDLQHandler(
 	shard shard.Context,
 	taskExecutors map[string]TaskExecutor,
-	fixer workerfixer.Fixer,
 ) DLQHandler {
 
 	if taskExecutors == nil {
@@ -126,7 +123,6 @@ func NewDLQHandler(
 		cancel:        cancel,
 		done:          make(chan struct{}),
 		timeSource:    clock.NewRealTimeSource(),
-		fixer:         fixer,
 	}
 }
 
@@ -138,12 +134,11 @@ func (r *dlqHandlerImpl) Start() {
 
 	r.wg.Add(1)
 	go r.emitDLQSizeMetricsLoop()
-	processorEnabled := r.config.ReplicationDLQProcessorEnabled()
-	if processorEnabled {
+	if r.config.ReplicationDLQProcessorEnabled() {
 		r.wg.Add(1)
 		go r.processorLoop()
 	}
-	r.logger.Info("DLQ handler started.", tag.Value(processorEnabled))
+	r.logger.Info("DLQ handler started.")
 }
 
 // Stop stops the DLQ handler
@@ -237,7 +232,19 @@ func (r *dlqHandlerImpl) emitDLQSizeMetricsLoop() {
 func (r *dlqHandlerImpl) processorLoop() {
 	defer r.wg.Done()
 
-	timer := r.timeSource.NewTimer(initialDLQProcessorDelay(r.config.ReplicationDLQProcessorRescanInterval()))
+	rescanInterval := r.config.ReplicationDLQProcessorRescanInterval()
+	if rescanInterval <= 0 {
+		r.logger.Error("DLQ processor rescan interval must be positive; processor will not run",
+			tag.Value(rescanInterval))
+		return
+	}
+	if maxRetries := r.config.ReplicationDLQProcessorMaxRetries(); maxRetries <= 0 {
+		r.logger.Error("DLQ processor max retries must be positive; processor will not run",
+			tag.Value(maxRetries))
+		return
+	}
+
+	timer := r.timeSource.NewTimer(time.Duration(rand.Int63n(int64(rescanInterval))))
 	defer timer.Stop()
 
 	for {
@@ -254,13 +261,6 @@ func (r *dlqHandlerImpl) processorLoop() {
 			))
 		}
 	}
-}
-
-func initialDLQProcessorDelay(rescanInterval time.Duration) time.Duration {
-	if rescanInterval <= 0 {
-		return 0
-	}
-	return time.Duration(rand.Int63n(int64(rescanInterval)))
 }
 
 func (r *dlqHandlerImpl) scanAndProcess(sourceCluster string) {
@@ -315,7 +315,6 @@ func (r *dlqHandlerImpl) scanAndProcess(sourceCluster string) {
 
 func (r *dlqHandlerImpl) processTask(sourceCluster string, task *types.ReplicationTask) {
 	if task == nil {
-		// hydrateDLQTasks already warned for this entry; nothing more to do here.
 		return
 	}
 
@@ -349,16 +348,8 @@ func (r *dlqHandlerImpl) processTask(sourceCluster string, task *types.Replicati
 		}),
 	)
 
-	attempt := int32(0)
 	err := throttle.Do(r.ctx, func(context.Context) error {
 		_, execErr := executor.execute(task, true)
-		if execErr != nil {
-			taskLogger.Warn("DLQ processor failed to execute task",
-				tag.Attempt(attempt),
-				tag.Error(execErr),
-			)
-			attempt++
-		}
 		return execErr
 	})
 
@@ -377,31 +368,16 @@ func (r *dlqHandlerImpl) processTask(sourceCluster string, task *types.Replicati
 		return
 	}
 
-	// Shutdown is observed by IsRetryable above; bail without invoking fixer.
 	select {
 	case <-r.done:
 		return
 	default:
 	}
 
-	// All retries exhausted — invoke fixer and move on. Fixer is idempotent:
-	// a fix already in progress for this (workflowID, runID) is a no-op. The
-	// task stays in the DLQ; the next rescan will retry execution and
-	// point-delete if the fix succeeded.
-	taskLogger.Error("DLQ processor exhausted retries, invoking fixer",
-		tag.Attempt(int32(maxRetries)),
+	taskLogger.Error("DLQ processor exhausted retries; task remains in DLQ",
+		tag.Attempt(int32(maxRetries+1)),
 		tag.Error(err),
 	)
-	if r.fixer == nil {
-		return
-	}
-	if workflowID == "" || runID == "" {
-		taskLogger.Warn("DLQ task lacks workflow identifiers, skipping fixer invocation")
-		return
-	}
-	if err := r.fixer.Fix(r.ctx, domainID, workflowID, runID); err != nil {
-		taskLogger.Warn("DLQ fixer failed", tag.Error(err))
-	}
 }
 
 func (r *dlqHandlerImpl) ReadMessages(
