@@ -1,6 +1,7 @@
 package queuev2
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -35,6 +36,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 	mockMetricsScope := metrics.NoopScope
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
+	mockQueueReader := NewMockQueueReader(ctrl)
 
 	// Setup mock expectations
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).AnyTimes()
@@ -64,6 +66,17 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 	mockExecutionManager.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, nil).AnyTimes()
 	mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).AnyTimes()
+	mockQueueReader.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
+			return &GetTaskResponse{
+				Progress: &GetTaskProgress{
+					Range:       req.Progress.Range,
+					NextTaskKey: req.Progress.ExclusiveMaxTaskKey,
+				},
+			}, nil
+		},
+	).AnyTimes()
+	mockQueueReader.EXPECT().LookAHead(gomock.Any(), gomock.Any()).Return(&LookAHeadResponse{}, nil).AnyTimes()
 	mockShard.EXPECT().UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, cluster.TestCurrentClusterName).Return(persistence.NewHistoryTaskKey(time.Now(), 10)).AnyTimes()
 	mockShard.EXPECT().UpdateQueueState(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(nil).AnyTimes()
 
@@ -85,7 +98,17 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),
 	}
 
-	queue := NewScheduledQueue(mockShard, persistence.HistoryTaskCategoryTimer, mockTaskProcessor, mockTaskExecutor, mockLogger, mockMetricsClient, mockMetricsScope, NewQueueReader(mockShard, persistence.HistoryTaskCategoryTimer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient), options).(*scheduledQueue)
+	queue := NewScheduledQueue(
+		mockShard,
+		persistence.HistoryTaskCategoryTimer,
+		mockTaskProcessor,
+		mockTaskExecutor,
+		mockLogger,
+		mockMetricsClient,
+		mockMetricsScope,
+		mockQueueReader,
+		options,
+	).(*scheduledQueue)
 
 	// Test Start
 	queue.Start()

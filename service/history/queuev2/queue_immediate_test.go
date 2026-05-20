@@ -1,6 +1,7 @@
 package queuev2
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 	mockMetricsScope := metrics.NoopScope
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
+	mockQueueReader := NewMockQueueReader(ctrl)
 
 	// Setup mock expectations
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).AnyTimes()
@@ -63,6 +65,16 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 	mockExecutionManager.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, nil).AnyTimes()
 	mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).AnyTimes()
+	mockQueueReader.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
+			return &GetTaskResponse{
+				Progress: &GetTaskProgress{
+					Range:       req.Progress.Range,
+					NextTaskKey: req.Progress.ExclusiveMaxTaskKey,
+				},
+			}, nil
+		},
+	).AnyTimes()
 	mockShard.EXPECT().UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTransfer, cluster.TestCurrentClusterName).Return(persistence.NewImmediateTaskKey(10)).AnyTimes()
 	mockShard.EXPECT().UpdateQueueState(persistence.HistoryTaskCategoryTransfer, gomock.Any()).Return(nil).AnyTimes()
 
@@ -84,7 +96,17 @@ func TestImmediateQueue_LifeCycle(t *testing.T) {
 		MaxVirtualQueueCount:                 dynamicproperties.GetIntPropertyFn(2),
 	}
 
-	queue := NewImmediateQueue(mockShard, persistence.HistoryTaskCategoryTransfer, mockTaskProcessor, mockTaskExecutor, mockLogger, mockMetricsClient, mockMetricsScope, NewQueueReader(mockShard, persistence.HistoryTaskCategoryTransfer, options.MaxPollInterval, options.MaxPollIntervalJitterCoefficient), options).(*immediateQueue)
+	queue := NewImmediateQueue(
+		mockShard,
+		persistence.HistoryTaskCategoryTransfer,
+		mockTaskProcessor,
+		mockTaskExecutor,
+		mockLogger,
+		mockMetricsClient,
+		mockMetricsScope,
+		mockQueueReader,
+		options,
+	).(*immediateQueue)
 
 	// Test Start
 	queue.Start()
