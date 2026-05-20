@@ -506,6 +506,7 @@ func (t *MatcherTestSuite) TestMustOfferRemoteRateLimit() {
 	scope.On("IncCounter", metrics.AsyncMatchForwardTaskThrottleErrorPerTasklist)
 	scope.On("RecordTimer", mock.Anything, mock.Anything)
 	scope.On("IntExponentialHistogram", mock.Anything, mock.AnythingOfType("int")).Return().Maybe()
+	scope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Maybe()
 	scope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Maybe()
 	t.matcher.scope = &scope
 	completionFunc := func(*persistence.TaskInfo, error) {}

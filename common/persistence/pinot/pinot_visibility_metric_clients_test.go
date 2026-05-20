@@ -128,7 +128,7 @@ func TestMetricClientRecordWorkflowExecutionStarted(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.producerMockAffordance(mockProducer)
 			test.scopeMockAffordance(mockScope)
 
@@ -215,7 +215,7 @@ func TestMetricClientRecordWorkflowExecutionClosed(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.producerMockAffordance(mockProducer)
 			test.scopeMockAffordance(mockScope)
 
@@ -292,7 +292,7 @@ func TestMetricClientRecordWorkflowExecutionUninitialized(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.producerMockAffordance(mockProducer)
 			test.scopeMockAffordance(mockScope)
 
@@ -369,7 +369,7 @@ func TestMetricClientUpsertWorkflowExecution(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.producerMockAffordance(mockProducer)
 			test.scopeMockAffordance(mockScope)
 
@@ -444,7 +444,7 @@ func TestMetricClientListOpenWorkflowExecutions(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -519,7 +519,7 @@ func TestMetricClientListClosedWorkflowExecutions(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -595,7 +595,7 @@ func TestMetricClientListOpenWorkflowExecutionsByType(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -671,7 +671,7 @@ func TestMetricClientListClosedWorkflowExecutionsByType(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -746,7 +746,7 @@ func TestMetricClientListOpenWorkflowExecutionsByWorkflowID(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -821,7 +821,7 @@ func TestMetricClientListClosedWorkflowExecutionsByWorkflowID(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -900,7 +900,7 @@ func TestMetricClientListClosedWorkflowExecutionsByStatus(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -977,7 +977,7 @@ func TestMetricClientGetClosedWorkflowExecution(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -1050,7 +1050,7 @@ func TestMetricClientListWorkflowExecutions(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -1119,7 +1119,7 @@ func TestMetricClientScanWorkflowExecutions(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -1188,7 +1188,7 @@ func TestMetricClientCountWorkflowExecutions(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.pinotClientMockAffordance(mockPinotClient)
 			test.scopeMockAffordance(mockScope)
 
@@ -1265,7 +1265,7 @@ func TestMetricClientDeleteWorkflowExecution(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.producerMockAffordance(mockProducer)
 			test.scopeMockAffordance(mockScope)
 
@@ -1338,7 +1338,7 @@ func TestMetricClientDeleteUninitializedWorkflowExecution(t *testing.T) {
 			// mock behaviors
 			mockMetricClient.On("Scope", mock.Anything, mock.Anything).Return(mockScope).Once()
 			mockScope.On("StartTimer", mock.Anything, mock.Anything).Return(testStopwatch).Once()
-			mockScope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
+			mockScope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Once()
 			test.producerMockAffordance(mockProducer)
 			test.scopeMockAffordance(mockScope)
 
