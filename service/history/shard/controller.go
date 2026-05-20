@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/lookup"
 	"github.com/uber/cadence/service/history/resource"
+	"github.com/uber/cadence/service/history/simulation"
 )
 
 const (
@@ -351,6 +352,13 @@ func (c *controller) getOrCreateHistoryShardItem(shardID int) (*historyShardsIte
 		c.historyShards[shardID] = shardItem
 		c.updateShardIDSnapshotLocked()
 		c.metricsScope.IncCounter(metrics.ShardItemCreatedCounter)
+		if simulation.Enabled() {
+			simulation.LogEvents(simulation.E{
+				ShardID:   shardID,
+				EventName: simulation.EventNameShardAcquired,
+				Host:      c.GetHostInfo().Identity(),
+			})
+		}
 
 		shardItem.logger.Info("Shard item state changed", tag.LifeCycleStarted, tag.ComponentShardItem)
 		return shardItem, nil
@@ -389,6 +397,13 @@ func (c *controller) removeHistoryShardItem(shardID int, shardItem *historyShard
 	delete(c.historyShards, shardID)
 	c.updateShardIDSnapshotLocked()
 	c.metricsScope.IncCounter(metrics.ShardItemRemovedCounter)
+	if simulation.Enabled() {
+		simulation.LogEvents(simulation.E{
+			ShardID:   shardID,
+			EventName: simulation.EventNameShardReleased,
+			Host:      c.GetHostInfo().Identity(),
+		})
+	}
 	currentShardItem.logger.Info("Shard item state changed", tag.LifeCycleStopped, tag.ComponentShardItem, tag.Number(int64(len(c.historyShards))))
 	return currentShardItem, nil
 }

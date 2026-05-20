@@ -23,6 +23,7 @@ package host
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/uber/cadence/common/membership"
 )
@@ -30,6 +31,9 @@ import (
 type simpleResolver struct {
 	hostInfo  membership.HostInfo
 	resolvers map[string]*simpleHashring
+
+	mu          sync.RWMutex
+	subscribers map[string]map[string]chan<- *membership.ChangedEvent // service -> name -> channel
 }
 
 // NewSimpleResolver returns a membership resolver interface
@@ -39,8 +43,19 @@ func NewSimpleResolver(serviceName string, hosts map[string][]membership.HostInf
 		resolvers[service] = newSimpleHashring(hostList)
 	}
 	return &simpleResolver{
-		hostInfo:  currentHost,
-		resolvers: resolvers,
+		hostInfo:    currentHost,
+		resolvers:   resolvers,
+		subscribers: make(map[string]map[string]chan<- *membership.ChangedEvent),
+	}
+}
+
+// NewSimpleResolverWithHashrings creates a resolver that shares pre-created hashrings.
+// This allows multiple resolvers to see the same membership mutations.
+func NewSimpleResolverWithHashrings(serviceName string, rings map[string]*simpleHashring, currentHost membership.HostInfo) membership.Resolver {
+	return &simpleResolver{
+		hostInfo:    currentHost,
+		resolvers:   rings,
+		subscribers: make(map[string]map[string]chan<- *membership.ChangedEvent),
 	}
 }
 
@@ -59,11 +74,39 @@ func (s *simpleResolver) WhoAmI() (membership.HostInfo, error) {
 }
 
 func (s *simpleResolver) Subscribe(service string, name string, notifyChannel chan<- *membership.ChangedEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.subscribers[service]; !ok {
+		s.subscribers[service] = make(map[string]chan<- *membership.ChangedEvent)
+	}
+	s.subscribers[service][name] = notifyChannel
 	return nil
 }
 
 func (s *simpleResolver) Unsubscribe(service string, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if subs, ok := s.subscribers[service]; ok {
+		delete(subs, name)
+	}
 	return nil
+}
+
+// NotifySubscribers sends the event to all subscribers for the given service.
+// Uses non-blocking send to avoid deadlock if a subscriber isn't reading.
+func (s *simpleResolver) NotifySubscribers(service string, event *membership.ChangedEvent) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	subs, ok := s.subscribers[service]
+	if !ok {
+		return
+	}
+	for _, ch := range subs {
+		select {
+		case ch <- event:
+		default:
+		}
+	}
 }
 
 func (s *simpleResolver) Lookup(service string, key string) (membership.HostInfo, error) {
