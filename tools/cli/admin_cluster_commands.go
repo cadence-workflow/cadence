@@ -122,6 +122,13 @@ func AdminRebalanceStart(c *cli.Context) error {
 		BatchFailoverSize:              100,
 		BatchFailoverWaitTimeInSeconds: 10,
 	}
+	if prefsJSON := c.String(FlagClusterAttributePreferencesJSON); prefsJSON != "" {
+		var prefs []failovermanager.ClusterAttributePreference
+		if err := json.Unmarshal([]byte(prefsJSON), &prefs); err != nil {
+			return commoncli.Problem("Failed to parse cluster_attribute_preferences_json", err)
+		}
+		rbParams.ClusterAttributePreferences = prefs
+	}
 	input, err := json.Marshal(rbParams)
 	if err != nil {
 		return commoncli.Problem("Failed to serialize params for failover workflow", err)

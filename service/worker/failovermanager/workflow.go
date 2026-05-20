@@ -152,15 +152,24 @@ type (
 		ClusterAttributes []types.ClusterAttribute
 	}
 
+	ClusterAttributeTarget struct {
+		Attribute     types.ClusterAttribute
+		TargetCluster string
+	}
+
+	// DomainFailoverPreference holds the failover configuration for a single domain.
+	DomainFailoverPreference struct {
+		DomainName    string
+		TargetCluster string
+		// ClusterAttributeTargets sets per-attribute active-cluster overrides via UpdateDomain.ActiveClusters.
+		// Nil means only ActiveClusterName is updated (standard global-domain failover).
+		ClusterAttributeTargets []ClusterAttributeTarget
+	}
+
 	// FailoverActivityParams params for activity
 	FailoverActivityParams struct {
-		Domains                          []string
-		TargetCluster                    string
+		DomainPreferences                []DomainFailoverPreference
 		GracefulFailoverTimeoutInSeconds *int32
-		// ClusterAttributes specifies which attributes to fail over to the TargetCluster across the environment.
-		// All active-active domains that have matching attributes (e.g scope:name) will be failed over.
-		// Optional.
-		ClusterAttributes []types.ClusterAttribute
 	}
 
 	// FailoverActivityResult result for failover activity
@@ -296,20 +305,28 @@ func failoverDomainsByBatch(
 		pauseSignalHandler()
 
 		v := workflow.GetVersion(ctx, versionActiveActiveClusterAttributeFailover, workflow.DefaultVersion, 1)
-		failoverActivityParams := &FailoverActivityParams{
-			Domains:                          domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)],
-			TargetCluster:                    targetCluster,
-			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
+		batch := domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)]
+		prefs := make([]DomainFailoverPreference, len(batch))
+		for j, domain := range batch {
+			pref := DomainFailoverPreference{
+				DomainName:    domain,
+				TargetCluster: targetCluster,
+			}
+			if v >= 1 && len(params.ClusterAttributes) > 0 {
+				pref.ClusterAttributeTargets = clusterAttributesToTargets(params.ClusterAttributes, targetCluster)
+			}
+			prefs[j] = pref
 		}
-		if v >= 1 {
-			failoverActivityParams.ClusterAttributes = params.ClusterAttributes
+		failoverActivityParams := &FailoverActivityParams{
+			DomainPreferences:                prefs,
+			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
 		}
 		var actResult FailoverActivityResult
 		err := workflow.ExecuteActivity(ao, FailoverActivity, failoverActivityParams).Get(ctx, &actResult)
 		if err != nil {
 			// Domains in failed activity can be either failovered or not, but we treated them as failed.
 			// This makes the query result for FailedDomains contains false positive results.
-			failedDomains = append(failedDomains, failoverActivityParams.Domains...)
+			failedDomains = append(failedDomains, batch...)
 		} else {
 			successDomains = append(successDomains, actResult.SuccessDomains...)
 			failedDomains = append(failedDomains, actResult.FailedDomains...)
@@ -511,35 +528,30 @@ func getAllDomains(ctx context.Context, targetDomains []string) ([]*types.Descri
 func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*FailoverActivityResult, error) {
 	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
-	domains := params.Domains
-	isActiveActiveFailover := len(params.ClusterAttributes) > 0
 	var successDomains []string
 	var failedDomains []string
-	for _, domain := range domains {
-		if err := validateTaskListPollerInfo(ctx, params.TargetCluster, domain); err != nil {
+	for _, pref := range params.DomainPreferences {
+		if err := validateTaskListPollerInfo(ctx, pref.TargetCluster, pref.DomainName); err != nil {
 			logger.Error("Failed to validate task list poller info", zap.Error(err))
-			failedDomains = append(failedDomains, domain)
+			failedDomains = append(failedDomains, pref.DomainName)
 			continue
 		}
-		// ActiveClusterName is set for all global and active-active domains.
-		// For Active-Active domains any workflows that do not use cluster attributes use this field,
-		// so it should maintain the same behaviour as a standard global domain.
 		updateRequest := &types.UpdateDomainRequest{
-			Name:              domain,
-			ActiveClusterName: common.StringPtr(params.TargetCluster),
+			Name:              pref.DomainName,
+			ActiveClusterName: common.StringPtr(pref.TargetCluster),
 		}
-		if isActiveActiveFailover {
-			updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
+		if len(pref.ClusterAttributeTargets) > 0 {
+			updateRequest.ActiveClusters = buildActiveClusters(pref.ClusterAttributeTargets)
 		}
 		if params.GracefulFailoverTimeoutInSeconds != nil {
 			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
 		}
-
 		_, err := frontendClient.UpdateDomain(ctx, updateRequest)
 		if err != nil {
-			failedDomains = append(failedDomains, domain)
+			logger.Error("Failed to update domain", zap.String("domain", pref.DomainName), zap.Error(err))
+			failedDomains = append(failedDomains, pref.DomainName)
 		} else {
-			successDomains = append(successDomains, domain)
+			successDomains = append(successDomains, pref.DomainName)
 		}
 	}
 	return &FailoverActivityResult{
@@ -548,26 +560,39 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 	}, nil
 }
 
-// buildActiveClusters constructs an ActiveClusters payload for UpdateDomainRequest,
-// setting each listed attribute's ActiveClusterName to targetCluster. The server merges
+// buildActiveClusters constructs an ActiveClusters payload for UpdateDomainRequest.
+// Each target specifies the attribute and its desired active cluster. The server merges
 // this into the domain's existing ActiveClusters config (see domain/handler.go mergeActiveActiveScopes).
-func buildActiveClusters(targetCluster string, attrs []types.ClusterAttribute) *types.ActiveClusters {
+func buildActiveClusters(targets []ClusterAttributeTarget) *types.ActiveClusters {
 	result := &types.ActiveClusters{
 		AttributeScopes: make(map[string]types.ClusterAttributeScope),
 	}
-	for _, attr := range attrs {
-		scope, ok := result.AttributeScopes[attr.GetScope()]
+	for _, target := range targets {
+		scope, ok := result.AttributeScopes[target.Attribute.GetScope()]
 		if !ok {
 			scope = types.ClusterAttributeScope{
 				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
 			}
 		}
-		scope.ClusterAttributes[attr.GetName()] = types.ActiveClusterInfo{
-			ActiveClusterName: targetCluster,
+		scope.ClusterAttributes[target.Attribute.GetName()] = types.ActiveClusterInfo{
+			ActiveClusterName: target.TargetCluster,
 		}
-		result.AttributeScopes[attr.GetScope()] = scope
+		result.AttributeScopes[target.Attribute.GetScope()] = scope
 	}
 	return result
+}
+
+// clusterAttributesToTargets converts a list of ClusterAttributes to ClusterAttributeTargets,
+// all pointing to the same targetCluster. Used by the failover workflow to build per-domain preferences.
+func clusterAttributesToTargets(attrs []types.ClusterAttribute, targetCluster string) []ClusterAttributeTarget {
+	targets := make([]ClusterAttributeTarget, len(attrs))
+	for i, attr := range attrs {
+		targets[i] = ClusterAttributeTarget{
+			Attribute:     attr,
+			TargetCluster: targetCluster,
+		}
+	}
+	return targets
 }
 
 func cleanupChannel(channel workflow.Channel) {

@@ -210,6 +210,7 @@ func TestAdminRebalanceStart(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockSetup      func(td *cliTestData)
+		extraFlags     []clitest.CliArgument
 		expectedError  string
 		expectedOutput string
 	}{
@@ -224,6 +225,29 @@ func TestAdminRebalanceStart(t *testing.T) {
 			},
 			expectedOutput: "Rebalance workflow started\nwid: cadence-rebalance-workflow\nrid: test-run-id\n",
 			expectedError:  "",
+		},
+		{
+			name: "SuccessWithClusterAttributePreferences",
+			mockSetup: func(td *cliTestData) {
+				td.mockFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(
+					&types.StartWorkflowExecutionResponse{RunID: "run-2"}, nil,
+				).Times(1)
+			},
+			extraFlags: []clitest.CliArgument{
+				clitest.StringArgument(FlagClusterAttributePreferencesJSON,
+					`[{"scope":"cluster","name":"cluster0","preferredCluster":"cluster0"}]`),
+			},
+			expectedOutput: "Rebalance workflow started\nwid: cadence-rebalance-workflow\nrid: run-2\n",
+			expectedError:  "",
+		},
+		{
+			name:      "InvalidClusterAttributePreferencesJSON",
+			mockSetup: func(td *cliTestData) {},
+			extraFlags: []clitest.CliArgument{
+				clitest.StringArgument(FlagClusterAttributePreferencesJSON, "not-valid-json"),
+			},
+			expectedOutput: "",
+			expectedError:  "Failed to parse cluster_attribute_preferences_json",
 		},
 		{
 			name: "StartWorkflowExecutionError",
@@ -241,7 +265,9 @@ func TestAdminRebalanceStart(t *testing.T) {
 			td := newCLITestData(t)
 			tt.mockSetup(td)
 
-			cliCtx := clitest.NewCLIContext(t, td.app, clitest.StringArgument(FlagDomain, testDomain))
+			args := []clitest.CliArgument{clitest.StringArgument(FlagDomain, testDomain)}
+			args = append(args, tt.extraFlags...)
+			cliCtx := clitest.NewCLIContext(t, td.app, args...)
 
 			err := AdminRebalanceStart(cliCtx)
 			if tt.expectedError != "" {
