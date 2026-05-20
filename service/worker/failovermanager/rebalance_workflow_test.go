@@ -690,4 +690,3 @@ func (s *rebalanceWorkflowTestSuite) TestWorkflow_RebalanceMixedDomains() {
 	s.Equal(2, len(result.SuccessDomains))
 	s.Equal(0, len(result.FailedDomains))
 }
-
