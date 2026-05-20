@@ -405,7 +405,7 @@ func (c *adminClient) GetOperationalDynamicConfig(ctx context.Context, gp1 *type
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetOperationalDynamicConfig(ctx, gp1, p1...)
 	sw.Stop()
-	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -501,7 +501,7 @@ func (c *adminClient) ListOperationalDynamicConfig(ctx context.Context, lp1 *typ
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListOperationalDynamicConfig(ctx, lp1, p1...)
 	sw.Stop()
-	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -765,7 +765,7 @@ func (c *adminClient) RestoreOperationalDynamicConfig(ctx context.Context, rp1 *
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.RestoreOperationalDynamicConfig(ctx, rp1, p1...)
 	sw.Stop()
-	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
@@ -885,7 +885,7 @@ func (c *adminClient) UpdateOperationalDynamicConfig(ctx context.Context, up1 *t
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	err = c.client.UpdateOperationalDynamicConfig(ctx, up1, p1...)
 	sw.Stop()
-	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
