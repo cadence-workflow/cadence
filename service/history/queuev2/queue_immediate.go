@@ -68,7 +68,17 @@ func NewImmediateQueue(
 ) Queue {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &immediateQueue{
-		base:     newQueueBase(shard, taskProcessor, logger, metricsClient, metricsScope, category, taskExecutor, queueReader, options),
+		base: newQueueBase(
+			shard,
+			taskProcessor,
+			logger,
+			metricsClient,
+			metricsScope,
+			category,
+			taskExecutor,
+			queueReader,
+			options,
+		),
 		notifyCh: make(chan struct{}, 1),
 		ctx:      ctx,
 		cancel:   cancel,
