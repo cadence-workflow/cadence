@@ -66,6 +66,43 @@ func (a *apiHandler) isAuthorized(
 	return isAuth, nil
 }
 
+func (a *apiHandler) listAuthorizedDomains(
+	ctx context.Context,
+	listRequest *types.ListDomainsRequest,
+) (*types.ListDomainsResponse, error) {
+	response, err := a.handler.ListDomains(ctx, listRequest)
+	if err != nil || response == nil {
+		return response, err
+	}
+	if len(response.GetDomains()) == 0 {
+		return response, nil
+	}
+
+	scope := a.GetMetricsClient().Scope(metrics.FrontendListDomainsScope)
+	authorizedDomains := make([]*types.DescribeDomainResponse, 0, len(response.GetDomains()))
+	for _, domain := range response.GetDomains() {
+		attr := &authorization.Attributes{
+			APIName:     "ListDomains",
+			Permission:  authorization.PermissionRead,
+			RequestBody: authorization.NewFilteredRequestBody(listRequest),
+			DomainName:  domain.GetDomainInfo().GetName(),
+		}
+		isAuthorized, err := a.isAuthorized(ctx, attr, scope)
+		if err != nil {
+			return nil, err
+		}
+		if isAuthorized {
+			authorizedDomains = append(authorizedDomains, domain)
+		}
+	}
+
+	if len(authorizedDomains) == 0 {
+		return nil, errUnauthorized
+	}
+	response.Domains = authorizedDomains
+	return response, nil
+}
+
 // getMetricsScopeWithDomain return metrics scope with domain tag
 func (a *apiHandler) getMetricsScopeWithDomain(
 	scope metrics.ScopeIdx,
