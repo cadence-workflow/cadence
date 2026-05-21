@@ -43,6 +43,12 @@ type (
 		buckets               tally.Buckets // buckets if we are emitting histograms
 		exponentialBuckets    histogrammy[SubsettableHistogram]
 		intExponentialBuckets histogrammy[IntSubsettableHistogram]
+		// intValueBuckets is populated at startup from intExponentialBuckets.buckets()
+		// converted to tally.ValueBuckets. This ensures bucket labels emitted to metrics
+		// backends render as plain integers ("1024") rather than duration strings
+		// ("1.024µs"), which Grafana cannot parse as numeric bucket boundaries.
+		// See IntExponentialHistogram for usage.
+		intValueBuckets tally.ValueBuckets
 	}
 
 	// scopeDefinition holds the tag definitions for a scope
