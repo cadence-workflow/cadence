@@ -94,10 +94,11 @@ func emitLRUCacheMetrics(t *testing.T, metricScope metrics.Scope) {
 }
 
 func emitMutableStateCacheMetrics(client metrics.Client) {
-	scope := client.Scope(
-		metrics.HistoryCacheGetOrCreateScope,
-		metrics.SourceClusterTag(metrics.SourceClusterNoneTagValue),
-		metrics.ShardIDTag(1),
+	scope := metrics.WithCacheScopeLabels(
+		client.Scope(metrics.HistoryCacheGetOrCreateScope),
+		1,
+		metrics.SourceClusterNoneTagValue,
+		metrics.MutableStateCacheTypeTagValue,
 	)
 
 	scope.IncCounter(metrics.CacheRequests)
@@ -106,10 +107,11 @@ func emitMutableStateCacheMetrics(client metrics.Client) {
 }
 
 func emitEventsCacheMetrics(client metrics.Client) {
-	scope := client.Scope(
-		metrics.EventsCacheGetEventScope,
-		metrics.SourceClusterTag(metrics.SourceClusterNoneTagValue),
-		metrics.ShardIDTag(1),
+	scope := metrics.WithCacheScopeLabels(
+		client.Scope(metrics.EventsCacheGetEventScope),
+		1,
+		metrics.SourceClusterNoneTagValue,
+		metrics.EventsCacheTypeTagValue,
 	)
 
 	scope.IncCounter(metrics.CacheRequests)
