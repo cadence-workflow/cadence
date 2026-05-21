@@ -122,6 +122,13 @@ func AdminRebalanceStart(c *cli.Context) error {
 		BatchFailoverSize:              100,
 		BatchFailoverWaitTimeInSeconds: 10,
 	}
+	if raw := c.String(FlagClusterAttributePreferencesJSON); raw != "" {
+		prefs, parseErr := parseClusterAttributePreferencesJSON(raw)
+		if parseErr != nil {
+			return commoncli.Problem("Invalid cluster_attribute_preferences_json", parseErr)
+		}
+		rbParams.ClusterAttributePreferences = prefs
+	}
 	input, err := json.Marshal(rbParams)
 	if err != nil {
 		return commoncli.Problem("Failed to serialize params for failover workflow", err)
@@ -142,7 +149,7 @@ func AdminRebalanceStart(c *cli.Context) error {
 		RequestID:                           uuid.New(),
 		Identity:                            getCliIdentity(),
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
-		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(1200),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(int32(defaultDecisionTimeoutInSeconds)),
 		Input:                               input,
 		TaskList: &types.TaskList{
@@ -175,6 +182,14 @@ func AdminRebalanceList(c *cli.Context) error {
 		return err
 	}
 	return ListWorkflow(c)
+}
+
+func parseClusterAttributePreferencesJSON(s string) ([]failovermanager.ClusterAttributePreference, error) {
+	var prefs []failovermanager.ClusterAttributePreference
+	if err := json.Unmarshal([]byte(s), &prefs); err != nil {
+		return nil, fmt.Errorf("couldn't parse JSON: %w. Got: %s", err, s)
+	}
+	return prefs, nil
 }
 
 func intValTypeToString(valType int) string {

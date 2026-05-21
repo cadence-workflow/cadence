@@ -105,6 +105,8 @@ const (
 	unknownOperator = "unknown"
 
 	versionActiveActiveClusterAttributeFailover = "active-active-cluster-attribute-failover"
+	versionFailoverDomainSpecs                  = "failover-domain-specs"
+	versionDomainFailoverSpecs                  = "domain-failover-specs"
 )
 
 type (
@@ -161,12 +163,29 @@ type (
 		// All active-active domains that have matching attributes (e.g scope:name) will be failed over.
 		// Optional.
 		ClusterAttributes []types.ClusterAttribute
+		// DomainSpecs: when non-empty, used instead of Domains/TargetCluster/ClusterAttributes.
+		// Each spec carries its own TargetCluster and per-attribute targets.
+		DomainSpecs []DomainFailoverSpec `json:",omitempty"`
 	}
 
 	// FailoverActivityResult result for failover activity
 	FailoverActivityResult struct {
 		SuccessDomains []string
 		FailedDomains  []string
+	}
+
+	// ClusterAttributeTarget is a resolved per-attribute failover target.
+	ClusterAttributeTarget struct {
+		Attribute     types.ClusterAttribute
+		TargetCluster string
+	}
+
+	// DomainFailoverSpec is a per-domain update request.
+	// TargetCluster empty means no ActiveClusterName change (attribute-only update).
+	DomainFailoverSpec struct {
+		DomainName       string
+		TargetCluster    string
+		AttributeTargets []ClusterAttributeTarget
 	}
 
 	// QueryResult for failover progress
@@ -251,8 +270,18 @@ func FailoverWorkflow(ctx workflow.Context, params *FailoverParams) (*FailoverRe
 		wfState = WorkflowRunning
 	}
 
+	// Build per-domain specs for the batch function.
+	specsVersion := workflow.GetVersion(ctx, versionFailoverDomainSpecs, workflow.DefaultVersion, 1)
+	var specs []DomainFailoverSpec
+	if specsVersion >= 1 {
+		specs = domainsToSpecs(domains, params.TargetCluster, params.ClusterAttributes)
+	} else {
+		// Legacy: pass specs without attributes; failoverDomainsByBatch will use legacy activity params.
+		specs = domainsToSpecs(domains, params.TargetCluster, nil)
+	}
+
 	// failover in batch
-	successDomains, failedDomains = failoverDomainsByBatch(ctx, domains, params, checkPauseSignal, false)
+	successDomains, failedDomains = failoverDomainsByBatch(ctx, specs, params, checkPauseSignal, false)
 
 	if params.DrillWaitTime == 0 {
 		// This is a normal failover
@@ -265,7 +294,7 @@ func FailoverWorkflow(ctx workflow.Context, params *FailoverParams) (*FailoverRe
 
 	workflow.Sleep(ctx, params.DrillWaitTime)
 	// Reset domains to original cluster
-	successResetDomains, failedResetDomains = failoverDomainsByBatch(ctx, domains, params, checkPauseSignal, true)
+	successResetDomains, failedResetDomains = failoverDomainsByBatch(ctx, specs, params, checkPauseSignal, true)
 	wfState = WorkflowCompleted
 
 	return &FailoverResult{
@@ -278,38 +307,56 @@ func FailoverWorkflow(ctx workflow.Context, params *FailoverParams) (*FailoverRe
 
 func failoverDomainsByBatch(
 	ctx workflow.Context,
-	domains []string,
+	specs []DomainFailoverSpec,
 	params *FailoverParams,
 	pauseSignalHandler func(),
 	reverseFailover bool,
 ) (successDomains []string, failedDomains []string) {
-
-	totalNumOfDomains := len(domains)
-	batchSize := params.BatchFailoverSize
-	times := totalNumOfDomains/batchSize + 1
-	ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
-	targetCluster := params.TargetCluster
-	if reverseFailover {
-		targetCluster = params.SourceCluster
+	total := len(specs)
+	if total == 0 {
+		return
 	}
+	batchSize := params.BatchFailoverSize
+	times := (total + batchSize - 1) / batchSize
+	ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
 	for i := 0; i < times; i++ {
 		pauseSignalHandler()
 
-		v := workflow.GetVersion(ctx, versionActiveActiveClusterAttributeFailover, workflow.DefaultVersion, 1)
-		failoverActivityParams := &FailoverActivityParams{
-			Domains:                          domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)],
-			TargetCluster:                    targetCluster,
-			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
-		}
+		batchSpecs := specs[i*batchSize : min((i+1)*batchSize, total)]
+
+		v := workflow.GetVersion(ctx, versionDomainFailoverSpecs, workflow.DefaultVersion, 1)
+		var actParams *FailoverActivityParams
 		if v >= 1 {
-			failoverActivityParams.ClusterAttributes = params.ClusterAttributes
+			if reverseFailover {
+				batchSpecs = reverseSpecTargets(batchSpecs, params.SourceCluster)
+			}
+			actParams = &FailoverActivityParams{
+				DomainSpecs:                      batchSpecs,
+				GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
+			}
+		} else {
+			// Legacy path: in-flight failover runs that predate this change.
+			targetCluster := params.TargetCluster
+			if reverseFailover {
+				targetCluster = params.SourceCluster
+			}
+			v1 := workflow.GetVersion(ctx, versionActiveActiveClusterAttributeFailover, workflow.DefaultVersion, 1)
+			actParams = &FailoverActivityParams{
+				Domains:                          specDomainNames(batchSpecs),
+				TargetCluster:                    targetCluster,
+				GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
+			}
+			if v1 >= 1 {
+				actParams.ClusterAttributes = params.ClusterAttributes
+			}
 		}
+
 		var actResult FailoverActivityResult
-		err := workflow.ExecuteActivity(ao, FailoverActivity, failoverActivityParams).Get(ctx, &actResult)
+		err := workflow.ExecuteActivity(ao, FailoverActivity, actParams).Get(ctx, &actResult)
 		if err != nil {
 			// Domains in failed activity can be either failovered or not, but we treated them as failed.
 			// This makes the query result for FailedDomains contains false positive results.
-			failedDomains = append(failedDomains, failoverActivityParams.Domains...)
+			failedDomains = append(failedDomains, specDomainNames(batchSpecs)...)
 		} else {
 			successDomains = append(successDomains, actResult.SuccessDomains...)
 			failedDomains = append(failedDomains, actResult.FailedDomains...)
@@ -511,10 +558,40 @@ func getAllDomains(ctx context.Context, targetDomains []string) ([]*types.Descri
 func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*FailoverActivityResult, error) {
 	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
-	domains := params.Domains
-	isActiveActiveFailover := len(params.ClusterAttributes) > 0
 	var successDomains []string
 	var failedDomains []string
+
+	if len(params.DomainSpecs) > 0 {
+		// Per-domain spec path used by rebalance workflow.
+		for _, spec := range params.DomainSpecs {
+			if spec.TargetCluster != "" {
+				if err := validateTaskListPollerInfo(ctx, spec.TargetCluster, spec.DomainName); err != nil {
+					logger.Error("Failed to validate task list poller info", zap.Error(err))
+					failedDomains = append(failedDomains, spec.DomainName)
+					continue
+				}
+			}
+			updateRequest := &types.UpdateDomainRequest{Name: spec.DomainName}
+			if spec.TargetCluster != "" {
+				updateRequest.ActiveClusterName = common.StringPtr(spec.TargetCluster)
+			}
+			if len(spec.AttributeTargets) > 0 {
+				updateRequest.ActiveClusters = buildActiveClusters(spec.AttributeTargets)
+			}
+			if params.GracefulFailoverTimeoutInSeconds != nil {
+				updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
+			}
+			if _, err := frontendClient.UpdateDomain(ctx, updateRequest); err != nil {
+				failedDomains = append(failedDomains, spec.DomainName)
+			} else {
+				successDomains = append(successDomains, spec.DomainName)
+			}
+		}
+		return &FailoverActivityResult{SuccessDomains: successDomains, FailedDomains: failedDomains}, nil
+	}
+
+	domains := params.Domains
+	isActiveActiveFailover := len(params.ClusterAttributes) > 0
 	for _, domain := range domains {
 		if err := validateTaskListPollerInfo(ctx, params.TargetCluster, domain); err != nil {
 			logger.Error("Failed to validate task list poller info", zap.Error(err))
@@ -529,7 +606,7 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 			ActiveClusterName: common.StringPtr(params.TargetCluster),
 		}
 		if isActiveActiveFailover {
-			updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
+			updateRequest.ActiveClusters = buildActiveClusters(attributeTargetsForCluster(params.ClusterAttributes, params.TargetCluster))
 		}
 		if params.GracefulFailoverTimeoutInSeconds != nil {
 			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
@@ -548,26 +625,77 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 	}, nil
 }
 
-// buildActiveClusters constructs an ActiveClusters payload for UpdateDomainRequest,
-// setting each listed attribute's ActiveClusterName to targetCluster. The server merges
-// this into the domain's existing ActiveClusters config (see domain/handler.go mergeActiveActiveScopes).
-func buildActiveClusters(targetCluster string, attrs []types.ClusterAttribute) *types.ActiveClusters {
+// buildActiveClusters constructs an ActiveClusters payload for UpdateDomainRequest.
+// Each ClusterAttributeTarget carries the attribute scope+name and its target cluster.
+// The server merges this into the domain's existing ActiveClusters config (see domain/handler.go mergeActiveActiveScopes).
+func buildActiveClusters(targets []ClusterAttributeTarget) *types.ActiveClusters {
 	result := &types.ActiveClusters{
 		AttributeScopes: make(map[string]types.ClusterAttributeScope),
 	}
-	for _, attr := range attrs {
-		scope, ok := result.AttributeScopes[attr.GetScope()]
+	for _, t := range targets {
+		scope, ok := result.AttributeScopes[t.Attribute.GetScope()]
 		if !ok {
 			scope = types.ClusterAttributeScope{
 				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
 			}
 		}
-		scope.ClusterAttributes[attr.GetName()] = types.ActiveClusterInfo{
-			ActiveClusterName: targetCluster,
+		scope.ClusterAttributes[t.Attribute.GetName()] = types.ActiveClusterInfo{
+			ActiveClusterName: t.TargetCluster,
 		}
-		result.AttributeScopes[attr.GetScope()] = scope
+		result.AttributeScopes[t.Attribute.GetScope()] = scope
 	}
 	return result
+}
+
+// attributeTargetsForCluster converts a list of ClusterAttributes and a single target cluster
+// into []ClusterAttributeTarget for use with buildActiveClusters.
+func attributeTargetsForCluster(attrs []types.ClusterAttribute, targetCluster string) []ClusterAttributeTarget {
+	out := make([]ClusterAttributeTarget, len(attrs))
+	for i, a := range attrs {
+		out[i] = ClusterAttributeTarget{Attribute: a, TargetCluster: targetCluster}
+	}
+	return out
+}
+
+// domainsToSpecs converts a flat list of domain names into []DomainFailoverSpec,
+// assigning the same targetCluster and attribute targets to all.
+func domainsToSpecs(domains []string, targetCluster string, attrs []types.ClusterAttribute) []DomainFailoverSpec {
+	attrTargets := attributeTargetsForCluster(attrs, targetCluster)
+	specs := make([]DomainFailoverSpec, len(domains))
+	for i, d := range domains {
+		specs[i] = DomainFailoverSpec{
+			DomainName:       d,
+			TargetCluster:    targetCluster,
+			AttributeTargets: attrTargets,
+		}
+	}
+	return specs
+}
+
+// reverseSpecTargets returns copies of specs with all targets set to sourceCluster (for drill mode reset).
+func reverseSpecTargets(specs []DomainFailoverSpec, sourceCluster string) []DomainFailoverSpec {
+	reversed := make([]DomainFailoverSpec, len(specs))
+	for i, s := range specs {
+		attrTargets := make([]ClusterAttributeTarget, len(s.AttributeTargets))
+		for j, t := range s.AttributeTargets {
+			attrTargets[j] = ClusterAttributeTarget{Attribute: t.Attribute, TargetCluster: sourceCluster}
+		}
+		reversed[i] = DomainFailoverSpec{
+			DomainName:       s.DomainName,
+			TargetCluster:    sourceCluster,
+			AttributeTargets: attrTargets,
+		}
+	}
+	return reversed
+}
+
+// specDomainNames extracts domain names from a slice of DomainFailoverSpec.
+func specDomainNames(specs []DomainFailoverSpec) []string {
+	names := make([]string, len(specs))
+	for i, s := range specs {
+		names[i] = s.DomainName
+	}
+	return names
 }
 
 func cleanupChannel(channel workflow.Channel) {

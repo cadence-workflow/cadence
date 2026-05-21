@@ -157,15 +157,18 @@ func (s *failoverWorkflowTestSuite) TestWorkflow_Success() {
 func (s *failoverWorkflowTestSuite) TestWorkflow_Success_Batches() {
 	domains := []string{"d1", "d2", "d3"}
 	expectFailoverActivityParams1 := &FailoverActivityParams{
-		Domains:       []string{"d1", "d2"},
-		TargetCluster: "t",
+		DomainSpecs: []DomainFailoverSpec{
+			{DomainName: "d1", TargetCluster: "t", AttributeTargets: []ClusterAttributeTarget{}},
+			{DomainName: "d2", TargetCluster: "t", AttributeTargets: []ClusterAttributeTarget{}},
+		},
 	}
 	mockFailoverActivityResult1 := &FailoverActivityResult{
 		SuccessDomains: []string{"d1", "d2"},
 	}
 	expectFailoverActivityParams2 := &FailoverActivityParams{
-		Domains:       []string{"d3"},
-		TargetCluster: "t",
+		DomainSpecs: []DomainFailoverSpec{
+			{DomainName: "d3", TargetCluster: "t", AttributeTargets: []ClusterAttributeTarget{}},
+		},
 	}
 	mockFailoverActivityResult2 := &FailoverActivityResult{
 		FailedDomains: []string{"d3"},
@@ -773,7 +776,6 @@ func (s *failoverWorkflowTestSuite) TestGetOperator() {
 	})
 
 	s.workflowEnv.OnActivity(getDomainsActivityName, mock.Anything, mock.Anything).Return(nil, nil)
-	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, mock.Anything).Return(nil, nil)
 	params := &FailoverParams{
 		TargetCluster: "t",
 		SourceCluster: "s",
@@ -1207,15 +1209,15 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_UpdateDoma
 }
 func TestBuildActiveClusters(t *testing.T) {
 	tests := []struct {
-		name          string
-		targetCluster string
-		attrs         []types.ClusterAttribute
-		expected      *types.ActiveClusters
+		name     string
+		targets  []ClusterAttributeTarget
+		expected *types.ActiveClusters
 	}{
 		{
-			name:          "single scope single attribute",
-			targetCluster: "cluster-west",
-			attrs:         []types.ClusterAttribute{{Scope: "region", Name: "us-west"}},
+			name: "single scope single attribute",
+			targets: []ClusterAttributeTarget{
+				{Attribute: types.ClusterAttribute{Scope: "region", Name: "us-west"}, TargetCluster: "cluster-west"},
+			},
 			expected: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -1225,11 +1227,10 @@ func TestBuildActiveClusters(t *testing.T) {
 			},
 		},
 		{
-			name:          "single scope multiple attributes",
-			targetCluster: "cluster-west",
-			attrs: []types.ClusterAttribute{
-				{Scope: "region", Name: "us-west"},
-				{Scope: "region", Name: "us-east"},
+			name: "single scope multiple attributes same cluster",
+			targets: []ClusterAttributeTarget{
+				{Attribute: types.ClusterAttribute{Scope: "region", Name: "us-west"}, TargetCluster: "cluster-west"},
+				{Attribute: types.ClusterAttribute{Scope: "region", Name: "us-east"}, TargetCluster: "cluster-west"},
 			},
 			expected: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
@@ -1241,11 +1242,10 @@ func TestBuildActiveClusters(t *testing.T) {
 			},
 		},
 		{
-			name:          "multiple scopes",
-			targetCluster: "cluster-a",
-			attrs: []types.ClusterAttribute{
-				{Scope: "region", Name: "us-west"},
-				{Scope: "datacenter", Name: "dc1"},
+			name: "multiple scopes",
+			targets: []ClusterAttributeTarget{
+				{Attribute: types.ClusterAttribute{Scope: "region", Name: "us-west"}, TargetCluster: "cluster-a"},
+				{Attribute: types.ClusterAttribute{Scope: "datacenter", Name: "dc1"}, TargetCluster: "cluster-a"},
 			},
 			expected: &types.ActiveClusters{
 				AttributeScopes: map[string]types.ClusterAttributeScope{
@@ -1258,11 +1258,26 @@ func TestBuildActiveClusters(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "per-attribute different target clusters",
+			targets: []ClusterAttributeTarget{
+				{Attribute: types.ClusterAttribute{Scope: "cluster", Name: "cluster0"}, TargetCluster: "cluster0"},
+				{Attribute: types.ClusterAttribute{Scope: "cluster", Name: "cluster1"}, TargetCluster: "cluster1"},
+			},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"cluster0": {ActiveClusterName: "cluster0"},
+						"cluster1": {ActiveClusterName: "cluster1"},
+					}},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := buildActiveClusters(tc.targetCluster, tc.attrs)
+			got := buildActiveClusters(tc.targets)
 			if len(got.AttributeScopes) != len(tc.expected.AttributeScopes) {
 				t.Fatalf("scope count mismatch: got %d, want %d", len(got.AttributeScopes), len(tc.expected.AttributeScopes))
 			}
