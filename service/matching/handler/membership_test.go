@@ -109,11 +109,12 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			config := defaultTestConfig()
 			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
 			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
-			// testing. With PercentageOnboardedToShardManager=0, no task list name is below the
-			// percentage threshold, so every name is considered excluded regardless of whether it
-			// contains a UUID.
+			// testing. With the onboarding percentage at 0 (set when constructing the engine
+			// below), no task list name is below the percentage threshold, so every name is
+			// considered excluded regardless of whether it contains a UUID.
 			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
-			config.PercentageOnboardedToShardManager = func(opts ...dynamicproperties.FilterOption) int { return 0 }
+			pct := membership.NewMockPercentageOnboarded(ctrl)
+			pct.EXPECT().Value().Return(0).AnyTimes()
 
 			matchingEngine := NewEngine(
 				taskManager,
@@ -131,6 +132,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
 				nil,
+				pct,
 			).(*matchingEngineImpl)
 
 			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
@@ -326,15 +328,17 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
+	pct := membership.NewMockPercentageOnboarded(ctrl)
+	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
-		shutdownCompletion: &shutdownWG,
-		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		shutdownCompletion:  &shutdownWG,
+		membershipResolver:  mockResolver,
+		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		metricsClient:       metrics.NewNoopMetricsClient(),
+		percentageOnboarded: pct,
 		config: &config.Config{
 			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
-			EmergencyOffboardingFromShardManager:       func(opts ...dynamicproperties.FilterOption) bool { return false },
-			PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 		},
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),

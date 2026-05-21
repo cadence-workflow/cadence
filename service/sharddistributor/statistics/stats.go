@@ -6,14 +6,16 @@ import (
 	"time"
 )
 
-func CalculateSmoothedLoad(prev, current float64, lastUpdate, now time.Time) (float64, error) {
+const DefaultLoadSmoothingTimeConstant = time.Minute
+
+func CalculateSmoothedLoad(prev, current float64, lastUpdate, now time.Time, smoothingTimeConstant time.Duration) (float64, error) {
 	if math.IsNaN(current) || math.IsInf(current, 0) {
 		return 0, fmt.Errorf("current load is NaN or Inf: %f", current)
 	}
 	if math.IsNaN(prev) || math.IsInf(prev, 0) {
 		return 0, fmt.Errorf("previous load is NaN or Inf: %f", prev)
 	}
-	const tau = 30 * time.Second // smaller = more responsive, larger = smoother
+	tau := smoothingTimeConstant
 	if lastUpdate.IsZero() || tau <= 0 {
 		return current, nil
 	}

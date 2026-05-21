@@ -144,9 +144,8 @@ Loop:
 			token = response.NextPageToken
 
 			for _, task := range response.Tasks {
-				t, ok := task.(*persistence.HistoryReplicationTask)
-				s.True(ok, "task is not a HistoryReplicationTask")
-				firstEventID := t.FirstEventID
+				s.NotNil(task.Info)
+				firstEventID := task.Info.FirstEventID
 				actualDLQMsgs[firstEventID] = true
 			}
 		}

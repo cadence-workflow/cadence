@@ -27,6 +27,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/matching/config"
@@ -46,6 +47,7 @@ type Service struct {
 	config                         *config.Config
 	ShardDistributorMatchingConfig clientcommon.Config
 	drainObserver                  clientcommon.DrainSignalObserver
+	percentageOnboarded            membership.PercentageOnboarded
 }
 
 // NewService builds a new cadence-matching service
@@ -86,6 +88,7 @@ func NewService(
 		stopC:                          make(chan struct{}),
 		ShardDistributorMatchingConfig: params.ShardDistributorMatchingConfig,
 		drainObserver:                  params.DrainObserver,
+		percentageOnboarded:            params.PercentageOnboarded,
 	}, nil
 }
 
@@ -114,6 +117,7 @@ func (s *Service) Start() {
 		s.GetShardDistributorExecutorClient(),
 		s.ShardDistributorMatchingConfig,
 		s.drainObserver,
+		s.percentageOnboarded,
 	)
 
 	s.handler = handler.NewHandler(engine, s.config, s.GetDomainCache(), s.GetMetricsClient(), s.GetLogger(), s.GetThrottledLogger())

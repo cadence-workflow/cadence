@@ -62,6 +62,11 @@ type Task interface {
 }
 
 var (
+	MinimumHistoryTaskKey = HistoryTaskKey{
+		scheduledTime: time.Time{},
+		taskID:        0,
+	}
+
 	MaximumHistoryTaskKey = HistoryTaskKey{
 		scheduledTime: time.Unix(0, math.MaxInt64),
 		taskID:        math.MaxInt64,

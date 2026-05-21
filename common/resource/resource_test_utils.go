@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -106,11 +107,12 @@ type (
 		ExecutionMgr    *mocks.ExecutionManager
 		PersistenceBean *persistenceClient.MockBean
 
-		IsolationGroups     *isolationgroup.MockState
-		IsolationGroupStore *configstore.MockClient
-		HostName            string
-		Logger              log.Logger
-		taskvalidator       taskvalidator.Checker
+		IsolationGroups        *isolationgroup.MockState
+		IsolationGroupStore    configstore.Client
+		OperationalConfigStore configstore.Client
+		HostName               string
+		Logger                 log.Logger
+		taskvalidator          taskvalidator.Checker
 
 		AsyncWorkflowQueueProvider *queue.MockProvider
 
@@ -476,6 +478,16 @@ func (s *Test) GetIsolationGroupState() isolationgroup.State {
 // isolation-group stores
 func (s *Test) GetIsolationGroupStore() configstore.Client {
 	return s.IsolationGroupStore
+}
+
+// GetOperationalConfigStore returns the operational dynamic config store
+func (s *Test) GetOperationalConfigStore() configstore.Client {
+	return s.OperationalConfigStore
+}
+
+// GetOperationalDynamicConfig returns a Collection backed by a no-op client for tests.
+func (s *Test) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	return dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), s.Logger)
 }
 
 func (s *Test) GetAsyncWorkflowQueueProvider() queue.Provider {

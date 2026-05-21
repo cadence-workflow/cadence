@@ -639,10 +639,10 @@ func (mr *MockExecutionManagerMockRecorder) GetReplicationDLQSize(ctx, request a
 }
 
 // GetReplicationTasksFromDLQ mocks base method.
-func (m *MockExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error) {
+func (m *MockExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationDLQTasksResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReplicationTasksFromDLQ", ctx, request)
-	ret0, _ := ret[0].(*GetHistoryTasksResponse)
+	ret0, _ := ret[0].(*GetReplicationDLQTasksResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -362,6 +362,7 @@ type ConfigType int
 const (
 	DynamicConfig ConfigType = iota
 	GlobalIsolationGroupConfig
+	OperationalDynamicConfig
 )
 
 type (
@@ -986,6 +987,7 @@ type (
 		SourceClusterName string
 		TaskInfo          *ReplicationTaskInfo
 		DomainName        string
+		Task              *types.ReplicationTask
 	}
 
 	// GetReplicationTasksFromDLQRequest is used to get replication tasks from dlq
@@ -996,6 +998,19 @@ type (
 		MaxReadLevel      int64
 		BatchSize         int
 		NextPageToken     []byte
+	}
+
+	// ReplicationDLQTask pairs DLQ task metadata with its hydrated full task payload.
+	// Task may be nil for entries with no stored payload or whose payload could not be hydrated.
+	ReplicationDLQTask struct {
+		Info *ReplicationTaskInfo
+		Task *types.ReplicationTask
+	}
+
+	// GetReplicationDLQTasksResponse is returned by GetReplicationDLQTasks.
+	GetReplicationDLQTasksResponse struct {
+		Tasks         []*ReplicationDLQTask
+		NextPageToken []byte
 	}
 
 	// GetReplicationDLQSizeRequest is used to get one replication task from dlq
@@ -1672,7 +1687,7 @@ type (
 		// Replication task related methods
 
 		PutReplicationTaskToDLQ(ctx context.Context, request *PutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationDLQTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)

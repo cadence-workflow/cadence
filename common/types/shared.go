@@ -2795,22 +2795,7 @@ func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
 	return c.Scope == other.Scope && c.Name == other.Name
 }
 
-type ActiveClusterSelectionStrategy int32
-
-const (
-	ActiveClusterSelectionStrategyRegionSticky ActiveClusterSelectionStrategy = iota
-	ActiveClusterSelectionStrategyExternalEntity
-)
-
 type ActiveClusterSelectionPolicy struct {
-	ActiveClusterSelectionStrategy *ActiveClusterSelectionStrategy `json:"activeClusterSelectionStrategy,omitempty"`
-
-	StickyRegion string `json:"stickyRegion,omitempty"`
-
-	ExternalEntityType string `json:"externalEntityType,omitempty"`
-	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
-
-	// TODO(active-active): Remove the fields above
 	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
 }
 
@@ -2830,43 +2815,6 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 	}
 
 	return p.ClusterAttribute.Equals(other.ClusterAttribute)
-}
-
-func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
-	return &e
-}
-
-func (e ActiveClusterSelectionStrategy) String() string {
-	switch e {
-	case ActiveClusterSelectionStrategyRegionSticky:
-		return "REGION_STICKY"
-	case ActiveClusterSelectionStrategyExternalEntity:
-		return "EXTERNAL_ENTITY"
-	}
-
-	return fmt.Sprintf("ActiveClusterSelectionStrategy(%d)", e)
-}
-
-func (e ActiveClusterSelectionStrategy) MarshalText() ([]byte, error) {
-	return []byte(e.String()), nil
-}
-
-func (e *ActiveClusterSelectionStrategy) UnmarshalText(value []byte) error {
-	switch s := strings.ToUpper(string(value)); s {
-	case "REGION_STICKY":
-		*e = ActiveClusterSelectionStrategyRegionSticky
-		return nil
-	case "EXTERNAL_ENTITY":
-		*e = ActiveClusterSelectionStrategyExternalEntity
-		return nil
-	default:
-		val, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return fmt.Errorf("unknown enum value %q for %q: %v", s, "ActiveClusterSelectionStrategy", err)
-		}
-		*e = ActiveClusterSelectionStrategy(val)
-		return nil
-	}
 }
 
 // DomainStatus is an internal type (TBD...)

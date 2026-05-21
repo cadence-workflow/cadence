@@ -270,4 +270,35 @@ var (
 		PartitionConfig: &TaskListPartitionConfig,
 	}
 	AdminUpdateTaskListPartitionConfigResponse = types.UpdateTaskListPartitionConfigResponse{}
+
+	AdminGetOperationalDynamicConfigRequest = types.GetOperationalDynamicConfigRequest{
+		ConfigName: DynamicConfigEntryName,
+		Filters:    []*types.DynamicConfigFilter{&DynamicConfigFilter},
+	}
+	AdminGetOperationalDynamicConfigResponse   = types.GetOperationalDynamicConfigResponse{Value: &DataBlob}
+	AdminUpdateOperationalDynamicConfigRequest = types.UpdateOperationalDynamicConfigRequest{
+		ConfigName: DynamicConfigEntryName,
+		ConfigValues: []*types.DynamicConfigValue{
+			{
+				Filters: []*types.DynamicConfigFilter{
+					&DynamicConfigFilter,
+					nil,
+				},
+				Value: &DataBlob,
+			},
+			nil,
+		},
+	}
+	AdminRestoreOperationalDynamicConfigRequest = types.RestoreOperationalDynamicConfigRequest{
+		ConfigName: DynamicConfigEntryName,
+		Filters: []*types.DynamicConfigFilter{
+			&DynamicConfigFilter,
+		},
+	}
+	AdminListOperationalDynamicConfigRequest = types.ListOperationalDynamicConfigRequest{
+		ConfigName: DynamicConfigEntryName,
+	}
+	AdminListOperationalDynamicConfigResponse = types.ListOperationalDynamicConfigResponse{
+		Entries: []*types.DynamicConfigEntry{&DynamicConfigEntry},
+	}
 )

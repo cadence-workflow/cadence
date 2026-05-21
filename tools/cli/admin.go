@@ -1367,6 +1367,65 @@ func newAdminConfigStoreCommands() []*cli.Command {
 			Flags:   []cli.Flag{getFormatFlag()},
 			Action:  AdminListConfigKeys,
 		},
+		{
+			Name:    "operational-get",
+			Aliases: []string{"og"},
+			Usage:   "Get Operational Dynamic Config Value (cassandra-backed store)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     FlagDynamicConfigName,
+					Usage:    "Name of Dynamic Config parameter to get value of",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigFilter,
+					Usage: fmt.Sprintf(`Optional filter map keyed by the config's filter dimensions (e.g. domainName, shardID). ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+				},
+			},
+			Action: AdminGetOperationalDynamicConfig,
+		},
+		{
+			Name:    "operational-update",
+			Aliases: []string{"ou"},
+			Usage:   "Update Operational Dynamic Config Value (cassandra-backed store)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     FlagDynamicConfigName,
+					Usage:    "Name of Dynamic Config parameter to update value of",
+					Required: true,
+				},
+				&cli.StringSliceFlag{
+					Name:     FlagDynamicConfigValue,
+					Usage:    fmt.Sprintf(`Can be specified multiple times for multiple values. ex: --%s '{"Value":true,"Filters":[]}'`, FlagDynamicConfigValue),
+					Required: true,
+				},
+			},
+			Action: AdminUpdateOperationalDynamicConfig,
+		},
+		{
+			Name:    "operational-restore",
+			Aliases: []string{"or"},
+			Usage:   "Restore Operational Dynamic Config Value (cassandra-backed store)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     FlagDynamicConfigName,
+					Usage:    "Name of Dynamic Config parameter to restore",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigFilter,
+					Usage: fmt.Sprintf(`Optional filter map keyed by the config's filter dimensions (e.g. domainName, shardID). ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+				},
+			},
+			Action: AdminRestoreOperationalDynamicConfig,
+		},
+		{
+			Name:    "operational-list",
+			Aliases: []string{"ol"},
+			Usage:   "List Operational Dynamic Config Value (cassandra-backed store)",
+			Flags:   []cli.Flag{},
+			Action:  AdminListOperationalDynamicConfig,
+		},
 	}
 }
 

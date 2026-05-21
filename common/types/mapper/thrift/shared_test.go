@@ -3604,8 +3604,6 @@ func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	testCases := []*types.ActiveClusterSelectionPolicy{
 		nil,
 		{},
-		&testdata.ActiveClusterSelectionPolicyExternalEntity,
-		&testdata.ActiveClusterSelectionPolicyRegionSticky,
 		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 

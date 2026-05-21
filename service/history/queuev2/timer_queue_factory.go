@@ -132,6 +132,14 @@ func (f *timerQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
+
+	queueReader := NewQueueReader(
+		shard,
+		persistence.HistoryTaskCategoryTimer,
+		config.TimerProcessorMaxPollInterval,
+		config.TimerProcessorMaxPollIntervalJitterCoefficient,
+	)
+
 	return NewScheduledQueue(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
@@ -140,6 +148,7 @@ func (f *timerQueueFactory) createQueuev2(
 		logger,
 		shard.GetMetricsClient(),
 		shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())),
+		queueReader,
 		&Options{
 			PageSize:                             config.TimerTaskBatchSize,
 			DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,

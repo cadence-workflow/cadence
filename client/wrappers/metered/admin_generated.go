@@ -389,6 +389,30 @@ func (c *adminClient) GetGlobalIsolationGroups(ctx context.Context, request *typ
 	return gp1, err
 }
 
+func (c *adminClient) GetOperationalDynamicConfig(ctx context.Context, gp1 *types.GetOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (gp2 *types.GetOperationalDynamicConfigResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientGetOperationalDynamicConfigScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientGetOperationalDynamicConfigScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	gp2, err = c.client.GetOperationalDynamicConfig(ctx, gp1, p1...)
+	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return gp2, err
+}
+
 func (c *adminClient) GetReplicationMessages(ctx context.Context, gp1 *types.GetReplicationMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetReplicationMessagesResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -452,6 +476,30 @@ func (c *adminClient) ListDynamicConfig(ctx context.Context, lp1 *types.ListDyna
 	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	lp2, err = c.client.ListDynamicConfig(ctx, lp1, p1...)
+	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return lp2, err
+}
+
+func (c *adminClient) ListOperationalDynamicConfig(ctx context.Context, lp1 *types.ListOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOperationalDynamicConfigResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientListOperationalDynamicConfigScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientListOperationalDynamicConfigScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	lp2, err = c.client.ListOperationalDynamicConfig(ctx, lp1, p1...)
 	sw.Stop()
 	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
@@ -701,6 +749,30 @@ func (c *adminClient) RestoreDynamicConfig(ctx context.Context, rp1 *types.Resto
 	return err
 }
 
+func (c *adminClient) RestoreOperationalDynamicConfig(ctx context.Context, rp1 *types.RestoreOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientRestoreOperationalDynamicConfigScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientRestoreOperationalDynamicConfigScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	err = c.client.RestoreOperationalDynamicConfig(ctx, rp1, p1...)
+	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return err
+}
+
 func (c *adminClient) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, request *types.UpdateDomainAsyncWorkflowConfiguratonRequest, opts ...yarpc.CallOption) (up1 *types.UpdateDomainAsyncWorkflowConfiguratonResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -795,6 +867,30 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return up1, err
+}
+
+func (c *adminClient) UpdateOperationalDynamicConfig(ctx context.Context, up1 *types.UpdateOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientUpdateOperationalDynamicConfigScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientUpdateOperationalDynamicConfigScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	err = c.client.UpdateOperationalDynamicConfig(ctx, up1, p1...)
+	sw.Stop()
+	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return err
 }
 
 func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {

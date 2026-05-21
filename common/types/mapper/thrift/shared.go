@@ -7150,11 +7150,7 @@ func FromActiveClusterSelectionPolicy(t *types.ActiveClusterSelectionPolicy) *sh
 		return nil
 	}
 	return &shared.ActiveClusterSelectionPolicy{
-		Strategy:           FromActiveClusterSelectionStrategy(t.ActiveClusterSelectionStrategy),
-		ExternalEntityType: &t.ExternalEntityType,
-		ExternalEntityKey:  &t.ExternalEntityKey,
-		StickyRegion:       &t.StickyRegion,
-		ClusterAttribute:   FromClusterAttribute(t.ClusterAttribute),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
 	}
 }
 
@@ -7163,38 +7159,8 @@ func ToActiveClusterSelectionPolicy(t *shared.ActiveClusterSelectionPolicy) *typ
 		return nil
 	}
 	return &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: ToActiveClusterSelectionStrategy(t.Strategy),
-		ExternalEntityType:             t.GetExternalEntityType(),
-		ExternalEntityKey:              t.GetExternalEntityKey(),
-		StickyRegion:                   t.GetStickyRegion(),
-		ClusterAttribute:               ToClusterAttribute(t.ClusterAttribute),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
 	}
-}
-
-func FromActiveClusterSelectionStrategy(t *types.ActiveClusterSelectionStrategy) *shared.ActiveClusterSelectionStrategy {
-	if t == nil {
-		return nil
-	}
-	switch *t {
-	case types.ActiveClusterSelectionStrategyRegionSticky:
-		return shared.ActiveClusterSelectionStrategyRegionSticky.Ptr()
-	case types.ActiveClusterSelectionStrategyExternalEntity:
-		return shared.ActiveClusterSelectionStrategyExternalEntity.Ptr()
-	}
-	panic("unexpected enum value")
-}
-
-func ToActiveClusterSelectionStrategy(t *shared.ActiveClusterSelectionStrategy) *types.ActiveClusterSelectionStrategy {
-	if t == nil {
-		return nil
-	}
-	switch *t {
-	case shared.ActiveClusterSelectionStrategyRegionSticky:
-		return types.ActiveClusterSelectionStrategyRegionSticky.Ptr()
-	case shared.ActiveClusterSelectionStrategyExternalEntity:
-		return types.ActiveClusterSelectionStrategyExternalEntity.Ptr()
-	}
-	panic("unexpected enum value")
 }
 
 // FromWorkflowExecutionTerminatedEventAttributes converts internal WorkflowExecutionTerminatedEventAttributes type to thrift

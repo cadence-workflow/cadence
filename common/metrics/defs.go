@@ -332,6 +332,8 @@ const (
 	ResolverHostNotFoundScope
 	// HashringScope is a metrics scope for emitting events for the service hashrhing
 	HashringScope
+	// ShardManagerOnboardingScope is a metrics scope for the matching → shard-manager onboarding percentage gauge.
+	ShardManagerOnboardingScope
 	// HistoryClientStartWorkflowExecutionScope tracks RPC calls to history service
 	HistoryClientStartWorkflowExecutionScope
 	// HistoryClientDescribeHistoryHostScope tracks RPC calls to history service
@@ -619,6 +621,14 @@ const (
 	AdminClientRestoreDynamicConfigScope
 	// AdminClientListDynamicConfigScope tracks RPC calls to admin service
 	AdminClientListDynamicConfigScope
+	// AdminClientGetOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientGetOperationalDynamicConfigScope
+	// AdminClientUpdateOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientUpdateOperationalDynamicConfigScope
+	// AdminClientRestoreOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientRestoreOperationalDynamicConfigScope
+	// AdminClientListOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientListOperationalDynamicConfigScope
 	// AdminClientGetGlobalIsolationGroupsScope is a request to get all the global isolation-groups
 	AdminClientGetGlobalIsolationGroupsScope
 	// AdminClientUpdateGlobalIsolationGroupsScope is a request to update the global isolation-groups
@@ -1006,6 +1016,14 @@ const (
 	AdminRestoreDynamicConfigScope
 	// AdminListDynamicConfigScope is the metric scope for admin.ListDynamicConfig
 	AdminListDynamicConfigScope
+	// AdminGetOperationalDynamicConfigScope is the metric scope for admin.GetOperationalDynamicConfig
+	AdminGetOperationalDynamicConfigScope
+	// AdminUpdateOperationalDynamicConfigScope is the metric scope for admin.UpdateOperationalDynamicConfig
+	AdminUpdateOperationalDynamicConfigScope
+	// AdminRestoreOperationalDynamicConfigScope is the metric scope for admin.RestoreOperationalDynamicConfig
+	AdminRestoreOperationalDynamicConfigScope
+	// AdminListOperationalDynamicConfigScope is the metric scope for admin.ListOperationalDynamicConfig
+	AdminListOperationalDynamicConfigScope
 	// AdminDeleteWorkflowScope is the metric scope for admin.DeleteWorkflow
 	AdminDeleteWorkflowScope
 	// GetGlobalIsolationGroups is the scope for getting global isolation groups
@@ -1812,6 +1830,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		AdminClientUpdateDynamicConfigScope:                   {operation: "AdminClientUpdateDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientRestoreDynamicConfigScope:                  {operation: "AdminClientRestoreDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientListDynamicConfigScope:                     {operation: "AdminClientListDynamicConfigScope", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientGetOperationalDynamicConfigScope:           {operation: "AdminClientGetOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientUpdateOperationalDynamicConfigScope:        {operation: "AdminClientUpdateOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientRestoreOperationalDynamicConfigScope:       {operation: "AdminClientRestoreOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientListOperationalDynamicConfigScope:          {operation: "AdminClientListOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientGetGlobalIsolationGroupsScope:              {operation: "AdminClientGetGlobalIsolationGroups", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientUpdateGlobalIsolationGroupsScope:           {operation: "AdminClientUpdateGlobalIsolationGroups", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientGetDomainIsolationGroupsScope:              {operation: "AdminClientGetDomainIsolationGroups", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -1952,6 +1974,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DomainReplicationQueueScope: {operation: "DomainReplicationQueue"},
 		ClusterMetadataScope:        {operation: "ClusterMetadata"},
 		HashringScope:               {operation: "Hashring"},
+		ShardManagerOnboardingScope: {operation: "ShardManagerOnboarding"},
 
 		// currently used by both frontend and history, but may grow to other limiting-host-services.
 		GlobalRatelimiter:           {operation: "GlobalRatelimiter"},
@@ -1999,6 +2022,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		AdminUpdateDynamicConfigScope:               {operation: "AdminUpdateDynamicConfig"},
 		AdminRestoreDynamicConfigScope:              {operation: "AdminRestoreDynamicConfig"},
 		AdminListDynamicConfigScope:                 {operation: "AdminListDynamicConfig"},
+		AdminGetOperationalDynamicConfigScope:       {operation: "AdminGetOperationalDynamicConfig"},
+		AdminUpdateOperationalDynamicConfigScope:    {operation: "AdminUpdateOperationalDynamicConfig"},
+		AdminRestoreOperationalDynamicConfigScope:   {operation: "AdminRestoreOperationalDynamicConfig"},
+		AdminListOperationalDynamicConfigScope:      {operation: "AdminListOperationalDynamicConfig"},
 		AdminDeleteWorkflowScope:                    {operation: "AdminDeleteWorkflow"},
 		GetGlobalIsolationGroups:                    {operation: "GetGlobalIsolationGroups"},
 		UpdateGlobalIsolationGroups:                 {operation: "UpdateGlobalIsolationGroups"},
@@ -2564,6 +2591,9 @@ const (
 	TaskListPartitionConfigVersionGauge
 	TaskListPartitionConfigNumReadGauge
 	TaskListPartitionConfigNumWriteGauge
+
+	// operational dynamic config migration metric
+	PercentageOnboardedToShardManagerGauge
 
 	// base cache metrics
 	BaseCacheByteSize
@@ -3260,6 +3290,16 @@ const (
 	// ShardDistributorAssignLoopMovedShardLoad tracks the load of a shard that was moved due to load rebalancing
 	ShardDistributorAssignLoopMovedShardLoad
 
+	// ShardDistributorAssignmentLoadMaxOverMean measures max/mean across executor reported loads
+	ShardDistributorAssignmentLoadMaxOverMean
+	// ShardDistributorAssignmentLoadCV measures coefficient of variation across executor reported loads
+	ShardDistributorAssignmentLoadCV
+	// ShardDistributorAssignmentSmoothedLoadMaxOverMean measures max/mean across executor smoothed loads
+	ShardDistributorAssignmentSmoothedLoadMaxOverMean
+	// ShardDistributorAssignmentSmoothedLoadCV measures coefficient of variation across executor smoothed loads
+	ShardDistributorAssignmentSmoothedLoadCV
+	// ShardDistributorAssignmentSmoothedLoadMissingRatio measures the fraction of assigned shards with no smoothed load
+	ShardDistributorAssignmentSmoothedLoadMissingRatio
 	// ShardDistributorIsLeader reports whether this instance is currently the leader (1) or not (0) for a namespace
 	ShardDistributorIsLeader
 
@@ -3564,12 +3604,13 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		GlobalRatelimiterRemovedLimits:     {metricName: "global_ratelimiter_removed_limits", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 		GlobalRatelimiterRemovedHostLimits: {metricName: "global_ratelimiter_removed_host_limits", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 
-		P2PPeersCount:                        {metricName: "peers_count", metricType: Gauge},
-		P2PPeerAdded:                         {metricName: "peer_added", metricType: Counter},
-		P2PPeerRemoved:                       {metricName: "peer_removed", metricType: Counter},
-		TaskListPartitionConfigVersionGauge:  {metricName: "task_list_partition_config_version", metricType: Gauge},
-		TaskListPartitionConfigNumReadGauge:  {metricName: "task_list_partition_config_num_read", metricType: Gauge},
-		TaskListPartitionConfigNumWriteGauge: {metricName: "task_list_partition_config_num_write", metricType: Gauge},
+		P2PPeersCount:                          {metricName: "peers_count", metricType: Gauge},
+		P2PPeerAdded:                           {metricName: "peer_added", metricType: Counter},
+		P2PPeerRemoved:                         {metricName: "peer_removed", metricType: Counter},
+		TaskListPartitionConfigVersionGauge:    {metricName: "task_list_partition_config_version", metricType: Gauge},
+		TaskListPartitionConfigNumReadGauge:    {metricName: "task_list_partition_config_num_read", metricType: Gauge},
+		TaskListPartitionConfigNumWriteGauge:   {metricName: "task_list_partition_config_num_write", metricType: Gauge},
+		PercentageOnboardedToShardManagerGauge: {metricName: "percentage_onboarded_to_shard_manager", metricType: Gauge},
 
 		BaseCacheByteSize:           {metricName: "cache_byte_size", metricType: Gauge},
 		BaseCacheByteSizeLimitGauge: {metricName: "cache_byte_size_limit", metricType: Gauge},
@@ -4211,6 +4252,14 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopDeletedShards:  {metricName: "shard_distributor_shard_assign_deleted_shards", metricType: Gauge},
 		ShardDistributorAssignLoopMovedShardLoad: {metricName: "shard_distributor_shard_assign_moved_shard_load", metricType: Gauge},
 
+		ShardDistributorAssignmentLoadMaxOverMean:         {metricName: "shard_distributor_assignment_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentLoadCV:                  {metricName: "shard_distributor_assignment_load_cv", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadMaxOverMean: {metricName: "shard_distributor_assignment_smoothed_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadCV:          {metricName: "shard_distributor_assignment_smoothed_load_cv", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadMissingRatio: {
+			metricName: "shard_distributor_assignment_smoothed_load_missing_ratio",
+			metricType: Gauge,
+		},
 		ShardDistributorIsLeader: {metricName: "shard_distributor_is_leader", metricType: Gauge},
 	},
 }
