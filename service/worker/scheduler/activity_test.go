@@ -188,6 +188,63 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
+			name: "backfill start stamps CadenceScheduleBackfillID on StartWorkflow",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.TriggerSource = TriggerSourceBackfill
+				r.BackfillID = "bf-coverage"
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, swReq *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.NotNil(t, swReq.SearchAttributes)
+						require.Contains(t, swReq.SearchAttributes.IndexedFields, SearchAttrBackfillID)
+						var got string
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrBackfillID], &got))
+						assert.Equal(t, "bf-coverage", got)
+						var isBF bool
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrIsBackfill], &isBF))
+						assert.True(t, isBF)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-bf"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-bf"},
+			},
+		},
+		{
+			name: "BUFFER backfill start when previous closed stamps CadenceScheduleBackfillID",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyBuffer
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				r.TriggerSource = TriggerSourceBackfill
+				r.BackfillID = "bf-buf-start"
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				status := types.WorkflowExecutionCloseStatusCompleted
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &status},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, swReq *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.Contains(t, swReq.SearchAttributes.IndexedFields, SearchAttrBackfillID)
+						var got string
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrBackfillID], &got))
+						assert.Equal(t, "bf-buf-start", got)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-buf"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-buf"},
+			},
+		},
+		{
 			name: "SKIP_NEW skips when previous is running",
 			req: func() ProcessFireRequest {
 				r := baseReq
