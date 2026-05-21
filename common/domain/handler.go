@@ -1784,6 +1784,10 @@ func (d *handlerImpl) validateDomainFailoverRequest(
 		return errLocalDomainsCannotFailover
 	}
 
+	if request.ActiveClusters != nil && currentDomainState.ReplicationConfig.ActiveClusters == nil {
+		return errCannotPromoteToActiveActiveViaFailover
+	}
+
 	if request.ActiveClusters == nil && request.DomainActiveClusterName == nil {
 		return &types.BadRequestError{Message: "Domain's ActiveClusterName or ActiveClusters must be set to failover the domain"}
 	}
