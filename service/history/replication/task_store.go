@@ -59,8 +59,9 @@ type TaskStore struct {
 	throttleRetry *backoff.ThrottleRetry
 	timeSource    clock.TimeSource
 
-	scope  metrics.Scope
-	logger log.Logger
+	scope   metrics.Scope
+	logger  log.Logger
+	shardID int
 
 	lastLogTime time.Time
 }
@@ -107,9 +108,19 @@ func NewTaskStore(
 		),
 		scope:       metricsClient.Scope(metrics.ReplicatorCacheManagerScope),
 		logger:      logger.WithTags(tag.ComponentReplicationCacheManager),
+		shardID:     shardID,
 		rateLimiter: quotas.NewDynamicRateLimiter(config.ReplicationTaskGenerationQPS.AsFloat64()),
 		timeSource:  timeSource,
 	}
+}
+
+func (m *TaskStore) cacheMetricsScope(cluster string) metrics.Scope {
+	return metrics.WithCacheScopeLabels(
+		m.scope,
+		m.shardID,
+		cluster,
+		metrics.ReplicationCacheTypeTagValue,
+	)
 }
 
 // Get will return a hydrated replication message for a given cluster based on raw task info.
@@ -133,7 +144,7 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 		return nil, nil
 	}
 
-	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
+	scope := m.cacheMetricsScope(cluster)
 
 	scope.IncCounter(metrics.CacheRequests)
 	// Keep timer (backwards compatible), dual-emit exponential histogram for migration.
@@ -151,7 +162,7 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 		return task, nil
 	}
 
-	m.scope.IncCounter(metrics.CacheMissCounter)
+	scope.IncCounter(metrics.CacheMissCounter)
 
 	// Rate limit to not kill the database
 	m.rateLimiter.Wait(ctx)
@@ -165,7 +176,7 @@ func (m *TaskStore) Get(ctx context.Context, cluster string, info persistence.Ta
 	err = m.throttleRetry.Do(ctx, op)
 
 	if err != nil {
-		m.scope.IncCounter(metrics.CacheFailures)
+		scope.IncCounter(metrics.CacheFailures)
 		return nil, err
 	}
 
@@ -195,7 +206,7 @@ func (m *TaskStore) Put(task *types.ReplicationTask) {
 			continue
 		}
 
-		scope := m.scope.Tagged(metrics.SourceClusterTag(targetCluster))
+		scope := m.cacheMetricsScope(targetCluster)
 
 		err = cacheByCluster.Put(task, task.ByteSize())
 		switch {
@@ -230,7 +241,7 @@ func (m *TaskStore) Ack(cluster string, lastTaskID int64) error {
 
 	_, _ = cache.Ack(lastTaskID)
 
-	scope := m.scope.Tagged(metrics.SourceClusterTag(cluster))
+	scope := m.cacheMetricsScope(cluster)
 	count := cache.Count()
 	scope.RecordTimer(metrics.CacheSize, time.Duration(count))
 	scope.RecordHistogramValue(metrics.CacheSizeHistogram, float64(count))

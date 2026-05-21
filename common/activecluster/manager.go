@@ -82,7 +82,7 @@ func NewManager(
 			MaxCount:      workflowPolicyCacheMaxCount,
 			ActivelyEvict: true,
 			Pin:           false,
-			MetricsScope:  metricsCl.Scope(metrics.ActiveClusterManagerWorkflowCacheScope),
+			MetricsScope:  metricsCl.Scope(metrics.ActiveClusterManagerWorkflowCacheScope).Tagged(metrics.NonShardTag()),
 			Logger:        logger,
 		}),
 	}
