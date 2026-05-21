@@ -144,6 +144,21 @@ func (mr *MockFactoryMockRecorder) NewHistoryManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryManager", reflect.TypeOf((*MockFactory)(nil).NewHistoryManager))
 }
 
+// NewHistoryTaskDLQManager mocks base method.
+func (m *MockFactory) NewHistoryTaskDLQManager() (persistence.HistoryTaskDLQManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewHistoryTaskDLQManager")
+	ret0, _ := ret[0].(persistence.HistoryTaskDLQManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewHistoryTaskDLQManager indicates an expected call of NewHistoryTaskDLQManager.
+func (mr *MockFactoryMockRecorder) NewHistoryTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryTaskDLQManager", reflect.TypeOf((*MockFactory)(nil).NewHistoryTaskDLQManager))
+}
+
 // NewShardManager mocks base method.
 func (m *MockFactory) NewShardManager() (persistence.ShardManager, error) {
 	m.ctrl.T.Helper()
@@ -283,6 +298,21 @@ func (m *MockDataStoreFactory) NewExecutionStore(shardID int) (persistence.Execu
 func (mr *MockDataStoreFactoryMockRecorder) NewExecutionStore(shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewExecutionStore), shardID)
+}
+
+// NewHistoryDLQTaskStore mocks base method.
+func (m *MockDataStoreFactory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewHistoryDLQTaskStore")
+	ret0, _ := ret[0].(persistence.HistoryDLQTaskStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewHistoryDLQTaskStore indicates an expected call of NewHistoryDLQTaskStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewHistoryDLQTaskStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryDLQTaskStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewHistoryDLQTaskStore))
 }
 
 // NewHistoryStore mocks base method.

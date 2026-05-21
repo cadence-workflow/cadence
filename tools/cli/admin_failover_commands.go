@@ -60,6 +60,7 @@ type startParams struct {
 	domains                        []string
 	drillWaitTime                  int
 	cron                           string
+	clusterAttributes              []types.ClusterAttribute
 }
 
 // AdminFailoverStart start failover workflow
@@ -82,6 +83,13 @@ func AdminFailoverStart(c *cli.Context) error {
 		domains:                        c.StringSlice(FlagFailoverDomains),
 		drillWaitTime:                  c.Int(FlagFailoverDrillWaitTime),
 		cron:                           c.String(FlagCronSchedule),
+	}
+	if raw := c.String(FlagClusterAttributesJSON); raw != "" {
+		attrs, parseErr := parseClusterAttributesJSON(raw)
+		if parseErr != nil {
+			return commoncli.Problem("Invalid cluster_attributes_json", parseErr)
+		}
+		params.clusterAttributes = attrs
 	}
 	return failoverStart(c, params)
 }
@@ -372,6 +380,7 @@ func failoverStart(c *cli.Context, params *startParams) error {
 		Domains:                          domains,
 		DrillWaitTime:                    drillWaitTime,
 		GracefulFailoverTimeoutInSeconds: gracefulFailoverTimeoutInSeconds,
+		ClusterAttributes:                params.clusterAttributes,
 	}
 	input, err := json.Marshal(foParams)
 	if err != nil {
@@ -459,4 +468,12 @@ func validateStartParams(params *startParams) error {
 		params.failoverWorkflowTimeout = defaultFailoverWorkflowTimeoutInSeconds
 	}
 	return nil
+}
+
+func parseClusterAttributesJSON(s string) ([]types.ClusterAttribute, error) {
+	var attrs []types.ClusterAttribute
+	if err := json.Unmarshal([]byte(s), &attrs); err != nil {
+		return nil, fmt.Errorf("couldn't parse JSON: %w. Got: %s", err, s)
+	}
+	return attrs, nil
 }

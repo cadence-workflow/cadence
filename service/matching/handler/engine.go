@@ -67,10 +67,6 @@ const (
 	// _defaultSDReportTTL is the default TTL for shard status reports from matching executor to shard distributor.
 	// This controls how frequently the executor reports its shard load/status to the distributor.
 	_defaultSDReportTTL = 1 * time.Minute
-	// _recordTaskStartedTimeout is the maximum time allowed for RecordDecisionTaskStarted or RecordActivityTaskStarted
-	// Any time we spend attempting to start an individual task is blocking that poller from starting a different task.
-	// If a task is taking too long we'd rather try other tasks to maintain higher throughput.
-	_recordTaskStartedTimeout = time.Second
 )
 
 // Implements matching.Engine
@@ -116,6 +112,7 @@ type (
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
+		percentageOnboarded            membership.PercentageOnboarded
 	}
 )
 
@@ -146,6 +143,7 @@ func NewEngine(
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
 	drainObserver clientcommon.DrainSignalObserver,
+	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
 		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
@@ -168,6 +166,7 @@ func NewEngine(
 		timeSource:                     timeSource,
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
+		percentageOnboarded:            percentageOnboarded,
 	}
 
 	e.setupExecutor(shardDistributorClient)
@@ -452,6 +451,7 @@ func (e *matchingEngineImpl) AddDecisionTask(
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddDecisionTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -518,16 +518,16 @@ func (e *matchingEngineImpl) AddActivityTask(
 	}
 
 	syncMatched, err := tlMgr.AddTask(hCtx.Context, tasklist.AddTaskParams{
-		TaskInfo:                 taskInfo,
-		Source:                   request.GetSource(),
-		ForwardedFrom:            request.GetForwardedFrom(),
-		ActivityTaskDispatchInfo: request.ActivityTaskDispatchInfo,
+		TaskInfo:      taskInfo,
+		Source:        request.GetSource(),
+		ForwardedFrom: request.GetForwardedFrom(),
 	})
 	if err != nil {
 		return nil, err
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddActivityTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -824,10 +824,6 @@ pollLoop:
 		}
 		e.emitForwardedFromStats(hCtx.scope, task.IsForwarded(), req.GetForwardedFrom())
 		e.emitTaskIsolationMetrics(hCtx.scope, task.Event.PartitionConfig, req.GetIsolationGroup())
-		if task.ActivityTaskDispatchInfo != nil {
-			task.Finish(nil)
-			return e.createSyncMatchPollForActivityTaskResponse(task, task.ActivityTaskDispatchInfo, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
-		}
 
 		resp, err := e.recordActivityTaskStarted(hCtx.Context, request, task)
 		if err != nil {
@@ -878,50 +874,6 @@ pollLoop:
 		task.Finish(nil)
 		return e.createPollForActivityTaskResponse(task, resp, hCtx.scope, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
 	}
-}
-
-func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
-	task *tasklist.InternalTask,
-	activityTaskDispatchInfo *types.ActivityTaskDispatchInfo,
-	partitionConfig *types.TaskListPartitionConfig,
-	loadBalancerHints *types.LoadBalancerHints,
-) *types.MatchingPollForActivityTaskResponse {
-
-	scheduledEvent := activityTaskDispatchInfo.ScheduledEvent
-	attributes := scheduledEvent.ActivityTaskScheduledEventAttributes
-	response := &types.MatchingPollForActivityTaskResponse{}
-	response.ActivityID = attributes.ActivityID
-	response.ActivityType = attributes.ActivityType
-	response.Header = attributes.Header
-	response.Input = attributes.Input
-	response.WorkflowExecution = task.WorkflowExecution()
-	response.ScheduledTimestampOfThisAttempt = activityTaskDispatchInfo.ScheduledTimestampOfThisAttempt
-	response.ScheduledTimestamp = scheduledEvent.Timestamp
-	response.ScheduleToCloseTimeoutSeconds = attributes.ScheduleToCloseTimeoutSeconds
-	response.StartedTimestamp = activityTaskDispatchInfo.StartedTimestamp
-	response.StartToCloseTimeoutSeconds = attributes.StartToCloseTimeoutSeconds
-	response.HeartbeatTimeoutSeconds = attributes.HeartbeatTimeoutSeconds
-
-	token := &common.TaskToken{
-		DomainID:        task.Event.DomainID,
-		WorkflowID:      task.Event.WorkflowID,
-		WorkflowType:    activityTaskDispatchInfo.WorkflowType.GetName(),
-		RunID:           task.Event.RunID,
-		ScheduleID:      task.Event.ScheduleID,
-		ScheduleAttempt: common.Int64Default(activityTaskDispatchInfo.Attempt),
-		ActivityID:      attributes.GetActivityID(),
-		ActivityType:    attributes.GetActivityType().GetName(),
-	}
-
-	response.TaskToken, _ = e.tokenSerializer.Serialize(token)
-	response.Attempt = int32(token.ScheduleAttempt)
-	response.HeartbeatDetails = activityTaskDispatchInfo.HeartbeatDetails
-	response.WorkflowType = activityTaskDispatchInfo.WorkflowType
-	response.WorkflowDomain = activityTaskDispatchInfo.WorkflowDomain
-	response.PartitionConfig = partitionConfig
-	response.LoadBalancerHints = loadBalancerHints
-	response.AutoConfigHint = task.AutoConfigHint
-	return response
 }
 
 // QueryWorkflow creates a DecisionTask with query data, send it through sync match channel, wait for that DecisionTask
@@ -1296,6 +1248,7 @@ func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 		token, _ = e.tokenSerializer.Serialize(taskToken)
 		if task.ResponseC == nil {
 			scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
+			scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 		}
 	}
 
@@ -1329,6 +1282,7 @@ func (e *matchingEngineImpl) createPollForActivityTaskResponse(
 	}
 	if task.ResponseC == nil {
 		scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
+		scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 	}
 
 	response := &types.MatchingPollForActivityTaskResponse{}
@@ -1385,10 +1339,11 @@ func (e *matchingEngineImpl) recordDecisionTaskStarted(
 		resp, err = e.historyService.RecordDecisionTaskStarted(ctx, request)
 		return err
 	}
+	requestTimeout := e.config.RecordTaskStartedTimeout(pollReq.Domain)
 	throttleRetry := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
-		backoff.WithOperationTimeout(_recordTaskStartedTimeout),
+		backoff.WithOperationTimeout(requestTimeout),
 		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
@@ -1414,10 +1369,11 @@ func (e *matchingEngineImpl) recordActivityTaskStarted(
 		resp, err = e.historyService.RecordActivityTaskStarted(ctx, request)
 		return err
 	}
+	requestTimeout := e.config.RecordTaskStartedTimeout(pollReq.Domain)
 	throttleRetry := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
-		backoff.WithOperationTimeout(_recordTaskStartedTimeout),
+		backoff.WithOperationTimeout(requestTimeout),
 		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
@@ -1494,10 +1450,6 @@ func (e *matchingEngineImpl) emitInfoOrDebugLog(
 }
 
 func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskList *tasklist.Identifier) error {
-	if !e.config.EnableTasklistOwnershipGuard() {
-		return nil
-	}
-
 	self, err := e.membershipResolver.WhoAmI()
 	if err != nil {
 		return fmt.Errorf("failed to lookup self im membership: %w", err)
@@ -1570,13 +1522,8 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	}
 }
 
-// isExcludedFromShardDistributor returns true if the task list should bypass the
-// ShardDistributor and executor, and instead rely on local hash-ring assignment.
-// This applies to short-lived task lists (e.g. sticky or bits task lists whose names
-// contain a UUID) when the corresponding feature flag is enabled.
 func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	excludeTaskList := membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.config.PercentageOnboardedToShardManager()), e.config.ExcludeShortLivedTaskListsFromShardManager())
-	return excludeTaskList
+	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

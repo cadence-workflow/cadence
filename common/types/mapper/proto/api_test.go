@@ -1425,8 +1425,6 @@ func TestActiveClusterSelectionPolicy(t *testing.T) {
 		nil,
 		{},
 		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
-		&testdata.ActiveClusterSelectionPolicyRegionSticky,
-		&testdata.ActiveClusterSelectionPolicyExternalEntity,
 	} {
 		assert.Equal(t, item, ToActiveClusterSelectionPolicy(FromActiveClusterSelectionPolicy(item)))
 	}
@@ -1597,10 +1595,6 @@ func WorkflowIDReusePolicyFuzzer(e *types.WorkflowIDReusePolicy, c fuzz.Continue
 	*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
 }
 
-func ActiveClusterSelectionStrategyFuzzer(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-	*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-}
-
 func CronOverlapPolicyFuzzer(e *types.CronOverlapPolicy, c fuzz.Continue) {
 	*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
 }
@@ -1678,71 +1672,17 @@ func CompletedTypeFuzzer(e *types.QueryTaskCompletedType, c fuzz.Continue) {
 }
 
 func ActiveClusterSelectionPolicyFuzzerClearAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-	// ActiveClusterSelectionPolicy requires string fields to match strategy
-	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-	// When strategy is set, only the relevant string fields should be set
-	c.Fuzz(&p.ActiveClusterSelectionStrategy)
-	if p.ActiveClusterSelectionStrategy == nil {
-		p.StickyRegion = ""
-		p.ExternalEntityType = ""
-		p.ExternalEntityKey = ""
-	} else {
-		switch *p.ActiveClusterSelectionStrategy {
-		case types.ActiveClusterSelectionStrategyRegionSticky:
-			c.Fuzz(&p.StickyRegion)
-			p.ExternalEntityType = ""
-			p.ExternalEntityKey = ""
-		case types.ActiveClusterSelectionStrategyExternalEntity:
-			c.Fuzz(&p.ExternalEntityType)
-			c.Fuzz(&p.ExternalEntityKey)
-			p.StickyRegion = ""
-		}
-	}
-	// ClusterAttribute is always cleared (mapper uses strategy+strings)
+	// Mapper round-trips only ClusterAttribute; clearing it gives a degenerate
+	// nil-equivalent policy that round-trips losslessly.
 	p.ClusterAttribute = nil
 }
 
 func ActiveClusterSelectionPolicyFuzzerWithAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-	// ActiveClusterSelectionPolicy requires string fields to match strategy
-	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-	// When strategy is set, only the relevant string fields should be set
-	c.Fuzz(&p.ActiveClusterSelectionStrategy)
-	if p.ActiveClusterSelectionStrategy == nil {
-		p.StickyRegion = ""
-		p.ExternalEntityType = ""
-		p.ExternalEntityKey = ""
-	} else {
-		switch *p.ActiveClusterSelectionStrategy {
-		case types.ActiveClusterSelectionStrategyRegionSticky:
-			c.Fuzz(&p.StickyRegion)
-			p.ExternalEntityType = ""
-			p.ExternalEntityKey = ""
-		case types.ActiveClusterSelectionStrategyExternalEntity:
-			p.StickyRegion = ""
-			c.Fuzz(&p.ExternalEntityType)
-			c.Fuzz(&p.ExternalEntityKey)
-		}
-	}
 	c.Fuzz(&p.ClusterAttribute)
 }
 
 func ActiveClusterSelectionPolicyFuzzerNoCustom(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-	// Fuzz all fields first without custom fuzzers
 	c.FuzzNoCustom(p)
-	// Then clear mutually exclusive fields based on strategy
-	if p.ActiveClusterSelectionStrategy != nil {
-		switch *p.ActiveClusterSelectionStrategy {
-		case types.ActiveClusterSelectionStrategyRegionSticky:
-			p.ExternalEntityType = ""
-			p.ExternalEntityKey = ""
-		case types.ActiveClusterSelectionStrategyExternalEntity:
-			p.StickyRegion = ""
-		}
-	} else {
-		p.StickyRegion = ""
-		p.ExternalEntityType = ""
-		p.ExternalEntityKey = ""
-	}
 }
 
 func TestDataBlobArrayFuzz(t *testing.T) {
@@ -1849,7 +1789,6 @@ func TestStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 		),
 	)
@@ -2004,7 +1943,6 @@ func TestStartChildWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
@@ -2076,7 +2014,6 @@ func TestHistoryEventFuzz(t *testing.T) {
 			ContinueAsNewInitiatorFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 			func(h *types.HistoryEvent, c fuzz.Continue) {
 				// Fuzz all fields first
@@ -2145,7 +2082,6 @@ func TestDecisionFuzz(t *testing.T) {
 			DecisionTypeFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
@@ -2198,7 +2134,6 @@ func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
 			ContinueAsNewInitiatorFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 			CancelExternalWorkflowExecutionFailedCauseFuzzer,
@@ -2224,7 +2159,6 @@ func TestDecisionArrayFuzz(t *testing.T) {
 			DecisionTypeFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
@@ -2378,7 +2312,6 @@ func TestSignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
 			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)

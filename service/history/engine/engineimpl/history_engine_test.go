@@ -189,9 +189,9 @@ func (s *engineSuite) SetupTest() {
 }
 
 func (s *engineSuite) TearDownTest() {
+	s.mockHistoryEngine.historyEventNotifier.Stop()
 	s.controller.Finish()
 	s.mockShard.Finish(s.T())
-	s.mockHistoryEngine.historyEventNotifier.Stop()
 }
 
 func (s *engineSuite) TestGetMutableStateSync() {

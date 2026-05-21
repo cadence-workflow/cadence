@@ -280,6 +280,21 @@ func (mr *MockHandlerMockRecorder) GetGlobalIsolationGroups(ctx, request any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGlobalIsolationGroups", reflect.TypeOf((*MockHandler)(nil).GetGlobalIsolationGroups), ctx, request)
 }
 
+// GetOperationalDynamicConfig mocks base method.
+func (m *MockHandler) GetOperationalDynamicConfig(arg0 context.Context, arg1 *types.GetOperationalDynamicConfigRequest) (*types.GetOperationalDynamicConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOperationalDynamicConfig", arg0, arg1)
+	ret0, _ := ret[0].(*types.GetOperationalDynamicConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOperationalDynamicConfig indicates an expected call of GetOperationalDynamicConfig.
+func (mr *MockHandlerMockRecorder) GetOperationalDynamicConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationalDynamicConfig", reflect.TypeOf((*MockHandler)(nil).GetOperationalDynamicConfig), arg0, arg1)
+}
+
 // GetReplicationMessages mocks base method.
 func (m *MockHandler) GetReplicationMessages(arg0 context.Context, arg1 *types.GetReplicationMessagesRequest) (*types.GetReplicationMessagesResponse, error) {
 	m.ctrl.T.Helper()
@@ -323,6 +338,21 @@ func (m *MockHandler) ListDynamicConfig(arg0 context.Context, arg1 *types.ListDy
 func (mr *MockHandlerMockRecorder) ListDynamicConfig(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDynamicConfig", reflect.TypeOf((*MockHandler)(nil).ListDynamicConfig), arg0, arg1)
+}
+
+// ListOperationalDynamicConfig mocks base method.
+func (m *MockHandler) ListOperationalDynamicConfig(arg0 context.Context, arg1 *types.ListOperationalDynamicConfigRequest) (*types.ListOperationalDynamicConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOperationalDynamicConfig", arg0, arg1)
+	ret0, _ := ret[0].(*types.ListOperationalDynamicConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListOperationalDynamicConfig indicates an expected call of ListOperationalDynamicConfig.
+func (mr *MockHandlerMockRecorder) ListOperationalDynamicConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationalDynamicConfig", reflect.TypeOf((*MockHandler)(nil).ListOperationalDynamicConfig), arg0, arg1)
 }
 
 // MaintainCorruptWorkflow mocks base method.
@@ -483,6 +513,20 @@ func (mr *MockHandlerMockRecorder) RestoreDynamicConfig(arg0, arg1 any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreDynamicConfig", reflect.TypeOf((*MockHandler)(nil).RestoreDynamicConfig), arg0, arg1)
 }
 
+// RestoreOperationalDynamicConfig mocks base method.
+func (m *MockHandler) RestoreOperationalDynamicConfig(arg0 context.Context, arg1 *types.RestoreOperationalDynamicConfigRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestoreOperationalDynamicConfig", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RestoreOperationalDynamicConfig indicates an expected call of RestoreOperationalDynamicConfig.
+func (mr *MockHandlerMockRecorder) RestoreOperationalDynamicConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreOperationalDynamicConfig", reflect.TypeOf((*MockHandler)(nil).RestoreOperationalDynamicConfig), arg0, arg1)
+}
+
 // Start mocks base method.
 func (m *MockHandler) Start() {
 	m.ctrl.T.Helper()
@@ -564,6 +608,20 @@ func (m *MockHandler) UpdateGlobalIsolationGroups(ctx context.Context, request *
 func (mr *MockHandlerMockRecorder) UpdateGlobalIsolationGroups(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGlobalIsolationGroups", reflect.TypeOf((*MockHandler)(nil).UpdateGlobalIsolationGroups), ctx, request)
+}
+
+// UpdateOperationalDynamicConfig mocks base method.
+func (m *MockHandler) UpdateOperationalDynamicConfig(arg0 context.Context, arg1 *types.UpdateOperationalDynamicConfigRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateOperationalDynamicConfig", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateOperationalDynamicConfig indicates an expected call of UpdateOperationalDynamicConfig.
+func (mr *MockHandlerMockRecorder) UpdateOperationalDynamicConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationalDynamicConfig", reflect.TypeOf((*MockHandler)(nil).UpdateOperationalDynamicConfig), arg0, arg1)
 }
 
 // UpdateTaskListPartitionConfig mocks base method.

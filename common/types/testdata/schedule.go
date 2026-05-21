@@ -34,6 +34,100 @@ var (
 	scheduleTime4 = time.Date(2026, 12, 31, 23, 59, 59, 0, time.UTC)
 	scheduleTime5 = time.Date(2026, 1, 15, 14, 0, 0, 0, time.UTC)
 
+	// scheduleTimeLocal* mirrors the scheduleTime* instants but uses time.Unix so
+	// the Location is local — matching what nanoToTimeVal returns. Use these in
+	// thrift mapper round-trip tests where assert.Equal compares Location pointers.
+	scheduleTimeLocal1 = time.Unix(scheduleTime1.Unix(), 0)
+	scheduleTimeLocal2 = time.Unix(scheduleTime2.Unix(), 0)
+	scheduleTimeLocal3 = time.Unix(scheduleTime3.Unix(), 0)
+	scheduleTimeLocal4 = time.Unix(scheduleTime4.Unix(), 0)
+	scheduleTimeLocal5 = time.Unix(scheduleTime5.Unix(), 0)
+
+	ScheduleSpecThrift = types.ScheduleSpec{
+		CronExpression: "*/5 * * * *",
+		StartTime:      scheduleTimeLocal1,
+		EndTime:        scheduleTimeLocal4,
+		Jitter:         30 * time.Second,
+	}
+
+	SchedulePauseInfoThrift = types.SchedulePauseInfo{
+		Reason:   "maintenance window",
+		PausedAt: scheduleTimeLocal2,
+		PausedBy: "sample_admin@uber.com",
+	}
+
+	ScheduleStateThrift = types.ScheduleState{
+		Paused:    true,
+		PauseInfo: &SchedulePauseInfoThrift,
+	}
+
+	ScheduleBackfillInfoThrift = types.BackfillInfo{
+		BackfillID:    "backfill-001",
+		StartTime:     scheduleTimeLocal1,
+		EndTime:       scheduleTimeLocal3,
+		RunsCompleted: 15,
+		RunsTotal:     30,
+	}
+
+	ScheduleInfoThrift = types.ScheduleInfo{
+		LastRunTime:      scheduleTimeLocal2,
+		NextRunTime:      scheduleTimeLocal3,
+		TotalRuns:        42,
+		CreateTime:       scheduleTimeLocal5,
+		LastUpdateTime:   scheduleTimeLocal2,
+		OngoingBackfills: []*types.BackfillInfo{&ScheduleBackfillInfoThrift},
+	}
+
+	ScheduleListEntryThrift = types.ScheduleListEntry{
+		ScheduleID:     "my-schedule-id",
+		WorkflowType:   &WorkflowType,
+		State:          &ScheduleStateThrift,
+		CronExpression: "*/5 * * * *",
+	}
+
+	CreateScheduleRequestThrift = types.CreateScheduleRequest{
+		Domain:           DomainName,
+		ScheduleID:       "my-schedule-id",
+		Spec:             &ScheduleSpecThrift,
+		Action:           &ScheduleAction,
+		Policies:         &SchedulePolicies,
+		Memo:             &Memo,
+		SearchAttributes: &SearchAttributes,
+	}
+
+	DescribeScheduleResponseThrift = types.DescribeScheduleResponse{
+		Spec:             &ScheduleSpecThrift,
+		Action:           &ScheduleAction,
+		Policies:         &SchedulePolicies,
+		State:            &ScheduleStateThrift,
+		Info:             &ScheduleInfoThrift,
+		Memo:             &Memo,
+		SearchAttributes: &SearchAttributes,
+	}
+
+	UpdateScheduleRequestThrift = types.UpdateScheduleRequest{
+		Domain:           DomainName,
+		ScheduleID:       "my-schedule-id",
+		Spec:             &ScheduleSpecThrift,
+		Action:           &ScheduleAction,
+		Policies:         &SchedulePolicies,
+		SearchAttributes: &SearchAttributes,
+	}
+
+	BackfillScheduleRequestThrift = types.BackfillScheduleRequest{
+		Domain:        DomainName,
+		ScheduleID:    "my-schedule-id",
+		StartTime:     scheduleTimeLocal1,
+		EndTime:       scheduleTimeLocal3,
+		OverlapPolicy: types.ScheduleOverlapPolicyConcurrent,
+		BackfillID:    "backfill-003",
+	}
+
+	ListSchedulesResponseThrift = types.ListSchedulesResponse{
+		Schedules:     []*types.ScheduleListEntry{&ScheduleListEntryThrift},
+		NextPageToken: []byte("next-page-token-2"),
+	}
+
 	ScheduleSpec = types.ScheduleSpec{
 		CronExpression: "*/5 * * * *",
 		StartTime:      scheduleTime1,

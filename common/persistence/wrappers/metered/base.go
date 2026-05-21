@@ -27,6 +27,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -34,10 +35,6 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
-
-type retryCountKeyType string
-
-const retryCountKey = retryCountKeyType("retryCount")
 
 type base struct {
 	metricClient                  metrics.Client
@@ -147,10 +144,10 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := time.Since(before)
 	if len(tags) > 0 {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
+		metricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+		metricsScope.ExponentialHistogram(metrics.PersistenceLatencyHistogram, duration)
 	}
 	p.recordLatencyHistogram(scope, duration)
 
@@ -172,7 +169,7 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
-	metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	metricsScope.ExponentialHistogram(metrics.PersistenceLatencyHistogram, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {
@@ -196,13 +193,13 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	duration := time.Since(before)
 
 	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
-	domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
-	overallScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	domainMetricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerDomainHistogram, duration)
+	overallScope.ExponentialHistogram(metrics.PersistenceLatencyHistogram, duration)
 	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
-	shardOperationsMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
+	shardOperationsMetricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerShardHistogram, duration)
 
 	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
-	shardOverallMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
+	shardOverallMetricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerShardHistogram, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {
@@ -359,8 +356,5 @@ func getCustomMetricTags(req any) (res []metrics.Tag) {
 }
 
 func getRetryCountFromContext(ctx context.Context) int {
-	if retryCount, ok := ctx.Value(retryCountKey).(int); ok {
-		return retryCount
-	}
-	return 0
+	return backoff.GetRetryCountFromContext(ctx)
 }

@@ -26,15 +26,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -179,10 +180,10 @@ func (a matchrequest) Matches(x interface{}) bool {
 		keys[k] = struct{}{}
 	}
 	gotKeys := map[string]struct{}{}
-	for _, k := range stringy(maps.Keys(up.Load)) {
+	for _, k := range stringy(slices.Collect(maps.Keys(up.Load))) {
 		gotKeys[k] = struct{}{}
 	}
-	a.t.Logf("want keys: %v, got keys: %v", maps.Keys(keys), maps.Keys(gotKeys))
+	a.t.Logf("want keys: %v, got keys: %v", slices.Collect(maps.Keys(keys)), slices.Collect(maps.Keys(gotKeys)))
 	return reflect.DeepEqual(keys, gotKeys)
 }
 

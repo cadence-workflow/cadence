@@ -51,13 +51,17 @@ func init() {
 		}
 		return filestore.NewHistoryArchiver(container, out)
 	}))
-	must(RegisterHistoryArchiver(s3store.URIScheme, config.S3storeConfig, func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error) {
+	// s3store handles both the plain bucket scheme ("s3") and the access point scheme ("s3-ap").
+	// Both register under the same S3storeConfig YAML node.
+	s3HistoryConstructor := func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error) {
 		var out *config.S3Archiver
 		if err := cfg.Decode(&out); err != nil {
 			return nil, fmt.Errorf("bad config: %w", err)
 		}
 		return s3store.NewHistoryArchiver(container, out)
-	}))
+	}
+	must(RegisterHistoryArchiver(s3store.URIScheme, config.S3storeConfig, s3HistoryConstructor))
+	must(RegisterHistoryArchiver(s3store.URISchemeAccessPoint, config.S3storeConfig, s3HistoryConstructor))
 
 	must(RegisterVisibilityArchiver(filestore.URIScheme, config.FilestoreConfig, func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error) {
 		var out *config.FilestoreArchiver
@@ -66,11 +70,13 @@ func init() {
 		}
 		return filestore.NewVisibilityArchiver(container, out)
 	}))
-	must(RegisterVisibilityArchiver(s3store.URIScheme, config.S3storeConfig, func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error) {
+	s3VisibilityConstructor := func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error) {
 		var out *config.S3Archiver
 		if err := cfg.Decode(&out); err != nil {
 			return nil, fmt.Errorf("bad config: %w", err)
 		}
 		return s3store.NewVisibilityArchiver(container, out)
-	}))
+	}
+	must(RegisterVisibilityArchiver(s3store.URIScheme, config.S3storeConfig, s3VisibilityConstructor))
+	must(RegisterVisibilityArchiver(s3store.URISchemeAccessPoint, config.S3storeConfig, s3VisibilityConstructor))
 }

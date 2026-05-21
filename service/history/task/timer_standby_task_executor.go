@@ -51,6 +51,7 @@ type (
 		clusterName            string
 		historyResender        ndc.HistoryResender
 		getRemoteClusterNameFn func(context.Context, persistence.Task) (string, error)
+		dlqWriter              TaskDLQWriter
 	}
 )
 
@@ -64,6 +65,7 @@ func NewTimerStandbyTaskExecutor(
 	metricsClient metrics.Client,
 	clusterName string,
 	config *config.Config,
+	dlqWriter TaskDLQWriter,
 ) Executor {
 	return &timerStandbyTaskExecutor{
 		timerTaskExecutorBase: newTimerTaskExecutorBase(
@@ -82,6 +84,7 @@ func NewTimerStandbyTaskExecutor(
 			}
 			return clusterName, nil
 		},
+		dlqWriter: dlqWriter,
 	}
 }
 
@@ -183,7 +186,7 @@ func (t *timerStandbyTaskExecutor) executeUserTimerTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -291,7 +294,7 @@ func (t *timerStandbyTaskExecutor) executeActivityTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -341,7 +344,7 @@ func (t *timerStandbyTaskExecutor) executeDecisionTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -384,7 +387,7 @@ func (t *timerStandbyTaskExecutor) executeWorkflowBackoffTimerTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -423,7 +426,7 @@ func (t *timerStandbyTaskExecutor) executeWorkflowTimeoutTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }

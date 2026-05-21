@@ -496,38 +496,58 @@ func TestQueriesPerSecond(t *testing.T) {
 
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
+	idleInterval := 100 * time.Millisecond
 	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
-	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(idleInterval)
 
 	t.Run("Idle task-list", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
+		mockClock := clock.NewMockedTimeSource()
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, mockClock)
 		require.NoError(t, tlm.Start(context.Background()))
 
 		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped), "idle check interval had not passed yet")
-		time.Sleep(20 * time.Millisecond)
-		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
+
+		// Advance past the TTL so the liveness ticker detects no activity and shuts down.
+		mockClock.Advance(idleInterval)
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&tlm.stopped) == 1
+		}, time.Second, 5*time.Millisecond, "idle check interval should have passed")
 	})
 
 	t.Run("Active poll-er", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
+		mockClock := clock.NewMockedTimeSource()
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, mockClock)
 		require.NoError(t, tlm.Start(context.Background()))
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		// GetTask calls MarkAlive() synchronously before blocking for a task.
+		// Use a short real-time timeout so the call returns quickly.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 		_, _ = tlm.GetTask(ctx, nil)
 		cancel()
 
-		// task list manager should have been stopped,
-		// but GetTask extends auto-stop until the next check-idle-task-list-interval
-		time.Sleep(6 * time.Millisecond)
-		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped))
+		// Advance time within the TTL from the MarkAlive timestamp.
+		// The liveness ticker fires at TTL/2 but the manager should still be alive.
+		mockClock.Advance(idleInterval / 2)
+		// Give the liveness goroutine a moment to process the tick.
+		require.Never(t, func() bool {
+			return atomic.LoadInt32(&tlm.stopped) == 1
+		}, 50*time.Millisecond, 5*time.Millisecond, "manager should still be alive after MarkAlive")
 
-		time.Sleep(20 * time.Millisecond)
-		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
+		// Advance past the full TTL from the MarkAlive point to trigger shutdown.
+		mockClock.Advance(idleInterval)
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&tlm.stopped) == 1
+		}, time.Second, 5*time.Millisecond, "idle check interval should have passed")
 	})
 
 	t.Run("Active adding task", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		mockClock := clock.NewMockedTimeSource()
+		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, mockClock)
+		require.NoError(t, tlm.Start(context.Background()))
+
 		domainID := uuid.New()
 		workflowID := uuid.New()
 		runID := uuid.New()
@@ -539,27 +559,31 @@ func TestCheckIdleTaskList(t *testing.T) {
 				RunID:                         runID,
 				ScheduleID:                    2,
 				ScheduleToStartTimeoutSeconds: 5,
-				CreatedTime:                   time.Now(),
+				CreatedTime:                   mockClock.Now(),
 			},
 		}
 
-		ctrl := gomock.NewController(t)
-		tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), ctrl, cfg, clock.NewRealTimeSource())
-		require.NoError(t, tlm.Start(context.Background()))
-
-		time.Sleep(8 * time.Millisecond)
+		// Advance part of the way through the TTL, then call AddTask which
+		// resets the liveness timer via MarkAlive().
+		mockClock.Advance(idleInterval * 4 / 5)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_, err := tlm.AddTask(ctx, addTaskParam)
 		require.NoError(t, err)
 		cancel()
 
-		// task list manager should have been stopped,
-		// but AddTask extends auto-stop until the next check-idle-task-list-interval
-		time.Sleep(6 * time.Millisecond)
-		require.EqualValues(t, 0, atomic.LoadInt32(&tlm.stopped))
+		// Advance within the TTL from the MarkAlive timestamp.
+		// The liveness ticker fires but the manager should still be alive.
+		mockClock.Advance(idleInterval / 2)
+		// Give the liveness goroutine a moment to process the tick.
+		require.Never(t, func() bool {
+			return atomic.LoadInt32(&tlm.stopped) == 1
+		}, 50*time.Millisecond, 5*time.Millisecond, "manager should still be alive after AddTask MarkAlive")
 
-		time.Sleep(20 * time.Millisecond)
-		require.EqualValues(t, 1, atomic.LoadInt32(&tlm.stopped), "idle check interval should have pass")
+		// Advance past the full TTL from the MarkAlive point to trigger shutdown.
+		mockClock.Advance(idleInterval)
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt32(&tlm.stopped) == 1
+		}, time.Second, 5*time.Millisecond, "idle check interval should have passed")
 	})
 }
 

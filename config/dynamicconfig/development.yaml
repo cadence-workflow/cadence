@@ -34,6 +34,10 @@ frontend.validSearchAttributes:
     CadenceScheduleID: 1
     CadenceScheduleTime: 5
     CadenceScheduleIsBackfill: 4
+    CadenceScheduleState: 1
+    CadenceScheduleCron: 1
+    CadenceScheduleWorkflowType: 1
+    CadenceScheduleBackfillID: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
@@ -114,3 +118,8 @@ frontend.errorInjectionRate:
 matching.errorInjectionRate:
 - value: 0.01
   constraints: {}
+system.workflowDeletionJitterRange:
+- value: 1
+  constraints: {}
+system.enableWorkflowTimerTaskCleanup:
+- value: true

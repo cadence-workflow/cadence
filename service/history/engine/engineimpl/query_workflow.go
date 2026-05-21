@@ -158,8 +158,12 @@ func (e *historyEngineImpl) QueryWorkflow(
 
 	// If we get here it means query could not be dispatched through matching directly, so it must block
 	// until either an result has been obtained on a decision task response or until it is safe to dispatch directly through matching.
+	decisionQueryStart := time.Now()
 	sw := scope.StartTimer(metrics.DecisionTaskQueryLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.DecisionTaskQueryLatencyHistogram, time.Since(decisionQueryStart))
+	}()
 	queryReg := mutableState.GetQueryRegistry()
 	if len(queryReg.GetBufferedIDs()) >= e.config.MaxBufferedQueryCount() {
 		scope.IncCounter(metrics.QueryBufferExceededCount)
@@ -219,8 +223,12 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 	isActive bool,
 ) (*types.HistoryQueryWorkflowResponse, error) {
 
+	dispatchStart := time.Now()
 	sw := scope.StartTimer(metrics.DirectQueryDispatchLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.DirectQueryDispatchLatencyHistogram, time.Since(dispatchStart))
+	}()
 
 	// Sticky task list is not very useful in the standby cluster because the decider cache is
 	// not updated by dispatching tasks to it (it is only updated in the case of query).
@@ -244,9 +252,11 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 		// using a clean new context in case customer provide a context which has
 		// a really short deadline, causing we clear the stickiness
 		stickyContext, cancel := context.WithTimeout(context.Background(), time.Duration(msResp.GetStickyTaskListScheduleToStartTimeout())*time.Second)
+		stickyStart := time.Now()
 		stickyStopWatch := scope.StartTimer(metrics.DirectQueryDispatchStickyLatency)
 		matchingResp, err := e.rawMatchingClient.QueryWorkflow(stickyContext, stickyMatchingRequest)
 		stickyStopWatch.Stop()
+		scope.ExponentialHistogram(metrics.DirectQueryDispatchStickyLatencyHistogram, time.Since(stickyStart))
 		cancel()
 		if err == nil {
 			scope.IncCounter(metrics.DirectQueryDispatchStickySuccessCount)
@@ -281,12 +291,14 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 				tag.WorkflowQueryType(queryRequest.Query.GetQueryType()),
 				tag.Error(err))
 			resetContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			clearStickinessStart := time.Now()
 			clearStickinessStopWatch := scope.StartTimer(metrics.DirectQueryDispatchClearStickinessLatency)
 			_, err := e.ResetStickyTaskList(resetContext, &types.HistoryResetStickyTaskListRequest{
 				DomainUUID: domainID,
 				Execution:  queryRequest.GetExecution(),
 			})
 			clearStickinessStopWatch.Stop()
+			scope.ExponentialHistogram(metrics.DirectQueryDispatchClearStickinessLatencyHistogram, time.Since(clearStickinessStart))
 			cancel()
 			if err != nil && err != workflow.ErrAlreadyCompleted && err != workflow.ErrNotExists {
 				return nil, err
@@ -319,9 +331,11 @@ func (e *historyEngineImpl) queryDirectlyThroughMatching(
 		TaskList:     msResp.TaskList,
 	}
 
+	nonStickyStart := time.Now()
 	nonStickyStopWatch := scope.StartTimer(metrics.DirectQueryDispatchNonStickyLatency)
 	matchingResp, err := e.matchingClient.QueryWorkflow(ctx, nonStickyMatchingRequest)
 	nonStickyStopWatch.Stop()
+	scope.ExponentialHistogram(metrics.DirectQueryDispatchNonStickyLatencyHistogram, time.Since(nonStickyStart))
 	if err != nil {
 		if strings.Contains(err.Error(), "unknown queryType") {
 			e.logger.Info("user calls for unsupported query type",

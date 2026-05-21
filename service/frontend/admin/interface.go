@@ -62,6 +62,10 @@ type Handler interface {
 	UpdateDynamicConfig(context.Context, *types.UpdateDynamicConfigRequest) error
 	RestoreDynamicConfig(context.Context, *types.RestoreDynamicConfigRequest) error
 	ListDynamicConfig(context.Context, *types.ListDynamicConfigRequest) (*types.ListDynamicConfigResponse, error)
+	GetOperationalDynamicConfig(context.Context, *types.GetOperationalDynamicConfigRequest) (*types.GetOperationalDynamicConfigResponse, error)
+	UpdateOperationalDynamicConfig(context.Context, *types.UpdateOperationalDynamicConfigRequest) error
+	RestoreOperationalDynamicConfig(context.Context, *types.RestoreOperationalDynamicConfigRequest) error
+	ListOperationalDynamicConfig(context.Context, *types.ListOperationalDynamicConfigRequest) (*types.ListOperationalDynamicConfigResponse, error)
 	DeleteWorkflow(context.Context, *types.AdminDeleteWorkflowRequest) (*types.AdminDeleteWorkflowResponse, error)
 	MaintainCorruptWorkflow(context.Context, *types.AdminMaintainWorkflowRequest) (*types.AdminMaintainWorkflowResponse, error)
 	GetGlobalIsolationGroups(ctx context.Context, request *types.GetGlobalIsolationGroupsRequest) (*types.GetGlobalIsolationGroupsResponse, error)

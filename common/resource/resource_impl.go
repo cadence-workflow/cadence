@@ -144,6 +144,8 @@ type Impl struct {
 
 	isolationGroups           isolationgroup.State
 	isolationGroupConfigStore configstore.Client
+	operationalConfigStore    configstore.Client
+	operationalDynamicConfig  *dynamicconfig.Collection
 
 	asyncWorkflowQueueProvider queue.Provider
 
@@ -199,7 +201,7 @@ func New(
 
 	params.PersistenceConfig.HostName = hostname
 
-	persistenceBean, err := newPersistenceBeanFn(persistenceClient.NewFactory(
+	persistenceFactory := persistenceClient.NewFactory(
 		&params.PersistenceConfig,
 		func() float64 {
 			return permember.PerMember(
@@ -213,7 +215,8 @@ func New(
 		params.MetricsClient,
 		logger,
 		persistence.NewDynamicConfiguration(dynamicCollection),
-	), &persistenceClient.Params{
+	)
+	persistenceBean, err := newPersistenceBeanFn(persistenceFactory, &persistenceClient.Params{
 		PersistenceConfig: params.PersistenceConfig,
 		MetricsClient:     params.MetricsClient,
 		MessagingClient:   params.MessagingClient,
@@ -335,6 +338,11 @@ func New(
 	}
 
 	isolationGroupStore := createConfigStoreOrDefault(params, dynamicCollection)
+	operationalDynamicConfig := dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		logger,
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+	)
 
 	isolationGroupState, err := ensureIsolationGroupStateHandlerOrDefault(
 		params,
@@ -417,6 +425,8 @@ func New(
 		rpcFactory:                params.RPCFactory,
 		isolationGroups:           isolationGroupState,
 		isolationGroupConfigStore: isolationGroupStore, // can be nil where persistence is not available
+		operationalConfigStore:    params.OperationalConfigStore,
+		operationalDynamicConfig:  operationalDynamicConfig,
 
 		asyncWorkflowQueueProvider: params.AsyncWorkflowQueueProvider,
 
@@ -462,6 +472,7 @@ func (h *Impl) Start() {
 	if h.isolationGroupConfigStore != nil {
 		h.isolationGroupConfigStore.Start()
 	}
+	h.operationalConfigStore.Start()
 	// The service is now started up
 	h.logger.Info("service started")
 	// seed the random generator once for this service
@@ -492,6 +503,7 @@ func (h *Impl) Stop() {
 	if h.isolationGroupConfigStore != nil {
 		h.isolationGroupConfigStore.Stop()
 	}
+	h.operationalConfigStore.Stop()
 	h.isolationGroups.Stop()
 }
 
@@ -676,6 +688,11 @@ func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 	return h.persistenceBean.GetHistoryManager()
 }
 
+// GetHistoryTaskDLQManager returns the history task DLQ manager.
+func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return h.persistenceBean.GetHistoryTaskDLQManager()
+}
+
 // GetExecutionManager return execution manager for given shard ID
 func (h *Impl) GetExecutionManager(shardID int) (persistence.ExecutionManager, error) {
 
@@ -716,6 +733,19 @@ func (h *Impl) GetIsolationGroupState() isolationgroup.State {
 // GetIsolationGroupStore returns the isolation group configuration store or nil
 func (h *Impl) GetIsolationGroupStore() configstore.Client {
 	return h.isolationGroupConfigStore
+}
+
+// GetOperationalConfigStore returns the operational dynamic config store (always non-nil; NopClient when unsupported).
+func (h *Impl) GetOperationalConfigStore() configstore.Client {
+	return h.operationalConfigStore
+}
+
+// GetOperationalDynamicConfig returns a Collection wrapping the operational
+// dynamic config store. It is always non-nil: when the underlying store is
+// unavailable, the Collection is backed by a no-op client that returns
+// default values, so callers can read operational values unconditionally.
+func (h *Impl) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	return h.operationalDynamicConfig
 }
 
 // GetAsyncWorkflowQueueProvider returns the async workflow queue provider

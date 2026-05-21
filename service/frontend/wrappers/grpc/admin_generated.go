@@ -101,6 +101,11 @@ func (g AdminHandler) GetGlobalIsolationGroups(ctx context.Context, request *adm
 	return proto.FromAdminGetGlobalIsolationGroupsResponse(response), proto.FromError(err)
 }
 
+func (g AdminHandler) GetOperationalDynamicConfig(ctx context.Context, request *adminv1.GetOperationalDynamicConfigRequest) (*adminv1.GetOperationalDynamicConfigResponse, error) {
+	response, err := g.h.GetOperationalDynamicConfig(ctx, proto.ToAdminGetOperationalDynamicConfigRequest(request))
+	return proto.FromAdminGetOperationalDynamicConfigResponse(response), proto.FromError(err)
+}
+
 func (g AdminHandler) GetReplicationMessages(ctx context.Context, request *adminv1.GetReplicationMessagesRequest) (*adminv1.GetReplicationMessagesResponse, error) {
 	response, err := g.h.GetReplicationMessages(ctx, proto.ToAdminGetReplicationMessagesRequest(request))
 	return proto.FromAdminGetReplicationMessagesResponse(response), proto.FromError(err)
@@ -114,6 +119,11 @@ func (g AdminHandler) GetWorkflowExecutionRawHistoryV2(ctx context.Context, requ
 func (g AdminHandler) ListDynamicConfig(ctx context.Context, request *adminv1.ListDynamicConfigRequest) (*adminv1.ListDynamicConfigResponse, error) {
 	response, err := g.h.ListDynamicConfig(ctx, proto.ToAdminListDynamicConfigRequest(request))
 	return proto.FromAdminListDynamicConfigResponse(response), proto.FromError(err)
+}
+
+func (g AdminHandler) ListOperationalDynamicConfig(ctx context.Context, request *adminv1.ListOperationalDynamicConfigRequest) (*adminv1.ListOperationalDynamicConfigResponse, error) {
+	response, err := g.h.ListOperationalDynamicConfig(ctx, proto.ToAdminListOperationalDynamicConfigRequest(request))
+	return proto.FromAdminListOperationalDynamicConfigResponse(response), proto.FromError(err)
 }
 
 func (g AdminHandler) MaintainCorruptWorkflow(ctx context.Context, request *adminv1.MaintainCorruptWorkflowRequest) (*adminv1.MaintainCorruptWorkflowResponse, error) {
@@ -171,6 +181,11 @@ func (g AdminHandler) RestoreDynamicConfig(ctx context.Context, request *adminv1
 	return &adminv1.RestoreDynamicConfigResponse{}, proto.FromError(err)
 }
 
+func (g AdminHandler) RestoreOperationalDynamicConfig(ctx context.Context, request *adminv1.RestoreOperationalDynamicConfigRequest) (*adminv1.RestoreOperationalDynamicConfigResponse, error) {
+	err := g.h.RestoreOperationalDynamicConfig(ctx, proto.ToAdminRestoreOperationalDynamicConfigRequest(request))
+	return &adminv1.RestoreOperationalDynamicConfigResponse{}, proto.FromError(err)
+}
+
 func (g AdminHandler) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, request *adminv1.UpdateDomainAsyncWorkflowConfiguratonRequest) (*adminv1.UpdateDomainAsyncWorkflowConfiguratonResponse, error) {
 	response, err := g.h.UpdateDomainAsyncWorkflowConfiguraton(ctx, proto.ToAdminUpdateDomainAsyncWorkflowConfiguratonRequest(request))
 	return proto.FromAdminUpdateDomainAsyncWorkflowConfiguratonResponse(response), proto.FromError(err)
@@ -189,6 +204,11 @@ func (g AdminHandler) UpdateDynamicConfig(ctx context.Context, request *adminv1.
 func (g AdminHandler) UpdateGlobalIsolationGroups(ctx context.Context, request *adminv1.UpdateGlobalIsolationGroupsRequest) (*adminv1.UpdateGlobalIsolationGroupsResponse, error) {
 	response, err := g.h.UpdateGlobalIsolationGroups(ctx, proto.ToAdminUpdateGlobalIsolationGroupsRequest(request))
 	return proto.FromAdminUpdateGlobalIsolationGroupsResponse(response), proto.FromError(err)
+}
+
+func (g AdminHandler) UpdateOperationalDynamicConfig(ctx context.Context, request *adminv1.UpdateOperationalDynamicConfigRequest) (*adminv1.UpdateOperationalDynamicConfigResponse, error) {
+	err := g.h.UpdateOperationalDynamicConfig(ctx, proto.ToAdminUpdateOperationalDynamicConfigRequest(request))
+	return &adminv1.UpdateOperationalDynamicConfigResponse{}, proto.FromError(err)
 }
 
 func (g AdminHandler) UpdateTaskListPartitionConfig(ctx context.Context, request *adminv1.UpdateTaskListPartitionConfigRequest) (*adminv1.UpdateTaskListPartitionConfigResponse, error) {

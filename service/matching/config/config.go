@@ -61,6 +61,7 @@ type (
 		TaskIsolationDuration                     dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		TaskIsolationPollerWindow                 dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		EnableGetNumberOfPartitionsFromCache      dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
+		MinTaskListWritePartitions                dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		PartitionUpscaleRPS                       dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		PartitionDownscaleFactor                  dynamicproperties.FloatPropertyFnWithTaskListInfoFilters
 		PartitionUpscaleSustainedDuration         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -109,9 +110,8 @@ type (
 		// task gc configuration
 		MaxTimeBetweenTaskDeletes time.Duration
 
-		EnableTasklistOwnershipGuard               dynamicproperties.BoolPropertyFn
 		ExcludeShortLivedTaskListsFromShardManager dynamicproperties.BoolPropertyFn
-		PercentageOnboardedToShardManager          dynamicproperties.IntPropertyFn
+		RecordTaskStartedTimeout                   dynamicproperties.DurationPropertyFnWithDomainFilter
 	}
 
 	ForwarderConfig struct {
@@ -139,6 +139,7 @@ type (
 		AsyncTaskDispatchTimeout                  func() time.Duration
 		LocalPollWaitTime                         func() time.Duration
 		LocalTaskWaitTime                         func() time.Duration
+		MinTaskListWritePartitions                func() int
 		PartitionUpscaleRPS                       func() int
 		PartitionDownscaleFactor                  func() float64
 		PartitionUpscaleSustainedDuration         func() time.Duration
@@ -215,7 +216,6 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.R
 		EnableTasklistIsolation:                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
 		AppendTaskTimeout:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AppendTaskTimeout),
 		AsyncTaskDispatchTimeout:                   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),
-		EnableTasklistOwnershipGuard:               dc.GetBoolProperty(dynamicproperties.MatchingEnableTasklistGuardAgainstOwnershipShardLoss),
 		LocalPollWaitTime:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalPollWaitTime),
 		LocalTaskWaitTime:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalTaskWaitTime),
 		PartitionUpscaleRPS:                        dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionUpscaleRPS),
@@ -245,6 +245,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.R
 		EnableClientAutoConfig:                     dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableClientAutoConfig),
 		EnableReturnAllTaskListKinds:               dc.GetBoolProperty(dynamicproperties.MatchingEnableReturnAllTaskListKinds),
 		ExcludeShortLivedTaskListsFromShardManager: dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
-		PercentageOnboardedToShardManager:          dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+		RecordTaskStartedTimeout:                   dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingRecordTaskStartedTimeout),
+		MinTaskListWritePartitions:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingTaskListMinimumWritePartitions),
 	}
 }

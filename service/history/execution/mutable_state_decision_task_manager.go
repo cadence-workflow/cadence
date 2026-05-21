@@ -696,6 +696,7 @@ func (m *mutableStateDecisionTaskManagerImpl) FailDecision(
 			domainName := m.msb.GetDomainEntry().GetInfo().Name
 			domainTag := metrics.DomainTag(domainName)
 			m.msb.metricsClient.Scope(metrics.WorkflowContextScope, domainTag).RecordTimer(metrics.DecisionAttemptTimer, time.Duration(failDecisionInfo.Attempt))
+			m.msb.metricsClient.Scope(metrics.WorkflowContextScope, domainTag).IntExponentialHistogram(metrics.DecisionAttemptHistogram, int(failDecisionInfo.Attempt))
 			m.msb.logger.Warn("Critical error processing decision task, retrying.",
 				tag.WorkflowDomainName(m.msb.GetDomainEntry().GetInfo().Name),
 				tag.WorkflowID(m.msb.GetExecutionInfo().WorkflowID),

@@ -101,6 +101,14 @@ func (c *ratelimitedExecutionManager) DeleteWorkflowExecution(ctx context.Contex
 	return c.wrapped.DeleteWorkflowExecution(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (ha1 []persistence.HistoryTaskKey, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
@@ -137,7 +145,7 @@ func (c *ratelimitedExecutionManager) GetReplicationDLQSize(ctx context.Context,
 	return c.wrapped.GetReplicationDLQSize(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
+func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetReplicationDLQTasksResponse, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return

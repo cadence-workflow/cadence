@@ -218,6 +218,8 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusterName:        common.StringPtr(activeCluster),
 			FailoverTimeoutInSeconds: failoverTimeout,
 		}
+	} else if c.IsSet(FlagActiveClusters) && c.IsSet(FlagActiveClustersJSON) {
+		return commoncli.Problem("Cannot use both --active_clusters and --active_clusters_json flags.", nil)
 	} else if c.IsSet(FlagActiveClusters) { // active-active domain failover
 		activeClusters, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
 		if err != nil {
@@ -229,6 +231,16 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusters: &types.ActiveClusters{
 				AttributeScopes: activeClusters.AttributeScopes,
 			},
+		}
+	} else if c.IsSet(FlagActiveClustersJSON) { // active-active domain failover via JSON
+		activeClusters, err := parseActiveClustersByClusterAttributeFromJSON(c.String(FlagActiveClustersJSON))
+		if err != nil {
+			return err
+		}
+
+		updateRequest = &types.UpdateDomainRequest{
+			Name:           domainName,
+			ActiveClusters: &activeClusters,
 		}
 	} else {
 		resp, err := d.describeDomain(ctx, &types.DescribeDomainRequest{

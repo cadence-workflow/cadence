@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
@@ -58,6 +59,8 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		zap.Bool("paused", input.State.Paused),
 	)
 
+	scope := workflow.GetMetricsScope(ctx).Tagged(map[string]string{"domain": input.Domain})
+
 	state := &input.State
 
 	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
@@ -65,6 +68,15 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	})
 	if err != nil {
 		return fmt.Errorf("failed to register query handler: %w", err)
+	}
+
+	// Re-upsert search attributes on every execution (including after ContinueAsNew).
+	// Values set via UpsertSearchAttributes in a prior execution are not automatically
+	// carried over, so we must refresh them here to keep ListSchedules visibility
+	// results in sync with the current state/spec/action. UpdateSchedule triggers
+	// ContinueAsNew, so the new cron and workflow type land here on the next start.
+	if err := workflow.UpsertSearchAttributes(ctx, buildScheduleSearchAttributes(&input, state)); err != nil {
+		logger.Warn("failed to upsert schedule search attributes", zap.Error(err))
 	}
 
 	chs := signalChannels{
@@ -81,18 +93,30 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
+	// Drain fires buffered by the BUFFER overlap policy in the previous
+	// execution before processing missed runs. Buffered fires are older than
+	// anything processMissedRuns can compute, so draining them first preserves
+	// FIFO order across ContinueAsNew. If the queue is large, drain in batches
+	// (at most maxDrainFiresPerExecution per execution) so a single decision
+	// task doesn't time out.
+	if !state.Paused {
+		if moreToDrain := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
+			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
+		}
+	}
+
 	// On the first iteration (after ContinueAsNew or fresh start), check for
 	// fires that were missed during the transition gap or prior pause period.
 	// Subsequent iterations don't need this because the timer handles fire times.
 	// If more missed fires remain beyond the per-execution cap, ContinueAsNew
 	// immediately so each batch runs in its own decision task.
-	if moreMissed := processMissedRuns(ctx, logger, sched, &input, state); moreMissed {
-		return safeContinueAsNew(ctx, logger, chs.delete, input, state)
+	if moreMissed := processMissedRuns(ctx, logger, scope, sched, &input, state); moreMissed {
+		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonMissedRun, chs.delete, input, state)
 	}
 
 	// Process any pending backfill requests carried over from a previous execution.
-	if moreBackfills := processBackfills(ctx, logger, sched, &input, state); moreBackfills {
-		return safeContinueAsNew(ctx, logger, chs.delete, input, state)
+	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state); moreBackfills {
+		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
 	}
 
 	for {
@@ -120,23 +144,52 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			timerFuture = workflow.NewTimer(timerCtx, dur)
 		}
 
-		changed, timerFired := applyAllInputs(ctx, logger, timerFuture, chs, state, &input)
+		previousPaused := state.Paused
+		changed, timerFired := applyAllInputs(ctx, logger, scope, timerFuture, chs, state, &input)
 
 		if timerCancel != nil {
 			timerCancel()
 		}
 
+		if state.Paused != previousPaused {
+			if err := workflow.UpsertSearchAttributes(ctx, map[string]interface{}{
+				SearchAttrScheduleState: scheduleStateFromPaused(state.Paused),
+			}); err != nil {
+				logger.Warn("failed to upsert schedule state search attribute", zap.Error(err))
+			}
+		}
+		// Note: cron and workflow type search attributes are refreshed at the top
+		// of the next workflow execution after UpdateSchedule triggers ContinueAsNew,
+		// so no inline upsert is needed here.
+
+		// Deleted schedules terminate the workflow here. Any further signals
+		// (pause, unpause, update, backfill) sent after this point fail with
+		// EntityNotExistsError at the RPC layer because the workflow is closed;
+		// the frontend normalizes that to a user-friendly "schedule not found".
 		if state.Deleted {
 			logger.Info("schedule deleted")
 			return nil
 		}
 
+		// Drain BUFFER-overlap fires before handling the current fire so the
+		// queue is processed in FIFO order. If the cap is hit, ContinueAsNew
+		// so the next batch runs in a fresh decision task.
+		if !state.Paused {
+			if moreToDrain := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
+				return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
+			}
+		}
+
 		if timerFired && !state.Paused {
-			processScheduleFire(ctx, logger, &input, state, state.NextRunTime, TriggerSourceSchedule)
+			processScheduleFire(ctx, logger, scope, &input, state, state.NextRunTime, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		}
 
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
-			return safeContinueAsNew(ctx, logger, chs.delete, input, state)
+			reason := ContinueAsNewReasonSignal
+			if !changed {
+				reason = ContinueAsNewReasonIterationCap
+			}
+			return safeContinueAsNew(ctx, logger, scope, reason, chs.delete, input, state)
 		}
 	}
 }
@@ -151,6 +204,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 func applyAllInputs(
 	ctx workflow.Context,
 	logger *zap.Logger,
+	scope tally.Scope,
 	timerFuture workflow.Future,
 	chs signalChannels,
 	state *SchedulerWorkflowState,
@@ -172,6 +226,7 @@ func applyAllInputs(
 	selector.AddReceive(chs.pause, func(c workflow.Channel, more bool) {
 		var sig PauseSignal
 		c.Receive(ctx, &sig)
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagPause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handlePause(logger, sig, state) {
 			stateChanged = true
 		}
@@ -180,6 +235,7 @@ func applyAllInputs(
 	selector.AddReceive(chs.unpause, func(c workflow.Channel, more bool) {
 		var sig UnpauseSignal
 		c.Receive(ctx, &sig)
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUnpause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handleUnpause(logger, sig, state) {
 			stateChanged = true
 		}
@@ -188,6 +244,7 @@ func applyAllInputs(
 	selector.AddReceive(chs.update, func(c workflow.Channel, more bool) {
 		var sig UpdateSignal
 		c.Receive(ctx, &sig)
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUpdate}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handleUpdate(logger, sig, input, state) {
 			stateChanged = true
 		}
@@ -196,19 +253,21 @@ func applyAllInputs(
 	selector.AddReceive(chs.backfill, func(c workflow.Channel, more bool) {
 		var sig BackfillSignal
 		c.Receive(ctx, &sig)
-		if handleBackfill(logger, sig, state) {
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagBackfill}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
+		if handleBackfill(logger, scope, sig, state) {
 			stateChanged = true
 		}
 	})
 
 	selector.AddReceive(chs.delete, func(c workflow.Channel, more bool) {
 		c.Receive(ctx, nil)
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagDelete}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		state.Deleted = true
 	})
 
 	selector.Select(ctx)
 
-	if drainBufferedSignals(logger, chs, state, input) {
+	if drainBufferedSignals(logger, scope, chs, state, input) {
 		stateChanged = true
 	}
 
@@ -220,11 +279,13 @@ func applyAllInputs(
 // Returns true if a state-changing signal was found.
 func drainBufferedSignals(
 	logger *zap.Logger,
+	scope tally.Scope,
 	chs signalChannels,
 	state *SchedulerWorkflowState,
 	input *SchedulerWorkflowInput,
 ) bool {
 	if chs.delete.ReceiveAsync(nil) {
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagDelete}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		state.Deleted = true
 		return false
 	}
@@ -235,6 +296,7 @@ func drainBufferedSignals(
 		if !chs.pause.ReceiveAsync(&sig) {
 			break
 		}
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagPause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handlePause(logger, sig, state) {
 			stateChanged = true
 		}
@@ -244,6 +306,7 @@ func drainBufferedSignals(
 		if !chs.unpause.ReceiveAsync(&sig) {
 			break
 		}
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUnpause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handleUnpause(logger, sig, state) {
 			stateChanged = true
 		}
@@ -253,6 +316,7 @@ func drainBufferedSignals(
 		if !chs.update.ReceiveAsync(&sig) {
 			break
 		}
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUpdate}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handleUpdate(logger, sig, input, state) {
 			stateChanged = true
 		}
@@ -262,7 +326,8 @@ func drainBufferedSignals(
 		if !chs.backfill.ReceiveAsync(&sig) {
 			break
 		}
-		if handleBackfill(logger, sig, state) {
+		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagBackfill}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
+		if handleBackfill(logger, scope, sig, state) {
 			stateChanged = true
 		}
 	}
@@ -270,7 +335,38 @@ func drainBufferedSignals(
 	return stateChanged
 }
 
+// scheduleStateFromPaused maps the workflow's boolean Paused flag to the
+// keyword value stored in the CadenceScheduleState search attribute.
+func scheduleStateFromPaused(paused bool) string {
+	if paused {
+		return ScheduleStatePaused
+	}
+	return ScheduleStateActive
+}
+
+// buildScheduleSearchAttributes returns the search attributes that describe a
+// scheduler workflow for ListSchedules: lifecycle state, cron expression, and
+// target workflow type. The state SA is always written (the boolean Paused has
+// a meaningful default). Optional fields (cron, workflow type) are omitted when
+// empty so visibility queries can distinguish "absent" from "empty string".
+func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *SchedulerWorkflowState) map[string]interface{} {
+	sa := map[string]interface{}{
+		SearchAttrScheduleState: scheduleStateFromPaused(state.Paused),
+	}
+	if cron := input.Spec.CronExpression; cron != "" {
+		sa[SearchAttrScheduleCron] = cron
+	}
+	if sw := input.Action.StartWorkflow; sw != nil && sw.WorkflowType != nil && sw.WorkflowType.Name != "" {
+		sa[SearchAttrScheduleWorkflowType] = sw.WorkflowType.Name
+	}
+	return sa
+}
+
 func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState) bool {
+	if state.Paused {
+		logger.Info("ignoring pause signal, schedule is already paused")
+		return false
+	}
 	state.Paused = true
 	state.PauseReason = sig.Reason
 	state.PausedBy = sig.PausedBy
@@ -315,8 +411,35 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		changed = true
 	}
 	if sig.Policies != nil {
+		previousOverlap := input.Policies.OverlapPolicy
 		input.Policies = *sig.Policies
 		changed = true
+		// Drop buffered fires if the overlap policy is no longer BUFFER:
+		// draining a queue under non-BUFFER semantics is ill-defined.
+		if previousOverlap == types.ScheduleOverlapPolicyBuffer &&
+			input.Policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer &&
+			len(state.BufferedFires) > 0 {
+			logger.Warn("overlap policy change cleared buffered fires",
+				zap.String("from", previousOverlap.String()),
+				zap.String("to", input.Policies.OverlapPolicy.String()),
+				zap.Int("clearedCount", len(state.BufferedFires)))
+			state.SkippedRuns += int64(len(state.BufferedFires))
+			state.BufferedFires = nil
+		}
+		// Drop running-workflow tracking when leaving bounded CONCURRENT: the
+		// list is meaningless under any other policy or when limit becomes 0.
+		newOverlap := input.Policies.OverlapPolicy
+		newLimit := input.Policies.ConcurrencyLimit
+		if previousOverlap == types.ScheduleOverlapPolicyConcurrent &&
+			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimit == 0) &&
+			len(state.RunningWorkflows) > 0 {
+			logger.Warn("policy change cleared running workflows tracking",
+				zap.String("from", previousOverlap.String()),
+				zap.String("to", newOverlap.String()),
+				zap.Int32("newLimit", newLimit),
+				zap.Int("clearedCount", len(state.RunningWorkflows)))
+			state.RunningWorkflows = nil
+		}
 	}
 	if changed {
 		logger.Info("schedule updated")
@@ -324,8 +447,10 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	return changed
 }
 
-func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWorkflowState) bool {
+func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, state *SchedulerWorkflowState) bool {
 	if !sig.EndTime.After(sig.StartTime) {
+		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonInvalidRange}).
+			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
 		logger.Warn("ignoring backfill with invalid time range",
 			zap.Time("startTime", sig.StartTime),
 			zap.Time("endTime", sig.EndTime),
@@ -333,6 +458,8 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 		return false
 	}
 	if len(state.PendingBackfills) >= maxPendingBackfills {
+		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonQueueFull}).
+			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
 		logger.Warn("ignoring backfill: pending backfill queue is full",
 			zap.String("backfillId", sig.BackfillID),
 			zap.Int("queueSize", len(state.PendingBackfills)),
@@ -366,12 +493,57 @@ func handleBackfill(logger *zap.Logger, sig BackfillSignal, state *SchedulerWork
 	return true
 }
 
+// effectiveFireOverlap returns the overlap policy applied to a single fire.
+// For backfill, BackfillSignal.overlap_policy may be INVALID (0) to inherit the
+// schedule's configured policy; any other value overrides for that backfill only.
+func effectiveFireOverlap(trigger TriggerSource, backfillOverlap, scheduleOverlap types.ScheduleOverlapPolicy) types.ScheduleOverlapPolicy {
+	if trigger == TriggerSourceBackfill && backfillOverlap != types.ScheduleOverlapPolicyInvalid {
+		return backfillOverlap
+	}
+	return scheduleOverlap
+}
+
 // processScheduleFire executes the configured action for a single schedule fire.
 // All side effects (overlap check, cancel/terminate, start) are encapsulated in
 // a single activity so that the overlap logic can evolve without introducing
 // nondeterminism in the workflow history.
-func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource) {
-	state.LastRunTime = scheduledTime
+//
+// Under the BUFFER overlap policy, a fire that finds the previous target
+// workflow still running is enqueued in state.BufferedFires (subject to
+// BufferLimit and MaxBufferedFiresSystemLimit) and retried on the next loop
+// iteration by drainBufferedFires.
+//
+// If BUFFER's queue is already non-empty when a new live fire arrives, we
+// enqueue it directly without calling the activity. This both saves the
+// describe RPC and prevents a FIFO-violation race: between the prior drain
+// (which left fires queued because the previous workflow was running) and
+// the live-fire activity call, the previous workflow could complete.
+// tryStartFire would then start the live fire ahead of older queued fires,
+// breaking FIFO.
+func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy, backfillID string) {
+	if overlapPolicy == types.ScheduleOverlapPolicyBuffer && len(state.BufferedFires) > 0 {
+		// Skipping tryStartFire, so advance LastRunTime here.
+		if scheduledTime.After(state.LastRunTime) {
+			state.LastRunTime = scheduledTime
+		}
+		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger, overlapPolicy, backfillID)
+		return
+	}
+	if tryStartFire(ctx, logger, input, state, scheduledTime, trigger, overlapPolicy, backfillID) == fireOutcomeBuffered {
+		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger, overlapPolicy, backfillID)
+	}
+}
+
+// tryStartFire runs the scheduler activity for a single fire and applies the
+// result to state, returning whether the fire was buffered. Shared by the
+// live-fire and drain-buffered-fire paths; the caller decides how to handle
+// a buffered outcome.
+func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy, backfillID string) fireOutcome {
+	// LastRunTime moves forward only. Under BUFFER, an older queued fire can
+	// drain after a newer fire has already been processed.
+	if scheduledTime.After(state.LastRunTime) {
+		state.LastRunTime = scheduledTime
+	}
 
 	logger.Info("schedule fired",
 		zap.Time("scheduledTime", scheduledTime),
@@ -380,7 +552,7 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 	if input.Action.StartWorkflow == nil {
 		state.MissedRuns++
 		logger.Error("schedule action has no StartWorkflow configuration")
-		return
+		return fireOutcomeDone
 	}
 
 	actCtx := workflow.WithLocalActivityOptions(ctx, defaultActivityOptions())
@@ -391,8 +563,11 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 		Action:              *input.Action.StartWorkflow,
 		ScheduledTime:       scheduledTime,
 		TriggerSource:       trigger,
-		OverlapPolicy:       input.Policies.OverlapPolicy,
+		OverlapPolicy:       overlapPolicy,
 		LastStartedWorkflow: state.LastStartedWorkflow,
+		ConcurrencyLimit:    input.Policies.ConcurrencyLimit,
+		RunningWorkflows:    state.RunningWorkflows,
+		BackfillID:          backfillID,
 	}
 
 	var result ProcessFireResult
@@ -402,13 +577,20 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 			zap.Time("scheduledTime", scheduledTime),
 			zap.Error(err),
 		)
-		return
+		return fireOutcomeDone
+	}
+
+	if result.Buffered {
+		return fireOutcomeBuffered
 	}
 
 	state.TotalRuns += result.TotalDelta
 	state.SkippedRuns += result.SkippedDelta
 	if result.StartedWorkflow != nil {
 		state.LastStartedWorkflow = result.StartedWorkflow
+	}
+	if result.ActiveWorkflows != nil {
+		state.RunningWorkflows = result.ActiveWorkflows
 	}
 
 	if result.TotalDelta > 0 && result.StartedWorkflow != nil {
@@ -421,6 +603,100 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, input *Schedu
 			zap.Time("scheduledTime", scheduledTime),
 		)
 	}
+	return fireOutcomeDone
+}
+
+// enqueueBufferedFire appends a fire to state.BufferedFires, enforcing both the
+// user-configured buffer_limit and the MaxBufferedFiresSystemLimit ceiling.
+// Drops increment SkippedRuns and emit scheduler_buffer_overflow_count_per_domain
+// tagged with the binding limit (user_limit vs. system_limit).
+func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy, backfillID string) {
+	effective, reason := effectiveBufferLimit(input.Policies.BufferLimit)
+	if len(state.BufferedFires) >= effective {
+		state.SkippedRuns++
+		scope.Tagged(map[string]string{ReasonTag: reason}).
+			Counter(SchedulerBufferOverflowCountPerDomain).Inc(1)
+		logger.Warn("buffer cap reached; dropping fire",
+			zap.Time("scheduledTime", scheduledTime),
+			zap.String("reason", reason),
+			zap.Int("effectiveLimit", effective),
+			zap.Int32("userBufferLimit", input.Policies.BufferLimit),
+			zap.Int("systemLimit", MaxBufferedFiresSystemLimit),
+			zap.Int("bufferSize", len(state.BufferedFires)),
+		)
+		return
+	}
+	state.BufferedFires = append(state.BufferedFires, BufferedFire{
+		ScheduledTime: scheduledTime,
+		TriggerSource: trigger,
+		OverlapPolicy: overlapPolicy,
+		BackfillID:    backfillID,
+	})
+	logger.Info("schedule fire buffered",
+		zap.Time("scheduledTime", scheduledTime),
+		zap.Int("bufferSize", len(state.BufferedFires)),
+	)
+}
+
+// effectiveBufferLimit returns the queue cap actually enforced for the BUFFER
+// overlap policy and the reason tag value to attribute drops at that cap.
+//
+//   - userLimit == 0 (unlimited): returns the system limit, reason=system_limit.
+//   - 0 < userLimit <= system limit: returns userLimit, reason=user_limit.
+//   - userLimit > system limit: returns the system limit, reason=system_limit
+//     (the user's limit cannot be honored without risking ContinueAsNew payload bloat).
+func effectiveBufferLimit(userLimit int32) (effective int, reason string) {
+	if userLimit <= 0 || int(userLimit) > MaxBufferedFiresSystemLimit {
+		return MaxBufferedFiresSystemLimit, BufferOverflowReasonSystemLimit
+	}
+	return int(userLimit), BufferOverflowReasonUserLimit
+}
+
+// effectiveConcurrencyLimit returns the concurrency cap enforced for the bounded
+// CONCURRENT overlap policy. Values above the system ceiling are silently clamped
+// so RunningWorkflows never grows large enough to bloat the ContinueAsNew payload
+// toward Cadence's BlobSizeLimitError (default 2MB). Only called when userLimit > 0
+// (i.e., isBoundedConcurrent is true).
+func effectiveConcurrencyLimit(userLimit int32) int32 {
+	if userLimit > MaxConcurrencyLimitSystemLimit {
+		return MaxConcurrencyLimitSystemLimit
+	}
+	return userLimit
+}
+
+// drainBufferedFires executes queued fires in FIFO order, stopping as soon as
+// one re-buffers (previous target workflow still running) or
+// maxDrainFiresPerExecution fires have been processed. Returns true when more
+// queued work remains and the caller should ContinueAsNew so the next batch
+// runs in a fresh decision task (mirrors processMissedRuns / processBackfills).
+//
+// Retries are safe because the activity derives WorkflowID and RequestID from
+// scheduledTime and triggerSource, so the server de-duplicates on replay.
+func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+	drained := 0
+	for len(state.BufferedFires) > 0 {
+		if drained >= maxDrainFiresPerExecution {
+			logger.Info("buffer drain cap reached, continuing after ContinueAsNew",
+				zap.Int("drainedThisBatch", drained),
+				zap.Int("remaining", len(state.BufferedFires)),
+			)
+			return true
+		}
+		head := state.BufferedFires[0]
+		headOverlap := head.OverlapPolicy
+		// OverlapPolicy is INVALID only for BufferedFires persisted before this
+		// field was added; fall back to the schedule's current policy (guaranteed
+		// BUFFER here: handleUpdate clears the queue on any policy change away from BUFFER).
+		if headOverlap == types.ScheduleOverlapPolicyInvalid {
+			headOverlap = input.Policies.OverlapPolicy
+		}
+		if tryStartFire(ctx, logger, input, state, head.ScheduledTime, head.TriggerSource, headOverlap, head.BackfillID) == fireOutcomeBuffered {
+			return false
+		}
+		state.BufferedFires = state.BufferedFires[1:]
+		drained++
+	}
+	return false
 }
 
 // defaultActivityOptions returns the standard local activity options used by
@@ -478,7 +754,7 @@ func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec ty
 // missedRunPolicyResult is the output of applyMissedRunPolicy.
 type missedRunPolicyResult struct {
 	toFire  []time.Time // fire times to execute, in order
-	skipped int64       // fires to count as skipped
+	skipped int64       // fires not executed due to catch-up policy or window
 }
 
 // applyMissedRunPolicy is a pure function that determines which missed fires
@@ -527,17 +803,33 @@ func applyMissedRunPolicy(policy types.ScheduleCatchUpPolicy, window time.Durati
 // To avoid exceeding the decision task timeout, at most maxCatchUpFiresPerExecution
 // fires are executed per workflow execution. Returns true if there are more missed
 // fires remaining, signalling the caller to ContinueAsNew for the next batch.
-func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
-	// Use LastProcessedTime as the catch-up watermark; fall back to
-	// LastRunTime for schedules created before this field existed.
-	watermark := state.LastProcessedTime
-	if watermark.IsZero() {
-		watermark = state.LastRunTime
-	}
+func processMissedRuns(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+	watermark := catchUpWatermark(state)
 	if state.Paused || watermark.IsZero() {
 		return false
 	}
-	now := workflow.Now(ctx)
+	return processMissedRunsAt(ctx, logger, scope, sched, input, state, watermark, workflow.Now(ctx))
+}
+
+// catchUpWatermark returns the high-water mark for catch-up fire computation:
+// the most recent timestamp the scheduler is known to have already attempted.
+// We take max(LastProcessedTime, LastRunTime) because LastProcessedTime is
+// only advanced by catch-up itself, while LastRunTime is advanced on every
+// fire (live or buffered). Using only LastProcessedTime would let catch-up
+// recompute fire times for fires that already happened (or were buffered
+// under BUFFER), which deduplicates server-side via WorkflowID/RequestID but
+// still double-counts state.TotalRuns / state.SkippedRuns.
+func catchUpWatermark(state *SchedulerWorkflowState) time.Time {
+	watermark := state.LastProcessedTime
+	if state.LastRunTime.After(watermark) {
+		watermark = state.LastRunTime
+	}
+	return watermark
+}
+
+// processMissedRunsAt is the testable core of processMissedRuns, accepting an explicit now
+// so the caller can inject a deterministic time without needing a workflow environment.
+func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, watermark, now time.Time) bool {
 	fires := computeMissedFireTimes(sched, watermark, now, input.Spec)
 	if len(fires.times) == 0 {
 		return false
@@ -558,17 +850,24 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 		if fired >= maxCatchUpFiresPerExecution {
 			break
 		}
-		processScheduleFire(ctx, logger, input, state, t, TriggerSourceSchedule)
+		processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		fired++
 	}
 	unfired := int64(len(result.toFire) - fired)
 
+	if fired > 0 {
+		scope.Counter(SchedulerMissedFiredCountPerDomain).Inc(int64(fired))
+	}
+
+	policyStr := input.Policies.CatchUpPolicy.String()
 	if result.skipped > 0 {
+		scope.Tagged(map[string]string{CatchUpPolicyTag: policyStr}).
+			Counter(SchedulerMissedSkippedCountPerDomain).Inc(result.skipped)
 		state.SkippedRuns += result.skipped
 		logger.Info("catch-up skipped missed fires",
 			zap.Int64("skipped", result.skipped),
 			zap.Int("total_missed", len(fires.times)),
-			zap.String("policy", input.Policies.CatchUpPolicy.String()),
+			zap.String("policy", policyStr),
 		)
 	}
 
@@ -589,7 +888,7 @@ func processMissedRuns(ctx workflow.Context, logger *zap.Logger, sched cron.Sche
 // cron fire times for each request's time range and executing them.
 // Like processMissedRuns, it caps fires per execution and returns true
 // if more work remains (signalling the caller to ContinueAsNew).
-func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	// Backfills respect the pause state: an explicit user request to replay a time
 	// range should not fire workflows while the schedule is paused. The pending
 	// backfills are preserved in state and will execute once the schedule is unpaused.
@@ -611,9 +910,11 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 					zap.Time("resumeFrom", t),
 					zap.Int("firedThisBatch", fired),
 				)
+				scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
 				return true
 			}
-			processScheduleFire(ctx, logger, input, state, t, TriggerSourceBackfill)
+			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
+			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
 			fired++
 		}
 
@@ -627,6 +928,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 				zap.String("backfillId", bf.BackfillID),
 				zap.Int("firedThisBatch", fired),
 			)
+			scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
 			return true
 		}
 
@@ -635,6 +937,10 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, sched cron.Sched
 			zap.Int("firedTotal", fired),
 		)
 		state.PendingBackfills = state.PendingBackfills[1:]
+	}
+
+	if fired > 0 {
+		scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
 	}
 
 	return false
@@ -663,11 +969,12 @@ func buildScheduleDescription(input *SchedulerWorkflowInput, state *SchedulerWor
 // safeContinueAsNew drains the delete channel before performing ContinueAsNew.
 // Buffered signals are not carried across ContinueAsNew boundaries, so a delete
 // signal that arrived alongside a state-changing signal would be lost without this check.
-func safeContinueAsNew(ctx workflow.Context, logger *zap.Logger, deleteCh workflow.Channel, input SchedulerWorkflowInput, state *SchedulerWorkflowState) error {
+func safeContinueAsNew(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, cause string, deleteCh workflow.Channel, input SchedulerWorkflowInput, state *SchedulerWorkflowState) error {
 	if deleteCh.ReceiveAsync(nil) {
 		logger.Info("schedule deleted (caught before ContinueAsNew)")
 		return nil
 	}
+	scope.Tagged(map[string]string{ReasonTag: cause}).Counter(SchedulerContinueAsNewCountPerDomain).Inc(1)
 	state.Iterations = 0
 	input.State = *state
 	return workflow.NewContinueAsNewError(ctx, WorkflowTypeName, input)

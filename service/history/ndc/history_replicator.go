@@ -22,6 +22,8 @@ package ndc
 
 import (
 	ctx "context"
+	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -343,7 +345,18 @@ func (r *historyReplicatorImpl) applyEvents(
 	defer func() {
 		if rec := recover(); rec != nil {
 			releaseFn(errPanic)
-			panic(rec)
+			stack := make([]byte, 1<<14)
+			n := runtime.Stack(stack, false)
+			stack = stack[:n]
+			r.logger.Error("panic in applyEvents",
+				tag.Error(fmt.Errorf("%v", rec)),
+				tag.Value(string(stack)),
+			)
+			if retError == nil {
+				retError = fmt.Errorf("panic: %v, stack: %s", rec, stack)
+			} else {
+				retError = fmt.Errorf("panic: %v, stack: %s, previous err: %w", rec, stack, retError)
+			}
 		} else {
 			releaseFn(retError)
 		}

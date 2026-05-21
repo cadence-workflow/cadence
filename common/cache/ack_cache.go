@@ -119,12 +119,11 @@ func NewBoundedAckCache[T AckCacheItem](
 	budgetManager Manager,
 	cacheID string,
 ) AckCache[T] {
-	initialCount := maxCount()
 	return &BoundedAckCache[T]{
 		maxCount:      maxCount,
 		maxSize:       maxSize,
-		order:         make(sequenceHeap[T], 0, initialCount),
-		cache:         make(map[int64]T, initialCount),
+		order:         make(sequenceHeap[T], 0),
+		cache:         make(map[int64]T),
 		logger:        logger,
 		budgetManager: budgetManager,
 		cacheID:       cacheID,

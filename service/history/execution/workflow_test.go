@@ -81,8 +81,7 @@ func (s *workflowSuite) TestGetMethods() {
 	lastEventVersion := int64(12)
 	startTimestamp := time.Now()
 	activeClusterSelectionPolicy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "region-1",
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region-1"},
 	}
 	s.mockMutableState.EXPECT().GetLastWriteVersion().Return(lastEventVersion, nil).AnyTimes()
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{

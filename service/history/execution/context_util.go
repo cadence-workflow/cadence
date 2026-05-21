@@ -161,13 +161,21 @@ func emitSessionUpdateStats(
 	countScope.RecordTimer(metrics.RequestCancelInfoCount, time.Duration(stats.RequestCancelInfoCount))
 	countScope.IntExponentialHistogram(metrics.RequestCancelInfoCountHistogram, stats.RequestCancelInfoCount)
 	countScope.RecordTimer(metrics.DeleteActivityInfoCount, time.Duration(stats.DeleteActivityInfoCount))
+	countScope.IntExponentialHistogram(metrics.DeleteActivityInfoCountHistogram, stats.DeleteActivityInfoCount)
 	countScope.RecordTimer(metrics.DeleteTimerInfoCount, time.Duration(stats.DeleteTimerInfoCount))
+	countScope.IntExponentialHistogram(metrics.DeleteTimerInfoCountHistogram, stats.DeleteTimerInfoCount)
 	countScope.RecordTimer(metrics.DeleteChildInfoCount, time.Duration(stats.DeleteChildInfoCount))
+	countScope.IntExponentialHistogram(metrics.DeleteChildInfoCountHistogram, stats.DeleteChildInfoCount)
 	countScope.RecordTimer(metrics.DeleteSignalInfoCount, time.Duration(stats.DeleteSignalInfoCount))
+	countScope.IntExponentialHistogram(metrics.DeleteSignalInfoCountHistogram, stats.DeleteSignalInfoCount)
 	countScope.RecordTimer(metrics.DeleteRequestCancelInfoCount, time.Duration(stats.DeleteRequestCancelInfoCount))
+	countScope.IntExponentialHistogram(metrics.DeleteRequestCancelInfoCountHistogram, stats.DeleteRequestCancelInfoCount)
 	countScope.RecordTimer(metrics.TransferTasksCount, time.Duration(stats.TaskCountByCategory[persistence.HistoryTaskCategoryTransfer]))
+	countScope.IntExponentialHistogram(metrics.TransferTasksCountHistogram, stats.TaskCountByCategory[persistence.HistoryTaskCategoryTransfer])
 	countScope.RecordTimer(metrics.TimerTasksCount, time.Duration(stats.TaskCountByCategory[persistence.HistoryTaskCategoryTimer]))
+	countScope.IntExponentialHistogram(metrics.TimerTasksCountHistogram, stats.TaskCountByCategory[persistence.HistoryTaskCategoryTimer])
 	countScope.RecordTimer(metrics.ReplicationTasksCount, time.Duration(stats.TaskCountByCategory[persistence.HistoryTaskCategoryReplication]))
+	countScope.IntExponentialHistogram(metrics.ReplicationTasksCountHistogram, stats.TaskCountByCategory[persistence.HistoryTaskCategoryReplication])
 	countScope.IncCounter(metrics.UpdateWorkflowExecutionCount)
 }
 
@@ -202,25 +210,10 @@ func emitWorkflowCompletionStats(
 		scope.IncCounter(metrics.WorkflowFailedCount)
 	case types.EventTypeWorkflowExecutionTimedOut:
 		scope.IncCounter(metrics.WorkflowTimeoutCount)
-		logger.Info("workflow execution timed out",
-			tag.WorkflowID(workflowID),
-			tag.WorkflowRunID(runID),
-			tag.WorkflowDomainName(domainName),
-		)
 	case types.EventTypeWorkflowExecutionTerminated:
 		scope.IncCounter(metrics.WorkflowTerminateCount)
-		logger.Info("workflow terminated",
-			tag.WorkflowID(workflowID),
-			tag.WorkflowRunID(runID),
-			tag.WorkflowDomainName(domainName),
-		)
 	case types.EventTypeWorkflowExecutionContinuedAsNew:
 		scope.IncCounter(metrics.WorkflowContinuedAsNew)
-		logger.Debug("workflow continued as new",
-			tag.WorkflowID(workflowID),
-			tag.WorkflowRunID(runID),
-			tag.WorkflowDomainName(domainName),
-		)
 	default:
 		scope.IncCounter(metrics.WorkflowCompletedUnknownType)
 		logger.Warn("Workflow completed with an unknown event type",

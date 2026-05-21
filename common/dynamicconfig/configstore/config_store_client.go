@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -73,6 +74,7 @@ type configStoreClient struct {
 	config             *csc.ClientConfig
 	configStoreManager persistence.ConfigStoreManager
 	doneCh             chan struct{}
+	wg                 sync.WaitGroup
 	logger             log.Logger
 }
 
@@ -160,7 +162,9 @@ func (csc *configStoreClient) startUpdate() error {
 	if err := csc.update(); err != nil {
 		return err
 	}
+	csc.wg.Add(1)
 	go func() {
+		defer csc.wg.Done()
 		ticker := time.NewTicker(csc.config.PollInterval)
 		for {
 			select {
@@ -376,6 +380,7 @@ func (csc *configStoreClient) Stop() {
 		return
 	}
 	close(csc.doneCh)
+	csc.wg.Wait()
 	csc.configStoreManager.Close()
 }
 

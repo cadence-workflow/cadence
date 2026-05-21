@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -79,6 +80,7 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 ) (*GetWorkflowExecutionResponse, error) {
 
 	internalRequest := &InternalGetWorkflowExecutionRequest{
+		ShardID:   request.ShardID,
 		DomainID:  request.DomainID,
 		Execution: request.Execution,
 		RangeID:   request.RangeID,
@@ -356,6 +358,7 @@ func (m *executionManagerImpl) UpdateWorkflowExecution(
 	}
 
 	newRequest := &InternalUpdateWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -583,6 +586,7 @@ func (m *executionManagerImpl) ConflictResolveWorkflowExecution(
 	}
 
 	newRequest := &InternalConflictResolveWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -615,6 +619,7 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 	}
 
 	newRequest := &InternalCreateWorkflowExecutionRequest{
+		ShardID: request.ShardID,
 		RangeID: request.RangeID,
 
 		Mode: request.Mode,
@@ -635,6 +640,53 @@ func (m *executionManagerImpl) CreateWorkflowExecution(
 		return nil, err
 	}
 	return &CreateWorkflowExecutionResponse{MutableStateUpdateSessionStats: msuss}, nil
+}
+
+// syncTimerTaskTrackingKeys extracts timer tasks from tasksByCategory and returns them as
+// HistoryTaskKey entries to be persisted in the workflow_timer_tasks tracking column.
+// Returns nil when the feature flag is disabled or no eligible tasks are found.
+// DeleteHistoryEventTask is always excluded — deleting it would prevent retention-based cleanup.
+// Timers firing within WorkflowTimerTaskCleanupMinTTL are also excluded — they will fire naturally
+// and CleanupWorkflowTimerTasks would skip them anyway.
+func (m *executionManagerImpl) syncTimerTaskTrackingKeys(
+	tasksByCategory map[HistoryTaskCategory][]Task,
+) []HistoryTaskKey {
+	if m.dc == nil || m.dc.EnableWorkflowTimerTaskCleanup == nil || !m.dc.EnableWorkflowTimerTaskCleanup() {
+		return nil
+	}
+	minTTL := time.Duration(0)
+	if m.dc.WorkflowTimerTaskCleanupMinTTL != nil {
+		minTTL = m.dc.WorkflowTimerTaskCleanupMinTTL()
+	}
+	now := time.Now()
+	var result []HistoryTaskKey
+	for category, tasks := range tasksByCategory {
+		for _, task := range tasks {
+			if category.categoryID != HistoryTaskCategoryIDTimer {
+				continue
+			}
+			timerTaskInfo, err := task.ToTimerTaskInfo()
+			if err != nil {
+				m.logger.Warn("Failed to convert timer task info for tracking; task will not be cleaned up when the workflow closes",
+					tag.TaskID(task.GetTaskID()),
+					tag.Error(err),
+				)
+				continue
+			}
+			// DeleteHistoryEventTask is the retention-based deletion trigger — never track it,
+			// as deleting it would prevent the workflow execution record from being cleaned up.
+			if timerTaskInfo.TaskType == TaskTypeDeleteHistoryEvent {
+				continue
+			}
+			// Skip timers firing within MinTTL — CleanupWorkflowTimerTasks would skip them too,
+			// so there is no point storing them in the tracking column.
+			if task.GetVisibilityTimestamp().Sub(now) < minTTL {
+				continue
+			}
+			result = append(result, NewHistoryTaskKey(task.GetVisibilityTimestamp(), task.GetTaskID()))
+		}
+	}
+	return result
 }
 
 func (m *executionManagerImpl) SerializeWorkflowMutation(
@@ -693,6 +745,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
+		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
 		UpsertRequestCancelInfos:  input.UpsertRequestCancelInfos,
@@ -762,6 +815,7 @@ func (m *executionManagerImpl) SerializeWorkflowSnapshot(
 
 		ActivityInfos:       serializedActivityInfos,
 		TimerInfos:          input.TimerInfos,
+		WorkflowTimerTasks:  m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		ChildExecutionInfos: serializedChildExecutionInfos,
 		RequestCancelInfos:  input.RequestCancelInfos,
 		SignalInfos:         input.SignalInfos,
@@ -870,9 +924,15 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 	ctx context.Context,
 	request *PutReplicationTaskToDLQRequest,
 ) error {
+	taskBlob, err := m.serializer.SerializeReplicationDLQTask(request.Task, constants.EncodingTypeThriftRW)
+	if err != nil {
+		return err
+	}
 	internalRequest := &InternalPutReplicationTaskToDLQRequest{
+		ShardID:           request.ShardID,
 		SourceClusterName: request.SourceClusterName,
 		TaskInfo:          m.toInternalReplicationTaskInfo(request.TaskInfo),
+		Task:              taskBlob,
 	}
 	return m.persistence.PutReplicationTaskToDLQ(ctx, internalRequest)
 }
@@ -880,8 +940,34 @@ func (m *executionManagerImpl) PutReplicationTaskToDLQ(
 func (m *executionManagerImpl) GetReplicationTasksFromDLQ(
 	ctx context.Context,
 	request *GetReplicationTasksFromDLQRequest,
-) (*GetHistoryTasksResponse, error) {
-	return m.persistence.GetReplicationTasksFromDLQ(ctx, request)
+) (*GetReplicationDLQTasksResponse, error) {
+	internalResp, err := m.persistence.GetReplicationTasksFromDLQ(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	tasks := make([]*ReplicationDLQTask, len(internalResp.Tasks))
+	for i, internalTask := range internalResp.Tasks {
+		hydrated := &ReplicationDLQTask{Info: internalTask.Info}
+		if internalTask.Task != nil {
+			task, err := m.serializer.DeserializeReplicationDLQTask(internalTask.Task)
+			if err != nil {
+				// Surface a nil hydrated task so the caller can fall back to cross-cluster hydration.
+				m.logger.Warn("failed to deserialize DLQ task blob",
+					tag.WorkflowDomainID(internalTask.Info.DomainID),
+					tag.WorkflowID(internalTask.Info.WorkflowID),
+					tag.WorkflowRunID(internalTask.Info.RunID),
+					tag.TaskID(internalTask.Info.TaskID),
+					tag.Error(err))
+			} else {
+				hydrated.Task = task
+			}
+		}
+		tasks[i] = hydrated
+	}
+	return &GetReplicationDLQTasksResponse{
+		Tasks:         tasks,
+		NextPageToken: internalResp.NextPageToken,
+	}, nil
 }
 
 func (m *executionManagerImpl) GetReplicationDLQSize(
@@ -1015,6 +1101,36 @@ func (m *executionManagerImpl) RangeCompleteHistoryTask(
 	request *RangeCompleteHistoryTaskRequest,
 ) (*RangeCompleteHistoryTaskResponse, error) {
 	return m.persistence.RangeCompleteHistoryTask(ctx, request)
+}
+
+// FetchWorkflowTimerTasksForCleanup reads the workflow_timer_tasks tracking column and
+// returns task keys whose remaining time until firing is at least WorkflowTimerTaskCleanupMinTTL.
+// These are the tasks that need to be explicitly deleted from the timer queue at retention time.
+func (m *executionManagerImpl) FetchWorkflowTimerTasksForCleanup(
+	ctx context.Context,
+	request *FetchWorkflowTimerTasksForCleanupRequest,
+) ([]HistoryTaskKey, error) {
+	if m.dc == nil || m.dc.WorkflowTimerTaskCleanupMinTTL == nil {
+		return nil, nil
+	}
+	minTTL := m.dc.WorkflowTimerTaskCleanupMinTTL()
+	now := time.Now()
+	trackedKeys, err := m.persistence.SelectWorkflowTimerTasks(ctx, &SelectWorkflowTimerTasksRequest{
+		ShardID:    *request.ShardID,
+		DomainID:   request.DomainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      request.RunID,
+	})
+	if err != nil || len(trackedKeys) == 0 {
+		return nil, err
+	}
+	var result []HistoryTaskKey
+	for _, key := range trackedKeys {
+		if key.GetScheduledTime().Sub(now) >= minTTL {
+			result = append(result, key)
+		}
+	}
+	return result, nil
 }
 
 func getStartVersion(

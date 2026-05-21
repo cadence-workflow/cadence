@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand"
+	"slices"
 	"sync"
 	"time"
 
@@ -185,7 +186,7 @@ func (r *workflowRepairerImpl) repairWorkflow(
 	}
 
 	defer func() {
-		taggedScope.RecordHistogramDuration(metrics.WorkflowRepairDuration, time.Since(startTime))
+		taggedScope.ExponentialHistogram(metrics.WorkflowRepairDuration, time.Since(startTime))
 
 		if retErr != nil {
 			isTimeout := errors.Is(retErr, context.DeadlineExceeded) || errors.Is(retErr, context.Canceled)
@@ -432,11 +433,11 @@ func (r *workflowRepairerImpl) logChecksumMismatchDetected(
 
 	// Add pending item counts for additional diagnostics
 	logTags = append(logTags,
-		tag.Dynamic("timerIDs", maps.Keys(mutableState.GetPendingTimerInfos())),
-		tag.Dynamic("activityIDs", maps.Keys(mutableState.GetPendingActivityInfos())),
-		tag.Dynamic("childIDs", maps.Keys(mutableState.GetPendingChildExecutionInfos())),
-		tag.Dynamic("signalIDs", maps.Keys(mutableState.GetPendingSignalExternalInfos())),
-		tag.Dynamic("cancelIDs", maps.Keys(mutableState.GetPendingRequestCancelExternalInfos())),
+		tag.Dynamic("timerIDs", slices.Collect(maps.Keys(mutableState.GetPendingTimerInfos()))),
+		tag.Dynamic("activityIDs", slices.Collect(maps.Keys(mutableState.GetPendingActivityInfos()))),
+		tag.Dynamic("childIDs", slices.Collect(maps.Keys(mutableState.GetPendingChildExecutionInfos()))),
+		tag.Dynamic("signalIDs", slices.Collect(maps.Keys(mutableState.GetPendingSignalExternalInfos()))),
+		tag.Dynamic("cancelIDs", slices.Collect(maps.Keys(mutableState.GetPendingRequestCancelExternalInfos()))),
 	)
 
 	r.logger.Warn("Mutable state corruption detected: checksum mismatch", logTags...)

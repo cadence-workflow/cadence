@@ -55,9 +55,9 @@ const (
 	historyServiceOperationMaxInterval        = 10 * time.Second
 	historyServiceOperationExpirationInterval = 30 * time.Second
 
-	recordTaskStartedInitialInterval    = 50 * time.Millisecond
-	recordTaskStartedMaxInterval        = 1 * time.Second
-	recordTaskStartedExpirationInterval = 3 * time.Second
+	recordTaskStartedInitialInterval = 250 * time.Millisecond
+	recordTaskStartedMaxInterval     = 1 * time.Second
+	recordTaskStartedMaxAttempts     = 5
 
 	matchingServiceOperationInitialInterval    = 1000 * time.Millisecond
 	matchingServiceOperationMaxInterval        = 10 * time.Second
@@ -170,7 +170,8 @@ func CreateHistoryServiceRetryPolicy() backoff.RetryPolicy {
 func CreateRecordTaskStartedRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(recordTaskStartedInitialInterval)
 	policy.SetMaximumInterval(recordTaskStartedMaxInterval)
-	policy.SetExpirationInterval(recordTaskStartedExpirationInterval)
+	policy.SetMaximumAttempts(recordTaskStartedMaxAttempts)
+	policy.SetExpirationInterval(backoff.NoInterval)
 
 	return policy
 }
@@ -283,6 +284,7 @@ func CheckDecisionResultLimit(
 	scope metrics.Scope,
 ) error {
 	scope.RecordTimer(metrics.DecisionResultCount, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.DecisionResultCountHistogram, actualSize)
 	if limit > 0 && actualSize > limit {
 		return ErrDecisionResultCountTooLarge
 	}
@@ -586,6 +588,7 @@ func CheckEventBlobSizeLimit(
 ) error {
 
 	scope.RecordTimer(metrics.EventBlobSize, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.EventBlobSizeHistogram, actualSize)
 
 	if errorLimit < warnLimit {
 		logger.Warn("Error limit is less than warn limit.", tag.WorkflowDomainName(domainName), tag.WorkflowDomainID(domainID))

@@ -1501,8 +1501,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				Memo:                        testMemo,
 				PartitionConfig:             testPartitionConfig,
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-					StickyRegion:                   "region1",
+					ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
 				},
 			},
 			ExecutionStats: &p.ExecutionStats{
@@ -1575,6 +1574,156 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(testPartitionConfig, info.PartitionConfig)
 
 	s.assertChecksumsEqual(csum, state.Checksum)
+}
+
+// TestGetActiveClusterSelectionPolicy test
+func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowID := "get-active-cluster-selection-policy-test"
+	runID := uuid.New()
+	policy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+
+	decisionScheduleID := int64(rand.Int31())
+	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
+		{
+			EventID: decisionScheduleID,
+			Version: constants.EmptyVersion,
+		},
+	})
+	versionHistories := p.NewVersionHistories(versionHistory)
+	createReq := &p.CreateWorkflowExecutionRequest{
+		RangeID: s.ShardInfo.RangeID,
+		NewWorkflowSnapshot: p.WorkflowSnapshot{
+			ExecutionInfo: &p.WorkflowExecutionInfo{
+				CreateRequestID:              uuid.New(),
+				DomainID:                     domainID,
+				WorkflowID:                   workflowID,
+				RunID:                        runID,
+				FirstExecutionRunID:          runID,
+				TaskList:                     "tasklist",
+				WorkflowTypeName:             "wf-type",
+				WorkflowTimeout:              20,
+				DecisionStartToCloseTimeout:  13,
+				State:                        p.WorkflowStateRunning,
+				CloseStatus:                  p.WorkflowCloseStatusNone,
+				LastFirstEventID:             constants.FirstEventID,
+				NextEventID:                  3,
+				LastProcessedEvent:           0,
+				DecisionScheduleID:           decisionScheduleID,
+				DecisionStartedID:            constants.EmptyEventID,
+				DecisionTimeout:              1,
+				ActiveClusterSelectionPolicy: policy,
+			},
+			ExecutionStats:   &p.ExecutionStats{},
+			VersionHistories: versionHistories,
+		},
+		Mode: p.CreateWorkflowModeBrandNew,
+	}
+	_, err := s.ExecutionManager.CreateWorkflowExecution(ctx, createReq)
+	s.NoError(err)
+
+	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
+	s.Equal(policy, got)
+
+	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      uuid.New(),
+	})
+	s.Error(err)
+	s.IsType(&types.EntityNotExistsError{}, err)
+}
+
+// TestDeleteActiveClusterSelectionPolicy test
+func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowID := "delete-active-cluster-selection-policy-test"
+	runID := uuid.New()
+	policy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+
+	decisionScheduleID := int64(rand.Int31())
+	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
+		{
+			EventID: decisionScheduleID,
+			Version: constants.EmptyVersion,
+		},
+	})
+	versionHistories := p.NewVersionHistories(versionHistory)
+	createReq := &p.CreateWorkflowExecutionRequest{
+		RangeID: s.ShardInfo.RangeID,
+		NewWorkflowSnapshot: p.WorkflowSnapshot{
+			ExecutionInfo: &p.WorkflowExecutionInfo{
+				CreateRequestID:              uuid.New(),
+				DomainID:                     domainID,
+				WorkflowID:                   workflowID,
+				RunID:                        runID,
+				FirstExecutionRunID:          runID,
+				TaskList:                     "tasklist",
+				WorkflowTypeName:             "wf-type",
+				WorkflowTimeout:              20,
+				DecisionStartToCloseTimeout:  13,
+				State:                        p.WorkflowStateRunning,
+				CloseStatus:                  p.WorkflowCloseStatusNone,
+				LastFirstEventID:             constants.FirstEventID,
+				NextEventID:                  3,
+				LastProcessedEvent:           0,
+				DecisionScheduleID:           decisionScheduleID,
+				DecisionStartedID:            constants.EmptyEventID,
+				DecisionTimeout:              1,
+				ActiveClusterSelectionPolicy: policy,
+			},
+			ExecutionStats:   &p.ExecutionStats{},
+			VersionHistories: versionHistories,
+		},
+		Mode: p.CreateWorkflowModeBrandNew,
+	}
+	_, err := s.ExecutionManager.CreateWorkflowExecution(ctx, createReq)
+	s.NoError(err)
+
+	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
+	s.Equal(policy, got)
+
+	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
+
+	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.Error(err)
+	s.IsType(&types.EntityNotExistsError{}, err)
+
+	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
 }
 
 // TestUpdateWorkflow test
@@ -5943,4 +6092,67 @@ func timestampConvertor(t time.Time) time.Time {
 func timeComparator(t1, t2 time.Time, timeTolerance time.Duration) bool {
 	diff := t2.Sub(t1)
 	return diff.Nanoseconds() <= timeTolerance.Nanoseconds()
+}
+
+// TestWorkflowTimerTaskTracking verifies that workflow timer tasks are tracked on the
+// execution record at creation time and deserialized correctly on read-back.
+// Only applicable for Cassandra — SQL backends don't persist workflow_timer_tasks.
+func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
+	if s.ExecutionManager.GetName() != "cassandra" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowExecution := types.WorkflowExecution{
+		WorkflowID: "test-workflow-timer-task-tracking",
+		RunID:      uuid.New(),
+	}
+
+	visibilityTimestamp := time.Now().Add(24 * time.Hour)
+
+	timerTask := &p.WorkflowTimeoutTask{
+		WorkflowIdentifier: p.WorkflowIdentifier{
+			DomainID:   domainID,
+			WorkflowID: workflowExecution.WorkflowID,
+			RunID:      workflowExecution.RunID,
+		},
+		TaskData: p.TaskData{
+			VisibilityTimestamp: visibilityTimestamp,
+			TaskID:              s.GetNextSequenceNumber(),
+			Version:             constants.EmptyVersion,
+		},
+	}
+
+	_, err := s.CreateWorkflowExecution(
+		ctx,
+		domainID,
+		workflowExecution,
+		"taskList",
+		"wType",
+		20,
+		13,
+		nil,
+		3,
+		0,
+		2,
+		[]p.Task{timerTask},
+		nil,
+	)
+	s.NoError(err)
+
+	state, err := s.GetWorkflowExecutionInfo(ctx, domainID, workflowExecution)
+	s.NoError(err)
+	s.Require().NotNil(state)
+
+	// Verify that FetchWorkflowTimerTasksForCleanup runs without error, which exercises
+	// the SelectWorkflowTimerTasks path on the tracking map.
+	_, err = s.ExecutionManager.FetchWorkflowTimerTasksForCleanup(ctx, &p.FetchWorkflowTimerTasksForCleanupRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowExecution.WorkflowID,
+		RunID:      workflowExecution.RunID,
+	})
+	s.NoError(err)
 }

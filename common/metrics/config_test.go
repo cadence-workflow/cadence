@@ -1,11 +1,11 @@
 package metrics
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 )
 
 func TestHistogramMigrationMetricsExist(t *testing.T) {

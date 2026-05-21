@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -45,6 +46,7 @@ const schedulerContextKey contextKey = "schedulerContext"
 // schedulerContext is the context passed to activities via BackgroundActivityContext.
 type schedulerContext struct {
 	FrontendClient frontend.Client
+	MetricsClient  metrics.Client
 }
 
 // processScheduleFireActivity is the single activity that handles a schedule fire.
@@ -53,17 +55,50 @@ type schedulerContext struct {
 // Keeping all of this in one activity means the workflow history records a single
 // activity call per fire, so the internal logic can evolve freely without
 // introducing nondeterminism.
-func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (*ProcessFireResult, error) {
+func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (result *ProcessFireResult, err error) {
 	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
 	if !ok {
 		return nil, fmt.Errorf("scheduler context not found in activity context")
 	}
 
-	result := &ProcessFireResult{}
+	scope := sc.MetricsClient.Scope(metrics.SchedulerActivityScope, metrics.DomainTag(req.Domain))
+	defer func() {
+		if err != nil {
+			scope.IncCounter(metrics.SchedulerFireErrorCountPerDomain)
+		}
+	}()
+
+	result = &ProcessFireResult{}
 
 	policy := req.OverlapPolicy
 	if policy == types.ScheduleOverlapPolicyInvalid {
 		policy = types.ScheduleOverlapPolicySkipNew
+	}
+
+	// Bounded CONCURRENT: describe each tracked in-flight workflow, prune
+	// completed entries, and enforce the cap. When under the cap, falls through
+	// to the shared start block; stillRunning is used there to build
+	// result.ActiveWorkflows. When at or over the cap, returns early with a skip.
+	isBoundedConcurrent := policy == types.ScheduleOverlapPolicyConcurrent && req.ConcurrencyLimit > 0
+	var stillRunning []RunningWorkflowInfo
+	if isBoundedConcurrent {
+		effectiveLimit := effectiveConcurrencyLimit(req.ConcurrencyLimit)
+		for _, wf := range req.RunningWorkflows {
+			running, err := isWorkflowRunning(ctx, sc.FrontendClient, req.Domain, &wf)
+			if err != nil {
+				return nil, err
+			}
+			if running {
+				stillRunning = append(stillRunning, wf)
+			}
+		}
+		if len(stillRunning) >= int(effectiveLimit) {
+			scope.Tagged(metrics.OverlapPolicyTag(policy.String()), metrics.TriggerSourceTag(string(req.TriggerSource))).
+				IncCounter(metrics.SchedulerFireSkippedCountPerDomain)
+			result.SkippedDelta = 1
+			result.ActiveWorkflows = stillRunning
+			return result, nil
+		}
 	}
 
 	if policy != types.ScheduleOverlapPolicyConcurrent && req.LastStartedWorkflow != nil {
@@ -74,21 +109,31 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (*
 		if running {
 			switch policy {
 			case types.ScheduleOverlapPolicySkipNew:
+				scope.Tagged(metrics.OverlapPolicyTag(policy.String()), metrics.TriggerSourceTag(string(req.TriggerSource))).IncCounter(metrics.SchedulerFireSkippedCountPerDomain)
 				result.SkippedDelta = 1
 				result.StartedWorkflow = req.LastStartedWorkflow
 				return result, nil
 			case types.ScheduleOverlapPolicyBuffer:
-				// TODO(overlap-buffer): implement sequential buffered execution
-				result.SkippedDelta = 1
+				// Defer the fire; the workflow enqueues it in state.BufferedFires.
+				scope.Tagged(metrics.OverlapPolicyTag(policy.String()), metrics.TriggerSourceTag(string(req.TriggerSource))).IncCounter(metrics.SchedulerFireBufferedCountPerDomain)
+				result.Buffered = true
 				result.StartedWorkflow = req.LastStartedWorkflow
 				return result, nil
 			case types.ScheduleOverlapPolicyCancelPrevious:
-				if err := cancelWorkflow(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow); err != nil {
+				var cancelled bool
+				if cancelled, err = cancelWorkflow(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow); err != nil {
 					return nil, err
 				}
+				if cancelled {
+					scope.IncCounter(metrics.SchedulerOverlapCancelCountPerDomain)
+				}
 			case types.ScheduleOverlapPolicyTerminatePrevious:
-				if err := terminateWorkflow(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow); err != nil {
+				var terminated bool
+				if terminated, err = terminateWorkflow(ctx, sc.FrontendClient, req.Domain, req.LastStartedWorkflow); err != nil {
 					return nil, err
+				}
+				if terminated {
+					scope.IncCounter(metrics.SchedulerOverlapTerminateCountPerDomain)
 				}
 			}
 		}
@@ -115,20 +160,33 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (*
 	if err != nil {
 		var alreadyStarted *types.WorkflowExecutionAlreadyStartedError
 		if errors.As(err, &alreadyStarted) {
-			result.SkippedDelta = 1
-			result.StartedWorkflow = &RunningWorkflowInfo{
+			scope.Tagged(metrics.TriggerSourceTag(string(req.TriggerSource))).IncCounter(metrics.SchedulerFireAlreadyRunningCountPerDomain)
+			existing := &RunningWorkflowInfo{
 				WorkflowID: workflowID,
 				RunID:      alreadyStarted.RunID,
+			}
+			result.SkippedDelta = 1
+			result.StartedWorkflow = existing
+			if isBoundedConcurrent {
+				result.ActiveWorkflows = append(stillRunning, *existing)
 			}
 			return result, nil
 		}
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
+	startedScope := scope.Tagged(metrics.TriggerSourceTag(string(req.TriggerSource)))
+	startedScope.IncCounter(metrics.SchedulerFireStartedCountPerDomain)
+	if req.TriggerSource == TriggerSourceSchedule {
+		startedScope.ExponentialHistogram(metrics.SchedulerFireLatencyPerDomainHistogram, time.Since(req.ScheduledTime))
+	}
 	result.TotalDelta = 1
 	result.StartedWorkflow = &RunningWorkflowInfo{
 		WorkflowID: workflowID,
 		RunID:      resp.GetRunID(),
+	}
+	if isBoundedConcurrent {
+		result.ActiveWorkflows = append(stillRunning, *result.StartedWorkflow)
 	}
 	return result, nil
 }
@@ -176,7 +234,7 @@ func isWorkflowRunning(ctx context.Context, client frontend.Client, domain strin
 // but may continue running while it handles cleanup. A brief overlap with the
 // new run is expected. Use TERMINATE_PREVIOUS for a hard guarantee of no
 // concurrent execution.
-func cancelWorkflow(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) error {
+func cancelWorkflow(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) (bool, error) {
 	err := client.RequestCancelWorkflowExecution(ctx, &types.RequestCancelWorkflowExecutionRequest{
 		Domain: domain,
 		WorkflowExecution: &types.WorkflowExecution{
@@ -185,13 +243,16 @@ func cancelWorkflow(ctx context.Context, client frontend.Client, domain string, 
 		},
 		Cause: "schedule overlap policy: CANCEL_PREVIOUS",
 	})
-	if err != nil && !isEntityNotExistsError(err) {
-		return fmt.Errorf("failed to cancel workflow: %w", err)
+	if err != nil {
+		if isEntityNotExistsError(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to cancel workflow: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
-func terminateWorkflow(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) error {
+func terminateWorkflow(ctx context.Context, client frontend.Client, domain string, wf *RunningWorkflowInfo) (bool, error) {
 	err := client.TerminateWorkflowExecution(ctx, &types.TerminateWorkflowExecutionRequest{
 		Domain: domain,
 		WorkflowExecution: &types.WorkflowExecution{
@@ -200,10 +261,13 @@ func terminateWorkflow(ctx context.Context, client frontend.Client, domain strin
 		},
 		Reason: "schedule overlap policy: TERMINATE_PREVIOUS",
 	})
-	if err != nil && !isEntityNotExistsError(err) {
-		return fmt.Errorf("failed to terminate workflow: %w", err)
+	if err != nil {
+		if isEntityNotExistsError(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to terminate workflow: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
@@ -225,6 +289,11 @@ func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
 	}
 	if v, err := json.Marshal(req.TriggerSource == TriggerSourceBackfill); err == nil {
 		fields[SearchAttrIsBackfill] = v
+	}
+	if req.TriggerSource == TriggerSourceBackfill && req.BackfillID != "" {
+		if v, err := json.Marshal(req.BackfillID); err == nil {
+			fields[SearchAttrBackfillID] = v
+		}
 	}
 
 	return &types.SearchAttributes{IndexedFields: fields}

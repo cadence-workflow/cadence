@@ -378,6 +378,7 @@ CREATE TABLE executions (
   range_id                       bigint, -- Increasing sequence identifier for transfer queue, checkpointed into shard info
   activity_map                   map<bigint, frozen<activity_info>>,
   timer_map                      map<text, frozen<timer_info>>,
+  workflow_timer_tasks           set<frozen<tuple<timestamp, bigint>>>,
   child_executions_map           map<bigint, frozen<child_execution_info>>,
   request_cancel_map             map<bigint, frozen<request_cancel_info>>,
   signal_map                     map<bigint, frozen<signal_info>>,

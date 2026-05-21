@@ -1029,6 +1029,132 @@ func ToAdminListDynamicConfigResponse(t *adminv1.ListDynamicConfigResponse) *typ
 	}
 }
 
+// FromAdminGetOperationalDynamicConfigRequest converts internal GetOperationalDynamicConfigRequest type to proto
+func FromAdminGetOperationalDynamicConfigRequest(t *types.GetOperationalDynamicConfigRequest) *adminv1.GetOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.GetOperationalDynamicConfigRequest{
+		ConfigName: t.ConfigName,
+		Filters:    FromDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// ToAdminGetOperationalDynamicConfigRequest converts proto GetOperationalDynamicConfigRequest type to internal
+func ToAdminGetOperationalDynamicConfigRequest(t *adminv1.GetOperationalDynamicConfigRequest) *types.GetOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.GetOperationalDynamicConfigRequest{
+		ConfigName: t.ConfigName,
+		Filters:    ToDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// FromAdminGetOperationalDynamicConfigResponse converts internal GetOperationalDynamicConfigResponse type to proto
+func FromAdminGetOperationalDynamicConfigResponse(t *types.GetOperationalDynamicConfigResponse) *adminv1.GetOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.GetOperationalDynamicConfigResponse{
+		Value: FromDataBlob(t.Value),
+	}
+}
+
+// ToAdminGetOperationalDynamicConfigResponse converts proto GetOperationalDynamicConfigResponse type to internal
+func ToAdminGetOperationalDynamicConfigResponse(t *adminv1.GetOperationalDynamicConfigResponse) *types.GetOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.GetOperationalDynamicConfigResponse{
+		Value: ToDataBlob(t.Value),
+	}
+}
+
+// FromAdminUpdateOperationalDynamicConfigRequest converts internal UpdateOperationalDynamicConfigRequest type to proto
+func FromAdminUpdateOperationalDynamicConfigRequest(t *types.UpdateOperationalDynamicConfigRequest) *adminv1.UpdateOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.UpdateOperationalDynamicConfigRequest{
+		ConfigName:   t.ConfigName,
+		ConfigValues: FromDynamicConfigValueArray(t.ConfigValues),
+	}
+}
+
+// ToAdminUpdateOperationalDynamicConfigRequest converts proto UpdateOperationalDynamicConfigRequest type to internal
+func ToAdminUpdateOperationalDynamicConfigRequest(t *adminv1.UpdateOperationalDynamicConfigRequest) *types.UpdateOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.UpdateOperationalDynamicConfigRequest{
+		ConfigName:   t.ConfigName,
+		ConfigValues: ToDynamicConfigValueArray(t.ConfigValues),
+	}
+}
+
+// FromAdminRestoreOperationalDynamicConfigRequest converts internal RestoreOperationalDynamicConfigRequest type to proto
+func FromAdminRestoreOperationalDynamicConfigRequest(t *types.RestoreOperationalDynamicConfigRequest) *adminv1.RestoreOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.RestoreOperationalDynamicConfigRequest{
+		ConfigName: t.ConfigName,
+		Filters:    FromDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// ToAdminRestoreOperationalDynamicConfigRequest converts proto RestoreOperationalDynamicConfigRequest type to internal
+func ToAdminRestoreOperationalDynamicConfigRequest(t *adminv1.RestoreOperationalDynamicConfigRequest) *types.RestoreOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.RestoreOperationalDynamicConfigRequest{
+		ConfigName: t.ConfigName,
+		Filters:    ToDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// FromAdminListOperationalDynamicConfigRequest converts internal ListOperationalDynamicConfigRequest type to proto
+func FromAdminListOperationalDynamicConfigRequest(t *types.ListOperationalDynamicConfigRequest) *adminv1.ListOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.ListOperationalDynamicConfigRequest{
+		ConfigName: t.ConfigName,
+	}
+}
+
+// ToAdminListOperationalDynamicConfigRequest converts proto ListOperationalDynamicConfigRequest type to internal
+func ToAdminListOperationalDynamicConfigRequest(t *adminv1.ListOperationalDynamicConfigRequest) *types.ListOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListOperationalDynamicConfigRequest{
+		ConfigName: t.ConfigName,
+	}
+}
+
+// FromAdminListOperationalDynamicConfigResponse converts internal ListOperationalDynamicConfigResponse type to proto
+func FromAdminListOperationalDynamicConfigResponse(t *types.ListOperationalDynamicConfigResponse) *adminv1.ListOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.ListOperationalDynamicConfigResponse{
+		Entries: FromDynamicConfigEntryArray(t.Entries),
+	}
+}
+
+// ToAdminListOperationalDynamicConfigResponse converts proto ListOperationalDynamicConfigResponse type to internal
+func ToAdminListOperationalDynamicConfigResponse(t *adminv1.ListOperationalDynamicConfigResponse) *types.ListOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListOperationalDynamicConfigResponse{
+		Entries: ToDynamicConfigEntryArray(t.Entries),
+	}
+}
+
 // FromDynamicConfigEntryArray converts internal DynamicConfigEntry array type to proto
 func FromDynamicConfigEntryArray(t []*types.DynamicConfigEntry) []*adminv1.DynamicConfigEntry {
 	if t == nil {

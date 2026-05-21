@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
@@ -49,8 +50,19 @@ var (
 		dynamicproperties.MinRetentionDays:                                  0,
 		dynamicproperties.WorkflowDeletionJitterRange:                       1,
 		dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow: true,
+		dynamicproperties.ValidSearchAttributes:                             validSearchAttributesWithSchedules(),
 	}
 )
+
+// validSearchAttributesWithSchedules returns a copy of the default indexed-keys
+// map (including scheduler-managed keys on target and list workflows).
+func validSearchAttributesWithSchedules() map[string]interface{} {
+	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys()))
+	for k, v := range definition.GetDefaultIndexedKeys() {
+		out[k] = v
+	}
+	return out
+}
 
 type dynamicClient struct {
 	sync.RWMutex

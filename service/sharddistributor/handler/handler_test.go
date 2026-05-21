@@ -53,12 +53,21 @@ func newTestHandler(t *testing.T, cfg config.ShardDistribution, mockStore *store
 	handler := &handlerImpl{
 		logger:               testlogger.New(t),
 		shardDistributionCfg: cfg,
+		cfg:                  newTestShardDistributorConfig(config.LoadBalancingModeNAIVE),
 		storage:              mockStore,
 	}
 	handler.batcher = newShardBatcher(clock.NewRealTimeSource(), 10*time.Millisecond, handler.assignEphemeralBatch)
 	handler.batcher.Start()
 	t.Cleanup(handler.batcher.Stop)
 	return handler
+}
+
+func newTestShardDistributorConfig(mode string) *config.Config {
+	return &config.Config{
+		LoadBalancingMode: func(namespace string) string {
+			return mode
+		},
+	}
 }
 
 func TestGetShardOwner(t *testing.T) {

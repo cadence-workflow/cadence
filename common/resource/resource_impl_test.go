@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
@@ -144,6 +145,7 @@ func TestStartStop(t *testing.T) {
 	persistenceClientBean.EXPECT().GetExecutionManager(gomock.Any()).Return(execMgr, nil).AnyTimes()
 	persistenceClientBean.EXPECT().GetDomainReplicationQueueManager().Return(domainReplMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
+	persistenceClientBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(ctrl)).AnyTimes()
 	persistenceClientBean.EXPECT().Close().Times(1)
 
 	// archiver provider mocks
@@ -177,6 +179,7 @@ func TestStartStop(t *testing.T) {
 		},
 		ArchiverProvider:           archiveProvider,
 		AsyncWorkflowQueueProvider: queue.NewMockProvider(ctrl),
+		OperationalConfigStore:     configstore.NewNopClient(),
 	}
 
 	// bare minimum service config
@@ -253,5 +256,7 @@ func TestStartStop(t *testing.T) {
 	assert.NotNil(t, i.GetDispatcher())
 	assert.NotNil(t, i.GetIsolationGroupState())
 	assert.Nil(t, i.GetIsolationGroupStore())
+	assert.NotNil(t, i.GetOperationalConfigStore())
+	assert.NotNil(t, i.GetOperationalDynamicConfig())
 	assert.Equal(t, params.AsyncWorkflowQueueProvider, i.GetAsyncWorkflowQueueProvider())
 }

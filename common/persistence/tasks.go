@@ -62,6 +62,11 @@ type Task interface {
 }
 
 var (
+	MinimumHistoryTaskKey = HistoryTaskKey{
+		scheduledTime: time.Time{},
+		taskID:        0,
+	}
+
 	MaximumHistoryTaskKey = HistoryTaskKey{
 		scheduledTime: time.Unix(0, math.MaxInt64),
 		taskID:        math.MaxInt64,
@@ -358,6 +363,10 @@ func (a HistoryTaskKey) Next() HistoryTaskKey {
 		scheduledTime: a.scheduledTime,
 		taskID:        a.taskID + 1,
 	}
+}
+
+func (a HistoryTaskKey) IsZero() bool {
+	return a.scheduledTime.IsZero() && a.taskID == 0
 }
 
 func MinHistoryTaskKey(a, b HistoryTaskKey) HistoryTaskKey {

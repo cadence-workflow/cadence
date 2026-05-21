@@ -40,6 +40,7 @@ type (
 		HasMoreTasks() bool
 		UpdateAndGetState() VirtualSliceState
 		GetPendingTaskCount() int
+		GetReadLevel() persistence.HistoryTaskKey
 		Clear()
 		PendingTaskStats() PendingTaskStats
 
@@ -97,6 +98,13 @@ func (s *virtualSliceImpl) GetState() VirtualSliceState {
 
 func (s *virtualSliceImpl) GetPendingTaskCount() int {
 	return s.pendingTaskTracker.GetPendingTaskCount()
+}
+
+func (s *virtualSliceImpl) GetReadLevel() persistence.HistoryTaskKey {
+	if len(s.progress) > 0 {
+		return s.progress[0].NextTaskKey
+	}
+	return s.state.Range.ExclusiveMaxTaskKey
 }
 
 func (s *virtualSliceImpl) IsEmpty() bool {

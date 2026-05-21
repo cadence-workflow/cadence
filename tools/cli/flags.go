@@ -190,6 +190,7 @@ const (
 	FlagMaxMessageCount                = "max_message_count"
 	FlagLastMessageID                  = "last_message_id"
 	FlagConcurrency                    = "concurrency"
+	FlagConcurrencyLimit               = "concurrency_limit"
 	FlagReportRate                     = "report_rate"
 	FlagLowerShardBound                = "lower_shard_bound"
 	FlagUpperShardBound                = "upper_shard_bound"
@@ -237,6 +238,7 @@ const (
 	FlagCronOverlapPolicy              = "cron_overlap_policy"
 	FlagClusterAttributeScope          = "cluster_attribute_scope"
 	FlagClusterAttributeName           = "cluster_attribute_name"
+	FlagClusterAttributesJSON          = "cluster_attributes_json"
 	FlagBatchV2                        = "v2"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"

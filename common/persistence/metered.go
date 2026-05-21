@@ -320,8 +320,8 @@ func (r *IsWorkflowExecutionExistsRequest) GetDomainName() string {
 	return r.DomainName
 }
 
-func (r *PutReplicationTaskToDLQRequest) MetricTags() []metrics.Tag {
-	return []metrics.Tag{metrics.DomainTag(r.DomainName)}
+func (r *PutReplicationTaskToDLQRequest) GetDomainName() string {
+	return r.DomainName
 }
 
 func (r *CreateWorkflowExecutionRequest) GetExtraLogTags() []tag.Tag {

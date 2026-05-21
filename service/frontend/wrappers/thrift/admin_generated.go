@@ -88,6 +88,11 @@ func (g AdminHandler) GetGlobalIsolationGroups(ctx context.Context, Request *adm
 	return thrift.FromAdminGetGlobalIsolationGroupsResponse(response), thrift.FromError(err)
 }
 
+func (g AdminHandler) GetOperationalDynamicConfig(ctx context.Context, Request *admin.GetOperationalDynamicConfigRequest) (gp1 *admin.GetOperationalDynamicConfigResponse, err error) {
+	response, err := g.h.GetOperationalDynamicConfig(ctx, thrift.ToAdminGetOperationalDynamicConfigRequest(Request))
+	return thrift.FromAdminGetOperationalDynamicConfigResponse(response), thrift.FromError(err)
+}
+
 func (g AdminHandler) GetReplicationMessages(ctx context.Context, Request *replicator.GetReplicationMessagesRequest) (gp1 *replicator.GetReplicationMessagesResponse, err error) {
 	response, err := g.h.GetReplicationMessages(ctx, thrift.ToAdminGetReplicationMessagesRequest(Request))
 	return thrift.FromAdminGetReplicationMessagesResponse(response), thrift.FromError(err)
@@ -101,6 +106,11 @@ func (g AdminHandler) GetWorkflowExecutionRawHistoryV2(ctx context.Context, GetR
 func (g AdminHandler) ListDynamicConfig(ctx context.Context, Request *admin.ListDynamicConfigRequest) (lp1 *admin.ListDynamicConfigResponse, err error) {
 	response, err := g.h.ListDynamicConfig(ctx, thrift.ToAdminListDynamicConfigRequest(Request))
 	return thrift.FromAdminListDynamicConfigResponse(response), thrift.FromError(err)
+}
+
+func (g AdminHandler) ListOperationalDynamicConfig(ctx context.Context, Request *admin.ListOperationalDynamicConfigRequest) (lp1 *admin.ListOperationalDynamicConfigResponse, err error) {
+	response, err := g.h.ListOperationalDynamicConfig(ctx, thrift.ToAdminListOperationalDynamicConfigRequest(Request))
+	return thrift.FromAdminListOperationalDynamicConfigResponse(response), thrift.FromError(err)
 }
 
 func (g AdminHandler) MaintainCorruptWorkflow(ctx context.Context, Request *admin.AdminMaintainWorkflowRequest) (ap1 *admin.AdminMaintainWorkflowResponse, err error) {
@@ -158,6 +168,11 @@ func (g AdminHandler) RestoreDynamicConfig(ctx context.Context, Request *admin.R
 	return thrift.FromError(err)
 }
 
+func (g AdminHandler) RestoreOperationalDynamicConfig(ctx context.Context, Request *admin.RestoreOperationalDynamicConfigRequest) (err error) {
+	err = g.h.RestoreOperationalDynamicConfig(ctx, thrift.ToAdminRestoreOperationalDynamicConfigRequest(Request))
+	return thrift.FromError(err)
+}
+
 func (g AdminHandler) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, Request *admin.UpdateDomainAsyncWorkflowConfiguratonRequest) (up1 *admin.UpdateDomainAsyncWorkflowConfiguratonResponse, err error) {
 	response, err := g.h.UpdateDomainAsyncWorkflowConfiguraton(ctx, thrift.ToAdminUpdateDomainAsyncWorkflowConfiguratonRequest(Request))
 	return thrift.FromAdminUpdateDomainAsyncWorkflowConfiguratonResponse(response), thrift.FromError(err)
@@ -176,4 +191,9 @@ func (g AdminHandler) UpdateDynamicConfig(ctx context.Context, Request *admin.Up
 func (g AdminHandler) UpdateGlobalIsolationGroups(ctx context.Context, Request *admin.UpdateGlobalIsolationGroupsRequest) (up1 *admin.UpdateGlobalIsolationGroupsResponse, err error) {
 	response, err := g.h.UpdateGlobalIsolationGroups(ctx, thrift.ToAdminUpdateGlobalIsolationGroupsRequest(Request))
 	return thrift.FromAdminUpdateGlobalIsolationGroupsResponse(response), thrift.FromError(err)
+}
+
+func (g AdminHandler) UpdateOperationalDynamicConfig(ctx context.Context, Request *admin.UpdateOperationalDynamicConfigRequest) (err error) {
+	err = g.h.UpdateOperationalDynamicConfig(ctx, thrift.ToAdminUpdateOperationalDynamicConfigRequest(Request))
+	return thrift.FromError(err)
 }

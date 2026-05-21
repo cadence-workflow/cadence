@@ -67,6 +67,8 @@ type (
 		NewDomainManager() (p.DomainManager, error)
 		// NewDomainAuditManager returns a new domain audit manager
 		NewDomainAuditManager() (p.DomainAuditManager, error)
+		// NewHistoryTaskDLQManager returns a new history task DLQ manager
+		NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error)
 		// NewExecutionManager returns a new execution manager for a given shardID
 		NewExecutionManager(shardID int) (p.ExecutionManager, error)
 		// NewVisibilityManager returns a new visibility manager
@@ -91,6 +93,8 @@ type (
 		NewDomainStore() (p.DomainStore, error)
 		// NewDomainAuditStore returns a new domain audit store
 		NewDomainAuditStore() (p.DomainAuditStore, error)
+		// NewHistoryDLQTaskStore returns a new history DLQ task store
+		NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error)
 		// NewExecutionStore returns an execution store for given shardID
 		NewExecutionStore(shardID int) (p.ExecutionStore, error)
 		// NewVisibilityStore returns a new visibility store,
@@ -266,6 +270,21 @@ func (f *factoryImpl) NewDomainAuditManager() (p.DomainAuditManager, error) {
 	}
 	result := p.NewDomainAuditManagerImpl(store, f.logger, p.NewPayloadSerializer(), f.dc)
 	return result, nil
+}
+
+// NewHistoryTaskDLQManager returns a new history task DLQ manager
+func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error) {
+	ds := f.datastores[storeTypeExecution]
+	store, err := ds.factory.NewHistoryDLQTaskStore()
+	if err != nil {
+		return nil, err
+	}
+	parser, err := serialization.NewParser(f.dc)
+	if err != nil {
+		return nil, err
+	}
+	taskSerializer := serialization.NewTaskSerializer(parser)
+	return p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger), nil
 }
 
 // NewExecutionManager returns a new execution manager for a given shardID

@@ -271,11 +271,13 @@ func (s *failoverWorkflowTestSuite) TestWorkflow_WithDrillWaitTime_Success() {
 func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 
 	tests := []struct {
+		name          string
 		domain        *types.DescribeDomainResponse
 		sourceCluster string
 		expected      bool
 	}{
 		{
+			name: "when domain is not global, should be excluded",
 			domain: &types.DescribeDomainResponse{
 				IsGlobalDomain: false,
 			},
@@ -283,6 +285,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 			expected:      false,
 		},
 		{
+			name: "when domain is not managed by Cadence, should be excluded",
 			domain: &types.DescribeDomainResponse{
 				IsGlobalDomain: true,
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -294,6 +297,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 			expected:      false,
 		},
 		{
+			name: "when active cluster matches source cluster but domain is not managed by Cadence, should be excluded",
 			domain: &types.DescribeDomainResponse{
 				IsGlobalDomain: true,
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -305,6 +309,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 			expected:      false,
 		},
 		{
+			name: "when domain is managed by Cadence and active cluster matches source cluster, should be included",
 			domain: &types.DescribeDomainResponse{
 				IsGlobalDomain: true,
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -321,6 +326,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 			expected:      true,
 		},
 		{
+			name: "when domain with active-active configuration is managed by Cadence and active cluster name matches source cluster, should be included",
 			domain: &types.DescribeDomainResponse{
 				IsGlobalDomain: true,
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -345,9 +351,10 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 				},
 			},
 			sourceCluster: "c2",
-			expected:      false,
+			expected:      true,
 		},
 		{
+			name: "when domain has active-active configuration with empty attribute scopes but active cluster name matches source cluster, should be included",
 			domain: &types.DescribeDomainResponse{
 				IsGlobalDomain: true,
 				ReplicationConfiguration: &types.DomainReplicationConfiguration{
@@ -368,11 +375,14 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover() {
 				},
 			},
 			sourceCluster: "c2",
-			expected:      false,
+			expected:      true,
 		},
 	}
 	for _, t := range tests {
-		s.Equal(t.expected, shouldFailover(t.domain, t.sourceCluster))
+		t := t
+		s.Run(t.name, func() {
+			s.Equal(t.expected, shouldFailover(t.domain, t.sourceCluster, nil))
+		})
 	}
 }
 
@@ -460,7 +470,7 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithTargetDomains() {
 	s.Equal([]string{"d1"}, result) // d3 filtered out because not managed
 }
 
-func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_FiltersActiveActiveDomains() {
+func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_IncludesActiveActiveDomains() {
 	env, mockResource := s.prepareTestActivityEnv()
 
 	domains := &types.ListDomainsResponse{
@@ -528,7 +538,7 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_FiltersActiveActiveDo
 	s.NoError(err)
 	var result []string
 	s.NoError(actResult.Get(&result))
-	s.Equal([]string{"regular-domain"}, result)
+	s.ElementsMatch([]string{"regular-domain", "active-active-domain", "empty-active-clusters-domain"}, result)
 }
 
 func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithActiveActiveTargetDomains() {
@@ -585,7 +595,7 @@ func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_WithActiveActiveTarge
 	s.NoError(err)
 	var result []string
 	s.NoError(actResult.Get(&result))
-	s.Equal([]string{"regular-domain"}, result)
+	s.ElementsMatch([]string{"regular-domain", "active-active-domain"}, result)
 }
 
 func (s *failoverWorkflowTestSuite) TestFailoverActivity_ForceFailover_Success() {
@@ -800,7 +810,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover_DeprecatedDomain() {
 		},
 	}
 
-	result := shouldFailover(deprecatedDomain, "cluster1")
+	result := shouldFailover(deprecatedDomain, "cluster1", nil)
 	s.False(result, "Deprecated domains should not be included in failover")
 }
 
@@ -823,7 +833,7 @@ func (s *failoverWorkflowTestSuite) TestShouldFailover_DeletedDomain() {
 		},
 	}
 
-	result := shouldFailover(deletedDomain, "cluster1")
+	result := shouldFailover(deletedDomain, "cluster1", nil)
 	s.False(result, "Deleted domains should not be included in failover")
 }
 
@@ -853,4 +863,424 @@ func (s *failoverWorkflowTestSuite) prepareTestActivityEnv() (*testsuite.TestAct
 	})
 
 	return s.activityEnv, mockResource
+}
+
+func (s *failoverWorkflowTestSuite) TestShouldFailover_WithClusterAttributeFilter() {
+	activeClustersWithAttr := func(regionToCluster map[string]string, managedFailover bool) *types.DescribeDomainResponse {
+		attrs := map[string]types.ActiveClusterInfo{}
+		for region, cluster := range regionToCluster {
+			attrs[region] = types.ActiveClusterInfo{ActiveClusterName: cluster}
+		}
+		managed := "false"
+		if managedFailover {
+			managed = "true"
+		}
+		return &types.DescribeDomainResponse{
+			IsGlobalDomain: true,
+			DomainInfo: &types.DomainInfo{
+				Data: map[string]string{constants.DomainDataKeyForManagedFailover: managed},
+			},
+			ReplicationConfiguration: &types.DomainReplicationConfiguration{
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {ClusterAttributes: attrs},
+					},
+				},
+			},
+		}
+	}
+
+	regionAttrs := []types.ClusterAttribute{{Scope: "region", Name: "us-west"}}
+
+	tests := []struct {
+		name          string
+		domain        *types.DescribeDomainResponse
+		sourceCluster string
+		attrs         []types.ClusterAttribute
+		expected      bool
+	}{
+		{
+			name:          "when a filtered cluster attribute is active on source cluster, should be included",
+			domain:        activeClustersWithAttr(map[string]string{"us-west": "c1", "us-east": "c2"}, true),
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      true,
+		},
+		{
+			name:          "when a filtered cluster attribute is active on a different cluster, should be excluded",
+			domain:        activeClustersWithAttr(map[string]string{"us-west": "c2"}, true),
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      false,
+		},
+		{
+			name:          "when the filtered attribute scope does not exist in the domain, should be excluded",
+			domain:        activeClustersWithAttr(map[string]string{"us-east": "c1"}, true),
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      false,
+		},
+		{
+			name:          "when domain is not managed by Cadence, should be excluded",
+			domain:        activeClustersWithAttr(map[string]string{"us-west": "c1"}, false),
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      false,
+		},
+		{
+			name: "when domain is not global, should be excluded",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: false,
+				DomainInfo:     &types.DomainInfo{Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"}},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c1"},
+							}},
+						},
+					},
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      false,
+		},
+		{
+			name: "when domain is deprecated, should be excluded",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				DomainInfo: &types.DomainInfo{
+					Status: types.DomainStatusDeprecated.Ptr(),
+					Data:   map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c1"},
+							}},
+						},
+					},
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      false,
+		},
+		{
+			name: "when domain's active cluster name matches source cluster, should be included regardless of attribute configuration",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				DomainInfo:     &types.DomainInfo{Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"}},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      true,
+		},
+		{
+			name: "when active cluster name does not match and no filtered attribute is on source cluster, should be excluded",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				DomainInfo:     &types.DomainInfo{Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"}},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c2",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c2"},
+							}},
+						},
+					},
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      false,
+		},
+		{
+			name: "when attrs is empty (non-nil), active-active domain with matching attribute is not included",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				DomainInfo:     &types.DomainInfo{Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"}},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c2",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c1"},
+							}},
+						},
+					},
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         []types.ClusterAttribute{},
+			expected:      false,
+		},
+		{
+			name: "when attrs is empty (non-nil), domain included via active cluster name",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				DomainInfo:     &types.DomainInfo{Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"}},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         []types.ClusterAttribute{},
+			expected:      true,
+		},
+		{
+			name: "when default active cluster name is on source cluster and a filtered attribute is not, should be included via active cluster name",
+			domain: &types.DescribeDomainResponse{
+				IsGlobalDomain: true,
+				DomainInfo:     &types.DomainInfo{Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"}},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c2"},
+							}},
+						},
+					},
+				},
+			},
+			sourceCluster: "c1",
+			attrs:         regionAttrs,
+			expected:      true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		s.Run(tc.name, func() {
+			s.Equal(tc.expected, shouldFailover(tc.domain, tc.sourceCluster, tc.attrs))
+		})
+	}
+}
+
+func (s *failoverWorkflowTestSuite) TestGetDomainsActivity_ActiveActiveMode() {
+	env, mockResource := s.prepareTestActivityEnv()
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "aa-needs-failover",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c1"},
+							}},
+						},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "aa-already-correct",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-west": {ActiveClusterName: "c2"},
+							}},
+						},
+					},
+				},
+				IsGlobalDomain: true,
+			},
+			{
+				DomainInfo: &types.DomainInfo{
+					Name: "regular-domain",
+					Data: map[string]string{constants.DomainDataKeyForManagedFailover: "true"},
+				},
+				ReplicationConfiguration: &types.DomainReplicationConfiguration{
+					ActiveClusterName: "c1",
+				},
+				IsGlobalDomain: true,
+			},
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	params := &GetDomainsActivityParams{
+		TargetCluster: "c2",
+		SourceCluster: "c1",
+		ClusterAttributes: []types.ClusterAttribute{
+			{Scope: "region", Name: "us-west"},
+		},
+	}
+	actResult, err := env.ExecuteActivity(getDomainsActivityName, params)
+	s.NoError(err)
+	var result []string
+	s.NoError(actResult.Get(&result))
+	s.ElementsMatch([]string{"aa-needs-failover", "regular-domain"}, result)
+}
+
+func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_Success() {
+	env, mockResource := s.prepareTestActivityEnv()
+
+	domains := []string{"aa-domain"}
+	attrs := []types.ClusterAttribute{
+		{Scope: "region", Name: "us-west"},
+		{Scope: "region", Name: "us-east"},
+	}
+	describeTaskListResp := &types.DescribeTaskListResponse{Pollers: []*types.PollerInfo{{Identity: "test"}}}
+	taskListMap := map[string]*types.DescribeTaskListResponse{"tl": describeTaskListResp}
+	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(&types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMap,
+		ActivityTaskListMap: taskListMap,
+	}, nil).Times(1)
+	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(&types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMap,
+		ActivityTaskListMap: taskListMap,
+	}, nil).Times(1)
+	expectedActiveClusters := &types.ActiveClusters{
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					"us-west": {ActiveClusterName: "c2"},
+					"us-east": {ActiveClusterName: "c2"},
+				},
+			},
+		},
+	}
+	updateRequest := &types.UpdateDomainRequest{
+		Name:              "aa-domain",
+		ActiveClusters:    expectedActiveClusters,
+		ActiveClusterName: common.StringPtr("c2"),
+	}
+	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), updateRequest).Return(nil, nil).Times(1)
+
+	params := &FailoverActivityParams{
+		Domains:           domains,
+		TargetCluster:     "c2",
+		ClusterAttributes: attrs,
+	}
+	actResult, err := env.ExecuteActivity(failoverActivityName, params)
+	s.NoError(err)
+	var result FailoverActivityResult
+	s.NoError(actResult.Get(&result))
+	s.Equal(domains, result.SuccessDomains)
+	s.Empty(result.FailedDomains)
+}
+
+func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_UpdateDomainError() {
+	env, mockResource := s.prepareTestActivityEnv()
+
+	attrs := []types.ClusterAttribute{{Scope: "region", Name: "us-west"}}
+	describeTaskListResp := &types.DescribeTaskListResponse{Pollers: []*types.PollerInfo{{Identity: "test"}}}
+	taskListMap := map[string]*types.DescribeTaskListResponse{"tl": describeTaskListResp}
+	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(&types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMap,
+		ActivityTaskListMap: taskListMap,
+	}, nil).Times(1)
+	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(&types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMap,
+		ActivityTaskListMap: taskListMap,
+	}, nil).Times(1)
+	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("update failed")).Times(1)
+
+	params := &FailoverActivityParams{
+		Domains:           []string{"aa-domain"},
+		TargetCluster:     "c2",
+		ClusterAttributes: attrs,
+	}
+	actResult, err := env.ExecuteActivity(failoverActivityName, params)
+	s.NoError(err)
+	var result FailoverActivityResult
+	s.NoError(actResult.Get(&result))
+	s.Empty(result.SuccessDomains)
+	s.Equal([]string{"aa-domain"}, result.FailedDomains)
+}
+func TestBuildActiveClusters(t *testing.T) {
+	tests := []struct {
+		name          string
+		targetCluster string
+		attrs         []types.ClusterAttribute
+		expected      *types.ActiveClusters
+	}{
+		{
+			name:          "single scope single attribute",
+			targetCluster: "cluster-west",
+			attrs:         []types.ClusterAttribute{{Scope: "region", Name: "us-west"}},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west": {ActiveClusterName: "cluster-west"},
+					}},
+				},
+			},
+		},
+		{
+			name:          "single scope multiple attributes",
+			targetCluster: "cluster-west",
+			attrs: []types.ClusterAttribute{
+				{Scope: "region", Name: "us-west"},
+				{Scope: "region", Name: "us-east"},
+			},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west": {ActiveClusterName: "cluster-west"},
+						"us-east": {ActiveClusterName: "cluster-west"},
+					}},
+				},
+			},
+		},
+		{
+			name:          "multiple scopes",
+			targetCluster: "cluster-a",
+			attrs: []types.ClusterAttribute{
+				{Scope: "region", Name: "us-west"},
+				{Scope: "datacenter", Name: "dc1"},
+			},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west": {ActiveClusterName: "cluster-a"},
+					}},
+					"datacenter": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"dc1": {ActiveClusterName: "cluster-a"},
+					}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildActiveClusters(tc.targetCluster, tc.attrs)
+			if len(got.AttributeScopes) != len(tc.expected.AttributeScopes) {
+				t.Fatalf("scope count mismatch: got %d, want %d", len(got.AttributeScopes), len(tc.expected.AttributeScopes))
+			}
+			for scope, expectedScope := range tc.expected.AttributeScopes {
+				gotScope, ok := got.AttributeScopes[scope]
+				if !ok {
+					t.Fatalf("missing scope %q", scope)
+				}
+				for name, expectedInfo := range expectedScope.ClusterAttributes {
+					gotInfo, ok := gotScope.ClusterAttributes[name]
+					if !ok {
+						t.Fatalf("missing attribute %q in scope %q", name, scope)
+					}
+					if gotInfo.ActiveClusterName != expectedInfo.ActiveClusterName {
+						t.Errorf("scope %q attr %q: got cluster %q, want %q", scope, name, gotInfo.ActiveClusterName, expectedInfo.ActiveClusterName)
+					}
+				}
+			}
+		})
+	}
 }

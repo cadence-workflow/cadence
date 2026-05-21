@@ -295,6 +295,7 @@ func (c *contextImpl) Unlock() {
 	}
 	elapsed := time.Since(c.lockTime)
 	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
+	c.metricsClient.Scope(metrics.WorkflowContextScope).ExponentialHistogram(metrics.WorkflowContextLockLatencyHistogram, elapsed)
 	if elapsed > c.maxLockDuration {
 		c.maxLockDuration = elapsed
 		c.logger.Info("workflow context lock is released. this is logged only when it's longer than maxLockDuration", tag.WorkflowContextLockLatency(elapsed))
@@ -1225,6 +1226,7 @@ func createWorkflowExecutionWithRetry(
 	default:
 		logger.Error(
 			"Persistent store operation failure",
+			tag.ShardID(shardContext.GetShardID()),
 			tag.StoreOperationCreateWorkflowExecution,
 			tag.Error(err),
 		)
@@ -1264,7 +1266,10 @@ func getWorkflowExecutionWithRetry(
 		// otherwise always log
 		var shardClosedError *shard.ErrShardClosed
 		if !errors.As(err, &shardClosedError) || shardContext.GetTimeSource().Since(shardClosedError.ClosedAt) > shard.TimeBeforeShardClosedIsError {
-			logger.Error("Persistent fetch operation failure", tag.StoreOperationGetWorkflowExecution, tag.Error(err))
+			logger.Error("Persistent fetch operation failure",
+				tag.ShardID(shardContext.GetShardID()),
+				tag.StoreOperationGetWorkflowExecution,
+				tag.Error(err))
 		}
 
 		return nil, err
@@ -1315,6 +1320,7 @@ func updateWorkflowExecutionWithRetry(
 	default:
 		logger.Error(
 			"Persistent store operation failure",
+			tag.ShardID(shardContext.GetShardID()),
 			tag.StoreOperationUpdateWorkflowExecution,
 			tag.Error(err),
 			tag.Number(request.UpdateWorkflowMutation.Condition),

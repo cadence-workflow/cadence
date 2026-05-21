@@ -24,8 +24,11 @@ package sqlite
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,7 +44,7 @@ import (
 func Test_SetupSchema(t *testing.T) {
 	for _, dbName := range listDatabaseNames(t) {
 		t.Run(dbName, func(t *testing.T) {
-			conn := newInMemoryDB(t)
+			conn := newTempFileDB(t)
 
 			err := schema.SetupFromConfig(&schema.SetupConfig{
 				SchemaFilePath:    fmt.Sprintf("../../../schema/sqlite/%s/schema.sql", dbName),
@@ -55,12 +58,17 @@ func Test_SetupSchema(t *testing.T) {
 	}
 }
 
-// newInMemoryDB returns a new in-memory sqlite connection
-func newInMemoryDB(t *testing.T) *sql.Connection {
+// newTempFileDB returns a new isolated sqlite connection backed by a unique temp file.
+// Each call produces a distinct database so sub-tests don't share schema state.
+func newTempFileDB(t *testing.T) *sql.Connection {
 	t.Helper()
 
+	dbPath := path.Join(os.TempDir(), uuid.New().String())
+	t.Cleanup(func() { _ = os.Remove(dbPath) })
+
 	conn, err := sql.NewConnection(&config.SQL{
-		PluginName: sqliteplugin.PluginName,
+		PluginName:   sqliteplugin.PluginName,
+		DatabaseName: dbPath,
 	})
 	require.NoError(t, err)
 	return conn

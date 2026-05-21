@@ -28,12 +28,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/service"
 )
@@ -174,6 +176,7 @@ func TestRefreshWorkers(t *testing.T) {
 
 			wm := &WorkerManager{
 				enabledFn:          dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
+				metricsClient:      metrics.NewNoopMetricsClient(),
 				logger:             testlogger.New(t),
 				domainCache:        mockDomainCache,
 				membershipResolver: mockResolver,
@@ -239,6 +242,7 @@ func TestRefreshWorkers_StopsWorkerWhenDomainDisabled(t *testing.T) {
 
 	wm := &WorkerManager{
 		enabledFn:          func(domain string) bool { return false },
+		metricsClient:      metrics.NewNoopMetricsClient(),
 		logger:             testlogger.New(t),
 		domainCache:        mockDomainCache,
 		membershipResolver: mockResolver,
@@ -281,6 +285,7 @@ func TestRefreshWorkersHandlesCreateWorkerError(t *testing.T) {
 
 	wm := &WorkerManager{
 		enabledFn:          dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
+		metricsClient:      metrics.NewNoopMetricsClient(),
 		logger:             testlogger.New(t),
 		domainCache:        mockDomainCache,
 		membershipResolver: mockResolver,
@@ -358,6 +363,7 @@ func TestMembershipChangeTriggersRefresh(t *testing.T) {
 
 	wm := NewWorkerManager(&BootstrapParams{
 		Logger:             testlogger.New(t),
+		MetricsClient:      metrics.NewNoopMetricsClient(),
 		DomainCache:        mockDomainCache,
 		MembershipResolver: mockResolver,
 		HostInfo:           selfHost,
@@ -391,6 +397,207 @@ func TestContainsHost(t *testing.T) {
 	assert.True(t, containsHost([]membership.HostInfo{h1, h2}, h2))
 	assert.False(t, containsHost([]membership.HostInfo{h1, h2}, h3))
 	assert.False(t, containsHost(nil, h1))
+}
+
+func TestRefreshWorkersMetrics(t *testing.T) {
+	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
+	otherHost := membership.NewDetailedHostInfo("10.0.0.2:7933", "other", nil)
+
+	makeDomainEntry := func(name string) *cache.DomainCacheEntry {
+		return cache.NewDomainCacheEntryForTest(
+			&persistence.DomainInfo{Name: name},
+			nil, false, nil, 0, nil, 0, 0, 0,
+		)
+	}
+
+	tests := []struct {
+		name            string
+		domains         map[string]*cache.DomainCacheEntry
+		lookupNResults  map[string][]membership.HostInfo
+		lookupNErrors   map[string]error
+		existingWorkers []string
+		workerStartErr  error
+		assertMetrics   func(t *testing.T, snap tally.Snapshot)
+	}{
+		{
+			name: "started counter and active gauge reflect new workers",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+				"domain-b": makeDomainEntry("domain-b"),
+			},
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {selfHost, otherHost},
+				"domain-b": {selfHost, otherHost},
+			},
+			assertMetrics: func(t *testing.T, snap tally.Snapshot) {
+				assertCounter(t, snap, "scheduler_worker_started_count", nil, 2)
+				assertGauge(t, snap, "scheduler_worker_active_gauge", nil, 2)
+				assertHistogramRecorded(t, snap, "scheduler_worker_refresh_latency_ns")
+			},
+		},
+		{
+			name: "stopped counter incremented for domain no longer owned",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+			},
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {otherHost},
+			},
+			existingWorkers: []string{"domain-a"},
+			assertMetrics: func(t *testing.T, snap tally.Snapshot) {
+				assertCounter(t, snap, "scheduler_worker_stopped_count", nil, 1)
+			},
+		},
+		{
+			name: "lookup failure increments lookup failures counter",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+			},
+			lookupNErrors: map[string]error{
+				"domain-a": fmt.Errorf("ring not ready"),
+			},
+			assertMetrics: func(t *testing.T, snap tally.Snapshot) {
+				assertCounter(t, snap, "scheduler_worker_lookup_failures_count", nil, 1)
+			},
+		},
+		{
+			name: "worker start error increments per-domain error counter",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+			},
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {selfHost, otherHost},
+			},
+			workerStartErr: fmt.Errorf("connection refused"),
+			assertMetrics: func(t *testing.T, snap tally.Snapshot) {
+				assertCounter(t, snap, "scheduler_worker_start_errors_count_per_domain", map[string]string{"domain": "domain-a"}, 1)
+			},
+		},
+		{
+			name: "domain coverage counter incremented for each active worker",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+				"domain-b": makeDomainEntry("domain-b"),
+			},
+			lookupNResults: map[string][]membership.HostInfo{
+				"domain-a": {selfHost, otherHost},
+				"domain-b": {otherHost},
+			},
+			existingWorkers: []string{"domain-a"},
+			assertMetrics: func(t *testing.T, snap tally.Snapshot) {
+				assertCounter(t, snap, "scheduler_worker_domain_coverage_count", map[string]string{"domain": "domain-a"}, 1)
+				// domain-b is not owned by this host, so no coverage counter
+				for _, c := range snap.Counters() {
+					if c.Name() == "scheduler_worker_domain_coverage_count" && c.Tags()["domain"] == "domain-b" {
+						t.Errorf("unexpected domain coverage counter for domain-b")
+					}
+				}
+			},
+		},
+		{
+			name: "domain coverage counter skipped for lookup-failed domains",
+			domains: map[string]*cache.DomainCacheEntry{
+				"domain-a": makeDomainEntry("domain-a"),
+			},
+			lookupNErrors: map[string]error{
+				"domain-a": fmt.Errorf("ring not ready"),
+			},
+			existingWorkers: []string{"domain-a"},
+			assertMetrics: func(t *testing.T, snap tally.Snapshot) {
+				for _, c := range snap.Counters() {
+					if c.Name() == "scheduler_worker_domain_coverage_count" {
+						t.Errorf("domain coverage counter should not be emitted when lookup fails")
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			mockDomainCache := cache.NewMockDomainCache(ctrl)
+			mockDomainCache.EXPECT().GetAllDomain().Return(tc.domains)
+
+			mockResolver := membership.NewMockResolver(ctrl)
+			for domainName, hosts := range tc.lookupNResults {
+				mockResolver.EXPECT().LookupN(service.Worker, domainName, workerRedundancyFactor).Return(hosts, nil)
+			}
+			for domainName, err := range tc.lookupNErrors {
+				mockResolver.EXPECT().LookupN(service.Worker, domainName, workerRedundancyFactor).Return(nil, err)
+			}
+
+			ts := tally.NewTestScope("", nil)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			wm := &WorkerManager{
+				enabledFn:          dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
+				metricsClient:      metrics.NewClient(ts, metrics.Worker, metrics.MigrationConfig{}),
+				logger:             testlogger.New(t),
+				domainCache:        mockDomainCache,
+				membershipResolver: mockResolver,
+				hostInfo:           selfHost,
+				activeWorkers:      make(map[string]workerHandle),
+				ctx:                ctx,
+				createWorker: func(domainName string) (workerHandle, error) {
+					if tc.workerStartErr != nil {
+						return nil, tc.workerStartErr
+					}
+					return &fakeWorker{}, nil
+				},
+			}
+			for _, d := range tc.existingWorkers {
+				wm.activeWorkers[d] = &fakeWorker{}
+			}
+
+			wm.refreshWorkers()
+
+			tc.assertMetrics(t, ts.Snapshot())
+		})
+	}
+}
+
+func assertCounter(t *testing.T, snap tally.Snapshot, name string, tags map[string]string, want int64) {
+	t.Helper()
+	for _, c := range snap.Counters() {
+		if c.Name() == name && tagsMatch(c.Tags(), tags) {
+			assert.EqualValues(t, want, c.Value())
+			return
+		}
+	}
+	t.Errorf("counter %q with tags %v not found in snapshot", name, tags)
+}
+
+func assertGauge(t *testing.T, snap tally.Snapshot, name string, tags map[string]string, want float64) {
+	t.Helper()
+	for _, g := range snap.Gauges() {
+		if g.Name() == name && tagsMatch(g.Tags(), tags) {
+			assert.EqualValues(t, want, g.Value())
+			return
+		}
+	}
+	t.Errorf("gauge %q with tags %v not found in snapshot", name, tags)
+}
+
+func assertHistogramRecorded(t *testing.T, snap tally.Snapshot, name string) {
+	t.Helper()
+	for _, h := range snap.Histograms() {
+		if h.Name() == name {
+			return
+		}
+	}
+	t.Errorf("histogram %q not found in snapshot", name)
+}
+
+func tagsMatch(actual, want map[string]string) bool {
+	for k, v := range want {
+		if actual[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 type fakeWorker struct {

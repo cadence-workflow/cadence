@@ -80,6 +80,14 @@ const (
 	globalRatelimitIsPrimary      = "is_primary"
 	globalRatelimitCollectionName = "global_ratelimit_collection"
 
+	// scheduler-specific tags
+	overlapPolicy = "overlap_policy"
+	triggerSource = "trigger_source"
+
+	// operational dynamic config migration tags
+	onboardingSource = "onboarding_source"
+	onboardingActive = "onboarding_active"
+
 	allValue     = "all"
 	unknownValue = "_unknown_"
 )
@@ -389,9 +397,33 @@ func ActiveClusterLookupFnTag(fn string) Tag {
 	return metricWithUnknown("fn", fn)
 }
 
-// ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
-func ActiveClusterSelectionStrategyTag(strategy string) Tag {
-	return metricWithUnknown("strategy", strategy)
+// OverlapPolicyTag returns a new overlap_policy tag for scheduler metrics.
+func OverlapPolicyTag(value string) Tag {
+	return metricWithUnknown(overlapPolicy, value)
+}
+
+// TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
+func TriggerSourceTag(value string) Tag {
+	return metricWithUnknown(triggerSource, value)
+}
+
+// OnboardingSourceTag tags a metric with the source the value was read from
+// during the operational dynamic config migration. Expected values are
+// "dynamicconfig" (generic dynamic config) and "operational" (cassandra-backed
+// operational dynamic config store).
+func OnboardingSourceTag(value string) Tag {
+	return metricWithUnknown(onboardingSource, value)
+}
+
+// OnboardingActiveTag tags a metric with whether the source it was read from
+// is the currently-active source of truth. Tag value is "active" when the
+// source is authoritative and "shadow" when it is read only for comparison.
+func OnboardingActiveTag(active bool) Tag {
+	value := "shadow"
+	if active {
+		value = "active"
+	}
+	return simpleMetric{key: onboardingActive, value: value}
 }
 
 // QueryConsistencyLevelTag returns a new query consistency level tag.

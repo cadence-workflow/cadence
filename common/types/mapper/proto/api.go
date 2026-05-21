@@ -3996,8 +3996,9 @@ func FromTaskList(t *types.TaskList) *apiv1.TaskList {
 		return nil
 	}
 	return &apiv1.TaskList{
-		Name: t.Name,
-		Kind: FromTaskListKind(t.Kind),
+		Name:     t.Name,
+		Kind:     FromTaskListKind(t.Kind),
+		BaseName: t.BaseName,
 	}
 }
 
@@ -4006,8 +4007,9 @@ func ToTaskList(t *apiv1.TaskList) *types.TaskList {
 		return nil
 	}
 	return &types.TaskList{
-		Name: t.Name,
-		Kind: ToTaskListKind(t.Kind),
+		Name:     t.Name,
+		Kind:     ToTaskListKind(t.Kind),
+		BaseName: t.BaseName,
 	}
 }
 
@@ -6835,35 +6837,6 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 	if p == nil {
 		return nil
 	}
-	// TODO(active-active): Remove the switch statement once the strategy is removed
-	if p.ActiveClusterSelectionStrategy == nil {
-		return &apiv1.ActiveClusterSelectionPolicy{
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	}
-	switch *p.ActiveClusterSelectionStrategy {
-	case types.ActiveClusterSelectionStrategyRegionSticky:
-		return &apiv1.ActiveClusterSelectionPolicy{
-			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,
-			StrategyConfig: &apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig{
-				ActiveClusterStickyRegionConfig: &apiv1.ActiveClusterStickyRegionConfig{
-					StickyRegion: p.StickyRegion,
-				},
-			},
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	case types.ActiveClusterSelectionStrategyExternalEntity:
-		return &apiv1.ActiveClusterSelectionPolicy{
-			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY,
-			StrategyConfig: &apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig{
-				ActiveClusterExternalEntityConfig: &apiv1.ActiveClusterExternalEntityConfig{
-					ExternalEntityType: p.ExternalEntityType,
-					ExternalEntityKey:  p.ExternalEntityKey,
-				},
-			},
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	}
 	return &apiv1.ActiveClusterSelectionPolicy{
 		ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 	}
@@ -6872,22 +6845,6 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
-	}
-	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.Strategy {
-	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY:
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig).ActiveClusterStickyRegionConfig.StickyRegion,
-			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
-		}
-	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY:
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-			ExternalEntityType:             p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityType,
-			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
-			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
-		}
 	}
 	return &types.ActiveClusterSelectionPolicy{
 		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),

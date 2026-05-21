@@ -22,6 +22,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.uber.org/mock/gomock"
@@ -356,6 +357,28 @@ func shouldPushToMatching(
 	return true, nil
 }
 
+func getClusterAttributesForTask(
+	ctx context.Context,
+	shard shard.Context,
+	taskInfo persistence.Task,
+) (*types.ClusterAttribute, error) {
+	domainEntry, err := shard.GetDomainCache().GetDomainByID(taskInfo.GetDomainID())
+	if err != nil {
+		return nil, errors.Join(errDomainEntryNotFound, err)
+	}
+
+	if !domainEntry.GetReplicationConfig().IsActiveActive() {
+		return nil, nil
+	}
+
+	activeClusterSelectionPolicy, err := shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(ctx, taskInfo.GetDomainID(), taskInfo.GetWorkflowID(), taskInfo.GetRunID())
+	if err != nil || activeClusterSelectionPolicy == nil {
+		return nil, errors.Join(errActiveClusterSelectionPolicyNotFound, err)
+	}
+
+	return activeClusterSelectionPolicy.ClusterAttribute, nil
+}
+
 // NewMockTaskMatcher creates a gomock matcher for mock Task
 func NewMockTaskMatcher(mockTask *MockTask) gomock.Matcher {
 	return &mockTaskMatcher{
@@ -374,3 +397,6 @@ func (m *mockTaskMatcher) Matches(x interface{}) bool {
 func (m *mockTaskMatcher) String() string {
 	return fmt.Sprintf("is equal to %v", m.task)
 }
+
+var errActiveClusterSelectionPolicyNotFound = errors.New("active cluster selection policy not found")
+var errDomainEntryNotFound = errors.New("domain entry not found")

@@ -544,6 +544,7 @@ var (
 )
 
 var missingStartTimeRegex = regexp.MustCompile(jsonMissingStartTime)
+var dummyFieldRegex = regexp.MustCompile(`^__dummy_field_(\d+)__$`)
 
 func getESQueryDSLForScan(request *p.ListWorkflowExecutionsByQueryRequest) (string, error) {
 	sql := getSQLFromListRequest(request)
@@ -649,11 +650,8 @@ func processSQLWithLike(sql string, domainID string) (*fastjson.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Step 2: Patch wildcard queries back in
-	if err := injectWildcardQueries(dsl, likeClauses); err != nil {
-		return nil, err
-	}
-	dsl = replaceDummyQuery(dsl)
+	// Step 2: Replace dummy nodes with wildcard queries in-place
+	dsl = replaceDummyWithWildcard(dsl, likeClauses)
 	return applyStandardProcessing(dsl, domainID)
 }
 
@@ -1072,89 +1070,97 @@ func extractLikeClauses(sql string) ([]likeClause, string) {
 	strippedSQL := sql
 
 	matches := re.FindAllStringSubmatch(sql, -1)
-	for _, match := range matches {
+	for i, match := range matches {
 		clauses = append(clauses, likeClause{
 			Field:   match[1],
 			Pattern: match[2],
 		})
-		// Remove LIKE clause from SQL
-		// Replace LIKE with a dummy expression that elasticsql can parse
-		replacement := `__dummy_field__ = '__dummy_value__'`
+		// Replace each LIKE clause with a uniquely-indexed dummy so we can
+		// correlate them later when walking the DSL tree.
+		replacement := fmt.Sprintf(`__dummy_field_%d__ = '__dummy_value_%d__'`, i, i)
 		strippedSQL = strings.Replace(strippedSQL, match[0], replacement, 1)
 	}
 	return clauses, strippedSQL
 }
 
-func injectWildcardQueries(dsl *fastjson.Value, likes []likeClause) error {
-	obj, err := dsl.Object()
-	if err != nil {
-		return err
-	}
-	queryObj := obj.Get("query")
-	if queryObj == nil {
-		return fmt.Errorf("missing 'query' field")
-	}
+// skipNode is a sentinel returned by the walk function to signal that a node
+// should be removed from its parent array (e.g. empty LIKE pattern).
+var skipNode = &fastjson.Value{}
 
-	boolObj := queryObj.Get("bool")
-	if boolObj == nil {
-		return fmt.Errorf("missing 'bool' query")
-	}
+// replaceDummyWithWildcard walks the fastjson DSL tree and replaces dummy
+// match_phrase nodes (produced by elasticsql from our indexed dummy expressions)
+// with the corresponding wildcard queries in-place.
+// Dummies whose LIKE pattern is whitespace-only are removed from their parent array entirely.
+func replaceDummyWithWildcard(dsl *fastjson.Value, likes []likeClause) *fastjson.Value {
+	dummyRe := dummyFieldRegex
 
-	// Check if we have a 'should' array (for OR queries) or 'must' array (for AND queries)
-	var targetArray []*fastjson.Value
-	var arrayKey string
-
-	if shouldArr := boolObj.GetArray("should"); shouldArr != nil {
-		targetArray = shouldArr
-		arrayKey = "should"
-	} else if mustArr := boolObj.GetArray("must"); mustArr != nil {
-		targetArray = mustArr
-		arrayKey = "must"
-	} else {
-		// if neither exists, create a must array
-		targetArray = []*fastjson.Value{}
-		arrayKey = "must"
-	}
-
-	for _, clause := range likes {
-		wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
-		wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
-
-		wildcard := fmt.Sprintf(`{"wildcard": {"%s": {"value": "%s*", "case_insensitive": true}}}`, clause.Field, wildcardValue)
-		v, err := fastjson.Parse(wildcard)
-		if err != nil {
-			return err
+	var walk func(v *fastjson.Value) *fastjson.Value
+	walk = func(v *fastjson.Value) *fastjson.Value {
+		switch v.Type() {
+		case fastjson.TypeObject:
+			// Check if this is a match_phrase dummy: {"match_phrase":{"__dummy_field_N__":{"query":"__dummy_value_N__"}}}
+			mp := v.Get("match_phrase")
+			if mp != nil && mp.Type() == fastjson.TypeObject {
+				obj := mp.GetObject()
+				var dummyKey string
+				obj.Visit(func(key []byte, _ *fastjson.Value) {
+					if dummyKey == "" {
+						dummyKey = string(key)
+					}
+				})
+				if m := dummyRe.FindStringSubmatch(dummyKey); m != nil {
+					idx, _ := strconv.Atoi(m[1])
+					if idx < len(likes) {
+						clause := likes[idx]
+						wildcardValue := strings.ReplaceAll(clause.Pattern, "%", "*")
+						wildcardValue = strings.ReplaceAll(wildcardValue, "_", "?")
+						if strings.TrimSpace(wildcardValue) == "" {
+							return skipNode
+						}
+						wildcard := fmt.Sprintf(`{"wildcard":{"%s":{"value":"%s*","case_insensitive":true}}}`, clause.Field, wildcardValue)
+						return fastjson.MustParse(wildcard)
+					}
+				}
+			}
+			// Otherwise recurse into all object values
+			obj := v.GetObject()
+			keys := make([]string, 0)
+			obj.Visit(func(key []byte, _ *fastjson.Value) {
+				keys = append(keys, string(key))
+			})
+			for _, key := range keys {
+				child := obj.Get(key)
+				replaced := walk(child)
+				if replaced != child {
+					obj.Set(key, replaced)
+				}
+			}
+		case fastjson.TypeArray:
+			arr := v.GetArray()
+			var kept []*fastjson.Value
+			changed := false
+			for _, elem := range arr {
+				replaced := walk(elem)
+				if replaced == skipNode {
+					changed = true
+					continue
+				}
+				if replaced != elem {
+					changed = true
+				}
+				kept = append(kept, replaced)
+			}
+			if !changed {
+				return v
+			}
+			// Rebuild the array without the removed elements
+			parts := make([]string, len(kept))
+			for i, k := range kept {
+				parts[i] = k.String()
+			}
+			return fastjson.MustParse("[" + strings.Join(parts, ",") + "]")
 		}
-		targetArray = append(targetArray, v)
+		return v
 	}
-
-	// Inject updated array
-	boolObj.Set(arrayKey, fastjson.MustParse(fmt.Sprintf("[%s]", joinFastjson(targetArray, ","))))
-	return nil
-}
-
-func joinFastjson(arr []*fastjson.Value, sep string) string {
-	parts := make([]string, len(arr))
-	for i, v := range arr {
-		parts[i] = v.String()
-	}
-	return strings.Join(parts, sep)
-}
-
-func replaceDummyQuery(dsl *fastjson.Value) *fastjson.Value {
-	// Convert to string to find and remove the dummy query
-	dslStr := dsl.String()
-
-	// Remove all dummy match_phrase queries
-	dummyQuery := `{"match_phrase":{"__dummy_field__":{"query":"__dummy_value__"}}}`
-	dslStr = strings.ReplaceAll(dslStr, dummyQuery, "")
-
-	// Clean up any trailing commas or empty arrays
-	dslStr = strings.Replace(dslStr, ",,", ",", -1)
-	dslStr = strings.Replace(dslStr, "[,", "[", -1)
-	dslStr = strings.Replace(dslStr, ",]", "]", -1)
-	dslStr = strings.Replace(dslStr, "[]", "", -1)
-
-	// Parse back to fastjson.Value
-	return fastjson.MustParse(dslStr)
+	return walk(dsl)
 }

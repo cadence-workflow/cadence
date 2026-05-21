@@ -181,6 +181,8 @@ func (s *matchingEngineSuite) TearDownTest() {
 func (s *matchingEngineSuite) newMatchingEngine(
 	config *config.Config, taskMgr persistence.TaskManager,
 ) *matchingEngineImpl {
+	pct := membership.NewMockPercentageOnboarded(s.controller)
+	pct.EXPECT().Value().Return(0).AnyTimes()
 	e := NewEngine(
 		taskMgr,
 		cluster.GetTestClusterMetadata(true),
@@ -197,6 +199,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockShardExecutorClient,
 		defaultSDExecutorConfig(),
 		nil,
+		pct,
 	).(*matchingEngineImpl)
 	// Replace the real executor with a mock that behaves as a fully onboarded SD executor.
 	mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](s.controller)
@@ -1423,7 +1426,6 @@ func defaultTestConfig() *config.Config {
 	config.GetTasksBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(10)
 	config.AsyncTaskDispatchTimeout = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	config.MaxTimeBetweenTaskDeletes = time.Duration(0)
-	config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool { return true }
 	return config
 }
 

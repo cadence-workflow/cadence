@@ -86,6 +86,7 @@ type (
 		PersistenceMaxQPS                   dynamicproperties.IntPropertyFn
 		EnableBatcher                       dynamicproperties.BoolPropertyFn
 		EnableScheduler                     dynamicproperties.BoolPropertyFnWithDomainFilter
+		SchedulerWorkerRefreshInterval      dynamicproperties.DurationPropertyFn
 		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
 		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 		EnableFailoverManager               dynamicproperties.BoolPropertyFn
@@ -184,6 +185,7 @@ func NewConfig(params *resource.Params) *Config {
 		},
 		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
 		EnableScheduler:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
+		SchedulerWorkerRefreshInterval:      dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval),
 		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
 		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
 		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
@@ -347,10 +349,12 @@ func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
 	params := &scheduler.BootstrapParams{
 		ServiceClient:      s.params.PublicClient,
 		FrontendClient:     s.GetClientBean().GetFrontendClient(),
+		MetricsClient:      s.GetMetricsClient(),
 		Logger:             s.GetLogger(),
 		DomainCache:        s.GetDomainCache(),
 		MembershipResolver: s.GetMembershipResolver(),
 		HostInfo:           s.GetHostInfo(),
+		RefreshInterval:    s.config.SchedulerWorkerRefreshInterval,
 	}
 	wm := scheduler.NewWorkerManager(params, s.config.EnableScheduler)
 	wm.Start()

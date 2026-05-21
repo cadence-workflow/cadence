@@ -22,15 +22,12 @@
 
 package metered
 
-import "context"
+import (
+	"context"
 
-type retryCountKeyType string
-
-const retryCountKey = retryCountKeyType("retryCount")
+	"github.com/uber/cadence/common/backoff"
+)
 
 func getRetryCountFromContext(ctx context.Context) int {
-	if retryCount, ok := ctx.Value(retryCountKey).(int); ok {
-		return retryCount
-	}
-	return -1
+	return backoff.GetRetryCountFromContext(ctx)
 }

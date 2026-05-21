@@ -57,11 +57,13 @@ func NewHandler(
 	logger log.Logger,
 	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
+	cfg *config.Config,
 	storage store.Store,
 ) Handler {
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
+		cfg:                  cfg,
 		storage:              storage,
 	}
 
@@ -79,6 +81,7 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	cfg                  *config.Config
 
 	batcher *shardBatcher
 }

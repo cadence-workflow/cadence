@@ -88,6 +88,10 @@ func (sc *scheduleCLIImpl) CreateSchedule(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	if policies != nil && policies.ConcurrencyLimit > 0 &&
+		policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
+		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
+	}
 	if policies != nil {
 		request.Policies = policies
 	}
@@ -162,10 +166,16 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	// Only reject explicit conflicts; standalone --concurrency_limit updates are
+	// valid when the schedule's existing server-side policy is already concurrent.
+	if policies != nil && policies.ConcurrencyLimit > 0 &&
+		c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
+		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
+	}
 	request.Policies = policies
 
 	if request.Spec == nil && request.Policies == nil {
-		return commoncli.Problem("At least one of --cron_expression, --overlap_policy, or --catch_up_policy must be set", nil)
+		return commoncli.Problem("At least one of --cron_expression, --overlap_policy, --catch_up_policy, or --concurrency_limit must be set", nil)
 	}
 
 	ctx, cancel, err := newContext(c)
@@ -368,7 +378,8 @@ func (sc *scheduleCLIImpl) ListSchedules(c *cli.Context) error {
 func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
 	hasOverlap := c.IsSet(FlagOverlapPolicy)
 	hasCatchUp := c.IsSet(FlagCatchUpPolicy)
-	if !hasOverlap && !hasCatchUp {
+	hasLimit := c.IsSet(FlagConcurrencyLimit)
+	if !hasOverlap && !hasCatchUp && !hasLimit {
 		return nil, nil
 	}
 
@@ -386,6 +397,13 @@ func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
 			return nil, err
 		}
 		policies.CatchUpPolicy = p
+	}
+	if hasLimit {
+		limit := int32(c.Int(FlagConcurrencyLimit))
+		if limit < 0 {
+			return nil, commoncli.Problem("--concurrency_limit must be >= 0", nil)
+		}
+		policies.ConcurrencyLimit = limit
 	}
 	return policies, nil
 }

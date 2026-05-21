@@ -57,6 +57,7 @@ func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionRequestWithMaps(newW
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTasks = newWorkflow.WorkflowTimerTasks
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(newWorkflow.ChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -79,10 +80,11 @@ func (d *nosqlExecutionStore) prepareWorkflowRequestRows(
 	domainID, workflowID, runID string,
 	requests []*persistence.WorkflowRequest,
 	requestRowsToAppend []*nosqlplugin.WorkflowRequestRow,
+	shardID int,
 ) []*nosqlplugin.WorkflowRequestRow {
 	for _, req := range requests {
 		requestRowsToAppend = append(requestRowsToAppend, &nosqlplugin.WorkflowRequestRow{
-			ShardID:     d.shardID,
+			ShardID:     shardID,
 			DomainID:    domainID,
 			WorkflowID:  workflowID,
 			RequestType: req.RequestType,
@@ -94,13 +96,13 @@ func (d *nosqlExecutionStore) prepareWorkflowRequestRows(
 	return requestRowsToAppend
 }
 
-func (d *nosqlExecutionStore) prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID string, activeClusterSelectionPolicy *persistence.DataBlob) *nosqlplugin.ActiveClusterSelectionPolicyRow {
+func (d *nosqlExecutionStore) prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID string, activeClusterSelectionPolicy *persistence.DataBlob, shardID int) *nosqlplugin.ActiveClusterSelectionPolicyRow {
 	if activeClusterSelectionPolicy == nil {
 		return nil
 	}
 
 	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
-		ShardID:    d.shardID,
+		ShardID:    shardID,
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
@@ -122,7 +124,7 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	if err != nil {
 		return nil, err
 	}
-	// reset 6 maps
+	// reset maps
 	executionRequest.ActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(resetWorkflow.ActivityInfos)
 	if err != nil {
 		return nil, err
@@ -131,6 +133,7 @@ func (d *nosqlExecutionStore) prepareResetWorkflowExecutionRequestWithMapsAndEve
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTasks = resetWorkflow.WorkflowTimerTasks
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(resetWorkflow.ChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -167,7 +170,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 		return nil, err
 	}
 
-	// merge 6 maps
+	// merge maps
 	executionRequest.ActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(workflowMutation.UpsertActivityInfos)
 	if err != nil {
 		return nil, err
@@ -176,6 +179,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	if err != nil {
 		return nil, err
 	}
+	executionRequest.WorkflowTimerTasks = workflowMutation.WorkflowTimerTasks
 	executionRequest.ChildWorkflowInfos, err = d.prepareChildWFInfosForWorkflowTxn(workflowMutation.UpsertChildExecutionInfos)
 	if err != nil {
 		return nil, err
@@ -190,7 +194,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	}
 	executionRequest.SignalRequestedIDs = workflowMutation.UpsertSignalRequestedIDs
 
-	// delete from 6 maps
+	// delete from maps
 	executionRequest.ActivityInfoKeysToDelete = workflowMutation.DeleteActivityInfos
 	executionRequest.TimerInfoKeysToDelete = workflowMutation.DeleteTimerInfos
 	executionRequest.ChildWorkflowInfoKeysToDelete = workflowMutation.DeleteChildExecutionInfos
@@ -510,10 +514,11 @@ func (d *nosqlExecutionStore) prepareCurrentWorkflowRequestForCreateWorkflowTxn(
 	executionInfo *persistence.InternalWorkflowExecutionInfo,
 	lastWriteVersion int64,
 	request *persistence.InternalCreateWorkflowExecutionRequest,
+	shardID int,
 ) (*nosqlplugin.CurrentWorkflowWriteRequest, error) {
 	currentWorkflowWriteReq := &nosqlplugin.CurrentWorkflowWriteRequest{
 		Row: nosqlplugin.CurrentWorkflowRow{
-			ShardID:          d.shardID,
+			ShardID:          shardID,
 			DomainID:         domainID,
 			WorkflowID:       workflowID,
 			RunID:            runID,
@@ -549,7 +554,7 @@ func (d *nosqlExecutionStore) prepareCurrentWorkflowRequestForCreateWorkflowTxn(
 	return currentWorkflowWriteReq, nil
 }
 
-func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int64) error {
+func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int64, shardID int) error {
 	if err != nil {
 		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.WorkflowOperationConditionFailure)
 		if isConditionFailedError {
@@ -560,7 +565,7 @@ func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int
 				}
 			case conditionFailureErr.ShardRangeIDNotMatch != nil:
 				return &persistence.ShardOwnershipLostError{
-					ShardID: d.shardID,
+					ShardID: shardID,
 					Msg: fmt.Sprintf("Failed to update workflow execution.  Request RangeID: %v, Actual RangeID: %v",
 						rangeID, *conditionFailureErr.ShardRangeIDNotMatch),
 				}
@@ -588,12 +593,14 @@ func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int
 
 func (d *nosqlExecutionStore) assertNotCurrentExecution(
 	ctx context.Context,
+	shardID int,
 	domainID string,
 	workflowID string,
 	runID string,
 ) error {
 
 	if resp, err := d.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(shardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	}); err != nil {

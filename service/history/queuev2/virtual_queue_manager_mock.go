@@ -13,6 +13,8 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
 )
 
 // MockVirtualQueueManager is a mock of VirtualQueueManager interface.
@@ -49,6 +51,20 @@ func (m *MockVirtualQueueManager) AddNewVirtualSliceToRootQueue(arg0 VirtualSlic
 func (mr *MockVirtualQueueManagerMockRecorder) AddNewVirtualSliceToRootQueue(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNewVirtualSliceToRootQueue", reflect.TypeOf((*MockVirtualQueueManager)(nil).AddNewVirtualSliceToRootQueue), arg0)
+}
+
+// GetMinReadLevel mocks base method.
+func (m *MockVirtualQueueManager) GetMinReadLevel() persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMinReadLevel")
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// GetMinReadLevel indicates an expected call of GetMinReadLevel.
+func (mr *MockVirtualQueueManagerMockRecorder) GetMinReadLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMinReadLevel", reflect.TypeOf((*MockVirtualQueueManager)(nil).GetMinReadLevel))
 }
 
 // GetOrCreateVirtualQueue mocks base method.
