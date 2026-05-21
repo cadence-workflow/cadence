@@ -1780,7 +1780,7 @@ func (d *handlerImpl) validateDomainFailoverRequest(
 		return &types.BadRequestError{Message: "DomainName cannot be empty"}
 	}
 
-	if !currentDomainState.IsGlobalDomain {
+	if !currentDomainState.IsGlobalDomain || currentDomainState.ReplicationConfig == nil {
 		return errLocalDomainsCannotFailover
 	}
 
