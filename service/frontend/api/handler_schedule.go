@@ -44,6 +44,13 @@ const (
 	schedulerWorkflowExecutionTimeout = 10 * 365 * 24 * time.Hour // ~10 years
 	schedulerWorkflowDecisionTimeout  = 10 * time.Second
 	defaultListSchedulesPageSize      = 10
+
+	// describeScheduleCANRetryAttempts and describeScheduleCANRetryInterval bound
+	// the wait for the ContinueAsNew resolver race in DescribeSchedule. The
+	// invalidation window is typically sub-second; ~1s total stays well within
+	// any reasonable client deadline.
+	describeScheduleCANRetryAttempts = 5
+	describeScheduleCANRetryInterval = 200 * time.Millisecond
 )
 
 func scheduleWorkflowID(scheduleID string) string {
@@ -208,19 +215,44 @@ func (wh *WorkflowHandler) DescribeSchedule(
 	}
 
 	wfID := scheduleWorkflowID(scheduleID)
-	// Reject the query if the scheduler workflow did not complete cleanly (e.g. FAILED,
-	// TERMINATED, TIMED_OUT). Without this, Cadence replays the closed workflow history
-	// and returns whatever state the query handler last saw — which is ACTIVE even for a
-	// scheduler that failed immediately (e.g. due to an invalid cron expression).
+	execution := &types.WorkflowExecution{WorkflowID: wfID}
+
+	domainID, err := wh.GetDomainCache().GetDomainID(domainName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Probe the scheduler workflow's current execution status before querying.
+	//
+	// Schedulers ContinueAsNew on every UpdateSchedule and periodically to bound
+	// history. During the executionCache invalidation window on the history host,
+	// getMutableState can briefly resolve wfID-without-runID to the just-closed
+	// old run and expose CloseStatus=CONTINUED_AS_NEW for an otherwise healthy
+	// schedule. The DWE probe — retried while the close status is CONTINUED_AS_NEW —
+	// distinguishes that transient race from a genuinely closed scheduler
+	// (FAILED, TERMINATED, TIMED_OUT, COMPLETED, CANCELED), which must not be
+	// reported as ACTIVE.
+	//
+	// QueryWorkflow keeps QueryRejectConditionNotCompletedCleanly as a safety net
+	// for the small window where the scheduler closes between the two RPCs.
+	info, err := wh.describeSchedulerExecution(ctx, domainID, domainName, scheduleID, execution)
+	if err != nil {
+		return nil, err
+	}
+	if info.CloseStatus != nil {
+		return nil, &types.InternalServiceError{
+			Message: fmt.Sprintf(
+				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
+				scheduleID, domainName, info.CloseStatus.String(),
+			),
+		}
+	}
+
 	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
 	queryResp, err := wh.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
-		Domain: domainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: wfID,
-		},
-		Query: &types.WorkflowQuery{
-			QueryType: scheduler.QueryTypeDescribe,
-		},
+		Domain:               domainName,
+		Execution:            execution,
+		Query:                &types.WorkflowQuery{QueryType: scheduler.QueryTypeDescribe},
 		QueryRejectCondition: &rejectCondition,
 	})
 	if err != nil {
@@ -688,4 +720,51 @@ func normalizeScheduleError(err error, scheduleID, domainName string) error {
 		}
 	}
 	return err
+}
+
+// describeSchedulerExecution returns the latest run's WorkflowExecutionInfo for
+// the scheduler workflow, retrying briefly while CloseStatus is CONTINUED_AS_NEW
+// to ride out the executionCache invalidation window after a ContinueAsNew
+// transition. If the close status is still CONTINUED_AS_NEW after the retry
+// budget the last response is returned; the caller treats that as "not
+// operational" so an operator can investigate a scheduler stuck mid-transition.
+//
+// Calls the history client directly so this internal probe does not emit
+// FrontendDescribeWorkflowExecution metrics.
+func (wh *WorkflowHandler) describeSchedulerExecution(
+	ctx context.Context,
+	domainID, domainName, scheduleID string,
+	execution *types.WorkflowExecution,
+) (*types.WorkflowExecutionInfo, error) {
+	req := &types.HistoryDescribeWorkflowExecutionRequest{
+		DomainUUID: domainID,
+		Request: &types.DescribeWorkflowExecutionRequest{
+			Domain:    domainName,
+			Execution: execution,
+		},
+	}
+	var lastInfo *types.WorkflowExecutionInfo
+	for attempt := 0; attempt < describeScheduleCANRetryAttempts; attempt++ {
+		resp, err := wh.GetHistoryClient().DescribeWorkflowExecution(ctx, req)
+		if err != nil {
+			return nil, normalizeScheduleError(err, scheduleID, domainName)
+		}
+		info := resp.GetWorkflowExecutionInfo()
+		if info == nil {
+			return nil, &types.InternalServiceError{Message: "nil workflow execution info from scheduler workflow"}
+		}
+		lastInfo = info
+		if info.CloseStatus == nil || *info.CloseStatus != types.WorkflowExecutionCloseStatusContinuedAsNew {
+			return info, nil
+		}
+		if attempt == describeScheduleCANRetryAttempts-1 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(describeScheduleCANRetryInterval):
+		}
+	}
+	return lastInfo, nil
 }
