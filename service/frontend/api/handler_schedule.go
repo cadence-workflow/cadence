@@ -46,9 +46,10 @@ const (
 	defaultListSchedulesPageSize      = 10
 
 	// describeScheduleCANRetryAttempts and describeScheduleCANRetryInterval bound
-	// the wait for the ContinueAsNew resolver race in DescribeSchedule. The
-	// invalidation window is typically sub-second; ~1s total stays well within
-	// any reasonable client deadline.
+	// the wait for transient scheduler states in DescribeSchedule: the
+	// ContinueAsNew executionCache invalidation window, and the brief period after
+	// a new run starts before its first decision task is processed. Both resolve
+	// within milliseconds; ~1s total stays well within any reasonable client deadline.
 	describeScheduleCANRetryAttempts = 5
 	describeScheduleCANRetryInterval = 200 * time.Millisecond
 )
@@ -248,15 +249,9 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		}
 	}
 
-	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
-	queryResp, err := wh.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
-		Domain:               domainName,
-		Execution:            execution,
-		Query:                &types.WorkflowQuery{QueryType: scheduler.QueryTypeDescribe},
-		QueryRejectCondition: &rejectCondition,
-	})
+	queryResp, err := wh.querySchedulerWorkflow(ctx, domainName, scheduleID, execution)
 	if err != nil {
-		return nil, normalizeScheduleError(err, scheduleID, domainName)
+		return nil, err
 	}
 
 	if queryResp == nil {
@@ -767,4 +762,42 @@ func (wh *WorkflowHandler) describeSchedulerExecution(
 		}
 	}
 	return lastInfo, nil
+}
+
+// querySchedulerWorkflow issues a QueryWorkflow call for the scheduler's
+// describe query, retrying briefly if the workflow has not yet processed its
+// first decision task. That transient state occurs right after CreateSchedule
+// or immediately after a ContinueAsNew run starts.
+func (wh *WorkflowHandler) querySchedulerWorkflow(
+	ctx context.Context,
+	domainName, scheduleID string,
+	execution *types.WorkflowExecution,
+) (*types.QueryWorkflowResponse, error) {
+	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
+	req := &types.QueryWorkflowRequest{
+		Domain:               domainName,
+		Execution:            execution,
+		Query:                &types.WorkflowQuery{QueryType: scheduler.QueryTypeDescribe},
+		QueryRejectCondition: &rejectCondition,
+	}
+	var lastErr error
+	for attempt := 0; attempt < describeScheduleCANRetryAttempts; attempt++ {
+		resp, err := wh.QueryWorkflow(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		var qfe *types.QueryFailedError
+		if !errors.As(err, &qfe) || !strings.Contains(qfe.Message, "decision task") {
+			return nil, normalizeScheduleError(err, scheduleID, domainName)
+		}
+		lastErr = err
+		if attempt < describeScheduleCANRetryAttempts-1 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(describeScheduleCANRetryInterval):
+			}
+		}
+	}
+	return nil, normalizeScheduleError(lastErr, scheduleID, domainName)
 }
