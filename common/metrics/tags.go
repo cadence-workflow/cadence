@@ -123,6 +123,25 @@ func ShardIDTag(shardIDVal int) Tag {
 	return metricWithUnknown(shardID, strconv.Itoa(shardIDVal))
 }
 
+// NonShardTag is used for metrics that need a stable shard_id label but are not scoped to a real shard.
+func NonShardTag() Tag {
+	return ShardIDTag(-1)
+}
+
+// CacheTypeTag returns a tag for cache metric category.
+func CacheTypeTag(value string) Tag {
+	return metricWithUnknown(CacheTypeTagName, value)
+}
+
+// WithCacheScopeLabels returns a scope tagged with the cache metric labels required for consistent Prometheus registration.
+func WithCacheScopeLabels(scope Scope, shardIDVal int, sourceClusterVal string, cacheTypeVal string) Scope {
+	return scope.Tagged(
+		CacheTypeTag(cacheTypeVal),
+		SourceClusterTag(sourceClusterVal),
+		ShardIDTag(shardIDVal),
+	)
+}
+
 // DomainTag returns a new domain tag. For timers, this also ensures that we
 // dual emit the metric with the all tag. If a blank domain is provided then
 // this converts that to an unknown domain.
