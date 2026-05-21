@@ -181,7 +181,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		if timerFired && !state.Paused {
-			processScheduleFire(ctx, logger, scope, &input, state, state.NextRunTime, TriggerSourceSchedule, input.Policies.OverlapPolicy)
+			processScheduleFire(ctx, logger, scope, &input, state, state.NextRunTime, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		}
 
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
@@ -520,17 +520,17 @@ func effectiveFireOverlap(trigger TriggerSource, backfillOverlap, scheduleOverla
 // the live-fire activity call, the previous workflow could complete.
 // tryStartFire would then start the live fire ahead of older queued fires,
 // breaking FIFO.
-func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy) {
+func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy, backfillID string) {
 	if overlapPolicy == types.ScheduleOverlapPolicyBuffer && len(state.BufferedFires) > 0 {
 		// Skipping tryStartFire, so advance LastRunTime here.
 		if scheduledTime.After(state.LastRunTime) {
 			state.LastRunTime = scheduledTime
 		}
-		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger, overlapPolicy)
+		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger, overlapPolicy, backfillID)
 		return
 	}
-	if tryStartFire(ctx, logger, input, state, scheduledTime, trigger, overlapPolicy) == fireOutcomeBuffered {
-		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger, overlapPolicy)
+	if tryStartFire(ctx, logger, input, state, scheduledTime, trigger, overlapPolicy, backfillID) == fireOutcomeBuffered {
+		enqueueBufferedFire(logger, scope, input, state, scheduledTime, trigger, overlapPolicy, backfillID)
 	}
 }
 
@@ -538,7 +538,7 @@ func processScheduleFire(ctx workflow.Context, logger *zap.Logger, scope tally.S
 // result to state, returning whether the fire was buffered. Shared by the
 // live-fire and drain-buffered-fire paths; the caller decides how to handle
 // a buffered outcome.
-func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy) fireOutcome {
+func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy, backfillID string) fireOutcome {
 	// LastRunTime moves forward only. Under BUFFER, an older queued fire can
 	// drain after a newer fire has already been processed.
 	if scheduledTime.After(state.LastRunTime) {
@@ -567,6 +567,7 @@ func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWork
 		LastStartedWorkflow: state.LastStartedWorkflow,
 		ConcurrencyLimit:    input.Policies.ConcurrencyLimit,
 		RunningWorkflows:    state.RunningWorkflows,
+		BackfillID:          backfillID,
 	}
 
 	var result ProcessFireResult
@@ -609,7 +610,7 @@ func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWork
 // user-configured buffer_limit and the MaxBufferedFiresSystemLimit ceiling.
 // Drops increment SkippedRuns and emit scheduler_buffer_overflow_count_per_domain
 // tagged with the binding limit (user_limit vs. system_limit).
-func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy) {
+func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, scheduledTime time.Time, trigger TriggerSource, overlapPolicy types.ScheduleOverlapPolicy, backfillID string) {
 	effective, reason := effectiveBufferLimit(input.Policies.BufferLimit)
 	if len(state.BufferedFires) >= effective {
 		state.SkippedRuns++
@@ -629,6 +630,7 @@ func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *Scheduler
 		ScheduledTime: scheduledTime,
 		TriggerSource: trigger,
 		OverlapPolicy: overlapPolicy,
+		BackfillID:    backfillID,
 	})
 	logger.Info("schedule fire buffered",
 		zap.Time("scheduledTime", scheduledTime),
@@ -688,7 +690,7 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 		if headOverlap == types.ScheduleOverlapPolicyInvalid {
 			headOverlap = input.Policies.OverlapPolicy
 		}
-		if tryStartFire(ctx, logger, input, state, head.ScheduledTime, head.TriggerSource, headOverlap) == fireOutcomeBuffered {
+		if tryStartFire(ctx, logger, input, state, head.ScheduledTime, head.TriggerSource, headOverlap, head.BackfillID) == fireOutcomeBuffered {
 			return false
 		}
 		state.BufferedFires = state.BufferedFires[1:]
@@ -848,7 +850,7 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 		if fired >= maxCatchUpFiresPerExecution {
 			break
 		}
-		processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceSchedule, input.Policies.OverlapPolicy)
+		processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		fired++
 	}
 	unfired := int64(len(result.toFire) - fired)
@@ -912,7 +914,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 				return true
 			}
 			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
-			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap)
+			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
 			fired++
 		}
 

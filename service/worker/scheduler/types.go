@@ -105,6 +105,7 @@ const (
 	SearchAttrScheduleID   = definition.CadenceScheduleID
 	SearchAttrScheduleTime = definition.CadenceScheduleTime
 	SearchAttrIsBackfill   = definition.CadenceScheduleIsBackfill
+	SearchAttrBackfillID   = definition.CadenceScheduleBackfillID
 
 	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
 	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
@@ -186,6 +187,8 @@ type BufferedFire struct {
 	ScheduledTime time.Time                   `json:"scheduledTime"`
 	TriggerSource TriggerSource               `json:"triggerSource"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
+	// BackfillID is set when TriggerSource is backfill so BUFFER drains stamp the same SA.
+	BackfillID string `json:"backfillId,omitempty"`
 }
 
 // RunningWorkflowInfo identifies a target workflow started by the scheduler,
@@ -290,6 +293,8 @@ type ProcessFireRequest struct {
 	// RunningWorkflows is the current in-flight set from workflow state; used
 	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
+	// BackfillID is non-empty only for fires driven by a schedule backfill (matches RPC BackfillID).
+	BackfillID string `json:"backfillId,omitempty"`
 }
 
 // ProcessFireResult is the output of processScheduleFireActivity. The workflow

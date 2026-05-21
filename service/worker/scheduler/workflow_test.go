@@ -1167,6 +1167,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		initialSkipped     int64
 		enqueueTime        time.Time
 		trigger            TriggerSource
+		enqueueBackfillID  string
 		wantFires          []BufferedFire
 		wantSkippedRuns    int64
 		wantOverflowReason string
@@ -1245,6 +1246,17 @@ func TestEnqueueBufferedFire(t *testing.T) {
 				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 			},
 		},
+		{
+			name:              "backfill id is preserved on buffered fire",
+			bufferLimit:       0,
+			initialFires:      nil,
+			enqueueTime:       t0,
+			trigger:           TriggerSourceBackfill,
+			enqueueBackfillID: "bf-abc",
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill, OverlapPolicy: types.ScheduleOverlapPolicyBuffer, BackfillID: "bf-abc"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1257,7 +1269,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 				SkippedRuns:   tt.initialSkipped,
 			}
 			scope := tally.NewTestScope("", nil)
-			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger, types.ScheduleOverlapPolicyBuffer)
+			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger, types.ScheduleOverlapPolicyBuffer, tt.enqueueBackfillID)
 			assert.Equal(t, tt.wantFires, state.BufferedFires)
 			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
 
@@ -1344,7 +1356,7 @@ func TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty(t *testing.T) {
 	// nil ctx is safe because the BUFFER+non-empty-queue branch returns before
 	// touching workflow.ExecuteLocalActivity. If the fast path were ever
 	// removed, this call would panic — which is the property we want to lock in.
-	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer)
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer, "")
 
 	require.Len(t, state.BufferedFires, 2, "live fire should be enqueued at the tail")
 	assert.Equal(t, t0, state.BufferedFires[0].ScheduledTime, "older queued fire stays at head")

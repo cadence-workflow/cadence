@@ -647,6 +647,8 @@ func TestBuildSearchAttributes(t *testing.T) {
 		assert.False(t, isBackfill)
 
 		assert.Contains(t, sa.IndexedFields, SearchAttrScheduleTime)
+		_, hasBackfillID := sa.IndexedFields[SearchAttrBackfillID]
+		assert.False(t, hasBackfillID, "non-backfill runs should not set backfill id SA")
 	})
 
 	t.Run("backfill trigger sets isBackfill true", func(t *testing.T) {
@@ -660,6 +662,21 @@ func TestBuildSearchAttributes(t *testing.T) {
 		var isBackfill bool
 		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrIsBackfill], &isBackfill))
 		assert.True(t, isBackfill)
+		_, hasBackfillID := sa.IndexedFields[SearchAttrBackfillID]
+		assert.False(t, hasBackfillID, "empty backfill id should omit SA")
+	})
+
+	t.Run("backfill trigger with id sets backfill id SA", func(t *testing.T) {
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceBackfill,
+			BackfillID:    "bf-123",
+		}
+		sa := buildSearchAttributes(req)
+		var got string
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrBackfillID], &got))
+		assert.Equal(t, "bf-123", got)
 	})
 
 	t.Run("preserves user search attributes", func(t *testing.T) {

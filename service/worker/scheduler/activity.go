@@ -290,6 +290,11 @@ func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
 	if v, err := json.Marshal(req.TriggerSource == TriggerSourceBackfill); err == nil {
 		fields[SearchAttrIsBackfill] = v
 	}
+	if req.TriggerSource == TriggerSourceBackfill && req.BackfillID != "" {
+		if v, err := json.Marshal(req.BackfillID); err == nil {
+			fields[SearchAttrBackfillID] = v
+		}
+	}
 
 	return &types.SearchAttributes{IndexedFields: fields}
 }
