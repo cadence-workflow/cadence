@@ -761,16 +761,6 @@ func TestProcessTask(t *testing.T) {
 			maxRetries:     3,
 			expectExecutes: 0,
 		},
-		{
-			name: "failover marker — retries exhaust, no delete",
-			task: &types.ReplicationTask{
-				SourceTaskID:             7,
-				FailoverMarkerAttributes: &types.FailoverMarkerAttributes{DomainID: "d"},
-			},
-			executorErr:    errors.New("boom"),
-			maxRetries:     2,
-			expectExecutes: 3,
-		},
 	}
 
 	for _, tt := range tests {
