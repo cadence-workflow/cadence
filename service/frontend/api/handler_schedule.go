@@ -48,10 +48,11 @@ const (
 	// describeScheduleCANRetryAttempts and describeScheduleCANRetryInterval bound
 	// the wait for transient scheduler states in DescribeSchedule: the
 	// ContinueAsNew executionCache invalidation window, and the brief period after
-	// a new run starts before its first decision task is processed. Both resolve
-	// within milliseconds; ~1s total stays well within any reasonable client deadline.
-	describeScheduleCANRetryAttempts = 5
-	describeScheduleCANRetryInterval = 200 * time.Millisecond
+	// a new run starts before its first decision task is processed. Both typically
+	// resolve within milliseconds but can take a few seconds in loaded environments;
+	// ~4.5s total stays well within any reasonable client deadline.
+	describeScheduleCANRetryAttempts = 10
+	describeScheduleCANRetryInterval = 500 * time.Millisecond
 )
 
 func scheduleWorkflowID(scheduleID string) string {
