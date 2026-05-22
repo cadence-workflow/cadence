@@ -1019,25 +1019,25 @@ func TestCachedQueueReader_IsRangeCovered(t *testing.T) {
 			name:         "exact window",
 			inclusiveMin: lower,
 			exclusiveMax: upper,
-			wantCovered: true,
+			wantCovered:  true,
 		},
 		{
 			name:         "sub-range inside window",
 			inclusiveMin: newTimeKey(now.Add(10 * time.Minute)),
 			exclusiveMax: newTimeKey(now.Add(30 * time.Minute)),
-			wantCovered: true,
+			wantCovered:  true,
 		},
 		{
 			name:         "starts before lower bound",
 			inclusiveMin: newTimeKey(now.Add(-time.Minute)),
 			exclusiveMax: upper,
-			wantCovered: false,
+			wantCovered:  false,
 		},
 		{
 			name:         "ends after upper bound",
 			inclusiveMin: lower,
 			exclusiveMax: newTimeKey(now.Add(2 * time.Hour)),
-			wantCovered: false,
+			wantCovered:  false,
 		},
 	}
 
