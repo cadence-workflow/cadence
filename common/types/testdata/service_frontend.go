@@ -86,12 +86,14 @@ var (
 		DomainName:              DomainName,
 		DomainActiveClusterName: common.StringPtr(ClusterName1),
 		ActiveClusters:          &ActiveClusters,
+		Reason:                  common.StringPtr(Reason),
 	}
 	FailoverDomainRequest_OnlyActiveClusters = types.FailoverDomainRequest{
 		DomainName: DomainName,
 		// Explicitly set to nil to test ActiveActive failovers
 		DomainActiveClusterName: nil,
 		ActiveClusters:          &ActiveClusters,
+		Reason:                  common.StringPtr(Reason),
 	}
 	ActiveClusters = types.ActiveClusters{
 		AttributeScopes: map[string]types.ClusterAttributeScope{
