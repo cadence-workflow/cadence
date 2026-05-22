@@ -254,7 +254,7 @@ func (t *timerQueueProcessor) NotifyNewTask(clusterName string, info *hcommon.No
 		panic(fmt.Sprintf("Cannot find standby timer gate for %s.", clusterName))
 	}
 
-	curTime := t.shard.GetCurrentTime(clusterName)
+	curTime := info.ClusterCurrentTimes[clusterName]
 	standbyQueueTimerGate.SetCurrentTime(curTime)
 	t.logger.Debug("Current time for standby queue timergate is updated", tag.ClusterName(clusterName), tag.Timestamp(curTime))
 	standbyQueueProcessor.notifyNewTimers(info.Tasks)
