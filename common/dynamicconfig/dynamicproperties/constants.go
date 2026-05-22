@@ -1115,6 +1115,12 @@ const (
 	// Default value: 500*1024
 	// Allowed filters: N/A
 	TimerProcessorHistoryArchivalSizeLimit
+	// TimerProcessorCacheMaxSize is the hard cap on cached task count
+	// KeyName: history.timerProcessorCacheMaxSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: N/A
+	TimerProcessorCacheMaxSize
 
 	// TransferTaskBatchSize is batch size for transferQueueProcessor
 	// KeyName: history.transferTaskBatchSize
@@ -2356,6 +2362,12 @@ const (
 	// Default value: false
 	// Allowed filters: ShardID
 	EnableTimerQueueV2PendingTaskCountAlert
+	// TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks
+	// KeyName: history.timerProcessorEnableCachedScheduledQueue
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	TimerProcessorEnableCachedScheduledQueue
 
 	// EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain
 	// KeyName: frontend.enableActiveClusterSelectionPolicyInStartWorkflow
@@ -2492,6 +2504,7 @@ const (
 	// Value type: Float64
 	// Default value: 0.15
 	// Allowed filters: N/A
+	// Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.
 	TimerProcessorMaxPollIntervalJitterCoefficient
 	// TimerProcessorSplitQueueIntervalJitterCoefficient is the split processing queue interval jitter coefficient
 	// KeyName: history.timerProcessorSplitQueueIntervalJitterCoefficient
@@ -2816,6 +2829,13 @@ const (
 	// Allowed filters: domainName
 	HistoryTaskDLQMode
 
+	// TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled
+	// KeyName: history.timerProcessorCachedQueueReaderMode
+	// Value type: string enum: "disabled", "shadow", "enabled"
+	// Default value: "disabled"
+	// Allowed filters: ShardID
+	TimerProcessorCachedQueueReaderMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -3088,6 +3108,7 @@ const (
 	// Value type: Duration
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
+	// Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.
 	TimerProcessorMaxPollInterval
 	// TimerProcessorSplitQueueInterval is the split processing queue interval for timer processor
 	// KeyName: history.timerProcessorSplitQueueInterval
@@ -3107,6 +3128,26 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	TimerProcessorMaxTimeShift
+	// TimerProcessorCachePrefetchTriggerWindow triggers prefetch when this close to upperBound
+	// KeyName: history.timerProcessorCachePrefetchTriggerWindow
+	// Value type: Duration
+	// Default value: 30s (30*time.Second)
+	// Allowed filters: N/A
+	TimerProcessorCachePrefetchTriggerWindow
+	// TimerProcessorCacheTimeEvictionWindow is the time-based eviction window
+	// KeyName: history.timerProcessorCacheTimeEvictionWindow
+	// Value type: Duration
+	// Default value: 10s (10*time.Second)
+	// Allowed filters: N/A
+	TimerProcessorCacheTimeEvictionWindow
+	// TimerProcessorCacheMinPrefetchInterval is the minimum time between consecutive
+	// prefetch attempts. It prevents the prefetch loop from hammering the database
+	// on pathological cases (e.g. cache resets or persistent gap detection).
+	// KeyName: history.timerProcessorCacheMinPrefetchInterval
+	// Value type: Duration
+	// Default value: 1s (1*time.Second)
+	// Allowed filters: N/A
+	TimerProcessorCacheMinPrefetchInterval
 	// TransferProcessorFailoverMaxStartJitterInterval is the max jitter interval for starting transfer
 	// failover queue processing. The actual jitter interval used will be a random duration between
 	// 0 and the max interval so that timer failover queue across different shards won't start at
@@ -4195,6 +4236,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "TimerProcessorHistoryArchivalSizeLimit is the max history size for inline archival",
 		DefaultValue: 500 * 1024,
 	},
+	TimerProcessorCacheMaxSize: {
+		KeyName:      "history.timerProcessorCacheMaxSize",
+		Description:  "TimerProcessorCacheMaxSize is the hard cap on cached task count",
+		DefaultValue: 1000,
+	},
 	TransferTaskBatchSize: {
 		KeyName:      "history.transferTaskBatchSize",
 		Description:  "TransferTaskBatchSize is batch size for transferQueueProcessor",
@@ -5268,6 +5314,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
+	TimerProcessorEnableCachedScheduledQueue: {
+		KeyName:      "history.timerProcessorEnableCachedScheduledQueue",
+		Description:  "TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks",
+		DefaultValue: false,
+	},
 	EnableActiveClusterSelectionPolicyInStartWorkflow: {
 		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
@@ -5367,7 +5418,7 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	},
 	TimerProcessorMaxPollIntervalJitterCoefficient: {
 		KeyName:      "history.timerProcessorMaxPollIntervalJitterCoefficient",
-		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient",
+		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient. Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
 		DefaultValue: 0.15,
 	},
 	TimerProcessorSplitQueueIntervalJitterCoefficient: {
@@ -5618,6 +5669,12 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
+	},
+	TimerProcessorCachedQueueReaderMode: {
+		KeyName:      "history.timerProcessorCachedQueueReaderMode",
+		Description:  "TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled",
+		DefaultValue: "disabled",
+		Filters:      []Filter{ShardID},
 	},
 }
 
@@ -5871,7 +5928,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	TimerProcessorMaxPollInterval: {
 		KeyName:      "history.timerProcessorMaxPollInterval",
-		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor",
+		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor. Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
 		DefaultValue: time.Minute * 5,
 	},
 	TimerProcessorSplitQueueInterval: {
@@ -5887,6 +5944,21 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	TimerProcessorMaxTimeShift: {
 		KeyName:      "history.timerProcessorMaxTimeShift",
 		Description:  "TimerProcessorMaxTimeShift is the max shift timer processor can have",
+		DefaultValue: time.Second,
+	},
+	TimerProcessorCachePrefetchTriggerWindow: {
+		KeyName:      "history.timerProcessorCachePrefetchTriggerWindow",
+		Description:  "TimerProcessorCachePrefetchTriggerWindow triggers prefetch when this close to upperBound",
+		DefaultValue: time.Second * 30,
+	},
+	TimerProcessorCacheTimeEvictionWindow: {
+		KeyName:      "history.timerProcessorCacheTimeEvictionWindow",
+		Description:  "TimerProcessorCacheTimeEvictionWindow is the time-based eviction window",
+		DefaultValue: time.Second * 10,
+	},
+	TimerProcessorCacheMinPrefetchInterval: {
+		KeyName:      "history.timerProcessorCacheMinPrefetchInterval",
+		Description:  "TimerProcessorCacheMinPrefetchInterval is the minimum time between consecutive prefetch attempts",
 		DefaultValue: time.Second,
 	},
 	TransferProcessorFailoverMaxStartJitterInterval: {
