@@ -2073,8 +2073,8 @@ func TestDeprecateDomainRequestFuzz(t *testing.T) {
 }
 
 func TestFailoverDomainRequestFuzz(t *testing.T) {
-	// [BUG] Non-symmetric mapping: An empty string DomainActiveClusterName becomes nil, but the return trip translates it back to nil
-	// [Missing] Reason is not yet implemented in the mapper
+	// [BUG] Non-symmetric mapping: proto3 cannot distinguish unset from an empty string, so
+	// a *string(ptr("")) input round-trips to nil. Applies to both DomainActiveClusterName and Reason.
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest,
 		testutils.WithCustomFuncs(
 			FailoverTypeFuzzer,
