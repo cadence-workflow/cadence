@@ -1619,6 +1619,19 @@ func FailoverTypeFuzzer(e *types.FailoverType, c fuzz.Continue) {
 	*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
 }
 
+// FailoverDomainRequestFuzzer fuzzes a FailoverDomainRequest and normalizes *string fields so
+// that ptr("") becomes nil. proto3 cannot distinguish an unset string from an empty one, so
+// without this normalization the round-trip ptr("") -> "" -> nil produces a spurious diff.
+func FailoverDomainRequestFuzzer(v *types.FailoverDomainRequest, c fuzz.Continue) {
+	c.Fuzz(v)
+	if v.DomainActiveClusterName != nil && *v.DomainActiveClusterName == "" {
+		v.DomainActiveClusterName = nil
+	}
+	if v.Reason != nil && *v.Reason == "" {
+		v.Reason = nil
+	}
+}
+
 func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
 	*e = types.ArchivalStatus(c.Intn(2)) // 0-1: Disabled, Enabled
 }
@@ -2073,13 +2086,11 @@ func TestDeprecateDomainRequestFuzz(t *testing.T) {
 }
 
 func TestFailoverDomainRequestFuzz(t *testing.T) {
-	// [BUG] Non-symmetric mapping: An empty string DomainActiveClusterName becomes nil, but the return trip translates it back to nil
-	// [Missing] Reason is not yet implemented in the mapper
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest,
 		testutils.WithCustomFuncs(
 			FailoverTypeFuzzer,
+			FailoverDomainRequestFuzzer,
 		),
-		testutils.WithExcludedFields("DomainActiveClusterName", "Reason"),
 	)
 }
 
