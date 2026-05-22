@@ -1821,6 +1821,14 @@ func (v *FailoverDomainRequest) GetDomain() (o string) {
 	return
 }
 
+// GetReason is an internal getter
+func (v *FailoverDomainRequest) GetReason() (o string) {
+	if v != nil && v.Reason != nil {
+		return *v.Reason
+	}
+	return
+}
+
 // FailoverDomainResponse is an internal type (TBD...)
 type FailoverDomainResponse struct {
 	DomainInfo               *DomainInfo                     `json:"domainInfo,omitempty"`
