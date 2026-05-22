@@ -1779,10 +1779,11 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName              string          `json:"domainName,omitempty"`
-	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
-	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
-	Reason                  *string         `json:"reason,omitempty"`
+	DomainName               string          `json:"domainName,omitempty"`
+	DomainActiveClusterName  *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters           *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                   *string         `json:"reason,omitempty"`
+	FailoverTimeoutInSeconds *int32          `json:"failoverTimeoutInSeconds,omitempty"`
 }
 
 func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
@@ -1790,10 +1791,11 @@ func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
 		return nil
 	}
 	return &UpdateDomainRequest{
-		Name:              v.DomainName,
-		ActiveClusterName: v.DomainActiveClusterName,
-		ActiveClusters:    v.ActiveClusters,
-		FailoverReason:    v.Reason,
+		Name:                     v.DomainName,
+		ActiveClusterName:        v.DomainActiveClusterName,
+		ActiveClusters:           v.ActiveClusters,
+		FailoverReason:           v.Reason,
+		FailoverTimeoutInSeconds: v.FailoverTimeoutInSeconds,
 	}
 }
 
@@ -1825,6 +1827,14 @@ func (v *FailoverDomainRequest) GetDomain() (o string) {
 func (v *FailoverDomainRequest) GetReason() (o string) {
 	if v != nil && v.Reason != nil {
 		return *v.Reason
+	}
+	return
+}
+
+// GetFailoverTimeoutInSeconds is an internal getter (TBD...)
+func (v *FailoverDomainRequest) GetFailoverTimeoutInSeconds() (o int32) {
+	if v != nil && v.FailoverTimeoutInSeconds != nil {
+		return *v.FailoverTimeoutInSeconds
 	}
 	return
 }
@@ -8041,8 +8051,8 @@ type UpdateDomainRequest struct {
 // and if so, will return true
 // this includes:
 //
-// - an active cluster change  (force failver)
-// - any failvoer timeout values (for graceful failover)
+// - an active cluster change (force failover)
+// - any failover timeout values (for graceful failover)
 // - or a change to one of the domain's cluster-attribute fields (active-active failover)
 //
 // this is not a validation function

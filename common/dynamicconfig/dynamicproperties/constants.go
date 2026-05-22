@@ -776,6 +776,12 @@ const (
 	// Default value: 5
 	// Allowed filters: DomainName
 	FrontendFailoverHistoryMaxSize
+	// FrontendMaxFailoverTimeoutInSeconds is the maximum allowed graceful-failover timeout (seconds) accepted on a FailoverDomain request
+	// KeyName: frontend.maxFailoverTimeoutInSeconds
+	// Value type: Int
+	// Default value: 300 (5 minutes)
+	// Allowed filters: DomainName
+	FrontendMaxFailoverTimeoutInSeconds
 
 	// key for matching
 
@@ -3901,6 +3907,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendFailoverHistoryMaxSize is the maximum size for the number of failover event records in a domain failover history",
 		DefaultValue: 5,
+	},
+	FrontendMaxFailoverTimeoutInSeconds: {
+		KeyName:      "frontend.maxFailoverTimeoutInSeconds",
+		Filters:      []Filter{DomainName},
+		Description:  "FrontendMaxFailoverTimeoutInSeconds is the maximum allowed graceful-failover timeout (in seconds) accepted on a FailoverDomain request",
+		DefaultValue: 300,
 	},
 	MatchingUserRPS: {
 		KeyName:      "matching.rps",

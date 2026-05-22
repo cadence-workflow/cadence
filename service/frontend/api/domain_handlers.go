@@ -210,6 +210,7 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 	logger.Info("Failover domain request started",
 		tag.ActiveClusterName(failoverRequest.GetDomainActiveClusterName()),
 		tag.Dynamic("active-clusters-by-cluster-attribute", failoverRequest.ActiveClusters),
+		tag.Dynamic("failover-timeout-seconds", failoverRequest.FailoverTimeoutInSeconds),
 	)
 
 	failoverResp, err := wh.domainHandler.FailoverDomain(ctx, failoverRequest)

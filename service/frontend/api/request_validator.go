@@ -378,6 +378,16 @@ func (v *requestValidatorImpl) ValidateFailoverDomainRequest(ctx context.Context
 		return &types.BadRequestError{Message: "DomainActiveClusterName or ActiveClusters must be provided to failover the domain"}
 	}
 
+	if failoverDomainRequest.FailoverTimeoutInSeconds != nil {
+		timeout := *failoverDomainRequest.FailoverTimeoutInSeconds
+		if timeout <= 0 {
+			return &types.BadRequestError{Message: "FailoverTimeoutInSeconds must be positive"}
+		}
+		if maxTimeout := int32(v.config.DomainConfig.MaxFailoverTimeoutInSeconds(failoverDomainRequest.GetDomainName())); timeout > maxTimeout {
+			return &types.BadRequestError{Message: fmt.Sprintf("FailoverTimeoutInSeconds %d exceeds the maximum allowed %d", timeout, maxTimeout)}
+		}
+	}
+
 	// Security token is not required for failover request - reject the failover if the cluster is in lockdown
 	return checkFailOverPermission(v.config, failoverDomainRequest.GetDomainName())
 }

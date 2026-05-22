@@ -107,13 +107,14 @@ type (
 
 	// Config is the domain config for domain handler
 	Config struct {
-		MinRetentionDays         dynamicproperties.IntPropertyFn
-		MaxRetentionDays         dynamicproperties.IntPropertyFn
-		RequiredDomainDataKeys   dynamicproperties.MapPropertyFn
-		MaxBadBinaryCount        dynamicproperties.IntPropertyFnWithDomainFilter
-		FailoverCoolDown         dynamicproperties.DurationPropertyFnWithDomainFilter
-		FailoverHistoryMaxSize   dynamicproperties.IntPropertyFnWithDomainFilter
-		EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
+		MinRetentionDays            dynamicproperties.IntPropertyFn
+		MaxRetentionDays            dynamicproperties.IntPropertyFn
+		RequiredDomainDataKeys      dynamicproperties.MapPropertyFn
+		MaxBadBinaryCount           dynamicproperties.IntPropertyFnWithDomainFilter
+		FailoverCoolDown            dynamicproperties.DurationPropertyFnWithDomainFilter
+		FailoverHistoryMaxSize      dynamicproperties.IntPropertyFnWithDomainFilter
+		MaxFailoverTimeoutInSeconds dynamicproperties.IntPropertyFnWithDomainFilter
+		EnableDomainAuditLogging    dynamicproperties.BoolPropertyFn
 	}
 
 	// FailoverEvent is the failover information to be stored for each failover event in domain data
@@ -515,7 +516,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	// by default, we assume a force failover and that any preexisting graceful failover state is invalidated
 	// if there's a duration of failover time to occur (such as in graceful failover) this will be re-set.
 	// But if there's an existing graceful failover and a subsequent force
-	// we want to ensure that it'll be ended immmediately.
+	// we want to ensure that it'll be ended immediately.
 	intendedDomainState.FailoverEndTime = nil
 
 	// Update replication config
@@ -596,7 +597,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		//
 		// The reason for this is caution and simplicity at the time of writing:
 		// It's harmless to bump and this simplifies thinking about failover events
-		// through out the rest of the Cadence codebase. We can reliably assume that every failover
+		// throughout the rest of the Cadence codebase. We can reliably assume that every failover
 		// event that has meaningful changes only needs to subscribe to this fencing token.
 		// to detect changes.
 		//
