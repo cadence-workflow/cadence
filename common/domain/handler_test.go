@@ -2289,7 +2289,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 		},
 		{
-			name: "Error case - handleGracefulFailover error in the case of a global domain - it should return an error to the user",
+			name: "Error case - validateGracefulFailover error in the case of a global domain - it should return an error to the user",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, _ clock.MockedTimeSource, _ *MockReplicator) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
@@ -3310,19 +3310,15 @@ func TestUpdateReplicationConfig(t *testing.T) {
 	}
 }
 
-func TestHandleGracefulFailover(t *testing.T) {
-	failoverTimeoutInSeconds := int32(1)
-	failoverVersion := int64(3)
-
+func TestValidateGracefulFailover(t *testing.T) {
 	testCases := []struct {
-		name                           string
-		replicationConfig              *persistence.DomainReplicationConfig
-		currentActiveCluster           string
-		gracefulFailoverEndTime        *int64
-		activeClusterChange            bool
-		isGlobalDomain                 bool
-		updatedGracefulFailoverEndTime func(now time.Time) *int64
-		err                            error
+		name                    string
+		replicationConfig       *persistence.DomainReplicationConfig
+		currentActiveCluster    string
+		gracefulFailoverEndTime *int64
+		activeClusterChange     bool
+		isGlobalDomain          bool
+		err                     error
 	}{
 		{
 			name: "Success case",
@@ -3333,9 +3329,6 @@ func TestHandleGracefulFailover(t *testing.T) {
 			currentActiveCluster: cluster.TestAlternativeClusterName,
 			activeClusterChange:  true,
 			isGlobalDomain:       true,
-			updatedGracefulFailoverEndTime: func(now time.Time) *int64 {
-				return common.Ptr(now.Add(time.Duration(failoverTimeoutInSeconds) * time.Second).UnixNano())
-			},
 		},
 		{
 			name:                "Error case - activeClusterChange is false",
@@ -3391,21 +3384,12 @@ func TestHandleGracefulFailover(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator).(*handlerImpl)
 
-			now := handler.(*handlerImpl).timeSource.Now()
-
-			request := &types.UpdateDomainRequest{
-				FailoverTimeoutInSeconds: common.Int32Ptr(failoverTimeoutInSeconds),
-			}
-
-			gracefulFailoverEndTime, previousFailoverVersion, err := (*handlerImpl).handleGracefulFailover(
-				handler.(*handlerImpl),
-				request,
+			err := handler.validateGracefulFailover(
 				tc.replicationConfig,
 				tc.currentActiveCluster,
 				tc.gracefulFailoverEndTime,
-				failoverVersion,
 				tc.activeClusterChange,
 				tc.isGlobalDomain,
 			)
@@ -3415,8 +3399,6 @@ func TestHandleGracefulFailover(t *testing.T) {
 				assert.Equal(t, tc.err, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.updatedGracefulFailoverEndTime(now), gracefulFailoverEndTime)
-				assert.Equal(t, failoverVersion, previousFailoverVersion)
 			}
 		})
 	}

@@ -540,21 +540,18 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	// if the failover 'graceful' - as indicated as having a FailoverTimeoutInSeconds,
 	// then we set some additional parameters for the graceful failover
 	if updateRequest.FailoverTimeoutInSeconds != nil {
-		gracefulFailoverEndTime, previousFailoverVersion, err := d.handleGracefulFailover(
-			updateRequest,
+		if err := d.validateGracefulFailover(
 			intendedDomainState.ReplicationConfig,
 			currentActiveCluster,
 			currentState.FailoverEndTime,
-			currentState.FailoverVersion,
 			activeClusterChanged,
 			isGlobalDomain,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 		failoverType = constants.FailoverTypeGrace
-		intendedDomainState.FailoverEndTime = gracefulFailoverEndTime
-		intendedDomainState.PreviousFailoverVersion = previousFailoverVersion
+		intendedDomainState.FailoverEndTime = d.computeGracefulFailoverEndTime(updateRequest.GetFailoverTimeoutInSeconds())
+		intendedDomainState.PreviousFailoverVersion = currentState.FailoverVersion
 	}
 
 	// replication config is a subset of config,
@@ -1713,34 +1710,31 @@ func (d *handlerImpl) updateReplicationConfig(
 	return config, replicationConfigChanged, activeClusterChanged, nil
 }
 
-func (d *handlerImpl) handleGracefulFailover(
-	updateRequest *types.UpdateDomainRequest,
+func (d *handlerImpl) validateGracefulFailover(
 	replicationConfig *persistence.DomainReplicationConfig,
 	currentActiveCluster string,
 	gracefulFailoverEndTime *int64,
-	failoverVersion int64,
 	activeClusterChanged bool,
 	isGlobalDomain bool,
-) (*int64, int64, error) {
-	// must update active cluster on a global domain
+) error {
 	if !activeClusterChanged || !isGlobalDomain || replicationConfig.IsActiveActive() {
-		return nil, 0, errInvalidGracefulFailover
+		return errInvalidGracefulFailover
 	}
-	// must start with the passive -> active cluster
 	if replicationConfig.ActiveClusterName != d.clusterMetadata.GetCurrentClusterName() {
-		return nil, 0, errCannotDoGracefulFailoverFromCluster
+		return errCannotDoGracefulFailoverFromCluster
 	}
 	if replicationConfig.ActiveClusterName == currentActiveCluster {
-		return nil, 0, errGracefulFailoverInActiveCluster
+		return errGracefulFailoverInActiveCluster
 	}
-	// cannot have concurrent failover
 	if gracefulFailoverEndTime != nil {
-		return nil, 0, errOngoingGracefulFailover
+		return errOngoingGracefulFailover
 	}
-	endTime := d.timeSource.Now().Add(time.Duration(updateRequest.GetFailoverTimeoutInSeconds()) * time.Second).UnixNano()
-	previousFailoverVersion := failoverVersion
+	return nil
+}
 
-	return &endTime, previousFailoverVersion, nil
+func (d *handlerImpl) computeGracefulFailoverEndTime(failoverTimeoutInSeconds int32) *int64 {
+	endTime := d.timeSource.Now().Add(time.Duration(failoverTimeoutInSeconds) * time.Second).UnixNano()
+	return &endTime
 }
 
 func (d *handlerImpl) validateGlobalDomainReplicationConfigForUpdateDomain(
