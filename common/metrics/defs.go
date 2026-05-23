@@ -2496,6 +2496,8 @@ const (
 	GracefulFailoverLatency
 	GracefulFailoverLatencyHistogram
 	GracefulFailoverFailure
+	GracefulFailoverInitiationSuccess
+	GracefulFailoverInitiationFailure
 
 	HistoryArchiverArchiveNonRetryableErrorCount
 	HistoryArchiverArchiveTransientErrorCount
@@ -3474,6 +3476,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		GracefulFailoverLatency:                                      {metricName: "graceful_failover_latency", metricType: Timer},
 		GracefulFailoverLatencyHistogram:                             {metricName: "graceful_failover_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		GracefulFailoverFailure:                                      {metricName: "graceful_failover_failures", metricType: Counter},
+		GracefulFailoverInitiationSuccess:                            {metricName: "graceful_failover_initiation_success", metricType: Counter},
+		GracefulFailoverInitiationFailure:                            {metricName: "graceful_failover_initiation_failures", metricType: Counter},
 
 		HistoryArchiverArchiveNonRetryableErrorCount:              {metricName: "history_archiver_archive_non_retryable_error", metricType: Counter},
 		HistoryArchiverArchiveTransientErrorCount:                 {metricName: "history_archiver_archive_transient_error", metricType: Counter},
