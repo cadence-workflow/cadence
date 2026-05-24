@@ -189,7 +189,7 @@ func TestListDomainsFiltersUnauthorizedDomains(t *testing.T) {
 	assert.Equal(t, "allowed-domain", result.Domains[0].GetDomainInfo().GetName())
 }
 
-func TestListDomainsReturnsUnauthorizedWhenNoDomainsAreAuthorized(t *testing.T) {
+func TestListDomainsReturnsEmptyWhenNoDomainsAreAuthorized(t *testing.T) {
 	controller := gomock.NewController(t)
 
 	mockAuthorizer := authorization.NewMockAuthorizer(controller)
@@ -215,11 +215,103 @@ func TestListDomainsReturnsUnauthorizedWhenNoDomainsAreAuthorized(t *testing.T) 
 	}
 	result, err := handler.ListDomains(context.Background(), request)
 
-	assert.Nil(t, result)
-	assert.ErrorIs(t, err, errUnauthorized)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Domains)
 }
 
-func TestListDomainsAllowsAllDomainsForAdminAuthorizer(t *testing.T) {
+func TestListDomainsReturnsEmptyPageWithNextPageTokenWhenNoDomainsAreAuthorized(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("denied-domain"),
+		},
+		NextPageToken: []byte("next-page"),
+	}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("denied-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, []byte("next-page"), result.NextPageToken)
+	assert.Empty(t, result.Domains)
+}
+
+func TestListDomainsPropagatesHandlerError(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	listDomainsErr := errors.New("list domains failed")
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(nil, listDomainsErr)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, listDomainsErr)
+}
+
+func TestListDomainsPropagatesAuthorizerError(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("allowed-domain"),
+			listDomainsTestResponse("error-domain"),
+			listDomainsTestResponse("unchecked-domain"),
+		},
+	}
+	authorizerErr := errors.New("authorizer failed")
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	gomock.InOrder(
+		mockAuthorizer.EXPECT().
+			Authorize(gomock.Any(), listDomainsAuthAttr("allowed-domain")).
+			Return(authorization.Result{Decision: authorization.DecisionAllow}, nil),
+		mockAuthorizer.EXPECT().
+			Authorize(gomock.Any(), listDomainsAuthAttr("error-domain")).
+			Return(authorization.Result{}, authorizerErr),
+	)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, authorizerErr)
+}
+
+func TestListDomainsReturnsAllWhenAllAuthorized(t *testing.T) {
 	controller := gomock.NewController(t)
 
 	mockAuthorizer := authorization.NewMockAuthorizer(controller)

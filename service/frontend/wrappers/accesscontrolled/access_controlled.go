@@ -96,9 +96,6 @@ func (a *apiHandler) listAuthorizedDomains(
 		}
 	}
 
-	if len(authorizedDomains) == 0 {
-		return nil, errUnauthorized
-	}
 	response.Domains = authorizedDomains
 	return response, nil
 }
