@@ -177,7 +177,7 @@ func TestMetricsAreUnique(t *testing.T) {
 				name := met.metricName.String()
 				if seen[name] {
 					switch name {
-					case "cache_full", "cache_miss", "cache_hit", "cadence_requests_per_tl", "cross_cluster_fetch_errors":
+					case "cadence_requests_per_tl", "cross_cluster_fetch_errors":
 						continue // known dup.  worth changing as some cause problems.
 					}
 					t.Errorf("duplicate metric name %q", name)
