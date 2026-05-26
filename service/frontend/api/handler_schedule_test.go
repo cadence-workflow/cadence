@@ -779,6 +779,65 @@ func TestUpdateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"reserved SA key rejected": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"CadenceScheduleState": []byte(`"active"`)},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"search attributes only update succeeds": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"MyField": []byte(`"hello"`)},
+				},
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, scheduler.SignalNameUpdate, req.SignalRequest.SignalName)
+						var signal scheduler.UpdateSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &signal))
+						assert.Nil(t, signal.Spec)
+						assert.Nil(t, signal.Action)
+						assert.Nil(t, signal.Policies)
+						require.NotNil(t, signal.SearchAttributes)
+						assert.Equal(t, []byte(`"hello"`), signal.SearchAttributes.IndexedFields["MyField"])
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"search attributes forwarded with spec update": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "0 * * * *"},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"MyField": []byte(`"hello"`)},
+				},
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var signal scheduler.UpdateSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &signal))
+						assert.Equal(t, "0 * * * *", signal.Spec.CronExpression)
+						require.NotNil(t, signal.SearchAttributes)
+						assert.Equal(t, []byte(`"hello"`), signal.SearchAttributes.IndexedFields["MyField"])
+						return nil
+					})
+			},
+			wantErr: false,
+		},
 	}
 
 	for name, tt := range tests {

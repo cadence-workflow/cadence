@@ -21,6 +21,7 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -359,6 +360,11 @@ func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *Schedul
 	if sw := input.Action.StartWorkflow; sw != nil && sw.WorkflowType != nil && sw.WorkflowType.Name != "" {
 		sa[SearchAttrScheduleWorkflowType] = sw.WorkflowType.Name
 	}
+	if input.SearchAttributes != nil {
+		for k, v := range input.SearchAttributes.IndexedFields {
+			sa[k] = json.RawMessage(v)
+		}
+	}
 	return sa
 }
 
@@ -387,7 +393,7 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 }
 
 func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
-	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil {
+	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil && sig.SearchAttributes == nil {
 		logger.Info("ignoring empty update signal")
 		return false
 	}
@@ -440,6 +446,10 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 				zap.Int("clearedCount", len(state.RunningWorkflows)))
 			state.RunningWorkflows = nil
 		}
+	}
+	if sig.SearchAttributes != nil {
+		input.SearchAttributes = sig.SearchAttributes
+		changed = true
 	}
 	if changed {
 		logger.Info("schedule updated")

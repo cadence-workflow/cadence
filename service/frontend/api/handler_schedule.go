@@ -323,8 +323,8 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if scheduleID == "" {
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
 	}
-	if request.GetSpec() == nil && request.GetAction() == nil && request.GetPolicies() == nil {
-		return nil, &types.BadRequestError{Message: "At least one of Spec, Action, or Policies must be set on request."}
+	if request.GetSpec() == nil && request.GetAction() == nil && request.GetPolicies() == nil && request.GetSearchAttributes() == nil {
+		return nil, &types.BadRequestError{Message: "At least one of Spec, Action, Policies, or SearchAttributes must be set on request."}
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
@@ -335,11 +335,15 @@ func (wh *WorkflowHandler) UpdateSchedule(
 			return nil, err
 		}
 	}
+	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
+		return nil, err
+	}
 
 	signal := scheduler.UpdateSignal{
-		Spec:     request.GetSpec(),
-		Action:   request.GetAction(),
-		Policies: request.GetPolicies(),
+		Spec:             request.GetSpec(),
+		Action:           request.GetAction(),
+		Policies:         request.GetPolicies(),
+		SearchAttributes: request.GetSearchAttributes(),
 	}
 
 	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameUpdate, signal); err != nil {
