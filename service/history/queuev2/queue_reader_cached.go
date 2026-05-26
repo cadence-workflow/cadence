@@ -63,8 +63,7 @@ type CachedQueueReader interface {
 // cachedQueueReaderOptions is the dynamic configuration for the cached queue reader.
 // populated from shard.Context
 type cachedQueueReaderOptions struct {
-	// Mode controls cache behavior: "enabled" uses cache, "shadow" compares cache
-	// against DB without serving from it, anything else (including "disabled") disables.
+	// Mode controls cache behavior: "enabled" uses cache, anything else (including "disabled") disables.
 	Mode dynamicproperties.StringPropertyFn
 	// MaxSize is the maximum number of tasks the cache may hold at once.
 	// Insertions that would exceed this limit trigger time-based eviction first.
@@ -313,10 +312,7 @@ func (q *cachedQueueReader) prefetch() error {
 
 	// Cap the page to available space (so the insert won't spill into RTrimBySize)
 	// and to the configured page size (to bound each round-trip).
-	pageSize := availableCacheSize
-	if q.options.PrefetchPageSize() < pageSize {
-		pageSize = q.options.PrefetchPageSize()
-	}
+	pageSize := min(availableCacheSize, q.options.PrefetchPageSize())
 
 	resp, err := q.base.GetTask(q.ctx, &GetTaskRequest{
 		Progress: &GetTaskProgress{
@@ -517,8 +513,7 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 }
 
 // GetTask serves tasks from the cache when the starting key is covered.
-// Shadow mode always hits the DB and compares with the cache result to detect
-// divergence. Disabled mode bypasses the cache entirely.
+// Disabled mode bypasses the cache entirely.
 func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
 	if q.isDisabled() {
 		return q.base.GetTask(ctx, req)
@@ -561,6 +556,11 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 	q.metrics.IncCounter(metrics.CachedQueueHitsCounter)
 	q.logger.Debug("cache hit", logTags...)
 
+	// cacheResp is constructed with Progress.Range starting at nextTaskKey and the same exclusiveMaxTaskKey as the request.
+	// This ensures that if the next page is fetched from the DB, Progress.Range will start at the correct position (nextTaskKey)
+	// and end at the same exclusiveMaxTaskKey. Since NextPageToken is not used when serving from the cache, Progress.Range
+	// is the sole source of truth for the next page's start and end. Using the request's original InclusiveMinTaskKey instead
+	// of nextTaskKey would cause the next page to start at the wrong position, leading to duplicate or skipped tasks.
 	cacheResp := &GetTaskResponse{
 		Tasks: tasks,
 		Progress: &GetTaskProgress{
@@ -578,10 +578,10 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
 // from cache when the request falls within the prefetched window. Bypasses
-// cache when disabled or in shadow mode.
+// cache when disabled mode.
 func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
 	if q.isDisabled() {
-		q.logger.Debug("fail back to original look-ahead, cache is disabled or in shadow mode")
+		q.logger.Debug("fail back to original look-ahead, cache is disabled")
 		return q.base.LookAHead(ctx, req)
 	}
 
