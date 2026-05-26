@@ -177,9 +177,6 @@ func (q *cachedQueueReader) Start() {
 	if !atomic.CompareAndSwapInt32(&q.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
-	// Anchor the lower bound now so the cache doesn't serve tasks from the
-	// beginning of time before the first ack-level update arrives.
-	q.UpdateReadLevel(persistence.MinimumHistoryTaskKey)
 	q.wg.Add(1)
 	go q.prefetchLoop()
 }
