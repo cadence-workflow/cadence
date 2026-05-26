@@ -138,7 +138,7 @@ dynamicconfig:
     FetchTimeout: "2s"
     UpdateTimeout: "2s"
   filebased:
-    filepath: "config/dynamicconfig/development.yaml"
+    filepath: "config/dynamicconfig/development_queuev2_cached.yaml"
     pollInterval: "10s"
 
 blobstore:

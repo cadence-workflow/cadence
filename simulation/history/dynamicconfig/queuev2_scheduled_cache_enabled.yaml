@@ -34,26 +34,11 @@ history.transferProcessorUpdateAckIntervalJitterCoefficient:
 history.transferProcessorMaxPollRPS:
 - value: 20
   constraints: {}
+
 # Cached scheduled queue settings
 history.timerProcessorEnableCachedScheduledQueue:
 - value: true
   constraints: {}
 history.timerProcessorCachedQueueReaderMode:
 - value: "enabled"
-  constraints: {}
-history.timerProcessorCacheMaxSize:
-- value: 1000
-  constraints: {}
-history.timerProcessorCacheMaxLookAheadWindow:
-- value: 5m
-  constraints: {}
-history.timerProcessorCachePrefetchTriggerWindow:
-- value: 30s
-  constraints: {}
-# Set to 0s to ensure caching starts immediately in simulation
-history.timerProcessorCacheWarmupGracePeriod:
-- value: 0s
-  constraints: {}
-history.timerProcessorCacheEvictionSafeWindow:
-- value: 10s
   constraints: {}

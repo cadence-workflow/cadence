@@ -85,6 +85,18 @@ frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
 history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 - value: true
+
+# Cached scheduled queue settings
+history.enableTimerQueueV2:
+- value: true
+  constraints: {}
+history.timerProcessorEnableCachedScheduledQueue:
+- value: true
+  constraints: {}
+history.timerProcessorCachedQueueReaderMode:
+- value: "enabled"
+  constraints: {}
+
 shardDistributor.migrationMode:
   - value: "onboarded"
   - value: "local_pass"
