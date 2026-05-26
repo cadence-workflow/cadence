@@ -140,12 +140,13 @@ const (
 // SchedulerWorkflowInput is the input to the scheduler workflow.
 // It carries the schedule definition and any prior state (for ContinueAsNew).
 type SchedulerWorkflowInput struct {
-	Domain     string                 `json:"domain"`
-	ScheduleID string                 `json:"scheduleId"`
-	Spec       types.ScheduleSpec     `json:"spec"`
-	Action     types.ScheduleAction   `json:"action"`
-	Policies   types.SchedulePolicies `json:"policies"`
-	State      SchedulerWorkflowState `json:"state"`
+	Domain           string                  `json:"domain"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	State            SchedulerWorkflowState  `json:"state"`
 }
 
 // SchedulerWorkflowState is the mutable runtime state that survives ContinueAsNew.
@@ -220,9 +221,10 @@ type UnpauseSignal struct {
 
 // UpdateSignal is the payload sent with an update signal.
 type UpdateSignal struct {
-	Spec     *types.ScheduleSpec     `json:"spec,omitempty"`
-	Action   *types.ScheduleAction   `json:"action,omitempty"`
-	Policies *types.SchedulePolicies `json:"policies,omitempty"`
+	Spec             *types.ScheduleSpec     `json:"spec,omitempty"`
+	Action           *types.ScheduleAction   `json:"action,omitempty"`
+	Policies         *types.SchedulePolicies `json:"policies,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 // BackfillSignal is the payload sent with a backfill signal.
