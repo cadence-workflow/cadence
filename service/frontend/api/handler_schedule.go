@@ -50,9 +50,9 @@ const (
 	// ContinueAsNew executionCache invalidation window, and the brief period after
 	// a new run starts before its first decision task is processed. Both typically
 	// resolve within milliseconds but can take a few seconds in loaded environments;
-	// ~4.5s total stays well within any reasonable client deadline.
+	// ~9s total stays within the typical 10s service SLA.
 	describeScheduleCANRetryAttempts = 10
-	describeScheduleCANRetryInterval = 500 * time.Millisecond
+	describeScheduleCANRetryInterval = 1 * time.Second
 )
 
 func scheduleWorkflowID(scheduleID string) string {
