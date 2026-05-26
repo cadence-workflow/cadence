@@ -45,14 +45,16 @@ const (
 	schedulerWorkflowDecisionTimeout  = 10 * time.Second
 	defaultListSchedulesPageSize      = 10
 
-	// describeScheduleCANRetryAttempts and describeScheduleCANRetryInterval bound
-	// the wait for transient scheduler states in DescribeSchedule: the
-	// ContinueAsNew executionCache invalidation window, and the brief period after
-	// a new run starts before its first decision task is processed. Both typically
-	// resolve within milliseconds but can take a few seconds in loaded environments;
-	// ~9s total stays within the typical 10s service SLA.
-	describeScheduleCANRetryAttempts = 10
-	describeScheduleCANRetryInterval = 1 * time.Second
+	// describeScheduleCANRetryAttempts bounds the DWE probe in describeSchedulerExecution,
+	// which retries while CloseStatus=CONTINUED_AS_NEW to ride out the executionCache
+	// invalidation window. describeScheduleQueryRetryAttempts bounds the query retry in
+	// querySchedulerWorkflow, which retries until the new run's first decision task is done.
+	// Both states typically resolve within milliseconds but can take a few seconds in loaded
+	// environments. Separate counts keep the combined DescribeSchedule worst case (~8s) within
+	// the typical 10s service SLA.
+	describeScheduleCANRetryAttempts   = 5
+	describeScheduleQueryRetryAttempts = 5
+	describeScheduleCANRetryInterval   = 1 * time.Second
 )
 
 func scheduleWorkflowID(scheduleID string) string {
@@ -782,7 +784,7 @@ func (wh *WorkflowHandler) querySchedulerWorkflow(
 		QueryRejectCondition: &rejectCondition,
 	}
 	var lastErr error
-	for attempt := 0; attempt < describeScheduleCANRetryAttempts; attempt++ {
+	for attempt := 0; attempt < describeScheduleQueryRetryAttempts; attempt++ {
 		resp, err := wh.QueryWorkflow(ctx, req)
 		if err == nil {
 			return resp, nil
@@ -792,7 +794,7 @@ func (wh *WorkflowHandler) querySchedulerWorkflow(
 			return nil, normalizeScheduleError(err, scheduleID, domainName)
 		}
 		lastErr = err
-		if attempt < describeScheduleCANRetryAttempts-1 {
+		if attempt < describeScheduleQueryRetryAttempts-1 {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()

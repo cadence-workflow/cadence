@@ -501,7 +501,7 @@ func TestDescribeSchedule(t *testing.T) {
 					}, nil)
 				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					Return(nil, &types.QueryFailedError{Message: "workflow must handle at least one decision task before it can be queried"}).
-					Times(describeScheduleCANRetryAttempts)
+					Times(describeScheduleQueryRetryAttempts)
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
