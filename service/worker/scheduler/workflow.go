@@ -23,6 +23,7 @@ package scheduler
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -362,6 +363,9 @@ func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *Schedul
 	}
 	if input.SearchAttributes != nil {
 		for k, v := range input.SearchAttributes.IndexedFields {
+			if strings.HasPrefix(k, "CadenceSchedule") {
+				continue
+			}
 			sa[k] = json.RawMessage(v)
 		}
 	}

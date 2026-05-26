@@ -1187,6 +1187,30 @@ func TestBuildScheduleSearchAttributes(t *testing.T) {
 				"MyField":                      json.RawMessage(`"hello"`),
 			},
 		},
+		{
+			name: "reserved CadenceSchedule keys in user SAs are silently skipped",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"CadenceScheduleState": []byte(`"injected"`),
+						"MyField":              []byte(`"hello"`),
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+				"MyField":                      json.RawMessage(`"hello"`),
+			},
+		},
 	}
 
 	for _, tt := range tests {
