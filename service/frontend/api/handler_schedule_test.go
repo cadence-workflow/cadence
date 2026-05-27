@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -933,6 +934,15 @@ func TestDeleteSchedule(t *testing.T) {
 	}
 }
 
+func TestResolveBackfillID(t *testing.T) {
+	assert.Equal(t, "bf-1", resolveBackfillID("bf-1"))
+	assert.Equal(t, "bf-1", resolveBackfillID("  bf-1  "))
+	_, err := uuid.Parse(resolveBackfillID(""))
+	require.NoError(t, err)
+	_, err = uuid.Parse(resolveBackfillID("  \t  "))
+	require.NoError(t, err)
+}
+
 func TestBackfillSchedule(t *testing.T) {
 	now := time.Now()
 	tests := map[string]struct {
@@ -991,6 +1001,47 @@ func TestBackfillSchedule(t *testing.T) {
 						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &signal))
 						assert.Equal(t, types.ScheduleOverlapPolicyConcurrent, signal.OverlapPolicy)
 						assert.Equal(t, "bf-1", signal.BackfillID)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"success without backfill id assigns uuid": {
+			request: &types.BackfillScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				StartTime:  now.Add(-time.Hour),
+				EndTime:    now,
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var signal scheduler.BackfillSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &signal))
+						_, err := uuid.Parse(signal.BackfillID)
+						require.NoError(t, err, "expected server-generated UUID backfill id, got %q", signal.BackfillID)
+						return nil
+					})
+			},
+			wantErr: false,
+		},
+		"whitespace backfill id assigns uuid": {
+			request: &types.BackfillScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				StartTime:  now.Add(-time.Hour),
+				EndTime:    now,
+				BackfillID: "   ",
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistorySignalWorkflowExecutionRequest, _ ...yarpc.CallOption) error {
+						var signal scheduler.BackfillSignal
+						require.NoError(t, json.Unmarshal(req.SignalRequest.Input, &signal))
+						_, err := uuid.Parse(signal.BackfillID)
+						require.NoError(t, err)
 						return nil
 					})
 			},

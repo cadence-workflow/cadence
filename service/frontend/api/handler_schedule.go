@@ -527,13 +527,20 @@ func (wh *WorkflowHandler) BackfillSchedule(
 		StartTime:     request.GetStartTime(),
 		EndTime:       request.GetEndTime(),
 		OverlapPolicy: request.GetOverlapPolicy(),
-		BackfillID:    request.GetBackfillID(),
+		BackfillID:    resolveBackfillID(request.GetBackfillID()),
 	}
 
 	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameBackfill, signal); err != nil {
 		return nil, err
 	}
 	return &types.BackfillScheduleResponse{}, nil
+}
+
+func resolveBackfillID(clientID string) string {
+	if id := strings.TrimSpace(clientID); id != "" {
+		return id
+	}
+	return uuid.New().String()
 }
 
 func (wh *WorkflowHandler) ListSchedules(

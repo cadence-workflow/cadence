@@ -53,7 +53,8 @@ const (
 	CadenceScheduleTime       = "CadenceScheduleTime"
 	CadenceScheduleIsBackfill = "CadenceScheduleIsBackfill"
 	// CadenceScheduleBackfillID is set on target workflows started by a schedule
-	// backfill when the client supplied a non-empty BackfillID (keyword).
+	// backfill, keyed by BackfillScheduleRequest.backfill_id (keyword). The frontend
+	// assigns a UUID when the client omits the id.
 	CadenceScheduleBackfillID = "CadenceScheduleBackfillID"
 
 	// Schedule search attributes set on the scheduler workflow itself (used by ListSchedules).
