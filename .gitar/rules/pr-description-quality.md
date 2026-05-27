@@ -68,11 +68,11 @@ From https://cbea.ms/git-commit/#why-not-how:
 - ❌ "Note:" paragraphs or explanatory text outside recommendations
 - ❌ Grouping recommendations by type
 
-## Section Names (Use EXACT Brackets)
+## Section Names (Use EXACT values from list)
 
-- **[What changed?]**
-- **[Why?]**
-- **[How did you test it?]**
-- **[Potential risks]**
-- **[Release notes]**
-- **[Documentation Changes]**
+- **What changed?**
+- **Why?**
+- **How did you test it?**
+- **Potential risks**
+- **Release notes**
+- **Documentation Changes**
