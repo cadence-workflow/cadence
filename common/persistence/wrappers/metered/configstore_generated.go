@@ -49,7 +49,9 @@ func (c *meteredConfigStoreManager) FetchDynamicConfig(ctx context.Context, cfgT
 		return err
 	}
 
-	err = c.call(metrics.PersistenceFetchDynamicConfigScope, op, getCustomMetricTags(cfgType)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceFetchDynamicConfigScope, op, append(getCustomMetricTags(cfgType), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -60,6 +62,8 @@ func (c *meteredConfigStoreManager) UpdateDynamicConfig(ctx context.Context, req
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateDynamicConfigScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateDynamicConfigScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }

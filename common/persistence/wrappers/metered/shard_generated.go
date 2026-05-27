@@ -49,7 +49,9 @@ func (c *meteredShardManager) CreateShard(ctx context.Context, request *persiste
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCreateShardScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCreateShardScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -64,7 +66,9 @@ func (c *meteredShardManager) GetShard(ctx context.Context, request *persistence
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetShardScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetShardScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -75,6 +79,8 @@ func (c *meteredShardManager) UpdateShard(ctx context.Context, request *persiste
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateShardScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateShardScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
