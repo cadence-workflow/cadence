@@ -12,6 +12,7 @@ import (
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -170,6 +171,7 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("domain-1", nil)
 
 	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
 	mockActiveClusterMgr.EXPECT().
@@ -180,8 +182,9 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(7)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -215,6 +218,7 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("d").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("d").Return("d", nil)
 
 	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
 	mockActiveClusterMgr.EXPECT().
@@ -225,8 +229,9 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -252,10 +257,12 @@ func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *test
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("domain-1", nil)
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeDisabled }
 
@@ -282,6 +289,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("domain-1", nil)
 
 	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
 	mockActiveClusterMgr.EXPECT().
@@ -292,8 +300,9 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(7)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeShadow }
 
@@ -320,10 +329,12 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("domain-1", nil)
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+	mockShard.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 

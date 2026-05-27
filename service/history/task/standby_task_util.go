@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -132,7 +133,10 @@ func standbyTaskPostActionWriteToDLQ(
 			}
 		}
 
-		logger.Warn("Attempting to write standby task to DLQ due to task being pending for too long.",
+		domainTag, _ := getDomainTagByID(shard.GetDomainCache(), domainID)
+		metricsScope := shard.GetMetricsClient().Scope(metrics.HistoryTaskStandbyDLQScope, domainTag)
+
+		taskTags := []tag.Tag{
 			tag.WorkflowID(task.GetWorkflowID()),
 			tag.WorkflowRunID(task.GetRunID()),
 			tag.WorkflowDomainID(task.GetDomainID()),
@@ -140,11 +144,13 @@ func standbyTaskPostActionWriteToDLQ(
 			tag.TaskType(task.GetTaskType()),
 			tag.FailoverVersion(task.GetVersion()),
 			tag.Timestamp(task.GetVisibilityTimestamp()),
-			tag.IsShadowModeEnabled(isDeadLetterQueueEnabled == constants.HistoryTaskDLQModeShadow))
+		}
 
 		// TODO(c-warren): Move this logic into the writer instead, and return a ErrHistoryDLQNotEnabled error to be handled here
 		switch isDeadLetterQueueEnabled {
 		case constants.HistoryTaskDLQModeEnabled:
+			logger.Warn("Writing standby task to DLQ due to task being pending for too long.", taskTags...)
+			metricsScope.Tagged(metrics.HistoryTaskDLQModeTag(constants.HistoryTaskDLQModeEnabled)).IncCounter(metrics.TaskDLQPerDomain)
 			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
@@ -153,6 +159,8 @@ func standbyTaskPostActionWriteToDLQ(
 				Task:                  task,
 			})
 		case constants.HistoryTaskDLQModeShadow:
+			logger.Warn("Writing standby task to DLQ in shadow mode; task will be discarded.", taskTags...)
+			metricsScope.Tagged(metrics.HistoryTaskDLQModeTag(constants.HistoryTaskDLQModeShadow)).IncCounter(metrics.TaskDLQPerDomain)
 			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
@@ -165,6 +173,8 @@ func standbyTaskPostActionWriteToDLQ(
 			}
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		default:
+			logger.Warn("DLQ not enabled for domain; discarding standby task.", taskTags...)
+			metricsScope.Tagged(metrics.HistoryTaskDLQModeTag(constants.HistoryTaskDLQModeDisabled)).IncCounter(metrics.TaskDLQPerDomain)
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		}
 	}

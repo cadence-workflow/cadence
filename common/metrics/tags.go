@@ -88,6 +88,8 @@ const (
 	onboardingSource = "onboarding_source"
 	onboardingActive = "onboarding_active"
 
+	historyTaskDLQMode = "history_task_dlq_mode"
+
 	allValue     = "all"
 	unknownValue = "_unknown_"
 )
@@ -429,6 +431,11 @@ func OnboardingActiveTag(active bool) Tag {
 // QueryConsistencyLevelTag returns a new query consistency level tag.
 func QueryConsistencyLevelTag(level string) Tag {
 	return metricWithUnknown(queryConsistencyLevel, level)
+}
+
+// HistoryTaskDLQModeTag returns a tag for the standby task DLQ mode (enabled/shadow/disabled).
+func HistoryTaskDLQModeTag(mode string) Tag {
+	return simpleMetric{key: historyTaskDLQMode, value: mode}
 }
 
 // BudgetManagerNameTag returns a new budget manager name tag.
