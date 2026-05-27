@@ -42,20 +42,27 @@ import (
 type (
 	contextKey string
 
-	// clusterAttributeScope scopes the ClusterAttributeRebalance to a specific scope.
-	// Using a standard scope (e.g "region", "datacenter") across domains will allow for a concise ClusterAttributeRebalanceMap.
-	clusterAttributeScope string
-	// ClusterAttributeName is the name of the cluster attribute that should be rebalanced to a specified cluster.
-	// Using standard names (e.g "us-west1", "us-east1") across domains will allow for many domains to be rebalanced.
-	clusterAttributeName string
+	// ClusterAttributePreference declares the preferred active cluster for a single scope:name
+	// cluster attribute pair. Used both as the stored form in domain data
+	// (DomainDataKeyForClusterAttributePreferences) and as the unit returned by
+	// clusterAttributeUpdatesNeeded when a mismatch is detected.
+	ClusterAttributePreference struct {
+		Scope            string `json:"scope"`
+		Name             string `json:"name"`
+		PreferredCluster string `json:"preferredCluster"`
+	}
 
-	// ClusterAttributeRebalanceMap defines a mapping of cluster attribute to its preferred cluster.
-	// This allows Active-Active domains to be rebalanced to the preferred cluster for each attribute, without using the domain level preferred cluster.
-	// Example: {"region": {"us-west1": "prod-us-west1", "us-east1": "prod-us-east1"}}
-	ClusterAttributeRebalanceMap map[clusterAttributeScope]ClusterAttributeToClusterMap
-
-	// ClusterAttributeToClusterMap specifies which ClusterAttribute names map to which cadence cluster
-	ClusterAttributeToClusterMap map[clusterAttributeName]string
+	// DomainFailoverPreferences carries all per-domain failover instructions for FailoverActivity.
+	// It is extensible: future fields (e.g. GracefulFailoverSeconds) can be added without
+	// changing the activity registration.
+	DomainFailoverPreferences struct {
+		// PreferredCluster, when non-empty, sets the domain-level ActiveClusterName.
+		PreferredCluster string
+		// ClusterAttributeUpdates lists attribute-level mismatches that need correction.
+		// Each entry is a ClusterAttributePreference whose current active cluster differs
+		// from the preferred one.
+		ClusterAttributeUpdates []ClusterAttributePreference
+	}
 )
 
 const (
@@ -105,6 +112,7 @@ const (
 	unknownOperator = "unknown"
 
 	versionActiveActiveClusterAttributeFailover = "active-active-cluster-attribute-failover"
+	versionActiveActiveRebalanceFromDomainData  = "active-active-rebalance-from-domain-data"
 )
 
 type (
@@ -124,9 +132,9 @@ type (
 		DrillWaitTime time.Duration
 		// GracefulFailoverTimeoutInSeconds
 		GracefulFailoverTimeoutInSeconds *int32
-		// ClusterAttributeRebalanceMap defines a mapping of cluster attribute to its preferred cluster.
-		// Optional; carried as metadata for the active-active rebalance path.
-		ClusterAttributeRebalanceMap ClusterAttributeRebalanceMap `json:",omitempty"`
+		// DomainPreferences carries per-domain failover instructions for the rebalance path.
+		// When set, FailoverActivity uses per-domain preferences instead of the batch-level TargetCluster.
+		DomainPreferences map[string]*DomainFailoverPreferences `json:",omitempty"`
 		// ClusterAttributes, when non-empty, triggers failover for active-active domains.
 		// each listed scope+name pair is moved to TargetCluster via UpdateDomain.ActiveClusters instead of ActiveClusterName.
 		// GetDomainsActivity also switches to active-active mode when this is set.
@@ -157,6 +165,9 @@ type (
 		Domains                          []string
 		TargetCluster                    string
 		GracefulFailoverTimeoutInSeconds *int32
+		// DomainPreferences carries per-domain failover instructions for the rebalance path.
+		// When set for a domain, FailoverActivity uses per-domain preferences instead of TargetCluster.
+		DomainPreferences map[string]*DomainFailoverPreferences `json:",omitempty"`
 		// ClusterAttributes specifies which attributes to fail over to the TargetCluster across the environment.
 		// All active-active domains that have matching attributes (e.g scope:name) will be failed over.
 		// Optional.
@@ -303,6 +314,16 @@ func failoverDomainsByBatch(
 		}
 		if v >= 1 {
 			failoverActivityParams.ClusterAttributes = params.ClusterAttributes
+		}
+		vRebalance := workflow.GetVersion(ctx, versionActiveActiveRebalanceFromDomainData, workflow.DefaultVersion, 1)
+		if vRebalance >= 1 && len(params.DomainPreferences) > 0 {
+			batchPrefs := make(map[string]*DomainFailoverPreferences)
+			for _, d := range failoverActivityParams.Domains {
+				if p, ok := params.DomainPreferences[d]; ok {
+					batchPrefs[d] = p
+				}
+			}
+			failoverActivityParams.DomainPreferences = batchPrefs
 		}
 		var actResult FailoverActivityResult
 		err := workflow.ExecuteActivity(ao, FailoverActivity, failoverActivityParams).Get(ctx, &actResult)
@@ -512,24 +533,47 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
 	domains := params.Domains
-	isActiveActiveFailover := len(params.ClusterAttributes) > 0
 	var successDomains []string
 	var failedDomains []string
 	for _, domain := range domains {
-		if err := validateTaskListPollerInfo(ctx, params.TargetCluster, domain); err != nil {
-			logger.Error("Failed to validate task list poller info", zap.Error(err))
-			failedDomains = append(failedDomains, domain)
+		// Determine target clusters for poller validation.
+		// For per-domain preferences, validate against every distinct target cluster.
+		// For the old path, validate against the single TargetCluster.
+		var targetClusters []string
+		if prefs, ok := params.DomainPreferences[domain]; ok && prefs != nil {
+			targetClusters = collectTargetClusters(prefs)
+		} else if params.TargetCluster != "" {
+			targetClusters = []string{params.TargetCluster}
+		}
+
+		failed := false
+		for _, cluster := range targetClusters {
+			if err := validateTaskListPollerInfo(ctx, cluster, domain); err != nil {
+				logger.Error("Failed to validate task list poller info", zap.Error(err))
+				failedDomains = append(failedDomains, domain)
+				failed = true
+				break
+			}
+		}
+		if failed {
 			continue
 		}
-		// ActiveClusterName is set for all global and active-active domains.
-		// For Active-Active domains any workflows that do not use cluster attributes use this field,
-		// so it should maintain the same behaviour as a standard global domain.
-		updateRequest := &types.UpdateDomainRequest{
-			Name:              domain,
-			ActiveClusterName: common.StringPtr(params.TargetCluster),
-		}
-		if isActiveActiveFailover {
-			updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
+
+		updateRequest := &types.UpdateDomainRequest{Name: domain}
+		if prefs, ok := params.DomainPreferences[domain]; ok && prefs != nil {
+			// Per-domain rebalance path: use stored preferences.
+			if prefs.PreferredCluster != "" {
+				updateRequest.ActiveClusterName = common.StringPtr(prefs.PreferredCluster)
+			}
+			if len(prefs.ClusterAttributeUpdates) > 0 {
+				updateRequest.ActiveClusters = buildActiveClustersFromUpdates(prefs.ClusterAttributeUpdates)
+			}
+		} else {
+			// Failover/Legacy path: used by CLI-driven failover.
+			updateRequest.ActiveClusterName = common.StringPtr(params.TargetCluster)
+			if len(params.ClusterAttributes) > 0 {
+				updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
+			}
 		}
 		if params.GracefulFailoverTimeoutInSeconds != nil {
 			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
@@ -568,6 +612,45 @@ func buildActiveClusters(targetCluster string, attrs []types.ClusterAttribute) *
 		result.AttributeScopes[attr.GetScope()] = scope
 	}
 	return result
+}
+
+// buildActiveClustersFromUpdates constructs an ActiveClusters payload from per-domain
+// ClusterAttributePreferences. Each entry sets one scope:name attribute to its preferred cluster.
+func buildActiveClustersFromUpdates(updates []ClusterAttributePreference) *types.ActiveClusters {
+	result := &types.ActiveClusters{
+		AttributeScopes: make(map[string]types.ClusterAttributeScope),
+	}
+	for _, u := range updates {
+		scope, ok := result.AttributeScopes[u.Scope]
+		if !ok {
+			scope = types.ClusterAttributeScope{
+				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
+			}
+		}
+		scope.ClusterAttributes[u.Name] = types.ActiveClusterInfo{
+			ActiveClusterName: u.PreferredCluster,
+		}
+		result.AttributeScopes[u.Scope] = scope
+	}
+	return result
+}
+
+// collectTargetClusters returns the unique set of target clusters referenced by a domain's preferences.
+// This is used to run poller validation against every cluster the domain's attributes or
+// ActiveClusterName will move to.
+func collectTargetClusters(prefs *DomainFailoverPreferences) []string {
+	seen := make(map[string]struct{})
+	if prefs.PreferredCluster != "" {
+		seen[prefs.PreferredCluster] = struct{}{}
+	}
+	for _, u := range prefs.ClusterAttributeUpdates {
+		seen[u.PreferredCluster] = struct{}{}
+	}
+	clusters := make([]string, 0, len(seen))
+	for c := range seen {
+		clusters = append(clusters, c)
+	}
+	return clusters
 }
 
 func cleanupChannel(channel workflow.Channel) {
