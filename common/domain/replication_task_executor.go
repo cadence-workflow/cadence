@@ -61,7 +61,7 @@ const (
 	defaultDomainReplicationTaskContextTimeout = 5 * time.Second
 )
 
-// NOTE: the counterpart of domain replication transmission logic is in service/fropntend package
+// NOTE: the counterpart of domain replication transmission logic is in service/frontend package
 
 type (
 	// ReplicationTaskExecutor is the interface which is to execute domain replication task
