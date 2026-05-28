@@ -52,9 +52,9 @@ The rule is automatically skipped when **ANY** of these is true:
 ### 2. No workflow files changed
 - Diff does not touch `.github/workflows/`
 
-### 3. Bot-authored PRs
-- PRs where the author username ends with `[bot]`
-- Examples: `dependabot[bot]`, `renovate[bot]`
+## Bot PRs
+
+Bots are **not** exempt from this rule.
 
 ## Example Report
 
