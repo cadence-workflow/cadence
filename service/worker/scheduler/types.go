@@ -288,8 +288,11 @@ type ProcessFireRequest struct {
 	TriggerSource       TriggerSource               `json:"triggerSource"`
 	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
-	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit; 0 = unlimited.
-	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
+	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit:
+	//   nil      = unset (use server default; effectively unlimited)
+	//   *int32(0) = explicitly unlimited
+	//   *int32(N) = capped at N concurrent runs
+	ConcurrencyLimit *int32 `json:"concurrencyLimit,omitempty"`
 	// RunningWorkflows is the current in-flight set from workflow state; used
 	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`

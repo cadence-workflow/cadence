@@ -82,14 +82,15 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 func (wh *WorkflowHandler) warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName string, policies *types.SchedulePolicies) {
 	if policies == nil ||
 		policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer ||
-		int(policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
+		policies.BufferLimit == nil ||
+		int(*policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
 		return
 	}
 	wh.GetLogger().Warn(
 		"buffer_limit exceeds scheduler system limit; drops will be attributed to system_limit",
 		tag.WorkflowDomainName(domainName),
 		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
-		tag.Dynamic("bufferLimit", int(policies.BufferLimit)),
+		tag.Dynamic("bufferLimit", int(*policies.BufferLimit)),
 		tag.Dynamic("systemLimit", scheduler.MaxBufferedFiresSystemLimit),
 	)
 }

@@ -247,8 +247,13 @@ type SchedulePolicies struct {
 	CatchUpPolicy    ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
 	CatchUpWindow    time.Duration         `json:"catchUpWindow,omitempty"`
 	PauseOnFailure   bool                  `json:"pauseOnFailure,omitempty"`
-	BufferLimit      int32                 `json:"bufferLimit,omitempty"`
-	ConcurrencyLimit int32                 `json:"concurrencyLimit,omitempty"`
+	// BufferLimit and ConcurrencyLimit use *int32 to distinguish three states:
+	//   nil           -> "preserve existing" on Update, or "use server default" on Create
+	//   *int32(0)     -> explicitly unlimited
+	//   *int32(N>0)   -> capped at N
+	// See cadence-idl PR #268 for the matching wire-format change.
+	BufferLimit      *int32 `json:"bufferLimit,omitempty"`
+	ConcurrencyLimit *int32 `json:"concurrencyLimit,omitempty"`
 }
 
 func (v *SchedulePolicies) GetOverlapPolicy() (o ScheduleOverlapPolicy) {
@@ -279,18 +284,18 @@ func (v *SchedulePolicies) GetPauseOnFailure() (o bool) {
 	return
 }
 
-func (v *SchedulePolicies) GetBufferLimit() (o int32) {
+func (v *SchedulePolicies) GetBufferLimit() *int32 {
 	if v != nil {
 		return v.BufferLimit
 	}
-	return
+	return nil
 }
 
-func (v *SchedulePolicies) GetConcurrencyLimit() (o int32) {
+func (v *SchedulePolicies) GetConcurrencyLimit() *int32 {
 	if v != nil {
 		return v.ConcurrencyLimit
 	}
-	return
+	return nil
 }
 
 // SchedulePauseInfo captures the state of a paused schedule (response-only, server-populated).
