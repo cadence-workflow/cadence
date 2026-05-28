@@ -152,10 +152,11 @@ func (wh *WorkflowHandler) CreateSchedule(
 	}
 
 	workflowInput := scheduler.SchedulerWorkflowInput{
-		Domain:     domainName,
-		ScheduleID: scheduleID,
-		Spec:       *request.GetSpec(),
-		Action:     *request.GetAction(),
+		Domain:           domainName,
+		ScheduleID:       scheduleID,
+		Spec:             *request.GetSpec(),
+		Action:           *request.GetAction(),
+		SearchAttributes: request.GetSearchAttributes(),
 	}
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
