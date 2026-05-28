@@ -111,6 +111,18 @@ type cachedQueueReader struct {
 	// Always update via updateExclusiveUpperBound to keep the prefetch loop in sync.
 	exclusiveUpperBound persistence.HistoryTaskKey
 
+	// prefetchTargetUpper is the exclusive upper key the current in-flight prefetch
+	// is aiming to reach. Set under mu before the DB call; cleared to
+	// MinimumHistoryTaskKey after the call completes.
+	// MinimumHistoryTaskKey means no prefetch is in-flight.
+	prefetchTargetUpper persistence.HistoryTaskKey
+
+	// pendingInjectBuffer accumulates tasks arriving via Inject while a prefetch
+	// DB call is in-flight and whose key falls in [exclusiveUpperBound, prefetchTargetUpper).
+	// Drained into the in-memory queue after the prefetch completes.
+	// Guarded by mu.
+	pendingInjectBuffer []persistence.Task
+
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -270,6 +282,8 @@ func (q *cachedQueueReader) Clear() {
 	)
 
 	q.queue.Clear()
+	q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
+	q.prefetchTargetUpper = persistence.MinimumHistoryTaskKey
 	q.updateInclusiveLowerBound(persistence.MinimumHistoryTaskKey)
 	q.updateExclusiveUpperBound(persistence.MinimumHistoryTaskKey)
 }
@@ -311,6 +325,12 @@ func (q *cachedQueueReader) prefetch() error {
 	// and to the configured page size (to bound each round-trip).
 	pageSize := min(availableCacheSize, q.options.PrefetchPageSize())
 
+	// Record the prefetch's target window so Inject can buffer tasks that arrive
+	// while the DB call is in-flight. Cleared inside the write lock after the call.
+	q.mu.Lock()
+	q.prefetchTargetUpper = exclusiveMaxTaskKey
+	q.mu.Unlock()
+
 	resp, err := q.base.GetTask(q.ctx, &GetTaskRequest{
 		Progress: &GetTaskProgress{
 			Range: Range{
@@ -323,13 +343,18 @@ func (q *cachedQueueReader) prefetch() error {
 		Predicate: NewUniversalPredicate(),
 		PageSize:  pageSize,
 	})
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	// Always clear the in-flight target and drain the buffer, even on error,
+	// so that buffered tasks are not permanently lost.
+	defer q.insertBufferedTasks()
+	q.prefetchTargetUpper = persistence.MinimumHistoryTaskKey
+
 	if err != nil {
 		q.logger.Error("prefetch failed", tag.Error(err))
 		return fmt.Errorf("prefetch failed: %w", err)
 	}
-
-	q.mu.Lock()
-	defer q.mu.Unlock()
 
 	// Upper bound changed while we held the lock (e.g. a concurrent Inject
 	// triggered RTrimBySize, shrinking the window). The fetched tasks start at
@@ -381,6 +406,16 @@ func (q *cachedQueueReader) isTaskCovered(key persistence.HistoryTaskKey) bool {
 	return !key.Less(q.inclusiveLowerBound) && key.Less(q.exclusiveUpperBound)
 }
 
+// isToBufferTask reports whether t should be placed in pendingInjectBuffer so it can
+// be drained once the in-flight prefetch extends the window to cover it.
+// Caller must hold q.mu (read or write).
+func (q *cachedQueueReader) isToBufferTask(t persistence.Task) bool {
+	key := t.GetTaskKey()
+	return !q.prefetchTargetUpper.Equal(persistence.MinimumHistoryTaskKey) &&
+		!key.Less(q.inclusiveLowerBound) &&
+		key.Less(q.prefetchTargetUpper)
+}
+
 // putTasks adds tasks to the cache and enforces the size cap.
 // Returns true if RTrimBySize fired and updated exclusiveUpperBound,
 // meaning the caller must not re-advance the bound.
@@ -407,6 +442,22 @@ func (q *cachedQueueReader) putTasks(tasks []persistence.Task) bool {
 	q.updateExclusiveUpperBound(newUpper)
 
 	return true
+}
+
+// insertBufferedTasks drains pendingInjectBuffer into the cache for tasks now
+// covered by the updated exclusiveUpperBound. Must be called under q.mu (write lock).
+func (q *cachedQueueReader) insertBufferedTasks() {
+	if len(q.pendingInjectBuffer) == 0 {
+		return
+	}
+	var covered []persistence.Task
+	for _, t := range q.pendingInjectBuffer {
+		if q.isTaskCovered(t.GetTaskKey()) {
+			covered = append(covered, t)
+		}
+	}
+	q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
+	q.putTasks(covered)
 }
 
 // updateExclusiveUpperBound sets the upper bound and trigger prefetch if needed.
@@ -487,9 +538,11 @@ func (q *cachedQueueReader) UpdateReadLevel(readLevel persistence.HistoryTaskKey
 	q.advanceInclusiveLowerBound(readLevel)
 }
 
-// Inject adds tasks within [inclusiveLowerBound, exclusiveUpperBound) to the
-// in-memory queue. Tasks outside the window are skipped; the prefetch loop
-// loads them as the window advances. No-op when the cache is off.
+// Inject adds tasks that have just been persisted into the in-memory cache.
+// Tasks within the current cache window are inserted immediately. Tasks that
+// fall in [exclusiveUpperBound, prefetchTargetUpper) while a prefetch is
+// in-flight are buffered and drained once the prefetch completes. All other
+// tasks are dropped. No-op when the cache is off.
 func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 	if q.isDisabled() {
 		return
@@ -500,10 +553,18 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 
 	var covered []persistence.Task
 	for _, t := range tasks {
-		if t.GetTaskID() == 0 || !q.isTaskCovered(t.GetTaskKey()) {
+		if t.GetTaskID() == 0 {
+			// no tasks with taskID == 0 are expected
 			continue
 		}
-		covered = append(covered, t)
+		if q.isTaskCovered(t.GetTaskKey()) {
+			covered = append(covered, t)
+			continue
+		}
+		if q.isToBufferTask(t) {
+			q.pendingInjectBuffer = append(q.pendingInjectBuffer, t)
+			continue
+		}
 	}
 
 	q.putTasks(covered)
