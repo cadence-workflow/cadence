@@ -142,14 +142,30 @@ func (m *ClientImpl) getBuckets(id MetricIdx) tally.Buckets {
 func getMetricDefs(serviceIdx ServiceIdx) map[MetricIdx]metricDefinition {
 	defs := make(map[MetricIdx]metricDefinition)
 	for idx, def := range MetricDefs[Common] {
-		defs[idx] = def
+		defs[idx] = withIntValueBuckets(def)
 	}
 
 	for idx, def := range MetricDefs[serviceIdx] {
-		defs[idx] = def
+		defs[idx] = withIntValueBuckets(def)
 	}
 
 	return defs
+}
+
+// withIntValueBuckets pre-computes intValueBuckets from intExponentialBuckets
+// so IntExponentialHistogram emits bucket labels as plain integers rather than
+// duration strings (which Grafana cannot parse as numeric).
+func withIntValueBuckets(def metricDefinition) metricDefinition {
+	if def.intExponentialBuckets == nil {
+		return def
+	}
+	src := def.intExponentialBuckets.buckets()
+	out := make(tally.ValueBuckets, len(src))
+	for i, v := range src {
+		out[i] = float64(v)
+	}
+	def.intValueBuckets = out
+	return def
 }
 
 func mergeMapToRight(src map[string]string, dest map[string]string) {

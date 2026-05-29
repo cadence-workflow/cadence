@@ -55,6 +55,8 @@ func TestIntegrationSuite(t *testing.T) {
 		configPath = "testdata/integration_queuev2_cluster.yaml"
 		if os.Getenv("ENABLE_QUEUE_V2_ALERT") == "true" {
 			configPath = "testdata/integration_queuev2_with_alert_cluster.yaml"
+		} else if os.Getenv("ENABLE_QUEUE_V2_CACHED_QUEUE_READER") == "true" {
+			configPath = "testdata/integration_queuev2_cached_reader_cluster.yaml"
 		}
 	}
 	clusterConfig, err := GetTestClusterConfig(configPath)

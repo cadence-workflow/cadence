@@ -513,6 +513,10 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		failoverRequest.Reason = common.StringPtr(reason)
 	}
 
+	if c.IsSet(FlagFailoverTimeout) {
+		failoverRequest.FailoverTimeoutInSeconds = common.Int32Ptr(int32(c.Int(FlagFailoverTimeout)))
+	}
+
 	_, err = d.failoverDomain(ctx, failoverRequest)
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); ok {

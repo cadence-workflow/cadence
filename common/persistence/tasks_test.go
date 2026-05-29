@@ -193,6 +193,147 @@ func TestHistoryTaskKeyComparison(t *testing.T) {
 	assert.Equal(t, 1, key3.Compare(key2))
 }
 
+func TestHistoryTaskKeyLess(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name string
+		a, b HistoryTaskKey
+		want bool
+	}{
+		{
+			name: "same time lower taskID is less",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now, 2),
+			want: true,
+		},
+		{
+			name: "earlier time is less regardless of taskID",
+			a:    NewHistoryTaskKey(now, 2),
+			b:    NewHistoryTaskKey(now.Add(time.Second), 0),
+			want: true,
+		},
+		{
+			name: "greater key is not less",
+			a:    NewHistoryTaskKey(now, 2),
+			b:    NewHistoryTaskKey(now, 1),
+			want: false,
+		},
+		{
+			name: "equal key is not less",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now, 1),
+			want: false,
+		},
+		{
+			name: "minimum is less than maximum sentinel",
+			a:    MinimumHistoryTaskKey,
+			b:    MaximumHistoryTaskKey,
+			want: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.a.Less(tc.b))
+		})
+	}
+}
+
+func TestHistoryTaskKeyGreater(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name string
+		a, b HistoryTaskKey
+		want bool
+	}{
+		{
+			name: "higher taskID is greater",
+			a:    NewHistoryTaskKey(now, 2),
+			b:    NewHistoryTaskKey(now, 1),
+			want: true,
+		},
+		{
+			name: "later time is greater regardless of taskID",
+			a:    NewHistoryTaskKey(now.Add(time.Second), 0),
+			b:    NewHistoryTaskKey(now, 2),
+			want: true,
+		},
+		{
+			name: "smaller key is not greater",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now, 2),
+			want: false,
+		},
+		{
+			name: "equal key is not greater",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now, 1),
+			want: false,
+		},
+		{
+			name: "maximum is greater than minimum sentinel",
+			a:    MaximumHistoryTaskKey,
+			b:    MinimumHistoryTaskKey,
+			want: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.a.Greater(tc.b))
+		})
+	}
+}
+
+func TestHistoryTaskKeyEqual(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name string
+		a, b HistoryTaskKey
+		want bool
+	}{
+		{
+			name: "identical keys are equal",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now, 1),
+			want: true,
+		},
+		{
+			name: "same time different taskID are not equal",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now, 2),
+			want: false,
+		},
+		{
+			name: "different time same taskID are not equal",
+			a:    NewHistoryTaskKey(now, 1),
+			b:    NewHistoryTaskKey(now.Add(time.Second), 1),
+			want: false,
+		},
+		{
+			name: "minimum sentinel equals itself",
+			a:    MinimumHistoryTaskKey,
+			b:    MinimumHistoryTaskKey,
+			want: true,
+		},
+		{
+			name: "maximum sentinel equals itself",
+			a:    MaximumHistoryTaskKey,
+			b:    MaximumHistoryTaskKey,
+			want: true,
+		},
+		{
+			name: "minimum and maximum sentinels are not equal",
+			a:    MinimumHistoryTaskKey,
+			b:    MaximumHistoryTaskKey,
+			want: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.a.Equal(tc.b))
+		})
+	}
+}
+
 func TestIsTaskCorrupted(t *testing.T) {
 	timeNow := time.Now()
 

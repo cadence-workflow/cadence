@@ -21,6 +21,7 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -633,6 +634,18 @@ func TestHandleUpdate(t *testing.T) {
 			wantPol:     types.ScheduleOverlapPolicyConcurrent,
 			wantChanged: true,
 		},
+		{
+			name: "update search attributes only",
+			sig: UpdateSignal{
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"MyField": []byte(`"hello"`)},
+				},
+			},
+			wantCron:    "0 * * * *",
+			wantWF:      "old-workflow",
+			wantPol:     types.ScheduleOverlapPolicySkipNew,
+			wantChanged: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -644,6 +657,9 @@ func TestHandleUpdate(t *testing.T) {
 			assert.Equal(t, tt.wantCron, input.Spec.CronExpression)
 			assert.Equal(t, tt.wantWF, input.Action.StartWorkflow.WorkflowType.Name)
 			assert.Equal(t, tt.wantPol, input.Policies.OverlapPolicy)
+			if tt.sig.SearchAttributes != nil {
+				assert.Equal(t, tt.sig.SearchAttributes, input.SearchAttributes)
+			}
 		})
 	}
 
@@ -1146,6 +1162,53 @@ func TestBuildScheduleSearchAttributes(t *testing.T) {
 			want: map[string]interface{}{
 				SearchAttrScheduleState:        ScheduleStateActive,
 				SearchAttrScheduleWorkflowType: "wf",
+			},
+		},
+		{
+			name: "user search attributes are included in result",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"MyField": []byte(`"hello"`),
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+				"MyField":                      json.RawMessage(`"hello"`),
+			},
+		},
+		{
+			name: "reserved CadenceSchedule keys in user SAs are silently skipped",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"CadenceScheduleState": []byte(`"injected"`),
+						"MyField":              []byte(`"hello"`),
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+				"MyField":                      json.RawMessage(`"hello"`),
 			},
 		},
 	}

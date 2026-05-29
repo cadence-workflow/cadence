@@ -112,8 +112,6 @@ func (q *inMemQueueImpl) findTaskPosition(taskKey persistence.HistoryTaskKey) in
 // GetTasks returns up to pageSize tasks in [inclusiveMinTaskKey, exclusiveMaxTaskKey)
 // that match the predicate. nextTaskKey points to where the next page should start.
 func (q *inMemQueueImpl) GetTasks(inclusiveMinTaskKey, exclusiveMaxTaskKey persistence.HistoryTaskKey, predicate Predicate, pageSize int) ([]persistence.Task, persistence.HistoryTaskKey) {
-	// Guard against misconfigured callers — treat zero or negative page size as
-	// no results so we never index into an empty slice below.
 	if pageSize <= 0 {
 		return nil, inclusiveMinTaskKey
 	}

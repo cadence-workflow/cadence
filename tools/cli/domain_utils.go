@@ -290,6 +290,11 @@ var (
 			Aliases: []string{"r"},
 			Usage:   "Reason for failover (for tracking and transparency)",
 		},
+		&cli.IntFlag{
+			Name:    FlagFailoverTimeout,
+			Aliases: []string{"fts"},
+			Usage:   "[Optional] Graceful failover timeout in seconds. When set, the incoming active cluster waits up to this duration for pending replication tasks to drain before taking over",
+		},
 	}
 
 	listFailoverHistoryFlags = []cli.Flag{

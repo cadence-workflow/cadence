@@ -158,6 +158,12 @@ type Config struct {
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
 	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
+	TimerProcessorEnableCachedScheduledQueue          dynamicproperties.BoolPropertyFn
+	TimerProcessorCachedQueueReaderMode               dynamicproperties.StringPropertyFn
+	TimerProcessorCacheMaxSize                        dynamicproperties.IntPropertyFn
+	TimerProcessorCachePrefetchTriggerWindow          dynamicproperties.DurationPropertyFn
+	TimerProcessorCacheTimeEvictionWindow             dynamicproperties.DurationPropertyFn
+	TimerProcessorCacheMinPrefetchInterval            dynamicproperties.DurationPropertyFn
 
 	// TransferQueueProcessor settings
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
@@ -472,6 +478,12 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
+		TimerProcessorEnableCachedScheduledQueue:             dc.GetBoolProperty(dynamicproperties.TimerProcessorEnableCachedScheduledQueue),
+		TimerProcessorCachedQueueReaderMode:                  dc.GetStringProperty(dynamicproperties.TimerProcessorCachedQueueReaderMode),
+		TimerProcessorCacheMaxSize:                           dc.GetIntProperty(dynamicproperties.TimerProcessorCacheMaxSize),
+		TimerProcessorCachePrefetchTriggerWindow:             dc.GetDurationProperty(dynamicproperties.TimerProcessorCachePrefetchTriggerWindow),
+		TimerProcessorCacheTimeEvictionWindow:                dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheTimeEvictionWindow),
+		TimerProcessorCacheMinPrefetchInterval:               dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheMinPrefetchInterval),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),

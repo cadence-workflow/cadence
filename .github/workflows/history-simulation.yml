@@ -1,0 +1,55 @@
+# This workflow runs history simulation scenarios via GithubActions matrix strategy.
+# Scenarios are defined in the `simulation/history/testdata/history_simulation_<scenario>.yaml` files.
+name: History Simulation
+on:
+  push:
+  pull_request:
+
+jobs:
+  history-simulation:
+    name: History Simulation (${{ matrix.scenario }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - default
+          - queuev2
+          - queuev2_scheduled_cache_enabled
+          - queuev2_split
+        include:
+          - scenario: queuev2_scheduled_cache_enabled
+            experimental: true
+    continue-on-error: ${{ matrix.experimental == true }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.5'
+
+      - name: Run simulation
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 2
+          timeout_minutes: 20
+          command: |
+            ./simulation/history/run.sh --scenario ${{ matrix.scenario }}
+
+      - name: Upload test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: history-${{ matrix.scenario }}-test.log
+          path: ./test.log
+
+      - name: Upload simulation output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: history-${{ matrix.scenario }}-output
+          path: ./history-simulator-output/

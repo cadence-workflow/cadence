@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination replicationTaskHandler_mock.go
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination replication_task_handler_mock.go
 
 package domain
 
@@ -58,10 +58,10 @@ var (
 )
 
 const (
-	defaultDomainRepliationTaskContextTimeout = 5 * time.Second
+	defaultDomainReplicationTaskContextTimeout = 5 * time.Second
 )
 
-// NOTE: the counterpart of domain replication transmission logic is in service/fropntend package
+// NOTE: the counterpart of domain replication transmission logic is in service/frontend package
 
 type (
 	// ReplicationTaskExecutor is the interface which is to execute domain replication task
@@ -97,7 +97,7 @@ func NewReplicationTaskExecutor(
 
 // Execute handles receiving of the domain replication task
 func (h *domainReplicationTaskExecutorImpl) Execute(task *types.DomainTaskAttributes) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultDomainRepliationTaskContextTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultDomainReplicationTaskContextTimeout)
 	defer cancel()
 
 	if err := h.validateDomainReplicationTask(task); err != nil {
@@ -155,7 +155,7 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainCreationReplicationTask(
 	_, err = h.domainManager.CreateDomain(ctx, request)
 	if err != nil {
 		// SQL and Cassandra handle domain UUID collision differently
-		// here, whenever seeing a error replicating a domain
+		// here, whenever seeing an error replicating a domain
 		// do a check if there is a name / UUID collision
 
 		recordExists := true
@@ -231,16 +231,13 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 	}
 	notificationVersion := metadata.NotificationVersion
 
-	// plus, we need to check whether the config version is <= the config version set in the input
-	// plus, we need to check whether the failover version is <= the failover version set in the input
 	originalDomainState, err := h.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
 		ID: task.GetID(),
 	})
-	intendedDomainState := originalDomainState.DeepCopy()
-
 	if err != nil {
-		if _, ok := err.(*types.EntityNotExistsError); ok {
-			// this can happen if the create domain replication task is to processed.
+		var entityNotExistsError *types.EntityNotExistsError
+		if errors.As(err, &entityNotExistsError) {
+			// this can happen if the createDomain replication task is to be processed.
 			// e.g. new cluster which does not have anything
 			return h.handleDomainCreationReplicationTask(ctx, task)
 		}
@@ -248,20 +245,22 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		return err
 	}
 
+	// Shallow-copy ReplicationConfig so in-place edits below don't mutate originalDomainState.
+	updatedReplicationConfig := *originalDomainState.ReplicationConfig
 	recordUpdated := false
 	request := &persistence.UpdateDomainRequest{
-		Info:                        intendedDomainState.Info,
-		Config:                      intendedDomainState.Config,
-		ReplicationConfig:           intendedDomainState.ReplicationConfig,
-		ConfigVersion:               intendedDomainState.ConfigVersion,
-		FailoverVersion:             intendedDomainState.FailoverVersion,
-		FailoverNotificationVersion: intendedDomainState.FailoverNotificationVersion,
-		PreviousFailoverVersion:     intendedDomainState.PreviousFailoverVersion,
+		Info:                        originalDomainState.Info,
+		Config:                      originalDomainState.Config,
+		ReplicationConfig:           &updatedReplicationConfig,
+		ConfigVersion:               originalDomainState.ConfigVersion,
+		FailoverVersion:             originalDomainState.FailoverVersion,
+		FailoverNotificationVersion: originalDomainState.FailoverNotificationVersion,
+		PreviousFailoverVersion:     originalDomainState.PreviousFailoverVersion,
 		NotificationVersion:         notificationVersion,
 		LastUpdatedTime:             h.timeSource.Now().UnixNano(),
 	}
 
-	if intendedDomainState.ConfigVersion < task.GetConfigVersion() {
+	if originalDomainState.ConfigVersion < task.GetConfigVersion() {
 		recordUpdated = true
 		request.Info = &persistence.DomainInfo{
 			ID:          task.GetID(),
@@ -295,19 +294,18 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		request.FailoverVersion = task.GetFailoverVersion()
 		request.FailoverNotificationVersion = notificationVersion
 		request.PreviousFailoverVersion = task.GetPreviousFailoverVersion()
-	} else if !originalDomainState.ReplicationConfig.IsActiveActive() {
-		h.logger.Warn("the existing failover version was more recent, indicating that the domain replication message was out of date and is consequently being dropped",
-			tag.WorkflowDomainName(originalDomainState.Info.Name),
-			tag.FailoverVersion(originalDomainState.FailoverVersion),
-			tag.FailoverVersion(task.GetFailoverVersion()))
-	}
-
-	if intendedDomainState.ReplicationConfig.IsActiveActive() || task.ReplicationConfig.IsActiveActive() {
-		mergedActiveClusters, aaChanged := mergeActiveActiveScopes(intendedDomainState.ReplicationConfig.ActiveClusters, task.ReplicationConfig.ActiveClusters)
+	} else if originalDomainState.ReplicationConfig.IsActiveActive() || task.ReplicationConfig.IsActiveActive() {
+		// No failover-version bump, but active-active: merge any incremental per-attribute updates.
+		mergedActiveClusters, aaChanged := mergeActiveActiveScopes(originalDomainState.ReplicationConfig.ActiveClusters, task.ReplicationConfig.ActiveClusters)
 		if aaChanged {
 			recordUpdated = true
 			request.ReplicationConfig.ActiveClusters = mergedActiveClusters
 		}
+	} else {
+		h.logger.Warn("the existing failover version was more recent, indicating that the domain replication message was out of date and is consequently being dropped",
+			tag.WorkflowDomainName(originalDomainState.Info.Name),
+			tag.FailoverVersion(originalDomainState.FailoverVersion),
+			tag.FailoverVersion(task.GetFailoverVersion()))
 	}
 
 	if !recordUpdated {
@@ -332,26 +330,14 @@ func (h *domainReplicationTaskExecutorImpl) handleDomainUpdateReplicationTask(ct
 		return fmt.Errorf("failed to get domain while trying to create domain audit log for update: %w", getErr)
 	}
 
-	// relying on the fact that for both failovers and the failover of cluster-attibutes
+	// relying on the fact that for both failovers and the failover of cluster-attributes
 	// within the domain, in both instances the failover version will be incremented, indicating
 	// this is failover type update.
-	if intendedDomainState.FailoverVersion < afterUpdate.FailoverVersion {
-		h.createDomainAuditLog(
-			ctx,
-			task,
-			persistence.DomainAuditOperationTypeFailover,
-			originalDomainState,
-			afterUpdate,
-		)
-		return nil
+	opType := persistence.DomainAuditOperationTypeUpdate
+	if originalDomainState.FailoverVersion < afterUpdate.FailoverVersion {
+		opType = persistence.DomainAuditOperationTypeFailover
 	}
-	h.createDomainAuditLog(
-		ctx,
-		task,
-		persistence.DomainAuditOperationTypeUpdate,
-		originalDomainState,
-		afterUpdate,
-	)
+	h.createDomainAuditLog(ctx, task, opType, originalDomainState, afterUpdate)
 	return nil
 }
 
@@ -410,7 +396,7 @@ func (h *domainReplicationTaskExecutorImpl) validateDomainReplicationTask(task *
 
 func (h *domainReplicationTaskExecutorImpl) convertClusterReplicationConfigFromThrift(
 	input []*types.ClusterReplicationConfiguration) []*persistence.ClusterReplicationConfig {
-	output := []*persistence.ClusterReplicationConfig{}
+	var output []*persistence.ClusterReplicationConfig
 	for _, cluster := range input {
 		clusterName := cluster.GetClusterName()
 		output = append(output, &persistence.ClusterReplicationConfig{ClusterName: clusterName})

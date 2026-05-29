@@ -369,6 +369,15 @@ func (a HistoryTaskKey) IsZero() bool {
 	return a.scheduledTime.IsZero() && a.taskID == 0
 }
 
+// Less reports whether a sorts before b.
+func (a HistoryTaskKey) Less(b HistoryTaskKey) bool { return a.Compare(b) < 0 }
+
+// Greater reports whether a sorts after b.
+func (a HistoryTaskKey) Greater(b HistoryTaskKey) bool { return a.Compare(b) > 0 }
+
+// Equal reports whether a and b are identical.
+func (a HistoryTaskKey) Equal(b HistoryTaskKey) bool { return a.Compare(b) == 0 }
+
 func MinHistoryTaskKey(a, b HistoryTaskKey) HistoryTaskKey {
 	if a.Compare(b) < 0 {
 		return a
