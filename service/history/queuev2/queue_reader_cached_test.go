@@ -1195,3 +1195,113 @@ func TestCachedQueueReader_IsRangeCovered(t *testing.T) {
 		})
 	}
 }
+
+func TestCachedQueueReader_IsTaskCovered(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+
+	tests := []struct {
+		name string
+		key  persistence.HistoryTaskKey
+		want bool
+	}{
+		{
+			name: "key before lower bound",
+			key:  newTimeKey(now.Add(-time.Minute)),
+			want: false,
+		},
+		{
+			name: "key at lower bound (inclusive)",
+			key:  lower,
+			want: true,
+		},
+		{
+			name: "key inside window",
+			key:  newTimeKey(now.Add(30 * time.Minute)),
+			want: true,
+		},
+		{
+			name: "key at upper bound (exclusive)",
+			key:  upper,
+			want: false,
+		},
+		{
+			name: "key beyond upper bound",
+			key:  newTimeKey(now.Add(2 * time.Hour)),
+			want: false,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	r, _ := setupMocksForCachedQueueReader(t, ctrl)
+	setBounds(r, lower, upper)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, r.isTaskCovered(tc.key))
+		})
+	}
+}
+
+func TestCachedQueueReader_IsToBufferTask(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+	prefetchTarget := newTimeKey(now.Add(2 * time.Hour))
+
+	tests := []struct {
+		name                string
+		prefetchTargetUpper persistence.HistoryTaskKey
+		key                 persistence.HistoryTaskKey
+		want                bool
+	}{
+		{
+			name:                "no prefetch in-flight (prefetchTargetUpper is minimum)",
+			prefetchTargetUpper: persistence.MinimumHistoryTaskKey,
+			key:                 newTimeKey(now.Add(90 * time.Minute)),
+			want:                false,
+		},
+		{
+			name:                "key inside covered window (below upper bound)",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 newTimeKey(now.Add(30 * time.Minute)),
+			want:                false,
+		},
+		{
+			name:                "key at upper bound (start of buffer window, inclusive)",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 upper,
+			want:                true,
+		},
+		{
+			name:                "key inside buffer window",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 newTimeKey(now.Add(90 * time.Minute)),
+			want:                true,
+		},
+		{
+			name:                "key at prefetch target (exclusive)",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 prefetchTarget,
+			want:                false,
+		},
+		{
+			name:                "key beyond prefetch target",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 newTimeKey(now.Add(3 * time.Hour)),
+			want:                false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			r, _ := setupMocksForCachedQueueReader(t, ctrl)
+			setBounds(r, lower, upper)
+			r.prefetchTargetUpper = tc.prefetchTargetUpper
+
+			assert.Equal(t, tc.want, r.isToBufferTask(tc.key))
+		})
+	}
+}
