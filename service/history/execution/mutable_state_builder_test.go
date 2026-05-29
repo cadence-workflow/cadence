@@ -3846,6 +3846,116 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "child workflow terminated event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTerminated)
+				event1.ChildWorkflowExecutionTerminatedEventAttributes = &types.ChildWorkflowExecutionTerminatedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTerminated)
+				event2.ChildWorkflowExecutionTerminatedEventAttributes = &types.ChildWorkflowExecutionTerminatedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "start child workflow execution failed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeStartChildWorkflowExecutionFailed)
+				event1.StartChildWorkflowExecutionFailedEventAttributes = &types.StartChildWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeStartChildWorkflowExecutionFailed)
+				event2.StartChildWorkflowExecutionFailedEventAttributes = &types.StartChildWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "external workflow execution cancel requested event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeExternalWorkflowExecutionCancelRequested)
+				event1.ExternalWorkflowExecutionCancelRequestedEventAttributes = &types.ExternalWorkflowExecutionCancelRequestedEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeExternalWorkflowExecutionCancelRequested)
+				event2.ExternalWorkflowExecutionCancelRequestedEventAttributes = &types.ExternalWorkflowExecutionCancelRequestedEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "request cancel external workflow execution failed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeRequestCancelExternalWorkflowExecutionFailed)
+				event1.RequestCancelExternalWorkflowExecutionFailedEventAttributes = &types.RequestCancelExternalWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeRequestCancelExternalWorkflowExecutionFailed)
+				event2.RequestCancelExternalWorkflowExecutionFailedEventAttributes = &types.RequestCancelExternalWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "external workflow execution signaled event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeExternalWorkflowExecutionSignaled)
+				event1.ExternalWorkflowExecutionSignaledEventAttributes = &types.ExternalWorkflowExecutionSignaledEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeExternalWorkflowExecutionSignaled)
+				event2.ExternalWorkflowExecutionSignaledEventAttributes = &types.ExternalWorkflowExecutionSignaledEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "signal external workflow execution failed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeSignalExternalWorkflowExecutionFailed)
+				event1.SignalExternalWorkflowExecutionFailedEventAttributes = &types.SignalExternalWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeSignalExternalWorkflowExecutionFailed)
+				event2.SignalExternalWorkflowExecutionFailedEventAttributes = &types.SignalExternalWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
 			name: "reorder events",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
