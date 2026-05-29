@@ -59,11 +59,12 @@ type (
 		maxBadBinaryCount      int
 		failoverHistoryMaxSize int
 
-		domainManager        persistence.DomainManager
-		mockProducer         *mocks.KafkaProducer
-		mockDomainReplicator Replicator
-		archivalMetadata     archiver.ArchivalMetadata
-		mockArchiverProvider *provider.MockArchiverProvider
+		domainManager          persistence.DomainManager
+		mockProducer           *mocks.KafkaProducer
+		mockDomainReplicator   Replicator
+		archivalMetadata       archiver.ArchivalMetadata
+		mockArchiverProvider   *provider.MockArchiverProvider
+		mockDomainAuditManager persistence.DomainAuditManager
 
 		handler *handlerImpl
 	}
@@ -103,6 +104,7 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 	s.domainManager = s.TestBase.DomainManager
 	s.mockProducer = &mocks.KafkaProducer{}
 	s.mockDomainReplicator = NewDomainReplicator(s.mockProducer, logger)
+	s.mockDomainAuditManager = persistence.NewMockDomainAuditManager(s.Controller)
 	s.archivalMetadata = archiver.NewArchivalMetadata(
 		dcCollection,
 		"",
@@ -113,15 +115,17 @@ func (s *domainHandlerCommonSuite) SetupTest() {
 	)
 	s.mockArchiverProvider = provider.NewMockArchiverProvider(s.Controller)
 	domainConfig := Config{
-		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,

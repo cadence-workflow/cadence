@@ -31,6 +31,7 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
@@ -63,10 +64,20 @@ func (s *domainReplicationTaskExecutorSuite) setupTestBase(t *testing.T) {
 func (s *domainReplicationTaskExecutorSuite) SetupTest() {
 	s.setupTestBase(s.T())
 
+	domainAuditManager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	if err != nil {
+		s.T().Fatalf("Failed to create domain audit manager: %v", err)
+	}
+
+	// Disable audit logging for integration tests as SQLite doesn't fully support the audit manager
+	enableAuditLogging := func(...dynamicproperties.FilterOption) bool { return false }
+
 	s.domainReplicator = NewReplicationTaskExecutor(
 		s.DomainManager,
+		domainAuditManager,
 		clock.NewRealTimeSource(),
 		s.Logger,
+		enableAuditLogging,
 	).(*domainReplicationTaskExecutorImpl)
 }
 

@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,7 +110,7 @@ func (s *mutableStateSuite) SetupTest() {
 	// set the checksum probabilities to 100% for exercising during test
 	s.mockShard.GetConfig().MutableStateChecksumGenProbability = func(domain string) int { return 100 }
 	s.mockShard.GetConfig().MutableStateChecksumVerifyProbability = func(domain string) int { return 100 }
-	s.mockShard.GetConfig().EnableRetryForChecksumFailure = func(domain string) bool { return true }
+	s.mockShard.GetConfig().EnableCorruptionAutoRepair = func(domain string) bool { return false }
 
 	s.mockEventsCache = s.mockShard.GetEventsCache().(*events.MockCache)
 
@@ -126,11 +128,11 @@ func (s *mutableStateSuite) TearDownTest() {
 }
 
 func (s *mutableStateSuite) TestErrorReturnedWhenSchedulingTooManyPendingActivities() {
-	for i := 0; i < s.msBuilder.config.PendingActivitiesCountLimitError(); i++ {
+	for i := 0; i < s.msBuilder.config.PendingActivitiesCountLimitError(constants.TestDomainName); i++ {
 		s.msBuilder.pendingActivityInfoIDs[int64(i)] = &persistence.ActivityInfo{}
 	}
 
-	_, _, _, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(nil, 1, &types.ScheduleActivityTaskDecisionAttributes{}, false)
+	_, _, _, err := s.msBuilder.AddActivityTaskScheduledEvent(1, &types.ScheduleActivityTaskDecisionAttributes{})
 	assert.Equal(s.T(), "Too many pending activities", err.Error())
 }
 
@@ -354,8 +356,7 @@ func (s *mutableStateSuite) TestReorderEvents() {
 		BufferedEvents: bufferedEvents,
 	}
 
-	err := s.msBuilder.Load(context.Background(), dbState)
-	s.Nil(err)
+	s.msBuilder.Load(context.Background(), dbState)
 
 	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.bufferedEvents[0].GetEventType())
 	s.Equal(int64(-123), s.msBuilder.bufferedEvents[0].ID)
@@ -365,7 +366,7 @@ func (s *mutableStateSuite) TestReorderEvents() {
 	s.Equal(int64(-123), s.msBuilder.bufferedEvents[1].ActivityTaskCompletedEventAttributes.GetStartedEventID())
 	s.Equal(int64(5), s.msBuilder.bufferedEvents[1].ActivityTaskCompletedEventAttributes.GetScheduledEventID())
 
-	err = s.msBuilder.FlushBufferedEvents()
+	err := s.msBuilder.FlushBufferedEvents()
 	s.Nil(err)
 
 	s.Equal(types.EventTypeActivityTaskStarted, s.msBuilder.hBuilder.history[0].GetEventType())
@@ -438,8 +439,7 @@ func (s *mutableStateSuite) TestChecksum() {
 
 			// verify checksum is verified on Load
 			dbState.Checksum = csum
-			err = s.msBuilder.Load(context.Background(), dbState)
-			s.NoError(err)
+			s.msBuilder.Load(context.Background(), dbState)
 			s.Equal(loadErrors, loadErrorsFunc())
 
 			// generate checksum again and verify its the same
@@ -448,11 +448,10 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.NotNil(csum.Value)
 			s.Equal(dbState.Checksum.Value, csum.Value)
 
-			// modify checksum and verify Load fails
+			// modify checksum — Load now succeeds (checksum verification moved to WorkflowRepairer)
 			dbState.Checksum.Value[0]++
-			err = s.msBuilder.Load(context.Background(), dbState)
-			s.Error(err)
-			s.Equal(loadErrors+1, loadErrorsFunc())
+			s.msBuilder.Load(context.Background(), dbState)
+			s.Equal(loadErrors, loadErrorsFunc()) // no counter: repairer does verification, not Load
 			s.EqualValues(dbState.Checksum, s.msBuilder.checksum)
 
 			// test checksum is invalidated
@@ -460,8 +459,7 @@ func (s *mutableStateSuite) TestChecksum() {
 			s.mockShard.GetConfig().MutableStateChecksumInvalidateBefore = func(...dynamicproperties.FilterOption) float64 {
 				return float64((s.msBuilder.executionInfo.LastUpdatedTimestamp.UnixNano() / int64(time.Second)) + 1)
 			}
-			err = s.msBuilder.Load(context.Background(), dbState)
-			s.NoError(err)
+			s.msBuilder.Load(context.Background(), dbState)
 			s.Equal(loadErrors, loadErrorsFunc())
 			s.EqualValues(checksum.Checksum{}, s.msBuilder.checksum)
 
@@ -476,12 +474,9 @@ func (s *mutableStateSuite) TestChecksum() {
 func (s *mutableStateSuite) TestChecksumProbabilities() {
 	for _, prob := range []int{0, 100} {
 		s.mockShard.GetConfig().MutableStateChecksumGenProbability = func(domain string) int { return prob }
-		s.mockShard.GetConfig().MutableStateChecksumVerifyProbability = func(domain string) int { return prob }
 		for i := 0; i < 100; i++ {
 			shouldGenerate := s.msBuilder.shouldGenerateChecksum()
-			shouldVerify := s.msBuilder.shouldVerifyChecksum()
 			s.Equal(prob == 100, shouldGenerate)
-			s.Equal(prob == 100, shouldVerify)
 		}
 	}
 }
@@ -3626,7 +3621,9 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			td.shardContextExpectations(mockCache, shardContext, mockDomainCache)
 
 			mutation, workflowEvents, err := ms.CloseTransactionAsMutation(now, td.transactionPolicy)
-			assert.Equal(t, td.expectedMutation, mutation)
+			if diff := cmp.Diff(td.expectedMutation, mutation, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("mutation mismatch (-want +got):\n%s", diff)
+			}
 			assert.Equal(t, td.expectedEvent, workflowEvents)
 			assert.Equal(t, td.expectedErr, err)
 		})
@@ -3655,11 +3652,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1, event2}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 0, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 0, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "started event duplicated",
+			name: "activity started event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
 				event1.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
@@ -3675,11 +3672,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "completed event duplicated",
+			name: "activty completed event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCompleted)
 				event1.ActivityTaskCompletedEventAttributes = &types.ActivityTaskCompletedEventAttributes{
@@ -3693,11 +3690,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "canceled event duplicated",
+			name: "activity canceled event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskCanceled)
 				event1.ActivityTaskCanceledEventAttributes = &types.ActivityTaskCanceledEventAttributes{
@@ -3711,11 +3708,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "failed event duplicated",
+			name: "activity failed event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskFailed)
 				event1.ActivityTaskFailedEventAttributes = &types.ActivityTaskFailedEventAttributes{
@@ -3729,11 +3726,11 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
-			name: "timed out event duplicated",
+			name: "activity timed out event duplicated",
 			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
 				event1 := msb.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
 				event1.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
@@ -3747,7 +3744,105 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
 			},
 			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
-				assert.Equal(t, 1, logs.FilterMessage("Duplicate activity task event found").Len())
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow started event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event1.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 1,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event2.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 1,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow completed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event1.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event2.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow failed event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionFailed)
+				event1.ChildWorkflowExecutionFailedEventAttributes = &types.ChildWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionFailed)
+				event2.ChildWorkflowExecutionFailedEventAttributes = &types.ChildWorkflowExecutionFailedEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow timed out event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTimedOut)
+				event1.ChildWorkflowExecutionTimedOutEventAttributes = &types.ChildWorkflowExecutionTimedOutEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionTimedOut)
+				event2.ChildWorkflowExecutionTimedOutEventAttributes = &types.ChildWorkflowExecutionTimedOutEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
+			},
+		},
+		{
+			name: "child workflow canceled event duplicated",
+			buildEvents: func(msb *mutableStateBuilder) ([]*types.HistoryEvent, []*types.HistoryEvent) {
+				event1 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCanceled)
+				event1.ChildWorkflowExecutionCanceledEventAttributes = &types.ChildWorkflowExecutionCanceledEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+				event2 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCanceled)
+				event2.ChildWorkflowExecutionCanceledEventAttributes = &types.ChildWorkflowExecutionCanceledEventAttributes{
+					InitiatedEventID: 1,
+					StartedEventID:   2,
+				}
+
+				return []*types.HistoryEvent{event1, event2}, []*types.HistoryEvent{event1}
+			},
+			assertions: func(t *testing.T, logs *observer.ObservedLogs) {
+				assert.Equal(t, 1, logs.FilterMessage("Duplicate event found").Len())
 			},
 		},
 		{
@@ -3830,8 +3925,28 @@ func Test__reorderAndFilterDuplicateEvents(t *testing.T) {
 				event3.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
 					ScheduledEventID: 1,
 				}
+				event4 := msb.CreateNewHistoryEvent(types.EventTypeStartChildWorkflowExecutionInitiated)
+				event4.StartChildWorkflowExecutionInitiatedEventAttributes = &types.StartChildWorkflowExecutionInitiatedEventAttributes{}
+				event5 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event5.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 4,
+				}
+				event6 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionStarted)
+				event6.ChildWorkflowExecutionStartedEventAttributes = &types.ChildWorkflowExecutionStartedEventAttributes{
+					InitiatedEventID: 4,
+				}
+				event7 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event7.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 4,
+					StartedEventID:   5,
+				}
+				event8 := msb.CreateNewHistoryEvent(types.EventTypeChildWorkflowExecutionCompleted)
+				event8.ChildWorkflowExecutionCompletedEventAttributes = &types.ChildWorkflowExecutionCompletedEventAttributes{
+					InitiatedEventID: 4,
+					StartedEventID:   5,
+				}
 
-				return []*types.HistoryEvent{event2, event1, event3}, []*types.HistoryEvent{event1, event2}
+				return []*types.HistoryEvent{event2, event1, event3, event4, event5, event6, event7, event8}, []*types.HistoryEvent{event1, event4, event5, event2, event7}
 			},
 		},
 	}
@@ -3913,16 +4028,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   100,
-					},
-					"region1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   200,
-					},
-				},
 				AttributeScopes: map[string]types.ClusterAttributeScope{
 					"cityID": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -3938,6 +4043,14 @@ func TestLoad_ActiveActive(t *testing.T) {
 					},
 					"regionID": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"region1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
 							"us-west": {
 								ActiveClusterName: "cluster0",
 								FailoverVersion:   100,
@@ -3998,7 +4111,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 		mutableState                   *persistence.WorkflowMutableState
 		activeClusterManagerAffordance func(activeClusterManager *activecluster.MockManager)
 		expectedCurrentVersion         int64
-		expectedErr                    error
 	}{
 		"Non-active-active domain": {
 			domainEntry:  nonActiveActiveDomainEntry,
@@ -4006,7 +4118,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
 			},
 			expectedCurrentVersion: commonconstants.EmptyVersion,
-			expectedErr:            nil,
 		},
 		"Active-active domain with nil version history - should return EmptyVersion": {
 			domainEntry:  activeActiveDomainEntry,
@@ -4014,7 +4125,6 @@ func TestLoad_ActiveActive(t *testing.T) {
 			activeClusterManagerAffordance: func(activeClusterManager *activecluster.MockManager) {
 			},
 			expectedCurrentVersion: commonconstants.EmptyVersion, // GetCurrentVersion returns EmptyVersion when versionHistories is nil
-			expectedErr:            nil,
 		},
 	}
 
@@ -4044,16 +4154,10 @@ func TestLoad_ActiveActive(t *testing.T) {
 			td.activeClusterManagerAffordance(activeClusterManager)
 
 			// Execute Load function
-			err := msb.Load(context.Background(), td.mutableState)
+			msb.Load(context.Background(), td.mutableState)
 
 			// Verify results
-			if td.expectedErr != nil {
-				require.Error(t, err)
-				assert.Equal(t, td.expectedErr.Error(), err.Error())
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, td.expectedCurrentVersion, msb.GetCurrentVersion())
-			}
+			assert.Equal(t, td.expectedCurrentVersion, msb.GetCurrentVersion())
 		})
 	}
 }
@@ -4093,14 +4197,18 @@ func TestStartTransaction(t *testing.T) {
 		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					"region0": {
-						ActiveClusterName: "cluster0",
-						FailoverVersion:   100,
-					},
-					"region1": {
-						ActiveClusterName: "cluster1",
-						FailoverVersion:   200,
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   100,
+							},
+							"region1": {
+								ActiveClusterName: "cluster1",
+								FailoverVersion:   200,
+							},
+						},
 					},
 				},
 			},

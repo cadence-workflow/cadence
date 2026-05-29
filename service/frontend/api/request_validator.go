@@ -374,8 +374,8 @@ func (v *requestValidatorImpl) ValidateFailoverDomainRequest(ctx context.Context
 		return validate.ErrDomainNotSet
 	}
 
-	if failoverDomainRequest.DomainActiveClusterName == nil {
-		return &types.BadRequestError{Message: "DomainActiveClusterName must be provided to failover the domain"}
+	if failoverDomainRequest.DomainActiveClusterName == nil && failoverDomainRequest.ActiveClusters == nil {
+		return &types.BadRequestError{Message: "DomainActiveClusterName or ActiveClusters must be provided to failover the domain"}
 	}
 
 	// Security token is not required for failover request - reject the failover if the cluster is in lockdown

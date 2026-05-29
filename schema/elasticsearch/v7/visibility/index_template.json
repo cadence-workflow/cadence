@@ -51,10 +51,25 @@
       "NumClusters": {
         "type": "integer"
       },
+      "ClusterAttributeScope": {
+        "type": "keyword"
+      },
+      "ClusterAttributeName": {
+        "type": "keyword"
+      },
       "UpdateTime": {
         "type": "long"
       },
       "ShardID": {
+        "type": "long"
+      },
+      "CronSchedule": {
+        "type": "keyword"
+      },
+      "ExecutionStatus": {
+        "type": "integer"
+      },
+      "ScheduledExecutionTime": {
         "type": "long"
       },
       "Attr": {

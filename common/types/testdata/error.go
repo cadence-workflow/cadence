@@ -115,6 +115,9 @@ var (
 	StickyWorkerUnavailableError = types.StickyWorkerUnavailableError{
 		Message: ErrorMessage,
 	}
+	ReadOnlyPartitionError = types.ReadOnlyPartitionError{
+		Message: ErrorMessage,
+	}
 	TaskListNotOwnedByHostError = cadence_errors.TaskListNotOwnedByHostError{
 		OwnedByIdentity: HostName,
 		MyIdentity:      HostName2,
@@ -151,6 +154,7 @@ var Errors = []error{
 	&ShardOwnershipLostError,
 	&WorkflowExecutionAlreadyStartedError,
 	&StickyWorkerUnavailableError,
+	&ReadOnlyPartitionError,
 	&TaskListNotOwnedByHostError,
 	&NamespaceNotFoundError,
 	&ShardNotFoundError,

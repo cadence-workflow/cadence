@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
@@ -33,23 +34,35 @@ import (
 var (
 	// Override values for dynamic configs
 	staticOverrides = map[dynamicproperties.Key]interface{}{
-		dynamicproperties.FrontendUserRPS:                               3000,
-		dynamicproperties.FrontendVisibilityListMaxQPS:                  200,
-		dynamicproperties.FrontendESIndexMaxResultWindow:                defaultTestValueOfESIndexMaxResultWindow,
-		dynamicproperties.MatchingNumTasklistWritePartitions:            3,
-		dynamicproperties.MatchingNumTasklistReadPartitions:             3,
-		dynamicproperties.TimerProcessorHistoryArchivalSizeLimit:        5 * 1024,
-		dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts: 1,
-		dynamicproperties.WriteVisibilityStoreName:                      constants.AdvancedVisibilityModeOff,
-		dynamicproperties.DecisionHeartbeatTimeout:                      5 * time.Second,
-		dynamicproperties.ReplicationTaskFetcherAggregationInterval:     200 * time.Millisecond,
-		dynamicproperties.ReplicationTaskFetcherErrorRetryWait:          50 * time.Millisecond,
-		dynamicproperties.ReplicationTaskProcessorErrorRetryWait:        time.Millisecond,
-		dynamicproperties.EnableConsistentQueryByDomain:                 true,
-		dynamicproperties.MinRetentionDays:                              0,
-		dynamicproperties.WorkflowDeletionJitterRange:                   1,
+		dynamicproperties.FrontendUserRPS:                                   3000,
+		dynamicproperties.FrontendVisibilityListMaxQPS:                      200,
+		dynamicproperties.FrontendESIndexMaxResultWindow:                    defaultTestValueOfESIndexMaxResultWindow,
+		dynamicproperties.MatchingNumTasklistWritePartitions:                3,
+		dynamicproperties.MatchingNumTasklistReadPartitions:                 3,
+		dynamicproperties.TimerProcessorHistoryArchivalSizeLimit:            5 * 1024,
+		dynamicproperties.ReplicationTaskProcessorErrorRetryMaxAttempts:     1,
+		dynamicproperties.WriteVisibilityStoreName:                          constants.AdvancedVisibilityModeOff,
+		dynamicproperties.DecisionHeartbeatTimeout:                          5 * time.Second,
+		dynamicproperties.ReplicationTaskFetcherAggregationInterval:         200 * time.Millisecond,
+		dynamicproperties.ReplicationTaskFetcherErrorRetryWait:              50 * time.Millisecond,
+		dynamicproperties.ReplicationTaskProcessorErrorRetryWait:            time.Millisecond,
+		dynamicproperties.EnableConsistentQueryByDomain:                     true,
+		dynamicproperties.MinRetentionDays:                                  0,
+		dynamicproperties.WorkflowDeletionJitterRange:                       1,
+		dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow: true,
+		dynamicproperties.ValidSearchAttributes:                             validSearchAttributesWithSchedules(),
 	}
 )
+
+// validSearchAttributesWithSchedules returns a copy of the default indexed-keys
+// map (including scheduler-managed keys on target and list workflows).
+func validSearchAttributesWithSchedules() map[string]interface{} {
+	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys()))
+	for k, v := range definition.GetDefaultIndexedKeys() {
+		out[k] = v
+	}
+	return out
+}
 
 type dynamicClient struct {
 	sync.RWMutex

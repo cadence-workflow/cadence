@@ -1,0 +1,93 @@
+# This file is a replication simulation scenario spec.
+# It is parsed into ReplicationSimulationConfig struct.
+# Replication simulation for this file can be run via ./simulation/replication/run.sh --scenario activeactive_start_terminateifrunning
+# Dynamic config overrides can be set via config/dynamicconfig/replication_simulation_activeactive_start_terminateifrunning.yml
+# Tests that active-active allows workflows to be created in multiple clusters with terminate if running policy.
+# If the existing workflow is active in the same cluster with the new workflow, the existing workflow should be terminated.
+# If the existing workflow is active in a different cluster with the same active cluster selection policy, the start workflow should fail.
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+# primaryCluster is where domain data is written to and replicates to others. e.g. domain registration
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-aa:
+    activeClusterName: cluster0
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
+
+operations:
+  # start workflow in cluster0 with no active cluster selection policy
+  - op: start_workflow
+    at: 0s
+    workflowID: wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    runIDKey: wf1-0
+    workflowIDReusePolicy: TERMINATEIFRUNNING
+
+  # start workflow in cluster0 with active cluster selection policy and terminate if running policy
+  - op: start_workflow
+    at: 5s
+    workflowID: wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+    workflowIDReusePolicy: TERMINATEIFRUNNING
+    runIDKey: wf1-1
+
+  # start workflow in cluster1 with different active cluster selection policy and terminate if running policy, should fail
+  - op: start_workflow
+    at: 10s
+    workflowID: wf1
+    workflowType: timer-activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-aa
+    workflowExecutionStartToCloseTimeout: 65s
+    workflowDuration: 35s
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+    workflowIDReusePolicy: TERMINATEIFRUNNING
+    want:
+      error: "Cannot terminate the existing workflow and start a new workflow because it is active in a different cluster with a different active cluster selection policy."
+
+  # validate that wf1-0 is started in cluster0 and terminated
+  - op: validate
+    at: 20s
+    workflowID: wf1
+    cluster: cluster0
+    domain: test-domain-aa
+    runIDKey: wf1-0
+    want:
+      status: terminated
+      startedByWorkersInCluster: cluster0
+
+  # validate that wf1-1 is started and completed in cluster0
+  - op: validate
+    at: 75s
+    workflowID: wf1
+    cluster: cluster1
+    domain: test-domain-aa
+    runIDKey: wf1-1
+    want:
+      status: completed
+      startedByWorkersInCluster: cluster0
+      completedByWorkersInCluster: cluster0

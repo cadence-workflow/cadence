@@ -5,7 +5,7 @@
 {{ $Decorator := (printf "%s%s" $ClientName .Interface.Name) }}
 {{$largeTimeoutAPIs := list "adminClient.GetCrossClusterTasks" "adminClient.GetReplicationMessages"}}
 {{$longPollTimeoutAPIs := list "frontendClient.ListArchivedWorkflowExecutions" "frontendClient.PollForActivityTask" "frontendClient.PollForDecisionTask" "matchingClient.PollForActivityTask" "matchingClient.PollForDecisionTask"}}
-{{$noTimeoutAPIs := list "historyClient.GetReplicationMessages" "historyClient.GetDLQReplicationMessages" "historyClient.CountDLQMessages" "historyClient.ReadDLQMessages" "historyClient.PurgeDLQMessages" "historyClient.MergeDLQMessages" "historyClient.GetCrossClusterTasks" "historyClient.GetFailoverInfo" "matchingClient.GetTaskListsByDomain"}}
+{{$noTimeoutAPIs := list "historyClient.GetReplicationMessages" "historyClient.GetDLQReplicationMessages" "historyClient.CountDLQMessages" "historyClient.ReadDLQMessages" "historyClient.PurgeDLQMessages" "historyClient.MergeDLQMessages" "historyClient.GetCrossClusterTasks" "historyClient.GetFailoverInfo" "matchingClient.GetTaskListsByDomain" "sharddistributorClient.WatchNamespaceState"}}
 {{/*
  $fieldMap defines a map of the decorator struct fields
  with field name as the key and field type as the value

@@ -53,6 +53,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -71,11 +72,14 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/worker"
 	"github.com/uber/cadence/service/worker/archiver"
 	"github.com/uber/cadence/service/worker/asyncworkflow"
 	"github.com/uber/cadence/service/worker/indexer"
 	"github.com/uber/cadence/service/worker/replicator"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 // Cadence hosts all of cadence services in one process
@@ -115,6 +119,7 @@ type (
 		replicator                    *replicator.Replicator
 		clientWorker                  archiver.ClientWorker
 		indexer                       *indexer.Indexer
+		schedulerWorkerManager        *scheduler.WorkerManager
 		archiverMetadata              carchiver.ArchivalMetadata
 		archiverProvider              provider.ArchiverProvider
 		historyConfig                 *HistoryConfig
@@ -152,6 +157,7 @@ type (
 	}
 
 	HistorySimulationConfig struct {
+		// NumWorkflows is how many workflows the test starts in total. Defaults to 100.
 		NumWorkflows int
 		// WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering
 		// defaults to 0 to remove jittering
@@ -160,6 +166,24 @@ type (
 		EnableTransferQueueV2 bool
 		// EnableTimerQueueV2 enables queue v2 framework for timer queue
 		EnableTimerQueueV2 bool
+
+		// SleepBetweenWorkflowStarts is how long the test waits between starting each workflow.
+		// A short gap keeps the frontend from getting hit with a burst on startup. Defaults to 0.
+		SleepBetweenWorkflowStarts time.Duration
+
+		// Timeout is the context deadline the test uses when waiting for all workflows to complete.
+		// Must be less than the go test -timeout ceiling (1800s in docker-compose). Defaults to 5 minutes.
+		Timeout time.Duration
+
+		// NumWorkflowSleeps is how many workflow.Sleep calls each workflow makes.
+		// Each sleep becomes a timer task, so this is the main knob for timer queue load
+		// without changing the number of workflows. Defaults to 0.
+		NumWorkflowSleeps int
+
+		// SleepAfterAllWorkflows is how long the test waits after all workflows complete.
+		// This allows pending timer tasks (e.g. workflow timeout timers) to be processed
+		// before the simulation ends. Defaults to 120 seconds.
+		SleepAfterAllWorkflows time.Duration
 	}
 
 	MatchingConfig struct {
@@ -351,7 +375,11 @@ func NewCadence(params *CadenceParams) Cadence {
 }
 
 func (c *cadenceImpl) enableWorker() bool {
-	return c.workerConfig.EnableArchiver || c.workerConfig.EnableIndexer || c.workerConfig.EnableReplicator || c.workerConfig.EnableAsyncWFConsumer
+	return c.workerConfig.EnableArchiver ||
+		c.workerConfig.EnableIndexer ||
+		c.workerConfig.EnableReplicator ||
+		c.workerConfig.EnableAsyncWFConsumer ||
+		c.workerConfig.EnableScheduler
 }
 
 func (c *cadenceImpl) Start() error {
@@ -639,8 +667,14 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 	return c.matchingClients
 }
 
+func setOperationalDefaults(params *resource.Params) {
+	params.OperationalConfigStore = configstore.NewNopClient()
+	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
+}
+
 func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, startWG *sync.WaitGroup) {
 	params := new(resource.Params)
+	setOperationalDefaults(params)
 	params.ClusterRedirectionPolicy = &config.ClusterRedirectionPolicy{}
 	params.Name = service.Frontend
 	params.Logger = c.logger
@@ -648,7 +682,7 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.TimeSource = c.timeSource
 	params.PProfInitializer = newPProfInitializerImpl(c.logger, c.FrontendPProfPort())
 	params.MetricScope = tally.NewTestScope(service.Frontend, make(map[string]string))
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
+	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{} /* default, only used in test setups */)
 	params.RPCFactory = c.newRPCFactory(service.Frontend, c.FrontendHost(), params.MetricsClient)
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.FrontendHost())
 	params.ClusterMetadata = c.clusterMetadata
@@ -725,13 +759,14 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 	historyHosts := c.HistoryHosts()
 	for i, hostport := range historyHosts {
 		params := new(resource.Params)
+		setOperationalDefaults(params)
 		params.Name = service.History
 		params.Logger = c.logger
 		params.ThrottledLogger = c.logger
 		params.TimeSource = c.timeSource
 		params.PProfInitializer = newPProfInitializerImpl(c.logger, pprofPorts[i])
 		params.MetricScope = tally.NewTestScope(service.History, make(map[string]string))
-		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
+		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{} /* default, only used in test setups */)
 		params.RPCFactory = c.newRPCFactory(service.History, hostport, params.MetricsClient)
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
@@ -807,6 +842,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		hostport.Identity()
 		matchingHost := fmt.Sprintf("matching-host-%d:%s", i, hostport.Identity())
 		params := new(resource.Params)
+		setOperationalDefaults(params)
 		params.Name = service.Matching
 		params.Logger = c.logger.WithTags(tag.Dynamic("matching-host", matchingHost))
 		params.ThrottledLogger = c.logger
@@ -819,7 +855,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 			},
 		}
 		params.MetricScope = metricsCfg.NewScope(c.logger, service.Matching)
-		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
+		params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{} /* default, only used in test setups */)
 		params.RPCFactory = c.newRPCFactory(service.Matching, hostport, params.MetricsClient)
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
@@ -838,6 +874,17 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 			params.HistoryClientFn = func() historyClient.Client {
 				return c.historyConfig.MockClient
 			}
+		}
+
+		// Set default ShardDistributorMatchingConfig for integration tests
+		params.ShardDistributorMatchingConfig = clientcommon.Config{
+			Namespaces: []clientcommon.NamespaceConfig{{
+				Namespace:         "cadence-matching-integration",
+				HeartBeatInterval: 1 * time.Second,
+				MigrationMode:     sdconfig.MigrationModeLOCALPASSTHROUGH,
+				TTLShard:          5 * time.Minute,
+				TTLReport:         1 * time.Minute,
+			}},
 		}
 
 		matchingService, err := matching.NewService(params)
@@ -874,13 +921,14 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	defer c.shutdownWG.Done()
 
 	params := new(resource.Params)
+	setOperationalDefaults(params)
 	params.Name = service.Worker
 	params.Logger = c.logger
 	params.ThrottledLogger = c.logger
 	params.TimeSource = c.timeSource
 	params.PProfInitializer = newPProfInitializerImpl(c.logger, c.WorkerPProfPort())
 	params.MetricScope = tally.NewTestScope(service.Worker, make(map[string]string))
-	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.HistogramMigration{} /* default, only used in test setups */)
+	params.MetricsClient = metrics.NewClient(params.MetricScope, service.GetMetricsServiceIdx(params.Name, c.logger), metrics.MigrationConfig{} /* default, only used in test setups */)
 	params.RPCFactory = c.newRPCFactory(service.Worker, c.WorkerServiceHost(), params.MetricsClient)
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.WorkerServiceHost())
 	params.ClusterMetadata = c.clusterMetadata
@@ -951,6 +999,13 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 		)
 		cm.Start()
 		defer cm.Stop()
+	}
+
+	var schedulerDomainCache cache.DomainCache
+	if c.workerConfig.EnableScheduler {
+		schedulerDomainCache = c.startSchedulerWorkerManager(params, service)
+		defer c.schedulerWorkerManager.Stop()
+		defer schedulerDomainCache.Stop()
 	}
 
 	c.logger.Info("Started worker service")
@@ -1029,6 +1084,38 @@ func (c *cadenceImpl) startWorkerIndexer(params *resource.Params, service Servic
 		c.indexer.Stop()
 		c.logger.Fatal("Fail to start indexer when start worker", tag.Error(err))
 	}
+}
+
+// startSchedulerWorkerManager mirrors the production wiring in
+// service/worker/service.go so host/ tests can exercise the schedule pipeline.
+// Returns a domain cache the caller must stop on shutdown.
+//
+// TODO: this duplicates startup logic from service/worker/service.go. The
+// rest of the worker subsystems in this onebox (replicator/archiver/indexer/
+// async-wf) are wired the same hand-rolled way, so the right long-term fix
+// is to have host/ tests boot the worker service via worker.NewService(...)
+// and let it manage the WorkerManager (and friends) end-to-end, rather than
+// reaching into the bootstrap params here.
+func (c *cadenceImpl) startSchedulerWorkerManager(params *resource.Params, svc Service) cache.DomainCache {
+	metadataManager := metered.NewDomainManager(c.domainManager, svc.GetMetricsClient(), c.logger, &c.persistenceConfig)
+	domainCache := cache.NewDomainCache(metadataManager, c.clusterMetadata, svc.GetMetricsClient(), svc.GetLogger())
+	domainCache.Start()
+
+	dc := dynamicconfig.NewCollection(params.DynamicConfig, svc.GetLogger())
+	bp := &scheduler.BootstrapParams{
+		ServiceClient:      params.PublicClient,
+		FrontendClient:     c.frontendClient,
+		MetricsClient:      svc.GetMetricsClient(),
+		Logger:             svc.GetLogger(),
+		DomainCache:        domainCache,
+		MembershipResolver: svc.GetMembershipResolver(),
+		HostInfo:           svc.GetHostInfo(),
+		RefreshInterval:    dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval),
+	}
+	enabledFn := dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler)
+	c.schedulerWorkerManager = scheduler.NewWorkerManager(bp, enabledFn)
+	c.schedulerWorkerManager.Start()
+	return domainCache
 }
 
 func (c *cadenceImpl) createSystemDomain() error {

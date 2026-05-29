@@ -89,6 +89,12 @@
         "NumClusters": {
           "type": "long"
         },
+        "ClusterAttributeScope": {
+          "type": "keyword"
+        },
+        "ClusterAttributeName": {
+          "type": "keyword"
+        },
         "RunID": {
           "type": "keyword"
         },

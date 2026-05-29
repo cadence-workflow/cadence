@@ -92,7 +92,7 @@ type (
 
 		global   *internal.AtomicMap[shared.LocalKey, *internal.FallbackLimiter]
 		local    *internal.AtomicMap[shared.LocalKey, internal.CountedLimiter]
-		disabled quotas.ICollection
+		disabled quotas.ICollection[string]
 		km       shared.KeyMapper
 
 		ctx       context.Context // context used for background operations, canceled when stopping
@@ -161,15 +161,15 @@ func New(
 	name string,
 	// quotas for "local only" behavior.
 	// used for both "local" and "disabled" behavior, though "local" wraps the values with usage metrics.
-	local quotas.ICollection,
+	local quotas.ICollection[string],
 	// quotas for the global limiter's internal fallback.
 	//
 	// this should be configured the same as the local collection, but it
 	// MUST NOT actually be the same collection, or shadowing will double-count
 	// events on the fallback.
-	globalFallback quotas.ICollection,
+	globalFallback quotas.ICollection[string],
 	updateInterval dynamicproperties.DurationPropertyFn,
-	targetRPS dynamicproperties.IntPropertyFnWithDomainFilter,
+	targetRPS func(key string) int,
 	keyModes dynamicproperties.StringPropertyWithRatelimitKeyFilter,
 	aggs rpc.Client,
 	logger log.Logger,
@@ -407,9 +407,11 @@ func (c *Collection) backgroundUpdateLoop() {
 			c.scope.RecordHistogramValue(metrics.GlobalRatelimiterGlobalUsageHistogram, float64(globals))
 
 			if len(usage) > 0 {
+				ratelimiterUpdateStart := time.Now()
 				sw := c.scope.StartTimer(metrics.GlobalRatelimiterUpdateLatency)
 				c.doUpdate(now.Sub(lastGatherTime), usage)
 				sw.Stop()
+				c.scope.ExponentialHistogram(metrics.GlobalRatelimiterUpdateLatencyHistogram, time.Since(ratelimiterUpdateStart))
 			}
 
 			<-localMetricsDone // should be much faster than doUpdate, unless it's no-opped

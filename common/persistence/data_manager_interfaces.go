@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -89,6 +89,11 @@ type CreateWorkflowMode int
 
 // QueueType is an enum that represents various queue types in persistence
 type QueueType int
+
+// ShardID is an optional shard identifier used in ExecutionManager and ExecutionStore request structs.
+// A nil value indicates the caller has not yet been updated to pass the shard ID.
+// Valid shard IDs start from 0 (i.e. 0 is a valid shard).
+type ShardID = *int
 
 // DomainReplicationQueueType queue types used in queue table
 // Use positive numbers for queue type
@@ -226,6 +231,20 @@ var (
 	}
 )
 
+// HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
+func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
+	switch id {
+	case HistoryTaskCategoryIDTransfer:
+		return HistoryTaskCategoryTransfer, nil
+	case HistoryTaskCategoryIDTimer:
+		return HistoryTaskCategoryTimer, nil
+	case HistoryTaskCategoryIDReplication:
+		return HistoryTaskCategoryReplication, nil
+	default:
+		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
+	}
+}
+
 // Transfer task types
 const (
 	TransferTaskTypeDecisionTask = iota
@@ -270,6 +289,32 @@ const (
 	WorkflowRequestTypeCancel
 	WorkflowRequestTypeReset
 )
+
+const (
+	DomainAuditOperationTypeInvalid DomainAuditOperationType = iota
+	DomainAuditOperationTypeCreate
+	DomainAuditOperationTypeUpdate
+	DomainAuditOperationTypeDeprecate
+	DomainAuditOperationTypeDelete
+	DomainAuditOperationTypeFailover
+)
+
+func (d DomainAuditOperationType) String() string {
+	switch d {
+	case DomainAuditOperationTypeCreate:
+		return "Create"
+	case DomainAuditOperationTypeUpdate:
+		return "Update"
+	case DomainAuditOperationTypeFailover:
+		return "Failover"
+	case DomainAuditOperationTypeDeprecate:
+		return "Deprecate"
+	case DomainAuditOperationTypeDelete:
+		return "Delete"
+	default:
+		return "Invalid"
+	}
+}
 
 // CreateWorkflowRequestMode is the mode of create workflow request
 type CreateWorkflowRequestMode int
@@ -317,6 +362,7 @@ type ConfigType int
 const (
 	DynamicConfig ConfigType = iota
 	GlobalIsolationGroupConfig
+	OperationalDynamicConfig
 )
 
 type (
@@ -389,6 +435,8 @@ type (
 		Memo                               map[string][]byte
 		SearchAttributes                   map[string][]byte
 		PartitionConfig                    map[string]string
+		ExecutionStatus                    types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp        int64 // unit is unix nano, used to record the actual execution timestamp if it's a cron workflow
 		// for retry
 		Attempt            int32
 		HasRetryPolicy     bool
@@ -400,10 +448,10 @@ type (
 		NonRetriableErrors []string
 		BranchToken        []byte
 		// Cron
-		CronSchedule      string
 		IsCron            bool
 		CronOverlapPolicy types.CronOverlapPolicy
 		ExpirationSeconds int32 // TODO: is this field useful?
+		CronSchedule      string
 
 		ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 	}
@@ -459,6 +507,8 @@ type (
 		ScheduleID              int64
 		Version                 int64
 		RecordVisibility        bool
+		OriginalTaskList        string
+		OriginalTaskListKind    types.TaskListKind
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -496,6 +546,7 @@ type (
 		EventID             int64
 		ScheduleAttempt     int64
 		Version             int64
+		TaskList            string
 	}
 
 	// TaskListInfo describes a state of a task list implementation.
@@ -692,6 +743,7 @@ type (
 
 	// CreateWorkflowExecutionRequest is used to write a new workflow execution
 	CreateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode CreateWorkflowMode
@@ -712,6 +764,7 @@ type (
 
 	// GetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
 	GetWorkflowExecutionRequest struct {
+		ShardID    ShardID
 		DomainID   string
 		Execution  types.WorkflowExecution
 		DomainName string
@@ -726,6 +779,7 @@ type (
 
 	// GetCurrentExecutionRequest is used to retrieve the current RunId for an execution
 	GetCurrentExecutionRequest struct {
+		ShardID    ShardID
 		DomainID   string
 		WorkflowID string
 		DomainName string
@@ -733,6 +787,7 @@ type (
 
 	// ListCurrentExecutionsRequest is request to ListCurrentExecutions
 	ListCurrentExecutionsRequest struct {
+		ShardID   ShardID
 		PageSize  int
 		PageToken []byte
 	}
@@ -745,6 +800,7 @@ type (
 
 	// IsWorkflowExecutionExistsRequest is used to check if the concrete execution exists
 	IsWorkflowExecutionExistsRequest struct {
+		ShardID    ShardID
 		DomainID   string
 		DomainName string
 		WorkflowID string
@@ -753,6 +809,7 @@ type (
 
 	// ListConcreteExecutionsRequest is request to ListConcreteExecutions
 	ListConcreteExecutionsRequest struct {
+		ShardID   ShardID
 		PageSize  int
 		PageToken []byte
 	}
@@ -785,6 +842,7 @@ type (
 
 	// UpdateWorkflowExecutionRequest is used to update a workflow execution
 	UpdateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode UpdateWorkflowMode
@@ -802,6 +860,7 @@ type (
 
 	// ConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for a single run
 	ConflictResolveWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode ConflictResolveWorkflowMode
@@ -890,6 +949,7 @@ type (
 
 	// DeleteWorkflowExecutionRequest is used to delete a workflow execution
 	DeleteWorkflowExecutionRequest struct {
+		ShardID    ShardID
 		DomainID   string
 		WorkflowID string
 		RunID      string
@@ -898,21 +958,41 @@ type (
 
 	// DeleteCurrentWorkflowExecutionRequest is used to delete the current workflow execution
 	DeleteCurrentWorkflowExecutionRequest struct {
+		ShardID    ShardID
 		DomainID   string
 		WorkflowID string
 		RunID      string
 		DomainName string
 	}
 
+	// GetActiveClusterSelectionPolicyRequest is used to get the active cluster selection policy
+	GetActiveClusterSelectionPolicyRequest struct {
+		ShardID    ShardID
+		DomainID   string
+		WorkflowID string
+		RunID      string
+	}
+
+	// DeleteActiveClusterSelectionPolicyRequest is used to delete the active cluster selection policy
+	DeleteActiveClusterSelectionPolicyRequest struct {
+		ShardID    ShardID
+		DomainID   string
+		WorkflowID string
+		RunID      string
+	}
+
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	PutReplicationTaskToDLQRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 		TaskInfo          *ReplicationTaskInfo
 		DomainName        string
+		Task              *types.ReplicationTask
 	}
 
 	// GetReplicationTasksFromDLQRequest is used to get replication tasks from dlq
 	GetReplicationTasksFromDLQRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 		ReadLevel         int64
 		MaxReadLevel      int64
@@ -920,19 +1000,35 @@ type (
 		NextPageToken     []byte
 	}
 
+	// ReplicationDLQTask pairs DLQ task metadata with its hydrated full task payload.
+	// Task may be nil for entries with no stored payload or whose payload could not be hydrated.
+	ReplicationDLQTask struct {
+		Info *ReplicationTaskInfo
+		Task *types.ReplicationTask
+	}
+
+	// GetReplicationDLQTasksResponse is returned by GetReplicationDLQTasks.
+	GetReplicationDLQTasksResponse struct {
+		Tasks         []*ReplicationDLQTask
+		NextPageToken []byte
+	}
+
 	// GetReplicationDLQSizeRequest is used to get one replication task from dlq
 	GetReplicationDLQSizeRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 	}
 
 	// DeleteReplicationTaskFromDLQRequest is used to delete replication task from DLQ
 	DeleteReplicationTaskFromDLQRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 		TaskID            int64
 	}
 
 	// RangeDeleteReplicationTaskFromDLQRequest is used to delete replication tasks from DLQ
 	RangeDeleteReplicationTaskFromDLQRequest struct {
+		ShardID              ShardID
 		SourceClusterName    string
 		InclusiveBeginTaskID int64
 		ExclusiveEndTaskID   int64
@@ -951,6 +1047,7 @@ type (
 
 	// GetHistoryTasksRequest is used to get history tasks
 	GetHistoryTasksRequest struct {
+		ShardID             ShardID
 		TaskCategory        HistoryTaskCategory
 		InclusiveMinTaskKey HistoryTaskKey
 		ExclusiveMaxTaskKey HistoryTaskKey
@@ -964,14 +1061,26 @@ type (
 		NextPageToken []byte
 	}
 
-	// CompleteHistoryTaskRequest is used to complete a history task
+	// CompleteHistoryTaskRequest is used to complete one or more history tasks of the same category.
+	// Cassandra batches multi-key requests into a single LoggedBatch.
 	CompleteHistoryTaskRequest struct {
+		ShardID      ShardID
 		TaskCategory HistoryTaskCategory
-		TaskKey      HistoryTaskKey
+		TaskKeys     []HistoryTaskKey
+	}
+
+	// FetchWorkflowTimerTasksForCleanupRequest identifies the workflow whose timer tracking
+	// column should be read to find tasks eligible for cleanup.
+	FetchWorkflowTimerTasksForCleanupRequest struct {
+		ShardID    ShardID
+		DomainID   string
+		WorkflowID string
+		RunID      string
 	}
 
 	// RangeCompleteHistoryTaskRequest is used to complete a range of history tasks
 	RangeCompleteHistoryTaskRequest struct {
+		ShardID             ShardID
 		TaskCategory        HistoryTaskCategory
 		InclusiveMinTaskKey HistoryTaskKey
 		ExclusiveMaxTaskKey HistoryTaskKey
@@ -1244,6 +1353,54 @@ type (
 		NotificationVersion int64
 	}
 
+	// CreateDomainAuditLogRequest is used to create a domain audit log entry
+	CreateDomainAuditLogRequest struct {
+		DomainID      string
+		EventID       string // must be a UUID v7
+		StateBefore   *GetDomainResponse
+		StateAfter    *GetDomainResponse
+		OperationType DomainAuditOperationType
+		CreatedTime   time.Time
+		Identity      string
+		IdentityType  string
+		Comment       string
+	}
+
+	// CreateDomainAuditLogResponse is the response for CreateDomainAuditLog
+	CreateDomainAuditLogResponse struct {
+		EventID string
+	}
+
+	// GetDomainAuditLogsRequest is used to get domain audit logs
+	GetDomainAuditLogsRequest struct {
+		DomainID       string
+		OperationType  DomainAuditOperationType
+		MinCreatedTime *time.Time
+		MaxCreatedTime *time.Time
+		PageSize       int
+		NextPageToken  []byte
+	}
+
+	// GetDomainAuditLogsResponse is the response for GetDomainAuditLogs
+	GetDomainAuditLogsResponse struct {
+		AuditLogs     []*DomainAuditLog
+		NextPageToken []byte
+	}
+
+	// DomainAuditLog represents a single domain audit log entry
+	DomainAuditLog struct {
+		EventID         string
+		DomainID        string
+		StateBefore     *GetDomainResponse
+		StateAfter      *GetDomainResponse
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1477,6 +1634,7 @@ type (
 
 	// CreateFailoverMarkersRequest is request to create failover markers
 	CreateFailoverMarkersRequest struct {
+		ShardID          ShardID
 		RangeID          int64
 		Markers          []*FailoverMarkerTask
 		CurrentTimeStamp time.Time
@@ -1529,7 +1687,7 @@ type (
 		// Replication task related methods
 
 		PutReplicationTaskToDLQ(ctx context.Context, request *PutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetReplicationDLQTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
@@ -1538,14 +1696,15 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
+		FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *FetchWorkflowTimerTasksForCleanupRequest) ([]HistoryTaskKey, error)
 
 		// Scan operations
 
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*ListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
-		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error)
-		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, workflowID, runID string) error
+		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
 	}
 
 	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
@@ -1613,21 +1772,184 @@ type (
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
 	}
 
+	// DomainAuditManager is used to manage domain audit logs
+	DomainAuditManager interface {
+		Closeable
+		GetName() string
+		CreateDomainAuditLog(ctx context.Context, request *CreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
+		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
+	}
+
+	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.
+	HistoryTaskDLQManager interface {
+		Closeable
+		GetName() string
+		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
+		// GetAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
+		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+		GetAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
+		// GetTasks returns deserialized tasks from a DLQ partition.
+		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
+		// UpdateAckLevel persists the new ack level for a partition.
+		UpdateAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
+		// DeleteTasks removes tasks up to and including the given key from a DLQ partition.
+		DeleteTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+	}
+
+	// CreateHistoryDLQTaskRequest is the public request for adding a task to the history DLQ.
+	CreateHistoryDLQTaskRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		Task                  Task
+	}
+
+	// HistoryDLQAckLevel identifies one DLQ partition and its current processing watermark.
+	HistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+	}
+
+	// HistoryDLQGetTasksRequest specifies what tasks to fetch from a DLQ partition.
+	HistoryDLQGetTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
+		InclusiveMinTaskKey   HistoryTaskKey
+		ExclusiveMaxTaskKey   HistoryTaskKey
+		PageSize              int
+		NextPageToken         []byte
+	}
+
+	// HistoryDLQGetTasksResponse carries tasks returned from the DLQ store.
+	HistoryDLQGetTasksResponse struct {
+		Tasks         []Task
+		NextPageToken []byte
+	}
+
+	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.
+	// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+	HistoryDLQGetAckLevelsRequest struct {
+		ShardID               int
+		TaskCategory          HistoryTaskCategory
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+	}
+
+	// HistoryDLQUpdateAckLevelRequest specifies the new ack watermark for a partition.
+	HistoryDLQUpdateAckLevelRequest struct {
+		ShardID                   int
+		DomainID                  string
+		ClusterAttributeScope     string
+		ClusterAttributeName      string
+		TaskCategory              HistoryTaskCategory
+		UpdatedInclusiveReadLevel HistoryTaskKey
+	}
+
+	// HistoryDLQDeleteTasksRequest asks the store to remove tasks up to and including the given key from a DLQ partition.
+	HistoryDLQDeleteTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
+		ExclusiveMaxTaskKey   HistoryTaskKey
+	}
+
+	EnqueueMessageRequest struct {
+		MessagePayload []byte
+	}
+
+	ReadMessagesRequest struct {
+		LastMessageID int64
+		MaxCount      int
+	}
+
+	ReadMessagesResponse struct {
+		Messages QueueMessageList
+	}
+
+	DeleteMessagesBeforeRequest struct {
+		MessageID int64
+	}
+
+	UpdateAckLevelRequest struct {
+		MessageID   int64
+		ClusterName string
+	}
+
+	GetAckLevelsRequest struct{}
+
+	GetAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	EnqueueMessageToDLQRequest struct {
+		MessagePayload []byte
+	}
+
+	ReadMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+		PageSize       int
+		PageToken      []byte
+	}
+
+	ReadMessagesFromDLQResponse struct {
+		Messages      []*QueueMessage
+		NextPageToken []byte
+	}
+
+	DeleteMessageFromDLQRequest struct {
+		MessageID int64
+	}
+
+	RangeDeleteMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+	}
+
+	UpdateDLQAckLevelRequest struct {
+		MessageID   int64
+		ClusterName string
+	}
+
+	GetDLQAckLevelsRequest struct{}
+
+	GetDLQAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	GetDLQSizeRequest struct{}
+
+	GetDLQSizeResponse struct {
+		Size int64
+	}
+
 	// QueueManager is used to manage queue store
 	QueueManager interface {
 		Closeable
-		EnqueueMessage(ctx context.Context, messagePayload []byte) error
-		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (QueueMessageList, error)
-		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetAckLevels(ctx context.Context) (map[string]int64, error)
-		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) error
-		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*QueueMessage, []byte, error)
-		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
-		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) error
-		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
-		GetDLQSize(ctx context.Context) (int64, error)
+		EnqueueMessage(ctx context.Context, request *EnqueueMessageRequest) error
+		ReadMessages(ctx context.Context, request *ReadMessagesRequest) (*ReadMessagesResponse, error)
+		DeleteMessagesBefore(ctx context.Context, request *DeleteMessagesBeforeRequest) error
+		UpdateAckLevel(ctx context.Context, request *UpdateAckLevelRequest) error
+		GetAckLevels(ctx context.Context, request *GetAckLevelsRequest) (*GetAckLevelsResponse, error)
+		EnqueueMessageToDLQ(ctx context.Context, request *EnqueueMessageToDLQRequest) error
+		ReadMessagesFromDLQ(ctx context.Context, request *ReadMessagesFromDLQRequest) (*ReadMessagesFromDLQResponse, error)
+		DeleteMessageFromDLQ(ctx context.Context, request *DeleteMessageFromDLQRequest) error
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *RangeDeleteMessagesFromDLQRequest) error
+		UpdateDLQAckLevel(ctx context.Context, request *UpdateDLQAckLevelRequest) error
+		GetDLQAckLevels(ctx context.Context, request *GetDLQAckLevelsRequest) (*GetDLQAckLevelsResponse, error)
+		GetDLQSize(ctx context.Context, request *GetDLQSizeRequest) (*GetDLQSizeResponse, error)
 	}
 
 	// QueueMessage is the message that stores in the queue
@@ -1649,6 +1971,9 @@ type (
 
 // IsTimeoutError check whether error is TimeoutError
 func IsTimeoutError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
 	var timeoutError *TimeoutError
 	ok := errors.As(err, &timeoutError)
 	return ok
@@ -1694,6 +2019,21 @@ func (t *TransferTaskInfo) GetDomainID() string {
 	return t.DomainID
 }
 
+// GetTaskList returns the task list for transfer task
+func (t *TransferTaskInfo) GetTaskList() string {
+	return t.TaskList
+}
+
+// GetOriginalTaskList returns the original task list for transfer task
+func (t *TransferTaskInfo) GetOriginalTaskList() string {
+	return t.OriginalTaskList
+}
+
+// GetOriginalTaskListKind returns the original task list kind for transfer task
+func (t *TransferTaskInfo) GetOriginalTaskListKind() types.TaskListKind {
+	return t.OriginalTaskListKind
+}
+
 // String returns a string representation for transfer task
 func (t *TransferTaskInfo) String() string {
 	return fmt.Sprintf("%#v", t)
@@ -1721,44 +2061,56 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 		}, nil
 	case TransferTaskTypeDecisionTask:
 		return &DecisionTask{
-			WorkflowIdentifier: workflowIdentifier,
-			TaskData:           taskData,
-			TargetDomainID:     t.TargetDomainID,
-			TaskList:           t.TaskList,
-			ScheduleID:         t.ScheduleID,
+			WorkflowIdentifier:   workflowIdentifier,
+			TaskData:             taskData,
+			TargetDomainID:       t.TargetDomainID,
+			TaskList:             t.TaskList,
+			ScheduleID:           t.ScheduleID,
+			OriginalTaskList:     t.OriginalTaskList,
+			OriginalTaskListKind: t.OriginalTaskListKind,
 		}, nil
 	case TransferTaskTypeCloseExecution:
 		return &CloseExecutionTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordWorkflowStarted:
 		return &RecordWorkflowStartedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeResetWorkflow:
 		return &ResetWorkflowTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordWorkflowClosed:
 		return &RecordWorkflowClosedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeRecordChildExecutionCompleted:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &RecordChildExecutionCompletedTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TargetDomainID:     t.TargetDomainID,
 			TargetWorkflowID:   t.TargetWorkflowID,
-			TargetRunID:        t.TargetRunID,
+			TargetRunID:        targetRunID,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeUpsertWorkflowSearchAttributes:
 		return &UpsertWorkflowSearchAttributesTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeStartChildExecution:
 		return &StartChildExecutionTask{
@@ -1767,30 +2119,48 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 			TargetDomainID:     t.TargetDomainID,
 			TargetWorkflowID:   t.TargetWorkflowID,
 			InitiatedID:        t.ScheduleID,
+			TaskList:           t.TaskList,
 		}, nil
 	case TransferTaskTypeCancelExecution:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &CancelExecutionTask{
 			WorkflowIdentifier:      workflowIdentifier,
 			TaskData:                taskData,
 			TargetDomainID:          t.TargetDomainID,
 			TargetWorkflowID:        t.TargetWorkflowID,
-			TargetRunID:             t.TargetRunID,
+			TargetRunID:             targetRunID,
 			InitiatedID:             t.ScheduleID,
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
+			TaskList:                t.TaskList,
 		}, nil
 	case TransferTaskTypeSignalExecution:
+		targetRunID := t.TargetRunID
+		if t.TargetRunID == TransferTaskTransferTargetRunID {
+			targetRunID = ""
+		}
 		return &SignalExecutionTask{
 			WorkflowIdentifier:      workflowIdentifier,
 			TaskData:                taskData,
 			TargetDomainID:          t.TargetDomainID,
 			TargetWorkflowID:        t.TargetWorkflowID,
-			TargetRunID:             t.TargetRunID,
+			TargetRunID:             targetRunID,
 			InitiatedID:             t.ScheduleID,
 			TargetChildWorkflowOnly: t.TargetChildWorkflowOnly,
+			TaskList:                t.TaskList,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}
+}
+
+func (r *GetDomainResponse) GetFailoverVersion() int64 {
+	if r == nil {
+		return types.UndefinedFailoverVersion
+	}
+	return r.FailoverVersion
 }
 
 // GetTaskID returns the task ID for replication task
@@ -1863,6 +2233,11 @@ func (t *TimerTaskInfo) GetDomainID() string {
 	return t.DomainID
 }
 
+// GetTaskList returns the task list for timer task
+func (t *TimerTaskInfo) GetTaskList() string {
+	return t.TaskList
+}
+
 // String returns a string representation for timer task
 func (t *TimerTaskInfo) String() string {
 	return fmt.Sprintf(
@@ -1890,6 +2265,7 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			EventID:            t.EventID,
 			ScheduleAttempt:    t.ScheduleAttempt,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeActivityTimeout:
 		return &ActivityTimeoutTask{
@@ -1898,22 +2274,26 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			TimeoutType:        t.TimeoutType,
 			EventID:            t.EventID,
 			Attempt:            t.ScheduleAttempt,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeDeleteHistoryEvent:
 		return &DeleteHistoryEventTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeWorkflowTimeout:
 		return &WorkflowTimeoutTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeUserTimer:
 		return &UserTimerTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			EventID:            t.EventID,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeActivityRetryTimer:
 		return &ActivityRetryTimerTask{
@@ -1921,16 +2301,47 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 			TaskData:           taskData,
 			EventID:            t.EventID,
 			Attempt:            t.ScheduleAttempt,
+			TaskList:           t.TaskList,
 		}, nil
 	case TaskTypeWorkflowBackoffTimer:
 		return &WorkflowBackoffTimerTask{
 			WorkflowIdentifier: workflowIdentifier,
 			TaskData:           taskData,
 			TimeoutType:        t.TimeoutType,
+			TaskList:           t.TaskList,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}
+}
+
+func (c *DomainReplicationConfig) GetActiveClusters() *types.ActiveClusters {
+	if c != nil && c.ActiveClusters != nil {
+		return c.ActiveClusters
+	}
+	return nil
+}
+
+func (c *DomainReplicationConfig) GetActiveClusterName() string {
+	if c == nil {
+		return ""
+	}
+	return c.ActiveClusterName
+}
+
+func (c *DomainReplicationConfig) GetClusterAttributeScopes() map[string]types.ClusterAttributeScope {
+	if c == nil || c.ActiveClusters == nil {
+		return nil
+	}
+	return c.ActiveClusters.AttributeScopes
+}
+
+// GetID returns the ID from DomainInfo
+func (d *DomainInfo) GetID() string {
+	if d == nil {
+		return ""
+	}
+	return d.ID
 }
 
 // ToNilSafeCopy
@@ -2070,6 +2481,102 @@ func (config *ClusterReplicationConfig) GetCopy() *ClusterReplicationConfig {
 	return &res
 }
 
+func (r *GetDomainResponse) GetReplicationConfig() *DomainReplicationConfig {
+	if r == nil || r.ReplicationConfig == nil {
+		return nil
+	}
+	return r.ReplicationConfig
+}
+
+// DeepCopy returns a deep copy of GetDomainResponse
+// todo (david.porter) delete this manual deepcopying since it's annoying to maintain and
+// use codegen for generating them instead
+func (r *GetDomainResponse) DeepCopy() *GetDomainResponse {
+	if r == nil {
+		return nil
+	}
+
+	result := &GetDomainResponse{
+		IsGlobalDomain:              r.IsGlobalDomain,
+		ConfigVersion:               r.ConfigVersion,
+		FailoverVersion:             r.FailoverVersion,
+		FailoverNotificationVersion: r.FailoverNotificationVersion,
+		PreviousFailoverVersion:     r.PreviousFailoverVersion,
+		LastUpdatedTime:             r.LastUpdatedTime,
+		NotificationVersion:         r.NotificationVersion,
+	}
+
+	// Deep copy FailoverEndTime
+	if r.FailoverEndTime != nil {
+		failoverEndTime := *r.FailoverEndTime
+		result.FailoverEndTime = &failoverEndTime
+	}
+	// Deep copy DomainInfo
+	if r.Info != nil {
+		result.Info = &DomainInfo{
+			ID:          r.Info.ID,
+			Name:        r.Info.Name,
+			Status:      r.Info.Status,
+			Description: r.Info.Description,
+			OwnerEmail:  r.Info.OwnerEmail,
+		}
+		if r.Info.Data != nil {
+			result.Info.Data = make(map[string]string, len(r.Info.Data))
+			for k, v := range r.Info.Data {
+				result.Info.Data[k] = v
+			}
+		}
+	}
+
+	// Deep copy DomainConfig
+	if r.Config != nil {
+		result.Config = &DomainConfig{
+			Retention:                r.Config.Retention,
+			EmitMetric:               r.Config.EmitMetric,
+			HistoryArchivalStatus:    r.Config.HistoryArchivalStatus,
+			HistoryArchivalURI:       r.Config.HistoryArchivalURI,
+			VisibilityArchivalStatus: r.Config.VisibilityArchivalStatus,
+			VisibilityArchivalURI:    r.Config.VisibilityArchivalURI,
+		}
+		// Deep copy BadBinaries
+		result.Config.BadBinaries = r.Config.BadBinaries.DeepCopy()
+		// Deep copy IsolationGroups
+		result.Config.IsolationGroups = r.Config.IsolationGroups.DeepCopy()
+		// Deep copy AsyncWorkflowConfig
+		result.Config.AsyncWorkflowConfig = r.Config.AsyncWorkflowConfig.DeepCopy()
+	}
+
+	// Deep copy DomainReplicationConfig
+	if r.ReplicationConfig != nil {
+		result.ReplicationConfig = &DomainReplicationConfig{
+			ActiveClusterName: r.ReplicationConfig.ActiveClusterName,
+		}
+		// Deep copy Clusters
+		if r.ReplicationConfig.Clusters != nil {
+			result.ReplicationConfig.Clusters = make([]*ClusterReplicationConfig, len(r.ReplicationConfig.Clusters))
+			for i, cluster := range r.ReplicationConfig.Clusters {
+				if cluster != nil {
+					result.ReplicationConfig.Clusters[i] = cluster.GetCopy()
+				}
+			}
+		}
+		// Deep copy ActiveClusters
+		if r.ReplicationConfig.ActiveClusters != nil {
+			result.ReplicationConfig.ActiveClusters = r.ReplicationConfig.ActiveClusters.DeepCopy()
+		}
+	}
+
+	return result
+}
+
+// GetInfo returns the DomainInfo from GetDomainResponse
+func (r *GetDomainResponse) GetInfo() *DomainInfo {
+	if r == nil {
+		return nil
+	}
+	return r.Info
+}
+
 // DBTimestampToUnixNano converts Milliseconds timestamp to UnixNano
 func DBTimestampToUnixNano(milliseconds int64) int64 {
 	return milliseconds * 1000 * 1000 // Milliseconds are 10⁻³, nanoseconds are 10⁻⁹, (-3) - (-9) = 6, so multiply by 10⁶
@@ -2196,7 +2703,8 @@ func IsBackgroundTransientError(err error) bool {
 func HasMoreRowsToDelete(rowsDeleted, batchSize int) bool {
 	if rowsDeleted < batchSize || // all target tasks are deleted
 		rowsDeleted == UnknownNumRowsAffected || // underlying database does not support rows affected, so pageSize is not honored and all target tasks are deleted
-		rowsDeleted > batchSize { // pageSize is not honored and all tasks are deleted
+		rowsDeleted > batchSize ||
+		batchSize <= 0 { // if batchSize is <= 0 the attempt is for the request to be unbounded and remove all rows from min to max
 		return false
 	}
 	return true
@@ -2302,8 +2810,7 @@ func (c *DomainReplicationConfig) IsActiveActive() bool {
 		}
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
-	return len(c.ActiveClusters.ActiveClustersByRegion) > 0
+	return false
 }
 
 func IsWorkflowRunning(state int) bool {

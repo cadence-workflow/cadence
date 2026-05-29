@@ -62,11 +62,14 @@ type (
 		GetClusterMetadata() cluster.Metadata
 		GetConfig() *config.Config
 		GetEventsCache() events.Cache
+		// GetLogger returns a logger tagged with this shard (history item includes shard-id).
+		// Prefer it for work scoped to a shard so logs remain attributable when downstream adds tags.
 		GetLogger() log.Logger
 		GetThrottledLogger() log.Logger
 		GetMetricsClient() metrics.Client
 		GetTimeSource() clock.TimeSource
 		PreviousShardOwnerWasDifferent() bool
+		GetReplicationBudgetManager() cache.Manager
 
 		GetEngine() engine.Engine
 		SetEngine(engine.Engine)
@@ -114,19 +117,20 @@ type (
 	contextImpl struct {
 		resource.Resource
 
-		shardItem            *historyShardsItem
-		shardID              int
-		rangeID              int64
-		executionManager     persistence.ExecutionManager
-		activeClusterManager activecluster.Manager
-		eventsCache          events.Cache
-		closeCallback        func(int, *historyShardsItem)
-		closedAt             atomic.Pointer[time.Time]
-		config               *config.Config
-		persistenceConfig    *persistence.DynamicConfiguration
-		logger               log.Logger
-		throttledLogger      log.Logger
-		engine               engine.Engine
+		shardItem                *historyShardsItem
+		shardID                  int
+		rangeID                  int64
+		executionManager         persistence.ExecutionManager
+		activeClusterManager     activecluster.Manager
+		eventsCache              events.Cache
+		closeCallback            func(int, *historyShardsItem)
+		closedAt                 atomic.Pointer[time.Time]
+		config                   *config.Config
+		persistenceConfig        *persistence.DynamicConfiguration
+		logger                   log.Logger
+		throttledLogger          log.Logger
+		engine                   engine.Engine
+		replicationBudgetManager cache.Manager
 
 		sync.RWMutex
 		lastUpdated                  time.Time
@@ -573,8 +577,10 @@ func (s *contextImpl) DeleteFailoverLevel(category persistence.HistoryTaskCatego
 			switch category {
 			case persistence.HistoryTaskCategoryTransfer:
 				s.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTransferFailoverLatencyTimer, time.Since(level.StartTime))
+				s.GetMetricsClient().Scope(metrics.ShardInfoScope).ExponentialHistogram(metrics.ShardInfoTransferFailoverLatencyHistogram, time.Since(level.StartTime))
 			case persistence.HistoryTaskCategoryTimer:
 				s.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTimerFailoverLatencyTimer, time.Since(level.StartTime))
+				s.GetMetricsClient().Scope(metrics.ShardInfoScope).ExponentialHistogram(metrics.ShardInfoTimerFailoverLatencyHistogram, time.Since(level.StartTime))
 			}
 			return nil
 		}
@@ -613,6 +619,7 @@ func (s *contextImpl) GetWorkflowExecution(
 	request *persistence.GetWorkflowExecutionRequest,
 ) (*persistence.GetWorkflowExecutionResponse, error) {
 	request.RangeID = atomic.LoadInt64(&s.rangeID) // This is to make sure read is not blocked by write, s.rangeID is synced with s.shardInfo.RangeID
+	request.ShardID = common.Ptr(s.shardID)
 	if err := s.closedError(); err != nil {
 		return nil, err
 	}
@@ -662,6 +669,7 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 	currentRangeID := s.getRangeID()
 	request.RangeID = currentRangeID
+	request.ShardID = common.Ptr(s.shardID)
 
 	response, err := s.executionManager.CreateWorkflowExecution(ctx, request)
 	switch err.(type) {
@@ -767,6 +775,7 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	}
 	currentRangeID := s.getRangeID()
 	request.RangeID = currentRangeID
+	request.ShardID = common.Ptr(s.shardID)
 
 	resp, err := s.executionManager.UpdateWorkflowExecution(ctx, request)
 	switch err.(type) {
@@ -878,6 +887,7 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	}
 	currentRangeID := s.getRangeID()
 	request.RangeID = currentRangeID
+	request.ShardID = common.Ptr(s.shardID)
 	resp, err := s.executionManager.ConflictResolveWorkflowExecution(ctx, request)
 	switch err.(type) {
 	case nil:
@@ -963,13 +973,15 @@ func (s *contextImpl) AppendHistoryV2Events(
 	}
 
 	request.Encoding = s.getDefaultEncoding(domainName)
-	request.ShardID = common.IntPtr(s.shardID)
+	request.ShardID = common.Ptr(s.shardID)
 	request.TransactionID = transactionID
 
 	size := 0
 	defer func() {
 		s.GetMetricsClient().Scope(metrics.SessionSizeStatsScope, metrics.DomainTag(domainName)).
 			RecordTimer(metrics.HistorySize, time.Duration(size))
+		s.GetMetricsClient().Scope(metrics.SessionSizeStatsScope, metrics.DomainTag(domainName)).
+			IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 		if size >= historySizeLogThreshold {
 			s.throttledLogger.Warn("history size threshold breached",
 				tag.WorkflowID(execution.GetWorkflowID()),
@@ -1007,6 +1019,10 @@ func (s *contextImpl) GetLogger() log.Logger {
 
 func (s *contextImpl) GetThrottledLogger() log.Logger {
 	return s.throttledLogger
+}
+
+func (s *contextImpl) GetReplicationBudgetManager() cache.Manager {
+	return s.replicationBudgetManager
 }
 
 func (s *contextImpl) getRangeID() int64 {
@@ -1225,14 +1241,25 @@ func (s *contextImpl) emitShardInfoMetricsLogsLocked() {
 
 	metricsScope := s.GetMetricsClient().Scope(metrics.ShardInfoScope)
 	metricsScope.RecordTimer(metrics.ShardInfoTransferDiffTimer, time.Duration(diffTransferLevel))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferDiffHistogram, int(diffTransferLevel))
+
 	metricsScope.RecordTimer(metrics.ShardInfoTimerDiffTimer, diffTimerLevel)
+	metricsScope.ExponentialHistogram(metrics.ShardInfoTimerDiffHistogram, diffTimerLevel)
 
 	metricsScope.RecordTimer(metrics.ShardInfoReplicationLagTimer, time.Duration(replicationLag))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoReplicationLagHistogram, int(replicationLag))
+
 	metricsScope.RecordTimer(metrics.ShardInfoTransferLagTimer, time.Duration(transferLag))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferLagHistogram, int(transferLag))
+
 	metricsScope.RecordTimer(metrics.ShardInfoTimerLagTimer, timerLag)
+	metricsScope.ExponentialHistogram(metrics.ShardInfoTimerLagHistogram, timerLag)
 
 	metricsScope.RecordTimer(metrics.ShardInfoTransferFailoverInProgressTimer, time.Duration(transferFailoverInProgress))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferFailoverInProgressHistogram, transferFailoverInProgress)
+
 	metricsScope.RecordTimer(metrics.ShardInfoTimerFailoverInProgressTimer, time.Duration(timerFailoverInProgress))
+	metricsScope.IntExponentialHistogram(metrics.ShardInfoTimerFailoverInProgressHistogram, timerFailoverInProgress)
 }
 
 func (s *contextImpl) allocateTaskIDsLocked(
@@ -1332,24 +1359,37 @@ func (s *contextImpl) allocateTimerIDsLocked(
 		// 2. current time. Otherwise the task timestamp is in the past and causes aritical load latency in queue processor metrics.
 		// Above cases can happen if shard move and new host have a time SKU,
 		// or there is db write delay, or we are simply (re-)generating tasks for an old workflow.
+
+		// Only log warnings for local-domain tasks (EmptyVersion) and tasks owned by the current cluster.
+		// Remote/standby tasks are expected to have timestamps before the local read level or current time,
+		// so these warnings would be noisy and not actionable for this host.
+		shouldLog := task.GetVersion() == constants.EmptyVersion
+		if !shouldLog {
+			clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
+			shouldLog = err == nil && clusterName == s.GetClusterMetadata().GetCurrentClusterName()
+		}
 		if ts.Before(readCursorTS) {
 			// This can happen if shard move and new host have a time SKU, or there is db write delay.
 			// We generate a new timer ID using timerMaxReadLevel.
-			s.logger.Warn("New timer generated is less than read level",
-				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-				tag.WorkflowID(workflowID),
-				tag.Timestamp(ts),
-				tag.CursorTimestamp(readCursorTS),
-				tag.ClusterName(cluster),
-				tag.ValueShardAllocateTimerBeforeRead)
+			if shouldLog {
+				s.logger.Warn("New timer generated is less than read level",
+					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+					tag.WorkflowID(workflowID),
+					tag.Timestamp(ts),
+					tag.CursorTimestamp(readCursorTS),
+					tag.ClusterName(cluster),
+					tag.ValueShardAllocateTimerBeforeRead)
+			}
 			ts = readCursorTS.Add(persistence.DBTimestampMinPrecision)
 		}
 		if ts.Before(now) {
-			s.logger.Warn("New timer generated is in the past",
-				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
-				tag.WorkflowID(workflowID),
-				tag.Timestamp(ts),
-				tag.ValueShardAllocateTimerBeforeRead)
+			if shouldLog {
+				s.logger.Warn("New timer generated is in the past",
+					tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+					tag.WorkflowID(workflowID),
+					tag.Timestamp(ts),
+					tag.ValueShardAllocateTimerBeforeRead)
+			}
 			ts = now.Add(persistence.DBTimestampMinPrecision)
 		}
 		task.SetVisibilityTimestamp(ts)
@@ -1427,6 +1467,7 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 		&persistence.CreateFailoverMarkersRequest{
 			RangeID: s.getRangeID(),
 			Markers: markers,
+			ShardID: common.Ptr(s.shardID),
 		},
 	)
 	switch err.(type) {
@@ -1621,6 +1662,7 @@ func acquireShard(
 		logger:                         shardItem.logger,
 		throttledLogger:                shardItem.throttledLogger,
 		previousShardOwnerWasDifferent: ownershipChanged,
+		replicationBudgetManager:       shardItem.replicationBudgetManager,
 	}
 
 	// TODO remove once migrated to global event cache

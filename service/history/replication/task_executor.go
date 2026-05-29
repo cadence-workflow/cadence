@@ -22,6 +22,7 @@ package replication
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -109,7 +110,20 @@ func (e *taskExecutorImpl) execute(
 func (e *taskExecutorImpl) handleActivityTask(
 	task *types.ReplicationTask,
 	forceApply bool,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			attr := task.SyncActivityTaskAttributes
+			e.logger.Error(
+				"handleActivityTask encountered panic.",
+				tag.WorkflowDomainID(attr.GetDomainID()),
+				tag.WorkflowID(attr.GetWorkflowID()),
+				tag.WorkflowRunID(attr.GetRunID()),
+				tag.Value(r),
+			)
+			panic(r)
+		}
+	}()
 
 	attr := task.SyncActivityTaskAttributes
 	doContinue, err := e.filterTask(attr.GetDomainID(), forceApply)
@@ -117,8 +131,12 @@ func (e *taskExecutorImpl) handleActivityTask(
 		return err
 	}
 
+	replicationLatencyStart := time.Now()
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.SyncActivityTaskScope, metrics.CadenceLatency)
-	defer replicationStopWatch.Stop()
+	defer func() {
+		replicationStopWatch.Stop()
+		e.metricsClient.Scope(metrics.SyncActivityTaskScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(replicationLatencyStart))
+	}()
 	request := &types.SyncActivityRequest{
 		DomainID:           attr.DomainID,
 		WorkflowID:         attr.WorkflowID,
@@ -158,8 +176,12 @@ func (e *taskExecutorImpl) handleActivityTask(
 	}
 	// Handle resend error
 	e.metricsClient.IncCounter(metrics.HistoryRereplicationByActivityReplicationScope, metrics.CadenceClientRequests)
+	activityResendLatencyStart := time.Now()
 	stopwatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByActivityReplicationScope, metrics.CadenceClientLatency)
-	defer stopwatch.Stop()
+	defer func() {
+		stopwatch.Stop()
+		e.metricsClient.Scope(metrics.HistoryRereplicationByActivityReplicationScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(activityResendLatencyStart))
+	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
 		e.sourceCluster,
@@ -200,7 +222,20 @@ func (e *taskExecutorImpl) handleActivityTask(
 func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	task *types.ReplicationTask,
 	forceApply bool,
-) error {
+) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			attr := task.HistoryTaskV2Attributes
+			e.logger.Error(
+				"handleHistoryReplicationTaskV2 encountered panic.",
+				tag.WorkflowDomainID(attr.GetDomainID()),
+				tag.WorkflowID(attr.GetWorkflowID()),
+				tag.WorkflowRunID(attr.GetRunID()),
+				tag.Value(r),
+			)
+			panic(r)
+		}
+	}()
 
 	attr := task.HistoryTaskV2Attributes
 	doContinue, err := e.filterTask(attr.GetDomainID(), forceApply)
@@ -208,8 +243,12 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 		return err
 	}
 
+	replicationV2LatencyStart := time.Now()
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.HistoryReplicationV2TaskScope, metrics.CadenceLatency)
-	defer replicationStopWatch.Stop()
+	defer func() {
+		replicationStopWatch.Stop()
+		e.metricsClient.Scope(metrics.HistoryReplicationV2TaskScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(replicationV2LatencyStart))
+	}()
 	request := &types.ReplicateEventsV2Request{
 		DomainUUID: attr.DomainID,
 		WorkflowExecution: &types.WorkflowExecution{
@@ -242,8 +281,12 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 		return err
 	}
 	e.metricsClient.IncCounter(metrics.HistoryRereplicationByHistoryReplicationScope, metrics.CadenceClientRequests)
+	historyResendLatencyStart := time.Now()
 	resendStopWatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByHistoryReplicationScope, metrics.CadenceClientLatency)
-	defer resendStopWatch.Stop()
+	defer func() {
+		resendStopWatch.Stop()
+		e.metricsClient.Scope(metrics.HistoryRereplicationByHistoryReplicationScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(historyResendLatencyStart))
+	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
 		e.sourceCluster,
@@ -272,6 +315,10 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
 			tag.WorkflowID(retryErr.GetWorkflowID()),
 			tag.WorkflowRunID(retryErr.GetRunID()),
+			tag.WorkflowFirstEventID(retryErr.GetStartEventID()),
+			tag.FirstEventVersion(retryErr.GetStartEventVersion()),
+			tag.WorkflowLastEventID(retryErr.GetEndEventID()),
+			tag.LastEventVersion(retryErr.GetEndEventVersion()),
 			tag.Error(resendErr),
 		)
 		// should return the replication error, not the resending error

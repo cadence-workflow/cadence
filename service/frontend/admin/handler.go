@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
@@ -41,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/domain"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -118,8 +120,10 @@ func NewHandler(
 
 	domainReplicationTaskExecutor := domain.NewReplicationTaskExecutor(
 		resource.GetDomainManager(),
+		resource.GetDomainAuditManager(),
 		resource.GetTimeSource(),
 		resource.GetLogger(),
+		dynamicproperties.GetBoolPropertyFn(false), // audit operations are not needed for DLQ operations
 	)
 
 	return &adminHandlerImpl{
@@ -137,6 +141,7 @@ func NewHandler(
 		domainFailoverWatcher: domain.NewFailoverWatcher(
 			resource.GetDomainCache(),
 			resource.GetDomainManager(),
+			resource.GetClusterMetadata(),
 			resource.GetTimeSource(),
 			config.DomainFailoverRefreshInterval,
 			config.DomainFailoverRefreshTimerJitterCoefficient,
@@ -279,7 +284,7 @@ func (adh *adminHandlerImpl) DescribeWorkflowExecution(
 		Execution:  request.Execution,
 	})
 	if err != nil {
-		return &types.AdminDescribeWorkflowExecutionResponse{}, err
+		return nil, err
 	}
 	return &types.AdminDescribeWorkflowExecutionResponse{
 		ShardID:                shardIDForOutput,
@@ -817,6 +822,7 @@ func (adh *adminHandlerImpl) GetWorkflowExecutionRawHistoryV2(
 	pageToken.PersistenceToken = rawHistoryResponse.NextPageToken
 	size := rawHistoryResponse.Size
 	scope.RecordTimer(metrics.HistorySize, time.Duration(size))
+	scope.IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 
 	rawBlobs := rawHistoryResponse.HistoryEventBlobs
 	blobs := []*types.DataBlob{}
@@ -1576,119 +1582,251 @@ func (adh *adminHandlerImpl) GetDynamicConfig(ctx context.Context, request *type
 	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
 	scope, sw := adh.startRequestProfile(ctx, metrics.AdminGetDynamicConfigScope)
 	defer sw.Stop()
-
-	if request == nil || request.ConfigName == "" {
+	if request == nil {
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
 	}
-
-	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
+	blob, err := adh.getDynamicConfigValue(scope, adh.params.DynamicConfig, request.ConfigName, request.Filters)
 	if err != nil {
-		return nil, adh.error(err, scope)
+		return nil, err
 	}
-
-	var value interface{}
-	if request.Filters == nil {
-		value, err = adh.params.DynamicConfig.GetValue(keyVal)
-		if err != nil {
-			return nil, adh.error(err, scope)
-		}
-	} else {
-		convFilters, err := convertFilterListToMap(request.Filters)
-		if err != nil {
-			return nil, adh.error(err, scope)
-		}
-		value, err = adh.params.DynamicConfig.GetValueWithFilters(keyVal, convFilters)
-		if err != nil {
-			return nil, adh.error(err, scope)
-		}
-	}
-
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil, adh.error(err, scope)
-	}
-
-	return &types.GetDynamicConfigResponse{
-		Value: &types.DataBlob{
-			EncodingType: types.EncodingTypeJSON.Ptr(),
-			Data:         data,
-		},
-	}, nil
+	return &types.GetDynamicConfigResponse{Value: blob}, nil
 }
 
 func (adh *adminHandlerImpl) UpdateDynamicConfig(ctx context.Context, request *types.UpdateDynamicConfigRequest) (retError error) {
 	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
 	scope, sw := adh.startRequestProfile(ctx, metrics.AdminUpdateDynamicConfigScope)
 	defer sw.Stop()
-
-	if request == nil || request.ConfigName == "" {
+	if request == nil {
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
-
-	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
-	if err != nil {
-		return adh.error(err, scope)
-	}
-
-	return adh.params.DynamicConfig.UpdateValue(keyVal, request.ConfigValues)
+	return adh.updateDynamicConfigValue(ctx, scope, adh.params.DynamicConfig, request.ConfigName, request.ConfigValues)
 }
 
 func (adh *adminHandlerImpl) RestoreDynamicConfig(ctx context.Context, request *types.RestoreDynamicConfigRequest) (retError error) {
 	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
 	scope, sw := adh.startRequestProfile(ctx, metrics.AdminRestoreDynamicConfigScope)
 	defer sw.Stop()
-
-	if request == nil || request.ConfigName == "" {
+	if request == nil {
 		return adh.error(validate.ErrRequestNotSet, scope)
 	}
-
-	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
-	if err != nil {
-		return adh.error(err, scope)
-	}
-
-	var filters map[dynamicproperties.Filter]interface{}
-
-	if request.Filters == nil {
-		filters = nil
-	} else {
-		filters, err = convertFilterListToMap(request.Filters)
-		if err != nil {
-			return adh.error(validate.ErrInvalidFilters, scope)
-		}
-	}
-	return adh.params.DynamicConfig.RestoreValue(keyVal, filters)
+	return adh.restoreDynamicConfigValue(ctx, scope, adh.params.DynamicConfig, request.ConfigName, request.Filters)
 }
 
 func (adh *adminHandlerImpl) ListDynamicConfig(ctx context.Context, request *types.ListDynamicConfigRequest) (_ *types.ListDynamicConfigResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
 	scope, sw := adh.startRequestProfile(ctx, metrics.AdminListDynamicConfigScope)
 	defer sw.Stop()
-
 	if request == nil {
 		return nil, adh.error(validate.ErrRequestNotSet, scope)
 	}
-
-	keyVal, err := dynamicproperties.GetKeyFromKeyName(request.ConfigName)
-	if err != nil || request.ConfigName == "" {
-		entries, err2 := adh.params.DynamicConfig.ListValue(nil)
-		if err2 != nil {
-			return nil, adh.error(err2, scope)
-		}
-		return &types.ListDynamicConfigResponse{
-			Entries: entries,
-		}, nil
+	entries, err := adh.listDynamicConfigValue(scope, adh.params.DynamicConfig, request.ConfigName)
+	if err != nil {
+		return nil, err
 	}
+	return &types.ListDynamicConfigResponse{Entries: entries}, nil
+}
 
-	entries, err2 := adh.params.DynamicConfig.ListValue(keyVal)
-	if err2 != nil {
-		err = adh.error(err2, scope)
+func (adh *adminHandlerImpl) GetOperationalDynamicConfig(ctx context.Context, request *types.GetOperationalDynamicConfigRequest) (_ *types.GetOperationalDynamicConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminGetOperationalDynamicConfigScope)
+	defer sw.Stop()
+	if request == nil {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+	client, err := adh.operationalConfigClient(scope)
+	if err != nil {
+		return nil, err
+	}
+	blob, err := adh.getDynamicConfigValue(scope, client, request.ConfigName, request.Filters)
+	if err != nil {
+		return nil, err
+	}
+	return &types.GetOperationalDynamicConfigResponse{Value: blob}, nil
+}
+
+func (adh *adminHandlerImpl) UpdateOperationalDynamicConfig(ctx context.Context, request *types.UpdateOperationalDynamicConfigRequest) (retError error) {
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminUpdateOperationalDynamicConfigScope)
+	defer sw.Stop()
+	if request == nil {
+		return adh.error(validate.ErrRequestNotSet, scope)
+	}
+	client, err := adh.operationalConfigClient(scope)
+	if err != nil {
+		return err
+	}
+	adh.logOperationalConfigChange(ctx, "Update", request.ConfigName, request.ConfigValues)
+	return adh.updateDynamicConfigValue(ctx, scope, client, request.ConfigName, request.ConfigValues)
+}
+
+func (adh *adminHandlerImpl) RestoreOperationalDynamicConfig(ctx context.Context, request *types.RestoreOperationalDynamicConfigRequest) (retError error) {
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminRestoreOperationalDynamicConfigScope)
+	defer sw.Stop()
+	if request == nil {
+		return adh.error(validate.ErrRequestNotSet, scope)
+	}
+	client, err := adh.operationalConfigClient(scope)
+	if err != nil {
+		return err
+	}
+	adh.logOperationalConfigChange(ctx, "Restore", request.ConfigName, request.Filters)
+	return adh.restoreDynamicConfigValue(ctx, scope, client, request.ConfigName, request.Filters)
+}
+
+func (adh *adminHandlerImpl) ListOperationalDynamicConfig(ctx context.Context, request *types.ListOperationalDynamicConfigRequest) (_ *types.ListOperationalDynamicConfigResponse, retError error) {
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &retError) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminListOperationalDynamicConfigScope)
+	defer sw.Stop()
+	if request == nil {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+	client, err := adh.operationalConfigClient(scope)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := adh.listDynamicConfigValue(scope, client, request.ConfigName)
+	if err != nil {
+		return nil, err
+	}
+	return &types.ListOperationalDynamicConfigResponse{Entries: entries}, nil
+}
+
+// operationalConfigClient returns the operational config store as a dynamicconfig.Client, or
+// an error when the persistence layer does not back a config store. The error is routed through
+// adh.error so the caller's request scope records it.
+func (adh *adminHandlerImpl) operationalConfigClient(scope metrics.Scope) (dynamicconfig.Client, error) {
+	store := adh.GetOperationalConfigStore()
+	if store == nil {
+		return nil, adh.error(&types.BadRequestError{Message: "operational dynamic config store is not available on this persistence backend"}, scope)
+	}
+	return store, nil
+}
+
+// logOperationalConfigChange emits a structured audit log line capturing the caller and the
+// requested change. Best-effort: a logging failure does not block the write.
+func (adh *adminHandlerImpl) logOperationalConfigChange(ctx context.Context, op, configName string, payload interface{}) {
+	caller := ""
+	if call := yarpc.CallFromContext(ctx); call != nil {
+		caller = call.Caller()
+	}
+	adh.GetLogger().Info("operational dynamic config change",
+		tag.OperationName(op),
+		tag.Key(configName),
+		tag.Name(caller),
+		tag.Value(payload),
+	)
+}
+
+// resolveDynamicConfigKey rejects empty config names and looks up the typed key,
+// recording any error on the given scope.
+func (adh *adminHandlerImpl) resolveDynamicConfigKey(scope metrics.Scope, configName string) (dynamicproperties.Key, error) {
+	if configName == "" {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(configName)
+	if err != nil {
 		return nil, adh.error(err, scope)
 	}
+	return keyVal, nil
+}
 
-	return &types.ListDynamicConfigResponse{
-		Entries: entries,
+// getDynamicConfigValue is the shared implementation for GetDynamicConfig and
+// GetOperationalDynamicConfig. It validates the config name, looks up the value via the given
+// client, and returns it as a JSON-encoded DataBlob.
+func (adh *adminHandlerImpl) getDynamicConfigValue(
+	scope metrics.Scope,
+	client dynamicconfig.Client,
+	configName string,
+	filters []*types.DynamicConfigFilter,
+) (*types.DataBlob, error) {
+	keyVal, err := adh.resolveDynamicConfigKey(scope, configName)
+	if err != nil {
+		return nil, err
+	}
+
+	var value interface{}
+	if filters == nil {
+		value, err = client.GetValue(keyVal)
+	} else {
+		convFilters, ferr := convertFilterListToMap(filters)
+		if ferr != nil {
+			return nil, adh.error(ferr, scope)
+		}
+		value, err = client.GetValueWithFilters(keyVal, convFilters)
+	}
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	return &types.DataBlob{
+		EncodingType: types.EncodingTypeJSON.Ptr(),
+		Data:         data,
 	}, nil
+}
+
+// updateDynamicConfigValue is the shared implementation for UpdateDynamicConfig and
+// UpdateOperationalDynamicConfig.
+func (adh *adminHandlerImpl) updateDynamicConfigValue(
+	ctx context.Context,
+	scope metrics.Scope,
+	client dynamicconfig.Client,
+	configName string,
+	values []*types.DynamicConfigValue,
+) error {
+	keyVal, err := adh.resolveDynamicConfigKey(scope, configName)
+	if err != nil {
+		return err
+	}
+	return client.UpdateValue(keyVal, values)
+}
+
+// restoreDynamicConfigValue is the shared implementation for RestoreDynamicConfig and
+// RestoreOperationalDynamicConfig.
+func (adh *adminHandlerImpl) restoreDynamicConfigValue(
+	ctx context.Context,
+	scope metrics.Scope,
+	client dynamicconfig.Client,
+	configName string,
+	filters []*types.DynamicConfigFilter,
+) error {
+	keyVal, err := adh.resolveDynamicConfigKey(scope, configName)
+	if err != nil {
+		return err
+	}
+	var convFilters map[dynamicproperties.Filter]interface{}
+	if filters != nil {
+		convFilters, err = convertFilterListToMap(filters)
+		if err != nil {
+			return adh.error(validate.ErrInvalidFilters, scope)
+		}
+	}
+	return client.RestoreValue(keyVal, convFilters)
+}
+
+// listDynamicConfigValue is the shared implementation for ListDynamicConfig and
+// ListOperationalDynamicConfig. An empty or unknown config name returns all entries.
+func (adh *adminHandlerImpl) listDynamicConfigValue(
+	scope metrics.Scope,
+	client dynamicconfig.Client,
+	configName string,
+) ([]*types.DynamicConfigEntry, error) {
+	keyVal, err := dynamicproperties.GetKeyFromKeyName(configName)
+	if err != nil || configName == "" {
+		entries, lerr := client.ListValue(nil)
+		if lerr != nil {
+			return nil, adh.error(lerr, scope)
+		}
+		return entries, nil
+	}
+	entries, err := client.ListValue(keyVal)
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	return entries, nil
 }
 
 func (adh *adminHandlerImpl) GetGlobalIsolationGroups(ctx context.Context, request *types.GetGlobalIsolationGroupsRequest) (_ *types.GetGlobalIsolationGroupsResponse, retError error) {

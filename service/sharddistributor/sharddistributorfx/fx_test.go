@@ -44,9 +44,7 @@ func TestFxServiceStartStop(t *testing.T) {
 				return store.NewMockStore(ctrl)
 			},
 			func() config.ShardDistribution {
-				return config.ShardDistribution{
-					Enabled: false,
-				}
+				return config.ShardDistribution{}
 			},
 			func() clock.TimeSource {
 				return clock.NewMockedTimeSource()

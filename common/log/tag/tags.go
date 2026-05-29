@@ -292,6 +292,11 @@ func WorkflowFirstEventID(firstEventID int64) Tag {
 	return newInt64("wf-first-event-id", firstEventID)
 }
 
+// WorkflowLastEventID returns tag for WorkflowLastEventID
+func WorkflowLastEventID(lastEventID int64) Tag {
+	return newInt64("wf-last-event-id", lastEventID)
+}
+
 // WorkflowNextEventID returns tag for WorkflowNextEventID
 func WorkflowNextEventID(nextEventID int64) Tag {
 	return newInt64("wf-next-event-id", nextEventID)
@@ -580,6 +585,10 @@ func ActorID(actorID string) Tag {
 // ActorEmail returns tag for the actor's email address
 func ActorEmail(actorEmail string) Tag {
 	return newStringTag("actor-email", actorEmail)
+}
+
+func IsShadowModeEnabled(isShadow bool) Tag {
+	return newBoolTag("is-shadow-mode-enabled", isShadow)
 }
 
 // HandlerCall returns tag for the API name of a request
@@ -1185,6 +1194,13 @@ func ShardKey(shardKey string) Tag {
 	return newStringTag("shard-key", shardKey)
 }
 
+func ShardStatus(status string) Tag {
+	return newStringTag("shard-status", status)
+}
+func ShardLoad(load string) Tag {
+	return newStringTag("shard-load", load)
+}
+
 func ElectionDelay(t time.Duration) Tag {
 	return newDurationTag("election-delay", t)
 }
@@ -1228,4 +1244,13 @@ func VirtualQueueID(id int64) Tag {
 
 func AlertType(alertType int) Tag {
 	return newInt("alert-type", alertType)
+}
+
+// CacheID returns a tag for cache identifier
+func CacheID(cacheID string) Tag {
+	return newStringTag("cache-id", cacheID)
+}
+
+func DomainAuditOperationType(operationType fmt.Stringer) Tag {
+	return newStringTag("domain-audit-operation-type", operationType.String())
 }

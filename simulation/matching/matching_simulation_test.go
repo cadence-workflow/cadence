@@ -41,6 +41,7 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -53,7 +54,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	"github.com/uber/cadence/client/history"
@@ -165,7 +165,6 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
 		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		SerializationEncoding:                    dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
@@ -183,9 +182,9 @@ func (s *MatchingSimulationSuite) SetupSuite() {
 	s.AdminClient = s.TestCluster.GetAdminClient()
 
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 	s.SecondaryDomainName = s.RandomizeStr("unused-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.Require().NoError(s.RegisterDomain(s.SecondaryDomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	time.Sleep(2 * time.Second)
 }

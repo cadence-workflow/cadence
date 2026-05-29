@@ -63,6 +63,8 @@ const (
 	returnEmptyTaskTimeBudget = time.Second
 	noIsolationTimeout        = time.Duration(0)
 	minimumIsolationDuration  = time.Millisecond * 50
+
+	notifyPartitionConfigTimeout = 5 * time.Second
 )
 
 var (
@@ -86,11 +88,27 @@ type (
 	identityCtxKey       struct{}
 	isolationGroupCtxKey struct{}
 
+	ManagerParams struct {
+		DomainCache     cache.DomainCache
+		Logger          log.Logger
+		MetricsClient   metrics.Client
+		TaskManager     persistence.TaskManager
+		ClusterMetadata cluster.Metadata
+		IsolationState  isolationgroup.State
+		MatchingClient  matching.Client
+		Registry        TaskListRegistry
+		TaskList        *Identifier
+		TaskListKind    types.TaskListKind
+		Cfg             *config.Config
+		TimeSource      clock.TimeSource
+		CreateTime      time.Time
+		HistoryService  history.Client
+	}
+
 	AddTaskParams struct {
-		TaskInfo                 *persistence.TaskInfo
-		Source                   types.TaskSource
-		ForwardedFrom            string
-		ActivityTaskDispatchInfo *types.ActivityTaskDispatchInfo
+		TaskInfo      *persistence.TaskInfo
+		Source        types.TaskSource
+		ForwardedFrom string
 	}
 
 	// Single task list in memory state
@@ -123,7 +141,7 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
-		closeCallback func(Manager)
+		registry      TaskListRegistry
 		throttleRetry *backoff.ThrottleRetry
 
 		qpsTracker     stats.QPSTrackerGroup
@@ -143,91 +161,80 @@ const (
 
 var errRemoteSyncMatchFailed = &types.RemoteSyncMatchedError{Message: "remote sync match failed"}
 
-func NewManager(
-	domainCache cache.DomainCache,
-	logger log.Logger,
-	metricsClient metrics.Client,
-	taskManager persistence.TaskManager,
-	clusterMetadata cluster.Metadata,
-	isolationState isolationgroup.State,
-	matchingClient matching.Client,
-	closeCallback func(Manager),
-	taskList *Identifier,
-	taskListKind types.TaskListKind,
-	cfg *config.Config,
-	timeSource clock.TimeSource,
-	createTime time.Time,
-	historyService history.Client,
-) (Manager, error) {
-	domainName, err := domainCache.GetDomainName(taskList.GetDomainID())
+func NewManager(p ManagerParams) (Manager, error) {
+	err := validateParams(p)
+	if err != nil {
+		return nil, err
+	}
+	domainName, err := p.DomainCache.GetDomainName(p.TaskList.GetDomainID())
 	if err != nil {
 		return nil, err
 	}
 
-	taskListConfig := newTaskListConfig(taskList, cfg, domainName)
+	taskListConfig := newTaskListConfig(p.TaskList, p.Cfg, domainName)
 
-	scope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingTaskListMgrScope).
-		Tagged(getTaskListTypeTag(taskList.GetType()))
-	db := newTaskListDB(taskManager, taskList.GetDomainID(), domainName, taskList.GetName(), taskList.GetType(), int(taskListKind), logger)
+	scope := common.NewPerTaskListScope(domainName, p.TaskList.GetName(), p.TaskListKind, p.MetricsClient, metrics.MatchingTaskListMgrScope).
+		Tagged(getTaskListTypeTag(p.TaskList.GetType()))
+	db := newTaskListDB(p.TaskManager, p.TaskList.GetDomainID(), domainName, p.TaskList.GetName(), p.TaskList.GetType(), int(p.TaskListKind), p.Logger)
 	var isolationGroups []string
-	if taskListKind != types.TaskListKindSticky && taskListConfig.EnableTasklistIsolation() {
-		isolationGroups = slices.Clone(cfg.AllIsolationGroups())
+	if p.TaskListKind != types.TaskListKindSticky && taskListConfig.EnableTasklistIsolation() {
+		isolationGroups = slices.Clone(p.Cfg.AllIsolationGroups())
 		slices.Sort(isolationGroups)
 	}
 
 	tlMgr := &taskListManagerImpl{
-		createTime:      createTime,
+		createTime:      p.CreateTime,
 		enableIsolation: taskListConfig.EnableTasklistIsolation(),
-		domainCache:     domainCache,
-		clusterMetadata: clusterMetadata,
-		isolationState:  isolationState,
+		domainCache:     p.DomainCache,
+		clusterMetadata: p.ClusterMetadata,
+		isolationState:  p.IsolationState,
 		isolationGroups: isolationGroups,
-		taskListID:      taskList,
-		taskListKind:    taskListKind,
-		logger:          logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(taskList.GetName()), tag.WorkflowTaskListType(taskList.GetType())),
+		taskListID:      p.TaskList,
+		taskListKind:    p.TaskListKind,
+		logger:          p.Logger.WithTags(tag.WorkflowDomainName(domainName), tag.WorkflowTaskListName(p.TaskList.GetName()), tag.WorkflowTaskListType(p.TaskList.GetType())),
 		db:              db,
-		taskAckManager:  messaging.NewAckManager(logger),
+		taskAckManager:  messaging.NewAckManager(p.Logger),
 		taskGC:          newTaskGC(db, taskListConfig),
 		config:          taskListConfig,
-		matchingClient:  matchingClient,
+		matchingClient:  p.MatchingClient,
 		domainName:      domainName,
 		scope:           scope,
-		timeSource:      timeSource,
-		closeCallback:   closeCallback,
+		timeSource:      p.TimeSource,
+		registry:        p.Registry,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
 		),
-		historyService: historyService,
+		historyService: p.HistoryService,
 	}
 
 	tlMgr.pollers = poller.NewPollerManager(func() {
 		scope.UpdateGauge(metrics.PollerPerTaskListCounter,
 			float64(tlMgr.pollers.GetCount()))
-	}, timeSource)
+	}, p.TimeSource)
 
 	livenessInterval := taskListConfig.IdleTasklistCheckInterval()
-	tlMgr.liveness = liveness.NewLiveness(timeSource, livenessInterval, func() {
-		tlMgr.logger.Info("Task list manager stopping because no recent events", tag.Dynamic("interval", livenessInterval))
+	tlMgr.liveness = liveness.NewLiveness(p.TimeSource, livenessInterval, func() {
+		tlMgr.logger.Debug("Task list manager stopping because no recent events", tag.Dynamic("interval", livenessInterval))
 		tlMgr.Stop()
 	})
 
 	baseEvent := event.E{
-		TaskListName: taskList.GetName(),
-		TaskListKind: &taskListKind,
-		TaskListType: taskList.GetType(),
+		TaskListName: p.TaskList.GetName(),
+		TaskListKind: &p.TaskListKind,
+		TaskListType: p.TaskList.GetType(),
 	}
 
-	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(timeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
-	if taskList.IsRoot() && taskListKind == types.TaskListKindNormal {
-		adaptiveScalerScope := common.NewPerTaskListScope(domainName, taskList.GetName(), taskListKind, metricsClient, metrics.MatchingAdaptiveScalerScope).
-			Tagged(getTaskListTypeTag(taskList.GetType()))
-		tlMgr.adaptiveScaler = NewAdaptiveScaler(taskList, tlMgr, taskListConfig, timeSource, tlMgr.logger, adaptiveScalerScope, matchingClient, baseEvent)
+	tlMgr.qpsTracker = stats.NewEmaFixedWindowQPSTracker(p.TimeSource, 0.5, taskListConfig.QPSTrackerInterval(), baseEvent)
+	if p.TaskList.IsRoot() && p.TaskListKind == types.TaskListKindNormal {
+		adaptiveScalerScope := common.NewPerTaskListScope(domainName, p.TaskList.GetName(), p.TaskListKind, p.MetricsClient, metrics.MatchingAdaptiveScalerScope).
+			Tagged(getTaskListTypeTag(p.TaskList.GetType()))
+		tlMgr.adaptiveScaler = NewAdaptiveScaler(p.TaskList, tlMgr, taskListConfig, p.TimeSource, tlMgr.logger, adaptiveScalerScope, p.MatchingClient, baseEvent)
 	}
 
 	var fwdr Forwarder
-	if tlMgr.isFowardingAllowed(taskList, taskListKind) {
-		fwdr = newForwarder(&taskListConfig.ForwarderConfig, taskList, taskListKind, matchingClient, scope)
+	if tlMgr.isFowardingAllowed(p.TaskList, p.TaskListKind) {
+		fwdr = newForwarder(&taskListConfig.ForwarderConfig, p.TaskList, p.TaskListKind, p.MatchingClient, scope)
 	}
 	numReadPartitionsFn := func() int {
 		if taskListConfig.EnableGetNumberOfPartitionsFromCache() {
@@ -240,8 +247,8 @@ func NewManager(
 		}
 		return taskListConfig.NumReadPartitions()
 	}
-	tlMgr.limiter = newTaskListLimiter(timeSource, tlMgr.scope, taskListConfig, numReadPartitionsFn)
-	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, taskList, taskListKind, tlMgr.limiter).(*taskMatcherImpl)
+	tlMgr.limiter = newTaskListLimiter(p.TimeSource, tlMgr.scope, taskListConfig, numReadPartitionsFn)
+	tlMgr.matcher = newTaskMatcher(taskListConfig, fwdr, tlMgr.scope, isolationGroups, tlMgr.logger, p.TaskList, p.TaskListKind, tlMgr.limiter).(*taskMatcherImpl)
 	tlMgr.taskWriter = newTaskWriter(tlMgr)
 	tlMgr.taskReader = newTaskReader(tlMgr, isolationGroups)
 	tlMgr.taskCompleter = newTaskCompleter(tlMgr, historyServiceOperationRetryPolicy)
@@ -251,7 +258,7 @@ func NewManager(
 
 // Starts reading pump for the given task list.
 // The pump fills up taskBuffer from persistence.
-func (c *taskListManagerImpl) Start() error {
+func (c *taskListManagerImpl) Start(ctx context.Context) error {
 	defer c.startWG.Done()
 
 	if !c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
@@ -282,14 +289,16 @@ func (c *taskListManagerImpl) Start() error {
 	}
 	if c.taskListID.IsRoot() && c.taskListKind == types.TaskListKindNormal {
 		c.partitionConfig = c.db.PartitionConfig().ToInternalType()
-		c.logger.Info("get task list partition config from db", tag.Dynamic("root-partition", c.taskListID.GetRoot()), tag.Dynamic("task-list-partition-config", c.partitionConfig))
+		c.logger.Debug("get task list partition config from db", tag.Dynamic("root-partition", c.taskListID.GetRoot()), tag.Dynamic("task-list-partition-config", c.partitionConfig))
 		if c.partitionConfig != nil {
 			startConfig := c.partitionConfig
 			// push update notification to all non-root partitions on start
 			c.stopWG.Add(1)
 			go func() {
 				defer c.stopWG.Done()
-				c.notifyPartitionConfig(context.Background(), nil, startConfig)
+				ctx, cancel := context.WithTimeout(context.Background(), notifyPartitionConfigTimeout)
+				defer cancel()
+				c.notifyPartitionConfig(ctx, nil, startConfig)
 			}()
 		}
 	}
@@ -310,7 +319,10 @@ func (c *taskListManagerImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
-	c.closeCallback(c)
+
+	// Notify parent registry to unregister this manager
+	c.registry.Unregister(c)
+
 	if c.adaptiveScaler != nil {
 		c.adaptiveScaler.Stop()
 	}
@@ -320,7 +332,7 @@ func (c *taskListManagerImpl) Stop() {
 	c.taskReader.Stop()
 	c.matcher.DisconnectBlockedPollers()
 	c.stopWG.Wait()
-	c.logger.Info("Task list manager state changed", tag.LifeCycleStopped)
+	c.logger.Debug("Task list manager state changed", tag.LifeCycleStopped)
 }
 
 func (c *taskListManagerImpl) handleErr(err error) error {
@@ -329,7 +341,7 @@ func (c *taskListManagerImpl) handleErr(err error) error {
 		// This indicates the task list may have moved to another host.
 		c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
 		c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
-		c.Stop()
+		go c.Stop()
 		if c.taskListKind == types.TaskListKindSticky {
 			// TODO: we don't see this error in our logs, we might be able to remove this error
 			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
@@ -387,6 +399,10 @@ func (c *taskListManagerImpl) LoadBalancerHints() *types.LoadBalancerHints {
 		BacklogCount:  c.taskAckManager.GetBacklogCount(),
 		RatePerSecond: c.qpsTracker.QPS(),
 	}
+}
+
+func (c *taskListManagerImpl) QueriesPerSecond() float64 {
+	return c.qpsTracker.QPS()
 }
 
 func isTaskListPartitionConfigEqual(a types.TaskListPartitionConfig, b types.TaskListPartitionConfig) bool {
@@ -513,7 +529,8 @@ func (c *taskListManagerImpl) notifyPartitionConfig(ctx context.Context, oldConf
 
 // AddTask adds a task to the task list. This method will first attempt a synchronous
 // match with a poller. When there are no pollers or if rate limit is exceeded, task will
-// be written to database and later asynchronously matched with a poller
+// be written to database and later asynchronously matched with a poller.
+// It returns whether the sync match succeeded, along with any error that occurred.
 func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams) (bool, error) {
 	c.startWG.Wait()
 
@@ -524,7 +541,7 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 	if c.config.EnableGetNumberOfPartitionsFromCache() {
 		_, ok := c.PartitionWriteConfig()
 		if !ok {
-			return false, &types.InternalServiceError{Message: "Current partition is drained."}
+			return false, &types.ReadOnlyPartitionError{Message: "Current partition is drained."}
 		}
 	}
 	if params.ForwardedFrom == "" {
@@ -537,6 +554,8 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		}
 		c.scope.UpdateGauge(metrics.EstimatedAddTaskQPSGauge, c.qpsTracker.QPS())
 	}
+
+	// Sync match flow
 	var syncMatch bool
 	e := event.E{
 		TaskListName: c.taskListID.GetName(),
@@ -544,59 +563,56 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 		TaskListType: c.taskListID.GetType(),
 		TaskInfo:     *params.TaskInfo,
 	}
-	_, err := c.executeWithRetry(func() (interface{}, error) {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 
-		domainEntry, err := c.domainCache.GetDomainByID(params.TaskInfo.DomainID)
-		if err != nil {
-			return nil, err
-		}
-
-		isForwarded := params.ForwardedFrom != ""
-
-		if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
-			// standby task, only persist when task is not forwarded from child partition
-			syncMatch = false
-			if isForwarded {
-				return &persistence.CreateTasksResponse{}, errRemoteSyncMatchFailed
-			}
-
-			r, err := c.taskWriter.appendTask(params.TaskInfo)
-			return r, err
-		}
-
-		isolationGroup, _ := c.getIsolationGroupForTask(ctx, params.TaskInfo)
-		// active task, try sync match first
-		syncMatch, err = c.trySyncMatch(ctx, params, isolationGroup)
-		if syncMatch {
-			e.EventName = "SyncMatched so not persisted"
-			event.Log(e)
-			return &persistence.CreateTasksResponse{}, err
-		}
-		if params.ActivityTaskDispatchInfo != nil {
-			return false, errRemoteSyncMatchFailed
-		}
-
-		if isForwarded {
-			// forwarded from child partition - only do sync match
-			// child partition will persist the task when sync match fails
-			e.EventName = "Could not SyncMatched Forwarded Task so not persisted"
-			event.Log(e)
-			return &persistence.CreateTasksResponse{}, errRemoteSyncMatchFailed
-		}
-
-		e.EventName = "Task Sent to Writer"
-		event.Log(e)
-		return c.taskWriter.appendTask(params.TaskInfo)
-	})
-
-	if err == nil && !syncMatch {
-		c.taskReader.Signal()
+	domainEntry, err := c.domainCache.GetDomainByID(params.TaskInfo.DomainID)
+	if err != nil {
+		// If we cannot fetch the domain entry from the cache, we cannot proceed. Sync match fails.
+		return false, err
 	}
 
-	return syncMatch, err
+	// Check if the task was forwarded from another partition
+	isForwarded := params.ForwardedFrom != ""
+	if !domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+		// standby task, only persist when task is not forwarded from child partition
+		syncMatch = false
+		if isForwarded {
+			return syncMatch, errRemoteSyncMatchFailed
+		}
+
+		// Persist the standby task, but the sync match still fails.
+		// Return the false syncMatch flag along with any error
+		_, err = c.taskWriter.appendTask(ctx, params.TaskInfo)
+		if err == nil {
+			// Signal the task reader only if appendTask succeeded
+			c.taskReader.Signal()
+		}
+		return syncMatch, err
+	}
+
+	isolationGroup, _ := c.getIsolationGroupForTask(ctx, params.TaskInfo)
+	// active task, try sync match first
+	syncMatch, err = c.trySyncMatch(ctx, params, isolationGroup)
+	if syncMatch {
+		e.EventName = "SyncMatched so not persisted"
+		event.Log(e)
+		return syncMatch, err
+	}
+
+	if isForwarded {
+		// forwarded from child partition - only do sync match
+		// child partition will persist the task when sync match fails
+		e.EventName = "Could not SyncMatched Forwarded Task so not persisted"
+		event.Log(e)
+		return syncMatch, errRemoteSyncMatchFailed
+	}
+
+	e.EventName = "Task Sent to Writer"
+	event.Log(e)
+	if _, err := c.taskWriter.appendTask(ctx, params.TaskInfo); err != nil {
+		return syncMatch, err
+	}
+	c.taskReader.Signal()
+	return syncMatch, nil
 }
 
 // DispatchTask dispatches a task to a poller on the active side. When there are no pollers to pick
@@ -611,6 +627,12 @@ func (c *taskListManagerImpl) DispatchTask(ctx context.Context, task *InternalTa
 	}
 
 	if domainEntry.IsActiveIn(c.clusterMetadata.GetCurrentClusterName()) {
+		c.logger.Debug("Domain is active in the current cluster, dispatching task",
+			tag.WorkflowDomainID(task.Event.TaskInfo.DomainID),
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.WorkflowID(task.Event.TaskInfo.WorkflowID),
+			tag.WorkflowRunID(task.Event.TaskInfo.RunID),
+		)
 		return c.matcher.MustOffer(ctx, task)
 	}
 
@@ -677,10 +699,17 @@ func (c *taskListManagerImpl) getTask(ctx context.Context, maxDispatchPerSecond 
 	isolationGroup := IsolationGroupFromContext(ctx)
 	pollerID := PollerIDFromContext(ctx)
 	identity := IdentityFromContext(ctx)
-	rps := c.config.TaskDispatchRPS
-	if maxDispatchPerSecond != nil {
+	rps := -1.0
+	rpsOverride := c.config.OverrideTaskListRPS()
+	if rpsOverride > 0 {
+		rps = rpsOverride
+	} else if maxDispatchPerSecond != nil {
 		rps = *maxDispatchPerSecond
+	}
+	if rps >= 0 {
 		c.limiter.ReportLimit(rps)
+	} else {
+		rps = c.config.TaskDispatchRPS
 	}
 	c.pollers.StartPoll(pollerID, cancel, &poller.Info{
 		Identity:       identity,
@@ -803,46 +832,21 @@ func (c *taskListManagerImpl) TaskListID() *Identifier {
 	return c.taskListID
 }
 
-// Retry operation on transient error. On rangeID update by another process calls c.Stop().
-func (c *taskListManagerImpl) executeWithRetry(
-	operation func() (interface{}, error),
-) (result interface{}, err error) {
-
-	op := func(ctx context.Context) error {
-		result, err = operation()
-		return err
-	}
-
-	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
-		backoff.WithRetryableError(persistence.IsTransientError),
-	)
-	err = c.handleErr(throttleRetry.Do(context.Background(), op))
-	return
-}
-
+// trySyncMatch performs to match the domain synchronously.
 func (c *taskListManagerImpl) trySyncMatch(ctx context.Context, params AddTaskParams, isolationGroup string) (bool, error) {
-	task := newInternalTask(params.TaskInfo, nil, params.Source, params.ForwardedFrom, true, params.ActivityTaskDispatchInfo, isolationGroup)
+	task := newInternalTask(params.TaskInfo, nil, params.Source, params.ForwardedFrom, true, isolationGroup)
 	childCtx := ctx
 	cancel := func() {}
+
+	// Decide how long to spend the time to sync match
 	waitTime := maxSyncMatchWaitTime
-	if params.ActivityTaskDispatchInfo != nil {
-		waitTime = c.config.ActivityTaskSyncMatchWaitTime(params.ActivityTaskDispatchInfo.WorkflowDomain)
-	}
 	if !task.IsForwarded() {
 		// when task is forwarded from another matching host, we trust the context as is
 		// otherwise, we override to limit the amount of time we can block on sync match
 		childCtx, cancel = c.newChildContext(ctx, waitTime, time.Second)
 	}
-	var matched bool
-	var err error
-	if params.ActivityTaskDispatchInfo != nil {
-		matched, err = c.matcher.OfferOrTimeout(childCtx, c.timeSource.Now(), task)
-	} else {
-		matched, err = c.matcher.Offer(childCtx, task)
-	}
-	cancel()
-	return matched, err
+	defer cancel()
+	return c.matcher.Offer(childCtx, task)
 }
 
 // newChildContext creates a child context with desired timeout.
@@ -1037,6 +1041,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		MinTaskThrottlingBurstSize: func() int {
 			return cfg.MinTaskThrottlingBurstSize(domainName, taskListName, taskType)
 		},
+		MinTaskListWritePartitions: func() int {
+			return cfg.MinTaskListWritePartitions(domainName, taskListName, taskType)
+		},
 		EnableSyncMatch: func() bool {
 			return cfg.EnableSyncMatch(domainName, taskListName, taskType)
 		},
@@ -1060,6 +1067,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		EnableGetNumberOfPartitionsFromCache: func() bool {
 			return cfg.EnableGetNumberOfPartitionsFromCache(domainName, id.GetRoot(), taskType)
+		},
+		AppendTaskTimeout: func() time.Duration {
+			return cfg.AppendTaskTimeout(domainName, taskListName, taskType)
 		},
 		AsyncTaskDispatchTimeout: func() time.Duration {
 			return cfg.AsyncTaskDispatchTimeout(domainName, taskListName, taskType)
@@ -1105,6 +1115,9 @@ func newTaskListConfig(id *Identifier, cfg *config.Config, domainName string) *c
 		},
 		QPSTrackerInterval: func() time.Duration {
 			return cfg.QPSTrackerInterval(domainName, taskListName, taskType)
+		},
+		OverrideTaskListRPS: func() float64 {
+			return cfg.OverrideTaskListRPS(domainName, taskListName, taskType)
 		},
 		EnableAdaptiveScaler: func() bool {
 			return cfg.EnableAdaptiveScaler(domainName, taskListName, taskType)
@@ -1179,4 +1192,41 @@ func IsolationGroupFromContext(ctx context.Context) string {
 
 func ContextWithIsolationGroup(ctx context.Context, isolationGroup string) context.Context {
 	return context.WithValue(ctx, isolationGroupCtxKey{}, isolationGroup)
+}
+
+func validateParams(p ManagerParams) (err error) {
+	if p.DomainCache == nil {
+		return errors.New("ManagerParams.DomainCache is required")
+	}
+	if p.Logger == nil {
+		return errors.New("ManagerParams.Logger is required")
+	}
+	if p.MetricsClient == nil {
+		return errors.New("ManagerParams.MetricsClient is required")
+	}
+	if p.TaskManager == nil {
+		return errors.New("ManagerParams.TaskManager is required")
+	}
+	if p.IsolationState == nil {
+		return errors.New("ManagerParams.IsolationState is required")
+	}
+	if p.MatchingClient == nil {
+		return errors.New("ManagerParams.MatchingClient is required")
+	}
+	if p.Registry == nil {
+		return errors.New("ManagerParams.Registry is required")
+	}
+	if p.TaskList == nil {
+		return errors.New("ManagerParams.TaskList is required")
+	}
+	if p.Cfg == nil {
+		return errors.New("ManagerParams.Cfg is required")
+	}
+	if p.TimeSource == nil {
+		return errors.New("ManagerParams.TimeSource is required")
+	}
+	if p.HistoryService == nil {
+		return errors.New("ManagerParams.HistoryService is required")
+	}
+	return nil
 }

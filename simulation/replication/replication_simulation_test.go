@@ -146,6 +146,10 @@ func startWorkflow(
 		ChildWorkflowID:      op.ChildWorkflowID,
 		ChildWorkflowTimeout: op.ChildWorkflowTimeout,
 	})
+	workflowIDReusePolicy := types.WorkflowIDReusePolicyAllowDuplicate.Ptr()
+	if op.WorkflowIDReusePolicy != nil {
+		workflowIDReusePolicy = op.WorkflowIDReusePolicy
+	}
 	resp, err := simCfg.MustGetFrontendClient(t, op.Cluster).StartWorkflowExecution(ctx,
 		&types.StartWorkflowExecutionRequest{
 			RequestID:                           uuid.New(),
@@ -156,7 +160,7 @@ func startWorkflow(
 			ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32((op.WorkflowExecutionStartToCloseTimeout).Seconds())),
 			TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(5),
 			Input:                               input,
-			WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+			WorkflowIDReusePolicy:               workflowIDReusePolicy,
 			DelayStartSeconds:                   common.Int32Ptr(op.DelayStartSeconds),
 			CronSchedule:                        op.CronSchedule,
 			ActiveClusterSelectionPolicy:        op.ActiveClusterSelectionPolicy,
@@ -271,19 +275,6 @@ func changeActiveClusters(
 		updateDomainRequest.ActiveClusterName = &toCluster
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to AttributeScopes
-	if op.NewActiveClustersByRegion != nil {
-		activeClustersByRegion := make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range op.NewActiveClustersByRegion {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster,
-				FailoverVersion:   -1, // doesn't matter. API handler will override it
-			}
-		}
-		updateDomainRequest.ActiveClusters.ActiveClustersByRegion = activeClustersByRegion
-		simTypes.Logf(t, "Changing active clusters by region for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, activeClustersByRegion)
-	}
-
 	if !op.NewClusterAttributes.IsEmpty() {
 		updateDomainRequest.ActiveClusters.AttributeScopes = op.NewClusterAttributes.ToAttributeScopes()
 		simTypes.Logf(t, "Changing cluster attributes for domain %s from %+v to %+v", op.Domain, descResp.ReplicationConfiguration.ActiveClusters, updateDomainRequest.ActiveClusters)
@@ -363,11 +354,15 @@ func signalWithStartWorkflow(
 
 	frontendCl := simCfg.MustGetFrontendClient(t, op.Cluster)
 
+	workflowIDReusePolicy := types.WorkflowIDReusePolicyAllowDuplicate.Ptr()
+	if op.WorkflowIDReusePolicy != nil {
+		workflowIDReusePolicy = op.WorkflowIDReusePolicy
+	}
 	signalResp, err := frontendCl.SignalWithStartWorkflowExecution(ctx, &types.SignalWithStartWorkflowExecutionRequest{
 		RequestID:                           uuid.New(),
 		Domain:                              op.Domain,
 		WorkflowID:                          op.WorkflowID,
-		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		WorkflowIDReusePolicy:               workflowIDReusePolicy,
 		WorkflowType:                        &types.WorkflowType{Name: op.WorkflowType},
 		SignalName:                          op.SignalName,
 		SignalInput:                         mustJSON(t, op.SignalInput),

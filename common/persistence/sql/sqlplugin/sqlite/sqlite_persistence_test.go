@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+//go:build !race
+
 package sqlite
 
 import (
@@ -72,6 +74,14 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 	s.T().Skip("skip the test until we store workflow_request in sqlite")
 }
 
+func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in sqlite")
+}
+
+func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in sqlite")
+}
+
 func TestSQLiteExecutionManagerSuite(t *testing.T) {
 	s := new(ExecutionManagerSuite)
 	option := GetTestClusterOption()
@@ -106,6 +116,14 @@ func TestSQLiteQueuePersistence(t *testing.T) {
 
 func TestSQLiteConfigPersistence(t *testing.T) {
 	s := new(pt.ConfigStorePersistenceSuite)
+	option := GetTestClusterOption()
+	s.TestBase = pt.NewTestBaseWithSQL(t, option)
+	s.TestBase.Setup()
+	suite.Run(t, s)
+}
+
+func TestSQLiteDomainAuditPersistence(t *testing.T) {
+	s := new(pt.DomainAuditPersistenceSuite)
 	option := GetTestClusterOption()
 	s.TestBase = pt.NewTestBaseWithSQL(t, option)
 	s.TestBase.Setup()

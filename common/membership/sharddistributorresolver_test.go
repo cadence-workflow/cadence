@@ -28,197 +28,65 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/testlogger"
-	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
-func TestShardDistributorResolver_Lookup_modeHashRing(t *testing.T) {
+func TestShardDistributorResolver_Lookup(t *testing.T) {
+	resolver, _, shardDistributorMock := newShardDistributorResolver(t)
+
+	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(), "test-key").
+		Return(&spectatorclient.ShardOwner{
+			ExecutorID: "test-owner",
+			Metadata: map[string]string{
+				"hostIP":   "127.0.0.1",
+				"tchannel": "7933",
+				"grpc":     "7833",
+			},
+		}, nil)
+
+	host, err := resolver.Lookup("test-key")
+	assert.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:7933", host.addr)
+}
+
+func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyHashRing)
-	}
+	// Set percentage to 0 so all task lists are excluded
+	pct := NewMockPercentageOnboarded(gomock.NewController(t))
+	pct.EXPECT().Value().Return(0).AnyTimes()
+	resolver.percentageOnboarded = pct
 
-	ring.EXPECT().LookupRaw("test-key").Return("test-owner", nil)
-	ring.EXPECT().AddressToHost("test-owner").Return(HostInfo{addr: "test-addr"}, nil)
-
-	host, err := resolver.Lookup("test-key")
-	assert.NoError(t, err)
-	assert.Equal(t, "test-addr", host.addr)
-}
-
-func TestShardDistributorResolver_Lookup_modeShardDistributor(t *testing.T) {
-	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyShardDistributor)
-	}
-
-	shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(),
-		&types.GetShardOwnerRequest{ShardKey: "test-key", Namespace: "test-namespace"}).
-		Return(&types.GetShardOwnerResponse{Owner: "test-owner"}, nil)
-	ring.EXPECT().AddressToHost("test-owner").Return(HostInfo{addr: "test-addr"}, nil)
+	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
 
 	host, err := resolver.Lookup("test-key")
 	assert.NoError(t, err)
 	assert.Equal(t, "test-addr", host.addr)
 }
 
-func TestShardDistributorResolver_Lookup_modeHashRingShadowShardDistributor(t *testing.T) {
-	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyHashRingShadowShardDistributor)
-	}
+func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	ring := NewMockSingleProvider(ctrl)
+	logger := log.NewNoop()
+	pct := NewMockPercentageOnboarded(ctrl)
+	pct.EXPECT().Value().Return(100).AnyTimes()
 
-	cases := []struct {
-		name                  string
-		hashRingOwner         string
-		hashRingError         error
-		shardDistributorOwner string
-		shardDistributorError error
-		expectedLog           string
-	}{
-		{
-			name:                  "hash ring and shard distributor agree",
-			hashRingOwner:         "test-owner",
-			shardDistributorOwner: "test-owner",
-		},
-		{
-			name:                  "hash ring and shard distributor disagree",
-			hashRingOwner:         "test-owner",
-			shardDistributorOwner: "test-owner-2",
-			expectedLog:           "Shadow lookup mismatch",
-		},
-		{
-			name:                  "shard distributor error",
-			hashRingOwner:         "test-owner",
-			shardDistributorError: assert.AnError,
-			expectedLog:           "Failed to lookup in shard distributor shadow",
-		},
-		{
-			name:          "hash ring error",
-			hashRingError: assert.AnError,
-		},
-	}
+	resolver := NewShardDistributorResolver(
+		nil, // nil spectator
+		dynamicproperties.GetBoolPropertyFn(false),
+		pct,
+		ring,
+		logger,
+	).(*shardDistributorResolver)
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			logger, logs := testlogger.NewObserved(t)
-			resolver.logger = logger
-
-			ring.EXPECT().LookupRaw("test-key").Return(tc.hashRingOwner, tc.hashRingError)
-			// If the hash ring lookup fails, we should just bail out and not call the shard distributor
-			if tc.hashRingError == nil {
-				shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(),
-					&types.GetShardOwnerRequest{ShardKey: "test-key", Namespace: "test-namespace"}).
-					Return(&types.GetShardOwnerResponse{Owner: tc.shardDistributorOwner}, tc.shardDistributorError)
-
-				ring.EXPECT().AddressToHost("test-owner").Return(HostInfo{addr: "test-addr"}, nil)
-			}
-
-			host, err := resolver.Lookup("test-key")
-			assert.Equal(t, err, tc.hashRingError)
-
-			if tc.hashRingError == nil {
-				assert.Equal(t, "test-addr", host.addr)
-			}
-
-			if tc.expectedLog != "" {
-				assert.Equal(t, 1, logs.Len())
-				assert.Equal(t, 1, logs.FilterMessage(tc.expectedLog).Len())
-			} else {
-				assert.Equal(t, 0, logs.Len())
-			}
-		})
-	}
-}
-
-func TestShardDistributorResolver_Lookup_modeShardDistributorShadowHashRing(t *testing.T) {
-	resolver, ring, shardDistributorMock := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return string(modeKeyShardDistributorShadowHashRing)
-	}
-
-	cases := []struct {
-		name                  string
-		shardDistributorOwner string
-		shardDistributorError error
-		hashRingOwner         string
-		hashRingError         error
-		expectedLog           string
-	}{
-		{
-			name:                  "shard distributor and hash ring agree",
-			shardDistributorOwner: "test-owner",
-			hashRingOwner:         "test-owner",
-		},
-		{
-			name:                  "shard distributor and hash ring disagree",
-			shardDistributorOwner: "test-owner",
-			hashRingOwner:         "test-owner-2",
-			expectedLog:           "Shadow lookup mismatch",
-		},
-		{
-			name:                  "hash ring error",
-			shardDistributorOwner: "test-owner",
-			hashRingError:         assert.AnError,
-			expectedLog:           "Failed to lookup in hash ring shadow",
-		},
-		{
-			name:                  "shard distributor error",
-			shardDistributorError: assert.AnError,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			logger, logs := testlogger.NewObserved(t)
-			resolver.logger = logger
-
-			shardDistributorMock.EXPECT().GetShardOwner(gomock.Any(),
-				&types.GetShardOwnerRequest{ShardKey: "test-key", Namespace: "test-namespace"}).
-				Return(&types.GetShardOwnerResponse{Owner: tc.shardDistributorOwner}, tc.shardDistributorError)
-
-			// If the hash ring lookup fails, we should just bail out and not call the shard distributor
-			if tc.shardDistributorError == nil {
-				ring.EXPECT().LookupRaw("test-key").Return(tc.hashRingOwner, tc.hashRingError)
-				ring.EXPECT().AddressToHost("test-owner").Return(HostInfo{addr: "test-addr"}, nil)
-			}
-
-			host, err := resolver.Lookup("test-key")
-			assert.Equal(t, err, tc.shardDistributorError)
-
-			if tc.shardDistributorError == nil {
-				assert.Equal(t, "test-addr", host.addr)
-			}
-
-			if tc.expectedLog != "" {
-				assert.Equal(t, 1, logs.Len())
-				assert.Equal(t, 1, logs.FilterMessage(tc.expectedLog).Len())
-			} else {
-				assert.Equal(t, 0, logs.Len())
-			}
-		})
-	}
-}
-
-func TestShardDistributorResolver_Lookup_UnknownMode(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	resolver.shardDistributionMode = func(...dynamicproperties.FilterOption) string {
-		return "unknown"
-	}
-
-	ring.EXPECT().LookupRaw("test-key").Return("test-owner", nil)
-	ring.EXPECT().AddressToHost("test-owner").Return(HostInfo{addr: "test-addr"}, nil)
+	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
 
 	host, err := resolver.Lookup("test-key")
 	assert.NoError(t, err)
-	assert.Equal(t, "test-addr", host.addr)
+	assert.Equal(t, "hash-ring-addr", host.addr)
 }
 
-/* Test all the simple proxies
- */
 func TestShardDistributorResolver_Start(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	ring.EXPECT().Start().Times(1)
@@ -267,15 +135,86 @@ func TestShardDistributorResolver_AddressToHost(t *testing.T) {
 	resolver.AddressToHost("test")
 }
 
-func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *MockSingleProvider, *sharddistributor.MockClient) {
+func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T) {
+	cases := []struct {
+		name                       string
+		excludeShortLivedTaskLists bool
+		taskListName               string
+		expectHashRing             bool
+	}{
+		{
+			name:                       "exclude enabled with UUID tasklist uses hash ring",
+			excludeShortLivedTaskLists: true,
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			expectHashRing:             true,
+		},
+		{
+			name:                       "exclude enabled without UUID tasklist uses shard distributor",
+			excludeShortLivedTaskLists: true,
+			taskListName:               "my-regular-tasklist",
+			expectHashRing:             false,
+		},
+		{
+			name:                       "exclude disabled with UUID tasklist uses shard distributor",
+			excludeShortLivedTaskLists: false,
+			taskListName:               "tasklist-550e8400-e29b-41d4-a716-446655440000",
+			expectHashRing:             false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			spectator := spectatorclient.NewMockSpectator(ctrl)
+			ring := NewMockSingleProvider(ctrl)
+			logger := log.NewNoop()
+			pct := NewMockPercentageOnboarded(ctrl)
+			pct.EXPECT().Value().Return(100).AnyTimes()
+
+			resolver := NewShardDistributorResolver(
+				spectator,
+				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
+				pct,
+				ring,
+				logger,
+			).(*shardDistributorResolver)
+
+			if tc.expectHashRing {
+				ring.EXPECT().Lookup(tc.taskListName).Return(HostInfo{addr: "hash-ring-addr"}, nil)
+			} else {
+				spectator.EXPECT().GetShardOwner(gomock.Any(), tc.taskListName).
+					Return(&spectatorclient.ShardOwner{
+						ExecutorID: "test-owner",
+						Metadata: map[string]string{
+							"hostIP":   "127.0.0.1",
+							"tchannel": "7933",
+							"grpc":     "7833",
+						},
+					}, nil)
+			}
+
+			host, err := resolver.Lookup(tc.taskListName)
+			assert.NoError(t, err)
+
+			if tc.expectHashRing {
+				assert.Equal(t, "hash-ring-addr", host.addr)
+			} else {
+				assert.Equal(t, "127.0.0.1:7933", host.addr)
+			}
+		})
+	}
+}
+
+func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *MockSingleProvider, *spectatorclient.MockSpectator) {
 	ctrl := gomock.NewController(t)
-	namespace := "test-namespace"
-	client := sharddistributor.NewMockClient(ctrl)
-	shardDistributionMode := dynamicproperties.GetStringPropertyFn("")
+	spectator := spectatorclient.NewMockSpectator(ctrl)
+	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
+	percentageOnboarded := NewMockPercentageOnboarded(ctrl)
+	percentageOnboarded.EXPECT().Value().Return(100).AnyTimes()
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(namespace, client, shardDistributionMode, ring, logger).(*shardDistributorResolver)
+	resolver := NewShardDistributorResolver(spectator, excludeShortLivedTaskLists, percentageOnboarded, ring, logger).(*shardDistributorResolver)
 
-	return resolver, ring, client
+	return resolver, ring, spectator
 }

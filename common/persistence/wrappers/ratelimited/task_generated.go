@@ -13,18 +13,21 @@ import (
 
 // ratelimitedTaskManager implements persistence.TaskManager interface instrumented with rate limiter.
 type ratelimitedTaskManager struct {
-	wrapped     persistence.TaskManager
-	rateLimiter quotas.Limiter
+	wrapped      persistence.TaskManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewTaskManager creates a new instance of TaskManager with ratelimiter.
 func NewTaskManager(
 	wrapped persistence.TaskManager,
 	rateLimiter quotas.Limiter,
+	callerBypass quotas.CallerBypass,
 ) persistence.TaskManager {
 	return &ratelimitedTaskManager{
-		wrapped:     wrapped,
-		rateLimiter: rateLimiter,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -34,7 +37,7 @@ func (c *ratelimitedTaskManager) Close() {
 }
 
 func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *persistence.CompleteTaskRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -42,7 +45,7 @@ func (c *ratelimitedTaskManager) CompleteTask(ctx context.Context, request *pers
 }
 
 func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, request *persistence.CompleteTasksLessThanRequest) (cp1 *persistence.CompleteTasksLessThanResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -50,7 +53,7 @@ func (c *ratelimitedTaskManager) CompleteTasksLessThan(ctx context.Context, requ
 }
 
 func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persistence.CreateTasksRequest) (cp1 *persistence.CreateTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -58,7 +61,7 @@ func (c *ratelimitedTaskManager) CreateTasks(ctx context.Context, request *persi
 }
 
 func (c *ratelimitedTaskManager) DeleteTaskList(ctx context.Context, request *persistence.DeleteTaskListRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -70,7 +73,7 @@ func (c *ratelimitedTaskManager) GetName() (s1 string) {
 }
 
 func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *persistence.GetOrphanTasksRequest) (gp1 *persistence.GetOrphanTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -78,7 +81,7 @@ func (c *ratelimitedTaskManager) GetOrphanTasks(ctx context.Context, request *pe
 }
 
 func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persistence.GetTaskListRequest) (gp1 *persistence.GetTaskListResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -86,7 +89,7 @@ func (c *ratelimitedTaskManager) GetTaskList(ctx context.Context, request *persi
 }
 
 func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *persistence.GetTaskListSizeRequest) (gp1 *persistence.GetTaskListSizeResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -94,7 +97,7 @@ func (c *ratelimitedTaskManager) GetTaskListSize(ctx context.Context, request *p
 }
 
 func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persistence.GetTasksRequest) (gp1 *persistence.GetTasksResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -102,7 +105,7 @@ func (c *ratelimitedTaskManager) GetTasks(ctx context.Context, request *persiste
 }
 
 func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *persistence.LeaseTaskListRequest) (lp1 *persistence.LeaseTaskListResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -110,7 +113,7 @@ func (c *ratelimitedTaskManager) LeaseTaskList(ctx context.Context, request *per
 }
 
 func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *persistence.ListTaskListRequest) (lp1 *persistence.ListTaskListResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -118,7 +121,7 @@ func (c *ratelimitedTaskManager) ListTaskList(ctx context.Context, request *pers
 }
 
 func (c *ratelimitedTaskManager) UpdateTaskList(ctx context.Context, request *persistence.UpdateTaskListRequest) (up1 *persistence.UpdateTaskListResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}

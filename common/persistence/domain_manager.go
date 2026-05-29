@@ -241,7 +241,10 @@ func (m *domainManagerImpl) toInternalDomainReplicationConfig(rc *DomainReplicat
 	if rc == nil {
 		return InternalDomainReplicationConfig{}, nil
 	}
-	activeClustersConfig, err := m.serializer.SerializeActiveClusters(rc.ActiveClusters, encodingType)
+
+	// active clusters don't use the default encoding due to their likely being quite large
+	// and so we're explicitly opting to use snappy / compressed encoding
+	activeClustersConfig, err := m.serializer.SerializeActiveClusters(rc.ActiveClusters, constants.EncodingTypeThriftRWSnappy)
 	if err != nil {
 		return InternalDomainReplicationConfig{}, err
 	}

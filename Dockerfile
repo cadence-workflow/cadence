@@ -19,7 +19,6 @@ ENV GOFLAGS="-mod=readonly"
 COPY go.* ./
 COPY cmd/server/go.* ./cmd/server/
 COPY common/archiver/gcloud/go.* ./common/archiver/gcloud/
-COPY service/sharddistributor/store/etcd/go.* ./service/sharddistributor/store/etcd/
 # go.work means this downloads everything, not just the top module
 RUN go mod download
 
@@ -93,7 +92,8 @@ CMD /start-cadence.sh
 FROM cadence-server AS cadence-auto-setup
 
 RUN apk add --update --no-cache ca-certificates py3-pip mysql-client
-RUN pip3 install cqlsh && cqlsh --version
+RUN pip3 install setuptools wheel
+RUN pip3 install cassandra-driver==3.29.3 && pip3 install cqlsh==6.2.1 && cqlsh --version
 
 COPY docker/start.sh /start.sh
 COPY docker/domain /etc/cadence/domain

@@ -61,6 +61,10 @@ type (
 		// Lookup will return host which is an owner for provided key.
 		Lookup(service, key string) (HostInfo, error)
 
+		// LookupN returns up to n hosts responsible for the given key. This
+		// enables redundant workers across multiple hosts for the same key.
+		LookupN(service, key string, n int) ([]HostInfo, error)
+
 		// Subscribe adds a subscriber which will get detailed change data on the given
 		// channel, whenever membership changes.
 		Subscribe(service, name string, notifyChannel chan<- *ChangedEvent) error
@@ -181,6 +185,14 @@ func (rpo *MultiringResolver) Lookup(service string, key string) (HostInfo, erro
 		return HostInfo{}, err
 	}
 	return ring.Lookup(key)
+}
+
+func (rpo *MultiringResolver) LookupN(service string, key string, n int) ([]HostInfo, error) {
+	ring, err := rpo.getRing(service)
+	if err != nil {
+		return nil, err
+	}
+	return ring.LookupN(key, n)
 }
 
 func (rpo *MultiringResolver) Subscribe(service string, name string, notifyChannel chan<- *ChangedEvent) error {

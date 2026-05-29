@@ -28,11 +28,15 @@ import (
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/execution"
+	"github.com/uber/cadence/service/history/shard"
+	"github.com/uber/cadence/service/history/taskdlq"
 )
 
 type (
@@ -40,6 +44,11 @@ type (
 	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
 
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
+
+	// TaskDLQWriter is the subset of persistence.HistoryTaskDLQManager used by standby task executors.
+	TaskDLQWriter interface {
+		CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error
+	}
 )
 
 var (
@@ -89,6 +98,76 @@ func standbyTaskPostActionTaskDiscarded(
 		tag.FailoverVersion(task.GetVersion()),
 		tag.Timestamp(task.GetVisibilityTimestamp()))
 	return ErrTaskDiscarded
+}
+
+// standbyTaskPostActionWriteToDLQ returns a standbyPostActionFn that writes the task to the DLQ.
+func standbyTaskPostActionWriteToDLQ(
+	writer TaskDLQWriter,
+	shard shard.Context,
+	enabled dynamicproperties.StringPropertyFnWithDomainFilter,
+) standbyPostActionFn {
+	shardID := shard.GetShardID()
+
+	return func(ctx context.Context, task persistence.Task, postActionInfo interface{}, logger log.Logger) error {
+		domainID := task.GetDomainID()
+		isDeadLetterQueueEnabled := enabled(domainID)
+
+		if postActionInfo == nil {
+			return nil
+		}
+
+		clusterAttribute, err := getClusterAttributesForTask(ctx, shard, task)
+		if err != nil {
+			if errors.Is(err, errActiveClusterSelectionPolicyNotFound) {
+				logger.Warn("Active cluster selection policy not found. Defaulting to default scope and name.")
+			} else {
+				return err
+			}
+		}
+
+		if clusterAttribute == nil {
+			clusterAttribute = &types.ClusterAttribute{
+				Scope: taskdlq.DefaultClusterAttributeScope,
+				Name:  taskdlq.DefaultClusterAttributeName,
+			}
+		}
+
+		logger.Warn("Attempting to write standby task to DLQ due to task being pending for too long.",
+			tag.WorkflowID(task.GetWorkflowID()),
+			tag.WorkflowRunID(task.GetRunID()),
+			tag.WorkflowDomainID(task.GetDomainID()),
+			tag.TaskID(task.GetTaskID()),
+			tag.TaskType(task.GetTaskType()),
+			tag.FailoverVersion(task.GetVersion()),
+			tag.Timestamp(task.GetVisibilityTimestamp()),
+			tag.IsShadowModeEnabled(isDeadLetterQueueEnabled == constants.HistoryTaskDLQModeShadow))
+
+		// TODO(c-warren): Move this logic into the writer instead, and return a ErrHistoryDLQNotEnabled error to be handled here
+		switch isDeadLetterQueueEnabled {
+		case constants.HistoryTaskDLQModeEnabled:
+			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
+				ShardID:               shardID,
+				DomainID:              task.GetDomainID(),
+				ClusterAttributeScope: clusterAttribute.Scope,
+				ClusterAttributeName:  clusterAttribute.Name,
+				Task:                  task,
+			})
+		case constants.HistoryTaskDLQModeShadow:
+			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
+				ShardID:               shardID,
+				DomainID:              task.GetDomainID(),
+				ClusterAttributeScope: clusterAttribute.Scope,
+				ClusterAttributeName:  clusterAttribute.Name,
+				Task:                  task,
+			})
+			if err != nil {
+				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.")
+			}
+			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
+		default:
+			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
+		}
+	}
 }
 
 type (

@@ -34,6 +34,8 @@ var (
 	TestDomainID = "deadbeef-0123-4567-890a-bcdef0123456"
 	// TestActiveActiveDomainID is the active active domainID for test
 	TestActiveActiveDomainID = "965c78b7-1f6f-4122-9ba7-af6b7a55b27f"
+	// TestActiveActiveDomainName is the active active domain name for test
+	TestActiveActiveDomainName = "active-active-domain"
 	// TestDomainName is the domainName for test
 	TestDomainName = "some random domain name"
 	// TestRateLimitedDomainName is the domain name for testing task processing rate limits
@@ -88,7 +90,7 @@ var (
 	)
 
 	TestActiveActiveDomainEntry = cache.NewGlobalDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: TestActiveActiveDomainID, Name: TestDomainName},
+		&persistence.DomainInfo{ID: TestActiveActiveDomainID, Name: TestActiveActiveDomainName},
 		&persistence.DomainConfig{
 			Retention:                1,
 			VisibilityArchivalStatus: types.ArchivalStatusEnabled,

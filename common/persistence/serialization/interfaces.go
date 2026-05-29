@@ -304,6 +304,8 @@ type (
 		ScheduleID              int64
 		Version                 int64
 		VisibilityTimestamp     time.Time
+		OriginalTaskList        string
+		OriginalTaskListKind    types.TaskListKind
 	}
 
 	// CrossClusterTaskInfo blob in a serialization agnostic format
@@ -323,6 +325,7 @@ type (
 		Version         int64
 		ScheduleAttempt int64
 		EventID         int64
+		TaskList        string
 	}
 
 	// ReplicationTaskInfo blob in a serialization agnostic format

@@ -14,9 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3-setuptools \
       time \
       unzip \
+      ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install cqlsh --break-system-packages
+RUN pip3 install cqlsh && cqlsh --version
 
 # verbose test output from `make`, can be disabled with V=0
 ENV V=0
@@ -33,6 +34,5 @@ COPY go.* /cadence
 COPY internal/tools/go.* /cadence/internal/tools/
 COPY cmd/server/go.* /cadence/cmd/server/
 COPY common/archiver/gcloud/go.* /cadence/common/archiver/gcloud/
-COPY service/sharddistributor/store/etcd/go.* ./service/sharddistributor/store/etcd/
 # go.work means this downloads everything, not just the top module
 RUN go mod download

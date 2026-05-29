@@ -43,7 +43,7 @@ type (
 		dc             *p.DynamicConfiguration
 	}
 
-	// dbConn represents a logical mysql connection - its a
+	// dbConn represents a logical mysql connection - it's a
 	// wrapper around the standard sql connection pool with
 	// additional reference counting
 	dbConn struct {
@@ -98,7 +98,7 @@ func (f *Factory) NewHistoryStore() (p.HistoryStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewHistoryV2Persistence(conn, f.logger, f.parser)
+	return NewHistoryV2Persistence(conn, f.logger, f.parser, f.dc)
 }
 
 // NewDomainStore returns a new metadata store
@@ -108,6 +108,20 @@ func (f *Factory) NewDomainStore() (p.DomainStore, error) {
 		return nil, err
 	}
 	return newMetadataPersistenceV2(conn, f.clusterName, f.logger, f.parser)
+}
+
+// NewDomainAuditStore returns a domain audit store
+func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
+	conn, err := f.dbConn.get()
+	if err != nil {
+		return nil, err
+	}
+	return newSQLDomainAuditStore(conn, f.logger, f.parser)
+}
+
+// NewHistoryDLQTaskStore returns a history DLQ task store.
+func (f *Factory) NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error) {
+	return &sqlHistoryDLQTaskStore{}, nil
 }
 
 // NewExecutionStore returns an ExecutionStore for a given shardID
@@ -126,7 +140,7 @@ func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, e
 }
 
 // NewQueue returns a new queue backed by sql
-func (f *Factory) NewQueue(queueType p.QueueType) (p.Queue, error) {
+func (f *Factory) NewQueue(queueType p.QueueType) (p.QueueStore, error) {
 	conn, err := f.dbConn.get()
 	if err != nil {
 		return nil, err

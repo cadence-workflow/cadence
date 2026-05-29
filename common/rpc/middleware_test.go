@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/types"
 )
 
 func TestAuthOubboundMiddleware(t *testing.T) {
@@ -326,6 +327,104 @@ func TestClientPartitionConfigMiddleware(t *testing.T) {
 		assert.Nil(t, isolationgroup.ConfigFromContext(h.ctx))
 		assert.Equal(t, "", isolationgroup.IsolationGroupFromContext(h.ctx))
 		assert.Equal(t, ctx, h.ctx)
+	})
+}
+
+func TestCallerInfoMiddleware(t *testing.T) {
+	t.Run("extracts caller type from header", func(t *testing.T) {
+		m := &CallerInfoMiddleware{}
+		h := &fakeHandler{}
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "cli")
+		err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+		assert.NoError(t, err)
+
+		callerInfo := types.GetCallerInfoFromContext(h.ctx)
+		assert.Equal(t, types.CallerTypeCLI, callerInfo.GetCallerType())
+	})
+
+	t.Run("sets unknown caller type when header is missing", func(t *testing.T) {
+		m := &CallerInfoMiddleware{}
+		h := &fakeHandler{}
+		headers := transport.NewHeaders()
+		err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+		assert.NoError(t, err)
+
+		callerInfo := types.GetCallerInfoFromContext(h.ctx)
+		assert.Equal(t, types.CallerTypeUnknown, callerInfo.GetCallerType())
+	})
+
+	t.Run("extracts different caller types", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			headerValue    string
+			expectedCaller types.CallerType
+		}{
+			{"CLI", "cli", types.CallerTypeCLI},
+			{"UI", "ui", types.CallerTypeUI},
+			{"SDK", "sdk", types.CallerTypeSDK},
+			{"Internal", "internal", types.CallerTypeInternal},
+			{"Empty", "", types.CallerTypeUnknown},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				m := &CallerInfoMiddleware{}
+				h := &fakeHandler{}
+				headers := transport.NewHeaders().With(types.CallerTypeHeaderName, tt.headerValue)
+				err := m.Handle(context.Background(), &transport.Request{Headers: headers}, nil, h)
+				assert.NoError(t, err)
+
+				callerInfo := types.GetCallerInfoFromContext(h.ctx)
+				assert.Equal(t, tt.expectedCaller, callerInfo.GetCallerType())
+			})
+		}
+	})
+}
+
+func TestCallerInfoOutboundMiddleware(t *testing.T) {
+	t.Run("sets internal caller type when no inbound call and header is missing", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		_, err := m.Call(context.Background(), &transport.Request{}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, string(types.CallerTypeInternal), callerType)
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not set header when inbound call exists without header", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		ctxWithInbound := yarpctest.ContextWithCall(context.Background(), &yarpctest.Call{})
+		_, err := m.Call(ctxWithInbound, &transport.Request{}, &fakeOutbound{verify: func(r *transport.Request) {
+			_, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.False(t, ok, "header should not be set for external requests without header")
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not override existing caller type header", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "cli")
+		_, err := m.Call(context.Background(), &transport.Request{Headers: headers}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, "cli", callerType)
+		}})
+		assert.NoError(t, err)
+	})
+
+	t.Run("does not override header forwarded from inbound call", func(t *testing.T) {
+		m := &CallerInfoOutboundMiddleware{}
+		ctxWithInbound := yarpctest.ContextWithCall(context.Background(), &yarpctest.Call{
+			Headers: map[string]string{types.CallerTypeHeaderName: "ui"},
+		})
+		headers := transport.NewHeaders().With(types.CallerTypeHeaderName, "ui")
+		_, err := m.Call(ctxWithInbound, &transport.Request{Headers: headers}, &fakeOutbound{verify: func(r *transport.Request) {
+			callerType, ok := r.Headers.Get(types.CallerTypeHeaderName)
+			assert.True(t, ok)
+			assert.Equal(t, "ui", callerType, "should preserve forwarded header")
+		}})
+		assert.NoError(t, err)
 	})
 }
 

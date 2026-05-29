@@ -85,6 +85,8 @@ func (s *taskSuite) SetupTest() {
 	s.mockTaskRedispatcher = NewMockRedispatcher(s.controller)
 	s.mockTaskInfo = persistence.NewMockTask(s.controller)
 	s.mockTaskInfo.EXPECT().GetDomainID().Return(constants.TestDomainID).AnyTimes()
+	s.mockTaskInfo.EXPECT().GetOriginalTaskList().Return("test-task-list").AnyTimes()
+	s.mockTaskInfo.EXPECT().GetOriginalTaskListKind().Return(types.TaskListKindNormal).AnyTimes()
 	s.mockShard.Resource.DomainCache.EXPECT().GetDomainName(constants.TestDomainID).Return(constants.TestDomainName, nil).AnyTimes()
 
 	s.logger = testlogger.New(s.Suite.T())

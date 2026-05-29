@@ -9,25 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.uber.org/fx/fxtest"
-	"gopkg.in/yaml.v2"
 
-	"github.com/uber/cadence/common/config"
-	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
+	"github.com/uber/cadence/service/sharddistributor/store/etcd/etcdclient"
 	"github.com/uber/cadence/testflags"
 )
-
-func TestShardDistributionDisabled(t *testing.T) {
-	store, err := NewLeaderStore(StoreParams{
-		Cfg: shardDistributorCfg.ShardDistribution{Enabled: false},
-	})
-	require.NoError(t, err)
-	assert.Nil(t, store)
-}
 
 // TestCreateElection tests that an election can be created successfully
 func TestCreateElection(t *testing.T) {
@@ -209,7 +197,7 @@ func TestSessionDone(t *testing.T) {
 // testCluster represents a test etcd cluster with its resources
 type testCluster struct {
 	store       store.Elector
-	storeConfig etcdCfg
+	storeConfig etcdclient.LeaderStoreConfig
 	endpoints   []string
 }
 
@@ -221,24 +209,34 @@ func setupETCDCluster(t *testing.T) *testCluster {
 	testflags.RequireEtcd(t)
 
 	endpoints := strings.Split(os.Getenv("ETCD_ENDPOINTS"), ",")
-	if endpoints == nil || len(endpoints) == 0 || endpoints[0] == "" {
+	if len(endpoints) == 0 || endpoints[0] == "" {
 		// default etcd port
 		endpoints = []string{"localhost:2379"}
 	}
 
 	t.Logf("ETCD endpoints: %v", endpoints)
 
-	testConfig := etcdCfg{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-		Prefix:      fmt.Sprintf("/election/%s", t.Name()),
+	testConfig := etcdclient.LeaderStoreConfig{
+		BaseConfig: etcdclient.BaseConfig{
+			Endpoints:   endpoints,
+			DialTimeout: 5 * time.Second,
+			Prefix:      fmt.Sprintf("/election/%s", t.Name()),
+		},
 		ElectionTTL: 5 * time.Second,
 	}
 
+	// Create etcd client
+	rawClient, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { rawClient.Close() })
+
 	// Create store
 	storeParams := StoreParams{
-		Cfg:       shardDistributorCfg.ShardDistribution{Enabled: true, LeaderStore: shardDistributorCfg.Store{StorageParams: createConfig(t, testConfig)}},
-		Lifecycle: fxtest.NewLifecycle(t),
+		Client: etcdclient.NewClient(rawClient),
+		Cfg:    testConfig,
 	}
 
 	store, err := NewLeaderStore(storeParams)
@@ -249,18 +247,4 @@ func setupETCDCluster(t *testing.T) *testCluster {
 		storeConfig: testConfig,
 		endpoints:   endpoints,
 	}
-}
-
-func createConfig(t *testing.T, cfg etcdCfg) *config.YamlNode {
-	t.Helper()
-
-	yamlCfg, err := yaml.Marshal(cfg)
-	require.NoError(t, err)
-
-	var res *config.YamlNode
-
-	err = yaml.Unmarshal(yamlCfg, &res)
-	require.NoError(t, err)
-
-	return res
 }

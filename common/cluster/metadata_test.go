@@ -976,17 +976,14 @@ func TestGetters(t *testing.T) {
 			ClusterGroup: map[string]config.ClusterInformation{
 				"cluster0": {
 					InitialFailoverVersion: 1,
-					Region:                 "us-west",
 					Enabled:                true,
 				},
 				"cluster1": {
 					InitialFailoverVersion: 3,
-					Region:                 "us-east",
 					Enabled:                true,
 				},
 				"cluster2": {
 					InitialFailoverVersion: 5,
-					Region:                 "us-east",
 					Enabled:                false,
 				},
 			},
@@ -1001,7 +998,6 @@ func TestGetters(t *testing.T) {
 
 	assert.True(t, m.IsPrimaryCluster())
 	assert.Equal(t, "cluster0", m.GetCurrentClusterName())
-	assert.Equal(t, "us-west", m.GetCurrentRegion())
 
 	// do existence checks
 	assert.Equal(t, []string{"cluster0", "cluster1", "cluster2"}, keysOfClusterInfoMap(m.GetAllClusterInfo()))

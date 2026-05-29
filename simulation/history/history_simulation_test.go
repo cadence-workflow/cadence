@@ -71,7 +71,6 @@ func (s *HistorySimulationSuite) SetupSuite() {
 	clusterMetadata := host.NewClusterMetadata(s.T(), s.TestClusterConfig)
 	dc := persistence.DynamicConfiguration{
 		EnableCassandraAllConsistencyLevelDelete: dynamicproperties.GetBoolPropertyFn(true),
-		PersistenceSampleLoggingRate:             dynamicproperties.GetIntPropertyFn(100),
 		EnableShardIDMetrics:                     dynamicproperties.GetBoolPropertyFn(true),
 		EnableHistoryTaskDualWriteMode:           dynamicproperties.GetBoolPropertyFn(true),
 		ReadNoSQLHistoryTaskFromDataBlob:         dynamicproperties.GetBoolPropertyFn(false),
@@ -91,7 +90,7 @@ func (s *HistorySimulationSuite) SetupSuite() {
 	s.AdminClient = s.TestCluster.GetAdminClient()
 
 	s.DomainName = s.RandomizeStr("integration-test-domain")
-	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, ""))
+	s.Require().NoError(s.RegisterDomain(s.DomainName, 1, types.ArchivalStatusDisabled, "", types.ArchivalStatusDisabled, "", nil))
 
 	time.Sleep(2 * time.Second)
 
@@ -148,18 +147,39 @@ func (s *HistorySimulationSuite) TearDownSuite() {
 	s.TearDownBaseSuite()
 }
 
+func (s *HistorySimulationSuite) getSimulationConfig() host.HistorySimulationConfig {
+	cfg := s.TestClusterConfig.HistoryConfig.SimulationConfig
+
+	if cfg.NumWorkflows == 0 {
+		cfg.NumWorkflows = 100
+	}
+
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 5 * time.Minute
+	}
+
+	if cfg.SleepAfterAllWorkflows == 0 {
+		cfg.SleepAfterAllWorkflows = 120 * time.Second
+	}
+
+	return cfg
+}
+
 func (s *HistorySimulationSuite) TestHistorySimulation() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+
+	cfg := s.getSimulationConfig()
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
 	defer cancel()
+
 	var runs []client.WorkflowRun
-	for i := 0; i < 100; i++ {
-		// set a short timeout so that timer tasks can be executed before complete
+	for i := 0; i < cfg.NumWorkflows; i++ {
 		workflowOptions := client.StartWorkflowOptions{
 			TaskList:                        s.taskList,
 			ExecutionStartToCloseTimeout:    120 * time.Second,
 			DecisionTaskStartToCloseTimeout: 5 * time.Second,
 		}
-		we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, workflow.NoopWorkflow)
+		we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, workflow.SimulationWorkflow, cfg.NumWorkflowSleeps)
 		if err != nil {
 			s.Logger.Fatal("Start workflow with err", tag.Error(err))
 		}
@@ -167,9 +187,11 @@ func (s *HistorySimulationSuite) TestHistorySimulation() {
 		s.True(we.GetRunID() != "")
 		s.Logger.Info("successfully start a workflow", tag.WorkflowID(we.GetID()), tag.WorkflowRunID(we.GetRunID()))
 		runs = append(runs, we)
+		time.Sleep(cfg.SleepBetweenWorkflowStarts)
 	}
 	for _, we := range runs {
 		s.NoError(we.Get(ctx, nil))
 	}
-	time.Sleep(120 * time.Second)
+
+	time.Sleep(cfg.SleepAfterAllWorkflows)
 }

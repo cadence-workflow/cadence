@@ -65,7 +65,6 @@ var (
 			RPCName:                service.Frontend,
 			RPCAddress:             TestCurrentClusterFrontendAddress,
 			RPCTransport:           TestClusterXDCTransport,
-			Region:                 "region1",
 		},
 		TestAlternativeClusterName: {
 			Enabled:                true,
@@ -73,12 +72,10 @@ var (
 			RPCName:                service.Frontend,
 			RPCAddress:             TestAlternativeClusterFrontendAddress,
 			RPCTransport:           TestClusterXDCTransport,
-			Region:                 "region2",
 		},
 		TestDisabledClusterName: {
 			Enabled:                false,
 			InitialFailoverVersion: TestDisabledClusterInitialFailoverVersion,
-			Region:                 "region1",
 		},
 	}
 

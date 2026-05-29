@@ -76,7 +76,7 @@ func (s *domainCacheSuite) SetupTest() {
 	s.logger = testlogger.New(s.Suite.T())
 
 	s.metadataMgr = &mocks.MetadataManager{}
-	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.domainCache = NewDomainCache(s.metadataMgr, cluster.GetTestClusterMetadata(true), metricsClient, s.logger)
 
 	s.domainCache.timeSource = clock.NewMockedTimeSource()
@@ -334,6 +334,23 @@ func Test_IsActiveIn(t *testing.T) {
 					"region": {
 						ClusterAttributes: map[string]types.ActiveClusterInfo{
 							"region0": {ActiveClusterName: "A"},
+							"region1": {ActiveClusterName: "B"},
+						},
+					},
+				},
+			},
+			expectIsActive: true,
+		},
+		{
+			msg:            "active-active domain on domain level active cluster",
+			isGlobalDomain: true,
+			currentCluster: "A",
+			activeCluster:  "A",
+			activeClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"region0": {ActiveClusterName: "B"},
 							"region1": {ActiveClusterName: "B"},
 						},
 					},
@@ -873,12 +890,19 @@ func (s *domainCacheSuite) Test_refreshLoop_domainCacheRefreshedError() {
 
 	s.domainCache.timeSource = mockedTimeSource
 
-	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once()
+	// Send the shutdown signal from inside the GetMetadata mock callback to
+	// guarantee the timer branch is selected before shutdown. Previously,
+	// both channels could be ready simultaneously, letting Go's select
+	// randomly pick shutdown first and skip the timer entirely.
+	s.metadataMgr.On("GetMetadata", mock.Anything).Return(nil, assert.AnError).Once().Run(func(mock.Arguments) {
+		// Use a goroutine because shutdownChan is unbuffered and refreshLoop
+		// is blocked inside the timer case until refreshDomains returns.
+		go func() { s.domainCache.shutdownChan <- struct{}{} }()
+	})
 
 	go func() {
 		mockedTimeSource.BlockUntil(1)
 		mockedTimeSource.Advance(DomainCacheRefreshInterval)
-		s.domainCache.shutdownChan <- struct{}{}
 	}()
 
 	s.domainCache.refreshLoop()
@@ -1124,7 +1148,7 @@ func Test_WithTimeSource(t *testing.T) {
 	metadataMgr := &mocks.MetadataManager{}
 
 	timeSource := clock.NewRealTimeSource()
-	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{}), log.NewNoop(), WithTimeSource(timeSource))
+	domainCache := NewDomainCache(metadataMgr, cluster.GetTestClusterMetadata(true), metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}), log.NewNoop(), WithTimeSource(timeSource))
 
 	assert.Equal(t, timeSource, domainCache.timeSource)
 }

@@ -20,13 +20,18 @@ var (
 	dbPoolMx      sync.Mutex
 )
 
-// createSharedDBConn creates a new database connection in the dbPool if it doesn't exist.
-func createSharedDBConn(databaseName string, createDBConnFn func() (*sqlx.DB, error)) (*sqlx.DB, error) {
+// createSharedDBConn creates a new database connection in the dbPool if one for the given dsn
+// doesn't exist yet. Subsequent calls with the same dsn increment a reference count and return
+// the existing connection, ensuring that all callers within a process share a single *sqlx.DB.
+// This is important for SQLite because:
+//   - File-based: SQLite takes exclusive write locks, so multiple *sqlx.DB to the same file causes "database is locked" errors.
+//   - In-memory: each *sqlx.DB is an isolated database; sharing one ensures all services see the same data.
+func createSharedDBConn(dsn string, createDBConnFn func() (*sqlx.DB, error)) (*sqlx.DB, error) {
 	dbPoolMx.Lock()
 	defer dbPoolMx.Unlock()
 
-	if db, ok := dbPool[databaseName]; ok {
-		dbPoolCounter[databaseName]++
+	if db, ok := dbPool[dsn]; ok {
+		dbPoolCounter[dsn]++
 		return db, nil
 	}
 
@@ -35,23 +40,24 @@ func createSharedDBConn(databaseName string, createDBConnFn func() (*sqlx.DB, er
 		return nil, err
 	}
 
-	dbPool[databaseName] = db
-	dbPoolCounter[databaseName]++
+	dbPool[dsn] = db
+	dbPoolCounter[dsn]++
 
 	return db, nil
 }
 
-// closeSharedDBConn closes the database connection in the dbPool if it exists.
-func closeSharedDBConn(databaseName string, closeDBConnFn func() error) error {
+// closeSharedDBConn decrements the reference count for the given dsn and closes the underlying
+// connection only when the count reaches zero.
+func closeSharedDBConn(dsn string, closeDBConnFn func() error) error {
 	dbPoolMx.Lock()
 	defer dbPoolMx.Unlock()
 
-	dbPoolCounter[databaseName]--
-	if dbPoolCounter[databaseName] != 0 {
+	dbPoolCounter[dsn]--
+	if dbPoolCounter[dsn] != 0 {
 		return nil
 	}
 
-	delete(dbPool, databaseName)
-	delete(dbPoolCounter, databaseName)
+	delete(dbPool, dsn)
+	delete(dbPoolCounter, dsn)
 	return closeDBConnFn()
 }

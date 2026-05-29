@@ -42,6 +42,7 @@ func TestDirectChooser_PeerUpdates(t *testing.T) {
 	serviceName := "service"
 	directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return true }
 	grpcTransport := grpc.NewTransport()
+	defer grpcTransport.Stop()
 	chooser := newDirectChooser(serviceName, grpcTransport, logger, metricCl, directConnRetainFn)
 
 	choosePeers := func(peers ...string) {
@@ -184,6 +185,7 @@ func TestDirectChooser_StartStop(t *testing.T) {
 			serviceName := "service"
 			directConnRetainFn := func(opts ...dynamicproperties.FilterOption) bool { return tc.retainConn }
 			grpcTransport := grpc.NewTransport()
+			defer grpcTransport.Stop()
 
 			chooser := newDirectChooser(serviceName, grpcTransport, logger, metricCl, directConnRetainFn)
 

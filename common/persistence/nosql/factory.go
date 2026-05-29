@@ -85,6 +85,16 @@ func (f *Factory) NewDomainStore() (persistence.DomainStore, error) {
 	return newNoSQLDomainStore(f.cfg, f.clusterName, f.logger, f.metricsClient, f.dc)
 }
 
+// NewDomainAuditStore returns a domain audit store
+func (f *Factory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
+	return newNoSQLDomainAuditStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
+// NewHistoryDLQTaskStore returns a history DLQ task store
+func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
+	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewExecutionStore returns an ExecutionStore for a given shardID
 func (f *Factory) NewExecutionStore(shardID int) (persistence.ExecutionStore, error) {
 	factory, err := f.executionStoreFactory()
@@ -100,7 +110,7 @@ func (f *Factory) NewVisibilityStore(sortByCloseTime bool) (persistence.Visibili
 }
 
 // NewQueue returns a new queue backed by cassandra
-func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.Queue, error) {
+func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.QueueStore, error) {
 	return newNoSQLQueueStore(f.cfg, f.logger, f.metricsClient, queueType, f.dc)
 }
 

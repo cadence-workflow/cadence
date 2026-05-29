@@ -60,6 +60,7 @@ type (
 		mockDomainReplicator   Replicator
 		archivalMetadata       archiver.ArchivalMetadata
 		mockArchiverProvider   *provider.MockArchiverProvider
+		mockDomainAuditManager persistence.DomainAuditManager
 
 		handler *handlerImpl
 	}
@@ -97,6 +98,7 @@ func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) SetupTest() {
 	s.domainManager = s.TestBase.DomainManager
 	s.mockProducer = &mocks.KafkaProducer{}
 	s.mockDomainReplicator = NewDomainReplicator(s.mockProducer, logger)
+	s.mockDomainAuditManager = persistence.NewMockDomainAuditManager(s.Controller)
 	s.archivalMetadata = archiver.NewArchivalMetadata(
 		dcCollection,
 		"",
@@ -107,15 +109,17 @@ func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) SetupTest() {
 	)
 	s.mockArchiverProvider = &provider.MockArchiverProvider{}
 	domainConfig := Config{
-		MinRetentionDays:       dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
-		MaxBadBinaryCount:      dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
-		FailoverCoolDown:       dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
-		FailoverHistoryMaxSize: dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		MinRetentionDays:         dynamicproperties.GetIntPropertyFn(s.minRetentionDays),
+		MaxBadBinaryCount:        dynamicproperties.GetIntPropertyFilteredByDomain(s.maxBadBinaryCount),
+		FailoverCoolDown:         dynamicproperties.GetDurationPropertyFnFilteredByDomain(0 * time.Second),
+		FailoverHistoryMaxSize:   dynamicproperties.GetIntPropertyFilteredByDomain(s.failoverHistoryMaxSize),
+		EnableDomainAuditLogging: dynamicproperties.GetBoolPropertyFn(false),
 	}
 	s.handler = NewHandler(
 		domainConfig,
 		logger,
 		s.domainManager,
+		s.mockDomainAuditManager,
 		s.ClusterMetadata,
 		s.mockDomainReplicator,
 		s.archivalMetadata,
@@ -398,8 +402,6 @@ func (s *domainHandlerGlobalDomainEnabledNotPrimaryClusterSuite) TestUpdateGetDo
 		VisibilityArchivalStatus:               types.ArchivalStatusDisabled.Ptr(),
 		VisibilityArchivalURI:                  common.StringPtr(""),
 		BadBinaries:                            &types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
-		ActiveClusterName:                      common.StringPtr(s.ClusterMetadata.GetCurrentClusterName()),
-		Clusters:                               clusters,
 	})
 	s.Nil(err)
 	fnTest(

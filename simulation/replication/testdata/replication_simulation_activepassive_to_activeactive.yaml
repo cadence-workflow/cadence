@@ -45,9 +45,6 @@ operations:
   - op: change_active_clusters
     at: 40s
     domain: test-domain
-    newActiveClustersByRegion:
-      region0: cluster0
-      region1: cluster1
     newClusterAttributes:
       region:
         region0: cluster0

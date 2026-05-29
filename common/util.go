@@ -55,6 +55,10 @@ const (
 	historyServiceOperationMaxInterval        = 10 * time.Second
 	historyServiceOperationExpirationInterval = 30 * time.Second
 
+	recordTaskStartedInitialInterval = 250 * time.Millisecond
+	recordTaskStartedMaxInterval     = 1 * time.Second
+	recordTaskStartedMaxAttempts     = 5
+
 	matchingServiceOperationInitialInterval    = 1000 * time.Millisecond
 	matchingServiceOperationMaxInterval        = 10 * time.Second
 	matchingServiceOperationExpirationInterval = 30 * time.Second
@@ -159,6 +163,15 @@ func CreateHistoryServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(historyServiceOperationInitialInterval)
 	policy.SetMaximumInterval(historyServiceOperationMaxInterval)
 	policy.SetExpirationInterval(historyServiceOperationExpirationInterval)
+
+	return policy
+}
+
+func CreateRecordTaskStartedRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(recordTaskStartedInitialInterval)
+	policy.SetMaximumInterval(recordTaskStartedMaxInterval)
+	policy.SetMaximumAttempts(recordTaskStartedMaxAttempts)
+	policy.SetExpirationInterval(backoff.NoInterval)
 
 	return policy
 }
@@ -271,6 +284,7 @@ func CheckDecisionResultLimit(
 	scope metrics.Scope,
 ) error {
 	scope.RecordTimer(metrics.DecisionResultCount, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.DecisionResultCountHistogram, actualSize)
 	if limit > 0 && actualSize > limit {
 		return ErrDecisionResultCountTooLarge
 	}
@@ -327,6 +341,7 @@ func IsServiceTransientError(err error) bool {
 		// We only selectively retry the following yarpc errors client can safe retry with a backoff
 		if yarpcerrors.IsUnavailable(err) ||
 			yarpcerrors.IsUnknown(err) ||
+			yarpcerrors.IsCancelled(err) ||
 			yarpcerrors.IsInternal(err) {
 			return true
 		}
@@ -573,6 +588,7 @@ func CheckEventBlobSizeLimit(
 ) error {
 
 	scope.RecordTimer(metrics.EventBlobSize, time.Duration(actualSize))
+	scope.IntExponentialHistogram(metrics.EventBlobSizeHistogram, actualSize)
 
 	if errorLimit < warnLimit {
 		logger.Warn("Error limit is less than warn limit.", tag.WorkflowDomainName(domainName), tag.WorkflowDomainID(domainID))
@@ -975,19 +991,9 @@ func IntersectionStringSlice(a, b []string) []string {
 	return result
 }
 
-// NewPerTaskListScope creates a tasklist metrics scope
-func NewPerTaskListScope(
-	domainName string,
-	taskListName string,
-	taskListKind types.TaskListKind,
-	client metrics.Client,
-	scopeIdx metrics.ScopeIdx,
-) metrics.Scope {
-	domainTag := metrics.DomainUnknownTag()
+// GetTaskListTag returns the task list tag for the given task list name and kind
+func GetTaskListTag(taskListName string, taskListKind types.TaskListKind) metrics.Tag {
 	taskListTag := metrics.TaskListUnknownTag()
-	if domainName != "" {
-		domainTag = metrics.DomainTag(domainName)
-	}
 	if taskListName != "" && taskListKind == types.TaskListKindNormal {
 		taskListTag = metrics.TaskListTag(taskListName)
 	}
@@ -997,5 +1003,21 @@ func NewPerTaskListScope(
 	if taskListKind == types.TaskListKindEphemeral {
 		taskListTag = ephemeralTaskListMetricTag
 	}
+	return taskListTag
+}
+
+// NewPerTaskListScope creates a tasklist metrics scope
+func NewPerTaskListScope(
+	domainName string,
+	taskListName string,
+	taskListKind types.TaskListKind,
+	client metrics.Client,
+	scopeIdx metrics.ScopeIdx,
+) metrics.Scope {
+	domainTag := metrics.DomainUnknownTag()
+	if domainName != "" {
+		domainTag = metrics.DomainTag(domainName)
+	}
+	taskListTag := GetTaskListTag(taskListName, taskListKind)
 	return client.Scope(scopeIdx, domainTag, taskListTag)
 }

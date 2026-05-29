@@ -202,6 +202,7 @@ func (b crossDCOutbounds) Build(grpcTransport *grpc.Transport, tchannelTransport
 			ServiceName: clusterInfo.RPCName,
 			Unary: middleware.ApplyUnaryOutbound(outbound, yarpc.UnaryOutboundMiddleware(
 				authMiddleware,
+				&CallerInfoOutboundMiddleware{},
 				&overrideCallerMiddleware{crossDCCaller},
 			)),
 		}
@@ -223,6 +224,7 @@ func NewDirectOutboundBuilder(serviceName string, grpcEnabled bool, tlsConfig *t
 
 func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport) (*Outbounds, error) {
 	var outbound transport.UnaryOutbound
+	var streamOutbound transport.StreamOutbound
 	opts := PeerChooserOptions{
 		EnableConnectionRetainingDirectChooser: o.enableConnRetainMode,
 		ServiceName:                            o.serviceName,
@@ -236,6 +238,8 @@ func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 			return nil, err
 		}
 		outbound = grpc.NewOutbound(directChooser)
+		// Shard manager needs stream outbound, it only supports GRPC, so we don't need to create a tchannel stream outbound
+		streamOutbound = grpc.NewOutbound(directChooser)
 	} else {
 		directChooser, err = o.pcf.CreatePeerChooser(tchannel, opts)
 		if err != nil {
@@ -248,7 +252,8 @@ func (o directOutbound) Build(grpc *grpc.Transport, tchannel *tchannel.Transport
 		Outbounds: yarpc.Outbounds{
 			o.serviceName: {
 				ServiceName: o.serviceName,
-				Unary:       middleware.ApplyUnaryOutbound(outbound, &ResponseInfoMiddleware{}),
+				Unary:       middleware.ApplyUnaryOutbound(outbound, yarpc.UnaryOutboundMiddleware(&CallerInfoOutboundMiddleware{}, &ResponseInfoMiddleware{})),
+				Stream:      streamOutbound,
 			},
 		},
 		onUpdatePeers: directChooser.UpdatePeers,
@@ -279,6 +284,7 @@ func (b singleGRPCOutbound) Build(grpc *grpc.Transport, _ *tchannel.Transport) (
 			b.outboundName: {
 				ServiceName: b.serviceName,
 				Unary:       grpc.NewSingleOutbound(b.address),
+				Stream:      grpc.NewSingleOutbound(b.address),
 			},
 		},
 	}, nil

@@ -1,5 +1,6 @@
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -9,10 +10,10 @@ import (
 	"github.com/uber/cadence/service/frontend/config"
 )
 
-{{- $nonDomainSpecificAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo"}}
+{{- $nonDomainSpecificAPIs := list "Health" "DeprecateDomain" "DeleteDomain" "DescribeDomain" "ListDomains" "RegisterDomain" "UpdateDomain" "GetSearchAttributes" "GetClusterInfo" "ListFailoverHistory"}}
 {{- $domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{- $queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
-{{- $pollerAPIs := list "PollForActivityTask" "PollForDecisionTask"}}
+{{- $taskListAPIs := list "PollForActivityTask" "PollForDecisionTask" "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync" "DescribeTaskList" "ListTaskListPartitions"}}
 
 {{- $interfaceName := .Interface.Name}}
 {{- $interfaceType := .Interface.Type}}
@@ -82,20 +83,23 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
 	{{- end}}
 	{{- $domainMetricTag = printf "metrics.DomainTag(%s)" $domain}}
 	{{- end}}
-	{{- if has $method.Name $pollerAPIs}}
+	{{- if has $method.Name $taskListAPIs}}
 	scope := common.NewPerTaskListScope({{(index $method.Params 1).Name}}.Domain, {{(index $method.Params 1).Name}}.TaskList.GetName(), {{(index $method.Params 1).Name}}.TaskList.GetKind(), h.metricsClient, {{$scope}}).Tagged(metrics.GetContextTags(ctx)...)
 	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
+	swPerTLStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
-	defer sw.Stop()
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swPerTLStart)) }()
 	scopePerDomain := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
+	swPerDomainStart := time.Now()
 	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
-	defer swPerDomain.Stop()
+	defer func() { swPerDomain.Stop(); scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart)) }()
 	{{- else}}
 	scope := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...)
 	scope.IncCounter(metrics.CadenceRequests)
+	swStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer sw.Stop()
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
 	{{- end}}
 	logger := h.logger.WithTags(tags...)
 

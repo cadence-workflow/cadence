@@ -93,6 +93,11 @@ type Interface interface {
 		Request *admin.GetGlobalIsolationGroupsRequest,
 	) (*admin.GetGlobalIsolationGroupsResponse, error)
 
+	GetOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.GetOperationalDynamicConfigRequest,
+	) (*admin.GetOperationalDynamicConfigResponse, error)
+
 	GetReplicationMessages(
 		ctx context.Context,
 		Request *replicator.GetReplicationMessagesRequest,
@@ -107,6 +112,11 @@ type Interface interface {
 		ctx context.Context,
 		Request *admin.ListDynamicConfigRequest,
 	) (*admin.ListDynamicConfigResponse, error)
+
+	ListOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.ListOperationalDynamicConfigRequest,
+	) (*admin.ListOperationalDynamicConfigResponse, error)
 
 	MaintainCorruptWorkflow(
 		ctx context.Context,
@@ -163,6 +173,11 @@ type Interface interface {
 		Request *admin.RestoreDynamicConfigRequest,
 	) error
 
+	RestoreOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.RestoreOperationalDynamicConfigRequest,
+	) error
+
 	UpdateDomainAsyncWorkflowConfiguraton(
 		ctx context.Context,
 		Request *admin.UpdateDomainAsyncWorkflowConfiguratonRequest,
@@ -182,6 +197,11 @@ type Interface interface {
 		ctx context.Context,
 		Request *admin.UpdateGlobalIsolationGroupsRequest,
 	) (*admin.UpdateGlobalIsolationGroupsResponse, error)
+
+	UpdateOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.UpdateOperationalDynamicConfigRequest,
+	) error
 }
 
 // New prepares an implementation of the AdminService service for
@@ -376,6 +396,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 			},
 
 			thrift.Method{
+				Name: "GetOperationalDynamicConfig",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.GetOperationalDynamicConfig),
+					NoWire: getoperationaldynamicconfig_NoWireHandler{impl},
+				},
+				Signature:    "GetOperationalDynamicConfig(Request *admin.GetOperationalDynamicConfigRequest) (*admin.GetOperationalDynamicConfigResponse)",
+				ThriftModule: admin.ThriftModule,
+			},
+
+			thrift.Method{
 				Name: "GetReplicationMessages",
 				HandlerSpec: thrift.HandlerSpec{
 
@@ -408,6 +440,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 					NoWire: listdynamicconfig_NoWireHandler{impl},
 				},
 				Signature:    "ListDynamicConfig(Request *admin.ListDynamicConfigRequest) (*admin.ListDynamicConfigResponse)",
+				ThriftModule: admin.ThriftModule,
+			},
+
+			thrift.Method{
+				Name: "ListOperationalDynamicConfig",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.ListOperationalDynamicConfig),
+					NoWire: listoperationaldynamicconfig_NoWireHandler{impl},
+				},
+				Signature:    "ListOperationalDynamicConfig(Request *admin.ListOperationalDynamicConfigRequest) (*admin.ListOperationalDynamicConfigResponse)",
 				ThriftModule: admin.ThriftModule,
 			},
 
@@ -544,6 +588,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 			},
 
 			thrift.Method{
+				Name: "RestoreOperationalDynamicConfig",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.RestoreOperationalDynamicConfig),
+					NoWire: restoreoperationaldynamicconfig_NoWireHandler{impl},
+				},
+				Signature:    "RestoreOperationalDynamicConfig(Request *admin.RestoreOperationalDynamicConfigRequest)",
+				ThriftModule: admin.ThriftModule,
+			},
+
+			thrift.Method{
 				Name: "UpdateDomainAsyncWorkflowConfiguraton",
 				HandlerSpec: thrift.HandlerSpec{
 
@@ -590,10 +646,22 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 				Signature:    "UpdateGlobalIsolationGroups(Request *admin.UpdateGlobalIsolationGroupsRequest) (*admin.UpdateGlobalIsolationGroupsResponse)",
 				ThriftModule: admin.ThriftModule,
 			},
+
+			thrift.Method{
+				Name: "UpdateOperationalDynamicConfig",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.UpdateOperationalDynamicConfig),
+					NoWire: updateoperationaldynamicconfig_NoWireHandler{impl},
+				},
+				Signature:    "UpdateOperationalDynamicConfig(Request *admin.UpdateOperationalDynamicConfigRequest)",
+				ThriftModule: admin.ThriftModule,
+			},
 		},
 	}
 
-	procedures := make([]transport.Procedure, 0, 33)
+	procedures := make([]transport.Procedure, 0, 37)
 	procedures = append(procedures, thrift.BuildProcedures(service, opts...)...)
 	return procedures
 }
@@ -1054,6 +1122,36 @@ func (h handler) GetGlobalIsolationGroups(ctx context.Context, body wire.Value) 
 	return response, err
 }
 
+func (h handler) GetOperationalDynamicConfig(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args admin.AdminService_GetOperationalDynamicConfig_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'AdminService' procedure 'GetOperationalDynamicConfig': %w", err)
+	}
+
+	success, appErr := h.impl.GetOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_GetOperationalDynamicConfig_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
 func (h handler) GetReplicationMessages(ctx context.Context, body wire.Value) (thrift.Response, error) {
 	var args admin.AdminService_GetReplicationMessages_Args
 	if err := args.FromWire(body); err != nil {
@@ -1125,6 +1223,36 @@ func (h handler) ListDynamicConfig(ctx context.Context, body wire.Value) (thrift
 
 	hadError := appErr != nil
 	result, err := admin.AdminService_ListDynamicConfig_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+func (h handler) ListOperationalDynamicConfig(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args admin.AdminService_ListOperationalDynamicConfig_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'AdminService' procedure 'ListOperationalDynamicConfig': %w", err)
+	}
+
+	success, appErr := h.impl.ListOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_ListOperationalDynamicConfig_Helper.WrapResponse(success, appErr)
 
 	var response thrift.Response
 	if err == nil {
@@ -1474,6 +1602,36 @@ func (h handler) RestoreDynamicConfig(ctx context.Context, body wire.Value) (thr
 	return response, err
 }
 
+func (h handler) RestoreOperationalDynamicConfig(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args admin.AdminService_RestoreOperationalDynamicConfig_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'AdminService' procedure 'RestoreOperationalDynamicConfig': %w", err)
+	}
+
+	appErr := h.impl.RestoreOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_RestoreOperationalDynamicConfig_Helper.WrapResponse(appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
 func (h handler) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, body wire.Value) (thrift.Response, error) {
 	var args admin.AdminService_UpdateDomainAsyncWorkflowConfiguraton_Args
 	if err := args.FromWire(body); err != nil {
@@ -1575,6 +1733,36 @@ func (h handler) UpdateGlobalIsolationGroups(ctx context.Context, body wire.Valu
 
 	hadError := appErr != nil
 	result, err := admin.AdminService_UpdateGlobalIsolationGroups_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+func (h handler) UpdateOperationalDynamicConfig(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args admin.AdminService_UpdateOperationalDynamicConfig_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'AdminService' procedure 'UpdateOperationalDynamicConfig': %w", err)
+	}
+
+	appErr := h.impl.UpdateOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_UpdateOperationalDynamicConfig_Helper.WrapResponse(appErr)
 
 	var response thrift.Response
 	if err == nil {
@@ -2149,6 +2337,43 @@ func (h getglobalisolationgroups_NoWireHandler) HandleNoWire(ctx context.Context
 
 }
 
+type getoperationaldynamicconfig_NoWireHandler struct{ impl Interface }
+
+func (h getoperationaldynamicconfig_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args admin.AdminService_GetOperationalDynamicConfig_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'AdminService' procedure 'GetOperationalDynamicConfig': %w", err)
+	}
+
+	success, appErr := h.impl.GetOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_GetOperationalDynamicConfig_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
 type getreplicationmessages_NoWireHandler struct{ impl Interface }
 
 func (h getreplicationmessages_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
@@ -2242,6 +2467,43 @@ func (h listdynamicconfig_NoWireHandler) HandleNoWire(ctx context.Context, nwc *
 
 	hadError := appErr != nil
 	result, err := admin.AdminService_ListDynamicConfig_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type listoperationaldynamicconfig_NoWireHandler struct{ impl Interface }
+
+func (h listoperationaldynamicconfig_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args admin.AdminService_ListOperationalDynamicConfig_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'AdminService' procedure 'ListOperationalDynamicConfig': %w", err)
+	}
+
+	success, appErr := h.impl.ListOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_ListOperationalDynamicConfig_Helper.WrapResponse(success, appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError
@@ -2667,6 +2929,43 @@ func (h restoredynamicconfig_NoWireHandler) HandleNoWire(ctx context.Context, nw
 
 }
 
+type restoreoperationaldynamicconfig_NoWireHandler struct{ impl Interface }
+
+func (h restoreoperationaldynamicconfig_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args admin.AdminService_RestoreOperationalDynamicConfig_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'AdminService' procedure 'RestoreOperationalDynamicConfig': %w", err)
+	}
+
+	appErr := h.impl.RestoreOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_RestoreOperationalDynamicConfig_Helper.WrapResponse(appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
 type updatedomainasyncworkflowconfiguraton_NoWireHandler struct{ impl Interface }
 
 func (h updatedomainasyncworkflowconfiguraton_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
@@ -2797,6 +3096,43 @@ func (h updateglobalisolationgroups_NoWireHandler) HandleNoWire(ctx context.Cont
 
 	hadError := appErr != nil
 	result, err := admin.AdminService_UpdateGlobalIsolationGroups_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type updateoperationaldynamicconfig_NoWireHandler struct{ impl Interface }
+
+func (h updateoperationaldynamicconfig_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args admin.AdminService_UpdateOperationalDynamicConfig_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'AdminService' procedure 'UpdateOperationalDynamicConfig': %w", err)
+	}
+
+	appErr := h.impl.UpdateOperationalDynamicConfig(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := admin.AdminService_UpdateOperationalDynamicConfig_Helper.WrapResponse(appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError

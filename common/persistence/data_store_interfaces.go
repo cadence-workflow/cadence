@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,HistoryDLQTaskStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -94,6 +94,25 @@ type (
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
 	}
 
+	// DomainAuditStore is a lower level of DomainAuditManager
+	DomainAuditStore interface {
+		Closeable
+		GetName() string
+		CreateDomainAuditLog(ctx context.Context, request *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
+		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error)
+	}
+
+	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.
+	HistoryDLQTaskStore interface {
+		Closeable
+		GetName() string
+		CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error
+		GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (InternalGetHistoryDLQTasksResponse, error)
+		RangeDeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
+		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
+	}
+
 	// ExecutionStore is used to manage workflow executions for Persistence layer
 	ExecutionStore interface {
 		Closeable
@@ -112,7 +131,7 @@ type (
 
 		// Replication task related methods
 		PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationDLQTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
@@ -123,13 +142,15 @@ type (
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
+		SelectWorkflowTimerTasks(ctx context.Context, request *SelectWorkflowTimerTasksRequest) ([]HistoryTaskKey, error)
+
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
 		// Active cluster selection policy related methods
-		GetActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*DataBlob, error)
-		DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) error
+		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*DataBlob, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
 	}
 
 	// HistoryStore is to manager workflow history events
@@ -190,21 +211,95 @@ type (
 		Values    *DataBlob
 	}
 
-	// Queue is a store to enqueue and get messages
-	Queue interface {
+	InternalEnqueueMessageRequest struct {
+		MessagePayload   []byte
+		CurrentTimeStamp time.Time
+	}
+
+	InternalReadMessagesRequest struct {
+		LastMessageID int64
+		MaxCount      int
+	}
+
+	InternalReadMessagesResponse struct {
+		Messages []*InternalQueueMessage
+	}
+
+	InternalDeleteMessagesBeforeRequest struct {
+		MessageID int64
+	}
+
+	InternalUpdateAckLevelRequest struct {
+		MessageID        int64
+		ClusterName      string
+		CurrentTimeStamp time.Time
+	}
+
+	InternalGetAckLevelsRequest struct{}
+
+	InternalGetAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	InternalEnqueueMessageToDLQRequest struct {
+		MessagePayload   []byte
+		CurrentTimeStamp time.Time
+	}
+
+	InternalReadMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+		PageSize       int
+		PageToken      []byte
+	}
+
+	InternalReadMessagesFromDLQResponse struct {
+		Messages      []*InternalQueueMessage
+		NextPageToken []byte
+	}
+
+	InternalDeleteMessageFromDLQRequest struct {
+		MessageID int64
+	}
+
+	InternalRangeDeleteMessagesFromDLQRequest struct {
+		FirstMessageID int64
+		LastMessageID  int64
+	}
+
+	InternalUpdateDLQAckLevelRequest struct {
+		MessageID        int64
+		ClusterName      string
+		CurrentTimeStamp time.Time
+	}
+
+	InternalGetDLQAckLevelsRequest struct{}
+
+	InternalGetDLQAckLevelsResponse struct {
+		AckLevels map[string]int64
+	}
+
+	InternalGetDLQSizeRequest struct{}
+
+	InternalGetDLQSizeResponse struct {
+		Size int64
+	}
+
+	// QueueStore is a store to enqueue and get messages
+	QueueStore interface {
 		Closeable
-		EnqueueMessage(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error
-		ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) ([]*InternalQueueMessage, error)
-		DeleteMessagesBefore(ctx context.Context, messageID int64) error
-		UpdateAckLevel(ctx context.Context, messageID int64, clusterName string, currentTimestamp time.Time) error
-		GetAckLevels(ctx context.Context) (map[string]int64, error)
-		EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte, currentTimeStamp time.Time) error
-		ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) ([]*InternalQueueMessage, []byte, error)
-		DeleteMessageFromDLQ(ctx context.Context, messageID int64) error
-		RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) error
-		UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string, currentTimestamp time.Time) error
-		GetDLQAckLevels(ctx context.Context) (map[string]int64, error)
-		GetDLQSize(ctx context.Context) (int64, error)
+		EnqueueMessage(ctx context.Context, request *InternalEnqueueMessageRequest) error
+		ReadMessages(ctx context.Context, request *InternalReadMessagesRequest) (*InternalReadMessagesResponse, error)
+		DeleteMessagesBefore(ctx context.Context, request *InternalDeleteMessagesBeforeRequest) error
+		UpdateAckLevel(ctx context.Context, request *InternalUpdateAckLevelRequest) error
+		GetAckLevels(ctx context.Context, request *InternalGetAckLevelsRequest) (*InternalGetAckLevelsResponse, error)
+		EnqueueMessageToDLQ(ctx context.Context, request *InternalEnqueueMessageToDLQRequest) error
+		ReadMessagesFromDLQ(ctx context.Context, request *InternalReadMessagesFromDLQRequest) (*InternalReadMessagesFromDLQResponse, error)
+		DeleteMessageFromDLQ(ctx context.Context, request *InternalDeleteMessageFromDLQRequest) error
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *InternalRangeDeleteMessagesFromDLQRequest) error
+		UpdateDLQAckLevel(ctx context.Context, request *InternalUpdateDLQAckLevelRequest) error
+		GetDLQAckLevels(ctx context.Context, request *InternalGetDLQAckLevelsRequest) (*InternalGetDLQAckLevelsResponse, error)
+		GetDLQSize(ctx context.Context, request *InternalGetDLQSizeRequest) (*InternalGetDLQSizeResponse, error)
 	}
 
 	// InternalQueueMessage is the message that stores in the queue
@@ -224,6 +319,7 @@ type (
 
 	// InternalCreateWorkflowExecutionRequest is used to write a new workflow execution
 	InternalCreateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode CreateWorkflowMode
@@ -240,8 +336,22 @@ type (
 
 	// InternalPutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	InternalPutReplicationTaskToDLQRequest struct {
+		ShardID           ShardID
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
+		Task              *DataBlob
+	}
+
+	// InternalReplicationDLQTask is the store-layer ReplicationDLQTask: payload is a raw blob.
+	InternalReplicationDLQTask struct {
+		Info *ReplicationTaskInfo
+		Task *DataBlob
+	}
+
+	// InternalGetReplicationDLQTasksResponse is the store-layer GetReplicationDLQTasksResponse.
+	InternalGetReplicationDLQTasksResponse struct {
+		Tasks         []*InternalReplicationDLQTask
+		NextPageToken []byte
 	}
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events
@@ -410,6 +520,7 @@ type (
 
 	// InternalUpdateWorkflowExecutionRequest is used to update a workflow execution for Persistence Interface
 	InternalUpdateWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode UpdateWorkflowMode
@@ -425,6 +536,7 @@ type (
 
 	// InternalConflictResolveWorkflowExecutionRequest is used to reset workflow execution state for Persistence Interface
 	InternalConflictResolveWorkflowExecutionRequest struct {
+		ShardID ShardID
 		RangeID int64
 
 		Mode ConflictResolveWorkflowMode
@@ -454,6 +566,7 @@ type (
 		DeleteActivityInfos       []int64
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -484,6 +597,7 @@ type (
 
 		ActivityInfos       []*InternalActivityInfo
 		TimerInfos          []*TimerInfo
+		WorkflowTimerTasks  []HistoryTaskKey
 		ChildExecutionInfos []*InternalChildExecutionInfo
 		RequestCancelInfos  []*RequestCancelInfo
 		SignalInfos         []*SignalInfo
@@ -533,6 +647,7 @@ type (
 
 	// InternalGetWorkflowExecutionRequest is used to retrieve the info of a workflow execution
 	InternalGetWorkflowExecutionRequest struct {
+		ShardID   ShardID
 		DomainID  string
 		Execution types.WorkflowExecution
 		RangeID   int64
@@ -647,23 +762,28 @@ type (
 
 	// InternalVisibilityWorkflowExecutionInfo is visibility info for internal response
 	InternalVisibilityWorkflowExecutionInfo struct {
-		DomainID         string
-		WorkflowType     string
-		WorkflowID       string
-		RunID            string
-		TypeName         string
-		StartTime        time.Time
-		ExecutionTime    time.Time
-		CloseTime        time.Time
-		Status           *types.WorkflowExecutionCloseStatus
-		HistoryLength    int64
-		Memo             *DataBlob
-		TaskList         string
-		IsCron           bool
-		NumClusters      int16
-		UpdateTime       time.Time
-		SearchAttributes map[string]interface{}
-		ShardID          int16
+		DomainID               string
+		WorkflowType           string
+		WorkflowID             string
+		RunID                  string
+		TypeName               string
+		StartTime              time.Time
+		ExecutionTime          time.Time
+		CloseTime              time.Time
+		Status                 *types.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		Memo                   *DataBlob
+		TaskList               string
+		IsCron                 bool
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTime             time.Time
+		SearchAttributes       map[string]interface{}
+		ShardID                int16
+		CronSchedule           string
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalListWorkflowExecutionsResponse is response from ListWorkflowExecutions
@@ -706,43 +826,53 @@ type (
 
 	// InternalRecordWorkflowExecutionStartedRequest request to RecordWorkflowExecutionStarted
 	InternalRecordWorkflowExecutionStartedRequest struct {
-		DomainUUID         string
-		WorkflowID         string
-		RunID              string
-		WorkflowTypeName   string
-		StartTimestamp     time.Time
-		ExecutionTimestamp time.Time
-		WorkflowTimeout    time.Duration
-		TaskID             int64
-		Memo               *DataBlob
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    time.Time
-		SearchAttributes   map[string][]byte
-		ShardID            int16
+		DomainUUID             string
+		WorkflowID             string
+		RunID                  string
+		WorkflowTypeName       string
+		StartTimestamp         time.Time
+		ExecutionTimestamp     time.Time
+		WorkflowTimeout        time.Duration
+		TaskID                 int64
+		Memo                   *DataBlob
+		TaskList               string
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTimestamp        time.Time
+		SearchAttributes       map[string][]byte
+		ShardID                int16
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalRecordWorkflowExecutionClosedRequest is request to RecordWorkflowExecutionClosed
 	InternalRecordWorkflowExecutionClosedRequest struct {
-		DomainUUID         string
-		WorkflowID         string
-		RunID              string
-		WorkflowTypeName   string
-		StartTimestamp     time.Time
-		ExecutionTimestamp time.Time
-		TaskID             int64
-		Memo               *DataBlob
-		TaskList           string
-		SearchAttributes   map[string][]byte
-		CloseTimestamp     time.Time
-		Status             types.WorkflowExecutionCloseStatus
-		HistoryLength      int64
-		RetentionPeriod    time.Duration
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    time.Time
-		ShardID            int16
+		DomainUUID             string
+		WorkflowID             string
+		RunID                  string
+		WorkflowTypeName       string
+		StartTimestamp         time.Time
+		ExecutionTimestamp     time.Time
+		TaskID                 int64
+		Memo                   *DataBlob
+		TaskList               string
+		SearchAttributes       map[string][]byte
+		CloseTimestamp         time.Time
+		Status                 types.WorkflowExecutionCloseStatus
+		HistoryLength          int64
+		RetentionPeriod        time.Duration
+		IsCron                 bool
+		CronSchedule           string
+		NumClusters            int16
+		ClusterAttributeScope  string
+		ClusterAttributeName   string
+		UpdateTimestamp        time.Time
+		ShardID                int16
+		ExecutionStatus        types.WorkflowExecutionStatus
+		ScheduledExecutionTime time.Time
 	}
 
 	// InternalRecordWorkflowExecutionUninitializedRequest is used to add a record of a newly uninitialized execution
@@ -757,21 +887,26 @@ type (
 
 	// InternalUpsertWorkflowExecutionRequest is request to UpsertWorkflowExecution
 	InternalUpsertWorkflowExecutionRequest struct {
-		DomainUUID         string
-		WorkflowID         string
-		RunID              string
-		WorkflowTypeName   string
-		StartTimestamp     time.Time
-		ExecutionTimestamp time.Time
-		WorkflowTimeout    time.Duration
-		TaskID             int64
-		Memo               *DataBlob
-		TaskList           string
-		IsCron             bool
-		NumClusters        int16
-		UpdateTimestamp    time.Time
-		SearchAttributes   map[string][]byte
-		ShardID            int64
+		DomainUUID                  string
+		WorkflowID                  string
+		RunID                       string
+		WorkflowTypeName            string
+		StartTimestamp              time.Time
+		ExecutionTimestamp          time.Time
+		WorkflowTimeout             time.Duration
+		TaskID                      int64
+		Memo                        *DataBlob
+		TaskList                    string
+		IsCron                      bool
+		CronSchedule                string
+		NumClusters                 int16
+		ClusterAttributeScope       string
+		ClusterAttributeName        string
+		UpdateTimestamp             time.Time
+		SearchAttributes            map[string][]byte
+		ShardID                     int64
+		ExecutionStatus             types.WorkflowExecutionStatus
+		ScheduledExecutionTimestamp int64
 	}
 
 	// InternalListWorkflowExecutionsRequest is used to list executions in a domain
@@ -857,6 +992,102 @@ type (
 		NextPageToken []byte
 	}
 
+	DomainAuditOperationType int
+
+	// InternalCreateDomainAuditLogRequest is used to create a domain audit log entry
+	InternalCreateDomainAuditLogRequest struct {
+		DomainID        string
+		EventID         string
+		StateBefore     *DataBlob
+		StateAfter      *DataBlob
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
+		TTLSeconds      int64 // TTL for the audit log entry in seconds
+	}
+
+	// InternalCreateHistoryDLQTaskRequest is the store-level request for writing a history DLQ task.
+	InternalCreateHistoryDLQTaskRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		TaskID                int64
+		WorkflowID            string
+		RunID                 string
+		Version               int64
+		VisibilityTimestamp   time.Time
+		CreatedAt             time.Time
+		TaskBlob              *DataBlob
+	}
+
+	// InternalHistoryDLQTask is a single row from the history_task_dlq table.
+	InternalHistoryDLQTask struct {
+		DomainID              string
+		WorkflowID            string
+		RunID                 string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          int
+		VisibilityTimestamp   time.Time
+		TaskID                int64
+		TaskPayload           *DataBlob
+		Version               int64
+		CreatedAt             time.Time
+	}
+
+	// InternalHistoryDLQAckLevel is a single row from the history_task_dlq_ack_level table.
+	InternalHistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// InternalGetHistoryDLQTasksResponse is the response for GetHistoryDLQTasks.
+	InternalGetHistoryDLQTasksResponse struct {
+		Tasks         []*InternalHistoryDLQTask
+		NextPageToken []byte
+	}
+
+	// InternalGetHistoryDLQAckLevelsResponse is the response for GetHistoryDLQAckLevels.
+	InternalGetHistoryDLQAckLevelsResponse struct {
+		AckLevels []*InternalHistoryDLQAckLevel
+	}
+
+	// InternalUpdateHistoryDLQAckLevelRequest upserts a single ack level row.
+	InternalUpdateHistoryDLQAckLevelRequest struct {
+		Row InternalHistoryDLQAckLevel
+	}
+
+	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
+	InternalGetDomainAuditLogsResponse struct {
+		AuditLogs     []*InternalDomainAuditLog
+		NextPageToken []byte
+	}
+
+	// InternalDomainAuditLog represents a single internal domain audit log entry
+	InternalDomainAuditLog struct {
+		EventID         string
+		DomainID        string
+		StateBefore     *DataBlob
+		StateAfter      *DataBlob
+		OperationType   DomainAuditOperationType
+		CreatedTime     time.Time
+		LastUpdatedTime time.Time
+		Identity        string
+		IdentityType    string
+		Comment         string
+	}
+
 	// InternalShardInfo describes a shard
 	InternalShardInfo struct {
 		ShardID                       int                         `json:"shard_id"`
@@ -900,6 +1131,14 @@ type (
 	// InternalGetShardResponse is the response to GetShard
 	InternalGetShardResponse struct {
 		ShardInfo *InternalShardInfo
+	}
+
+	// SelectWorkflowTimerTasksRequest is used to read the workflow_timer_tasks tracking column
+	SelectWorkflowTimerTasksRequest struct {
+		ShardID    int
+		DomainID   string
+		WorkflowID string
+		RunID      string
 	}
 )
 

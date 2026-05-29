@@ -36,38 +36,44 @@ import (
 )
 
 type beanmocks struct {
-	mockCtrl           *gomock.Controller
-	domainManager      *persistence.MockDomainManager
-	taskManager        *persistence.MockTaskManager
-	visibilityManager  *persistence.MockVisibilityManager
-	replicationManager *persistence.MockQueueManager
-	shardManager       *persistence.MockShardManager
-	historyManager     *persistence.MockHistoryManager
-	configManager      *persistence.MockConfigStoreManager
+	mockCtrl              *gomock.Controller
+	domainManager         *persistence.MockDomainManager
+	domainAuditManager    *persistence.MockDomainAuditManager
+	taskManager           *persistence.MockTaskManager
+	visibilityManager     *persistence.MockVisibilityManager
+	replicationManager    *persistence.MockQueueManager
+	shardManager          *persistence.MockShardManager
+	historyManager        *persistence.MockHistoryManager
+	configManager         *persistence.MockConfigStoreManager
+	historyTaskDLQManager *persistence.MockHistoryTaskDLQManager
 }
 
 func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) {
 	ctrl := gomock.NewController(t)
 	m = beanmocks{
-		mockCtrl:           ctrl,
-		domainManager:      persistence.NewMockDomainManager(ctrl),
-		taskManager:        persistence.NewMockTaskManager(ctrl),
-		visibilityManager:  persistence.NewMockVisibilityManager(ctrl),
-		replicationManager: persistence.NewMockQueueManager(ctrl),
-		shardManager:       persistence.NewMockShardManager(ctrl),
-		historyManager:     persistence.NewMockHistoryManager(ctrl),
-		configManager:      persistence.NewMockConfigStoreManager(ctrl),
+		mockCtrl:              ctrl,
+		domainManager:         persistence.NewMockDomainManager(ctrl),
+		domainAuditManager:    persistence.NewMockDomainAuditManager(ctrl),
+		taskManager:           persistence.NewMockTaskManager(ctrl),
+		visibilityManager:     persistence.NewMockVisibilityManager(ctrl),
+		replicationManager:    persistence.NewMockQueueManager(ctrl),
+		shardManager:          persistence.NewMockShardManager(ctrl),
+		historyManager:        persistence.NewMockHistoryManager(ctrl),
+		configManager:         persistence.NewMockConfigStoreManager(ctrl),
+		historyTaskDLQManager: persistence.NewMockHistoryTaskDLQManager(ctrl),
 	}
 	f = NewMockFactory(ctrl)
 	defaultMocks = func() {
 		// allow any of them to be called once or never, individual tests will set earlier mocks as needed
 		f.EXPECT().NewDomainManager().Return(m.domainManager, nil).MaxTimes(1)
+		f.EXPECT().NewDomainAuditManager().Return(m.domainAuditManager, nil).MaxTimes(1)
 		f.EXPECT().NewTaskManager().Return(m.taskManager, nil).MaxTimes(1)
 		f.EXPECT().NewVisibilityManager(gomock.Any(), gomock.Any()).Return(m.visibilityManager, nil).MaxTimes(1)
 		f.EXPECT().NewDomainReplicationQueueManager().Return(m.replicationManager, nil).MaxTimes(1)
 		f.EXPECT().NewShardManager().Return(m.shardManager, nil).MaxTimes(1)
 		f.EXPECT().NewHistoryManager().Return(m.historyManager, nil).MaxTimes(1)
 		f.EXPECT().NewConfigStoreManager().Return(m.configManager, nil).MaxTimes(1)
+		f.EXPECT().NewHistoryTaskDLQManager().Return(m.historyTaskDLQManager, nil).MaxTimes(1)
 	}
 	return f, m, defaultMocks
 }
@@ -129,6 +135,12 @@ func TestBeanCoverage(t *testing.T) {
 				},
 				err: "no config manager",
 			},
+			"history task DLQ manager error": {
+				mockSetup: func(t *testing.T, f *MockFactory) {
+					f.EXPECT().NewHistoryTaskDLQManager().Return(nil, fmt.Errorf("no history task DLQ manager"))
+				},
+				err: "no history task DLQ manager",
+			},
 		}
 		for name, test := range tests {
 			name, test := name, test
@@ -157,12 +169,14 @@ func TestBeanCoverage(t *testing.T) {
 		// these need to be concurrency-safe, so run them concurrently
 		var g errgroup.Group
 		g.Go(errgroupAssertEqual(t, m.domainManager, impl.GetDomainManager))
+		g.Go(errgroupAssertEqual(t, m.domainAuditManager, impl.GetDomainAuditManager))
 		g.Go(errgroupAssertEqual(t, m.taskManager, impl.GetTaskManager))
 		g.Go(errgroupAssertEqual(t, m.visibilityManager, impl.GetVisibilityManager))
 		g.Go(errgroupAssertEqual(t, m.replicationManager, impl.GetDomainReplicationQueueManager))
 		g.Go(errgroupAssertEqual(t, m.shardManager, impl.GetShardManager))
 		g.Go(errgroupAssertEqual(t, m.historyManager, impl.GetHistoryManager))
 		g.Go(errgroupAssertEqual(t, m.configManager, impl.GetConfigStoreManager))
+		g.Go(errgroupAssertEqual(t, m.historyTaskDLQManager, impl.GetHistoryTaskDLQManager))
 		require.NoError(t, g.Wait())
 		// execution managers are per shard, checked separately
 	})
@@ -178,12 +192,14 @@ func TestBeanCoverage(t *testing.T) {
 		var g errgroup.Group
 
 		g.Go(errgroupAssertSets(t, m2.domainManager, impl.SetDomainManager, impl.GetDomainManager))
+		g.Go(errgroupAssertSets(t, m2.domainAuditManager, impl.SetDomainAuditManager, impl.GetDomainAuditManager))
 		g.Go(errgroupAssertSets(t, m2.taskManager, impl.SetTaskManager, impl.GetTaskManager))
 		g.Go(errgroupAssertSets(t, m2.visibilityManager, impl.SetVisibilityManager, impl.GetVisibilityManager))
 		g.Go(errgroupAssertSets(t, m2.replicationManager, impl.SetDomainReplicationQueueManager, impl.GetDomainReplicationQueueManager))
 		g.Go(errgroupAssertSets(t, m2.shardManager, impl.SetShardManager, impl.GetShardManager))
 		g.Go(errgroupAssertSets(t, m2.historyManager, impl.SetHistoryManager, impl.GetHistoryManager))
 		g.Go(errgroupAssertSets(t, m2.configManager, impl.SetConfigStoreManager, impl.GetConfigStoreManager))
+		g.Go(errgroupAssertSets(t, m2.historyTaskDLQManager, impl.SetHistoryTaskDLQManager, impl.GetHistoryTaskDLQManager))
 		require.NoError(t, g.Wait())
 		// execution managers are per shard, checked separately
 	})
@@ -248,6 +264,7 @@ func TestBeanCoverage(t *testing.T) {
 
 		// expect everything to close
 		m.domainManager.EXPECT().Close().Return().Times(1)
+		m.domainAuditManager.EXPECT().Close().Return().Times(1)
 		m.taskManager.EXPECT().Close().Return().Times(1)
 		m.visibilityManager.EXPECT().Close().Return().Times(1)
 		m.replicationManager.EXPECT().Close().Return().Times(1)
@@ -256,6 +273,7 @@ func TestBeanCoverage(t *testing.T) {
 		m.configManager.EXPECT().Close().Return().Times(1)
 		ex1.EXPECT().Close().Return().Times(1)
 		ex2.EXPECT().Close().Return().Times(1)
+		m.historyTaskDLQManager.EXPECT().Close().Return().Times(1)
 		// which includes the execution-manager-factory itself
 		f.EXPECT().Close().Return().Times(1)
 

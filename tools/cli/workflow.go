@@ -46,6 +46,13 @@ func newWorkflowCommands() []*cli.Command {
 			Action:  DiagnoseWorkflow,
 		},
 		{
+			Name:    "refresh-tasks",
+			Aliases: []string{"rt"},
+			Usage:   "refreshes all the workflow tasks to resume progress",
+			Flags:   flagsForExecution,
+			Action:  RefreshWorkflowTasks,
+		},
+		{
 			Name:        "activity",
 			Aliases:     []string{"act"},
 			Usage:       "operate activities of workflow",
@@ -540,6 +547,10 @@ func newBatchCommands() []*cli.Command {
 					Name:  FlagMaxActivityRetries,
 					Value: batcher.DefaultMaxActivityRetries,
 					Usage: "Max retries of batch activity, before retrying the whole workflow (0 means unlimited)",
+				},
+				&cli.BoolFlag{
+					Name:  FlagBatchV2,
+					Usage: "Use V2 batch workflow with runtime signal-based tuning support",
 				},
 			},
 			Action: StartBatchJob,

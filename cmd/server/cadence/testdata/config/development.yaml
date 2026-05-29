@@ -1,5 +1,4 @@
 shardDistribution:
-  enabled: true
   leaderStore:
     storageParams:
       endpoints:

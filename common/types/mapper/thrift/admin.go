@@ -693,6 +693,132 @@ func ToAdminListDynamicConfigResponse(t *admin.ListDynamicConfigResponse) *types
 	}
 }
 
+// FromAdminGetOperationalDynamicConfigRequest converts internal GetOperationalDynamicConfigRequest type to thrift
+func FromAdminGetOperationalDynamicConfigRequest(t *types.GetOperationalDynamicConfigRequest) *admin.GetOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &admin.GetOperationalDynamicConfigRequest{
+		ConfigName: &t.ConfigName,
+		Filters:    FromDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// ToAdminGetOperationalDynamicConfigRequest converts thrift GetOperationalDynamicConfigRequest type to internal
+func ToAdminGetOperationalDynamicConfigRequest(t *admin.GetOperationalDynamicConfigRequest) *types.GetOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.GetOperationalDynamicConfigRequest{
+		ConfigName: t.GetConfigName(),
+		Filters:    ToDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// FromAdminGetOperationalDynamicConfigResponse converts internal GetOperationalDynamicConfigResponse type to thrift
+func FromAdminGetOperationalDynamicConfigResponse(t *types.GetOperationalDynamicConfigResponse) *admin.GetOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &admin.GetOperationalDynamicConfigResponse{
+		Value: FromDataBlob(t.Value),
+	}
+}
+
+// ToAdminGetOperationalDynamicConfigResponse converts thrift GetOperationalDynamicConfigResponse type to internal
+func ToAdminGetOperationalDynamicConfigResponse(t *admin.GetOperationalDynamicConfigResponse) *types.GetOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.GetOperationalDynamicConfigResponse{
+		Value: ToDataBlob(t.Value),
+	}
+}
+
+// FromAdminUpdateOperationalDynamicConfigRequest converts internal UpdateOperationalDynamicConfigRequest type to thrift
+func FromAdminUpdateOperationalDynamicConfigRequest(t *types.UpdateOperationalDynamicConfigRequest) *admin.UpdateOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &admin.UpdateOperationalDynamicConfigRequest{
+		ConfigName:   &t.ConfigName,
+		ConfigValues: FromDynamicConfigValueArray(t.ConfigValues),
+	}
+}
+
+// ToAdminUpdateOperationalDynamicConfigRequest converts thrift UpdateOperationalDynamicConfigRequest type to internal
+func ToAdminUpdateOperationalDynamicConfigRequest(t *admin.UpdateOperationalDynamicConfigRequest) *types.UpdateOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.UpdateOperationalDynamicConfigRequest{
+		ConfigName:   t.GetConfigName(),
+		ConfigValues: ToDynamicConfigValueArray(t.ConfigValues),
+	}
+}
+
+// FromAdminRestoreOperationalDynamicConfigRequest converts internal RestoreOperationalDynamicConfigRequest type to thrift
+func FromAdminRestoreOperationalDynamicConfigRequest(t *types.RestoreOperationalDynamicConfigRequest) *admin.RestoreOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &admin.RestoreOperationalDynamicConfigRequest{
+		ConfigName: &t.ConfigName,
+		Filters:    FromDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// ToAdminRestoreOperationalDynamicConfigRequest converts thrift RestoreOperationalDynamicConfigRequest type to internal
+func ToAdminRestoreOperationalDynamicConfigRequest(t *admin.RestoreOperationalDynamicConfigRequest) *types.RestoreOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.RestoreOperationalDynamicConfigRequest{
+		ConfigName: t.GetConfigName(),
+		Filters:    ToDynamicConfigFilterArray(t.Filters),
+	}
+}
+
+// FromAdminListOperationalDynamicConfigRequest converts internal ListOperationalDynamicConfigRequest type to thrift
+func FromAdminListOperationalDynamicConfigRequest(t *types.ListOperationalDynamicConfigRequest) *admin.ListOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &admin.ListOperationalDynamicConfigRequest{
+		ConfigName: &t.ConfigName,
+	}
+}
+
+// ToAdminListOperationalDynamicConfigRequest converts thrift ListOperationalDynamicConfigRequest type to internal
+func ToAdminListOperationalDynamicConfigRequest(t *admin.ListOperationalDynamicConfigRequest) *types.ListOperationalDynamicConfigRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListOperationalDynamicConfigRequest{
+		ConfigName: t.GetConfigName(),
+	}
+}
+
+// FromAdminListOperationalDynamicConfigResponse converts internal ListOperationalDynamicConfigResponse type to thrift
+func FromAdminListOperationalDynamicConfigResponse(t *types.ListOperationalDynamicConfigResponse) *admin.ListOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &admin.ListOperationalDynamicConfigResponse{
+		Entries: FromDynamicConfigEntryArray(t.Entries),
+	}
+}
+
+// ToAdminListOperationalDynamicConfigResponse converts thrift ListOperationalDynamicConfigResponse type to internal
+func ToAdminListOperationalDynamicConfigResponse(t *admin.ListOperationalDynamicConfigResponse) *types.ListOperationalDynamicConfigResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListOperationalDynamicConfigResponse{
+		Entries: ToDynamicConfigEntryArray(t.Entries),
+	}
+}
+
 func FromAdminGetGlobalIsolationGroupsRequest(t *types.GetGlobalIsolationGroupsRequest) *admin.GetGlobalIsolationGroupsRequest {
 	if t == nil {
 		return nil

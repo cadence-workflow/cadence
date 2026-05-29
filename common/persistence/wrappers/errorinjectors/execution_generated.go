@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -15,6 +16,7 @@ import (
 // injectorExecutionManager implements persistence.ExecutionManager interface instrumented with error injection.
 type injectorExecutionManager struct {
 	wrapped   persistence.ExecutionManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -24,9 +26,11 @@ func NewExecutionManager(
 	wrapped persistence.ExecutionManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.ExecutionManager {
 	return &injectorExecutionManager{
 		wrapped:   wrapped,
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -38,7 +42,7 @@ func (c *injectorExecutionManager) Close() {
 }
 
 func (c *injectorExecutionManager) CompleteHistoryTask(ctx context.Context, request *persistence.CompleteHistoryTaskRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.CompleteHistoryTask(ctx, request)
@@ -53,7 +57,7 @@ func (c *injectorExecutionManager) CompleteHistoryTask(ctx context.Context, requ
 }
 
 func (c *injectorExecutionManager) ConflictResolveWorkflowExecution(ctx context.Context, request *persistence.ConflictResolveWorkflowExecutionRequest) (cp1 *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		cp1, err = c.wrapped.ConflictResolveWorkflowExecution(ctx, request)
@@ -68,7 +72,7 @@ func (c *injectorExecutionManager) ConflictResolveWorkflowExecution(ctx context.
 }
 
 func (c *injectorExecutionManager) CreateFailoverMarkerTasks(ctx context.Context, request *persistence.CreateFailoverMarkersRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.CreateFailoverMarkerTasks(ctx, request)
@@ -83,7 +87,7 @@ func (c *injectorExecutionManager) CreateFailoverMarkerTasks(ctx context.Context
 }
 
 func (c *injectorExecutionManager) CreateWorkflowExecution(ctx context.Context, request *persistence.CreateWorkflowExecutionRequest) (cp1 *persistence.CreateWorkflowExecutionResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		cp1, err = c.wrapped.CreateWorkflowExecution(ctx, request)
@@ -97,11 +101,11 @@ func (c *injectorExecutionManager) CreateWorkflowExecution(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, domainID, workflowID, runID)
+		err = c.wrapped.DeleteActiveClusterSelectionPolicy(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -113,7 +117,7 @@ func (c *injectorExecutionManager) DeleteActiveClusterSelectionPolicy(ctx contex
 }
 
 func (c *injectorExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Context, request *persistence.DeleteCurrentWorkflowExecutionRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteCurrentWorkflowExecution(ctx, request)
@@ -128,7 +132,7 @@ func (c *injectorExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Co
 }
 
 func (c *injectorExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Context, request *persistence.DeleteReplicationTaskFromDLQRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteReplicationTaskFromDLQ(ctx, request)
@@ -143,7 +147,7 @@ func (c *injectorExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Cont
 }
 
 func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, request *persistence.DeleteWorkflowExecutionRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteWorkflowExecution(ctx, request)
@@ -157,11 +161,26 @@ func (c *injectorExecutionManager) DeleteWorkflowExecution(ctx context.Context, 
 	return
 }
 
-func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) (ha1 []persistence.HistoryTaskKey, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+		ha1, err = c.wrapped.FetchWorkflowTimerTasksForCleanup(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.FetchWorkflowTimerTasksForCleanup", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (ap1 *types.ActiveClusterSelectionPolicy, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		ap1, err = c.wrapped.GetActiveClusterSelectionPolicy(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -173,7 +192,7 @@ func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.C
 }
 
 func (c *injectorExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (gp1 *persistence.GetCurrentExecutionResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetCurrentExecution(ctx, request)
@@ -188,7 +207,7 @@ func (c *injectorExecutionManager) GetCurrentExecution(ctx context.Context, requ
 }
 
 func (c *injectorExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetHistoryTasks(ctx, request)
@@ -207,7 +226,7 @@ func (c *injectorExecutionManager) GetName() (s1 string) {
 }
 
 func (c *injectorExecutionManager) GetReplicationDLQSize(ctx context.Context, request *persistence.GetReplicationDLQSizeRequest) (gp1 *persistence.GetReplicationDLQSizeResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetReplicationDLQSize(ctx, request)
@@ -221,8 +240,8 @@ func (c *injectorExecutionManager) GetReplicationDLQSize(ctx context.Context, re
 	return
 }
 
-func (c *injectorExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (gp1 *persistence.GetReplicationDLQTasksResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
@@ -241,7 +260,7 @@ func (c *injectorExecutionManager) GetShardID() (i1 int) {
 }
 
 func (c *injectorExecutionManager) GetWorkflowExecution(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (gp1 *persistence.GetWorkflowExecutionResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetWorkflowExecution(ctx, request)
@@ -256,7 +275,7 @@ func (c *injectorExecutionManager) GetWorkflowExecution(ctx context.Context, req
 }
 
 func (c *injectorExecutionManager) IsWorkflowExecutionExists(ctx context.Context, request *persistence.IsWorkflowExecutionExistsRequest) (ip1 *persistence.IsWorkflowExecutionExistsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		ip1, err = c.wrapped.IsWorkflowExecutionExists(ctx, request)
@@ -271,7 +290,7 @@ func (c *injectorExecutionManager) IsWorkflowExecutionExists(ctx context.Context
 }
 
 func (c *injectorExecutionManager) ListConcreteExecutions(ctx context.Context, request *persistence.ListConcreteExecutionsRequest) (lp1 *persistence.ListConcreteExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListConcreteExecutions(ctx, request)
@@ -286,7 +305,7 @@ func (c *injectorExecutionManager) ListConcreteExecutions(ctx context.Context, r
 }
 
 func (c *injectorExecutionManager) ListCurrentExecutions(ctx context.Context, request *persistence.ListCurrentExecutionsRequest) (lp1 *persistence.ListCurrentExecutionsResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		lp1, err = c.wrapped.ListCurrentExecutions(ctx, request)
@@ -301,7 +320,7 @@ func (c *injectorExecutionManager) ListCurrentExecutions(ctx context.Context, re
 }
 
 func (c *injectorExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, request *persistence.PutReplicationTaskToDLQRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.PutReplicationTaskToDLQ(ctx, request)
@@ -316,7 +335,7 @@ func (c *injectorExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, 
 }
 
 func (c *injectorExecutionManager) RangeCompleteHistoryTask(ctx context.Context, request *persistence.RangeCompleteHistoryTaskRequest) (rp1 *persistence.RangeCompleteHistoryTaskResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		rp1, err = c.wrapped.RangeCompleteHistoryTask(ctx, request)
@@ -331,7 +350,7 @@ func (c *injectorExecutionManager) RangeCompleteHistoryTask(ctx context.Context,
 }
 
 func (c *injectorExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *persistence.RangeDeleteReplicationTaskFromDLQRequest) (rp1 *persistence.RangeDeleteReplicationTaskFromDLQResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		rp1, err = c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
@@ -346,7 +365,7 @@ func (c *injectorExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context
 }
 
 func (c *injectorExecutionManager) UpdateWorkflowExecution(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (up1 *persistence.UpdateWorkflowExecutionResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		up1, err = c.wrapped.UpdateWorkflowExecution(ctx, request)

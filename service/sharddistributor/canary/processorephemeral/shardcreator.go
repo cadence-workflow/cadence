@@ -6,13 +6,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
-	"github.com/uber/cadence/client/sharddistributor"
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/types"
+	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
+	"github.com/uber/cadence/service/sharddistributor/canary/pinger"
 )
+
+//go:generate mockgen -package $GOPACKAGE -destination canary_client_mock_test.go github.com/uber/cadence/.gen/proto/sharddistributor/v1 ShardDistributorExecutorCanaryAPIYARPCClient
 
 const (
 	shardCreationInterval = 1 * time.Second
@@ -20,33 +24,36 @@ const (
 
 // ShardCreator creates shards at regular intervals for ephemeral canary testing
 type ShardCreator struct {
-	logger           *zap.Logger
-	timeSource       clock.TimeSource
-	shardDistributor sharddistributor.Client
+	logger       *zap.Logger
+	timeSource   clock.TimeSource
+	canaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	metricsScope tally.Scope
+	namespaces   []string
 
 	stopChan    chan struct{}
 	goRoutineWg sync.WaitGroup
-	namespace   string
 }
 
 // ShardCreatorParams contains the dependencies needed to create a ShardCreator
 type ShardCreatorParams struct {
 	fx.In
 
-	Logger           *zap.Logger
-	TimeSource       clock.TimeSource
-	ShardDistributor sharddistributor.Client
+	Logger       *zap.Logger
+	TimeSource   clock.TimeSource
+	CanaryClient sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCClient
+	MetricsScope tally.Scope
 }
 
 // NewShardCreator creates a new ShardCreator instance with the given parameters and namespace
-func NewShardCreator(params ShardCreatorParams, namespace string) *ShardCreator {
+func NewShardCreator(params ShardCreatorParams, namespaces []string) *ShardCreator {
 	return &ShardCreator{
-		logger:           params.Logger,
-		timeSource:       params.TimeSource,
-		shardDistributor: params.ShardDistributor,
-		stopChan:         make(chan struct{}),
-		goRoutineWg:      sync.WaitGroup{},
-		namespace:        namespace,
+		logger:       params.Logger,
+		timeSource:   params.TimeSource,
+		canaryClient: params.CanaryClient,
+		metricsScope: params.MetricsScope,
+		stopChan:     make(chan struct{}),
+		goRoutineWg:  sync.WaitGroup{},
+		namespaces:   namespaces,
 	}
 }
 
@@ -54,17 +61,18 @@ func NewShardCreator(params ShardCreatorParams, namespace string) *ShardCreator 
 func (s *ShardCreator) Start() {
 	s.goRoutineWg.Add(1)
 	go s.process(context.Background())
-	s.logger.Info("Shard creator started")
+	s.logger.Debug("Shard creator started")
 }
 
 // Stop stops the shard creation process and waits for the goroutine to finish
 func (s *ShardCreator) Stop() {
 	close(s.stopChan)
 	s.goRoutineWg.Wait()
+	s.logger.Debug("Shard creator stopped")
 }
 
 // ShardCreatorModule creates an fx module for the shard creator with the given namespace
-func ShardCreatorModule(namespace string) fx.Option {
+func ShardCreatorModule(namespace []string) fx.Option {
 	return fx.Module("shard-creator",
 		fx.Provide(func(params ShardCreatorParams) *ShardCreator {
 			return NewShardCreator(params, namespace)
@@ -88,17 +96,14 @@ func (s *ShardCreator) process(ctx context.Context) {
 		case <-s.stopChan:
 			return
 		case <-ticker.Chan():
-			shardKey := uuid.New().String()
-			s.logger.Info("Creating shard", zap.String("shardKey", shardKey))
-			response, err := s.shardDistributor.GetShardOwner(ctx, &types.GetShardOwnerRequest{
-				ShardKey:  shardKey,
-				Namespace: s.namespace,
-			})
-			if err != nil {
-				s.logger.Error("create shard failed", zap.Error(err))
-				continue
+			for _, namespace := range s.namespaces {
+				shardKey := uuid.New().String()
+				scope := s.metricsScope.Tagged(map[string]string{"namespace": namespace})
+				scope.Counter(canarymetrics.CanaryShardCreated).Inc(1)
+				s.logger.Debug("Creating shard", zap.String("shardKey", shardKey), zap.String("namespace", namespace))
+
+				pinger.PingShard(ctx, s.canaryClient, scope, s.logger, namespace, shardKey)
 			}
-			s.logger.Info("shard created", zap.String("shardKey", shardKey), zap.String("shardOwner", response.Owner))
 		}
 	}
 }

@@ -76,8 +76,6 @@ type (
 		AuthorizationProvider AuthorizationProvider `yaml:"authorizationProvider"`
 		// TLS configures client TLS/SSL authentication for connections to this cluster
 		TLS TLS `yaml:"tls"`
-		// Region is the region of the cluster.
-		Region string `yaml:"region"`
 	}
 
 	AuthorizationProvider struct {

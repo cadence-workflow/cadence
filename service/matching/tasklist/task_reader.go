@@ -50,7 +50,11 @@ import (
 var epochStartTime = time.Unix(0, 0)
 
 const (
-	defaultTaskBufferIsolationGroup = "" // a task buffer which is not using an isolation group
+	// a task buffer which is not using an isolation group
+	defaultTaskBufferIsolationGroup = ""
+
+	// a buffer to add to the dispatch timeout to have some room even task waits for the whole rate-limit period
+	taskDispatchTimeoutBuffer = 100 * time.Millisecond
 )
 
 type (
@@ -389,7 +393,7 @@ func (tr *taskReader) completeTask(task *persistence.TaskInfo, err error) {
 		// Note that RecordTaskStarted only fails after retrying for a long time, so a single task will not be
 		// re-written to persistence frequently.
 		op := func(ctx context.Context) error {
-			_, err := tr.taskWriter.appendTask(task)
+			_, err := tr.taskWriter.appendTask(ctx, task)
 			return err
 		}
 		err = tr.throttleRetry.Do(context.Background(), op)
@@ -417,6 +421,9 @@ func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuratio
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}
 		if domainEntry.IsActiveIn(tr.clusterMetadata.GetCurrentClusterName()) {
+			tr.logger.Debug("domain is active in the current cluster, setting timeout",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			)
 			// if the domain is active in the current cluster, set the timeout
 			return context.WithTimeout(tr.cancelCtx, timeout)
 		}
@@ -427,7 +434,8 @@ func (tr *taskReader) newDispatchContext(isolationGroup string, isolationDuratio
 func (tr *taskReader) getDispatchTimeout(rps float64, isolationDuration time.Duration) time.Duration {
 	// this is the minimum timeout required to dispatch a task, if the timeout value is smaller than this
 	// async task dispatch can be completely throttled, which could happen when ratePerSecond is pretty low
-	minTimeout := time.Duration(float64(len(tr.taskBuffers))/rps) * time.Second
+	minTimeout := time.Duration((float64)(time.Second*time.Duration(len(tr.taskBuffers)))/rps) + taskDispatchTimeoutBuffer
+
 	// timeout = max (min(asyncDispatchTimeout, isolationDuration), minTimeout)
 	timeout := tr.config.AsyncTaskDispatchTimeout()
 	if timeout > isolationDuration && isolationDuration != noIsolationTimeout {
@@ -469,11 +477,13 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 		isolationGroup = defaultTaskBufferIsolationGroup
 		isolationDuration = noIsolationTimeout
 	}
-	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, nil, isolationGroup)
+	task := newInternalTask(taskInfo, tr.completeTask, types.TaskSourceDbBacklog, "", false, isolationGroup)
 	dispatchCtx, cancel := tr.newDispatchContext(isolationGroup, isolationDuration)
+	asyncMatchStart := time.Now()
 	timerScope := tr.scope.StartTimer(metrics.AsyncMatchLatencyPerTaskList)
 	err := tr.dispatchTask(dispatchCtx, task)
 	timerScope.Stop()
+	tr.scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(asyncMatchStart))
 	cancel()
 
 	if err == nil {
@@ -485,7 +495,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 	if errors.Is(err, context.Canceled) {
 		e.EventName = "Dispatch Failed because Context Cancelled"
 		event.Log(e)
-		tr.logger.Info("Tasklist manager context is cancelled, shutting down")
+		tr.logger.Debug("Tasklist manager context is cancelled, shutting down")
 		return true, true
 	}
 
@@ -494,7 +504,7 @@ func (tr *taskReader) dispatchSingleTaskFromBuffer(taskInfo *persistence.TaskInf
 		// if this happens, we don't want to block the task dispatching, because there might be pollers from
 		// other isolation groups, we just simply continue and dispatch the task to a new isolation group which
 		// has pollers
-		tr.logger.Warn("Async task dispatch timed out",
+		tr.logger.Debug("Async task dispatch timed out",
 			tag.IsolationGroup(isolationGroup),
 			tag.WorkflowRunID(taskInfo.RunID),
 			tag.WorkflowID(taskInfo.WorkflowID),

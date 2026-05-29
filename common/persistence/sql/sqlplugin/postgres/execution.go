@@ -110,9 +110,9 @@ workflow_id = :workflow_id
 
 	getTimerTasksQuery = `SELECT visibility_timestamp, task_id, data, data_encoding FROM timer_tasks
   WHERE shard_id = $1
-  AND ((visibility_timestamp >= $2 AND task_id >= $3) OR visibility_timestamp > $4)
-  AND visibility_timestamp < $5
-  ORDER BY visibility_timestamp,task_id LIMIT $6`
+  AND (visibility_timestamp, task_id) >= ($2, $3)
+  AND visibility_timestamp < $4
+  ORDER BY visibility_timestamp,task_id LIMIT $5`
 
 	deleteTimerTaskQuery             = `DELETE FROM timer_tasks WHERE shard_id = $1 AND visibility_timestamp = $2 AND task_id = $3`
 	rangeDeleteTimerTaskQuery        = `DELETE FROM timer_tasks WHERE shard_id = $1 AND visibility_timestamp >= $2 AND visibility_timestamp < $3`
@@ -368,7 +368,7 @@ func (pdb *db) SelectFromTimerTasks(ctx context.Context, filter *sqlplugin.Timer
 	filter.MinVisibilityTimestamp = pdb.converter.ToPostgresDateTime(filter.MinVisibilityTimestamp)
 	filter.MaxVisibilityTimestamp = pdb.converter.ToPostgresDateTime(filter.MaxVisibilityTimestamp)
 	err := pdb.driver.SelectContext(ctx, dbShardID, &rows, getTimerTasksQuery, filter.ShardID, filter.MinVisibilityTimestamp,
-		filter.TaskID, filter.MinVisibilityTimestamp, filter.MaxVisibilityTimestamp, filter.PageSize)
+		filter.TaskID, filter.MaxVisibilityTimestamp, filter.PageSize)
 	if err != nil {
 		return nil, err
 	}

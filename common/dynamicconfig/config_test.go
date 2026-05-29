@@ -100,6 +100,16 @@ func (s *configSuite) TestGetIntPropertyFilteredByShardID() {
 	s.Equal(10, value(shardID))
 }
 
+func (s *configSuite) TestGetIntPropertyFilteredByDomainAndTaskList() {
+	key := dynamicproperties.TestGetIntPropertyFilteredByDomainAndTaskListKey
+	domain := "testDomain"
+	taskList := "testTaskList"
+	value := s.cln.GetIntPropertyFilteredByDomainAndTaskList(key)
+	s.Equal(key.DefaultInt(), value(domain, taskList))
+	s.client.SetValue(key, 42)
+	s.Equal(42, value(domain, taskList))
+}
+
 func (s *configSuite) TestGetStringPropertyFnWithDomainFilter() {
 	key := dynamicproperties.DefaultEventEncoding
 	domain := "testDomain"
@@ -121,7 +131,7 @@ func (s *configSuite) TestGetStringPropertyFnByTaskListInfo() {
 }
 
 func (s *configSuite) TestGetStringPropertyFnWithNamespaceFilter() {
-	key := dynamicproperties.MigrationMode
+	key := dynamicproperties.ShardDistributorMigrationMode
 	namespace := "testService"
 	value := s.cln.GetStringPropertyFilteredByNamespace(key)
 	s.Equal(key.DefaultString(), value(namespace))

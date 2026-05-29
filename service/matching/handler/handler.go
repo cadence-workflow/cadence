@@ -23,6 +23,7 @@ package handler
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
@@ -69,6 +70,7 @@ func NewHandler(
 				config.DomainUserRPS,
 				config.UserRPS,
 			)),
+			nil,
 		),
 		workerRateLimiter: quotas.NewMultiStageRateLimiter(
 			quotas.NewDynamicRateLimiter(config.WorkerRPS.AsFloat64()),
@@ -76,6 +78,7 @@ func NewHandler(
 				config.DomainWorkerRPS,
 				config.WorkerRPS,
 			)),
+			nil,
 		),
 		engine:          engine,
 		logger:          logger,
@@ -137,8 +140,11 @@ func (h *handlerImpl) AddActivityTask(
 		metrics.MatchingAddActivityTaskScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if request.GetForwardedFrom() != "" {
 		hCtx.scope.IncCounter(metrics.ForwardedPerTaskListCounter)
@@ -167,8 +173,11 @@ func (h *handlerImpl) AddDecisionTask(
 		metrics.MatchingAddDecisionTaskScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if request.GetForwardedFrom() != "" {
 		hCtx.scope.IncCounter(metrics.ForwardedPerTaskListCounter)
@@ -197,8 +206,11 @@ func (h *handlerImpl) PollForActivityTask(
 		metrics.MatchingPollForActivityTaskScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if request.GetForwardedFrom() != "" {
 		hCtx.scope.IncCounter(metrics.ForwardedPerTaskListCounter)
@@ -234,8 +246,11 @@ func (h *handlerImpl) PollForDecisionTask(
 		metrics.MatchingPollForDecisionTaskScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if request.GetForwardedFrom() != "" {
 		hCtx.scope.IncCounter(metrics.ForwardedPerTaskListCounter)
@@ -272,8 +287,11 @@ func (h *handlerImpl) QueryWorkflow(
 		metrics.MatchingQueryWorkflowScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if request.GetForwardedFrom() != "" {
 		hCtx.scope.IncCounter(metrics.ForwardedPerTaskListCounter)
@@ -302,8 +320,11 @@ func (h *handlerImpl) RespondQueryTaskCompleted(
 		metrics.MatchingRespondQueryTaskCompletedScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	// Count the request in the RPS, but we still accept it even if RPS is exceeded
 	h.workerRateLimiter.Allow(quotas.Info{Domain: domainName})
@@ -325,8 +346,11 @@ func (h *handlerImpl) CancelOutstandingPoll(ctx context.Context,
 		metrics.MatchingCancelOutstandingPollScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	// Count the request in the RPS, but we still accept it even if RPS is exceeded
 	h.workerRateLimiter.Allow(quotas.Info{Domain: domainName})
@@ -352,8 +376,11 @@ func (h *handlerImpl) DescribeTaskList(
 		metrics.MatchingDescribeTaskListScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
@@ -379,8 +406,11 @@ func (h *handlerImpl) ListTaskListPartitions(
 		h.logger,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: request.GetDomain()}); !ok {
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
@@ -406,8 +436,11 @@ func (h *handlerImpl) GetTaskListsByDomain(
 		h.logger,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: request.GetDomain()}); !ok {
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
@@ -431,8 +464,11 @@ func (h *handlerImpl) UpdateTaskListPartitionConfig(
 		metrics.MatchingUpdateTaskListPartitionConfigScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	if ok := h.userRateLimiter.Allow(quotas.Info{Domain: domainName}); !ok {
 		return nil, hCtx.handleErr(errMatchingHostThrottle)
@@ -456,8 +492,11 @@ func (h *handlerImpl) RefreshTaskListPartitionConfig(
 		metrics.MatchingRefreshTaskListPartitionConfigScope,
 	)
 
-	sw := hCtx.startProfiling(&h.startWG)
-	defer sw.Stop()
+	sw, swStart := hCtx.startProfiling(&h.startWG)
+	defer func() {
+		sw.Stop()
+		hCtx.scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swStart))
+	}()
 
 	// Count the request in the RPS, but we still accept it even if RPS is exceeded
 	h.userRateLimiter.Allow(quotas.Info{Domain: domainName})

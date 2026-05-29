@@ -34,7 +34,6 @@ var (
 		EmitMetric:                             common.BoolPtr(DomainEmitMetric),
 		Clusters:                               ClusterReplicationConfigurationArray,
 		ActiveClusterName:                      ClusterName1,
-		ActiveClustersByRegion:                 map[string]string{Region1: ClusterName1, Region2: ClusterName2},
 		ActiveClusters:                         &ActiveClusters,
 		Data:                                   DomainData,
 		SecurityToken:                          SecurityToken,
@@ -83,15 +82,30 @@ var (
 		DeleteBadBinary:                        common.StringPtr(DeleteBadBinary),
 		FailoverTimeoutInSeconds:               &Duration1,
 	}
+	FailoverDomainRequest = types.FailoverDomainRequest{
+		DomainName:              DomainName,
+		DomainActiveClusterName: common.StringPtr(ClusterName1),
+		ActiveClusters:          &ActiveClusters,
+	}
+	FailoverDomainRequest_OnlyActiveClusters = types.FailoverDomainRequest{
+		DomainName: DomainName,
+		// Explicitly set to nil to test ActiveActive failovers
+		DomainActiveClusterName: nil,
+		ActiveClusters:          &ActiveClusters,
+	}
 	ActiveClusters = types.ActiveClusters{
-		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-			Region1: {
-				ActiveClusterName: ClusterName1,
-				FailoverVersion:   FailoverVersion1,
-			},
-			Region2: {
-				ActiveClusterName: ClusterName2,
-				FailoverVersion:   FailoverVersion2,
+		AttributeScopes: map[string]types.ClusterAttributeScope{
+			"region": {
+				ClusterAttributes: map[string]types.ActiveClusterInfo{
+					Region1: {
+						ActiveClusterName: ClusterName1,
+						FailoverVersion:   FailoverVersion1,
+					},
+					Region2: {
+						ActiveClusterName: ClusterName2,
+						FailoverVersion:   FailoverVersion2,
+					},
+				},
 			},
 		},
 	}
@@ -343,7 +357,7 @@ var (
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimeStamp:                 &Timestamp1,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 	StartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,
@@ -382,7 +396,7 @@ var (
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimestamp:                 &Timestamp1,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyRegionSticky,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 	SignalWithStartWorkflowExecutionAsyncRequest = types.SignalWithStartWorkflowExecutionAsyncRequest{
 		SignalWithStartWorkflowExecutionRequest: &SignalWithStartWorkflowExecutionRequest,

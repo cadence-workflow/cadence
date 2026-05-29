@@ -180,6 +180,25 @@ func (c *Collection) GetIntPropertyFilteredByTaskListInfo(key dynamicproperties.
 	}
 }
 
+// GetIntPropertyFilteredByDomainAndTaskList gets property with domain and taskList as filters and asserts that it's an integer
+func (c *Collection) GetIntPropertyFilteredByDomainAndTaskList(key dynamicproperties.IntKey) dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter {
+	return func(domain string, taskList string) int {
+		filters := c.toFilterMap(
+			dynamicproperties.DomainFilter(domain),
+			dynamicproperties.TaskListFilter(taskList),
+		)
+		val, err := c.client.GetIntValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultInt()
+		}
+		return val
+	}
+}
+
 // GetIntPropertyFilteredByShardID gets property with shardID as filter and asserts that it's an integer
 func (c *Collection) GetIntPropertyFilteredByShardID(key dynamicproperties.IntKey) dynamicproperties.IntPropertyFnWithShardIDFilter {
 	return func(shardID int) int {
@@ -264,6 +283,22 @@ func (c *Collection) GetFloat64PropertyFilteredByTaskListInfo(key dynamicpropert
 	}
 }
 
+// GetFloat64PropertyFilteredByNamespace gets property with domain filter and asserts that it's a float64
+func (c *Collection) GetFloat64PropertyFilteredByNamespace(key dynamicproperties.FloatKey) dynamicproperties.Float64PropertyFnWithNamespaceFilters {
+	return func(namespace string) float64 {
+		filters := c.toFilterMap(dynamicproperties.NamespaceFilter(namespace))
+		val, err := c.client.GetFloatValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultFloat()
+		}
+		return val
+	}
+}
+
 // GetDurationProperty gets property and asserts that it's a duration
 func (c *Collection) GetDurationProperty(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFn {
 	return func(opts ...dynamicproperties.FilterOption) time.Duration {
@@ -300,6 +335,22 @@ func (c *Collection) GetDurationPropertyFilteredByDomain(key dynamicproperties.D
 func (c *Collection) GetDurationPropertyFilteredByDomainID(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFnWithDomainIDFilter {
 	return func(domainID string) time.Duration {
 		filters := c.toFilterMap(dynamicproperties.DomainIDFilter(domainID))
+		val, err := c.client.GetDurationValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultDuration()
+		}
+		return val
+	}
+}
+
+// GetDurationPropertyFilteredByNamespace gets property with namespace filter and asserts that it's a duration
+func (c *Collection) GetDurationPropertyFilteredByNamespace(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFnWithNamespaceFilters {
+	return func(namespace string) time.Duration {
+		filters := c.toFilterMap(dynamicproperties.NamespaceFilter(namespace))
 		val, err := c.client.GetDurationValue(
 			key,
 			filters,

@@ -33,7 +33,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 type authOutboundMiddleware struct {
@@ -116,25 +116,27 @@ func (m *InboundMetricsMiddleware) Handle(ctx context.Context, req *transport.Re
 	return h.Handle(ctx, req, resw)
 }
 
-// ComparatorYarpcKey is the const for yarpc key
-const ComparatorYarpcKey = "cadence-visibility-override"
+// CallerInfoMiddleware extracts caller information from headers and adds it to the context.
+type CallerInfoMiddleware struct{}
 
-// PinotComparatorMiddleware checks the header of a grpc request, and then override the context accordingly
-// note: for Pinot Migration only (Jan. 2024)
-type PinotComparatorMiddleware struct{}
-
-func (m *PinotComparatorMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
-	yarpcKey, ok := req.Headers.Get(ComparatorYarpcKey)
-	if ok {
-		contextWithVisibilityOverride(ctx, yarpcKey) //original key can not be passed, need get new context with key
-	}
-
+func (m *CallerInfoMiddleware) Handle(ctx context.Context, req *transport.Request, resw transport.ResponseWriter, h transport.UnaryHandler) error {
+	ctx = types.GetContextWithCallerInfoFromHeaders(ctx, req.Headers)
 	return h.Handle(ctx, req, resw)
 }
 
-// ContextWithOverride adds a value in ctx
-func contextWithVisibilityOverride(ctx context.Context, value string) context.Context {
-	return context.WithValue(ctx, persistence.ContextKey, value)
+// CallerInfoOutboundMiddleware sets the caller type header on outbound calls.
+// If the caller type is not already set in headers (by HeaderForwardingMiddleware),
+// it sets to "internal" only if the call originated from internal service logic.
+// External requests without the header are left unset and will be extracted as "unknown" by the receiving service.
+type CallerInfoOutboundMiddleware struct{}
+
+func (m *CallerInfoOutboundMiddleware) Call(ctx context.Context, request *transport.Request, out transport.UnaryOutbound) (*transport.Response, error) {
+	if _, ok := request.Headers.Get(types.CallerTypeHeaderName); !ok {
+		if yarpc.CallFromContext(ctx) == nil {
+			request.Headers = request.Headers.With(types.CallerTypeHeaderName, string(types.CallerTypeInternal))
+		}
+	}
+	return out.Call(ctx, request)
 }
 
 type overrideCallerMiddleware struct {

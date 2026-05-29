@@ -24,12 +24,13 @@ package execution
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"github.com/pborman/uuid"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -329,7 +330,7 @@ func (e *mutableStateBuilder) CopyToPersistence() *persistence.WorkflowMutableSt
 func (e *mutableStateBuilder) Load(
 	ctx context.Context,
 	state *persistence.WorkflowMutableState,
-) error {
+) {
 
 	e.pendingActivityInfoIDs = state.ActivityInfos
 	for _, activityInfo := range state.ActivityInfos {
@@ -359,33 +360,11 @@ func (e *mutableStateBuilder) Load(
 	e.fillForBackwardsCompatibility()
 
 	if len(state.Checksum.Value) > 0 {
-		switch {
-		case e.shouldInvalidateChecksum():
+		if e.shouldInvalidateChecksum() {
 			e.checksum = checksum.Checksum{}
 			e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.MutableStateChecksumInvalidated)
-		case e.shouldVerifyChecksum():
-			if err := verifyMutableStateChecksum(e, state.Checksum); err != nil {
-				// we ignore checksum verification errors for now until this
-				// feature is tested and/or we have mechanisms in place to deal
-				// with these types of errors
-				e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.MutableStateChecksumMismatch)
-				e.logError("mutable state checksum mismatch",
-					tag.WorkflowNextEventID(e.executionInfo.NextEventID),
-					tag.WorkflowScheduleID(e.executionInfo.DecisionScheduleID),
-					tag.WorkflowStartedID(e.executionInfo.DecisionStartedID),
-					tag.Dynamic("timerIDs", maps.Keys(e.pendingTimerInfoIDs)),
-					tag.Dynamic("activityIDs", maps.Keys(e.pendingActivityInfoIDs)),
-					tag.Dynamic("childIDs", maps.Keys(e.pendingChildExecutionInfoIDs)),
-					tag.Dynamic("signalIDs", maps.Keys(e.pendingSignalInfoIDs)),
-					tag.Dynamic("cancelIDs", maps.Keys(e.pendingRequestCancelInfoIDs)),
-					tag.Error(err))
-				if e.enableChecksumFailureRetry() {
-					return err
-				}
-			}
 		}
 	}
-	return nil
 }
 
 func (e *mutableStateBuilder) fillForBackwardsCompatibility() {
@@ -416,6 +395,10 @@ func (e *mutableStateBuilder) GetCurrentBranchToken() ([]byte, error) {
 
 func (e *mutableStateBuilder) GetVersionHistories() *persistence.VersionHistories {
 	return e.versionHistories
+}
+
+func (e *mutableStateBuilder) GetChecksum() checksum.Checksum {
+	return e.checksum
 }
 
 // set treeID/historyBranches
@@ -1471,18 +1454,18 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		UpsertActivityInfos:       maps.Values(e.updateActivityInfos),
-		DeleteActivityInfos:       maps.Keys(e.deleteActivityInfos),
-		UpsertTimerInfos:          maps.Values(e.updateTimerInfos),
-		DeleteTimerInfos:          maps.Keys(e.deleteTimerInfos),
-		UpsertChildExecutionInfos: maps.Values(e.updateChildExecutionInfos),
-		DeleteChildExecutionInfos: maps.Keys(e.deleteChildExecutionInfos),
-		UpsertRequestCancelInfos:  maps.Values(e.updateRequestCancelInfos),
-		DeleteRequestCancelInfos:  maps.Keys(e.deleteRequestCancelInfos),
-		UpsertSignalInfos:         maps.Values(e.updateSignalInfos),
-		DeleteSignalInfos:         maps.Keys(e.deleteSignalInfos),
-		UpsertSignalRequestedIDs:  maps.Keys(e.updateSignalRequestedIDs),
-		DeleteSignalRequestedIDs:  maps.Keys(e.deleteSignalRequestedIDs),
+		UpsertActivityInfos:       slices.Collect(maps.Values(e.updateActivityInfos)),
+		DeleteActivityInfos:       slices.Collect(maps.Keys(e.deleteActivityInfos)),
+		UpsertTimerInfos:          slices.Collect(maps.Values(e.updateTimerInfos)),
+		DeleteTimerInfos:          slices.Collect(maps.Keys(e.deleteTimerInfos)),
+		UpsertChildExecutionInfos: slices.Collect(maps.Values(e.updateChildExecutionInfos)),
+		DeleteChildExecutionInfos: slices.Collect(maps.Keys(e.deleteChildExecutionInfos)),
+		UpsertRequestCancelInfos:  slices.Collect(maps.Values(e.updateRequestCancelInfos)),
+		DeleteRequestCancelInfos:  slices.Collect(maps.Keys(e.deleteRequestCancelInfos)),
+		UpsertSignalInfos:         slices.Collect(maps.Values(e.updateSignalInfos)),
+		DeleteSignalInfos:         slices.Collect(maps.Keys(e.deleteSignalInfos)),
+		UpsertSignalRequestedIDs:  slices.Collect(maps.Keys(e.updateSignalRequestedIDs)),
+		DeleteSignalRequestedIDs:  slices.Collect(maps.Keys(e.deleteSignalRequestedIDs)),
 		NewBufferedEvents:         e.updateBufferedEvents,
 		ClearBufferedEvents:       e.clearBufferedEvents,
 
@@ -1560,12 +1543,12 @@ func (e *mutableStateBuilder) CloseTransactionAsSnapshot(
 		ExecutionInfo:    e.executionInfo,
 		VersionHistories: e.versionHistories,
 
-		ActivityInfos:       maps.Values(e.pendingActivityInfoIDs),
-		TimerInfos:          maps.Values(e.pendingTimerInfoIDs),
-		ChildExecutionInfos: maps.Values(e.pendingChildExecutionInfoIDs),
-		RequestCancelInfos:  maps.Values(e.pendingRequestCancelInfoIDs),
-		SignalInfos:         maps.Values(e.pendingSignalInfoIDs),
-		SignalRequestedIDs:  maps.Keys(e.pendingSignalRequestedIDs),
+		ActivityInfos:       slices.Collect(maps.Values(e.pendingActivityInfoIDs)),
+		TimerInfos:          slices.Collect(maps.Values(e.pendingTimerInfoIDs)),
+		ChildExecutionInfos: slices.Collect(maps.Values(e.pendingChildExecutionInfoIDs)),
+		RequestCancelInfos:  slices.Collect(maps.Values(e.pendingRequestCancelInfoIDs)),
+		SignalInfos:         slices.Collect(maps.Values(e.pendingSignalInfoIDs)),
+		SignalRequestedIDs:  slices.Collect(maps.Keys(e.pendingSignalRequestedIDs)),
 
 		TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
 			persistence.HistoryTaskCategoryTransfer:    e.insertTransferTasks,
@@ -2192,20 +2175,6 @@ func (e *mutableStateBuilder) shouldGenerateChecksum() bool {
 	return rand.Intn(100) < e.config.MutableStateChecksumGenProbability(e.domainEntry.GetInfo().Name)
 }
 
-func (e *mutableStateBuilder) shouldVerifyChecksum() bool {
-	if e.domainEntry == nil {
-		return false
-	}
-	return rand.Intn(100) < e.config.MutableStateChecksumVerifyProbability(e.domainEntry.GetInfo().Name)
-}
-
-func (e *mutableStateBuilder) enableChecksumFailureRetry() bool {
-	if e.domainEntry == nil {
-		return false
-	}
-	return e.config.EnableRetryForChecksumFailure(e.domainEntry.GetInfo().Name)
-}
-
 func (e *mutableStateBuilder) shouldInvalidateChecksum() bool {
 	invalidateBeforeEpochSecs := int64(e.config.MutableStateChecksumInvalidateBefore())
 	if invalidateBeforeEpochSecs > 0 {
@@ -2287,62 +2256,96 @@ func (e *mutableStateBuilder) logDataInconsistency() {
 	)
 }
 func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.HistoryEvent, source string) []*types.HistoryEvent {
-	type activityTaskUniqueEventParams struct {
+	type eventUniquenessParams struct {
 		eventType        types.EventType
 		scheduledEventID int64
 		attempt          int32
 		startedEventID   int64
 	}
 
-	activityTaskUniqueEvents := make(map[activityTaskUniqueEventParams]struct{})
+	activityTaskUniqueEvents := make(map[eventUniquenessParams]struct{})
 
-	checkActivityTaskEventUniqueness := func(event *types.HistoryEvent) bool {
-		var uniqueEventParams activityTaskUniqueEventParams
+	checkEventUniqueness := func(event *types.HistoryEvent) bool {
+		var uniqueEventParams eventUniquenessParams
 
 		var scheduledEventID int64
 
 		switch event.GetEventType() {
 		case types.EventTypeActivityTaskStarted:
 			scheduledEventID = event.ActivityTaskStartedEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				attempt:          event.ActivityTaskStartedEventAttributes.Attempt,
 			}
 		case types.EventTypeActivityTaskCompleted:
 			scheduledEventID = event.ActivityTaskCompletedEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskCompletedEventAttributes.GetStartedEventID(),
 			}
 		case types.EventTypeActivityTaskFailed:
 			scheduledEventID = event.ActivityTaskFailedEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskFailedEventAttributes.GetStartedEventID(),
 			}
 		case types.EventTypeActivityTaskCanceled:
 			scheduledEventID = event.ActivityTaskCanceledEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskCanceledEventAttributes.StartedEventID,
 			}
 		case types.EventTypeActivityTaskTimedOut:
 			scheduledEventID = event.ActivityTaskTimedOutEventAttributes.GetScheduledEventID()
-			uniqueEventParams = activityTaskUniqueEventParams{
+			uniqueEventParams = eventUniquenessParams{
 				eventType:        event.GetEventType(),
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ActivityTaskTimedOutEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionStarted:
+			scheduledEventID = event.ChildWorkflowExecutionStartedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionCompleted:
+			scheduledEventID = event.ChildWorkflowExecutionCompletedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionCompletedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionFailed:
+			scheduledEventID = event.ChildWorkflowExecutionFailedEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionFailedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionTimedOut:
+			scheduledEventID = event.ChildWorkflowExecutionTimedOutEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionTimedOutEventAttributes.StartedEventID,
+			}
+		case types.EventTypeChildWorkflowExecutionCanceled:
+			scheduledEventID = event.ChildWorkflowExecutionCanceledEventAttributes.InitiatedEventID
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionCanceledEventAttributes.StartedEventID,
 			}
 		default:
 			return true
 		}
 
 		if _, ok := activityTaskUniqueEvents[uniqueEventParams]; ok {
-			e.logger.Error("Duplicate activity task event found",
+			e.logger.Error("Duplicate event found",
 				tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 				tag.WorkflowID(e.GetExecutionInfo().WorkflowID),
 				tag.WorkflowRunID(e.GetExecutionInfo().RunID),
@@ -2366,7 +2369,7 @@ func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.Hi
 	// is added to reorder buffered events to guarantee all activity completion events will always be processed at the end.
 	for _, event := range events {
 		// We sometimes see duplicate events
-		if unique := checkActivityTaskEventUniqueness(event); !unique {
+		if unique := checkEventUniqueness(event); !unique {
 			continue
 		}
 		switch event.GetEventType() {

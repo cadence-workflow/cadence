@@ -204,15 +204,13 @@ func (e *mutableStateBuilder) GetActivityScheduledEvent(
 }
 
 func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
-	ctx context.Context,
 	decisionCompletedEventID int64,
 	attributes *types.ScheduleActivityTaskDecisionAttributes,
-	dispatch bool,
-) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo, bool, bool, error) {
+) (*types.HistoryEvent, *persistence.ActivityInfo, *types.ActivityLocalDispatchInfo, error) {
 
 	opTag := tag.WorkflowActionActivityTaskScheduled
 	if err := e.checkMutability(opTag); err != nil {
-		return nil, nil, nil, false, false, err
+		return nil, nil, nil, err
 	}
 
 	_, ok := e.GetActivityByActivityID(attributes.GetActivityID())
@@ -220,12 +218,12 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		e.logger.Warn(mutableStateInvalidHistoryActionMsg, opTag,
 			tag.WorkflowEventID(e.GetNextEventID()),
 			tag.ErrorTypeInvalidHistoryAction)
-		return nil, nil, nil, false, false, e.createCallerError(opTag)
+		return nil, nil, nil, e.createCallerError(opTag)
 	}
 
 	pendingActivitiesCount := len(e.pendingActivityInfoIDs)
 
-	if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitError() {
+	if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitError(e.GetDomainEntry().GetInfo().Name) {
 		e.logger.Error("Pending activity count exceeds error limit",
 			tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 			tag.WorkflowID(e.executionInfo.WorkflowID),
@@ -233,9 +231,9 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 			tag.Number(int64(pendingActivitiesCount)))
 
 		if e.config.PendingActivityValidationEnabled() {
-			return nil, nil, nil, false, false, ErrTooManyPendingActivities
+			return nil, nil, nil, ErrTooManyPendingActivities
 		}
-	} else if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitWarn() && !e.pendingActivityWarningSent {
+	} else if pendingActivitiesCount >= e.config.PendingActivitiesCountLimitWarn(e.GetDomainEntry().GetInfo().Name) && !e.pendingActivityWarningSent {
 		e.logger.Warn("Pending activity count exceeds warn limit",
 			tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 			tag.WorkflowID(e.executionInfo.WorkflowID),
@@ -245,15 +243,7 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 		e.pendingActivityWarningSent = true
 	}
 
-	taskList := &types.TaskList{
-		Name: attributes.TaskList.Name,
-		Kind: attributes.TaskList.Kind,
-	}
-	if taskList.GetKind() == types.TaskListKindNormal && e.executionInfo.TaskListKind == types.TaskListKindEphemeral {
-		taskList.Kind = types.TaskListKindEphemeral.Ptr()
-	}
-
-	event := e.hBuilder.AddActivityTaskScheduledEvent(decisionCompletedEventID, attributes, taskList)
+	event := e.hBuilder.AddActivityTaskScheduledEvent(decisionCompletedEventID, attributes)
 
 	// Write the event to cache only on active cluster for processing on activity started or retried
 	e.eventsCache.PutEvent(
@@ -266,63 +256,19 @@ func (e *mutableStateBuilder) AddActivityTaskScheduledEvent(
 
 	ai, err := e.ReplicateActivityTaskScheduledEvent(decisionCompletedEventID, event, true)
 	if err != nil {
-		return nil, nil, nil, false, false, err
+		return nil, nil, nil, err
 	}
 	activityStartedScope := e.metricsClient.Scope(metrics.HistoryRecordActivityTaskStartedScope)
 	if e.config.EnableActivityLocalDispatchByDomain(e.domainEntry.GetInfo().Name) && attributes.RequestLocalDispatch {
 		activityStartedScope.IncCounter(metrics.CadenceRequests)
-		return event, ai, &types.ActivityLocalDispatchInfo{ActivityID: ai.ActivityID}, false, false, nil
-	}
-	started := false
-	if dispatch {
-		started = e.tryDispatchActivityTask(ctx, event, ai)
-	}
-	if started {
-		activityStartedScope.IncCounter(metrics.CadenceRequests)
-		return event, ai, nil, true, true, nil
+		return event, ai, &types.ActivityLocalDispatchInfo{ActivityID: ai.ActivityID}, nil
 	}
 
 	if err := e.taskGenerator.GenerateActivityTransferTasks(event); err != nil {
-		return nil, nil, nil, dispatch, false, err
+		return nil, nil, nil, err
 	}
 
-	return event, ai, nil, dispatch, false, err
-}
-
-func (e *mutableStateBuilder) tryDispatchActivityTask(
-	ctx context.Context,
-	scheduledEvent *types.HistoryEvent,
-	ai *persistence.ActivityInfo,
-) bool {
-	taggedScope := e.metricsClient.Scope(metrics.HistoryScheduleDecisionTaskScope).Tagged(
-		metrics.DomainTag(e.domainEntry.GetInfo().Name),
-		metrics.WorkflowTypeTag(e.GetWorkflowType().Name),
-		metrics.TaskListTag(ai.TaskList))
-	taggedScope.IncCounter(metrics.DecisionTypeScheduleActivityDispatchCounter)
-	_, err := e.shard.GetService().GetMatchingClient().AddActivityTask(ctx, &types.AddActivityTaskRequest{
-		DomainUUID:       e.executionInfo.DomainID,
-		SourceDomainUUID: e.domainEntry.GetInfo().ID,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: e.executionInfo.WorkflowID,
-			RunID:      e.executionInfo.RunID,
-		},
-		TaskList:                      &types.TaskList{Name: ai.TaskList},
-		ScheduleID:                    scheduledEvent.ID,
-		ScheduleToStartTimeoutSeconds: common.Int32Ptr(ai.ScheduleToStartTimeout),
-		ActivityTaskDispatchInfo: &types.ActivityTaskDispatchInfo{
-			ScheduledEvent:                  scheduledEvent,
-			StartedTimestamp:                common.Int64Ptr(e.timeSource.Now().UnixNano()),
-			WorkflowType:                    e.GetWorkflowType(),
-			WorkflowDomain:                  e.GetDomainEntry().GetInfo().Name,
-			ScheduledTimestampOfThisAttempt: common.Int64Ptr(ai.ScheduledTime.UnixNano()),
-		},
-		PartitionConfig: e.executionInfo.PartitionConfig,
-	})
-	if err == nil {
-		taggedScope.IncCounter(metrics.DecisionTypeScheduleActivityDispatchSucceedCounter)
-		return true
-	}
-	return false
+	return event, ai, nil, err
 }
 
 func (e *mutableStateBuilder) ReplicateActivityTaskScheduledEvent(

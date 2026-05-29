@@ -315,15 +315,6 @@ func (v *visibilityHybridManager) ListOpenWorkflowExecutions(
 	ctx context.Context,
 	request *ListWorkflowExecutionsRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		closeStatus:  -1, // is open. Will have --open flag in comparator workflow
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListOpenWorkflowExecutions, request, v.logger)
@@ -336,15 +327,6 @@ func (v *visibilityHybridManager) ListClosedWorkflowExecutions(
 	ctx context.Context,
 	request *ListWorkflowExecutionsRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		closeStatus:  6, // 6 means not set closeStatus.
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListClosedWorkflowExecutions, request, v.logger)
@@ -356,16 +338,6 @@ func (v *visibilityHybridManager) ListOpenWorkflowExecutionsByType(
 	ctx context.Context,
 	request *ListWorkflowExecutionsByTypeRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		workflowType: request.WorkflowTypeName,
-		closeStatus:  -1, // is open. Will have --open flag in comparator workflow
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListOpenWorkflowExecutionsByType, request, v.logger)
@@ -377,16 +349,6 @@ func (v *visibilityHybridManager) ListClosedWorkflowExecutionsByType(
 	ctx context.Context,
 	request *ListWorkflowExecutionsByTypeRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		workflowType: request.WorkflowTypeName,
-		closeStatus:  6, // 6 means not set closeStatus.
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListClosedWorkflowExecutionsByType, request, v.logger)
@@ -398,16 +360,6 @@ func (v *visibilityHybridManager) ListOpenWorkflowExecutionsByWorkflowID(
 	ctx context.Context,
 	request *ListWorkflowExecutionsByWorkflowIDRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		workflowID:   request.WorkflowID,
-		closeStatus:  -1,
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListOpenWorkflowExecutionsByWorkflowID, request, v.logger)
@@ -419,16 +371,6 @@ func (v *visibilityHybridManager) ListClosedWorkflowExecutionsByWorkflowID(
 	ctx context.Context,
 	request *ListWorkflowExecutionsByWorkflowIDRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		workflowID:   request.WorkflowID,
-		closeStatus:  6, // 6 means not set closeStatus.
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListClosedWorkflowExecutionsByWorkflowID, request, v.logger)
@@ -440,15 +382,6 @@ func (v *visibilityHybridManager) ListClosedWorkflowExecutionsByStatus(
 	ctx context.Context,
 	request *ListClosedWorkflowExecutionsByStatusRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		closeStatus:  int(request.Status),
-		earliestTime: request.EarliestTime,
-		latestTime:   request.LatestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListClosedWorkflowExecutionsByStatus, request, v.logger)
@@ -460,18 +393,6 @@ func (v *visibilityHybridManager) GetClosedWorkflowExecution(
 	ctx context.Context,
 	request *GetClosedWorkflowExecutionRequest,
 ) (*GetClosedWorkflowExecutionResponse, error) {
-	earlistTime := int64(0) // this is to get all closed workflow execution
-	latestTime := time.Now().UnixNano()
-
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		closeStatus:  6, // 6 means not set closeStatus.
-		earliestTime: earlistTime,
-		latestTime:   latestTime,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.GetClosedWorkflowExecution, request, v.logger)
@@ -483,16 +404,6 @@ func (v *visibilityHybridManager) ListWorkflowExecutions(
 	ctx context.Context,
 	request *ListWorkflowExecutionsByQueryRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		closeStatus:  6, // 6 means not set closeStatus.
-		customQuery:  request.Query,
-		earliestTime: -1,
-		latestTime:   -1,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ListWorkflowExecutions, request, v.logger)
@@ -504,16 +415,6 @@ func (v *visibilityHybridManager) ScanWorkflowExecutions(
 	ctx context.Context,
 	request *ListWorkflowExecutionsByQueryRequest,
 ) (*ListWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.LIST),
-		domainName:   request.Domain,
-		closeStatus:  6, // 6 means not set closeStatus.
-		customQuery:  request.Query,
-		earliestTime: -1,
-		latestTime:   -1,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.ScanWorkflowExecutions, request, v.logger)
@@ -525,16 +426,6 @@ func (v *visibilityHybridManager) CountWorkflowExecutions(
 	ctx context.Context,
 	request *CountWorkflowExecutionsRequest,
 ) (*CountWorkflowExecutionsResponse, error) {
-	override := ctx.Value(ContextKey)
-	v.logUserQueryParameters(userParameters{
-		operation:    string(Operation.COUNT),
-		domainName:   request.Domain,
-		closeStatus:  6, // 6 means not set closeStatus.
-		customQuery:  request.Query,
-		earliestTime: -1,
-		latestTime:   -1,
-	}, request.Domain, override != nil)
-
 	manager, shadowMgr := v.chooseVisibilityManagerForRead(ctx, request.Domain)
 	if shadowMgr != nil {
 		go shadow(shadowMgr.CountWorkflowExecutions, request, v.logger)
@@ -543,12 +434,6 @@ func (v *visibilityHybridManager) CountWorkflowExecutions(
 }
 
 func (v *visibilityHybridManager) chooseVisibilityManagerForRead(ctx context.Context, domain string) (VisibilityManager, VisibilityManager) {
-	if visOverride, ok := ctx.Value(ContextKey).(string); ok && visOverride != "" && visOverride != "Default" {
-		v.logger.Info(fmt.Sprintf("Visibility Migration log: %s visibility manager was chosen for read.", visOverride))
-		if v.visibilityMgrs[visOverride] != nil {
-			return v.visibilityMgrs[visOverride], nil
-		} // if the override is not valid, fall back to default
-	}
 	var visibilityMgr, shadowMgr VisibilityManager
 	stores := strings.Split(v.readVisibilityStoreName(domain), ",")
 	for i := range stores {

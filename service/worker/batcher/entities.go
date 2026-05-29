@@ -93,6 +93,11 @@ type BatchParams struct {
 	NonRetryableErrors []string
 	// internal conversion for NonRetryableErrors
 	_nonRetryableErrors map[string]struct{}
+
+	// Progress carries forward HeartBeatDetails from a cancelled activity
+	// so the next activity invocation can resume where the previous left off.
+	// Used only by BatchWorkflowV2; nil means no prior progress.
+	Progress *HeartBeatDetails
 }
 
 // HeartBeatDetails is the struct for heartbeat details

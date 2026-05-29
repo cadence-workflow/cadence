@@ -160,6 +160,7 @@ func (p *processorBase) updateAckLevel() (bool, task.Key, error) {
 	}
 	// TODO: consider move pendingTasksTime metrics from shardInfoScope to queue processor scope
 	p.metricsClient.RecordTimer(metrics.ShardInfoScope, getPendingTasksMetricIdx(p.options.MetricScope), time.Duration(totalPengingTasks))
+	p.metricsClient.Scope(metrics.ShardInfoScope).IntExponentialHistogram(getPendingTasksHistogramIdx(p.options.MetricScope), totalPengingTasks)
 
 	if p.options.EnablePersistQueueStates() && p.updateProcessingQueueStates != nil {
 		states := p.getProcessingQueueStates().GetStateActionResult.States
@@ -293,7 +294,9 @@ func (p *processorBase) emitProcessingQueueMetrics() {
 		}
 	}
 	p.metricsScope.RecordTimer(metrics.ProcessingQueueNumTimer, time.Duration(numProcessingQueues))
+	p.metricsScope.IntExponentialHistogram(metrics.ProcessingQueueNumHistogram, numProcessingQueues)
 	p.metricsScope.RecordTimer(metrics.ProcessingQueueMaxLevelTimer, time.Duration(maxProcessingQueueLevel))
+	p.metricsScope.IntExponentialHistogram(metrics.ProcessingQueueMaxLevelHistogram, maxProcessingQueueLevel)
 }
 
 func (p *processorBase) addAction(ctx context.Context, action *Action) (chan actionResultNotification, bool) {
@@ -443,6 +446,25 @@ func getPendingTasksMetricIdx(scopeIdx metrics.ScopeIdx) metrics.MetricIdx {
 		return metrics.ShardInfoCrossClusterPendingTasksTimer
 	case metrics.ReplicatorQueueProcessorScope:
 		return metrics.ShardInfoReplicationPendingTasksTimer
+	default:
+		panic("unknown queue processor metric scope")
+	}
+}
+
+func getPendingTasksHistogramIdx(scopeIdx metrics.ScopeIdx) metrics.MetricIdx {
+	switch scopeIdx {
+	case metrics.TimerActiveQueueProcessorScope:
+		return metrics.ShardInfoTimerActivePendingTasksHistogram
+	case metrics.TimerStandbyQueueProcessorScope:
+		return metrics.ShardInfoTimerStandbyPendingTasksHistogram
+	case metrics.TransferActiveQueueProcessorScope:
+		return metrics.ShardInfoTransferActivePendingTasksHistogram
+	case metrics.TransferStandbyQueueProcessorScope:
+		return metrics.ShardInfoTransferStandbyPendingTasksHistogram
+	case metrics.CrossClusterQueueProcessorScope:
+		return metrics.ShardInfoCrossClusterPendingTasksHistogram
+	case metrics.ReplicatorQueueProcessorScope:
+		return metrics.ShardInfoReplicationPendingTasksHistogram
 	default:
 		panic("unknown queue processor metric scope")
 	}

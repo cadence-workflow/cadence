@@ -1,15 +1,15 @@
 import (
     "context"
-
+    "github.com/uber/cadence/common"
     "github.com/uber/cadence/common/cache"
+    "github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
     "github.com/uber/cadence/common/quotas"
-    "github.com/uber/cadence/common/types"
     "github.com/uber/cadence/service/frontend/api"
     "github.com/uber/cadence/service/frontend/validate"
 )
 
-{{$ratelimitTypeMap := dict "PollForActivityTask" "ratelimitTypeWorker"}}
-{{$ratelimitTypeMap = set $ratelimitTypeMap "PollForDecisionTask" "ratelimitTypeWorker"}}
+{{$ratelimitTypeMap := dict "PollForActivityTask" "ratelimitTypeWorkerPoll"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "PollForDecisionTask" "ratelimitTypeWorkerPoll"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RecordActivityTaskHeartbeat" "ratelimitTypeWorker"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "RecordActivityTaskHeartbeatByID" "ratelimitTypeWorker"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "ResetStickyTaskList" "ratelimitTypeWorker"}}
@@ -50,10 +50,20 @@ import (
 {{$ratelimitTypeMap = set $ratelimitTypeMap "StartWorkflowExecutionAsync" "ratelimitTypeAsync"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "SignalWithStartWorkflowExecutionAsync" "ratelimitTypeAsync"}}
 
+{{$ratelimitTypeMap = set $ratelimitTypeMap "CreateSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "DescribeSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "UpdateSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "DeleteSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "PauseSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "UnpauseSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "BackfillSchedule" "ratelimitTypeUser"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "ListSchedules" "ratelimitTypeUser"}}
+
 {{$ratelimitTypeMap = set $ratelimitTypeMap "Health" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DeleteDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DeprecateDomain" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "DescribeDomain" "ratelimitTypeNoop"}}
+{{$ratelimitTypeMap = set $ratelimitTypeMap "ListFailoverHistory" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "GetClusterInfo" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "GetSearchAttributes" "ratelimitTypeNoop"}}
 {{$ratelimitTypeMap = set $ratelimitTypeMap "ListDomains" "ratelimitTypeNoop"}}
@@ -63,6 +73,7 @@ import (
 {{$domainIDAPIs := list "RecordActivityTaskHeartbeat" "RespondActivityTaskCanceled" "RespondActivityTaskCompleted" "RespondActivityTaskFailed" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted"}}
 {{$queryTaskTokenAPIs := list "RespondQueryTaskCompleted"}}
 {{$nonBlockingAPIs := list "RecordActivityTaskHeartbeat" "RecordActivityTaskHeartbeatByID" "RespondActivityTaskCompleted" "RespondActivityTaskCompletedByID" "RespondActivityTaskFailed" "RespondActivityTaskFailedByID" "RespondActivityTaskCanceled" "RespondActivityTaskCanceledByID" "RespondDecisionTaskCompleted" "RespondDecisionTaskFailed" "RespondQueryTaskCompleted" "ResetStickyTaskList"}}
+{{$taskListAPIs := list "PollForActivityTask" "PollForDecisionTask" "StartWorkflowExecution" "StartWorkflowExecutionAsync" "SignalWithStartWorkflowExecution" "SignalWithStartWorkflowExecutionAsync"}}
 
 {{$interfaceName := .Interface.Name}}
 {{$handlerName := (index .Vars "handler")}}
@@ -78,6 +89,8 @@ type {{$decorator}} struct {
     workerRateLimiter quotas.Policy
     visibilityRateLimiter quotas.Policy
     asyncRateLimiter quotas.Policy
+    maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter
+    callerBypass quotas.CallerBypass
 }
 
 // New{{$Decorator}} creates a new instance of {{$interfaceName}} with ratelimiter.
@@ -88,6 +101,8 @@ func New{{$Decorator}}(
     workerRateLimiter quotas.Policy,
     visibilityRateLimiter quotas.Policy,
     asyncRateLimiter quotas.Policy,
+    maxWorkerPollDelay dynamicproperties.DurationPropertyFnWithDomainFilter,
+    callerBypass quotas.CallerBypass,
 ) {{.Interface.Type}} {
     return &{{$decorator}}{
         wrapped: wrapped,
@@ -97,6 +112,8 @@ func New{{$Decorator}}(
         workerRateLimiter: workerRateLimiter,
         visibilityRateLimiter: visibilityRateLimiter,
         asyncRateLimiter: asyncRateLimiter,
+        maxWorkerPollDelay: maxWorkerPollDelay,
+        callerBypass: callerBypass,
     }
 }
 
@@ -140,10 +157,10 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
         {{- if has $method.Name $nonBlockingAPIs}}
             // Count the request in the host RPS,
             // but we still accept it even if RPS is exceeded
-            h.allowDomain({{$ratelimitType}}, {{$domain}})
+            h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}})
         {{- else}}
-            if ok := h.allowDomain({{$ratelimitType}}, {{$domain}}); !ok {
-                err = &types.ServiceBusyError{Message: "Too many outstanding requests to the cadence service"}
+            if limitErr := h.allowDomain({{(index $method.Params 0).Name}}, {{$ratelimitType}}, quotas.Info{Domain: {{$domain}}{{if has $method.Name $taskListAPIs}}, TaskList: getTaskListName({{(index $method.Params 1).Name}}.GetTaskList()){{end}}}); limitErr != nil {
+                err = limitErr
                 return
             }
         {{- end}}

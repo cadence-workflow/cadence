@@ -23,6 +23,7 @@
 package client
 
 import (
+	"errors"
 	"math/rand"
 	"testing"
 
@@ -137,6 +138,14 @@ func TestFactoryMethods(t *testing.T) {
 
 		ds.EXPECT().NewConfigStore().Return(nil, nil).MinTimes(1)
 		check(t, fact.NewConfigStoreManager)
+	})
+	t.Run("NewHistoryTaskDLQManager propagates store creation error", func(t *testing.T) {
+		fact := makeFactory(t)
+		ds := mockDatastore(t, fact, storeTypeExecution)
+		storeErr := errors.New("connection failed")
+		ds.EXPECT().NewHistoryDLQTaskStore().Return(nil, storeErr).MinTimes(1)
+		_, err := fact.NewHistoryTaskDLQManager()
+		assert.ErrorIs(t, err, storeErr)
 	})
 	t.Run("NewVisibilityManager_TripleVisibilityManager_Pinot", func(t *testing.T) {
 		fact := makeFactory(t)
@@ -255,7 +264,7 @@ func makeFactoryWithMetrics(t *testing.T, withMetrics bool) Factory {
 	logger := testlogger.New(t)
 	var met metrics.Client
 	if withMetrics {
-		met = metrics.NewClient(tally.NewTestScope("", nil), service.GetMetricsServiceIdx(service.Frontend, logger), metrics.HistogramMigration{})
+		met = metrics.NewClient(tally.NewTestScope("", nil), service.GetMetricsServiceIdx(service.Frontend, logger), metrics.MigrationConfig{})
 	}
 	ctrl := gomock.NewController(t)
 	dc := dynamicconfig.NewCollection(dynamicconfig.NewMockClient(ctrl), logger)

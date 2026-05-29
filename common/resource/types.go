@@ -23,6 +23,7 @@
 package resource
 
 import (
+	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -51,6 +53,7 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type ResourceFactory interface {
@@ -100,13 +103,16 @@ type Resource interface {
 	GetRemoteAdminClient(cluster string) (admin.Client, error)
 	GetRemoteFrontendClient(cluster string) (frontend.Client, error)
 	GetClientBean() client.Bean
+	GetShardDistributorExecutorClient() executorclient.Client
 
 	// persistence clients
 	GetDomainManager() persistence.DomainManager
+	GetDomainAuditManager() persistence.DomainAuditManager
 	GetTaskManager() persistence.TaskManager
 	GetVisibilityManager() persistence.VisibilityManager
 	GetShardManager() persistence.ShardManager
 	GetHistoryManager() persistence.HistoryManager
+	GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
 	GetExecutionManager(int) (persistence.ExecutionManager, error)
 	GetPersistenceBean() persistenceClient.Bean
 
@@ -123,6 +129,11 @@ type Resource interface {
 	// GetIsolationGroupState returns the isolationGroupState
 	GetIsolationGroupState() isolationgroup.State
 	GetIsolationGroupStore() configstore.Client
+	GetOperationalConfigStore() configstore.Client
+	GetOperationalDynamicConfig() *dynamicconfig.Collection
 
 	GetAsyncWorkflowQueueProvider() queue.Provider
+
+	// GetMetricsScope returns the tally scope for metrics reporting
+	GetMetricsScope() tally.Scope
 }

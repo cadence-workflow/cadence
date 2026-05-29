@@ -250,6 +250,19 @@ func TestSerializers(t *testing.T) {
 				return serializer.DeserializeActiveClusterSelectionPolicy(data)
 			},
 		},
+		{
+			name: "replication DLQ task",
+			payloads: map[string]any{
+				"nil":    (*types.ReplicationTask)(nil),
+				"normal": generateReplicationTask(),
+			},
+			serializeFn: func(payload any, encoding constants.EncodingType) (*DataBlob, error) {
+				return serializer.SerializeReplicationDLQTask(payload.(*types.ReplicationTask), encoding)
+			},
+			deserializeFn: func(data *DataBlob) (any, error) {
+				return serializer.DeserializeReplicationDLQTask(data)
+			},
+		},
 	}
 
 	// generate runnable test cases here so actual test body is not 3 level nested
@@ -520,16 +533,6 @@ func generateChecksum() checksum.Checksum {
 
 func generateActiveClusters() *types.ActiveClusters {
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-			"region1": {
-				ActiveClusterName: "cluster1",
-				FailoverVersion:   2,
-			},
-			"region2": {
-				ActiveClusterName: "cluster2",
-				FailoverVersion:   3,
-			},
-		},
 		AttributeScopes: map[string]types.ClusterAttributeScope{
 			"region": {
 				ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -549,9 +552,25 @@ func generateActiveClusters() *types.ActiveClusters {
 
 func generateActiveClusterSelectionPolicy() *types.ActiveClusterSelectionPolicy {
 	return &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "region1",
-		ExternalEntityType:             "externalEntityType1",
-		ExternalEntityKey:              "externalEntityKey1",
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+}
+
+func generateReplicationTask() *types.ReplicationTask {
+	return &types.ReplicationTask{
+		TaskType:     types.ReplicationTaskTypeHistoryV2.Ptr(),
+		SourceTaskID: 42,
+		HistoryTaskV2Attributes: &types.HistoryTaskV2Attributes{
+			DomainID:   "test-domain-id",
+			WorkflowID: "test-workflow-id",
+			RunID:      "test-run-id",
+			VersionHistoryItems: []*types.VersionHistoryItem{
+				{EventID: 10, Version: 1},
+			},
+			Events: &types.DataBlob{
+				EncodingType: types.EncodingTypeThriftRW.Ptr(),
+				Data:         []byte("test-events-data"),
+			},
+		},
 	}
 }

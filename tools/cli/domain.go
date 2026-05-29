@@ -162,7 +162,22 @@ func newDomainCommands() []*cli.Command {
 					return err
 				}
 				return withDomainClient(c, false, func(dc *domainCLIImpl) error {
-					return dc.UpdateDomain(c)
+					return dc.FailoverDomain(c)
+				})
+			},
+		},
+		{
+			Name:    "list-failover-history",
+			Aliases: []string{"lfh"},
+			Usage:   "List failover history for a domain",
+			Flags:   listFailoverHistoryFlags,
+			Action: func(c *cli.Context) error {
+				err := checkNoAdditionalArgsPassed(c)
+				if err != nil {
+					return err
+				}
+				return withDomainClient(c, false, func(dc *domainCLIImpl) error {
+					return dc.ListFailoverHistory(c)
 				})
 			},
 		},

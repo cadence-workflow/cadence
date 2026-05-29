@@ -52,7 +52,7 @@ type (
 
 		queueSize int
 
-		scheduler *weightedRoundRobinTaskSchedulerImpl[int]
+		scheduler *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask]
 	}
 
 	mockPriorityTaskMatcher struct {
@@ -84,7 +84,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 	s.queueSize = 1000
 	s.realProcessor = NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   1,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
@@ -92,7 +92,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) SetupTest() {
 		},
 	)
 	s.scheduler = s.newTestWeightedRoundRobinTaskScheduler(
-		&WeightedRoundRobinTaskSchedulerOptions[int]{
+		&WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask]{
 			QueueSize:       s.queueSize,
 			DispatcherCount: 3,
 			TaskToChannelKeyFn: func(task PriorityTask) int {
@@ -131,7 +131,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Success() {
 func (s *weightedRoundRobinTaskSchedulerSuite) TestSubmit_Fail_SchedulerShutDown() {
 	// create a new scheduler here with queue size 0, otherwise test is non-deterministic
 	scheduler := s.newTestWeightedRoundRobinTaskScheduler(
-		&WeightedRoundRobinTaskSchedulerOptions[int]{
+		&WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask]{
 			QueueSize:       0,
 			DispatcherCount: 3,
 		},
@@ -219,7 +219,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_SubmitWithNoError(
 	}()
 
 	taskWG.Wait()
-	close(s.scheduler.shutdownCh)
+	s.scheduler.cancel()
 
 	<-doneCh
 }
@@ -248,7 +248,7 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestDispatcher_FailToSubmit() {
 	}()
 
 	taskWG.Wait()
-	close(s.scheduler.shutdownCh)
+	s.scheduler.cancel()
 
 	<-doneCh
 }
@@ -290,23 +290,23 @@ func (s *weightedRoundRobinTaskSchedulerSuite) TestSchedulerContract() {
 }
 
 func (s *weightedRoundRobinTaskSchedulerSuite) newTestWeightedRoundRobinTaskScheduler(
-	options *WeightedRoundRobinTaskSchedulerOptions[int],
-) *weightedRoundRobinTaskSchedulerImpl[int] {
+	options *WeightedRoundRobinTaskSchedulerOptions[int, PriorityTask],
+) *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask] {
 	scheduler, err := NewWeightedRoundRobinTaskScheduler(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		clock.NewMockedTimeSource(),
 		s.realProcessor,
 		options,
 	)
 	s.NoError(err)
-	return scheduler.(*weightedRoundRobinTaskSchedulerImpl[int])
+	return scheduler.(*weightedRoundRobinTaskSchedulerImpl[int, PriorityTask])
 }
 
 func testSchedulerContract(
 	s *require.Assertions,
 	controller *gomock.Controller,
-	scheduler Scheduler,
+	scheduler Scheduler[PriorityTask],
 	processor Processor,
 ) {
 	numTasks := 10000
@@ -371,10 +371,12 @@ func testSchedulerContract(
 	}
 	s.True(common.AwaitWaitGroup(&taskWG, 10*time.Second))
 	switch schedulerImpl := scheduler.(type) {
-	case *fifoTaskSchedulerImpl:
-		<-schedulerImpl.shutdownCh
-	case *weightedRoundRobinTaskSchedulerImpl[int]:
-		<-schedulerImpl.shutdownCh
+	case *fifoTaskSchedulerImpl[PriorityTask]:
+		<-schedulerImpl.ctx.Done()
+	case *weightedRoundRobinTaskSchedulerImpl[int, PriorityTask]:
+		<-schedulerImpl.ctx.Done()
+	case *hierarchicalWeightedRoundRobinTaskSchedulerImpl[string, PriorityTask]:
+		<-schedulerImpl.ctx.Done()
 	default:
 		s.Fail("unknown task scheduler type")
 	}

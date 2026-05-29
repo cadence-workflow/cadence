@@ -47,6 +47,7 @@ type (
 		apiv1.WorkflowAPIYARPCClient
 		apiv1.WorkerAPIYARPCClient
 		apiv1.VisibilityAPIYARPCClient
+		apiv1.ScheduleAPIYARPCClient
 	}
 	frontendClient struct {
 		c *frontendGRPCClientWrapper
@@ -74,8 +75,9 @@ func NewFrontendClient(
 	workflow apiv1.WorkflowAPIYARPCClient,
 	worker apiv1.WorkerAPIYARPCClient,
 	visibility apiv1.VisibilityAPIYARPCClient,
+	schedule apiv1.ScheduleAPIYARPCClient,
 ) frontend.Client {
-	return frontendClient{&frontendGRPCClientWrapper{domain, workflow, worker, visibility}}
+	return frontendClient{&frontendGRPCClientWrapper{domain, workflow, worker, visibility, schedule}}
 }
 
 func NewHistoryClient(c historyv1.HistoryAPIYARPCClient) history.Client {

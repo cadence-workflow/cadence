@@ -69,6 +69,21 @@ func (mr *MockFactoryMockRecorder) NewConfigStoreManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConfigStoreManager", reflect.TypeOf((*MockFactory)(nil).NewConfigStoreManager))
 }
 
+// NewDomainAuditManager mocks base method.
+func (m *MockFactory) NewDomainAuditManager() (persistence.DomainAuditManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewDomainAuditManager")
+	ret0, _ := ret[0].(persistence.DomainAuditManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewDomainAuditManager indicates an expected call of NewDomainAuditManager.
+func (mr *MockFactoryMockRecorder) NewDomainAuditManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewDomainAuditManager", reflect.TypeOf((*MockFactory)(nil).NewDomainAuditManager))
+}
+
 // NewDomainManager mocks base method.
 func (m *MockFactory) NewDomainManager() (persistence.DomainManager, error) {
 	m.ctrl.T.Helper()
@@ -127,6 +142,21 @@ func (m *MockFactory) NewHistoryManager() (persistence.HistoryManager, error) {
 func (mr *MockFactoryMockRecorder) NewHistoryManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryManager", reflect.TypeOf((*MockFactory)(nil).NewHistoryManager))
+}
+
+// NewHistoryTaskDLQManager mocks base method.
+func (m *MockFactory) NewHistoryTaskDLQManager() (persistence.HistoryTaskDLQManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewHistoryTaskDLQManager")
+	ret0, _ := ret[0].(persistence.HistoryTaskDLQManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewHistoryTaskDLQManager indicates an expected call of NewHistoryTaskDLQManager.
+func (mr *MockFactoryMockRecorder) NewHistoryTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryTaskDLQManager", reflect.TypeOf((*MockFactory)(nil).NewHistoryTaskDLQManager))
 }
 
 // NewShardManager mocks base method.
@@ -225,6 +255,21 @@ func (mr *MockDataStoreFactoryMockRecorder) NewConfigStore() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewConfigStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewConfigStore))
 }
 
+// NewDomainAuditStore mocks base method.
+func (m *MockDataStoreFactory) NewDomainAuditStore() (persistence.DomainAuditStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewDomainAuditStore")
+	ret0, _ := ret[0].(persistence.DomainAuditStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewDomainAuditStore indicates an expected call of NewDomainAuditStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewDomainAuditStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewDomainAuditStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewDomainAuditStore))
+}
+
 // NewDomainStore mocks base method.
 func (m *MockDataStoreFactory) NewDomainStore() (persistence.DomainStore, error) {
 	m.ctrl.T.Helper()
@@ -255,6 +300,21 @@ func (mr *MockDataStoreFactoryMockRecorder) NewExecutionStore(shardID any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewExecutionStore), shardID)
 }
 
+// NewHistoryDLQTaskStore mocks base method.
+func (m *MockDataStoreFactory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewHistoryDLQTaskStore")
+	ret0, _ := ret[0].(persistence.HistoryDLQTaskStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewHistoryDLQTaskStore indicates an expected call of NewHistoryDLQTaskStore.
+func (mr *MockDataStoreFactoryMockRecorder) NewHistoryDLQTaskStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewHistoryDLQTaskStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewHistoryDLQTaskStore))
+}
+
 // NewHistoryStore mocks base method.
 func (m *MockDataStoreFactory) NewHistoryStore() (persistence.HistoryStore, error) {
 	m.ctrl.T.Helper()
@@ -271,10 +331,10 @@ func (mr *MockDataStoreFactoryMockRecorder) NewHistoryStore() *gomock.Call {
 }
 
 // NewQueue mocks base method.
-func (m *MockDataStoreFactory) NewQueue(queueType persistence.QueueType) (persistence.Queue, error) {
+func (m *MockDataStoreFactory) NewQueue(queueType persistence.QueueType) (persistence.QueueStore, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewQueue", queueType)
-	ret0, _ := ret[0].(persistence.Queue)
+	ret0, _ := ret[0].(persistence.QueueStore)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

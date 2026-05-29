@@ -169,6 +169,8 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 		return err
 	}
 
+	t.cleanupWorkflowTimerTasks(ctx, task)
+
 	// it must be the last one due to the nature of workflow execution deletion
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
@@ -244,6 +246,9 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 	if err := t.deleteCurrentWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
+
+	t.cleanupWorkflowTimerTasks(ctx, task)
+
 	if err := t.deleteWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
@@ -267,6 +272,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowExecution(
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
 		})
 	}
 	return t.throttleRetry.Do(ctx, op)
@@ -286,6 +292,7 @@ func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
 		})
 	}
 	return t.throttleRetry.Do(ctx, op)
@@ -296,7 +303,12 @@ func (t *timerTaskExecutorBase) deleteActiveClusterSelectionPolicy(
 	task *persistence.DeleteHistoryEventTask,
 ) error {
 	op := func(ctx context.Context) error {
-		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, task.DomainID, task.WorkflowID, task.RunID)
+		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, &persistence.DeleteActiveClusterSelectionPolicyRequest{
+			DomainID:   task.DomainID,
+			WorkflowID: task.WorkflowID,
+			RunID:      task.RunID,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
+		})
 	}
 	return t.throttleRetry.Do(ctx, op)
 }
@@ -318,7 +330,7 @@ func (t *timerTaskExecutorBase) deleteWorkflowHistory(
 		}
 		return t.shard.GetHistoryManager().DeleteHistoryBranch(ctx, &persistence.DeleteHistoryBranchRequest{
 			BranchToken: branchToken,
-			ShardID:     common.IntPtr(t.shard.GetShardID()),
+			ShardID:     common.Ptr(t.shard.GetShardID()),
 			DomainName:  domainName,
 		})
 
@@ -347,6 +359,46 @@ func (t *timerTaskExecutorBase) deleteWorkflowVisibility(
 		return t.shard.GetService().GetVisibilityManager().DeleteWorkflowExecution(ctx, request) // delete from db
 	}
 	return t.throttleRetry.Do(ctx, op)
+}
+
+// cleanupWorkflowTimerTasks reads the workflow_timer_tasks tracking column to find timer
+// tasks eligible for cleanup, then deletes them from the timer queue.
+// Must be called before deleteWorkflowExecution so the execution row is still readable.
+func (t *timerTaskExecutorBase) cleanupWorkflowTimerTasks(ctx context.Context, task *persistence.DeleteHistoryEventTask) {
+	if !t.shard.GetConfig().EnableWorkflowTimerTaskCleanup() {
+		return
+	}
+	keys, err := t.shard.GetExecutionManager().FetchWorkflowTimerTasksForCleanup(ctx, &persistence.FetchWorkflowTimerTasksForCleanupRequest{
+		ShardID:    common.Ptr(t.shard.GetShardID()),
+		DomainID:   task.DomainID,
+		WorkflowID: task.WorkflowID,
+		RunID:      task.RunID,
+	})
+	if err != nil {
+		t.logger.Warn("failed to fetch workflow timer tasks for cleanup",
+			tag.WorkflowDomainID(task.DomainID),
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.Error(err),
+		)
+		return
+	}
+	if len(keys) == 0 {
+		return
+	}
+	t.metricsClient.AddCounter(metrics.HistoryProcessDeleteHistoryEventScope, metrics.WorkflowCleanupTimerTasksSentForDeletionCount, int64(len(keys)))
+	if err := t.shard.GetExecutionManager().CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
+		ShardID:      common.Ptr(t.shard.GetShardID()),
+		TaskCategory: persistence.HistoryTaskCategoryTimer,
+		TaskKeys:     keys,
+	}); err != nil {
+		t.logger.Error("failed to complete workflow timer tasks for cleanup",
+			tag.WorkflowDomainID(task.DomainID),
+			tag.WorkflowID(task.WorkflowID),
+			tag.WorkflowRunID(task.RunID),
+			tag.Error(err),
+		)
+	}
 }
 
 func (t *timerTaskExecutorBase) Stop() {

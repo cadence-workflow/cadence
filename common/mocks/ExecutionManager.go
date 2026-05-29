@@ -324,16 +324,16 @@ func (_c *ExecutionManager_CreateWorkflowExecution_Call) RunAndReturn(run func(c
 }
 
 // DeleteActiveClusterSelectionPolicy provides a mock function for the type ExecutionManager
-func (_mock *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, domainID string, workflowID string, runID string) error {
-	ret := _mock.Called(ctx, domainID, workflowID, runID)
+func (_mock *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) error {
+	ret := _mock.Called(ctx, request)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteActiveClusterSelectionPolicy")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
-		r0 = returnFunc(ctx, domainID, workflowID, runID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.DeleteActiveClusterSelectionPolicyRequest) error); ok {
+		r0 = returnFunc(ctx, request)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -347,36 +347,24 @@ type ExecutionManager_DeleteActiveClusterSelectionPolicy_Call struct {
 
 // DeleteActiveClusterSelectionPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - domainID string
-//   - workflowID string
-//   - runID string
-func (_e *ExecutionManager_Expecter) DeleteActiveClusterSelectionPolicy(ctx interface{}, domainID interface{}, workflowID interface{}, runID interface{}) *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call {
-	return &ExecutionManager_DeleteActiveClusterSelectionPolicy_Call{Call: _e.mock.On("DeleteActiveClusterSelectionPolicy", ctx, domainID, workflowID, runID)}
+//   - request *persistence.DeleteActiveClusterSelectionPolicyRequest
+func (_e *ExecutionManager_Expecter) DeleteActiveClusterSelectionPolicy(ctx interface{}, request interface{}) *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call {
+	return &ExecutionManager_DeleteActiveClusterSelectionPolicy_Call{Call: _e.mock.On("DeleteActiveClusterSelectionPolicy", ctx, request)}
 }
 
-func (_c *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call) Run(run func(ctx context.Context, domainID string, workflowID string, runID string)) *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call {
+func (_c *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call) Run(run func(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest)) *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 string
+		var arg1 *persistence.DeleteActiveClusterSelectionPolicyRequest
 		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		var arg3 string
-		if args[3] != nil {
-			arg3 = args[3].(string)
+			arg1 = args[1].(*persistence.DeleteActiveClusterSelectionPolicyRequest)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
-			arg3,
 		)
 	})
 	return _c
@@ -387,7 +375,7 @@ func (_c *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call) Return(err e
 	return _c
 }
 
-func (_c *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call) RunAndReturn(run func(ctx context.Context, domainID string, workflowID string, runID string) error) *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call {
+func (_c *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call) RunAndReturn(run func(ctx context.Context, request *persistence.DeleteActiveClusterSelectionPolicyRequest) error) *ExecutionManager_DeleteActiveClusterSelectionPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -563,9 +551,77 @@ func (_c *ExecutionManager_DeleteWorkflowExecution_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// FetchWorkflowTimerTasksForCleanup provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) ([]persistence.HistoryTaskKey, error) {
+	ret := _mock.Called(ctx, request)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FetchWorkflowTimerTasksForCleanup")
+	}
+
+	var r0 []persistence.HistoryTaskKey
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) ([]persistence.HistoryTaskKey, error)); ok {
+		return returnFunc(ctx, request)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) []persistence.HistoryTaskKey); ok {
+		r0 = returnFunc(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]persistence.HistoryTaskKey)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *persistence.FetchWorkflowTimerTasksForCleanupRequest) error); ok {
+		r1 = returnFunc(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FetchWorkflowTimerTasksForCleanup'
+type ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call struct {
+	*mock.Call
+}
+
+// FetchWorkflowTimerTasksForCleanup is a helper method to define mock.On call
+//   - ctx context.Context
+//   - request *persistence.FetchWorkflowTimerTasksForCleanupRequest
+func (_e *ExecutionManager_Expecter) FetchWorkflowTimerTasksForCleanup(ctx interface{}, request interface{}) *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call {
+	return &ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call{Call: _e.mock.On("FetchWorkflowTimerTasksForCleanup", ctx, request)}
+}
+
+func (_c *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call) Run(run func(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest)) *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *persistence.FetchWorkflowTimerTasksForCleanupRequest
+		if args[1] != nil {
+			arg1 = args[1].(*persistence.FetchWorkflowTimerTasksForCleanupRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call) Return(historyTaskKeys []persistence.HistoryTaskKey, err error) *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call {
+	_c.Call.Return(historyTaskKeys, err)
+	return _c
+}
+
+func (_c *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call) RunAndReturn(run func(ctx context.Context, request *persistence.FetchWorkflowTimerTasksForCleanupRequest) ([]persistence.HistoryTaskKey, error)) *ExecutionManager_FetchWorkflowTimerTasksForCleanup_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetActiveClusterSelectionPolicy provides a mock function for the type ExecutionManager
-func (_mock *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, domainID string, wfID string, rID string) (*types.ActiveClusterSelectionPolicy, error) {
-	ret := _mock.Called(ctx, domainID, wfID, rID)
+func (_mock *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error) {
+	ret := _mock.Called(ctx, request)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetActiveClusterSelectionPolicy")
@@ -573,18 +629,18 @@ func (_mock *ExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Conte
 
 	var r0 *types.ActiveClusterSelectionPolicy
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) (*types.ActiveClusterSelectionPolicy, error)); ok {
-		return returnFunc(ctx, domainID, wfID, rID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)); ok {
+		return returnFunc(ctx, request)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) *types.ActiveClusterSelectionPolicy); ok {
-		r0 = returnFunc(ctx, domainID, wfID, rID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.GetActiveClusterSelectionPolicyRequest) *types.ActiveClusterSelectionPolicy); ok {
+		r0 = returnFunc(ctx, request)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*types.ActiveClusterSelectionPolicy)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
-		r1 = returnFunc(ctx, domainID, wfID, rID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *persistence.GetActiveClusterSelectionPolicyRequest) error); ok {
+		r1 = returnFunc(ctx, request)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -598,36 +654,24 @@ type ExecutionManager_GetActiveClusterSelectionPolicy_Call struct {
 
 // GetActiveClusterSelectionPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - domainID string
-//   - wfID string
-//   - rID string
-func (_e *ExecutionManager_Expecter) GetActiveClusterSelectionPolicy(ctx interface{}, domainID interface{}, wfID interface{}, rID interface{}) *ExecutionManager_GetActiveClusterSelectionPolicy_Call {
-	return &ExecutionManager_GetActiveClusterSelectionPolicy_Call{Call: _e.mock.On("GetActiveClusterSelectionPolicy", ctx, domainID, wfID, rID)}
+//   - request *persistence.GetActiveClusterSelectionPolicyRequest
+func (_e *ExecutionManager_Expecter) GetActiveClusterSelectionPolicy(ctx interface{}, request interface{}) *ExecutionManager_GetActiveClusterSelectionPolicy_Call {
+	return &ExecutionManager_GetActiveClusterSelectionPolicy_Call{Call: _e.mock.On("GetActiveClusterSelectionPolicy", ctx, request)}
 }
 
-func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) Run(run func(ctx context.Context, domainID string, wfID string, rID string)) *ExecutionManager_GetActiveClusterSelectionPolicy_Call {
+func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) Run(run func(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest)) *ExecutionManager_GetActiveClusterSelectionPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 string
+		var arg1 *persistence.GetActiveClusterSelectionPolicyRequest
 		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		var arg3 string
-		if args[3] != nil {
-			arg3 = args[3].(string)
+			arg1 = args[1].(*persistence.GetActiveClusterSelectionPolicyRequest)
 		}
 		run(
 			arg0,
 			arg1,
-			arg2,
-			arg3,
 		)
 	})
 	return _c
@@ -638,7 +682,7 @@ func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) Return(activeCl
 	return _c
 }
 
-func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) RunAndReturn(run func(ctx context.Context, domainID string, wfID string, rID string) (*types.ActiveClusterSelectionPolicy, error)) *ExecutionManager_GetActiveClusterSelectionPolicy_Call {
+func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) RunAndReturn(run func(ctx context.Context, request *persistence.GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)) *ExecutionManager_GetActiveClusterSelectionPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -892,23 +936,23 @@ func (_c *ExecutionManager_GetReplicationDLQSize_Call) RunAndReturn(run func(ctx
 }
 
 // GetReplicationTasksFromDLQ provides a mock function for the type ExecutionManager
-func (_mock *ExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error) {
+func (_mock *ExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error) {
 	ret := _mock.Called(ctx, request)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetReplicationTasksFromDLQ")
 	}
 
-	var r0 *persistence.GetHistoryTasksResponse
+	var r0 *persistence.GetReplicationDLQTasksResponse
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error)); ok {
 		return returnFunc(ctx, request)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) *persistence.GetHistoryTasksResponse); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) *persistence.GetReplicationDLQTasksResponse); ok {
 		r0 = returnFunc(ctx, request)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*persistence.GetHistoryTasksResponse)
+			r0 = ret.Get(0).(*persistence.GetReplicationDLQTasksResponse)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, *persistence.GetReplicationTasksFromDLQRequest) error); ok {
@@ -949,12 +993,12 @@ func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) Run(run func(ctx con
 	return _c
 }
 
-func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) Return(getHistoryTasksResponse *persistence.GetHistoryTasksResponse, err error) *ExecutionManager_GetReplicationTasksFromDLQ_Call {
-	_c.Call.Return(getHistoryTasksResponse, err)
+func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) Return(getReplicationDLQTasksResponse *persistence.GetReplicationDLQTasksResponse, err error) *ExecutionManager_GetReplicationTasksFromDLQ_Call {
+	_c.Call.Return(getReplicationDLQTasksResponse, err)
 	return _c
 }
 
-func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) RunAndReturn(run func(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetHistoryTasksResponse, error)) *ExecutionManager_GetReplicationTasksFromDLQ_Call {
+func (_c *ExecutionManager_GetReplicationTasksFromDLQ_Call) RunAndReturn(run func(ctx context.Context, request *persistence.GetReplicationTasksFromDLQRequest) (*persistence.GetReplicationDLQTasksResponse, error)) *ExecutionManager_GetReplicationTasksFromDLQ_Call {
 	_c.Call.Return(run)
 	return _c
 }

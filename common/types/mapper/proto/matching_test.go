@@ -23,10 +23,12 @@ package proto
 import (
 	"testing"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
 	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -259,4 +261,170 @@ func TestToMatchingTaskListPartitionConfig(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+// --- Fuzz tests for matching mapper functions
+
+// TaskSourceFuzzer generates valid TaskSource enum values (0: History, 1: DbBacklog).
+func TaskSourceFuzzer(e *types.TaskSource, c fuzz.Continue) {
+	*e = types.TaskSource(c.Intn(2)) // 0-1: History, DbBacklog
+}
+
+// CancelOutstandingPollRequestFuzzer ensures TaskListType *int32 only contains
+// valid values (0=Decision, 1=Activity) since out-of-range values map to nil
+// on the return path.
+func CancelOutstandingPollRequestFuzzer(r *types.CancelOutstandingPollRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.TaskListType != nil {
+		*r.TaskListType = int32(c.Intn(2)) // 0-1: Decision, Activity
+	}
+}
+
+func TestLoadBalancerHintsFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromLoadBalancerHints, ToLoadBalancerHints)
+}
+
+func TestMatchingTaskListPartitionFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingTaskListPartition, ToMatchingTaskListPartition)
+}
+
+func TestActivityTaskDispatchInfoFuzz(t *testing.T) {
+	// [BUG] Attempt is *int64 in types but int32 in proto:
+	//   - nil input maps to &0 (non-nil), breaking the nil round-trip
+	//   - int64 values outside int32 range are truncated
+	// ScheduledEvent is a HistoryEvent requiring complex enum handling;
+	// it is tested comprehensively in api_test.go (TestHistoryEventFuzz).
+	testutils.RunMapperFuzzTest(t, FromActivityTaskDispatchInfo, ToActivityTaskDispatchInfo,
+		testutils.WithExcludedFields("Attempt", "ScheduledEvent"),
+	)
+}
+
+func TestMatchingAddActivityTaskRequestFuzz(t *testing.T) {
+	// ActivityTaskDispatchInfo is tested separately in TestActivityTaskDispatchInfoFuzz.
+	testutils.RunMapperFuzzTest(t, FromMatchingAddActivityTaskRequest, ToMatchingAddActivityTaskRequest,
+		testutils.WithCustomFuncs(TaskSourceFuzzer),
+		testutils.WithExcludedFields("ActivityTaskDispatchInfo"),
+	)
+}
+
+func TestMatchingAddDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingAddDecisionTaskRequest, ToMatchingAddDecisionTaskRequest,
+		testutils.WithCustomFuncs(TaskSourceFuzzer),
+	)
+}
+
+func TestMatchingCancelOutstandingPollRequestFuzz(t *testing.T) {
+	// TaskListType is *int32 in types (0=Decision, 1=Activity); out-of-range values
+	// map to nil on the return path. CancelOutstandingPollRequestFuzzer constrains it.
+	testutils.RunMapperFuzzTest(t, FromMatchingCancelOutstandingPollRequest, ToMatchingCancelOutstandingPollRequest,
+		testutils.WithCustomFuncs(CancelOutstandingPollRequestFuzzer),
+	)
+}
+
+func TestMatchingDescribeTaskListRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingDescribeTaskListRequest, ToMatchingDescribeTaskListRequest)
+}
+
+func TestMatchingDescribeTaskListResponseFuzz(t *testing.T) {
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	testutils.RunMapperFuzzTest(t, FromMatchingDescribeTaskListResponse, ToMatchingDescribeTaskListResponse,
+		testutils.WithExcludedFields("PartitionConfig"),
+	)
+}
+
+func TestMatchingListTaskListPartitionsRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingListTaskListPartitionsRequest, ToMatchingListTaskListPartitionsRequest)
+}
+
+func TestMatchingListTaskListPartitionsResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingListTaskListPartitionsResponse, ToMatchingListTaskListPartitionsResponse)
+}
+
+func TestMatchingPollForActivityTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForActivityTaskRequest, ToMatchingPollForActivityTaskRequest)
+}
+
+func TestMatchingPollForActivityTaskResponseFuzz(t *testing.T) {
+	// [BUG] BacklogCountHint has no corresponding field in the activity task proto message; it is silently dropped.
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForActivityTaskResponse, ToMatchingPollForActivityTaskResponse,
+		testutils.WithExcludedFields("BacklogCountHint", "PartitionConfig"),
+	)
+}
+
+func TestMatchingPollForDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForDecisionTaskRequest, ToMatchingPollForDecisionTaskRequest)
+}
+
+func TestMatchingPollForDecisionTaskResponseFuzz(t *testing.T) {
+	// [BUG] Attempt is int64 in types but int32 in proto; values outside int32 range are truncated.
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	// DecisionInfo contains HistoryEvent fields requiring non-nil EventType;
+	// HistoryEvent fuzzing is tested in api_test.go (TestHistoryEventFuzz).
+	testutils.RunMapperFuzzTest(t, FromMatchingPollForDecisionTaskResponse, ToMatchingPollForDecisionTaskResponse,
+		testutils.WithExcludedFields("Attempt", "PartitionConfig", "DecisionInfo"),
+	)
+}
+
+func TestMatchingQueryWorkflowRequestFuzz(t *testing.T) {
+	// QueryWorkflowRequest contains QueryRejectCondition and QueryConsistencyLevel enums
+	// that require valid values (0-1 each); out-of-range values map to nil on return.
+	testutils.RunMapperFuzzTest(t, FromMatchingQueryWorkflowRequest, ToMatchingQueryWorkflowRequest,
+		testutils.WithCustomFuncs(QueryRejectConditionFuzzer, QueryConsistencyLevelFuzzer),
+	)
+}
+
+func TestMatchingQueryWorkflowResponseFuzz(t *testing.T) {
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	testutils.RunMapperFuzzTest(t, FromMatchingQueryWorkflowResponse, ToMatchingQueryWorkflowResponse,
+		testutils.WithExcludedFields("PartitionConfig"),
+	)
+}
+
+func TestMatchingRespondQueryTaskCompletedRequestFuzz(t *testing.T) {
+	// QueryTaskCompletedType only has 2 valid values (0=Completed, 1=Failed);
+	// the default fuzzer generates arbitrary int values so CompletedTypeFuzzer constrains the range.
+	testutils.RunMapperFuzzTest(t, FromMatchingRespondQueryTaskCompletedRequest, ToMatchingRespondQueryTaskCompletedRequest,
+		testutils.WithCustomFuncs(CompletedTypeFuzzer),
+	)
+}
+
+func TestMatchingGetTaskListsByDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingGetTaskListsByDomainRequest, ToMatchingGetTaskListsByDomainRequest)
+}
+
+func TestMatchingGetTaskListsByDomainResponseFuzz(t *testing.T) {
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	testutils.RunMapperFuzzTest(t, FromMatchingGetTaskListsByDomainResponse, ToMatchingGetTaskListsByDomainResponse,
+		testutils.WithExcludedFields("PartitionConfig"),
+	)
+}
+
+func TestMatchingUpdateTaskListPartitionConfigRequestFuzz(t *testing.T) {
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	testutils.RunMapperFuzzTest(t, FromMatchingUpdateTaskListPartitionConfigRequest, ToMatchingUpdateTaskListPartitionConfigRequest,
+		testutils.WithExcludedFields("PartitionConfig"),
+	)
+}
+
+func TestMatchingUpdateTaskListPartitionConfigResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingUpdateTaskListPartitionConfigResponse, ToMatchingUpdateTaskListPartitionConfigResponse)
+}
+
+func TestMatchingRefreshTaskListPartitionConfigRequestFuzz(t *testing.T) {
+	// PartitionConfig contains map[int] keys that truncate to int32 in proto;
+	// specific partition scenarios are tested in TestToMatchingTaskListPartitionConfig.
+	testutils.RunMapperFuzzTest(t, FromMatchingRefreshTaskListPartitionConfigRequest, ToMatchingRefreshTaskListPartitionConfigRequest,
+		testutils.WithExcludedFields("PartitionConfig"),
+	)
+}
+
+func TestMatchingRefreshTaskListPartitionConfigResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromMatchingRefreshTaskListPartitionConfigResponse, ToMatchingRefreshTaskListPartitionConfigResponse)
 }

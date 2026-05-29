@@ -27,7 +27,6 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
@@ -38,18 +37,11 @@ type base struct {
 	timeSource   clock.TimeSource
 }
 
-func (p *base) updateErrorMetricPerNamespace(scope metrics.ScopeIdx, err error, scopeWithNamespaceTags metrics.Scope, logger log.Logger) {
-	logger = logger.Helper()
-
-	switch {
-	case errors.Is(err, store.ErrExecutorNotFound):
+func (p *base) updateErrorMetricPerNamespace(err error, scopeWithNamespaceTags metrics.Scope) {
+	if errors.Is(err, store.ErrExecutorNotFound) {
 		scopeWithNamespaceTags.IncCounter(metrics.ShardDistributorStoreExecutorNotFound)
-		logger.Error("Executor not found.", tag.Error(err), tag.MetricScope(int(scope)))
-	case errors.Is(err, store.ErrShardNotFound):
-		// this is expected, so we don't want to log it
-	default:
-		logger.Error("Store failed with internal error.", tag.Error(err), tag.MetricScope(int(scope))) // int???
 	}
+
 	scopeWithNamespaceTags.IncCounter(metrics.ShardDistributorStoreFailuresPerNamespace)
 }
 
@@ -62,9 +54,8 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := p.timeSource.Since(before)
 	metricsScope.RecordHistogramDuration(metrics.ShardDistributorStoreLatencyHistogramPerNamespace, duration)
 
-	logger := p.logger.Helper()
 	if err != nil {
-		p.updateErrorMetricPerNamespace(scope, err, metricsScope, logger)
+		p.updateErrorMetricPerNamespace(err, metricsScope)
 	}
 	return err
 }

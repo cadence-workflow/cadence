@@ -134,6 +134,8 @@ CREATE TYPE transfer_task (
   schedule_id                bigint,
   version                    bigint,       -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
   record_visibility          boolean,      -- indicates whether or not to create a visibility record
+  original_task_list         text,         -- the original task list of the task if the task is a sticky decision task
+  original_task_list_kind    int,          -- enum TaskListKind {Normal, Sticky, Ephemeral},
 );
 
 CREATE TYPE replication_task (
@@ -166,6 +168,7 @@ CREATE TYPE timer_task (
   event_id         bigint, -- Corresponds to event ID in history that is responsible for this timer.
   schedule_attempt bigint, -- Used to retry failed decision tasks using mutable state
   version          bigint, -- the failover version when this task is created, used to compare against the mutable state, in case the events got overwritten
+  task_list        text, -- the task list associated with the timer task
 );
 
 -- Workflow activity in progress mutable state
@@ -375,6 +378,7 @@ CREATE TABLE executions (
   range_id                       bigint, -- Increasing sequence identifier for transfer queue, checkpointed into shard info
   activity_map                   map<bigint, frozen<activity_info>>,
   timer_map                      map<text, frozen<timer_info>>,
+  workflow_timer_tasks           set<frozen<tuple<timestamp, bigint>>>,
   child_executions_map           map<bigint, frozen<child_execution_info>>,
   request_cancel_map             map<bigint, frozen<request_cancel_info>>,
   signal_map                     map<bigint, frozen<signal_info>>,
@@ -537,3 +541,29 @@ CREATE TABLE cluster_config (
   encoding text,
 PRIMARY KEY (row_type, version)
 ) WITH CLUSTERING ORDER BY (version DESC);
+
+CREATE TABLE domain_audit_log (
+    domain_id uuid,
+    event_id uuid, -- event_id is the unique identifier for this change to the domain
+
+    state_before blob, -- state_before stores the domain state before the request
+    state_before_encoding text, -- the encoding type used for state_before
+
+    state_after blob, -- state_after stores the domain state after the request
+    state_after_encoding text, -- the encoding type used for state_after
+
+    operation_type int, -- operation_type stores the type of operation that was performed. It is deserialized as an enum and can be used to customize the serialization/deserialization strategy.
+
+    created_time timestamp, -- created_time the time this row was inserted
+    last_updated_time timestamp,
+
+    identity text, -- the unique identifier of the user that made the change
+    identity_type text, -- identity_type can be used to delineate between service, user, or other identities
+
+    comment text, -- comment can be used when manual updates or creates are performed on the database as an audit trail
+
+    PRIMARY KEY ((domain_id, operation_type), created_time, event_id)
+) WITH CLUSTERING ORDER BY (created_time DESC, event_id ASC)
+  AND COMPACTION = {
+      'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+  };

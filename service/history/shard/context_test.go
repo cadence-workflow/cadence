@@ -92,7 +92,7 @@ func (s *contextTestSuite) SetupTest() {
 	s.mockResource = resource.NewTest(s.T(), s.controller, metrics.History)
 	s.mockShardManager = s.mockResource.ShardMgr
 
-	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.HistogramMigration{})
+	s.metricsClient = metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})
 	s.logger = testlogger.New(s.T())
 
 	s.context = s.newContext()
@@ -1382,10 +1382,14 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenDomainIsActiveActiveUs
 			{ClusterName: testCluster},
 		},
 		ActiveClusters: &types.ActiveClusters{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"region1": {
-					ActiveClusterName: "active-cluster",
-					FailoverVersion:   456,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"region1": {
+							ActiveClusterName: "active-cluster",
+							FailoverVersion:   456,
+						},
+					},
 				},
 			},
 		},
@@ -1503,10 +1507,14 @@ func (s *contextTestSuite) TestAllocateTimerIDsLocked_WhenClusterManagerLookupFa
 			{ClusterName: testCluster},
 		},
 		ActiveClusters: &types.ActiveClusters{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"region1": {
-					ActiveClusterName: "active-cluster",
-					FailoverVersion:   456,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"region1": {
+							ActiveClusterName: "active-cluster",
+							FailoverVersion:   456,
+						},
+					},
 				},
 			},
 		},

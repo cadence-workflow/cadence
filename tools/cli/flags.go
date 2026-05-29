@@ -59,6 +59,13 @@ const (
 	FlagTaskList                       = "tasklist"
 	FlagTaskListType                   = "tasklisttype"
 	FlagWorkflowIDReusePolicy          = "workflowidreusepolicy"
+	FlagScheduleID                     = "schedule_id"
+	FlagCronExpression                 = "cron_expression"
+	FlagOverlapPolicy                  = "overlap_policy"
+	FlagCatchUpPolicy                  = "catch_up_policy"
+	FlagBackfillID                     = "backfill_id"
+	FlagStartTime                      = "start_time"
+	FlagEndTime                        = "end_time"
 	FlagCronSchedule                   = "cron"
 	FlagWorkflowType                   = "workflow_type"
 	FlagWorkflowStatus                 = "status"
@@ -100,6 +107,7 @@ const (
 	FlagForce                          = "force"
 	FlagPageID                         = "page_id"
 	FlagPageSize                       = "pagesize"
+	FlagLimit                          = "limit"
 	FlagEarliestTime                   = "earliest_time"
 	FlagLatestTime                     = "latest_time"
 	FlagPrintEventVersion              = "print_event_version"
@@ -109,6 +117,7 @@ const (
 	FlagPrintDateTime                  = "print_datetime"
 	FlagPrintMemo                      = "print_memo"
 	FlagPrintSearchAttr                = "print_search_attr"
+	FlagPrintCron                      = "print_cron"
 	FlagPrintJSON                      = "print_json" // Deprecated: use --format json
 	FlagDescription                    = "description"
 	FlagOwnerEmail                     = "owner_email"
@@ -126,7 +135,9 @@ const (
 	FlagShowDetail                     = "show_detail"
 	FlagActiveClusterName              = "active_cluster"
 	FlagActiveClusters                 = "active_clusters"
+	FlagActiveClustersJSON             = "active_clusters_json"
 	FlagClusters                       = "clusters"
+	FlagFailoverReason                 = "reason"
 	FlagIsGlobalDomain                 = "global_domain" // active-passive domain
 	FlagDomainData                     = "domain_data"
 	FlagEventID                        = "event_id"
@@ -179,6 +190,7 @@ const (
 	FlagMaxMessageCount                = "max_message_count"
 	FlagLastMessageID                  = "last_message_id"
 	FlagConcurrency                    = "concurrency"
+	FlagConcurrencyLimit               = "concurrency_limit"
 	FlagReportRate                     = "report_rate"
 	FlagLowerShardBound                = "lower_shard_bound"
 	FlagUpperShardBound                = "upper_shard_bound"
@@ -224,6 +236,10 @@ const (
 	FlagNumReadPartitions              = "num_read_partitions"
 	FlagNumWritePartitions             = "num_write_partitions"
 	FlagCronOverlapPolicy              = "cron_overlap_policy"
+	FlagClusterAttributeScope          = "cluster_attribute_scope"
+	FlagClusterAttributeName           = "cluster_attribute_name"
+	FlagClusterAttributesJSON          = "cluster_attributes_json"
+	FlagBatchV2                        = "v2"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"
 )
@@ -443,6 +459,16 @@ func getFlagsForStart() []cli.Flag {
 			Name:  FirstRunAtTime,
 			Usage: "Optional workflow's first run start time in RFC3339 format, like \"1970-01-01T00:00:00Z\". If set, first run of the workflow will start at the specified time.",
 		},
+		&cli.StringFlag{
+			Name:    FlagClusterAttributeScope,
+			Usage:   "Optional cluster attribute to specify how to select the active cluster. Examples might be 'region' or 'location'",
+			Aliases: []string{"cascope"},
+		},
+		&cli.StringFlag{
+			Name:    FlagClusterAttributeName,
+			Usage:   "Optional cluster attribute name, paired with a cluster attribute scope, to specify how to select the active cluster. This specifies which attribute to tie the workflow to, for example, if the scope is 'region' and the name is 'Lisbon' or 'San Francisco'",
+			Aliases: []string{"caname"},
+		},
 	}
 }
 
@@ -556,6 +582,11 @@ func getCommonFlagsForVisibility() []cli.Flag {
 			Name:    FlagPrintSearchAttr,
 			Aliases: []string{"psa"},
 			Usage:   "Print search attributes",
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintCron,
+			Aliases: []string{"pcr"},
+			Usage:   "Print cron schedule and scheduled execution time",
 		},
 		&cli.BoolFlag{
 			Name:    FlagPrintFullyDetail,

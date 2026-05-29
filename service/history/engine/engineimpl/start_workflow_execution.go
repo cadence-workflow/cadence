@@ -36,9 +36,12 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/events"
 	"github.com/uber/cadence/service/history/execution"
 	"github.com/uber/cadence/service/history/workflow"
 )
+
+var errClusterAttributeNotFound = &types.BadRequestError{Message: "Cannot start workflow with a cluster attribute that is not found in the domain's metadata."}
 
 // for startWorkflowHelper be reused by signalWithStart
 type signalWithStartArg struct {
@@ -56,12 +59,24 @@ func (e *historyEngineImpl) StartWorkflowExecution(
 		return nil, err
 	}
 
-	return e.startWorkflowHelper(
+	resp, workflowExecution, historyBlob, err := e.startWorkflowHelper(
 		ctx,
 		startRequest,
 		domainEntry,
 		metrics.HistoryStartWorkflowExecutionScope,
 		nil)
+	if err != nil {
+		e.handleCreateWorkflowExecutionFailureCleanup(ctx,
+			startRequest,
+			domainEntry,
+			workflowExecution,
+			historyBlob,
+			false,
+			err,
+		)
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (e *historyEngineImpl) startWorkflowHelper(
@@ -69,16 +84,16 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	startRequest *types.HistoryStartWorkflowExecutionRequest,
 	domainEntry *cache.DomainCacheEntry,
 	metricsScope metrics.ScopeIdx,
-	signalWithStartArg *signalWithStartArg,
-) (resp *types.StartWorkflowExecutionResponse, retError error) {
+	sigWithStartArg *signalWithStartArg,
+) (_ *types.StartWorkflowExecutionResponse, _ *types.WorkflowExecution, _ *events.PersistedBlob, retError error) {
 	if domainEntry.GetInfo().Status != persistence.DomainStatusRegistered {
-		return nil, errDomainDeprecated
+		return nil, nil, nil, errDomainDeprecated
 	}
 	request := startRequest.StartRequest
 
 	err := e.validateStartWorkflowExecutionRequest(request, metricsScope)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	e.overrideTaskStartToCloseTimeoutSeconds(domainEntry, request, metricsScope)
 
@@ -98,41 +113,41 @@ func (e *historyEngineImpl) startWorkflowHelper(
 	)
 	if err != nil {
 		if err == context.DeadlineExceeded {
-			return nil, workflow.ErrConcurrentStartRequest
+			return nil, nil, nil, workflow.ErrConcurrentStartRequest
 		}
-		return nil, err
+		return nil, nil, nil, err
 	}
 	defer func() { currentRelease(retError) }()
 
-	workflowExecution := types.WorkflowExecution{
+	workflowExecution := &types.WorkflowExecution{
 		WorkflowID: workflowID,
 		RunID:      uuid.New(),
 	}
 	curMutableState, err := e.createMutableState(ctx, domainEntry, workflowExecution.GetRunID(), startRequest)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	// preprocess for signalWithStart
 	var prevMutableState execution.MutableState
 	var signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest
-	isSignalWithStart := signalWithStartArg != nil
+	isSignalWithStart := sigWithStartArg != nil
 	if isSignalWithStart {
-		prevMutableState = signalWithStartArg.prevMutableState
-		signalWithStartRequest = signalWithStartArg.signalWithStartRequest
+		prevMutableState = sigWithStartArg.prevMutableState
+		signalWithStartRequest = sigWithStartArg.signalWithStartRequest
 	}
 	if prevMutableState != nil {
 		prevLastWriteVersion, err := prevMutableState.GetLastWriteVersion()
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		if prevLastWriteVersion > curMutableState.GetCurrentVersion() {
 			policy, err := e.shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(ctx, domainID, workflowID, prevMutableState.GetExecutionInfo().RunID)
 			if err != nil {
-				return nil, err
+				return nil, nil, nil, err
 			}
 			if policy.Equals(request.ActiveClusterSelectionPolicy) {
-				return nil, e.newDomainNotActiveError(
+				return nil, nil, nil, e.newDomainNotActiveError(
 					domainEntry,
 					prevLastWriteVersion,
 				)
@@ -140,11 +155,11 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		}
 		err = e.applyWorkflowIDReusePolicyForSigWithStart(
 			prevMutableState.GetExecutionInfo(),
-			workflowExecution,
+			*workflowExecution,
 			request.GetWorkflowIDReusePolicy(),
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	} else if e.shard.GetConfig().EnableRecordWorkflowExecutionUninitialized(domainEntry.GetInfo().Name) && e.visibilityMgr != nil {
 		uninitializedRequest := &persistence.RecordWorkflowExecutionUninitializedRequest{
@@ -163,10 +178,9 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			e.logger.Error("Failed to record uninitialized workflow execution", tag.Error(err))
 		}
 	}
-
 	err = e.addStartEventsAndTasks(
 		curMutableState,
-		workflowExecution,
+		*workflowExecution,
 		startRequest,
 		signalWithStartRequest,
 	)
@@ -183,22 +197,22 @@ func (e *historyEngineImpl) startWorkflowHelper(
 				e.logger.Error("Failed to delete uninitialized workflow execution record", tag.Error(errVisibility))
 			}
 		}
-
-		return nil, err
+		return nil, nil, nil, err
 	}
-	wfContext := execution.NewContext(domainID, workflowExecution, e.shard, e.executionManager, e.logger)
+	wfContext := execution.NewContext(domainID, *workflowExecution, e.shard, e.executionManager, e.logger)
 
 	newWorkflow, newWorkflowEventsSeq, err := curMutableState.CloseTransactionAsSnapshot(
 		e.timeSource.Now(),
 		execution.TransactionPolicyActive,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	historyBlob, err := wfContext.PersistStartWorkflowBatchEvents(ctx, newWorkflowEventsSeq[0])
+	b, err := wfContext.PersistStartWorkflowBatchEvents(ctx, newWorkflowEventsSeq[0])
 	if err != nil {
-		return nil, err
+		return nil, workflowExecution, nil, err
 	}
+	historyBlob := &b
 
 	// create as brand new
 	createMode := persistence.CreateWorkflowModeBrandNew
@@ -216,13 +230,13 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		prevRunID = info.RunID
 		prevLastWriteVersion, err = prevMutableState.GetLastWriteVersion()
 		if err != nil {
-			return nil, err
+			return nil, workflowExecution, historyBlob, err
 		}
 	}
 	err = wfContext.CreateWorkflowExecution(
 		ctx,
 		newWorkflow,
-		historyBlob,
+		*historyBlob,
 		createMode,
 		prevRunID,
 		prevLastWriteVersion,
@@ -232,31 +246,39 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,
-			}, nil
+			}, workflowExecution, historyBlob, nil
 		}
 		e.logger.Error("A bug is detected for idempotency improvement", tag.Dynamic("request-type", t.RequestType))
-		return nil, t
+		return nil, workflowExecution, historyBlob, t
 	}
 	// handle already started error
 	if t, ok := err.(*persistence.WorkflowExecutionAlreadyStartedError); ok {
-
 		if t.StartRequestID == request.GetRequestID() {
 			return &types.StartWorkflowExecutionResponse{
 				RunID: t.RunID,
-			}, nil
+			}, workflowExecution, historyBlob, nil
 		}
 
 		if isSignalWithStart {
-			return nil, err
+			e.logger.Warn("signal-with-start might have left an orphaned history branch",
+				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+				tag.WorkflowID(workflowExecution.WorkflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Dynamic("debug-startRequest", startRequest),
+				tag.Dynamic("debug-historyBlob", historyBlob),
+				tag.Dynamic("debug-domainEntry", domainEntry),
+				tag.Dynamic("debug-workflowExecution", workflowExecution),
+				tag.Error(err))
+			return nil, workflowExecution, historyBlob, err
 		}
 
 		if curMutableState.GetCurrentVersion() < t.LastWriteVersion {
 			policy, err := e.shard.GetActiveClusterManager().GetActiveClusterSelectionPolicyForWorkflow(ctx, domainID, workflowID, t.RunID)
 			if err != nil {
-				return nil, err
+				return nil, workflowExecution, historyBlob, err
 			}
 			if policy.Equals(request.ActiveClusterSelectionPolicy) {
-				return nil, e.newDomainNotActiveError(
+				return nil, workflowExecution, historyBlob, e.newDomainNotActiveError(
 					domainEntry,
 					t.LastWriteVersion,
 				)
@@ -267,14 +289,14 @@ func (e *historyEngineImpl) startWorkflowHelper(
 		if shouldTerminateAndStart(startRequest, t.State) {
 			runningWFCtx, err := workflow.LoadOnce(ctx, e.executionCache, domainID, workflowID, prevRunID)
 			if err != nil {
-				return nil, err
+				return nil, workflowExecution, historyBlob, err
 			}
 			defer func() { runningWFCtx.GetReleaseFn()(retError) }()
 
-			resp, err = e.terminateAndStartWorkflow(
+			resp, err := e.terminateAndStartWorkflow(
 				ctx,
 				runningWFCtx,
-				workflowExecution,
+				*workflowExecution,
 				domainEntry,
 				domainID,
 				startRequest,
@@ -286,7 +308,7 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			case *types.WorkflowExecutionAlreadyCompletedError:
 				e.shard.GetLogger().Warn("Workflow completed while trying to terminate, will continue starting workflow", tag.Error(err))
 			default:
-				return resp, err
+				return resp, workflowExecution, historyBlob, err
 			}
 		}
 		if err = e.applyWorkflowIDReusePolicyHelper(
@@ -294,17 +316,17 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			prevRunID,
 			t.State,
 			t.CloseStatus,
-			workflowExecution,
+			*workflowExecution,
 			startRequest.StartRequest.GetWorkflowIDReusePolicy(),
 		); err != nil {
-			return nil, err
+			return nil, workflowExecution, historyBlob, err
 		}
 		// create as ID reuse
 		createMode = persistence.CreateWorkflowModeWorkflowIDReuse
 		err = wfContext.CreateWorkflowExecution(
 			ctx,
 			newWorkflow,
-			historyBlob,
+			*historyBlob,
 			createMode,
 			prevRunID,
 			t.LastWriteVersion,
@@ -314,19 +336,137 @@ func (e *historyEngineImpl) startWorkflowHelper(
 			if t.RequestType == persistence.WorkflowRequestTypeStart || (isSignalWithStart && t.RequestType == persistence.WorkflowRequestTypeSignal) {
 				return &types.StartWorkflowExecutionResponse{
 					RunID: t.RunID,
-				}, nil
+				}, workflowExecution, historyBlob, nil
 			}
 			e.logger.Error("A bug is detected for idempotency improvement", tag.Dynamic("request-type", t.RequestType))
-			return nil, t
+			return nil, workflowExecution, historyBlob, t
 		}
 	}
 	if err != nil {
-		return nil, err
+		return nil, workflowExecution, historyBlob, err
 	}
 
 	return &types.StartWorkflowExecutionResponse{
 		RunID: workflowExecution.RunID,
-	}, nil
+	}, workflowExecution, historyBlob, nil
+}
+
+func (e *historyEngineImpl) handleCreateWorkflowExecutionFailureCleanup(
+	ctx context.Context,
+	startRequest *types.HistoryStartWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+	workflowExecution *types.WorkflowExecution,
+	historyBlob *events.PersistedBlob,
+	isSignalWithStart bool,
+	err error,
+) {
+
+	if workflowExecution == nil || historyBlob == nil {
+		// expected behaviour, errors caused by validation will not have a workflow execution
+		return
+	}
+
+	// we cannot know if the workflow has succeeded, so the safest thing to do is
+	// to do nothing. Deleting the history risks breaking a valid execution and prevrenting it from being restarted
+	if persistence.IsTimeoutError(err) {
+		e.logger.Warn("timeout error detected when creating execution. If the excution was not created successfully this has probably left some orphaned history branch that needs cleaning up",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Error(err))
+		e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupHaltedTimeoutCount)
+		return
+	}
+
+	// this is the set of errors for which we condider safe to history branch created
+	// earlier when starting the workflow. It does not include any
+	// errors where the state of the workflow is not known (like timeouts, DB internal errors)
+	isKnownFailureRequiringCleanup := errors.As(err, new(*types.WorkflowExecutionAlreadyStartedError)) ||
+		errors.As(err, new(*types.ShardOwnershipLostError)) ||
+		errors.As(err, new(*persistence.CurrentWorkflowConditionFailedError)) ||
+		errors.As(err, new(*persistence.ConditionFailedError)) ||
+		errors.As(err, new(*persistence.ShardAlreadyExistError)) ||
+		errors.As(err, new(*persistence.WorkflowExecutionAlreadyStartedError)) ||
+		errors.As(err, new(*types.ShardOwnershipLostError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyStartedError)) ||
+		errors.As(err, new(*types.WorkflowExecutionAlreadyCompletedError)) ||
+		errors.As(err, new(*persistence.ShardOwnershipLostError)) ||
+		errors.As(err, new(*persistence.DuplicateRequestError))
+
+	if !isKnownFailureRequiringCleanup {
+		e.logger.Warn("unknown failure detected when creating execution. If the excution was not created successfully this has probably left some orphaned history branch that needs cleaning up",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Error(err))
+		e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupUnknownCount)
+		return
+	}
+
+	if !e.shard.GetConfig().EnableCleanupOrphanedHistoryBranchOnWorkflowCreation(domainEntry.GetInfo().Name) {
+		e.logger.Warn("cleanup of orphaned history branch is disabled, but possible orphaned history branch was detected",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Dynamic("debug-isSignalWithStart", isSignalWithStart),
+			tag.Error(err),
+		)
+		return
+	}
+
+	if startRequest == nil || domainEntry == nil || workflowExecution.WorkflowID == "" || workflowExecution.RunID == "" {
+		e.logger.Error("some parameters are missing in handleCreateWorkflowExecutionFailureCleanup. This is a bug",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Dynamic("debug-startRequest", startRequest),
+			tag.Dynamic("debug-historyBlob", historyBlob),
+			tag.Dynamic("debug-domainEntry", domainEntry),
+			tag.Dynamic("debug-workflowExecution", workflowExecution),
+			tag.Error(err))
+		return
+	}
+
+	// The key here is to delete the additational branch, since it has just been created earlier in this call
+	// and is not used. However, we must be careful, there may be other existing branches that we must not touch
+	e.logger.Debug("Deleting orphaned history branch during cleanup after identified failure during creation",
+		tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+		tag.WorkflowID(workflowExecution.WorkflowID),
+		tag.WorkflowRunID(workflowExecution.RunID),
+		tag.Dynamic("debug-isSignalWithStart", isSignalWithStart),
+		tag.Error(err))
+
+	cleanupErr := e.shard.GetHistoryManager().DeleteHistoryBranch(ctx, &persistence.DeleteHistoryBranchRequest{
+		BranchToken: historyBlob.BranchToken,
+		ShardID:     common.IntPtr(e.shard.GetShardID()),
+		DomainName:  domainEntry.GetInfo().Name,
+	})
+	if cleanupErr != nil {
+		e.logger.Warn("Failed to cleanup orphaned history branch",
+			tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+			tag.WorkflowID(workflowExecution.WorkflowID),
+			tag.WorkflowRunID(workflowExecution.RunID),
+			tag.Error(cleanupErr))
+		e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupFailureCount)
+		return
+	}
+	e.metricsClient.IncCounter(metrics.HistoryEngineScope, metrics.WorkflowCreationFailedCleanupSuccessCount)
+	if e.shard.GetConfig().EnableRecordWorkflowExecutionUninitialized(domainEntry.GetInfo().Name) && e.visibilityMgr != nil {
+		// delete the uninitialized workflow execution record since it failed to start the workflow
+		// uninitialized record is used to find wfs that didn't make a progress or stuck during the start process
+		if errVisibility := e.visibilityMgr.DeleteWorkflowExecution(ctx, &persistence.VisibilityDeleteWorkflowExecutionRequest{
+			DomainID:   domainEntry.GetInfo().ID,
+			Domain:     domainEntry.GetInfo().Name,
+			RunID:      workflowExecution.RunID,
+			WorkflowID: workflowExecution.WorkflowID,
+		}); errVisibility != nil {
+			e.logger.Warn("Failed to delete uninitialized workflow execution record after failed CreateWorkflowExecution",
+				tag.WorkflowDomainID(domainEntry.GetInfo().ID),
+				tag.WorkflowID(workflowExecution.WorkflowID),
+				tag.WorkflowRunID(workflowExecution.RunID),
+				tag.Error(errVisibility))
+		}
+	}
 }
 
 // TODO(active-active): Review this method for active-active domains
@@ -429,7 +569,9 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 			}
 
 			// Create a transfer task to schedule a decision task
-			if !mutableState.HasPendingDecision() {
+			// Do not schedule if the workflow hasn't processed its first decision yet
+			// (e.g. waiting for DelayStart or Cron timer)
+			if !mutableState.HasPendingDecision() && mutableState.HasProcessedOrPendingDecision() {
 				_, err := mutableState.AddDecisionTaskScheduledEvent(false)
 				if err != nil {
 					return nil, &types.InternalServiceError{Message: "Failed to add decision scheduled event."}
@@ -476,13 +618,25 @@ func (e *historyEngineImpl) SignalWithStartWorkflowExecution(
 		signalWithStartRequest: signalWithStartRequest,
 		prevMutableState:       prevMutableState,
 	}
-	return e.startWorkflowHelper(
+	resp, createdWFExecution, historyBlob, err := e.startWorkflowHelper(
 		ctx,
 		startRequest,
 		domainEntry,
 		metrics.HistorySignalWithStartWorkflowExecutionScope,
 		sigWithStartArg,
 	)
+	if err != nil {
+		e.handleCreateWorkflowExecutionFailureCleanup(ctx,
+			startRequest,
+			domainEntry,
+			createdWFExecution,
+			historyBlob,
+			true,
+			err,
+		)
+		return nil, err
+	}
+	return resp, nil
 }
 
 func getStartRequest(
@@ -619,6 +773,26 @@ func (e *historyEngineImpl) terminateAndStartWorkflow(
 	signalWithStartRequest *types.HistorySignalWithStartWorkflowExecutionRequest,
 ) (*types.StartWorkflowExecutionResponse, error) {
 	runningMutableState := runningWFCtx.GetMutableState()
+	var err error
+	if signalWithStartRequest != nil {
+		startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	activeCluster, err := e.clusterMetadata.ClusterNameForFailoverVersion(runningMutableState.GetCurrentVersion())
+	if err != nil {
+		return nil, err
+	}
+	if activeCluster != e.currentClusterName {
+		if runningMutableState.GetExecutionInfo().ActiveClusterSelectionPolicy.Equals(startRequest.StartRequest.ActiveClusterSelectionPolicy) {
+			return nil, e.newDomainNotActiveError(domainEntry, runningMutableState.GetCurrentVersion())
+		}
+		// TODO(active-active): This is a short-term fix to handle this special case, because we don't have a way to terminate the existing workflow in a different cluster and start a new workflow in the current cluster
+		// atomically in one transaction. We'll review this when we have time to implement a better solution.
+		return nil, &types.BadRequestError{Message: "Cannot terminate the existing workflow and start a new workflow because it is active in a different cluster with a different active cluster selection policy."}
+	}
 UpdateWorkflowLoop:
 	for attempt := 0; attempt < workflow.ConditionalRetryCount; attempt++ {
 		if !runningMutableState.IsWorkflowExecutionRunning() {
@@ -645,14 +819,6 @@ UpdateWorkflowLoop:
 				continue UpdateWorkflowLoop
 			}
 			return nil, err
-		}
-
-		var err error
-		if signalWithStartRequest != nil {
-			startRequest, err = getStartRequest(domainID, signalWithStartRequest.SignalWithStartRequest, signalWithStartRequest.PartitionConfig)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		// new mutable state
@@ -846,13 +1012,7 @@ func (e *historyEngineImpl) createMutableState(
 			return nil, err
 		}
 		e.logger.Warn("Failed to get active cluster info by cluster attribute, falling back to domain-level active cluster info", tag.Error(err))
-		// fallback to domain-level active cluster info
-		startRequest.StartRequest.ActiveClusterSelectionPolicy = nil
-		activeClusterInfo, err = e.shard.GetActiveClusterManager().GetActiveClusterInfoByClusterAttribute(ctx, domainEntry.GetInfo().ID, nil)
-		if err != nil {
-			// unexpected error
-			return nil, err
-		}
+		return nil, errClusterAttributeNotFound
 	}
 	if activeClusterInfo.ActiveClusterName != e.currentClusterName {
 		return nil, e.newDomainNotActiveError(domainEntry, activeClusterInfo.FailoverVersion)

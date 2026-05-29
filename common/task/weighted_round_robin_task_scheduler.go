@@ -21,6 +21,7 @@
 package task
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -33,17 +34,18 @@ import (
 	"github.com/uber/cadence/common/metrics"
 )
 
-type weightedRoundRobinTaskSchedulerImpl[K comparable] struct {
+type weightedRoundRobinTaskSchedulerImpl[K comparable, T Task] struct {
 	sync.RWMutex
 
 	status       int32
-	pool         *WeightedRoundRobinChannelPool[K, PriorityTask]
-	shutdownCh   chan struct{}
+	pool         *WeightedRoundRobinChannelPool[K, T]
+	ctx          context.Context
+	cancel       context.CancelFunc
 	notifyCh     chan struct{}
 	dispatcherWG sync.WaitGroup
 	logger       log.Logger
 	metricsScope metrics.Scope
-	options      *WeightedRoundRobinTaskSchedulerOptions[K]
+	options      *WeightedRoundRobinTaskSchedulerOptions[K, T]
 
 	processor Processor
 }
@@ -59,23 +61,30 @@ var (
 )
 
 // NewWeightedRoundRobinTaskScheduler creates a new WRR task scheduler
-func NewWeightedRoundRobinTaskScheduler[K comparable](
+func NewWeightedRoundRobinTaskScheduler[K comparable, T Task](
 	logger log.Logger,
 	metricsClient metrics.Client,
 	timeSource clock.TimeSource,
 	processor Processor,
-	options *WeightedRoundRobinTaskSchedulerOptions[K],
-) (Scheduler, error) {
-	scheduler := &weightedRoundRobinTaskSchedulerImpl[K]{
+	options *WeightedRoundRobinTaskSchedulerOptions[K, T],
+) (Scheduler[T], error) {
+	metricsScope := metricsClient.Scope(metrics.TaskSchedulerScope)
+	ctx, cancel := context.WithCancel(context.Background())
+	scheduler := &weightedRoundRobinTaskSchedulerImpl[K, T]{
 		status: common.DaemonStatusInitialized,
-		pool: NewWeightedRoundRobinChannelPool[K, PriorityTask](logger, timeSource, WeightedRoundRobinChannelPoolOptions{
-			BufferSize:              options.QueueSize,
-			IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
-		}),
-		shutdownCh:   make(chan struct{}),
+		pool: NewWeightedRoundRobinChannelPool[K, T](
+			logger,
+			metricsScope,
+			timeSource,
+			WeightedRoundRobinChannelPoolOptions{
+				BufferSize:              options.QueueSize,
+				IdleChannelTTLInSeconds: defaultIdleChannelTTLInSeconds,
+			}),
+		ctx:          ctx,
+		cancel:       cancel,
 		notifyCh:     make(chan struct{}, 1),
 		logger:       logger,
-		metricsScope: metricsClient.Scope(metrics.TaskSchedulerScope),
+		metricsScope: metricsScope,
 		options:      options,
 		processor:    processor,
 	}
@@ -83,7 +92,7 @@ func NewWeightedRoundRobinTaskScheduler[K comparable](
 	return scheduler, nil
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) Start() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Start() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -95,12 +104,12 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Start() {
 	w.logger.Info("Weighted round robin task scheduler started.")
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) Stop() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Stop() {
 	if !atomic.CompareAndSwapInt32(&w.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
 
-	close(w.shutdownCh)
+	w.cancel()
 
 	taskChs := w.pool.GetAllChannels()
 	for _, taskCh := range taskChs {
@@ -114,10 +123,14 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Stop() {
 	w.logger.Info("Weighted round robin task scheduler shutdown.")
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) Submit(task PriorityTask) error {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) error {
 	w.metricsScope.IncCounter(metrics.PriorityTaskSubmitRequest)
+	submitStart := time.Now()
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		w.metricsScope.ExponentialHistogram(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+	}()
 
 	if w.isStopped() {
 		return ErrTaskSchedulerClosed
@@ -134,13 +147,13 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) Submit(task PriorityTask) error
 			drainAndNackPriorityTask(taskCh)
 		}
 		return nil
-	case <-w.shutdownCh:
+	case <-w.ctx.Done():
 		return ErrTaskSchedulerClosed
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
-	task PriorityTask,
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) TrySubmit(
+	task T,
 ) (bool, error) {
 	if w.isStopped() {
 		return false, ErrTaskSchedulerClosed
@@ -160,40 +173,44 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) TrySubmit(
 			w.notifyDispatcher()
 		}
 		return true, nil
-	case <-w.shutdownCh:
+	case <-w.ctx.Done():
 		return false, ErrTaskSchedulerClosed
 	default:
 		return false, nil
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatcher() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) dispatcher() {
 	defer w.dispatcherWG.Done()
 
 	for {
 		select {
 		case <-w.notifyCh:
 			w.dispatchTasks()
-		case <-w.shutdownCh:
+		case <-w.ctx.Done():
 			return
 		}
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) dispatchTasks() {
 	hasTask := true
 	for hasTask {
 		hasTask = false
 		schedule := w.pool.GetSchedule()
-		for _, taskCh := range schedule {
+
+		// Create a new iterator for this dispatch cycle
+		iter := schedule.NewIterator()
+		// Iterate through the schedule using the iterator
+		for ch, ok := iter.TryNext(); ok; ch, ok = iter.TryNext() {
 			select {
-			case task := <-taskCh:
+			case task := <-ch.c:
 				hasTask = true
 				if err := w.processor.Submit(task); err != nil {
 					w.logger.Error("fail to submit task to processor", tag.Error(err))
 					task.Nack(err)
 				}
-			case <-w.shutdownCh:
+			case <-w.ctx.Done():
 				return
 			default:
 			}
@@ -201,7 +218,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) dispatchTasks() {
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) notifyDispatcher() {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) notifyDispatcher() {
 	select {
 	case w.notifyCh <- struct{}{}:
 		// sent a notification to the dispatcher
@@ -210,11 +227,11 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K]) notifyDispatcher() {
 	}
 }
 
-func (w *weightedRoundRobinTaskSchedulerImpl[K]) isStopped() bool {
+func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) isStopped() bool {
 	return atomic.LoadInt32(&w.status) == common.DaemonStatusStopped
 }
 
-func drainAndNackPriorityTask(taskCh <-chan PriorityTask) {
+func drainAndNackPriorityTask[T Task](taskCh <-chan T) {
 	for {
 		select {
 		case task := <-taskCh:

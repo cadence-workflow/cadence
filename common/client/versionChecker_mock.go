@@ -13,9 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	gomock "go.uber.org/mock/gomock"
-
-	shared "github.com/uber/cadence/.gen/go/shared"
 )
 
 // MockVersionChecker is a mock of VersionChecker interface.
@@ -99,7 +98,7 @@ func (mr *MockVersionCheckerMockRecorder) SupportsStickyQuery(clientImpl, client
 }
 
 // SupportsWorkflowAlreadyCompletedError mocks base method.
-func (m *MockVersionChecker) SupportsWorkflowAlreadyCompletedError(clientImpl, clientFeatureVersion string, featureFlags shared.FeatureFlags) error {
+func (m *MockVersionChecker) SupportsWorkflowAlreadyCompletedError(clientImpl, clientFeatureVersion string, featureFlags apiv1.FeatureFlags) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SupportsWorkflowAlreadyCompletedError", clientImpl, clientFeatureVersion, featureFlags)
 	ret0, _ := ret[0].(error)

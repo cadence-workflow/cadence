@@ -73,7 +73,7 @@ func (s *ScavengerTestSuite) SetupTest() {
 	s.scvgr = NewScavenger(
 		scvgrCtx,
 		s.taskMgr,
-		metrics.NewClient(tally.NoopScope, metrics.Worker, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Worker, metrics.MigrationConfig{}),
 		logger,
 		&Options{
 			EnableCleaning:           dynamicproperties.GetBoolPropertyFn(true),

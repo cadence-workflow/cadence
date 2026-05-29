@@ -166,3 +166,7 @@ func (err EventAlreadyStartedError) Error() string {
 func (err StickyWorkerUnavailableError) Error() string {
 	return err.Message
 }
+
+func (err ReadOnlyPartitionError) Error() string {
+	return err.Message
+}

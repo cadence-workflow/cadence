@@ -18,9 +18,6 @@ primaryCluster: "cluster0"
 domains:
   test-domain-aa-delayed:
     activeClusterName: cluster0
-    activeClustersByRegion:
-      region0: cluster0
-      region1: cluster1
     clusterAttributes:
       region:
         region0: cluster0

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -46,6 +47,7 @@ type (
 		clusterName            string
 		historyResender        ndc.HistoryResender
 		getRemoteClusterNameFn func(context.Context, persistence.Task) (string, error)
+		dlqWriter              TaskDLQWriter
 	}
 )
 
@@ -58,6 +60,7 @@ func NewTransferStandbyTaskExecutor(
 	logger log.Logger,
 	clusterName string,
 	config *config.Config,
+	dlqWriter TaskDLQWriter,
 ) Executor {
 	return &transferStandbyTaskExecutor{
 		transferTaskExecutorBase: newTransferTaskExecutorBase(
@@ -66,6 +69,7 @@ func NewTransferStandbyTaskExecutor(
 			executionCache,
 			logger,
 			config,
+			dlqWriter,
 		),
 		clusterName:     clusterName,
 		historyResender: historyResender,
@@ -75,6 +79,7 @@ func NewTransferStandbyTaskExecutor(
 			}
 			return clusterName, nil
 		},
+		dlqWriter: dlqWriter,
 	}
 }
 
@@ -284,6 +289,10 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 		searchAttr := executionInfo.SearchAttributes
 		headers := getWorkflowHeaders(startEvent)
 		isCron := len(executionInfo.CronSchedule) > 0
+		cronSchedule := ""
+		if isCron {
+			cronSchedule = executionInfo.CronSchedule
+		}
 		updateTimestamp := t.shard.GetTimeSource().Now()
 
 		lastWriteVersion, err := mutableState.GetLastWriteVersion()
@@ -300,6 +309,16 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 			return nil, err
 		}
 		numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
+
+		executionStatus := getWorkflowExecutionStatus(mutableState, completionEvent)
+
+		// Calculate ScheduledExecutionTime
+		scheduledExecutionTimestamp := startEvent.GetTimestamp()
+		if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
+			startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
+			scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+				int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+		}
 
 		// DO NOT REPLY TO PARENT
 		// since event replication should be done by active cluster
@@ -318,10 +337,14 @@ func (t *transferStandbyTaskExecutor) processCloseExecution(
 			visibilityMemo,
 			executionInfo.TaskList,
 			isCron,
+			cronSchedule,
 			numClusters,
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			executionStatus,
+			scheduledExecutionTimestamp,
 		)
 	}
 
@@ -369,7 +392,7 @@ func (t *transferStandbyTaskExecutor) processCancelExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -408,7 +431,7 @@ func (t *transferStandbyTaskExecutor) processSignalExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -451,7 +474,7 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			standbyTaskPostActionWriteToDLQ(t.dlqWriter, t.shard, t.config.HistoryTaskDLQMode),
 		),
 	)
 }
@@ -525,6 +548,10 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 	executionTimestamp := getWorkflowExecutionTimestamp(mutableState, startEvent)
 	visibilityMemo := getWorkflowMemo(executionInfo.Memo)
 	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := ""
+	if isCron {
+		cronSchedule = executionInfo.CronSchedule
+	}
 	updateTimestamp := t.shard.GetTimeSource().Now()
 
 	domainEntry, err := t.shard.GetDomainCache().GetDomainByID(transferTask.GetDomainID())
@@ -535,6 +562,12 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
+
+	isAdvancedVisibilityEnabled := common.IsAdvancedVisibilityWritingEnabled(
+		t.config.WriteVisibilityStoreName(),
+		t.config.IsAdvancedVisConfigExist,
+	)
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, isAdvancedVisibilityEnabled)
 
 	if isRecordStart {
 		workflowStartedScope.IncCounter(metrics.WorkflowStartedCount)
@@ -555,6 +588,10 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			cronSchedule,
+			executionStatus,
+			scheduledExecutionTimestamp,
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -574,6 +611,10 @@ func (t *transferStandbyTaskExecutor) processRecordWorkflowStartedOrUpsertHelper
 		updateTimestamp.UnixNano(),
 		searchAttr,
 		headers,
+		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+		cronSchedule,
+		executionStatus,
+		scheduledExecutionTimestamp,
 	)
 
 }
@@ -635,15 +676,10 @@ func (t *transferStandbyTaskExecutor) pushActivity(
 		return nil
 	}
 
-	pushActivityInfo := postActionInfo.(*pushActivityToMatchingInfo)
-	timeout := min(pushActivityInfo.activityScheduleToStartTimeout, constants.MaxTaskTimeout)
-	taskList := &pushActivityInfo.tasklist
 	return t.transferTaskExecutorBase.pushActivity(
 		ctx,
 		task.(*persistence.ActivityTask),
-		taskList,
-		timeout,
-		pushActivityInfo.partitionConfig,
+		postActionInfo.(*pushActivityToMatchingInfo),
 	)
 }
 
@@ -658,14 +694,10 @@ func (t *transferStandbyTaskExecutor) pushDecision(
 		return nil
 	}
 
-	pushDecisionInfo := postActionInfo.(*pushDecisionToMatchingInfo)
-	timeout := min(pushDecisionInfo.decisionScheduleToStartTimeout, constants.MaxTaskTimeout)
 	return t.transferTaskExecutorBase.pushDecision(
 		ctx,
 		task.(*persistence.DecisionTask),
-		&pushDecisionInfo.tasklist,
-		timeout,
-		pushDecisionInfo.partitionConfig,
+		postActionInfo.(*pushDecisionToMatchingInfo),
 	)
 }
 

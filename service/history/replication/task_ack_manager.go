@@ -131,8 +131,12 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		lastReadTaskID = previousReadTaskID
 	}
 
+	taskGeneratedStart := t.timeSource.Now()
 	taskGeneratedTimer := t.scope.StartTimer(metrics.TaskLatency)
 	defer taskGeneratedTimer.Stop()
+	defer func() {
+		t.scope.ExponentialHistogram(metrics.TaskLatencyHistogram, t.timeSource.Since(taskGeneratedStart))
+	}()
 
 	batchSize := t.dynamicTaskBatchSizer.value()
 	t.scope.UpdateGauge(metrics.ReplicationTasksBatchSize, float64(batchSize))
@@ -141,7 +145,10 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 	if err != nil {
 		return nil, err
 	}
-	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(len(taskInfos)))
+	tasksFetched := len(taskInfos)
+	t.scope.RecordTimer(metrics.ReplicationTasksFetched, time.Duration(tasksFetched))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksFetchedHistogram, float64(tasksFetched))
+	t.scope.AddCounter(metrics.ReplicationTasksFetchedCounter, int64(tasksFetched))
 
 	// Happy path assumption - we will push all tasks to replication tasks.
 	msgs := &types.ReplicationMessages{
@@ -162,8 +169,11 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
 	}
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()-oldestUnprocessedTaskID))
-	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(oldestUnprocessedTaskTimestamp-t.timeSource.Now().UnixNano()))
+	lagRaw := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - oldestUnprocessedTaskID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLagRaw, time.Duration(lagRaw))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksLagRawHistogram, float64(lagRaw))
+	t.scope.UpdateGauge(metrics.ReplicationTasksLagRawGauge, float64(lagRaw))
+	t.scope.RecordHistogramDuration(metrics.ReplicationTasksDelay, time.Duration(t.timeSource.Now().UnixNano()-oldestUnprocessedTaskTimestamp))
 
 	// hydrate the tasks
 	for _, info := range taskInfos {
@@ -194,9 +204,20 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		return nil, err
 	}
 
-	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()-msgs.LastRetrievedMessageID))
-	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(len(msgs.ReplicationTasks)))
-	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(len(taskInfos)-len(msgs.ReplicationTasks)))
+	replicationLag := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - msgs.LastRetrievedMessageID)
+	t.scope.RecordTimer(metrics.ReplicationTasksLag, time.Duration(replicationLag))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksLagHistogram, float64(replicationLag))
+	t.scope.UpdateGauge(metrics.ReplicationTasksLagGauge, float64(replicationLag))
+
+	tasksReturned := len(msgs.ReplicationTasks)
+	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(tasksReturned))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksReturnedHistogram, float64(tasksReturned))
+	t.scope.AddCounter(metrics.ReplicationTasksReturnedCounter, int64(tasksReturned))
+
+	tasksReturnedDiff := len(taskInfos) - len(msgs.ReplicationTasks)
+	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(tasksReturnedDiff))
+	t.scope.RecordHistogramValue(metrics.ReplicationTasksReturnedDiffHistogram, float64(tasksReturnedDiff))
+	t.scope.AddCounter(metrics.ReplicationTasksReturnedDiffCounter, int64(tasksReturnedDiff))
 
 	t.ackLevel(pollingCluster, lastReadTaskID)
 

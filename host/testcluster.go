@@ -122,6 +122,7 @@ type (
 		EnableIndexer         bool
 		EnableReplicator      bool
 		EnableAsyncWFConsumer bool
+		EnableScheduler       bool
 	}
 )
 
@@ -150,7 +151,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 	}
 
 	scope := tally.NewTestScope("integration-test", nil)
-	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0), metrics.HistogramMigration{} /* default, only used in test setups */)
+	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0), metrics.MigrationConfig{} /* default, only used in test setups */)
 	domainReplicationQueue := domain.NewReplicationQueue(
 		testBase.DomainReplicationQueueMgr,
 		options.ClusterGroupMetadata.CurrentClusterName,
@@ -185,7 +186,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		MatchingConfig:                options.MatchingConfig,
 		WorkerConfig:                  options.WorkerConfig,
 		MockAdminClient:               options.MockAdminClient,
-		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, clock.NewRealTimeSource(), logger),
+		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
 		AuthorizationConfig:           aConfig,
 		AsyncWFQueues:                 options.AsyncWFQueues,
 		TimeSource:                    options.TimeSource,
@@ -231,7 +232,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 	pinotClient = pnt.NewPinotClient(pinotRawClient, logger, options.PinotConfig)
 
 	scope := tally.NewTestScope("integration-test", nil)
-	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0), metrics.HistogramMigration{} /* default, only used in test setups */)
+	metricsClient := metrics.NewClient(scope, metrics.ServiceIdx(0), metrics.MigrationConfig{} /* default, only used in test setups */)
 	domainReplicationQueue := domain.NewReplicationQueue(
 		testBase.DomainReplicationQueueMgr,
 		options.ClusterGroupMetadata.CurrentClusterName,
@@ -266,7 +267,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		MatchingConfig:                options.MatchingConfig,
 		WorkerConfig:                  options.WorkerConfig,
 		MockAdminClient:               options.MockAdminClient,
-		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, clock.NewRealTimeSource(), logger),
+		DomainReplicationTaskExecutor: domain.NewReplicationTaskExecutor(testBase.DomainManager, newNoopDomainAuditManager(), clock.NewRealTimeSource(), logger, dynamicproperties.GetBoolPropertyFn(false)),
 		AuthorizationConfig:           aConfig,
 		PinotConfig:                   options.PinotConfig,
 		PinotClient:                   pinotClient,
@@ -293,16 +294,15 @@ func noopAuthorizationConfig() config.Authorization {
 
 // NewClusterMetadata returns cluster metdata from config
 func NewClusterMetadata(t *testing.T, options *TestClusterConfig) cluster.Metadata {
-	clusterMetadata := cluster.GetTestClusterMetadata(options.IsPrimaryCluster)
-	if !options.IsPrimaryCluster && options.ClusterGroupMetadata.PrimaryClusterName != "" { // xdc cluster metadata setup
-		clusterMetadata = cluster.NewMetadata(
-			options.ClusterGroupMetadata,
-			func(domain string) bool { return false },
-			metrics.NewNoopMetricsClient(),
-			testlogger.New(t),
-		)
+	if options.ClusterGroupMetadata.PrimaryClusterName == "" {
+		return cluster.GetTestClusterMetadata(true)
 	}
-	return clusterMetadata
+	return cluster.NewMetadata(
+		options.ClusterGroupMetadata,
+		func(domain string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		testlogger.New(t),
+	)
 }
 
 func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) testcluster.PersistenceTestCluster {
@@ -353,6 +353,26 @@ func NewPersistenceTestCluster(t *testing.T, clusterConfig *TestClusterConfig) t
 		t.Fatal("not supported storage type" + TestFlags.PersistenceType)
 	}
 	return testCluster
+}
+
+func newNoopDomainAuditManager() persistence.DomainAuditManager {
+	return &noopDomainAuditManager{}
+}
+
+type noopDomainAuditManager struct{}
+
+func (n *noopDomainAuditManager) GetName() string {
+	return "noop"
+}
+
+func (n *noopDomainAuditManager) Close() {}
+
+func (n *noopDomainAuditManager) CreateDomainAuditLog(ctx context.Context, request *persistence.CreateDomainAuditLogRequest) (*persistence.CreateDomainAuditLogResponse, error) {
+	return &persistence.CreateDomainAuditLogResponse{}, nil
+}
+
+func (n *noopDomainAuditManager) GetDomainAuditLogs(ctx context.Context, request *persistence.GetDomainAuditLogsRequest) (*persistence.GetDomainAuditLogsResponse, error) {
+	return &persistence.GetDomainAuditLogsResponse{}, nil
 }
 
 func setupShards(testBase *persistencetests.TestBase, numHistoryShards int, logger log.Logger) {

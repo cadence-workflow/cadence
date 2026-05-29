@@ -23,6 +23,7 @@ package config
 import (
 	"time"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 )
@@ -53,12 +54,14 @@ type (
 		ForwarderMaxOutstandingTasks              dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		ForwarderMaxRatePerSecond                 dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		ForwarderMaxChildrenPerNode               dynamicproperties.IntPropertyFnWithTaskListInfoFilters
+		AppendTaskTimeout                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		AsyncTaskDispatchTimeout                  dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		LocalPollWaitTime                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		LocalTaskWaitTime                         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		TaskIsolationDuration                     dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		TaskIsolationPollerWindow                 dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		EnableGetNumberOfPartitionsFromCache      dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
+		MinTaskListWritePartitions                dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		PartitionUpscaleRPS                       dynamicproperties.IntPropertyFnWithTaskListInfoFilters
 		PartitionDownscaleFactor                  dynamicproperties.FloatPropertyFnWithTaskListInfoFilters
 		PartitionUpscaleSustainedDuration         dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -69,6 +72,7 @@ type (
 		EnableStandbyTaskCompletion               dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		EnableClientAutoConfig                    dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		QPSTrackerInterval                        dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
+		OverrideTaskListRPS                       dynamicproperties.FloatPropertyFnWithTaskListInfoFilters
 		EnablePartitionIsolationGroupAssignment   dynamicproperties.BoolPropertyFnWithTaskListInfoFilters
 		IsolationGroupUpscaleSustainedDuration    dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
 		IsolationGroupDownscaleSustainedDuration  dynamicproperties.DurationPropertyFnWithTaskListInfoFilters
@@ -98,13 +102,16 @@ type (
 		AllIsolationGroups      func() []string
 		// hostname info
 		HostName string
+		// RPCConfig contains RPC configuration including ports and bindOnLocalHost
+		RPCConfig config.RPC
 		// rate limiter configuration
 		TaskDispatchRPS    float64
 		TaskDispatchRPSTTL time.Duration
 		// task gc configuration
 		MaxTimeBetweenTaskDeletes time.Duration
 
-		EnableTasklistOwnershipGuard dynamicproperties.BoolPropertyFn
+		ExcludeShortLivedTaskListsFromShardManager dynamicproperties.BoolPropertyFn
+		RecordTaskStartedTimeout                   dynamicproperties.DurationPropertyFnWithDomainFilter
 	}
 
 	ForwarderConfig struct {
@@ -128,15 +135,18 @@ type (
 		MaxTasklistIdleTime                       func() time.Duration
 		MinTaskThrottlingBurstSize                func() int
 		MaxTaskDeleteBatchSize                    func() int
+		AppendTaskTimeout                         func() time.Duration
 		AsyncTaskDispatchTimeout                  func() time.Duration
 		LocalPollWaitTime                         func() time.Duration
 		LocalTaskWaitTime                         func() time.Duration
+		MinTaskListWritePartitions                func() int
 		PartitionUpscaleRPS                       func() int
 		PartitionDownscaleFactor                  func() float64
 		PartitionUpscaleSustainedDuration         func() time.Duration
 		PartitionDownscaleSustainedDuration       func() time.Duration
 		AdaptiveScalerUpdateInterval              func() time.Duration
 		QPSTrackerInterval                        func() time.Duration
+		OverrideTaskListRPS                       func() float64
 		EnablePartitionIsolationGroupAssignment   func() bool
 		IsolationGroupUpscaleSustainedDuration    func() time.Duration
 		IsolationGroupDownscaleSustainedDuration  func() time.Duration
@@ -171,66 +181,71 @@ type (
 )
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, hostName string, getIsolationGroups func() []string) *Config {
+func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.RPC, getIsolationGroups func() []string) *Config {
 	return &Config{
-		PersistenceMaxQPS:                         dc.GetIntProperty(dynamicproperties.MatchingPersistenceMaxQPS),
-		PersistenceGlobalMaxQPS:                   dc.GetIntProperty(dynamicproperties.MatchingPersistenceGlobalMaxQPS),
-		EnableSyncMatch:                           dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableSyncMatch),
-		UserRPS:                                   dc.GetIntProperty(dynamicproperties.MatchingUserRPS),
-		WorkerRPS:                                 dc.GetIntProperty(dynamicproperties.MatchingWorkerRPS),
-		DomainUserRPS:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.MatchingDomainUserRPS),
-		DomainWorkerRPS:                           dc.GetIntPropertyFilteredByDomain(dynamicproperties.MatchingDomainWorkerRPS),
-		RangeSize:                                 100000,
-		ReadRangeSize:                             dc.GetIntProperty(dynamicproperties.MatchingReadRangeSize),
-		GetTasksBatchSize:                         dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingGetTasksBatchSize),
-		UpdateAckInterval:                         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingUpdateAckInterval),
-		IdleTasklistCheckInterval:                 dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIdleTasklistCheckInterval),
-		MaxTasklistIdleTime:                       dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MaxTasklistIdleTime),
-		LongPollExpirationInterval:                dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingLongPollExpirationInterval),
-		MinTaskThrottlingBurstSize:                dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingMinTaskThrottlingBurstSize),
-		MaxTaskDeleteBatchSize:                    dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingMaxTaskDeleteBatchSize),
-		OutstandingTaskAppendsThreshold:           dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingOutstandingTaskAppendsThreshold),
-		MaxTaskBatchSize:                          dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingMaxTaskBatchSize),
-		ThrottledLogRPS:                           dc.GetIntProperty(dynamicproperties.MatchingThrottledLogRPS),
-		NumTasklistWritePartitions:                dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingNumTasklistWritePartitions),
-		NumTasklistReadPartitions:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingNumTasklistReadPartitions),
-		ForwarderMaxOutstandingPolls:              dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxOutstandingPolls),
-		ForwarderMaxOutstandingTasks:              dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxOutstandingTasks),
-		ForwarderMaxRatePerSecond:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxRatePerSecond),
-		ForwarderMaxChildrenPerNode:               dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxChildrenPerNode),
-		EnableGetNumberOfPartitionsFromCache:      dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache),
-		ShutdownDrainDuration:                     dc.GetDurationProperty(dynamicproperties.MatchingShutdownDrainDuration),
-		EnableDebugMode:                           dc.GetBoolProperty(dynamicproperties.EnableDebugMode)(),
-		EnableTaskInfoLogByDomainID:               dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.MatchingEnableTaskInfoLogByDomainID),
-		ActivityTaskSyncMatchWaitTime:             dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingActivityTaskSyncMatchWaitTime),
-		EnableTasklistIsolation:                   dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
-		AsyncTaskDispatchTimeout:                  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),
-		EnableTasklistOwnershipGuard:              dc.GetBoolProperty(dynamicproperties.MatchingEnableTasklistGuardAgainstOwnershipShardLoss),
-		LocalPollWaitTime:                         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalPollWaitTime),
-		LocalTaskWaitTime:                         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalTaskWaitTime),
-		PartitionUpscaleRPS:                       dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionUpscaleRPS),
-		PartitionDownscaleFactor:                  dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionDownscaleFactor),
-		PartitionUpscaleSustainedDuration:         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionUpscaleSustainedDuration),
-		PartitionDownscaleSustainedDuration:       dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionDownscaleSustainedDuration),
-		AdaptiveScalerUpdateInterval:              dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingAdaptiveScalerUpdateInterval),
-		EnableAdaptiveScaler:                      dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableAdaptiveScaler),
-		EnablePartitionEmptyCheck:                 dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnablePartitionEmptyCheck),
-		QPSTrackerInterval:                        dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingQPSTrackerInterval),
-		EnablePartitionIsolationGroupAssignment:   dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.EnablePartitionIsolationGroupAssignment),
-		IsolationGroupUpscaleSustainedDuration:    dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration),
-		IsolationGroupDownscaleSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupDownscaleSustainedDuration),
-		IsolationGroupHasPollersSustainedDuration: dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupHasPollersSustainedDuration),
-		IsolationGroupNoPollersSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupNoPollersSustainedDuration),
-		IsolationGroupsPerPartition:               dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupsPerPartition),
-		TaskIsolationDuration:                     dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationDuration),
-		TaskIsolationPollerWindow:                 dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationPollerWindow),
-		HostName:                                  hostName,
-		TaskDispatchRPS:                           100000.0,
-		TaskDispatchRPSTTL:                        time.Minute,
-		MaxTimeBetweenTaskDeletes:                 time.Second,
-		AllIsolationGroups:                        getIsolationGroups,
-		EnableStandbyTaskCompletion:               dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableStandbyTaskCompletion),
-		EnableClientAutoConfig:                    dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableClientAutoConfig),
-		EnableReturnAllTaskListKinds:              dc.GetBoolProperty(dynamicproperties.MatchingEnableReturnAllTaskListKinds),
+		PersistenceMaxQPS:                          dc.GetIntProperty(dynamicproperties.MatchingPersistenceMaxQPS),
+		PersistenceGlobalMaxQPS:                    dc.GetIntProperty(dynamicproperties.MatchingPersistenceGlobalMaxQPS),
+		EnableSyncMatch:                            dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableSyncMatch),
+		UserRPS:                                    dc.GetIntProperty(dynamicproperties.MatchingUserRPS),
+		WorkerRPS:                                  dc.GetIntProperty(dynamicproperties.MatchingWorkerRPS),
+		DomainUserRPS:                              dc.GetIntPropertyFilteredByDomain(dynamicproperties.MatchingDomainUserRPS),
+		DomainWorkerRPS:                            dc.GetIntPropertyFilteredByDomain(dynamicproperties.MatchingDomainWorkerRPS),
+		RangeSize:                                  100000,
+		ReadRangeSize:                              dc.GetIntProperty(dynamicproperties.MatchingReadRangeSize),
+		GetTasksBatchSize:                          dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingGetTasksBatchSize),
+		UpdateAckInterval:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingUpdateAckInterval),
+		IdleTasklistCheckInterval:                  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIdleTasklistCheckInterval),
+		MaxTasklistIdleTime:                        dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MaxTasklistIdleTime),
+		LongPollExpirationInterval:                 dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingLongPollExpirationInterval),
+		MinTaskThrottlingBurstSize:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingMinTaskThrottlingBurstSize),
+		MaxTaskDeleteBatchSize:                     dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingMaxTaskDeleteBatchSize),
+		OutstandingTaskAppendsThreshold:            dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingOutstandingTaskAppendsThreshold),
+		MaxTaskBatchSize:                           dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingMaxTaskBatchSize),
+		ThrottledLogRPS:                            dc.GetIntProperty(dynamicproperties.MatchingThrottledLogRPS),
+		NumTasklistWritePartitions:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingNumTasklistWritePartitions),
+		NumTasklistReadPartitions:                  dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingNumTasklistReadPartitions),
+		ForwarderMaxOutstandingPolls:               dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxOutstandingPolls),
+		ForwarderMaxOutstandingTasks:               dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxOutstandingTasks),
+		ForwarderMaxRatePerSecond:                  dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxRatePerSecond),
+		ForwarderMaxChildrenPerNode:                dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingForwarderMaxChildrenPerNode),
+		EnableGetNumberOfPartitionsFromCache:       dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache),
+		ShutdownDrainDuration:                      dc.GetDurationProperty(dynamicproperties.MatchingShutdownDrainDuration),
+		EnableDebugMode:                            dc.GetBoolProperty(dynamicproperties.EnableDebugMode)(),
+		EnableTaskInfoLogByDomainID:                dc.GetBoolPropertyFilteredByDomainID(dynamicproperties.MatchingEnableTaskInfoLogByDomainID),
+		ActivityTaskSyncMatchWaitTime:              dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingActivityTaskSyncMatchWaitTime),
+		EnableTasklistIsolation:                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		AppendTaskTimeout:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AppendTaskTimeout),
+		AsyncTaskDispatchTimeout:                   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.AsyncTaskDispatchTimeout),
+		LocalPollWaitTime:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalPollWaitTime),
+		LocalTaskWaitTime:                          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.LocalTaskWaitTime),
+		PartitionUpscaleRPS:                        dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionUpscaleRPS),
+		PartitionDownscaleFactor:                   dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionDownscaleFactor),
+		PartitionUpscaleSustainedDuration:          dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionUpscaleSustainedDuration),
+		PartitionDownscaleSustainedDuration:        dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingPartitionDownscaleSustainedDuration),
+		AdaptiveScalerUpdateInterval:               dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingAdaptiveScalerUpdateInterval),
+		EnableAdaptiveScaler:                       dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableAdaptiveScaler),
+		EnablePartitionEmptyCheck:                  dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnablePartitionEmptyCheck),
+		QPSTrackerInterval:                         dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingQPSTrackerInterval),
+		OverrideTaskListRPS:                        dc.GetFloat64PropertyFilteredByTaskListInfo(dynamicproperties.MatchingOverrideTaskListRPS),
+		EnablePartitionIsolationGroupAssignment:    dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.EnablePartitionIsolationGroupAssignment),
+		IsolationGroupUpscaleSustainedDuration:     dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration),
+		IsolationGroupDownscaleSustainedDuration:   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupDownscaleSustainedDuration),
+		IsolationGroupHasPollersSustainedDuration:  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupHasPollersSustainedDuration),
+		IsolationGroupNoPollersSustainedDuration:   dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupNoPollersSustainedDuration),
+		IsolationGroupsPerPartition:                dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingIsolationGroupsPerPartition),
+		TaskIsolationDuration:                      dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationDuration),
+		TaskIsolationPollerWindow:                  dc.GetDurationPropertyFilteredByTaskListInfo(dynamicproperties.TaskIsolationPollerWindow),
+		HostName:                                   hostName,
+		RPCConfig:                                  rpcConfig,
+		TaskDispatchRPS:                            100000.0,
+		TaskDispatchRPSTTL:                         time.Minute,
+		MaxTimeBetweenTaskDeletes:                  time.Second,
+		AllIsolationGroups:                         getIsolationGroups,
+		EnableStandbyTaskCompletion:                dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableStandbyTaskCompletion),
+		EnableClientAutoConfig:                     dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableClientAutoConfig),
+		EnableReturnAllTaskListKinds:               dc.GetBoolProperty(dynamicproperties.MatchingEnableReturnAllTaskListKinds),
+		ExcludeShortLivedTaskListsFromShardManager: dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+		RecordTaskStartedTimeout:                   dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingRecordTaskStartedTimeout),
+		MinTaskListWritePartitions:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingTaskListMinimumWritePartitions),
 	}
 }

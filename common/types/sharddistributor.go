@@ -22,9 +22,11 @@
 
 package types
 
-import "fmt"
+import (
+	"fmt"
+)
 
-//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode -json -output sharddistributor_statuses_enumer_generated.go
+//go:generate enumer -type=ExecutorStatus,ShardStatus,AssignmentStatus,MigrationMode,HandoverType,LoadBalancingMode -json -output sharddistributor_statuses_enumer_generated.go
 
 type GetShardOwnerRequest struct {
 	ShardKey  string
@@ -48,6 +50,7 @@ func (v *GetShardOwnerRequest) GetNamespace() (o string) {
 type GetShardOwnerResponse struct {
 	Owner     string
 	Namespace string
+	Metadata  map[string]string
 }
 
 func (v *GetShardOwnerResponse) GetOwner() (o string) {
@@ -60,6 +63,13 @@ func (v *GetShardOwnerResponse) GetOwner() (o string) {
 func (v *GetShardOwnerResponse) GetNamespace() (o string) {
 	if v != nil {
 		return v.Namespace
+	}
+	return
+}
+
+func (v *GetShardOwnerResponse) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
 	}
 	return
 }
@@ -92,6 +102,7 @@ type ExecutorHeartbeatRequest struct {
 	ExecutorID         string
 	Status             ExecutorStatus
 	ShardStatusReports map[string]*ShardStatusReport
+	Metadata           map[string]string
 }
 
 func (v *ExecutorHeartbeatRequest) GetNamespace() (o string) {
@@ -118,6 +129,13 @@ func (v *ExecutorHeartbeatRequest) GetStatus() (o ExecutorStatus) {
 func (v *ExecutorHeartbeatRequest) GetShardStatusReports() (o map[string]*ShardStatusReport) {
 	if v != nil {
 		return v.ShardStatusReports
+	}
+	return
+}
+
+func (v *ExecutorHeartbeatRequest) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
 	}
 	return
 }
@@ -174,7 +192,7 @@ func (v *ExecutorHeartbeatResponse) GetShardAssignments() (o map[string]*ShardAs
 	return
 }
 
-func (v *ExecutorHeartbeatResponse) GetMigrationPhase() (o MigrationMode) {
+func (v *ExecutorHeartbeatResponse) GetMigrationMode() (o MigrationMode) {
 	if v != nil {
 		return v.MigrationMode
 	}
@@ -182,7 +200,8 @@ func (v *ExecutorHeartbeatResponse) GetMigrationPhase() (o MigrationMode) {
 }
 
 type ShardAssignment struct {
-	Status AssignmentStatus
+	// Status indicates the current assignment status of the shard.
+	Status AssignmentStatus `json:"status"`
 }
 
 func (v *ShardAssignment) GetStatus() (o AssignmentStatus) {
@@ -201,12 +220,102 @@ const (
 	AssignmentStatusREADY   AssignmentStatus = 1
 )
 
+// HandoverType is used to indicate the type of handover that occurred during shard reassignment.
+// Type is persisted to the DB with a string value mapping.
+// Beware - if we want to change the name - it should be backward compatible and should be done in two steps.
+type HandoverType int32
+
+const (
+	HandoverTypeINVALID HandoverType = 0
+
+	// HandoverTypeGRACEFUL
+	// Graceful handover indicates that the shard was transferred in a way that allowed
+	// the previous owner had a chance to finish processing before the shard was reassigned.
+	HandoverTypeGRACEFUL HandoverType = 1
+
+	// HandoverTypeEMERGENCY
+	// Emergency handover indicates that the shard was transferred abruptly without
+	// allowing the previous owner to finish processing.
+	HandoverTypeEMERGENCY HandoverType = 2
+)
+
+// Ptr returns a pointer to the HandoverType value.
+func (t HandoverType) Ptr() *HandoverType {
+	return &t
+}
+
 type MigrationMode int32
 
 const (
-	MigrationModeINVALID                MigrationMode = 0
-	MigrationModeLOCALPASSTHROUGH       MigrationMode = 1
-	MigrationModeLOCALPASSTHROUGHSHADOW MigrationMode = 2
-	MigrationModeDISTRIBUTEDPASSTHROUGH MigrationMode = 3
-	MigrationModeONBOARDED              MigrationMode = 4
+	MigrationModeINVALID          MigrationMode = 0
+	MigrationModeLOCALPASSTHROUGH MigrationMode = 1
+	MigrationModeONBOARDED        MigrationMode = 2
 )
+
+type LoadBalancingMode int32
+
+const (
+	LoadBalancingModeINVALID LoadBalancingMode = 0
+	LoadBalancingModeNAIVE   LoadBalancingMode = 1
+	LoadBalancingModeGREEDY  LoadBalancingMode = 2
+)
+
+type WatchNamespaceStateRequest struct {
+	Namespace string
+}
+
+func (v *WatchNamespaceStateRequest) GetNamespace() (o string) {
+	if v != nil {
+		return v.Namespace
+	}
+	return
+}
+
+type WatchNamespaceStateResponse struct {
+	Executors []*ExecutorShardAssignment
+}
+
+func (v *WatchNamespaceStateResponse) GetExecutors() (o []*ExecutorShardAssignment) {
+	if v != nil {
+		return v.Executors
+	}
+	return
+}
+
+type ExecutorShardAssignment struct {
+	ExecutorID     string
+	AssignedShards []*Shard
+	Metadata       map[string]string
+}
+
+func (v *ExecutorShardAssignment) GetExecutorID() (o string) {
+	if v != nil {
+		return v.ExecutorID
+	}
+	return
+}
+
+func (v *ExecutorShardAssignment) GetAssignedShards() (o []*Shard) {
+	if v != nil {
+		return v.AssignedShards
+	}
+	return
+}
+
+func (v *ExecutorShardAssignment) GetMetadata() (o map[string]string) {
+	if v != nil {
+		return v.Metadata
+	}
+	return
+}
+
+type Shard struct {
+	ShardKey string
+}
+
+func (v *Shard) GetShardKey() (o string) {
+	if v != nil {
+		return v.ShardKey
+	}
+	return
+}

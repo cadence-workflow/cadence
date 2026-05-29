@@ -213,6 +213,7 @@ func (r *redispatcherImpl) redispatchTasks(notification redispatchNotification) 
 
 	queueSize := r.sizeLocked()
 	r.metricsScope.RecordTimer(metrics.TaskRedispatchQueuePendingTasksTimer, time.Duration(queueSize))
+	r.metricsScope.IntExponentialHistogram(metrics.TaskRedispatchQueuePendingTasksHistogram, queueSize)
 
 	// add some buffer here as new tasks may be added
 	targetRedispatched := queueSize + defaultBufferSize - notification.targetSize

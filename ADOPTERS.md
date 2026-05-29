@@ -27,6 +27,12 @@ At [NetApp](https://www.netapp.com) we use Cadence as a key component of the Ins
 
 NetApp is the intelligent data infrastructure company, providing solutions to manage any data, for any application, anywhere it is needed. Through the [Instaclustr](https://www.instaclustr.com) platform we offer fully managed Cadence, including automated provisioning of supporting infrastructure such as Apache Cassandra, Apache Kafka, and OpenSearch.
 
+![using.png](./logos/DoorDash-logo.jpg)
+
+### DoorDash, Inc
+DoorDash uses Cadence across a wide range of product and infrastructure use cases, including ETA, Fulfillment, Order Management, Storage, Catalog, Photos, Ads and more.
+DoorDash’ use cases take advantage of Cadence’s orchestration for long running, fault tolerant workflows.
+
 ## Evaluating / Early Adopters
 
 ## How to Add Your Organization

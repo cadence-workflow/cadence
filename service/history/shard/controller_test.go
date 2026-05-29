@@ -88,7 +88,7 @@ func (s *controllerSuite) SetupTest() {
 	s.logger = s.mockResource.Logger
 	s.config = config.NewForTest()
 
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 }
 
 func (s *controllerSuite) TearDownTest() {
@@ -446,7 +446,7 @@ func (s *controllerSuite) TestAcquireShardRenewLookupFailed() {
 func (s *controllerSuite) TestHistoryEngineClosed() {
 	numShards := 4
 	s.config.NumberOfShards = numShards
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 	historyEngines := make(map[int]*engine.MockEngine)
 	for shardID := 0; shardID < numShards; shardID++ {
 		mockEngine := engine.NewMockEngine(s.controller)
@@ -534,7 +534,7 @@ func (s *controllerSuite) TestHistoryEngineClosed() {
 func (s *controllerSuite) TestShardControllerClosed() {
 	numShards := 4
 	s.config.NumberOfShards = numShards
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 	historyEngines := make(map[int]*engine.MockEngine)
 	for shardID := 0; shardID < numShards; shardID++ {
 		mockEngine := engine.NewMockEngine(s.controller)
@@ -581,7 +581,7 @@ func (s *controllerSuite) TestShardControllerClosed() {
 
 func (s *controllerSuite) TestGetOrCreateHistoryShardItem_InvalidShardID_Error() {
 	s.config.NumberOfShards = 4
-	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config).(*controller)
+	s.shardController = NewShardController(s.mockResource, s.mockEngineFactory, s.config, nil).(*controller)
 
 	eng, err := s.shardController.GetEngineForShard(-1)
 	s.Nil(eng)

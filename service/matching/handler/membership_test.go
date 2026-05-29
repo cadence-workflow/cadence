@@ -23,6 +23,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -33,12 +34,14 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/membership"
@@ -49,47 +52,36 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
 
 	testCases := []struct {
-		name                 string
-		lookUpResult         string
-		lookUpErr            error
-		whoAmIResult         string
-		whoAmIErr            error
-		tasklistGuardEnabled bool
+		name         string
+		lookUpResult string
+		lookUpErr    error
+		whoAmIResult string
+		whoAmIErr    error
 
 		expectedError error
 	}{
 		{
-			name:                 "Not owned by current host",
-			lookUpResult:         "A",
-			whoAmIResult:         "B",
-			tasklistGuardEnabled: true,
+			name:         "Not owned by current host",
+			lookUpResult: "A",
+			whoAmIResult: "B",
 
 			expectedError: new(cadence_errors.TaskListNotOwnedByHostError),
 		},
 		{
-			name:                 "LookupError",
-			lookUpErr:            assert.AnError,
-			tasklistGuardEnabled: true,
-			expectedError:        assert.AnError,
+			name:          "LookupError",
+			lookUpErr:     assert.AnError,
+			expectedError: assert.AnError,
 		},
 		{
-			name:                 "WhoAmIError",
-			whoAmIErr:            assert.AnError,
-			tasklistGuardEnabled: true,
-			expectedError:        assert.AnError,
-		},
-		{
-			name:                 "when feature is not enabled, expect previous behaviour to continue",
-			lookUpResult:         "A",
-			whoAmIResult:         "B",
-			tasklistGuardEnabled: false,
-
-			expectedError: nil,
+			name:          "WhoAmIError",
+			whoAmIErr:     assert.AnError,
+			expectedError: assert.AnError,
 		},
 	}
 
@@ -103,9 +95,11 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockTimeSource := clock.NewMockedTimeSourceAt(time.Now())
 			taskManager := tasklist.NewTestTaskManager(t, logger, mockTimeSource)
 			mockHistoryClient := history.NewMockClient(ctrl)
+			mockMatchingClient := matching.NewMockClient(ctrl)
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 			resolverMock := membership.NewMockResolver(ctrl)
 			resolverMock.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).AnyTimes()
+			mockShardDistributorExecutorClient := executorclient.NewMockClient(ctrl)
 
 			// this is only if the call goes through
 			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(cache.CreateDomainCacheEntry(matchingTestDomainName), nil).AnyTimes()
@@ -113,24 +107,40 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(matchingTestDomainName, nil).AnyTimes()
 
 			config := defaultTestConfig()
-			taskListEnabled := tc.tasklistGuardEnabled
-			config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool {
-				return taskListEnabled
-			}
+			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
+			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
+			// testing. With the onboarding percentage at 0 (set when constructing the engine
+			// below), no task list name is below the percentage threshold, so every name is
+			// considered excluded regardless of whether it contains a UUID.
+			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
+			pct := membership.NewMockPercentageOnboarded(ctrl)
+			pct.EXPECT().Value().Return(0).AnyTimes()
 
 			matchingEngine := NewEngine(
 				taskManager,
 				cluster.GetTestClusterMetadata(true),
 				mockHistoryClient,
-				nil,
+				mockMatchingClient,
 				config,
 				logger,
-				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.HistogramMigration{}),
+				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
+				tally.NoopScope,
 				mockDomainCache,
 				resolverMock,
-				nil,
+				isolationgroup.NewMockState(ctrl),
 				mockTimeSource,
+				mockShardDistributorExecutorClient,
+				defaultSDExecutorConfig(),
+				nil,
+				pct,
 			).(*matchingEngineImpl)
+
+			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
+			// never called. Only Start/Stop are needed for lifecycle management.
+			mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+			mockExec.EXPECT().Start(gomock.Any()).AnyTimes()
+			mockExec.EXPECT().Stop().AnyTimes()
+			matchingEngine.executor = mockExec
 
 			resolverMock.EXPECT().Lookup(gomock.Any(), gomock.Any()).Return(
 				membership.NewDetailedHostInfo("", tc.lookUpResult, make(membership.PortMap)), tc.lookUpErr,
@@ -139,7 +149,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				membership.NewDetailedHostInfo("", tc.whoAmIResult, make(membership.PortMap)), tc.whoAmIErr,
 			).AnyTimes()
 
-			_, err := matchingEngine.getTaskListManager(
+			_, err := matchingEngine.getOrCreateTaskListManager(context.Background(),
 				tasklist.NewTestTaskListID(t, "domain", "tasklist", persistence.TaskListTypeActivity),
 				types.TaskListKindNormal,
 			)
@@ -163,11 +173,9 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 
 		engine := matchingEngineImpl{
 			membershipResolver: r.MembershipResolver,
-			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-			},
-			logger:   log.NewNoop(),
-			shutdown: make(chan struct{}),
+			config:             &config.Config{},
+			logger:             log.NewNoop(),
+			shutdown:           make(chan struct{}),
 		}
 
 		engine.runMembershipChangeLoop()
@@ -177,6 +185,8 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 func TestSubscriptionAndShutdown(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(1)
@@ -186,12 +196,12 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		shutdown:    make(chan struct{}),
-		logger:      log.NewNoop(),
-		domainCache: mockDomainCache,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		config:             &config.Config{},
+		shutdown:           make(chan struct{}),
+		logger:             log.NewNoop(),
+		domainCache:        mockDomainCache,
+		executor:           mockExecutor,
 	}
 
 	mockResolver.EXPECT().WhoAmI().Return(membership.NewDetailedHostInfo("host2", "host2", nil), nil).AnyTimes()
@@ -207,6 +217,8 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 func TestSubscriptionAndErrorReturned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockResolver := membership.NewMockResolver(ctrl)
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().Stop()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 
@@ -219,12 +231,12 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		shutdown:    make(chan struct{}),
-		logger:      log.NewNoop(),
-		domainCache: mockDomainCache,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		config:             &config.Config{},
+		shutdown:           make(chan struct{}),
+		logger:             log.NewNoop(),
+		domainCache:        mockDomainCache,
+		executor:           mockExecutor,
 	}
 
 	// this should trigger the error case on a membership event
@@ -273,12 +285,11 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 	engine := matchingEngineImpl{
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		shutdown:    make(chan struct{}),
-		logger:      logger,
-		domainCache: mockDomainCache,
+		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		config:             &config.Config{},
+		shutdown:           make(chan struct{}),
+		logger:             logger,
+		domainCache:        mockDomainCache,
 	}
 
 	mockResolver.EXPECT().Subscribe(service.Matching, "matching-engine", gomock.Any()).
@@ -311,25 +322,35 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 	mockResolver.EXPECT().WhoAmI().Return(self, nil).AnyTimes()
 	mockDomainCache.EXPECT().UnregisterDomainChangeCallback(service.Matching).Times(1)
 
+	mockExecutor := executorclient.NewMockExecutor[tasklist.ShardProcessor](ctrl)
+	mockExecutor.EXPECT().GetShardProcess(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockExecutor.EXPECT().Stop()
+
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
+	pct := membership.NewMockPercentageOnboarded(ctrl)
+	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
-		shutdownCompletion: &shutdownWG,
-		membershipResolver: mockResolver,
+		shutdownCompletion:  &shutdownWG,
+		membershipResolver:  mockResolver,
+		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		metricsClient:       metrics.NewNoopMetricsClient(),
+		percentageOnboarded: pct,
 		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
 		},
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),
 		domainCache: mockDomainCache,
+		executor:    mockExecutor,
 	}
 
 	// set this engine to be shutting down to trigger the tasklistGetTasklistByID guard
 	engine.Stop()
 
 	tl, _ := tasklist.NewIdentifier("domainid", "tl", 0)
-	res, err := engine.getTaskListManager(tl, types.TaskListKindNormal)
+	res, err := engine.getOrCreateTaskListManager(context.Background(), tl, types.TaskListKindNormal)
 	assertErr := &cadence_errors.TaskListNotOwnedByHostError{}
 	assert.ErrorAs(t, err, &assertErr)
 	assert.Nil(t, res)

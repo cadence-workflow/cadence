@@ -136,6 +136,7 @@ func NewTransferQueueProcessor(
 			standByLogger,
 			clusterName,
 			config,
+			shard.GetService().GetHistoryTaskDLQManager(),
 		)
 		standbyQueueProcessors[clusterName] = newTransferQueueStandbyProcessor(
 			clusterName,
@@ -483,6 +484,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(t.ackLevel + 1),
 			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(newAckLevelTaskID + 1),
 			PageSize:            pageSize,
+			ShardID:             common.Ptr(t.shard.GetShardID()),
 		})
 		if err != nil {
 			return err

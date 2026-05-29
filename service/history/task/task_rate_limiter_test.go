@@ -133,7 +133,7 @@ type taskRateLimiterMockDeps struct {
 	ctrl                *gomock.Controller
 	mockDomainCache     *cache.MockDomainCache
 	mockShardController *shard.MockController
-	mockICollection     *quotas.MockICollection
+	mockICollection     *quotas.MockICollection[string]
 	dynamicClient       dynamicconfig.Client
 }
 
@@ -171,7 +171,7 @@ func setupMocksForTaskRateLimiter(t *testing.T, mockQuotasCollection bool) (*tas
 	r, ok := rateLimiter.(*taskRateLimiterImpl)
 	require.True(t, ok, "rate limiter type assertion failure")
 	if mockQuotasCollection {
-		deps.mockICollection = quotas.NewMockICollection(ctrl)
+		deps.mockICollection = quotas.NewMockICollection[string](ctrl)
 		r.limiters = deps.mockICollection
 	}
 	return r, deps

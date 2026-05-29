@@ -359,7 +359,7 @@ func TestGetHistoryTasksResponseEstimatePayloadSize(t *testing.T) {
 			NextPageToken: []byte{1, 2, 3},
 		}
 
-		assert.Equal(t, uint64(127), response.ByteSize())
+		assert.Equal(t, uint64(135), response.ByteSize())
 	})
 
 	t.Run("a bigger response emits a bigger value", func(t *testing.T) {

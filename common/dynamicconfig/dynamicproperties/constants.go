@@ -343,13 +343,39 @@ const (
 	TestGetIntPropertyFilteredByWorkflowTypeKey
 	TestGetIntPropertyFilteredByTaskListInfoKey
 	TestGetIntPropertyFilteredByShardIDKey
+	TestGetIntPropertyFilteredByDomainAndTaskListKey
 
 	// key for common & admin
 
+	// TransactionSizeLimit is the maximum allowed size in bytes for a single persistence transaction when appending history events
+	// KeyName: system.transactionSizeLimit
+	// Value type: Int
+	// Default value: 14680064 (14*1024*1024, ~14MB)
+	// Allowed filters: N/A
 	TransactionSizeLimit
+	// MaxRetentionDays is the maximum allowed retention period in days for workflow history after workflow close for all domains
+	// KeyName: system.maxRetentionDays
+	// Value type: Int
+	// Default value: 30
+	// Allowed filters: N/A
 	MaxRetentionDays
+	// MinRetentionDays is the minimum allowed retention period in days for workflow history after workflow close for all domains
+	// KeyName: system.minRetentionDays
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: N/A
 	MinRetentionDays
+	// MaxDecisionStartToCloseSeconds is the maximum allowed value for decision start to close timeout in seconds
+	// KeyName: system.maxDecisionStartToCloseSeconds
+	// Value type: Int
+	// Default value: 240
+	// Allowed filters: N/A
 	MaxDecisionStartToCloseSeconds
+	// BlobSizeLimitError is the per event blob size limit
+	// KeyName: limit.blobSize.error
+	// Value type: Int
+	// Default value: 2 * 1024 * 1024
+	// Allowed filters: N/A
 	BlobSizeLimitError
 	// BlobSizeLimitWarn is the per event blob size limit for warning
 	// KeyName: limit.blobSize.warn
@@ -385,11 +411,13 @@ const (
 	// KeyName: limit.pendingActivityCount.error
 	// Value type: Int
 	// Default value: 1024
+	// Allowed filters: DomainName
 	PendingActivitiesCountLimitError
 	// PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged
 	// KeyName: limit.pendingActivityCount.warn
 	// Value type: Int
 	// Default value: 512
+	// Allowed filters: DomainName
 	PendingActivitiesCountLimitWarn
 	// DomainNameMaxLength is the length limit for domain name
 	// KeyName: limit.domainNameLength
@@ -556,6 +584,16 @@ const (
 	// Default value: 1200
 	// Allowed filters: DomainName
 	FrontendMaxDomainUserRPSPerInstance
+	// FrontendMaxTaskListUserRPSPerInstance is used to limit "user" requests (StartWorkflow, Signal, etc)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListUserRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistrps
+	// Value type: Int
+	// Default value: 1200
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListUserRPSPerInstance
 	// FrontendMaxDomainWorkerRPSPerInstance is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
 	// per domain per frontend instance, and is mostly intended to protect against excessive single-host load.
 	//
@@ -566,6 +604,16 @@ const (
 	// Default value: UnlimitedRPS
 	// Allowed filters: DomainName
 	FrontendMaxDomainWorkerRPSPerInstance
+	// FrontendMaxTaskListWorkerRPSPerInstance is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListWorkerRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistworkerrps
+	// Value type: Int
+	// Default value: UnlimitedRPS
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListWorkerRPSPerInstance
 	// FrontendMaxDomainVisibilityRPSPerInstance is used to limit "visibility" requests (ListWorkflow* and similar)
 	// per domain per frontend instance, and is mostly intended to protect against excessive single-host load.
 	//
@@ -586,6 +634,16 @@ const (
 	// Default value: 10000
 	// Allowed filters: DomainName
 	FrontendMaxDomainAsyncRPSPerInstance
+	// FrontendMaxTaskListAsyncRPSPerInstance is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
+	// per task list per frontend instance, and is mostly intended to protect against excessive single-host load.
+	//
+	// This limit applies along-side FrontendGlobalTaskListAsyncRPS: both must be allowed to allow a request.
+	//
+	// KeyName: frontend.tasklistasyncrps
+	// Value type: Int
+	// Default value: 10000
+	// Allowed filters: DomainName,TaskListName
+	FrontendMaxTaskListAsyncRPSPerInstance
 	// FrontendGlobalDomainUserRPS is used to limit "user" requests (StartWorkflow, Signal, etc)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -601,6 +659,14 @@ const (
 	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainUserRPS
+	// FrontendGlobalTaskListUserRPS is used to limit "user" requests (StartWorkflow, Signal, etc)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListrps
+	// Value type: Int
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListUserRPS
 	// FrontendGlobalDomainWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -616,6 +682,14 @@ const (
 	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
 	// Allowed filters: DomainName
 	FrontendGlobalDomainWorkerRPS
+	// FrontendGlobalTaskListWorkerRPS is used to limit "worker" requests (PollFor...Task, RespondTask..., etc)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListWorkerrps
+	// Value type: Int
+	// Default value: UnlimitedRPS (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListWorkerRPS
 	// FrontendGlobalDomainVisibilityRPS is used to limit "visibility" requests (ListWorkflow* and similar)
 	// per domain to a target RPS that is shared across the entire cluster.
 	//
@@ -646,19 +720,20 @@ const (
 	// Default value: 100000
 	// Allowed filters: DomainName
 	FrontendGlobalDomainAsyncRPS
+	// FrontendGlobalTaskListAsyncRPS is used to limit "async" requests (StartWorkflowAsync, etc for many "user" APIs)
+	// per task list to a target RPS that is shared across the entire cluster.
+	//
+	// KeyName: frontend.globalTaskListAsyncrps
+	// Value type: Int
+	// Default value: 100000 (0 triggers a fallback to per-instance-RPS, generally avoid)
+	// Allowed filters: DomainName,TaskListName
+	FrontendGlobalTaskListAsyncRPS
 	// FrontendDecisionResultCountLimit is max number of decisions per RespondDecisionTaskCompleted request
 	// KeyName: frontend.decisionResultCountLimit
 	// Value type: Int
 	// Default value: 0
 	// Allowed filters: DomainName
 	FrontendDecisionResultCountLimit
-	// FrontendHistoryMgrNumConns is for persistence cluster.NumConns
-	// KeyName: frontend.historyMgrNumConns
-	// Value type: Int
-	// Default value: 10
-	// Allowed filters: N/A
-	// Deprecated: not used
-	FrontendHistoryMgrNumConns
 	// FrontendThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger
 	// KeyName: frontend.throttledLogRPS
 	// Value type: Int
@@ -744,31 +819,31 @@ const (
 	// KeyName: matching.minTaskThrottlingBurstSize
 	// Value type: Int
 	// Default value: 1
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingMinTaskThrottlingBurstSize
 	// MatchingGetTasksBatchSize is the maximum batch size to fetch from the task buffer
 	// KeyName: matching.getTasksBatchSize
 	// Value type: Int
 	// Default value: 1000
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingGetTasksBatchSize
 	// MatchingOutstandingTaskAppendsThreshold is the threshold for outstanding task appends
 	// KeyName: matching.outstandingTaskAppendsThreshold
 	// Value type: Int
 	// Default value: 250
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingOutstandingTaskAppendsThreshold
 	// MatchingMaxTaskBatchSize is max batch size for task writer
 	// KeyName: matching.maxTaskBatchSize
 	// Value type: Int
 	// Default value: 100
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingMaxTaskBatchSize
 	// MatchingMaxTaskDeleteBatchSize is the max batch size for range deletion of tasks
 	// KeyName: matching.maxTaskDeleteBatchSize
 	// Value type: Int
 	// Default value: 100
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingMaxTaskDeleteBatchSize
 	// MatchingThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger
 	// KeyName: matching.throttledLogRPS
@@ -780,37 +855,37 @@ const (
 	// KeyName: matching.numTasklistWritePartitions
 	// Value type: Int
 	// Default value: 1
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingNumTasklistWritePartitions
 	// MatchingNumTasklistReadPartitions is the number of read partitions for a task list
 	// KeyName: matching.numTasklistReadPartitions
 	// Value type: Int
 	// Default value: 1
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingNumTasklistReadPartitions
 	// MatchingForwarderMaxOutstandingPolls is the max number of inflight polls from the forwarder
 	// KeyName: matching.forwarderMaxOutstandingPolls
 	// Value type: Int
 	// Default value: 1
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingForwarderMaxOutstandingPolls
 	// MatchingForwarderMaxOutstandingTasks is the max number of inflight addTask/queryTask from the forwarder
 	// KeyName: matching.forwarderMaxOutstandingTasks
 	// Value type: Int
 	// Default value: 1
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingForwarderMaxOutstandingTasks
 	// MatchingForwarderMaxRatePerSecond is the max rate at which add/query can be forwarded
 	// KeyName: matching.forwarderMaxRatePerSecond
 	// Value type: Int
 	// Default value: 10
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingForwarderMaxRatePerSecond
 	// MatchingForwarderMaxChildrenPerNode is the max number of children per node in the task list partition tree
 	// KeyName: matching.forwarderMaxChildrenPerNode
 	// Value type: Int
 	// Default value: 20
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingForwarderMaxChildrenPerNode
 	// MatchingReadRangeSize is the read range size for the task reader
 	// KeyName: matching.readRangeSize
@@ -818,14 +893,30 @@ const (
 	// Default value: 50000
 	// Allowed filters: N/A
 	MatchingReadRangeSize
-
+	// MatchingPartitionUpscaleRPS is the threshold of adding tasks RPS per partition to trigger upscale
+	// KeyName: matching.partitionUpscaleRPS
+	// Value type: Int
+	// Default value: 200
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingPartitionUpscaleRPS
 	// MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition
 	// KeyName: matching.isolationGroupsPerPartition
 	// Value type: Int
 	// Default value: 2
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupsPerPartition
+	// MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager.
+	// KeyName: matching.percentageOnboardedToShardManager
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedToShardManager
+	// MatchingTaskListMinimumWritePartitions is the minimum number of write partitions that the AdaptiveScaler will specify for a TaskList.
+	// KeyName: matching.taskListMinimumWritePartitions
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: DomainName,TasklistName,TaskType
+	MatchingTaskListMinimumWritePartitions
 
 	// key for history
 
@@ -931,22 +1022,23 @@ const (
 	// Default value: 200
 	// Allowed filters: N/A
 	TaskSchedulerWorkerCount
-	// TaskSchedulerShardWorkerCount is deprecated
-	TaskSchedulerShardWorkerCount
 	// TaskSchedulerQueueSize is the size of task channel for host level task scheduler
 	// KeyName: history.taskSchedulerQueueSize
 	// Value type: Int
 	// Default value: 10000
 	// Allowed filters: N/A
 	TaskSchedulerQueueSize
-	// TaskSchedulerShardQueueSize is deprecated
-	TaskSchedulerShardQueueSize
 	// TaskSchedulerDispatcherCount is the number of task dispatcher in task scheduler (only applies to host level task scheduler)
 	// KeyName: history.taskSchedulerDispatcherCount
 	// Value type: Int
 	// Default value: 1
 	// Allowed filters: N/A
 	TaskSchedulerDispatcherCount
+	// TaskSchedulerGlobalDomainRPS is the task scheduling domain rate limit per second for the whole Cadence cluster
+	// KeyName: history.taskSchedulerGlobalDomainRPS
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: DomainName
 	TaskSchedulerGlobalDomainRPS
 	// TaskCriticalRetryCount is the critical retry count for background tasks
 	// when task attempt exceeds this threshold:
@@ -963,7 +1055,17 @@ const (
 	// Default value: 2 // 3 levels, start from 0
 	// Allowed filters: N/A
 	QueueProcessorSplitMaxLevel
+	// QueueMaxPendingTaskCount is the max number of pending tasks in the queue
+	// KeyName: history.queueMaxPendingTaskCount
+	// Value type: Int
+	// Default value: 10000
+	// Allowed filters: N/A
 	QueueMaxPendingTaskCount
+	// QueueCriticalPendingTaskCount is the critical pending task count for the queue, which is supposed to be less than QueueMaxPendingTaskCount
+	// KeyName: history.queueCriticalPendingTaskCount
+	// Value type: Int
+	// Default value: 9000
+	// Allowed filters: N/A
 	QueueCriticalPendingTaskCount
 	// TimerTaskBatchSize is batch size for timer processor to process tasks
 	// KeyName: history.timerTaskBatchSize
@@ -1082,6 +1184,12 @@ const (
 	// Default value: 4000
 	// Allowed filters: N/A
 	ReplicatorTaskDeleteBatchSize
+	// HistoryNodeDeleteBatchSize is batch size for deleting history nodes
+	// KeyName: history.historyNodeDeleteBatchSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: N/A
+	HistoryNodeDeleteBatchSize
 	// ReplicatorReadTaskMaxRetryCount is the number of read replication task retry time
 	// KeyName: history.replicatorReadTaskMaxRetryCount
 	// Value type: Int
@@ -1095,26 +1203,24 @@ const (
 	// Allowed filters: N/A
 	ReplicatorCacheCapacity
 	// ReplicatorCacheMaxSize is the max size of the replication cache in bytes
-	// KeyName: history.replicatorCacheSize
+	// KeyName: history.replicatorCacheMaxSize
 	// Value type: Int
 	// Default value: 0
 	// Allowed filters: N/A
 	ReplicatorCacheMaxSize
+	// ReplicationBudgetManagerMaxSizeBytes is the max size of the replication budget manager cache in bytes
+	// KeyName: history.replicationBudgetManagerMaxSizeBytes
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ReplicationBudgetManagerMaxSizeBytes
+	// ReplicationBudgetManagerMaxSizeCount is the max count of the replication budget manager cache
+	// KeyName: history.replicationBudgetManagerMaxSizeCount
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
+	ReplicationBudgetManagerMaxSizeCount
 
-	// ExecutionMgrNumConns is persistence connections number for ExecutionManager
-	// KeyName: history.executionMgrNumConns
-	// Value type: Int
-	// Default value: 50
-	// Allowed filters: N/A
-	// Deprecated: not used
-	ExecutionMgrNumConns
-	// HistoryMgrNumConns is persistence connections number for HistoryManager
-	// KeyName: history.historyMgrNumConns
-	// Value type: Int
-	// Default value: 50
-	// Allowed filters: N/A
-	// Deprecated: not used
-	HistoryMgrNumConns
 	// MaximumBufferedEventsBatch is max number of buffer event in mutable state
 	// KeyName: history.maximumBufferedEventsBatch
 	// Value type: Int
@@ -1169,12 +1275,17 @@ const (
 	// Default value: DefaultHistoryMaxAutoResetPoints
 	// Allowed filters: DomainName
 	HistoryMaxAutoResetPoints
-	// ParentClosePolicyThreshold is decides that parent close policy will be processed by sys workers(if enabled) ifthe number of children greater than or equal to this threshold
+	// ParentClosePolicyThreshold decides that parent close policy will be processed by sys workers(if enabled) if the number of children is greater than or equal to this threshold
 	// KeyName: history.parentClosePolicyThreshold
 	// Value type: Int
 	// Default value: 10
 	// Allowed filters: DomainName
 	ParentClosePolicyThreshold
+	// ParentClosePolicyBatchSize is the batch size of parent close policy processed by sys workers
+	// KeyName: history.parentClosePolicyBatchSize
+	// Value type: Int
+	// Default value: 200
+	// Allowed filters: DomainName
 	ParentClosePolicyBatchSize
 	// NumParentClosePolicySystemWorkflows is key for number of parentClosePolicy system workflows running in total
 	// KeyName: history.numParentClosePolicySystemWorkflows
@@ -1225,6 +1336,11 @@ const (
 	// Default value: 0
 	// Allowed filters: DomainName
 	MutableStateChecksumVerifyProbability
+	// TaskSchedulerMigrationRatio is the ratio of task that is migrated to new scheduler
+	// KeyName: history.taskSchedulerMigrationRatio
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: N/A
 	TaskSchedulerMigrationRatio
 	// MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.
 	// KeyName: history.activityDispatchForSyncMatchCountByDomain
@@ -1254,7 +1370,6 @@ const (
 	// Default value: UnlimitedRPS
 	// Allowed filters: DomainName
 	WorkflowIDExternalRPS
-
 	// WorkflowIDInternalRPS is the rate limit per workflowID for internal calls
 	// KeyName: history.workflowIDInternalRPS
 	// Value type: Int
@@ -1447,37 +1562,21 @@ const (
 	// Default value: 100
 	ESAnalyzerMinNumWorkflowsForAvg
 
-	// key for shard manager
-
-	// ShardManagerPersistenceMaxQPS is the max qps a shard manager host can query DB
-	// KeyName: shardManager.persistenceMaxQPS
+	// VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query
+	// KeyName: frontend.visibilityArchivalQueryMaxRangeInDays
 	// Value type: Int
-	// Default value: 3000
+	// Default value: 60
 	// Allowed filters: N/A
-	ShardManagerPersistenceMaxQPS
-	// ShardManagerPersistenceGlobalMaxQPS is the max qps matching cluster can query DB
-	// KeyName: shardManager.persistenceGlobalMaxQPS
-	// Value type: Int
-	// Default value: 0
-	// Allowed filters: N/A
-	ShardManagerPersistenceGlobalMaxQPS
-
-	// ShardManagerThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger
-	// KeyName: shardManager.throttledLogRPS
-	// Value type: Int
-	// Default value: 20
-	// Allowed filters: N/A
-	ShardManagerThrottledLogRPS
-
-	// Usage: VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query
-	// KeyName: N/A
-	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	VisibilityArchivalQueryMaxRangeInDays
-	// Usage: VisibilityArchivalQueryMaxQPS is the timeout for a visibility archival query
-	// KeyName: N/A
-	// Default value: N/A
+	// VisibilityArchivalQueryMaxQPS is the timeout for a visibility archival query
+	// KeyName: frontend.visibilityArchivalQueryMaxQPS
+	// Value type: Int
+	// Default value: 1
+	// Allowed filters: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	VisibilityArchivalQueryMaxQPS
 
 	// WorkflowDeletionJitterRange defines the duration in minutes for workflow close tasks jittering
@@ -1491,20 +1590,21 @@ const (
 	// Value type: Int
 	// Default value: 100
 	SampleLoggingRate
-	// LargeShardHistorySizeMetricThreshold defines the threshold for what consititutes a large history storage size to alert on
+	// LargeShardHistorySizeMetricThreshold defines the threshold for what constitutes a large history storage size to alert on
 	// KeyName: system.largeShardHistorySizeMetricThreshold
 	// Value type: Int
 	// Default value: 10485760 (10mb)
 	LargeShardHistorySizeMetricThreshold
-	// LargeShardHistoryEventMetricThreshold defines the threshold for what consititutes a large history event size to alert on
+	// LargeShardHistoryEventMetricThreshold defines the threshold for what constitutes a large history event size to alert on
 	// KeyName: system.largeShardHistoryEventMetricThreshold
 	// Value type: Int
 	// Default value: 50 * 1024
 	LargeShardHistoryEventMetricThreshold
-	// LargeShardHistoryBlobMetricThreshold defines the threshold for what consititutes a large history blob size to alert on
+	// LargeShardHistoryBlobMetricThreshold defines the threshold for what constitutes a large history blob size to alert on
 	// KeyName: system.largeShardHistoryBlobMetricThreshold
 	// Value type: Int
 	// Default value: 262144 (1/4mb)
+	LargeShardHistoryBlobMetricThreshold
 
 	// IsolationGroupStateUpdateRetryAttempts
 	// KeyName: system.isolationGroupStateUpdateRetryAttempts
@@ -1512,15 +1612,41 @@ const (
 	// Default value: 2
 	IsolationGroupStateUpdateRetryAttempts
 
-	LargeShardHistoryBlobMetricThreshold
-
 	// DeleteHistoryEventContextTimeout in seconds
 	// KeyName: system.deleteHistoryEventContextTimeout
 	// Value type: Int
 	// Default value: 30
 	DeleteHistoryEventContextTimeout
 
+	// QueueMaxVirtualQueueCount is the max number of virtual queues
+	// KeyName: history.queueMaxVirtualQueueCount
+	// Value type: Int
+	// Default value: 2
+	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
+
+	// ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction.
+	// etcd enforces a server-side limit (--max-txn-ops, default 128).
+	// This value must not exceed the etcd cluster's configured limit.
+	// KeyName: shardDistributor.maxEtcdTxnOps
+	// Value type: Int
+	// Default value: 128
+	// Allowed filters: N/A
+	ShardDistributorMaxEtcdTxnOps
+
+	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
+	// KeyName: history.taskListNiceValue
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName
+	HistoryTaskListNiceValue
+
+	// OperationalConfigStoreUpdateRetryAttempts is the number of attempts
+	// to push a value to the operational dynamic config store on conflict.
+	// KeyName: system.operationalConfigStoreUpdateRetryAttempts
+	// Value type: Int
+	// Default value: 1
+	OperationalConfigStoreUpdateRetryAttempts
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -1555,6 +1681,7 @@ const (
 	// KeyName: system.enableLogCustomerQueryParameter
 	// Value type: Bool
 	// Default value: false
+	// Allowed filters: DomainName
 	EnableLogCustomerQueryParameter
 	// EmitShardDiffLog is whether emit the shard diff log
 	// KeyName: history.emitShardDiffLog
@@ -1612,6 +1739,15 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
+	// EnableWorkflowTimerTaskCleanup enables deletion of tracked workflow timer tasks when
+	// the workflow execution record is cleaned up at the end of the retention period. This
+	// prevents orphaned timer task rows from accumulating in Cassandra. Feature flag,
+	// intended to be defaulted to true once validated.
+	// KeyName: system.enableWorkflowTimerTaskCleanup
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableWorkflowTimerTaskCleanup
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -1624,6 +1760,12 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableConnectionRetainingDirectChooser
+	// EnableDomainAuditLogging enables audit logging for a domain to the domain audit log table
+	// KeyName: system.enableDomainAuditLogging
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableDomainAuditLogging
 
 	// key for frontend
 
@@ -1658,7 +1800,7 @@ const (
 	// KeyName: matching.enableSyncMatch
 	// Value type: Bool
 	// Default value: true
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableSyncMatch
 	// MatchingEnableTaskInfoLogByDomainID is enables info level logs for decision/activity task based on the request domainID
 	// KeyName: matching.enableTaskInfoLogByDomainID
@@ -1666,23 +1808,36 @@ const (
 	// Default value: false
 	// Allowed filters: DomainID
 	MatchingEnableTaskInfoLogByDomainID
-	// MatchingEnableTasklistGuardAgainstOwnershipShardLoss
-	// enables guards to prevent tasklists from processing if there is any detection that the host
-	// no longer is active or owns the shard
-	// KeyName: matching.enableTasklistGuardAgainstOwnershipLoss
-	// Value type: Bool
-	// Default value: false
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
 	// Default value: true
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableStandbyTaskCompletion
 
+	// MatchingEnableGetNumberOfPartitionsFromCache is to enable getting number of partitions from cache instead of dynamic config
+	// KeyName: matching.enableGetNumberOfPartitionsFromCache
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableGetNumberOfPartitionsFromCache
+	// MatchingEnableAdaptiveScaler is to enable adaptive task list scaling
+	// KeyName: matching.enableAdaptiveScaler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableAdaptiveScaler
+	// MatchingEnablePartitionEmptyCheck enables using TaskListStatus.empty to check if a partition is empty
+	// KeyName: matching.enablePartitionEmptyCheck
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnablePartitionEmptyCheck
+	// MatchingEnableReturnAllTaskListKinds returns TaskLists of all kinds when GetTaskListsByDomain is called. Useful in testing Cadence
+	// KeyName: matching.matchingReturnAllTaskListKinds
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	MatchingEnableReturnAllTaskListKinds
 
 	// key for history
@@ -1741,8 +1896,23 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	TransferProcessorEnableValidator
+	// TaskSchedulerEnableRateLimiter indicates whether the task scheduler rate limiter is enabled
+	// KeyName: history.taskSchedulerEnableRateLimiter
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	TaskSchedulerEnableRateLimiter
+	// TaskSchedulerEnableRateLimiterShadowMode indicates whether the task scheduler rate limiter is in shadow mode
+	// KeyName: history.taskSchedulerEnableRateLimiterShadowMode
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: DomainName
 	TaskSchedulerEnableRateLimiterShadowMode
+	// TaskSchedulerEnableMigration indicates whether the task scheduler migration is enabled
+	// KeyName: history.taskSchedulerEnableMigration
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	TaskSchedulerEnableMigration
 	// EnableAdminProtection is whether to enable admin checking
 	// KeyName: history.enableAdminProtection
@@ -1823,6 +1993,12 @@ const (
 	// Default value: true
 	// Allowed filters: DomainName
 	EnableRecordWorkflowExecutionUninitialized
+	// EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails
+	// KeyName: history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation
 	// AllowArchivingIncompleteHistory will continue on when seeing some error like history mutated(usually caused by database consistency issues)
 	// KeyName: worker.AllowArchivingIncompleteHistory
 	// Value type: Bool
@@ -1914,6 +2090,13 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableBatcher
+	// EnableScheduler decides whether to start the scheduler worker for cron-based scheduling.
+	// Can be filtered by domain to enable/disable per domain.
+	// KeyName: worker.enableScheduler
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: DomainName
+	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
 	// KeyName: system.enableParentClosePolicyWorker
 	// Value type: Bool
@@ -1992,16 +2175,19 @@ const (
 	// KeyName: N/A
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	EnableAuthorization
 	// EnableServiceAuthorization is the key to enable authorization for a service, only for extension binary:
 	// KeyName: N/A
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	EnableServiceAuthorization
 	// EnableServiceAuthorizationLogOnly is the key to enable authorization logging for a service, only for extension binary:
 	// KeyName: N/A
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	EnableServiceAuthorizationLogOnly
 	// ESAnalyzerPause defines if we want to dynamically pause the analyzer workflow
 	// KeyName: worker.ESAnalyzerPause
@@ -2012,6 +2198,7 @@ const (
 	// KeyName: N/A
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	EnableArchivalCompression
 	// ESAnalyzerEnableAvgDurationBasedChecks controls if we want to enable avg duration based task refreshes
 	// KeyName: worker.ESAnalyzerEnableAvgDurationBasedChecks
@@ -2031,6 +2218,11 @@ const (
 	// Default value: false
 	EnablePendingActivityValidation
 
+	// EnableCassandraAllConsistencyLevelDelete uses all consistency level for Cassandra delete operations
+	// KeyName: system.enableCassandraAllConsistencyLevelDelete
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	EnableCassandraAllConsistencyLevelDelete
 
 	// EnableTasklistIsolation Is a feature to enable subdivision of workflows by units called 'isolation-groups'
@@ -2045,7 +2237,7 @@ const (
 	// KeyName: matching.enablePartitionIsolationGroupAssignment
 	// Value type: bool
 	// Default value: false
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	EnablePartitionIsolationGroupAssignment
 
 	// EnableShardIDMetrics turns on or off shardId metrics
@@ -2054,21 +2246,27 @@ const (
 	// Default value: true
 	EnableShardIDMetrics
 
-	EnableTimerDebugLogByDomainID
-
-	// EnableTaskVal is which allows the taskvalidation to be enabled.
-	// KeyName: system.enableTaskVal
+	// EnableTimerDebugLogByDomainID enables log for debugging timer task issue by domain
+	// KeyName: history.enableTimerDebugLogByDomainID
 	// Value type: Bool
 	// Default value: false
 	// Allowed filters: DomainID
-	EnableTaskVal
+	EnableTimerDebugLogByDomainID
 
-	// EnableRetryForChecksumFailure enables retry if mutable state checksum verification fails
-	// KeyName: history.enableMutableStateChecksumFailureRetry
+	// EnableCorruptionAutoRepair enables automatic repair of corrupted workflows via StateRebuilder
+	// When enabled, detected corruption triggers automatic repair and forces operation retry.
+	// KeyName: history.enableCorruptionAutoRepair
 	// Value type: Bool
 	// Default value: false
 	// Allowed filters: DomainName
-	EnableRetryForChecksumFailure
+	EnableCorruptionAutoRepair
+
+	// RequireChecksumMatchAfterRebuildRepair requires that rebuilt state produces same checksum as original
+	// KeyName: history.requireChecksumMatchAfterRebuildRepair
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: DomainName
+	RequireChecksumMatchAfterRebuildRepair
 
 	// EnableStrongIdempotency enables strong idempotency for APIs
 	// KeyName: history.enableStrongIdempotency
@@ -2088,11 +2286,26 @@ const (
 	// KeyName: matching.enableClientAutoConfig
 	// Value type: Bool
 	// Default value: false
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingEnableClientAutoConfig
 
+	// EnableNoSQLHistoryTaskDualWriteMode is to enable dual write of history events
+	// KeyName: history.enableNoSQLHistoryTaskDualWrite
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	EnableNoSQLHistoryTaskDualWriteMode
+	// ReadNoSQLHistoryTaskFromDataBlob is to read history tasks from data blob
+	// KeyName: history.readNoSQLHistoryTaskFromDataBlob
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	ReadNoSQLHistoryTaskFromDataBlob
+	// ReadNoSQLShardFromDataBlob is to read shards from data blob
+	// KeyName: history.readNoSQLShardFromDataBlob
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: N/A
 	ReadNoSQLShardFromDataBlob
 	// EnableSizeBasedHistoryExecutionCache is the feature flag to enable size based cache for execution cache
 	// KeyName: history.enableSizeBasedHistoryExecutionCache
@@ -2106,13 +2319,103 @@ const (
 	// Default value: false
 	EnableSizeBasedHistoryEventCache
 
+	// DisableTransferFailoverQueue is to disable transfer failover queue
+	// KeyName: history.disableTransferFailoverQueue
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	DisableTransferFailoverQueue
+	// DisableTimerFailoverQueue is to disable timer failover queue
+	// KeyName: history.disableTimerFailoverQueue
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
 	DisableTimerFailoverQueue
 
+	// EnableTransferQueueV2 is to enable transfer queue v2
+	// KeyName: history.enableTransferQueueV2
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
 	EnableTransferQueueV2
+	// EnableTimerQueueV2 is to enable timer queue v2
+	// KeyName: history.enableTimerQueueV2
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
 	EnableTimerQueueV2
+	// EnableTransferQueueV2PendingTaskCountAlert is to enable transfer queue v2 pending task count alert
+	// KeyName: history.enableTransferQueueV2PendingTaskCountAlert
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
 	EnableTransferQueueV2PendingTaskCountAlert
+	// EnableTimerQueueV2PendingTaskCountAlert is to enable timer queue v2 pending task count alert
+	// KeyName: history.enableTimerQueueV2PendingTaskCountAlert
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
 	EnableTimerQueueV2PendingTaskCountAlert
+
+	// EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain
+	// KeyName: frontend.enableActiveClusterSelectionPolicyInStartWorkflow
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableActiveClusterSelectionPolicyInStartWorkflow
+
+	// EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts.
+	// KeyName: history.enforceDecisionTaskAttempts
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnforceDecisionTaskAttempts
+
+	// MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists)
+	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
+	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: N/A
+	MatchingExcludeShortLivedTaskListsFromShardManager
+	// MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager.
+	// When true, all task lists fall back to the hash ring, ignoring MatchingPercentageOnboardedToShardManager.
+	// KeyName: matching.emergencyOffboardingFromShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingEmergencyOffboardingFromShardManager
+	// MatchingPercentageOnboardedReadFromOperationalStore selects the source of
+	// MatchingPercentageOnboardedToShardManager during the migration to the cassandra-backed
+	// operational dynamic config store.
+	// When false (default), cadence reads the value from the generic dynamic config.
+	// When true, cadence reads the value from the operational dynamic config store.
+	// KeyName: matching.percentageOnboardedReadFromOperationalStore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedReadFromOperationalStore
+
+	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
+	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableHierarchicalWeightedRoundRobinTaskScheduler
+
+	// EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain
+	// KeyName: history.enableTaskListAwareTaskSchedulerByDomain
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: DomainName
+	EnableTaskListAwareTaskSchedulerByDomain
+
+	// HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages.
+	// When enabled the HistoryTaskDLQProcessor will be started alongside the lifecycle of the history engine.
+	// KeyName: history.historyTaskDLQProcessorEnabled
+	// Value type: Bool
+	// Default value: false
+	HistoryTaskDLQProcessorEnabled
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -2166,7 +2469,6 @@ const (
 
 	// key for history
 
-	TaskRedispatchIntervalJitterCoefficient
 	// QueueProcessorRandomSplitProbability is the probability for a domain to be split to a new processing queue
 	// KeyName: history.queueProcessorRandomSplitProbability
 	// Value type: Float64
@@ -2263,6 +2565,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	HistoryErrorInjectionRate
+	// ReplicationBudgetManagerSoftCapThreshold is the soft cap threshold for the replication budget manager cache (0.0 to 1.0)
+	// KeyName: history.replicationBudgetManagerSoftCapThreshold
+	// Value type: Float64
+	// Default value: 1.0
+	// Allowed filters: N/A
+	ReplicationBudgetManagerSoftCapThreshold
 	// ReplicationTaskFetcherTimerJitterCoefficient is the jitter for fetcher timer
 	// KeyName: history.ReplicationTaskFetcherTimerJitterCoefficient
 	// Value type: Float64
@@ -2273,11 +2581,13 @@ const (
 	// KeyName: N/A
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	WorkerDeterministicConstructionCheckProbability
 	// WorkerBlobIntegrityCheckProbability controls the probability of running an integrity check for any given archival
 	// KeyName: N/A
 	// Default value: N/A
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	WorkerBlobIntegrityCheckProbability
 
 	// HistoryGlobalRatelimiterNewDataWeight defines how much weight to give each host's newest data, per update.  Must be between 0 and 1, higher values match new values more closely after a single update.
@@ -2288,6 +2598,14 @@ const (
 
 	MatchingPartitionDownscaleFactor
 
+	// MatchingOverrideTaskListRPS is the RPS override for a specific TaskList.
+	// When set to a non-zero value, this overrides the RPS value that pollers specify.
+	// KeyName: matching.overrideTaskListRps
+	// Value type: Float64
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName, TaskType
+	MatchingOverrideTaskListRPS
+
 	// Key for shard distributor
 
 	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor client
@@ -2297,12 +2615,57 @@ const (
 	// Allowed filters: N/A
 	ShardDistributorErrorInjectionRate
 
-	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor executor client
+	// ShardDistributorExecutorErrorInjectionRate is rate for injecting random error in shard distributor executor client
 	// KeyName: sharddistributorexecutor.errorInjectionRate
 	// Value type: Float64
 	// Default value: 0
 	// Allowed filters: N/A
 	ShardDistributorExecutorErrorInjectionRate
+
+	// ShardDistributorLoadBalancingNaiveMaxDeviation is max deviation between the coldest and hottest executors
+	// in naive load balancing mode
+	//
+	// KeyName: shardDistributor.loadBalancingNaive.maxDeviation
+	// Value type: Float64
+	// Default value: 2.0
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingNaiveMaxDeviation
+
+	// ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards
+	// that may be moved per greedy load-balance pass.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.moveBudgetProportion
+	// Value type: Float64
+	// Default value: 0.01
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyMoveBudgetProportion
+
+	// ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load
+	// that qualifies an executor as a greedy rebalance source.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisUpperBand
+	// Value type: Float64
+	// Default value: 1.15
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyHysteresisUpperBand
+
+	// ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load
+	// that qualifies an executor as a greedy rebalance destination.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisLowerBand
+	// Value type: Float64
+	// Default value: 0.90
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyHysteresisLowerBand
+
+	// ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination
+	// selection when maxLoad/meanLoad reaches this value.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.severeImbalanceRatio
+	// Value type: Float64
+	// Default value: 1.3
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedySevereImbalanceRatio
 
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
@@ -2399,6 +2762,7 @@ const (
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	EnableAuthorizationV2
 	TasklistLoadBalancerStrategy
 
@@ -2407,20 +2771,8 @@ const (
 	// Value type: string ["disabled","shadow","enabled"]
 	// Default value: "disabled"
 	// TODO: https://github.com/uber/cadence/issues/3861
+	// Note: not currently used in open-source
 	EnableAdminAuthorization
-
-	// MatchingShardDistributionMode is the mode of shard distribution for matching, we currently have four modes, we _highly_
-	// recommend using hash_ring while the shard distributor is still in development.
-	//
-	// - "hash_ring" means that the shards are distributed using a consistent hash ring, in particular using the ringpop library
-	// - "shard_distributor" means that the shards are distributed using the _highly experimental_ shard distributor service
-	// - "hash_ring-shadow-shard_distributor" means that the shards are distrubuted using the hash ring, but shadowed by the shard distributor
-	// - "shard_distributor-shadow-hash_ring" means that the shards are distrubuted using the shard distributor, but shadowed by the hash ring
-	//
-	// KeyName: matching.shardDistributionMode
-	// Value type: string enum: "hash_ring" or "shard_distributor"
-	// Default value: "hash_ring"
-	MatchingShardDistributionMode
 
 	// SerializationEncoding is the encoding type for blobs
 	// KeyName: history.serializationEncoding
@@ -2428,19 +2780,41 @@ const (
 	// Default value: "thriftrw"
 	SerializationEncoding
 
-	// MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism
+	// ShardDistributorMigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism
 	//
 	// "invalid" invalid mode for the migration, not expected to be used
 	// "local_pass" the executor library is integrated but no external call to the SD happening
-	// "local_pass_shadow" heartbeat calls to the SD to update the sharding state in SD
-	// "distributed_pass" the local sharding mechanism is sent to SD, returned by SD and applied in the onboarded service
 	// "onboarded" the sharding logic in SD is used
 	//
 	// KeyName: shardDistributor.migrationMode
 	// Value type: String
-	// Default value: local_pass
+	// Default value: onboarded
 	// Allowed filters: namespace
-	MigrationMode
+	ShardDistributorMigrationMode
+
+	// ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor
+	// Depending on the mode, the shard distributor will use different ways to distribute the shards
+	//
+	// * "naive" 	- mode assigns shards to the least loaded hosts without considering the existing shard distribution
+	// * "greedy" 	- mode balances the load across all hosts while minimizing shard movements and uses shard statistics to make better decisions
+	//
+	// KeyName: shardDistributor.loadBalancingMode
+	// Value type: String
+	// Default value: "naive"
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingMode
+
+	// HistoryTaskDLQMode enables writing tasks to the History Task Dead Letter Queue rather than discarding them.
+	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
+	//
+	// * "enabled" - tasks are written to the DLQ and processed by the HistoryTaskDLQProcessor.
+	// * "shadow" - tasks are written to the DLQ but never processed.
+	//
+	// KeyName: history.HistoryTaskDLQMode
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// Allowed filters: domainName
+	HistoryTaskDLQMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -2487,30 +2861,38 @@ const (
 	// Value type: Duration
 	// Default value: 3 seconds
 	GlobalRatelimiterUpdateInterval
+	// FrontendMaxWorkerPollDelay is the maximum duration a worker poll request (PollForActivityTask, PollForDecisionTask)
+	// will wait for a rate limit token before being rejected. This setting doesn't completely control how
+	// long a request can take - the request will complete after the minimum of the configured request timeout
+	// KeyName: frontend.maxWorkerPollDelay
+	// Value type: Duration
+	// Default value: 0
+	// Allowed filters: DomainName
+	FrontendMaxWorkerPollDelay
 
 	// MatchingLongPollExpirationInterval is the long poll expiration interval in the matching service
 	// KeyName: matching.longPollExpirationInterval
 	// Value type: Duration
 	// Default value: time.Minute
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingLongPollExpirationInterval
 	// MatchingUpdateAckInterval is the interval for update ack
 	// KeyName: matching.updateAckInterval
 	// Value type: Duration
 	// Default value: 1m (1*time.Minute)
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingUpdateAckInterval
 	// MatchingIdleTasklistCheckInterval is the IdleTasklistCheckInterval
 	// KeyName: matching.idleTasklistCheckInterval
 	// Value type: Duration
 	// Default value: 5m (5*time.Minute)
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIdleTasklistCheckInterval
 	// MaxTasklistIdleTime is the max time tasklist being idle
 	// KeyName: matching.maxTasklistIdleTime
 	// Value type: Duration
 	// Default value: 5m (5*time.Minute)
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MaxTasklistIdleTime
 	// MatchingShutdownDrainDuration is the duration of traffic drain during shutdown
 	// KeyName: matching.shutdownDrainDuration
@@ -2525,34 +2907,54 @@ const (
 	// Allowed filters: DomainName
 	MatchingActivityTaskSyncMatchWaitTime
 
+	// MatchingPartitionUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions
+	// KeyName: matching.partitionUpscaleSustainedDuration
+	// Value type: Duration
+	// Default value: 1m
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingPartitionUpscaleSustainedDuration
+	// MatchingPartitionDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions
+	// KeyName: matching.partitionDownscaleSustainedDuration
+	// Value type: Duration
+	// Default value: 2m
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingPartitionDownscaleSustainedDuration
+	// MatchingAdaptiveScalerUpdateInterval is the internal for adaptive scaler to update
+	// KeyName: matching.adaptiveScalerUpdateInterval
+	// Value type: Duration
+	// Default value: 15s
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingAdaptiveScalerUpdateInterval
+	// MatchingQPSTrackerInterval is the interval for qps tracker's loop. Changes are not reflected until service restart
+	// KeyName: matching.qpsTrackerInterval
+	// Value type: Duration
+	// Default value: 10s
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingQPSTrackerInterval
 
 	// MatchingIsolationGroupUpscaleSustainedDuration is the sustained period to wait before upscaling the number of partitions an isolation group is assigned to
 	// KeyName: matching.isolationGroupUpscaleSustainedDuration
 	// Value type: Duration
 	// Default value: 1m
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupUpscaleSustainedDuration
 	// MatchingIsolationGroupDownscaleSustainedDuration is the sustained period to wait before downscaling the number of partitions an isolation group is assigned to
 	// KeyName: matching.isolationGroupDownscaleSustainedDuration
 	// Value type: Duration
 	// Default value: 2m
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupDownscaleSustainedDuration
 	// MatchingIsolationGroupHasPollersSustainedDuration is the sustained period to wait before considering an isolation group as an active and assigning partitions to it
 	// KeyName: matching.isolationGroupHasPollersSustainedDuration
 	// Value type: Duration
 	// Default value: 1m
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupHasPollersSustainedDuration
 	// MatchingIsolationGroupNoPollersSustainedDuration is the sustained period to wait before considering an isolation group as inactive and unassigning all partitions from it
 	// KeyName: matching.isolationGroupNoPollersSustainedDuration
 	// Value type: Duration
 	// Default value: 1m
-	// Allowed filters: DomainName,TasklistName,TasklistType
+	// Allowed filters: DomainName,TasklistName,TaskType
 	MatchingIsolationGroupNoPollersSustainedDuration
 
 	// HistoryLongPollExpirationInterval is the long poll expiration interval in the history service
@@ -2561,6 +2963,12 @@ const (
 	// Default value: 20s( time.Second*20)
 	// Allowed filters: DomainName
 	HistoryLongPollExpirationInterval
+	// CorruptionRepairTimeout is the timeout for corruption repair operations
+	// KeyName: history.corruptionRepairTimeout
+	// Value type: Duration
+	// Default value: 30s
+	// Allowed filters: DomainName
+	CorruptionRepairTimeout
 	// HistoryCacheTTL is TTL of history cache
 	// KeyName: history.cacheTTL
 	// Value type: Duration
@@ -2591,6 +2999,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
+	// WorkflowTimerTaskCleanupMinTTL is the minimum remaining time before a timer task is
+	// worth explicitly deleting at workflow execution cleanup. Timers scheduled to fire within
+	// this window are skipped — they will fire and clean up naturally.
+	// KeyName: history.workflowTimerTaskCleanupMinTTL
+	// Value type: Duration
+	// Default value: 240h (10 days)
+	// Allowed filters: N/A
+	WorkflowTimerTaskCleanupMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -2640,6 +3056,11 @@ const (
 	// Default value: 5s (5*time.Second)
 	// Allowed filters: N/A
 	QueueProcessorPollBackoffInterval
+	// VirtualSliceForceAppendInterval is the duration forcing a new virtual slice to be appended to the root virtual queue instead of being merged. It has 2 benefits: First, virtual slices won't grow infinitely, task loading for that slice can complete and its scope can be shrinked. Second, when we need to unload a virtual slice to free memory, we won't unload too many tasks.
+	// KeyName: history.virtualSliceForceAppendInterval
+	// Value type: Duration
+	// Default value: 5m
+	// Allowed filters: N/A
 	VirtualSliceForceAppendInterval
 	// TimerProcessorUpdateAckInterval is update interval for timer processor
 	// KeyName: history.timerProcessorUpdateAckInterval
@@ -2836,7 +3257,7 @@ const (
 	// ReplicationTaskProcessorStartWait is the wait time before each task processing batch
 	// KeyName: history.ReplicationTaskProcessorStartWait
 	// Value type: Duration
-	// Default value: 5s (5* time.Second)
+	// Default value: 0
 	// Allowed filters: ShardID
 	ReplicationTaskProcessorStartWait
 	// ReplicationTaskProcessorLatencyLogThreshold is the threshold of whether history will log history replication latency
@@ -2851,6 +3272,13 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	WorkerESProcessorFlushInterval
+	// SchedulerWorkerRefreshInterval is how often the scheduler worker manager
+	// scans the domain cache to start/stop per-domain scheduler workers.
+	// KeyName: worker.schedulerRefreshInterval
+	// Value type: Duration
+	// Default value: 1m (time.Minute)
+	// Allowed filters: N/A
+	SchedulerWorkerRefreshInterval
 	// WorkerTimeLimitPerArchivalIteration is controls the time limit of each iteration of archival workflow
 	// KeyName: worker.TimeLimitPerArchivalIteration
 	// Value type: Duration
@@ -2896,6 +3324,13 @@ const (
 	// Allowed filters: domainName, taskListName, taskListType
 	AsyncTaskDispatchTimeout
 
+	// AppendTaskTimeout is the timeout of appending tasks to persistence.
+	// KeyName: matching.appendTaskTimeout
+	// Value type: Duration
+	// Default value: 5 seconds
+	// Allowed filters: domainName, taskListName, taskListType
+	AppendTaskTimeout
+
 	// HistoryGlobalRatelimiterDecayAfter defines how long to wait for an update before considering a host's data "possibly gone", causing its weight to gradually decline.
 	// KeyName: history.globalRatelimiterDecayAfter
 	// Value type: Duration
@@ -2935,6 +3370,68 @@ const (
 	// Allowed filters: domainName, taskListName, taskListType
 	TaskIsolationPollerWindow
 
+	// DomainAuditLogTTL is the TTL for domain audit log entries
+	// KeyName: system.domainAuditLogTTL
+	// Value type: Duration
+	// Default value: 365 days (1 year)
+	// Allowed filters: DomainID
+	DomainAuditLogTTL
+
+	// HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ
+	// KeyName: history.historyTaskDLQProcessorInterval
+	// Value type: Duration
+	// Default value: 30m (30 * time.Minute)
+	// Allowed filters: ShardID
+	HistoryTaskDLQProcessorInterval
+
+	// ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between
+	// moving the same shard in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.perShardCooldown
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyPerShardCooldown
+
+	// ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant
+	// for exponential smoothing of shard load in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant
+
+	// OperationalConfigStorePollInterval controls how often the operational
+	// dynamic config store re-reads its snapshot from the primary database.
+	// KeyName: system.operationalConfigStorePollInterval
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStorePollInterval
+
+	// OperationalConfigStoreFetchTimeout is the per-call timeout used when
+	// fetching the operational dynamic config snapshot from the primary database.
+	// KeyName: system.operationalConfigStoreFetchTimeout
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStoreFetchTimeout
+
+	// OperationalConfigStoreUpdateTimeout is the per-call timeout used when
+	// writing an operational dynamic config snapshot to the primary database.
+	// KeyName: system.operationalConfigStoreUpdateTimeout
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStoreUpdateTimeout
+
+	// MatchingRecordTaskStartedTimeout is the request timeout for RecordActivityTaskStarted and RecordDecisionTaskStarted
+	// Any time we spend attempting to start an individual task is blocking that poller from starting a different task.
+	// If a task is taking too long we'd rather try other tasks to maintain higher throughput.
+	// At the same time, workflows with incredibly high contention will take longer to update. To avoid noise from
+	// expected failures we can adjust the value per domain.
+	// KeyName: matching.recordTaskStartedTimeout
+	// Value type: Duration
+	// Default value: 1s
+	// Allowed filters: Domain
+	MatchingRecordTaskStartedTimeout
+
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
 )
@@ -2971,6 +3468,11 @@ const (
 	// Default value: please see common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskPriorityWeight) in code base
 	// Allowed filters: N/A
 	TaskSchedulerRoundRobinWeights
+	// TaskSchedulerDomainRoundRobinWeights is the priority round robin weights for domains
+	// KeyName: history.taskSchedulerDomainRoundRobinWeight
+	// Value type: Map
+	// Default value: see common.ConvertIntMapToDynamicConfigMapProperty(DefaultTaskSchedulerRoundRobinWeights) in code base
+	// Allowed filters: DomainName
 	TaskSchedulerDomainRoundRobinWeights
 	// QueueProcessorPendingTaskSplitThreshold is the threshold for the number of pending tasks per domain
 	// KeyName: history.queueProcessorPendingTaskSplitThreshold
@@ -3013,6 +3515,13 @@ const (
 	// Default value: N/A
 	// Allowed filters: N/A
 	AllIsolationGroups
+
+	// RateLimiterBypassCallerTypes defines which caller types bypass rate limiters (both frontend and persistence)
+	// KeyName: system.rateLimiterBypassCallerTypes
+	// Value type: []string
+	// Default value: empty list
+	// Allowed filters: N/A
+	RateLimiterBypassCallerTypes
 
 	// HeaderForwardingRules defines which headers are forwarded from inbound calls to outbound.
 	// This value is only loaded at startup.
@@ -3059,6 +3568,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "",
 		DefaultValue: 0,
 		Filters:      nil,
+	},
+	TestGetIntPropertyFilteredByDomainAndTaskListKey: {
+		KeyName:      "testGetIntPropertyFilteredByDomainAndTaskListKey",
+		Description:  "",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
 	},
 	TransactionSizeLimit: {
 		KeyName:      "system.transactionSizeLimit",
@@ -3117,11 +3632,13 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	PendingActivitiesCountLimitError: {
 		KeyName:      "limit.pendingActivityCount.error",
+		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitError is the limit of how many pending activities a workflow can have at a point in time",
 		DefaultValue: 1024,
 	},
 	PendingActivitiesCountLimitWarn: {
 		KeyName:      "limit.pendingActivityCount.warn",
+		Filters:      []Filter{DomainName},
 		Description:  "PendingActivitiesCountLimitWarn is the limit of how many activities a workflow can have before a warning is logged",
 		DefaultValue: 512,
 	},
@@ -3261,10 +3778,22 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendMaxDomainUserRPSPerInstance is workflow domain rate limit per second",
 		DefaultValue: 1200,
 	},
+	FrontendMaxTaskListUserRPSPerInstance: {
+		KeyName:      "frontend.tasklistrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListUserRPSPerInstance is workflow task list rate limit per second",
+		DefaultValue: 1200,
+	},
 	FrontendMaxDomainWorkerRPSPerInstance: {
 		KeyName:      "frontend.domainworkerrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendMaxDomainWorkerRPSPerInstance is background-processing workflow domain rate limit per second",
+		DefaultValue: UnlimitedRPS,
+	},
+	FrontendMaxTaskListWorkerRPSPerInstance: {
+		KeyName:      "frontend.tasklistworkerrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListWorkerRPSPerInstance is background-processing workflow task list rate limit per second",
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendMaxDomainVisibilityRPSPerInstance: {
@@ -3279,16 +3808,34 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendMaxDomainAsyncRPSPerInstance is the per-instance async workflow request rate limit per second",
 		DefaultValue: 10000,
 	},
+	FrontendMaxTaskListAsyncRPSPerInstance: {
+		KeyName:      "frontend.tasklistasyncrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendMaxTaskListAsyncRPSPerInstance is the per-instance async workflow task list rate limit per second",
+		DefaultValue: 10000,
+	},
 	FrontendGlobalDomainUserRPS: {
 		KeyName:      "frontend.globalDomainrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainUserRPS is workflow domain rate limit per second for the whole Cadence cluster",
 		DefaultValue: UnlimitedRPS,
 	},
+	FrontendGlobalTaskListUserRPS: {
+		KeyName:      "frontend.globalTaskListrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListUserRPS is workflow task list rate limit per second for the whole Cadence cluster",
+		DefaultValue: UnlimitedRPS,
+	},
 	FrontendGlobalDomainWorkerRPS: {
 		KeyName:      "frontend.globalDomainWorkerrps",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendGlobalDomainWorkerRPS is background-processing workflow domain rate limit per second for the whole Cadence cluster",
+		DefaultValue: UnlimitedRPS,
+	},
+	FrontendGlobalTaskListWorkerRPS: {
+		KeyName:      "frontend.globalTaskListWorkerrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListWorkerRPS is background-processing workflow task list rate limit per second for the whole Cadence cluster",
 		DefaultValue: UnlimitedRPS,
 	},
 	FrontendGlobalDomainVisibilityRPS: {
@@ -3303,16 +3850,17 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendGlobalDomainAsyncRPS is the per-domain async workflow request rate limit per second",
 		DefaultValue: 100000,
 	},
+	FrontendGlobalTaskListAsyncRPS: {
+		KeyName:      "frontend.globalTaskListAsyncrps",
+		Filters:      []Filter{DomainName, TaskListName},
+		Description:  "FrontendGlobalTaskListAsyncRPS is the per-task list async workflow request rate limit per second",
+		DefaultValue: 100000,
+	},
 	FrontendDecisionResultCountLimit: {
 		KeyName:      "frontend.decisionResultCountLimit",
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendDecisionResultCountLimit is max number of decisions per RespondDecisionTaskCompleted request",
 		DefaultValue: 0,
-	},
-	FrontendHistoryMgrNumConns: {
-		KeyName:      "frontend.historyMgrNumConns",
-		Description:  "Deprecated: not used. FrontendHistoryMgrNumConns is for persistence cluster.NumConns",
-		DefaultValue: 10,
 	},
 	FrontendThrottledLogRPS: {
 		KeyName:      "frontend.throttledLogRPS",
@@ -3472,6 +4020,17 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "MatchingIsolationGroupsPerPartition is the target number of isolation groups to assign to each partition",
 		DefaultValue: 2,
 	},
+	MatchingPercentageOnboardedToShardManager: {
+		KeyName:      "matching.percentageOnboardedToShardManager",
+		Description:  "MatchingPercentageOnboardedToShardManager is the percentage of task lists that will be onboarded to the shard manager",
+		DefaultValue: 0,
+	},
+	MatchingTaskListMinimumWritePartitions: {
+		KeyName:      "matching.taskListMinimumWritePartitions",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "MatchingTaskListMinimumWritePartitions is the minimum number of write partitions",
+		DefaultValue: 1,
+	},
 	HistoryRPS: {
 		KeyName:      "history.rps",
 		Description:  "HistoryRPS is request rate per second for each history host",
@@ -3560,20 +4119,10 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "TaskSchedulerWorkerCount is the number of workers per host in task scheduler",
 		DefaultValue: 200,
 	},
-	TaskSchedulerShardWorkerCount: {
-		KeyName:      "history.taskSchedulerShardWorkerCount",
-		Description:  "Deprecated",
-		DefaultValue: 0,
-	},
 	TaskSchedulerQueueSize: {
 		KeyName:      "history.taskSchedulerQueueSize",
 		Description:  "TaskSchedulerQueueSize is the size of task channel for host level task scheduler",
 		DefaultValue: 10000,
-	},
-	TaskSchedulerShardQueueSize: {
-		KeyName:      "history.taskSchedulerShardQueueSize",
-		Description:  "Deprecated",
-		DefaultValue: 200,
 	},
 	TaskSchedulerDispatcherCount: {
 		KeyName:      "history.taskSchedulerDispatcherCount",
@@ -3582,6 +4131,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	TaskSchedulerGlobalDomainRPS: {
 		KeyName:      "history.taskSchedulerGlobalDomainRPS",
+		Filters:      []Filter{DomainName},
 		Description:  "TaskSchedulerGlobalDomainRPS is the task scheduling domain rate limit per second for the whole Cadence cluster",
 		DefaultValue: 1000,
 	},
@@ -3703,6 +4253,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ReplicatorTaskDeleteBatchSize is batch size for ReplicatorProcessor to delete replication tasks",
 		DefaultValue: 4000,
 	},
+	HistoryNodeDeleteBatchSize: {
+		KeyName:      "history.historyNodeDeleteBatchSize",
+		Description:  "HistoryNodeDeleteBatchSize is batch size for deleting history nodes",
+		DefaultValue: 1000,
+	},
 	ReplicatorReadTaskMaxRetryCount: {
 		KeyName:      "history.replicatorReadTaskMaxRetryCount",
 		Description:  "ReplicatorReadTaskMaxRetryCount is the number of read replication task retry time",
@@ -3714,19 +4269,19 @@ var IntKeys = map[IntKey]DynamicInt{
 		DefaultValue: 0,
 	},
 	ReplicatorCacheMaxSize: {
-		KeyName:      "history.replicatorCacheSize",
+		KeyName:      "history.replicatorCacheMaxSize",
 		Description:  "ReplicatorCacheMaxSize is the max size of the replication cache in bytes",
 		DefaultValue: 0,
 	},
-	ExecutionMgrNumConns: {
-		KeyName:      "history.executionMgrNumConns",
-		Description:  "Deprecated: not used. ExecutionMgrNumConns is persistence connections number for ExecutionManager",
-		DefaultValue: 50,
+	ReplicationBudgetManagerMaxSizeBytes: {
+		KeyName:      "history.replicationBudgetManagerMaxSizeBytes",
+		Description:  "ReplicationBudgetManagerMaxSizeBytes is the max size of the replication budget manager cache in bytes",
+		DefaultValue: 0,
 	},
-	HistoryMgrNumConns: {
-		KeyName:      "history.historyMgrNumConns",
-		Description:  "Deprecated: not used. HistoryMgrNumConns is persistence connections number for HistoryManager",
-		DefaultValue: 50,
+	ReplicationBudgetManagerMaxSizeCount: {
+		KeyName:      "history.replicationBudgetManagerMaxSizeCount",
+		Description:  "ReplicationBudgetManagerMaxSizeCount is the max count of the replication budget manager cache",
+		DefaultValue: 0,
 	},
 	MaximumBufferedEventsBatch: {
 		KeyName:      "history.maximumBufferedEventsBatch",
@@ -3778,7 +4333,7 @@ var IntKeys = map[IntKey]DynamicInt{
 	ParentClosePolicyThreshold: {
 		KeyName:      "history.parentClosePolicyThreshold",
 		Filters:      []Filter{DomainName},
-		Description:  "ParentClosePolicyThreshold is decides that parent close policy will be processed by sys workers(if enabled) ifthe number of children greater than or equal to this threshold",
+		Description:  "ParentClosePolicyThreshold decides that parent close policy will be processed by sys workers(if enabled) if the number of children is greater than or equal to this threshold",
 		DefaultValue: 10,
 	},
 	ParentClosePolicyBatchSize: {
@@ -3833,12 +4388,12 @@ var IntKeys = map[IntKey]DynamicInt{
 	},
 	TaskSchedulerMigrationRatio: {
 		KeyName:      "history.taskSchedulerMigrationRatio",
-		Description:  "TaskSchedulerMigrationRatio is the ratio of task that is migrated to new scheduler",
+		Description:  "DEPRECATED: TaskSchedulerMigrationRatio is the ratio of task that is migrated to new scheduler",
 		DefaultValue: 0,
 	},
 	MaxActivityCountDispatchByDomain: {
 		KeyName:      "history.maxActivityCountDispatchByDomain",
-		Description:  "MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
+		Description:  "DEPRECATED: MaxActivityCountDispatchByDomain max # of activity tasks to dispatch to matching before creating transfer tasks. This is an performance optimization to skip activity scheduling efforts.",
 		DefaultValue: 0,
 	},
 	ReplicationTaskFetcherParallelism: {
@@ -4019,21 +4574,6 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ESAnalyzerMinNumWorkflowsForAvg controls how many workflows to have at least to rely on workflow run time avg per type",
 		DefaultValue: 100,
 	},
-	ShardManagerPersistenceMaxQPS: {
-		KeyName:      "shardManager.persistenceMaxQPS",
-		Description:  "ShardManagerPersistenceMaxQPS is the max qps shard manager host can query DB",
-		DefaultValue: 3000,
-	},
-	ShardManagerPersistenceGlobalMaxQPS: {
-		KeyName:      "shardManager.persistenceGlobalMaxQPS",
-		Description:  "ShardManagerPersistenceGlobalMaxQPS is the max qps shard manager cluster can query DB",
-		DefaultValue: 0,
-	},
-	ShardManagerThrottledLogRPS: {
-		KeyName:      "shardManager.throttledLogRPS",
-		Description:  "ShardManagerThrottledLogRPS is the rate limit on number of log messages emitted per second for throttled logger",
-		DefaultValue: 20,
-	},
 	VisibilityArchivalQueryMaxRangeInDays: {
 		KeyName:      "frontend.visibilityArchivalQueryMaxRangeInDays",
 		Description:  "VisibilityArchivalQueryMaxRangeInDays is the maximum number of days for a visibility archival query",
@@ -4083,6 +4623,22 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.queueMaxVirtualQueueCount",
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
+	},
+	ShardDistributorMaxEtcdTxnOps: {
+		KeyName:      "shardDistributor.maxEtcdTxnOps",
+		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
+		DefaultValue: 128,
+	},
+	HistoryTaskListNiceValue: {
+		KeyName:      "history.taskListNiceValue",
+		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
+	},
+	OperationalConfigStoreUpdateRetryAttempts: {
+		KeyName:      "system.operationalConfigStoreUpdateRetryAttempts",
+		Description:  "Number of attempts to push a value to the operational dynamic config store on conflict",
+		DefaultValue: 1,
 	},
 }
 
@@ -4147,6 +4703,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableRecordWorkflowExecutionUninitialized enables record workflow execution uninitialized state in ElasticSearch",
 		DefaultValue: false,
 	},
+	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: {
+		KeyName:      "history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation",
+		Description:  "EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails",
+		DefaultValue: true,
+	},
 	DisableListVisibilityByFilter: {
 		KeyName:      "frontend.disableListVisibilityByFilter",
 		Filters:      []Filter{DomainName},
@@ -4174,6 +4735,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGracefulFailover is whether enabling graceful failover",
 		DefaultValue: true,
 	},
+	EnableDomainAuditLogging: {
+		KeyName:      "system.enableDomainAuditLogging",
+		Description:  "EnableDomainAuditLogging enables audit logging for a domain to the domain audit log table",
+		DefaultValue: false,
+	},
 	DisallowQuery: {
 		KeyName:      "system.disallowQuery",
 		Filters:      []Filter{DomainName},
@@ -4189,6 +4755,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "system.enableGRPCOutbound",
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
+	},
+	EnableWorkflowTimerTaskCleanup: {
+		KeyName:      "system.enableWorkflowTimerTaskCleanup",
+		Description:  "Enables deletion of tracked workflow timer tasks when the execution record is cleaned up at the end of the retention period. Prevents orphaned timer rows from accumulating in Cassandra. Feature flag, intended to be defaulted to true once validated.",
+		DefaultValue: false,
 	},
 	EnableSQLAsyncTransaction: {
 		KeyName:      "system.enableSQLAsyncTransaction",
@@ -4232,11 +4803,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableTaskInfoLogByDomainID",
 		Filters:      []Filter{DomainID},
 		Description:  "MatchingEnableTaskInfoLogByDomainID is enables info level logs for decision/activity task based on the request domainID",
-		DefaultValue: false,
-	},
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss: {
-		KeyName:      "matching.enableTasklistGuardAgainstOwnershipLoss",
-		Description:  "allows guards to ensure that tasklists don't continue processing if there's signal that they've lost ownership",
 		DefaultValue: false,
 	},
 	MatchingEnableGetNumberOfPartitionsFromCache: {
@@ -4323,12 +4889,13 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	},
 	TaskSchedulerEnableRateLimiterShadowMode: {
 		KeyName:      "history.taskSchedulerEnableRateLimiterShadowMode",
+		Filters:      []Filter{DomainName},
 		Description:  "TaskSchedulerEnableRateLimiterShadowMode indicates whether the task scheduler rate limiter is in shadow mode",
 		DefaultValue: true,
 	},
 	TaskSchedulerEnableMigration: {
 		KeyName:      "history.taskSchedulerEnableMigration",
-		Description:  "TaskSchedulerEnableMigration indicates whether the task scheduler migration is enabled",
+		Description:  "DEPRECATED: TaskSchedulerEnableMigration indicates whether the task scheduler migration is enabled",
 		DefaultValue: false,
 	},
 	EnableAdminProtection: {
@@ -4475,6 +5042,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableBatcher is decides whether start batcher in our worker",
 		DefaultValue: true,
 	},
+	EnableScheduler: {
+		KeyName:      "worker.enableScheduler",
+		Filters:      []Filter{DomainName},
+		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling. Can be filtered by domain to enable/disable per domain.",
+		DefaultValue: true,
+	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",
 		Description:  "EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task",
@@ -4600,24 +5173,25 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "Enable log for debugging timer task issue by domain",
 		DefaultValue: false,
 	},
-	EnableTaskVal: {
-		KeyName:      "system.enableTaskVal",
-		Description:  "Enable TaskValidation",
-		DefaultValue: false,
-	},
-	EnableRetryForChecksumFailure: {
-		KeyName:      "history.enableMutableStateChecksumFailureRetry",
+	EnableCorruptionAutoRepair: {
+		KeyName:      "history.enableCorruptionAutoRepair",
 		Filters:      []Filter{DomainName},
-		Description:  "EnableRetryForChecksumFailure enables retry if mutable state checksum verification fails",
+		Description:  "EnableCorruptionAutoRepair enables automatic repair of corrupted workflows via StateRebuilder",
 		DefaultValue: false,
 	},
-	EnableStrongIdempotency: DynamicBool{
+	RequireChecksumMatchAfterRebuildRepair: {
+		KeyName:      "history.requireChecksumMatchAfterRebuildRepair",
+		Filters:      []Filter{DomainName},
+		Description:  "RequireChecksumMatchAfterRebuildRepair requires that rebuilt state produces same checksum as original",
+		DefaultValue: true,
+	},
+	EnableStrongIdempotency: {
 		KeyName:      "history.enableStrongIdempotency",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableStrongIdempotency enables strong idempotency for APIs",
 		DefaultValue: false,
 	},
-	EnableStrongIdempotencySanityCheck: DynamicBool{
+	EnableStrongIdempotencySanityCheck: {
 		KeyName:      "history.enableStrongIdempotencySanityCheck",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableStrongIdempotencySanityCheck enables sanity check for strong idempotency",
@@ -4694,6 +5268,49 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
+	EnableActiveClusterSelectionPolicyInStartWorkflow: {
+		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
+		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
+		DefaultValue: false,
+		Filters:      []Filter{DomainName},
+	},
+	EnforceDecisionTaskAttempts: {
+		KeyName:      "history.enforceDecisionTaskAttempts",
+		Filters:      []Filter{DomainName},
+		Description:  "EnforceDecisionTaskAttempts is the key for enforcing decision retry attempts limit in case of timeouts",
+		DefaultValue: false,
+	},
+	MatchingExcludeShortLivedTaskListsFromShardManager: {
+		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
+		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
+		DefaultValue: true,
+	},
+	MatchingEmergencyOffboardingFromShardManager: {
+		KeyName:      "matching.emergencyOffboardingFromShardManager",
+		Description:  "MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager, ignoring the onboarding percentage",
+		DefaultValue: false,
+	},
+	MatchingPercentageOnboardedReadFromOperationalStore: {
+		KeyName:      "matching.percentageOnboardedReadFromOperationalStore",
+		Description:  "MatchingPercentageOnboardedReadFromOperationalStore selects the source of MatchingPercentageOnboardedToShardManager: false (default) reads from the generic dynamic config, true reads from the cassandra-backed operational dynamic config store",
+		DefaultValue: false,
+	},
+	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
+		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
+		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
+		DefaultValue: false,
+	},
+	EnableTaskListAwareTaskSchedulerByDomain: {
+		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",
+		Description:  "EnableTaskListAwareTaskSchedulerByDomain is to enable task list aware task scheduler by domain",
+		Filters:      []Filter{DomainName},
+		DefaultValue: false,
+	},
+	HistoryTaskDLQProcessorEnabled: {
+		KeyName:      "history.historyTaskDLQProcessorEnabled",
+		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -4732,11 +5349,6 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		KeyName:      "matching.errorInjectionRate",
 		Description:  "MatchingErrorInjectionRate is rate for injecting random error in matching client",
 		DefaultValue: 0,
-	},
-	TaskRedispatchIntervalJitterCoefficient: {
-		KeyName:      "history.taskRedispatchIntervalJitterCoefficient",
-		Description:  "Deprecated",
-		DefaultValue: 0.15,
 	},
 	QueueProcessorRandomSplitProbability: {
 		KeyName:      "history.queueProcessorRandomSplitProbability",
@@ -4820,6 +5432,11 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Description:  "HistoryErrorInjectionRate is rate for injecting random error in history client",
 		DefaultValue: 0,
 	},
+	ReplicationBudgetManagerSoftCapThreshold: {
+		KeyName:      "history.replicationBudgetManagerSoftCapThreshold",
+		Description:  "ReplicationBudgetManagerSoftCapThreshold is the soft cap threshold for the replication budget manager cache (0.0 to 1.0)",
+		DefaultValue: 1.0,
+	},
 	ReplicationTaskFetcherTimerJitterCoefficient: {
 		KeyName:      "history.ReplicationTaskFetcherTimerJitterCoefficient",
 		Description:  "ReplicationTaskFetcherTimerJitterCoefficient is the jitter for fetcher timer",
@@ -4846,6 +5463,12 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0.75,
 	},
+	MatchingOverrideTaskListRPS: {
+		KeyName:      "matching.overrideTaskListRps",
+		Description:  "MatchingOverrideTaskListRPS is the RPS override for a specific TaskList. When set to a non-zero value, this overrides the RPS value that pollers specify. By default (0), the pollers' specified RPS is respected.",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		DefaultValue: 0,
+	},
 	ShardDistributorErrorInjectionRate: {
 		KeyName:      "sharddistributor.errorInjectionRate",
 		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
@@ -4855,6 +5478,37 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		KeyName:      "sharddistributorexecutor.errorInjectionRate",
 		Description:  "ShardDistributorExecutorInjectionRate is rate for injecting random error in shard distributor executor client",
 		DefaultValue: 0,
+	},
+
+	ShardDistributorLoadBalancingNaiveMaxDeviation: {
+		KeyName:      "shardDistributor.loadBalancingNaive.maxDeviation",
+		Description:  "ShardDistributorLoadBalancingNaiveMaxDeviation is max deviation between the coldest and hottest executors in naive load balancing mode",
+		DefaultValue: 2.0,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyMoveBudgetProportion: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.moveBudgetProportion",
+		Description:  "ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards that may be moved per greedy load-balance pass",
+		DefaultValue: 0.01,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyHysteresisUpperBand: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisUpperBand",
+		Description:  "ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load that qualifies an executor as a greedy rebalance source",
+		DefaultValue: 1.15,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyHysteresisLowerBand: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisLowerBand",
+		Description:  "ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load that qualifies an executor as a greedy rebalance destination",
+		DefaultValue: 0.90,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedySevereImbalanceRatio: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.severeImbalanceRatio",
+		Description:  "ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination selection when maxLoad/meanLoad reaches this value",
+		DefaultValue: 1.3,
+		Filters:      []Filter{Namespace},
 	},
 }
 
@@ -4943,21 +5597,27 @@ var StringKeys = map[StringKey]DynamicString{
 		DefaultValue: "es",
 		Filters:      []Filter{DomainName},
 	},
-	MatchingShardDistributionMode: {
-		KeyName:      "matching.shardDistributionMode",
-		Description:  "MatchingShardDistributionMode defines which shard distribution mode should be used",
-		DefaultValue: "hash_ring",
-	},
 	SerializationEncoding: {
 		KeyName:      "history.serializationEncoding",
 		Description:  "SerializationEncoding is the encoding type for blobs",
 		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
-	MigrationMode: {
+	ShardDistributorMigrationMode: {
 		KeyName:      "shardDistributor.migrationMode",
-		Description:  "MigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
-		DefaultValue: "local_pass",
+		Description:  "ShardDistributorMigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
+		DefaultValue: "onboarded",
 		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingMode: {
+		KeyName:      "shardDistributor.loadBalancingMode",
+		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
+		DefaultValue: "naive",
+	},
+	HistoryTaskDLQMode: {
+		KeyName:      "history.historyTaskDLQMode",
+		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
+		Filters:      []Filter{DomainName},
 	},
 }
 
@@ -5020,6 +5680,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "frontend.globalRatelimiterUpdateInterval",
 		Description:  "GlobalRatelimiterUpdateInterval defines how often each global ratelimiter collection submits load information, and the expected update rate in aggregators (used to determine when hosts are lost)",
 		DefaultValue: 3 * time.Second,
+	},
+	FrontendMaxWorkerPollDelay: {
+		KeyName:      "frontend.maxWorkerPollDelay",
+		Filters:      []Filter{DomainName},
+		Description:  "FrontendMaxWorkerPollDelay is the maximum duration a worker poll request will wait for a rate limit token before being rejected",
+		DefaultValue: 0,
 	},
 	MatchingLongPollExpirationInterval: {
 		KeyName:      "matching.longPollExpirationInterval",
@@ -5134,6 +5800,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.standbyClusterDelay",
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
+	},
+	WorkflowTimerTaskCleanupMinTTL: {
+		KeyName:      "history.workflowTimerTaskCleanupMinTTL",
+		Description:  "Minimum remaining time before a timer task is worth explicitly deleting at workflow execution cleanup. Timers firing within this window are skipped and will clean up naturally.",
+		DefaultValue: time.Hour * 24 * 10,
 	},
 	StandbyTaskMissingEventsResendDelay: {
 		KeyName:      "history.standbyTaskMissingEventsResendDelay",
@@ -5352,7 +6023,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.ReplicationTaskProcessorStartWait",
 		Filters:      []Filter{ShardID},
 		Description:  "ReplicationTaskProcessorStartWait is the wait time before each task processing batch",
-		DefaultValue: time.Second * 5,
+		DefaultValue: 0,
 	},
 	ReplicationTaskProcessorLatencyLogThreshold: {
 		KeyName:      "history.ReplicationTaskProcessorLatencyLogThreshold",
@@ -5363,6 +6034,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "worker.ESProcessorFlushInterval",
 		Description:  "WorkerESProcessorFlushInterval is flush interval for esProcessor",
 		DefaultValue: time.Second,
+	},
+	SchedulerWorkerRefreshInterval: {
+		KeyName:      "worker.schedulerRefreshInterval",
+		Description:  "SchedulerWorkerRefreshInterval is how often the scheduler worker manager scans the domain cache to start/stop per-domain workers",
+		DefaultValue: time.Minute,
 	},
 	WorkerTimeLimitPerArchivalIteration: {
 		KeyName:      "worker.TimeLimitPerArchivalIteration",
@@ -5405,6 +6081,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "AsyncTaskDispatchTimeout is the timeout of dispatching tasks for async match",
 		DefaultValue: time.Second * 3,
 	},
+	AppendTaskTimeout: {
+		KeyName:      "matching.appendTaskTimeout",
+		Filters:      []Filter{DomainName, TaskListName, TaskType},
+		Description:  "AppendTaskTimeout is the timeout of appending tasks to persistence.",
+		DefaultValue: time.Second * 5,
+	},
 	HistoryGlobalRatelimiterDecayAfter: {
 		KeyName:      "history.globalRatelimiterDecayAfter",
 		Description:  "HistoryGlobalRatelimiterDecayAfter defines how long to wait for an update before considering a host's data \"possibly gone\", causing its weight to gradually decline.",
@@ -5438,6 +6120,57 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		Description:  "TaskIsolationDuration is the time period for which we attempt to respect tasklist isolation before allowing any poller to process the task",
 		DefaultValue: time.Second * 2,
+	},
+	DomainAuditLogTTL: {
+		KeyName:      "system.domainAuditLogTTL",
+		Filters:      []Filter{DomainID},
+		Description:  "DomainAuditLogTTL is the TTL for domain audit log entries",
+		DefaultValue: time.Hour * 24 * 365, // 1 year
+	},
+	CorruptionRepairTimeout: {
+		KeyName:      "history.corruptionRepairTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "CorruptionRepairTimeout is the timeout for corruption repair operations",
+		DefaultValue: time.Second * 30,
+	},
+	HistoryTaskDLQProcessorInterval: {
+		KeyName:      "history.historyTaskDLQProcessorInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
+		DefaultValue: time.Minute * 30,
+	},
+	ShardDistributorLoadBalancingGreedyPerShardCooldown: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.perShardCooldown",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between moving the same shard in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant for exponential smoothing of shard load in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	OperationalConfigStorePollInterval: {
+		KeyName:      "system.operationalConfigStorePollInterval",
+		Description:  "How often the operational dynamic config store re-reads its snapshot from the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	OperationalConfigStoreFetchTimeout: {
+		KeyName:      "system.operationalConfigStoreFetchTimeout",
+		Description:  "Per-call timeout for fetching the operational dynamic config snapshot from the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	OperationalConfigStoreUpdateTimeout: {
+		KeyName:      "system.operationalConfigStoreUpdateTimeout",
+		Description:  "Per-call timeout for writing an operational dynamic config snapshot to the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	MatchingRecordTaskStartedTimeout: {
+		KeyName:      "matching.recordTaskStartedTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingRecordTaskStartedTimeout is the request timeout for RecordActivityTaskStarted and RecordDecisionTaskStarted",
+		DefaultValue: time.Second,
 	},
 }
 
@@ -5494,6 +6227,11 @@ var ListKeys = map[ListKey]DynamicList{
 	AllIsolationGroups: {
 		KeyName:     "system.allIsolationGroups",
 		Description: "A list of all the isolation groups in a system",
+	},
+	RateLimiterBypassCallerTypes: {
+		KeyName:      "system.rateLimiterBypassCallerTypes",
+		Description:  "List of caller types that bypass rate limiters (both frontend and persistence)",
+		DefaultValue: []interface{}{},
 	},
 	DefaultIsolationGroupConfigStoreManagerGlobalMapping: {
 		KeyName: "system.defaultIsolationGroupConfigStoreManagerGlobalMapping",

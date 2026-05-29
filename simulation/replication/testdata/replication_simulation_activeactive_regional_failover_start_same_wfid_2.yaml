@@ -18,9 +18,6 @@ primaryCluster: "cluster0"
 domains:
   test-domain-aa:
     activeClusterName: cluster0
-    activeClustersByRegion:
-      region0: cluster0
-      region1: cluster1
     clusterAttributes:
       region:
         region0: cluster0
@@ -46,8 +43,6 @@ operations:
   - op: change_active_clusters
     at: 10s
     domain: test-domain-aa
-    newActiveClustersByRegion:
-      region1: cluster0
     newClusterAttributes:
       region:
         region1: cluster0

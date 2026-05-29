@@ -6,6 +6,7 @@ package metered
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/yarpc"
 
@@ -40,12 +41,38 @@ func (c *sharddistributorClient) GetShardOwner(ctx context.Context, gp1 *types.G
 
 	scope.IncCounter(metrics.CadenceClientRequests)
 
+	clientLatencyStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	gp2, err = c.client.GetShardOwner(ctx, gp1, p1...)
 	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return gp2, err
+}
+
+func (c *sharddistributorClient) WatchNamespaceState(ctx context.Context, wp1 *types.WatchNamespaceStateRequest, p1 ...yarpc.CallOption) (w1 sharddistributor.WatchNamespaceStateClient, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.ShardDistributorClientWatchNamespaceStateScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.ShardDistributorClientWatchNamespaceStateScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	w1, err = c.client.WatchNamespaceState(ctx, wp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return w1, err
 }

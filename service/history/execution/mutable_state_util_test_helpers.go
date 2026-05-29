@@ -24,9 +24,8 @@ package execution
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/persistence"
@@ -137,6 +136,8 @@ func CopyWorkflowExecutionInfo(t *testing.T, sourceInfo *persistence.WorkflowExe
 		Memo:                               sourceInfo.Memo,
 		SearchAttributes:                   sourceInfo.SearchAttributes,
 		PartitionConfig:                    sourceInfo.PartitionConfig,
+		ExecutionStatus:                    sourceInfo.ExecutionStatus,
+		ScheduledExecutionTimestamp:        sourceInfo.ScheduledExecutionTimestamp,
 		Attempt:                            sourceInfo.Attempt,
 		HasRetryPolicy:                     sourceInfo.HasRetryPolicy,
 		InitialInterval:                    sourceInfo.InitialInterval,

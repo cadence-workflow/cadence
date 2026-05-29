@@ -535,6 +535,39 @@ func (mr *_MockClientRecorder) GetGlobalIsolationGroups(
 	return mr.mock.ctrl.RecordCall(mr.mock, "GetGlobalIsolationGroups", args...)
 }
 
+// GetOperationalDynamicConfig responds to a GetOperationalDynamicConfig call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().GetOperationalDynamicConfig(gomock.Any(), ...).Return(...)
+//	... := client.GetOperationalDynamicConfig(...)
+func (m *MockClient) GetOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.GetOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (success *admin.GetOperationalDynamicConfigResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "GetOperationalDynamicConfig", args...)
+	success, _ = ret[i].(*admin.GetOperationalDynamicConfigResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) GetOperationalDynamicConfig(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "GetOperationalDynamicConfig", args...)
+}
+
 // GetReplicationMessages responds to a GetReplicationMessages call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
@@ -632,6 +665,39 @@ func (mr *_MockClientRecorder) ListDynamicConfig(
 ) *gomock.Call {
 	args := append([]interface{}{ctx, _Request}, opts...)
 	return mr.mock.ctrl.RecordCall(mr.mock, "ListDynamicConfig", args...)
+}
+
+// ListOperationalDynamicConfig responds to a ListOperationalDynamicConfig call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().ListOperationalDynamicConfig(gomock.Any(), ...).Return(...)
+//	... := client.ListOperationalDynamicConfig(...)
+func (m *MockClient) ListOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.ListOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (success *admin.ListOperationalDynamicConfigResponse, err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "ListOperationalDynamicConfig", args...)
+	success, _ = ret[i].(*admin.ListOperationalDynamicConfigResponse)
+	i++
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) ListOperationalDynamicConfig(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "ListOperationalDynamicConfig", args...)
 }
 
 // MaintainCorruptWorkflow responds to a MaintainCorruptWorkflow call based on the mock expectations. This
@@ -983,6 +1049,37 @@ func (mr *_MockClientRecorder) RestoreDynamicConfig(
 	return mr.mock.ctrl.RecordCall(mr.mock, "RestoreDynamicConfig", args...)
 }
 
+// RestoreOperationalDynamicConfig responds to a RestoreOperationalDynamicConfig call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().RestoreOperationalDynamicConfig(gomock.Any(), ...).Return(...)
+//	... := client.RestoreOperationalDynamicConfig(...)
+func (m *MockClient) RestoreOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.RestoreOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "RestoreOperationalDynamicConfig", args...)
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) RestoreOperationalDynamicConfig(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "RestoreOperationalDynamicConfig", args...)
+}
+
 // UpdateDomainAsyncWorkflowConfiguraton responds to a UpdateDomainAsyncWorkflowConfiguraton call based on the mock expectations. This
 // call will fail if the mock does not expect this call. Use EXPECT to expect
 // a call to this function.
@@ -1111,4 +1208,35 @@ func (mr *_MockClientRecorder) UpdateGlobalIsolationGroups(
 ) *gomock.Call {
 	args := append([]interface{}{ctx, _Request}, opts...)
 	return mr.mock.ctrl.RecordCall(mr.mock, "UpdateGlobalIsolationGroups", args...)
+}
+
+// UpdateOperationalDynamicConfig responds to a UpdateOperationalDynamicConfig call based on the mock expectations. This
+// call will fail if the mock does not expect this call. Use EXPECT to expect
+// a call to this function.
+//
+//	client.EXPECT().UpdateOperationalDynamicConfig(gomock.Any(), ...).Return(...)
+//	... := client.UpdateOperationalDynamicConfig(...)
+func (m *MockClient) UpdateOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.UpdateOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (err error) {
+
+	args := []interface{}{ctx, _Request}
+	for _, o := range opts {
+		args = append(args, o)
+	}
+	i := 0
+	ret := m.ctrl.Call(m, "UpdateOperationalDynamicConfig", args...)
+	err, _ = ret[i].(error)
+	return
+}
+
+func (mr *_MockClientRecorder) UpdateOperationalDynamicConfig(
+	ctx interface{},
+	_Request interface{},
+	opts ...interface{},
+) *gomock.Call {
+	args := append([]interface{}{ctx, _Request}, opts...)
+	return mr.mock.ctrl.RecordCall(mr.mock, "UpdateOperationalDynamicConfig", args...)
 }

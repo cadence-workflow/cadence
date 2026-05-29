@@ -604,12 +604,18 @@ func activeActiveDomainEntry() *cache.DomainCacheEntry {
 		true,
 		&persistence.DomainReplicationConfig{
 			// Populate ActiveClusters to make it active-active
-			ActiveClusters: &types.ActiveClusters{ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"us-west": {
-					ActiveClusterName: "cluster0",
-					FailoverVersion:   1,
+			ActiveClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-west": {
+								ActiveClusterName: "cluster0",
+								FailoverVersion:   1,
+							},
+						},
+					},
 				},
-			}},
+			},
 		},
 		1,
 		nil,

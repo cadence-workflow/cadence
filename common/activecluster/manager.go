@@ -121,7 +121,11 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 		m.logger.Warn(fmt.Sprintf("Cache data for key %s is of type %T, not a *types.ActiveClusterSelectionPolicy", key, cacheData))
 	}
 
-	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, domainID, wfID, rID)
+	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, &persistence.GetActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: wfID,
+		RunID:      rID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +228,26 @@ func (m *managerImpl) GetActiveClusterInfoByWorkflow(ctx context.Context, domain
 	}
 	res, ok := d.GetActiveClusterInfoByClusterAttribute(policy.ClusterAttribute)
 	if !ok {
+		m.logger.Debug("GetActiveClusterInfoByWorkflow: cluster attribute not found",
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowID(wfID),
+			tag.WorkflowRunID(rID),
+			tag.ActiveClusterName(d.GetReplicationConfig().ActiveClusterName),
+			tag.FailoverVersion(d.GetFailoverVersion()),
+		)
 		return nil, &ClusterAttributeNotFoundError{
 			DomainID:         domainID,
 			ClusterAttribute: policy.ClusterAttribute,
 		}
 	}
+	m.logger.Debug("GetActiveClusterInfoByWorkflow: returning active cluster info",
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowID(wfID),
+		tag.WorkflowRunID(rID),
+		tag.ActiveClusterName(res.ActiveClusterName),
+		tag.FailoverVersion(res.FailoverVersion),
+	)
+
 	return res, nil
 }
 

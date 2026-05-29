@@ -13,18 +13,21 @@ import (
 
 // ratelimitedShardManager implements persistence.ShardManager interface instrumented with rate limiter.
 type ratelimitedShardManager struct {
-	wrapped     persistence.ShardManager
-	rateLimiter quotas.Limiter
+	wrapped      persistence.ShardManager
+	rateLimiter  quotas.Limiter
+	callerBypass quotas.CallerBypass
 }
 
 // NewShardManager creates a new instance of ShardManager with ratelimiter.
 func NewShardManager(
 	wrapped persistence.ShardManager,
 	rateLimiter quotas.Limiter,
+	callerBypass quotas.CallerBypass,
 ) persistence.ShardManager {
 	return &ratelimitedShardManager{
-		wrapped:     wrapped,
-		rateLimiter: rateLimiter,
+		wrapped:      wrapped,
+		rateLimiter:  rateLimiter,
+		callerBypass: callerBypass,
 	}
 }
 
@@ -34,7 +37,7 @@ func (c *ratelimitedShardManager) Close() {
 }
 
 func (c *ratelimitedShardManager) CreateShard(ctx context.Context, request *persistence.CreateShardRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -46,7 +49,7 @@ func (c *ratelimitedShardManager) GetName() (s1 string) {
 }
 
 func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persistence.GetShardRequest) (gp1 *persistence.GetShardResponse, err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
@@ -54,7 +57,7 @@ func (c *ratelimitedShardManager) GetShard(ctx context.Context, request *persist
 }
 
 func (c *ratelimitedShardManager) UpdateShard(ctx context.Context, request *persistence.UpdateShardRequest) (err error) {
-	if ok := c.rateLimiter.Allow(); !ok {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}

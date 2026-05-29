@@ -22,6 +22,7 @@ package persistence
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -40,6 +42,108 @@ func TestClusterReplicationConfigGetCopy(t *testing.T) {
 	}
 	assert.Equal(t, config, config.GetCopy()) // deep equal
 	assert.Equal(t, true, config != config.GetCopy())
+}
+
+func TestGetDomainResponseDeepCopy(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    *GetDomainResponse
+		validate func(t *testing.T, original, copied *GetDomainResponse)
+	}{
+		{
+			name:  "nil response",
+			input: nil,
+			validate: func(t *testing.T, original, copied *GetDomainResponse) {
+				assert.Nil(t, copied)
+			},
+		},
+		{
+			name:  "empty response",
+			input: &GetDomainResponse{},
+			validate: func(t *testing.T, original, copied *GetDomainResponse) {
+				assert.NotNil(t, copied)
+				assert.Equal(t, original, copied)
+				assert.True(t, original != copied, "should be different pointers")
+			},
+		},
+		{
+			name: "full populated response",
+			input: &GetDomainResponse{
+				Info: &DomainInfo{
+					ID:          "full-id",
+					Name:        "full-name",
+					Status:      1,
+					Description: "full-description",
+					OwnerEmail:  "full@example.com",
+					Data:        map[string]string{"k": "v"},
+				},
+				Config: &DomainConfig{
+					Retention:                30,
+					EmitMetric:               true,
+					HistoryArchivalStatus:    types.ArchivalStatusEnabled,
+					HistoryArchivalURI:       "test://history",
+					VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+					VisibilityArchivalURI:    "test://visibility",
+					BadBinaries:              types.BadBinaries{},
+					IsolationGroups:          types.IsolationGroupConfiguration{},
+					AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+				},
+				ReplicationConfig: &DomainReplicationConfig{
+					ActiveClusterName: "active",
+					Clusters:          []*ClusterReplicationConfig{{ClusterName: "c1"}},
+				},
+				IsGlobalDomain:              true,
+				ConfigVersion:               100,
+				FailoverVersion:             200,
+				FailoverNotificationVersion: 300,
+				PreviousFailoverVersion:     400,
+				FailoverEndTime:             func() *int64 { i := int64(500); return &i }(),
+				LastUpdatedTime:             600,
+				NotificationVersion:         700,
+			},
+			validate: func(t *testing.T, original, copied *GetDomainResponse) {
+				assert.NotNil(t, copied)
+				assert.Equal(t, original, copied)
+				// Verify all nested pointers are different
+				assert.True(t, original != copied)
+				assert.True(t, original.Info != copied.Info)
+				assert.True(t, original.Config != copied.Config)
+				assert.True(t, original.ReplicationConfig != copied.ReplicationConfig)
+				assert.True(t, original.FailoverEndTime != copied.FailoverEndTime)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			copied := tt.input.DeepCopy()
+			tt.validate(t, tt.input, copied)
+		})
+	}
+}
+
+func TestGetDomainResponseDeepCopy_FuzzGenerated(t *testing.T) {
+	fuzzer := testdatagen.New(t)
+
+	// Run multiple iterations to test with different data
+	for i := 0; i < 100; i++ {
+		t.Run(fmt.Sprintf("iteration_%d", i), func(t *testing.T) {
+			original := &GetDomainResponse{}
+			fuzzer.Fuzz(original)
+
+			// Create a deep copy
+			copied := original.DeepCopy()
+
+			// Verify the copy is not nil
+			require.NotNil(t, copied, "DeepCopy should not return nil for non-nil input")
+
+			// Verify the copied struct is equal to the original
+			assert.Equal(t, original, copied, "DeepCopy should produce an equal struct")
+
+			// Verify they are different instances (different memory addresses)
+			assert.True(t, original != copied, "DeepCopy should create a new instance")
+		})
+	}
 }
 
 func TestIsTransientError(t *testing.T) {
@@ -64,9 +168,79 @@ func TestIsTransientError(t *testing.T) {
 }
 
 func TestIsTimeoutError(t *testing.T) {
-	notTimeoutError := fmt.Errorf("not timeout error")
-	assert.False(t, IsTimeoutError(notTimeoutError))
-	assert.True(t, IsTimeoutError(&TimeoutError{}))
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "regular error",
+			err:      fmt.Errorf("not timeout error"),
+			expected: false,
+		},
+		{
+			name:     "context.DeadlineExceeded",
+			err:      context.DeadlineExceeded,
+			expected: true,
+		},
+		{
+			name:     "context.Canceled",
+			err:      context.Canceled,
+			expected: true,
+		},
+		{
+			name:     "wrapped context.DeadlineExceeded",
+			err:      fmt.Errorf("operation failed: %w", context.DeadlineExceeded),
+			expected: true,
+		},
+		{
+			name:     "wrapped context.Canceled",
+			err:      fmt.Errorf("operation failed: %w", context.Canceled),
+			expected: true,
+		},
+		{
+			name:     "doubly wrapped context.DeadlineExceeded",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", context.DeadlineExceeded)),
+			expected: true,
+		},
+		{
+			name:     "doubly wrapped context.Canceled",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", context.Canceled)),
+			expected: true,
+		},
+		{
+			name:     "TimeoutError",
+			err:      &TimeoutError{Msg: "timeout"},
+			expected: true,
+		},
+		{
+			name:     "wrapped TimeoutError",
+			err:      fmt.Errorf("operation failed: %w", &TimeoutError{Msg: "timeout"}),
+			expected: true,
+		},
+		{
+			name:     "doubly wrapped TimeoutError",
+			err:      fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", &TimeoutError{Msg: "timeout"})),
+			expected: true,
+		},
+		{
+			name:     "empty TimeoutError",
+			err:      &TimeoutError{},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := IsTimeoutError(tc.err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }
 
 func TestIsBackgroundTransientError(t *testing.T) {
@@ -124,6 +298,9 @@ func TestHasMoreRowsToDelete(t *testing.T) {
 	assert.False(t, HasMoreRowsToDelete(11, 10))
 	assert.False(t, HasMoreRowsToDelete(9, 10))
 	assert.False(t, HasMoreRowsToDelete(-1, 10))
+	assert.False(t, HasMoreRowsToDelete(100, 0))
+	assert.False(t, HasMoreRowsToDelete(0, 0))
+	assert.False(t, HasMoreRowsToDelete(50, -1))
 
 }
 func TestTransferTaskInfo(t *testing.T) {
@@ -634,20 +811,6 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "only ActiveClustersByRegion populated should return true",
-			config: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-					},
-				},
-			},
-			want: true,
-		},
-		{
 			name: "only AttributeScopes populated should return true",
 			config: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
@@ -669,15 +832,13 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 			name: "both formats populated should return true",
 			config: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-					},
 					AttributeScopes: map[string]types.ClusterAttributeScope{
 						"region": {
 							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
 								"us-west-1": {
 									ActiveClusterName: "cluster2",
 									FailoverVersion:   200,
@@ -688,15 +849,6 @@ func TestDomainReplicationConfig_IsActiveActive(t *testing.T) {
 				},
 			},
 			want: true,
-		},
-		{
-			name: "empty ActiveClustersByRegion map should return false",
-			config: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
-				},
-			},
-			want: false,
 		},
 		{
 			name: "empty AttributeScopes map should return false",

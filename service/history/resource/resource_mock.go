@@ -12,6 +12,7 @@ package resource
 import (
 	reflect "reflect"
 
+	tally "github.com/uber-go/tally"
 	workflowserviceclient "go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	gomock "go.uber.org/mock/gomock"
 	yarpc "go.uber.org/yarpc"
@@ -30,6 +31,7 @@ import (
 	clock "github.com/uber/cadence/common/clock"
 	cluster "github.com/uber/cadence/common/cluster"
 	domain "github.com/uber/cadence/common/domain"
+	dynamicconfig "github.com/uber/cadence/common/dynamicconfig"
 	configstore "github.com/uber/cadence/common/dynamicconfig/configstore"
 	isolationgroup "github.com/uber/cadence/common/isolationgroup"
 	log "github.com/uber/cadence/common/log"
@@ -41,6 +43,7 @@ import (
 	algorithm "github.com/uber/cadence/common/quotas/global/algorithm"
 	rpc "github.com/uber/cadence/common/quotas/global/rpc"
 	events "github.com/uber/cadence/service/history/events"
+	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
 	archiver0 "github.com/uber/cadence/service/worker/archiver"
 )
 
@@ -192,6 +195,20 @@ func (m *MockResource) GetDispatcher() *yarpc.Dispatcher {
 func (mr *MockResourceMockRecorder) GetDispatcher() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDispatcher", reflect.TypeOf((*MockResource)(nil).GetDispatcher))
+}
+
+// GetDomainAuditManager mocks base method.
+func (m *MockResource) GetDomainAuditManager() persistence.DomainAuditManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditManager")
+	ret0, _ := ret[0].(persistence.DomainAuditManager)
+	return ret0
+}
+
+// GetDomainAuditManager indicates an expected call of GetDomainAuditManager.
+func (mr *MockResourceMockRecorder) GetDomainAuditManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditManager", reflect.TypeOf((*MockResource)(nil).GetDomainAuditManager))
 }
 
 // GetDomainCache mocks base method.
@@ -349,6 +366,20 @@ func (mr *MockResourceMockRecorder) GetHistoryRawClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryRawClient", reflect.TypeOf((*MockResource)(nil).GetHistoryRawClient))
 }
 
+// GetHistoryTaskDLQManager mocks base method.
+func (m *MockResource) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQManager")
+	ret0, _ := ret[0].(persistence.HistoryTaskDLQManager)
+	return ret0
+}
+
+// GetHistoryTaskDLQManager indicates an expected call of GetHistoryTaskDLQManager.
+func (mr *MockResourceMockRecorder) GetHistoryTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQManager", reflect.TypeOf((*MockResource)(nil).GetHistoryTaskDLQManager))
+}
+
 // GetHostInfo mocks base method.
 func (m *MockResource) GetHostInfo() membership.HostInfo {
 	m.ctrl.T.Helper()
@@ -489,6 +520,48 @@ func (mr *MockResourceMockRecorder) GetMetricsClient() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsClient", reflect.TypeOf((*MockResource)(nil).GetMetricsClient))
 }
 
+// GetMetricsScope mocks base method.
+func (m *MockResource) GetMetricsScope() tally.Scope {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMetricsScope")
+	ret0, _ := ret[0].(tally.Scope)
+	return ret0
+}
+
+// GetMetricsScope indicates an expected call of GetMetricsScope.
+func (mr *MockResourceMockRecorder) GetMetricsScope() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsScope", reflect.TypeOf((*MockResource)(nil).GetMetricsScope))
+}
+
+// GetOperationalConfigStore mocks base method.
+func (m *MockResource) GetOperationalConfigStore() configstore.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOperationalConfigStore")
+	ret0, _ := ret[0].(configstore.Client)
+	return ret0
+}
+
+// GetOperationalConfigStore indicates an expected call of GetOperationalConfigStore.
+func (mr *MockResourceMockRecorder) GetOperationalConfigStore() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationalConfigStore", reflect.TypeOf((*MockResource)(nil).GetOperationalConfigStore))
+}
+
+// GetOperationalDynamicConfig mocks base method.
+func (m *MockResource) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOperationalDynamicConfig")
+	ret0, _ := ret[0].(*dynamicconfig.Collection)
+	return ret0
+}
+
+// GetOperationalDynamicConfig indicates an expected call of GetOperationalDynamicConfig.
+func (mr *MockResourceMockRecorder) GetOperationalDynamicConfig() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationalDynamicConfig", reflect.TypeOf((*MockResource)(nil).GetOperationalDynamicConfig))
+}
+
 // GetPayloadSerializer mocks base method.
 func (m *MockResource) GetPayloadSerializer() persistence.PayloadSerializer {
 	m.ctrl.T.Helper()
@@ -601,6 +674,20 @@ func (m *MockResource) GetServiceName() string {
 func (mr *MockResourceMockRecorder) GetServiceName() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceName", reflect.TypeOf((*MockResource)(nil).GetServiceName))
+}
+
+// GetShardDistributorExecutorClient mocks base method.
+func (m *MockResource) GetShardDistributorExecutorClient() executorclient.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardDistributorExecutorClient")
+	ret0, _ := ret[0].(executorclient.Client)
+	return ret0
+}
+
+// GetShardDistributorExecutorClient indicates an expected call of GetShardDistributorExecutorClient.
+func (mr *MockResourceMockRecorder) GetShardDistributorExecutorClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardDistributorExecutorClient", reflect.TypeOf((*MockResource)(nil).GetShardDistributorExecutorClient))
 }
 
 // GetShardManager mocks base method.

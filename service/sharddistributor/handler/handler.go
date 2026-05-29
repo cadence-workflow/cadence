@@ -26,26 +26,48 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
+	"time"
 
+	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
+const (
+	// ephemeralBatchInterval is the time window over which GetShardOwner calls for
+	// ephemeral namespaces are collected before being processed as a single batch.
+	ephemeralBatchInterval = 100 * time.Millisecond
+
+	// versionConflictRetryInitialInterval is the starting backoff for retries
+	// triggered when a concurrent shard assignment causes a version conflict.
+	versionConflictRetryInitialInterval = 50 * time.Millisecond
+	// versionConflictRetryMaxInterval caps the per-attempt sleep.
+	versionConflictRetryMaxInterval = 1 * time.Second
+	// versionConflictRetryMaxAttempts is the maximum number of retry attempts
+	// before the error is surfaced to the caller.
+	versionConflictRetryMaxAttempts = 3
+)
+
 func NewHandler(
 	logger log.Logger,
+	timeSource clock.TimeSource,
 	shardDistributionCfg config.ShardDistribution,
+	cfg *config.Config,
 	storage store.Store,
 ) Handler {
 	handler := &handlerImpl{
 		logger:               logger,
 		shardDistributionCfg: shardDistributionCfg,
+		cfg:                  cfg,
 		storage:              storage,
 	}
+
+	handler.batcher = newShardBatcher(timeSource, ephemeralBatchInterval, handler.assignEphemeralBatch)
 
 	// prevent us from trying to serve requests before shard distributor is started and ready
 	handler.startWG.Add(1)
@@ -59,13 +81,18 @@ type handlerImpl struct {
 
 	storage              store.Store
 	shardDistributionCfg config.ShardDistribution
+	cfg                  *config.Config
+
+	batcher *shardBatcher
 }
 
 func (h *handlerImpl) Start() {
+	h.batcher.Start()
 	h.startWG.Done()
 }
 
 func (h *handlerImpl) Stop() {
+	h.batcher.Stop()
 }
 
 func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
@@ -78,10 +105,6 @@ func (h *handlerImpl) Health(ctx context.Context) (*types.HealthStatus, error) {
 func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShardOwnerRequest) (resp *types.GetShardOwnerResponse, retError error) {
 	defer func() { log.CapturePanic(recover(), h.logger, &retError) }()
 
-	if !h.shardDistributionCfg.Enabled {
-		return nil, fmt.Errorf("shard distributor disabled")
-	}
-
 	namespaceIdx := slices.IndexFunc(h.shardDistributionCfg.Namespaces, func(namespace config.Namespace) bool {
 		return namespace.Name == request.Namespace
 	})
@@ -91,10 +114,10 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 		}
 	}
 
-	executorID, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
+	shardOwner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
 	if errors.Is(err, store.ErrShardNotFound) {
 		if h.shardDistributionCfg.Namespaces[namespaceIdx].Type == config.NamespaceTypeEphemeral {
-			return h.assignEphemeralShard(ctx, request.Namespace, request.ShardKey)
+			return h.getOrAssignEphemeralShard(ctx, request)
 		}
 
 		return nil, &types.ShardNotFoundError{
@@ -103,43 +126,109 @@ func (h *handlerImpl) GetShardOwner(ctx context.Context, request *types.GetShard
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get shard owner: %w", err)
-	}
-
-	resp = &types.GetShardOwnerResponse{
-		Owner:     executorID,
-		Namespace: request.Namespace,
-	}
-
-	return resp, nil
-}
-
-func (h *handlerImpl) assignEphemeralShard(ctx context.Context, namespace string, shardID string) (*types.GetShardOwnerResponse, error) {
-
-	// Get the current state of the namespace and find the executor with the least assigned shards
-	state, err := h.storage.GetState(ctx, namespace)
-	if err != nil {
-		return nil, fmt.Errorf("get state: %w", err)
-	}
-
-	var executor string
-	minAssignedShards := math.MaxInt
-
-	for assignedExecutor, assignment := range state.ShardAssignments {
-		if len(assignment.AssignedShards) < minAssignedShards {
-			minAssignedShards = len(assignment.AssignedShards)
-			executor = assignedExecutor
-		}
-	}
-
-	// Assign the shard to the executor with the least assigned shards
-	err = h.storage.AssignShard(ctx, namespace, shardID, executor)
-	if err != nil {
-		return nil, fmt.Errorf("assign ephemeral shard: %w", err)
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
 	}
 
 	return &types.GetShardOwnerResponse{
-		Owner:     executor,
-		Namespace: namespace,
+		Owner:     shardOwner.ExecutorID,
+		Metadata:  shardOwner.Metadata,
+		Namespace: request.Namespace,
 	}, nil
+}
+
+// getOrAssignEphemeralShard assigns an ephemeral shard that does not yet exist
+// in storage. It submits the request to the batcher and, on a version conflict
+// (concurrent assignment by another goroutine), retries with exponential backoff.
+// Each retry re-reads storage first: if the concurrent writer already committed
+// the assignment we return it immediately without re-submitting to the batcher.
+func (h *handlerImpl) getOrAssignEphemeralShard(ctx context.Context, request *types.GetShardOwnerRequest) (*types.GetShardOwnerResponse, error) {
+	retryPolicy := backoff.NewExponentialRetryPolicy(versionConflictRetryInitialInterval)
+	retryPolicy.SetMaximumInterval(versionConflictRetryMaxInterval)
+	retryPolicy.SetMaximumAttempts(versionConflictRetryMaxAttempts)
+
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(retryPolicy),
+		backoff.WithRetryableError(func(err error) bool {
+			return errors.Is(err, store.ErrVersionConflict)
+		}),
+	)
+
+	var resp *types.GetShardOwnerResponse
+	isRetry := false
+	err := throttleRetry.Do(ctx, func(ctx context.Context) error {
+		if isRetry {
+			// A concurrent batch won the race. Re-read storage first: if the
+			// winner already committed our shard's assignment we can return
+			// immediately without re-submitting to the batcher.
+			owner, err := h.storage.GetShardOwner(ctx, request.Namespace, request.ShardKey)
+			if err != nil && !errors.Is(err, store.ErrShardNotFound) {
+				return &types.InternalServiceError{Message: fmt.Sprintf("failed to get shard owner: %v", err)}
+			}
+			if err == nil {
+				resp = &types.GetShardOwnerResponse{
+					Owner:     owner.ExecutorID,
+					Metadata:  owner.Metadata,
+					Namespace: request.Namespace,
+				}
+				return nil
+			}
+		}
+		isRetry = true
+
+		// Submit to the batcher to assign the shard.
+		var err error
+		resp, err = h.batcher.Submit(ctx, request)
+		return err
+	})
+
+	if err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to assign ephemeral shard: %v", err)}
+	}
+	return resp, nil
+}
+
+func (h *handlerImpl) WatchNamespaceState(request *types.WatchNamespaceStateRequest, server WatchNamespaceStateServer) error {
+	h.startWG.Wait()
+
+	// Subscribe to state changes from storage
+	assignmentChangesChan, unSubscribe, err := h.storage.SubscribeToAssignmentChanges(server.Context(), request.Namespace)
+	defer unSubscribe()
+	if err != nil {
+		return &types.InternalServiceError{Message: fmt.Sprintf("failed to subscribe to namespace state: %v", err)}
+	}
+
+	// Stream subsequent updates
+	for {
+		select {
+		case <-server.Context().Done():
+			return server.Context().Err()
+		case assignmentChanges, ok := <-assignmentChangesChan:
+			if !ok {
+				return fmt.Errorf("unexpected close of updates channel")
+			}
+			response := &types.WatchNamespaceStateResponse{
+				Executors: make([]*types.ExecutorShardAssignment, 0, len(assignmentChanges)),
+			}
+			for executor, shardIDs := range assignmentChanges {
+				response.Executors = append(response.Executors, &types.ExecutorShardAssignment{
+					ExecutorID:     executor.ExecutorID,
+					AssignedShards: WrapShards(shardIDs),
+					Metadata:       executor.Metadata,
+				})
+			}
+
+			err = server.Send(response)
+			if err != nil {
+				return fmt.Errorf("send response: %w", err)
+			}
+		}
+	}
+}
+
+func WrapShards(shardIDs []string) []*types.Shard {
+	shards := make([]*types.Shard, 0, len(shardIDs))
+	for _, shardID := range shardIDs {
+		shards = append(shards, &types.Shard{ShardKey: shardID})
+	}
+	return shards
 }

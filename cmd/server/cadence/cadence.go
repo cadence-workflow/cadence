@@ -43,6 +43,7 @@ import (
 
 // validServices is the list of all valid cadence services
 var validServices = service.ShortNames(service.List)
+var defaultServices = service.ShortNames(service.ListWithRing)
 
 func isValidService(in string) bool {
 	for _, s := range validServices {
@@ -107,7 +108,7 @@ func BuildCLI(releaseVersion string, gitRevision string) *cli.App {
 				&cli.StringFlag{
 					Name:    "services",
 					Aliases: []string{"s"},
-					Value:   strings.Join(validServices, ","),
+					Value:   strings.Join(defaultServices, ","),
 					Usage:   "list of services to start",
 				},
 			},

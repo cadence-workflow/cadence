@@ -68,7 +68,7 @@ func (s *parallelTaskProcessorSuite) SetupTest() {
 
 	s.processor = NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   0,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(1),
@@ -166,7 +166,6 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_WorkerStopped() {
 		close(done)
 	}()
 
-	time.Sleep(100 * time.Millisecond)
 	close(workerShutdownCh)
 	<-done
 }
@@ -279,7 +278,7 @@ func (s *parallelTaskProcessorSuite) TestProcessorContract() {
 
 	processor := NewParallelTaskProcessor(
 		testlogger.New(s.Suite.T()),
-		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{}),
+		metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{}),
 		&ParallelTaskProcessorOptions{
 			QueueSize:   100,
 			WorkerCount: dynamicproperties.GetIntPropertyFn(10),
@@ -322,7 +321,6 @@ func (s *parallelTaskProcessorSuite) TestExecuteTask_PanicHandling() {
 		s.processor.executeTask(mockTask, workerShutdownCh)
 		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
 	close(workerShutdownCh)
 	<-done
 }

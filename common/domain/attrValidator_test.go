@@ -23,9 +23,13 @@ package domain
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -259,9 +263,13 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 				{ClusterName: cluster.TestAlternativeClusterName},
 			},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
-					cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+							cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
 				},
 			},
 		},
@@ -277,9 +285,13 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigForGlobalDomain(
 				{ClusterName: cluster.TestAlternativeClusterName},
 			},
 			ActiveClusters: &types.ActiveClusters{
-				ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-					cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
-					cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+							cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+						},
+					},
 				},
 			},
 		},
@@ -332,4 +344,105 @@ func (s *attrValidatorSuite) TestValidateDomainReplicationConfigClustersDoesNotR
 		},
 	)
 	s.IsType(&types.BadRequestError{}, err)
+}
+
+func TestValidateActiveActiveDomainReplicationConfig(t *testing.T) {
+	// Define test cluster names
+	const (
+		clusterA = "cluster-a"
+		clusterB = "cluster-b"
+	)
+
+	// Create explicit cluster metadata for the test
+	clusterMetadata := cluster.NewMetadata(
+		config.ClusterGroupMetadata{
+			FailoverVersionIncrement: 10,
+			PrimaryClusterName:       clusterA,
+			CurrentClusterName:       clusterA,
+			ClusterGroup: map[string]config.ClusterInformation{
+				clusterA: {
+					Enabled:                true,
+					InitialFailoverVersion: 1,
+				},
+				clusterB: {
+					Enabled:                true,
+					InitialFailoverVersion: 2,
+				},
+			},
+		},
+		func(d string) bool { return false },
+		metrics.NewNoopMetricsClient(),
+		log.NewNoop(),
+	)
+
+	validator := newAttrValidator(clusterMetadata, 1)
+
+	testCases := []struct {
+		name           string
+		activeClusters *types.ActiveClusters
+		expectedErr    bool
+		errType        interface{}
+	}{
+		{
+			name: "invalid cluster in AttributeScopes",
+			activeClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"city": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: "invalid-cluster",
+								FailoverVersion:   100,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: true,
+			errType:     &types.BadRequestError{},
+		},
+		{
+			name: "empty ActiveClusters - all maps nil",
+			activeClusters: &types.ActiveClusters{
+				AttributeScopes: nil,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "empty ActiveClusters - maps initialized but empty",
+			activeClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{},
+			},
+			expectedErr: false,
+		},
+		{
+			name: "an invalid failover version should return an error",
+			activeClusters: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"city": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"seattle": {
+								ActiveClusterName: clusterA,
+								FailoverVersion:   -1,
+							},
+						},
+					},
+				},
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validator.validateActiveActiveDomainReplicationConfig(tc.activeClusters)
+			if tc.expectedErr {
+				assert.Error(t, err)
+				if tc.errType != nil {
+					assert.IsType(t, tc.errType, err)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

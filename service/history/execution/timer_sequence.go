@@ -162,7 +162,8 @@ func (t *timerSequenceImpl) CreateNextUserTimer() (bool, error) {
 			VisibilityTimestamp: firstTimerTask.Timestamp,
 			Version:             t.mutableState.GetCurrentVersion(),
 		},
-		EventID: firstTimerTask.EventID,
+		EventID:  firstTimerTask.EventID,
+		TaskList: executionInfo.TaskList,
 	})
 	return true, nil
 }
@@ -210,6 +211,7 @@ func (t *timerSequenceImpl) CreateNextActivityTimer() (bool, error) {
 		TimeoutType: int(firstTimerTask.TimerType),
 		EventID:     firstTimerTask.EventID,
 		Attempt:     int64(firstTimerTask.Attempt),
+		TaskList:    activityInfo.TaskList,
 	})
 	return true, nil
 }

@@ -96,6 +96,20 @@ func (mr *MockHandlerMockRecorder) Stop() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockHandler)(nil).Stop))
 }
 
+// WatchNamespaceState mocks base method.
+func (m *MockHandler) WatchNamespaceState(arg0 *types.WatchNamespaceStateRequest, arg1 WatchNamespaceStateServer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchNamespaceState", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WatchNamespaceState indicates an expected call of WatchNamespaceState.
+func (mr *MockHandlerMockRecorder) WatchNamespaceState(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchNamespaceState", reflect.TypeOf((*MockHandler)(nil).WatchNamespaceState), arg0, arg1)
+}
+
 // MockExecutor is a mock of Executor interface.
 type MockExecutor struct {
 	ctrl     *gomock.Controller
@@ -133,4 +147,56 @@ func (m *MockExecutor) Heartbeat(arg0 context.Context, arg1 *types.ExecutorHeart
 func (mr *MockExecutorMockRecorder) Heartbeat(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Heartbeat", reflect.TypeOf((*MockExecutor)(nil).Heartbeat), arg0, arg1)
+}
+
+// MockWatchNamespaceStateServer is a mock of WatchNamespaceStateServer interface.
+type MockWatchNamespaceStateServer struct {
+	ctrl     *gomock.Controller
+	recorder *MockWatchNamespaceStateServerMockRecorder
+	isgomock struct{}
+}
+
+// MockWatchNamespaceStateServerMockRecorder is the mock recorder for MockWatchNamespaceStateServer.
+type MockWatchNamespaceStateServerMockRecorder struct {
+	mock *MockWatchNamespaceStateServer
+}
+
+// NewMockWatchNamespaceStateServer creates a new mock instance.
+func NewMockWatchNamespaceStateServer(ctrl *gomock.Controller) *MockWatchNamespaceStateServer {
+	mock := &MockWatchNamespaceStateServer{ctrl: ctrl}
+	mock.recorder = &MockWatchNamespaceStateServerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockWatchNamespaceStateServer) EXPECT() *MockWatchNamespaceStateServerMockRecorder {
+	return m.recorder
+}
+
+// Context mocks base method.
+func (m *MockWatchNamespaceStateServer) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockWatchNamespaceStateServerMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockWatchNamespaceStateServer)(nil).Context))
+}
+
+// Send mocks base method.
+func (m *MockWatchNamespaceStateServer) Send(arg0 *types.WatchNamespaceStateResponse) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Send", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Send indicates an expected call of Send.
+func (mr *MockWatchNamespaceStateServerMockRecorder) Send(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockWatchNamespaceStateServer)(nil).Send), arg0)
 }

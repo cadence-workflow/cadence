@@ -132,3 +132,13 @@ func TestMySQLConfigPersistence(t *testing.T) {
 	s.TestBase.Setup()
 	suite.Run(t, s)
 }
+
+func TestMySQLDomainAuditPersistence(t *testing.T) {
+	testflags.RequireMySQL(t)
+	s := new(pt.DomainAuditPersistenceSuite)
+	option, err := mysql.GetTestClusterOption()
+	assert.NoError(t, err)
+	s.TestBase = pt.NewTestBaseWithSQL(t, option)
+	s.TestBase.Setup()
+	suite.Run(t, s)
+}

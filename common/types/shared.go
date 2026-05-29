@@ -391,6 +391,34 @@ func (b *BadBinaries) ByteSize() uint64 {
 	return size
 }
 
+// DeepCopy returns a deep copy of BadBinaries
+func (b *BadBinaries) DeepCopy() BadBinaries {
+	if b == nil {
+		return BadBinaries{}
+	}
+	result := BadBinaries{}
+	if b.Binaries != nil {
+		result.Binaries = make(map[string]*BadBinaryInfo, len(b.Binaries))
+		for k, v := range b.Binaries {
+			if v != nil {
+				copyV := &BadBinaryInfo{
+					Reason:   v.Reason,
+					Operator: v.Operator,
+				}
+				if v.CreatedTimeNano != nil {
+					createdTime := *v.CreatedTimeNano
+					copyV.CreatedTimeNano = &createdTime
+				}
+				result.Binaries[k] = copyV
+			} else {
+				// Preserve nil entries in the map
+				result.Binaries[k] = nil
+			}
+		}
+	}
+	return result
+}
+
 // BadBinaryInfo is an internal type (TBD...)
 type BadBinaryInfo struct {
 	Reason          string `json:"reason,omitempty"`
@@ -1751,8 +1779,22 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName              string  `json:"domainName,omitempty"`
-	DomainActiveClusterName *string `json:"domainActiveClusterName,omitempty"`
+	DomainName              string          `json:"domainName,omitempty"`
+	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                  *string         `json:"reason,omitempty"`
+}
+
+func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
+	if v == nil {
+		return nil
+	}
+	return &UpdateDomainRequest{
+		Name:              v.DomainName,
+		ActiveClusterName: v.DomainActiveClusterName,
+		ActiveClusters:    v.ActiveClusters,
+		FailoverReason:    v.Reason,
+	}
 }
 
 // GetDomainName is an internal getter (TBD...)
@@ -1824,6 +1866,173 @@ func (v *FailoverDomainResponse) GetFailoverVersion() (o int64) {
 func (v *FailoverDomainResponse) GetIsGlobalDomain() (o bool) {
 	if v != nil {
 		return v.IsGlobalDomain
+	}
+	return
+}
+
+// ListFailoverHistoryRequest is an internal type (TBD...)
+type ListFailoverHistoryRequest struct {
+	Filters    *ListFailoverHistoryRequestFilters `json:"filters,omitempty"`
+	Pagination *PaginationOptions                 `json:"pagination,omitempty"`
+}
+
+// GetFilters is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetFilters() (o *ListFailoverHistoryRequestFilters) {
+	if v != nil && v.Filters != nil {
+		return v.Filters
+	}
+	return
+}
+
+// GetPagination is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequest) GetPagination() (o *PaginationOptions) {
+	if v != nil && v.Pagination != nil {
+		return v.Pagination
+	}
+	return
+}
+
+// ListFailoverHistoryRequestFilters is an internal type (TBD...)
+type ListFailoverHistoryRequestFilters struct {
+	DomainID string `json:"domainId,omitempty"`
+}
+
+// GetDomainID is an internal getter (TBD...)
+func (v *ListFailoverHistoryRequestFilters) GetDomainID() (o string) {
+	if v != nil {
+		return v.DomainID
+	}
+	return
+}
+
+// ListFailoverHistoryResponse is an internal type (TBD...)
+type ListFailoverHistoryResponse struct {
+	FailoverEvents []*FailoverEvent `json:"failoverEvents,omitempty"`
+	NextPageToken  []byte           `json:"nextPageToken,omitempty"`
+}
+
+// GetFailoverEvents is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetFailoverEvents() (o []*FailoverEvent) {
+	if v != nil && v.FailoverEvents != nil {
+		return v.FailoverEvents
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *ListFailoverHistoryResponse) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// PaginationOptions is an internal type (TBD...)
+type PaginationOptions struct {
+	PageSize      *int32 `json:"pageSize,omitempty"`
+	NextPageToken []byte `json:"nextPageToken,omitempty"`
+}
+
+// GetPageSize is an internal getter (TBD...)
+func (v *PaginationOptions) GetPageSize() (o int32) {
+	if v != nil && v.PageSize != nil {
+		return *v.PageSize
+	}
+	return
+}
+
+// GetNextPageToken is an internal getter (TBD...)
+func (v *PaginationOptions) GetNextPageToken() (o []byte) {
+	if v != nil && v.NextPageToken != nil {
+		return v.NextPageToken
+	}
+	return
+}
+
+// FailoverEvent is an internal type (TBD...)
+type FailoverEvent struct {
+	ID               *string            `json:"id,omitempty"`
+	CreatedTime      *int64             `json:"createdTime,omitempty"`
+	FailoverType     *FailoverType      `json:"failoverType,omitempty"`
+	ClusterFailovers []*ClusterFailover `json:"clusterFailovers,omitempty"`
+}
+
+// GetID is an internal getter (TBD...)
+func (v *FailoverEvent) GetID() (o string) {
+	if v != nil && v.ID != nil {
+		return *v.ID
+	}
+	return
+}
+
+// GetCreatedTime is an internal getter (TBD...)
+func (v *FailoverEvent) GetCreatedTime() (o int64) {
+	if v != nil && v.CreatedTime != nil {
+		return *v.CreatedTime
+	}
+	return
+}
+
+// GetFailoverType is an internal getter (TBD...)
+func (v *FailoverEvent) GetFailoverType() (o FailoverType) {
+	if v != nil && v.FailoverType != nil {
+		return *v.FailoverType
+	}
+	return
+}
+
+// GetClusterFailovers is an internal getter (TBD...)
+func (v *FailoverEvent) GetClusterFailovers() (o []*ClusterFailover) {
+	if v != nil && v.ClusterFailovers != nil {
+		return v.ClusterFailovers
+	}
+	return
+}
+
+// FailoverType is an internal type (TBD...)
+type FailoverType int32
+
+// this should line up with the IDL values in common.proto
+// ie FailoverType_FAILOVER_TYPE_FORCE = 1
+// ie FailoverType_FAILOVER_TYPE_GRACEFUL = 2
+const (
+	FailoverTypeInvalid  = FailoverType(0)
+	FailoverTypeForce    = FailoverType(1)
+	FailoverTypeGraceful = FailoverType(2)
+)
+
+// Ptr is a helper routine that returns a pointer to given FailoverType value.
+func (e FailoverType) Ptr() *FailoverType {
+	return &e
+}
+
+// ClusterFailover is an internal type (TBD...)
+type ClusterFailover struct {
+	FromCluster      *ActiveClusterInfo `json:"fromCluster,omitempty"`
+	ToCluster        *ActiveClusterInfo `json:"toCluster,omitempty"`
+	ClusterAttribute *ClusterAttribute  `json:"clusterAttribute,omitempty"`
+}
+
+// GetFromCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetFromCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.FromCluster != nil {
+		return v.FromCluster
+	}
+	return
+}
+
+// GetToCluster is an internal getter (TBD...)
+func (v *ClusterFailover) GetToCluster() (o *ActiveClusterInfo) {
+	if v != nil && v.ToCluster != nil {
+		return v.ToCluster
+	}
+	return
+}
+
+// GetClusterAttribute is an internal getter (TBD...)
+func (v *ClusterFailover) GetClusterAttribute() (o *ClusterAttribute) {
+	if v != nil && v.ClusterAttribute != nil {
+		return v.ClusterAttribute
 	}
 	return
 }
@@ -2274,8 +2483,7 @@ func (v *DomainReplicationConfiguration) IsActiveActive() bool {
 		}
 	}
 
-	// TODO(active-active): Remove this once we have completely migrated to ClusterAttributes
-	return len(v.ActiveClusters.ActiveClustersByRegion) > 0
+	return false
 }
 
 // GetActiveClusterName is an internal getter (TBD...)
@@ -2330,16 +2538,11 @@ func (v *DomainReplicationConfiguration) ByteSize() uint64 {
 //
 // TODO(c-warren): Rename to ClusterAttributes
 type ActiveClusters struct {
-	// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-	ActiveClustersByRegion map[string]ActiveClusterInfo `json:"activeClustersByRegion,omitempty" yaml:"activeClustersByRegion,omitempty"`
 	// ClusterAttributes
 	// Keyed by a scope type (e.g region, datacenter, city, etc.).
 	// The value is a ClusterAttributeScope - a map of unique names (e.g seattle, san_francisco, etc.) to an ActiveClusterInfo.
 	AttributeScopes map[string]ClusterAttributeScope `json:"attributeScopes,omitempty" yaml:"attributeScopes,omitempty"`
 }
-
-// DefaultAttributeScopeType is the default scope type for backward compatibility with ActiveClustersByRegion
-const DefaultAttributeScopeType = "region"
 
 type ClusterAttributeNotFoundError struct {
 	ScopeType     string
@@ -2354,6 +2557,7 @@ func (e *ClusterAttributeNotFoundError) Error() string {
 // Failover versions are valid for Int64 >= 0
 // and, but implication, 0 is a valid failover version. To distinguish between it and an undefined
 // failover version, we use a negative value.
+// todo (david.porter) move this to constants package and give it a type
 const UndefinedFailoverVersion = int64(-1)
 
 // GetFailoverVersionForAttribute returns the failover version for a given attribute.
@@ -2382,14 +2586,6 @@ func (v *ActiveClusters) GetFailoverVersionForAttribute(scopeType, attributeName
 	return info.FailoverVersion, nil
 }
 
-// TODO(c-warren): Remove once refactor to ClusterAttribute is complete
-func (v *ActiveClusters) GetActiveClustersByRegion() map[string]ActiveClusterInfo {
-	if v != nil && v.ActiveClustersByRegion != nil {
-		return v.ActiveClustersByRegion
-	}
-	return nil
-}
-
 func (v *ActiveClusters) GetAttributeScopes() map[string]ClusterAttributeScope {
 	if v != nil && v.AttributeScopes != nil {
 		return v.AttributeScopes
@@ -2406,7 +2602,6 @@ var (
 // GetActiveClusterByClusterAttribute retrieves the ActiveClusterInfo for a given cluster attribute.
 // An attribute is a scope, name pair (e.g. region, dca or city, tokyo).
 // Returns ActiveCluster and FailoverVersion if found, otherwise returns an error.
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
 func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attributeName string) (ActiveClusterInfo, error) {
 	if v == nil {
 		return ActiveClusterInfo{}, ErrDomainNotActiveActive
@@ -2424,30 +2619,8 @@ func (v *ActiveClusters) GetActiveClusterByClusterAttribute(scopeType, attribute
 	return scope.GetActiveClusterByClusterAttribute(attributeName)
 }
 
-// GetActiveClusterByRegion is a convenience method to handle backwards compatibility during the move to AttributeScopes.
-// TODO(active-active): Remove once AttributeScopes is fully migrated and migrate to GetActiveClusterByClusterAttribute
-// TODO(active-active): Replace existing calls to d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion[region] with this method.
-func (v *ActiveClusters) GetActiveClusterByRegion(region string) (ActiveClusterInfo, error) {
-	if v == nil || region == "" {
-		// This shouldn't happen as we've validated in GetActiveClusterByClusterAttribute
-		return ActiveClusterInfo{}, ErrDomainNotActiveActive
-	}
-
-	// If ActiveClustersByRegion exists check it first and return the result
-	if v.ActiveClustersByRegion != nil {
-		if info, ok := v.ActiveClustersByRegion[region]; ok {
-			return info, nil
-		}
-	}
-
-	// Otherwise attempt to use AttributeScopes
-	return v.GetActiveClusterByClusterAttribute(DefaultAttributeScopeType, region)
-}
-
 // GetAllClusters returns a sorted, deduplicated list of all attribute names from both
-// the new format (AttributeScopes) and old format (ActiveClustersByRegion).
 // For the "region" scope, these are region names; for other scopes, these are the attribute names.
-// TODO(active-active): Replace existing calls to iterating over d.GetReplicationConfig().ActiveClusters.ActiveClustersByRegion with this method.
 func (v *ActiveClusters) GetAllClusters() []string {
 	if v == nil {
 		return []string{}
@@ -2465,13 +2638,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 		}
 	}
 
-	// Collect region names from old format
-	if v.ActiveClustersByRegion != nil {
-		for region := range v.ActiveClustersByRegion {
-			attributeNames[region] = struct{}{}
-		}
-	}
-
 	// Convert to sorted slice
 	result := make([]string, 0, len(attributeNames))
 	for name := range attributeNames {
@@ -2486,7 +2652,6 @@ func (v *ActiveClusters) GetAllClusters() []string {
 
 // SetClusterForClusterAttribute sets the ActiveClusterInfo for a given cluster attribute.
 // If the receiver is nil, this method is a no-op.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
 func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName string, info ActiveClusterInfo) error {
 	if v == nil {
 		return ErrDomainNotActiveActive
@@ -2513,22 +2678,6 @@ func (v *ActiveClusters) SetClusterForClusterAttribute(scopeType, attributeName 
 	return nil
 }
 
-// SetClusterForRegion sets the ActiveClusterInfo for a given region in both the new and old formats.
-// This will dual-write until we have fully migrated to AttributeScopes.
-// TODO(active-active): Replace existing calls to v.ActiveClustersByRegion[region] = info with this method.
-func (v *ActiveClusters) SetClusterForRegion(region string, info ActiveClusterInfo) error {
-	if v == nil {
-		return ErrDomainNotActiveActive
-	}
-
-	if v.ActiveClustersByRegion == nil {
-		v.ActiveClustersByRegion = make(map[string]ActiveClusterInfo)
-	}
-	v.ActiveClustersByRegion[region] = info
-
-	return v.SetClusterForClusterAttribute(DefaultAttributeScopeType, region, info)
-}
-
 // ByteSize returns the approximate memory used in bytes
 func (v *ActiveClusters) ByteSize() uint64 {
 	if v == nil {
@@ -2536,13 +2685,6 @@ func (v *ActiveClusters) ByteSize() uint64 {
 	}
 
 	size := uint64(unsafe.Sizeof(*v))
-	for k, val := range v.ActiveClustersByRegion {
-		// ByteSize implementation must match the logic in the reflection-based calculator used in the tests from common/types/test_util.go.
-		// reflection-based calculator purposely ignores Go's internal map bucket/storage and treats each map element as
-		// key: dynamic payload only (e.g., len(string)), no string header
-		// value: dynamic payload only (e.g., for a struct, just its fields' dynamic payload), no struct header, no inline ints/bools
-		size += uint64(len(k)) + val.ByteSize() - uint64(unsafe.Sizeof(val))
-	}
 
 	for k, scope := range v.AttributeScopes {
 		size += uint64(len(k)) + scope.ByteSize() - uint64(unsafe.Sizeof(scope))
@@ -2591,6 +2733,13 @@ type ActiveClusterInfo struct {
 	FailoverVersion   int64  `json:"failoverVersion" yaml:"failoverVersion"`
 }
 
+func (v *ActiveClusterInfo) GetActiveClusterName() string {
+	if v == nil {
+		return ""
+	}
+	return v.ActiveClusterName
+}
+
 // ByteSize returns the approximate memory used in bytes
 func (v ActiveClusterInfo) ByteSize() uint64 {
 	return uint64(unsafe.Sizeof(v)) + uint64(len(v.ActiveClusterName))
@@ -2600,23 +2749,40 @@ func (v *ActiveClusters) DeepCopy() *ActiveClusters {
 	if v == nil {
 		return nil
 	}
-	activeClustersByRegion := make(map[string]ActiveClusterInfo)
-	for region, activeClusterInfo := range v.ActiveClustersByRegion {
-		activeClustersByRegion[region] = activeClusterInfo
+	result := &ActiveClusters{}
+	if v.AttributeScopes != nil {
+		result.AttributeScopes = make(map[string]ClusterAttributeScope, len(v.AttributeScopes))
+		for scopeType, scope := range v.AttributeScopes {
+			copiedScope := ClusterAttributeScope{}
+			if scope.ClusterAttributes != nil {
+				copiedScope.ClusterAttributes = make(map[string]ActiveClusterInfo, len(scope.ClusterAttributes))
+				for attrName, attrInfo := range scope.ClusterAttributes {
+					copiedScope.ClusterAttributes[attrName] = attrInfo
+				}
+			}
+			result.AttributeScopes[scopeType] = copiedScope
+		}
 	}
-	attributeScopes := make(map[string]ClusterAttributeScope)
-	for scopeType, scope := range v.AttributeScopes {
-		attributeScopes[scopeType] = scope
-	}
-	return &ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
-	}
+	return result
 }
 
 type ClusterAttribute struct {
 	Scope string `json:"scope,omitempty" yaml:"scope,omitempty"`
 	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
+}
+
+func (c *ClusterAttribute) GetScope() string {
+	if c == nil {
+		return ""
+	}
+	return c.Scope
+}
+
+func (c *ClusterAttribute) GetName() string {
+	if c == nil {
+		return ""
+	}
+	return c.Name
 }
 
 func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
@@ -2629,22 +2795,7 @@ func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
 	return c.Scope == other.Scope && c.Name == other.Name
 }
 
-type ActiveClusterSelectionStrategy int32
-
-const (
-	ActiveClusterSelectionStrategyRegionSticky ActiveClusterSelectionStrategy = iota
-	ActiveClusterSelectionStrategyExternalEntity
-)
-
 type ActiveClusterSelectionPolicy struct {
-	ActiveClusterSelectionStrategy *ActiveClusterSelectionStrategy `json:"activeClusterSelectionStrategy,omitempty"`
-
-	StickyRegion string `json:"stickyRegion,omitempty"`
-
-	ExternalEntityType string `json:"externalEntityType,omitempty"`
-	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
-
-	// TODO(active-active): Remove the fields above
 	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
 }
 
@@ -2663,54 +2814,7 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 		return false
 	}
 
-	return p.GetStrategy() == other.GetStrategy() &&
-		p.StickyRegion == other.StickyRegion &&
-		p.ExternalEntityType == other.ExternalEntityType &&
-		p.ExternalEntityKey == other.ExternalEntityKey && p.ClusterAttribute.Equals(other.ClusterAttribute)
-}
-
-func (p *ActiveClusterSelectionPolicy) GetStrategy() ActiveClusterSelectionStrategy {
-	if p == nil || p.ActiveClusterSelectionStrategy == nil {
-		return ActiveClusterSelectionStrategyRegionSticky
-	}
-	return *p.ActiveClusterSelectionStrategy
-}
-
-func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
-	return &e
-}
-
-func (e ActiveClusterSelectionStrategy) String() string {
-	switch e {
-	case ActiveClusterSelectionStrategyRegionSticky:
-		return "REGION_STICKY"
-	case ActiveClusterSelectionStrategyExternalEntity:
-		return "EXTERNAL_ENTITY"
-	}
-
-	return fmt.Sprintf("ActiveClusterSelectionStrategy(%d)", e)
-}
-
-func (e ActiveClusterSelectionStrategy) MarshalText() ([]byte, error) {
-	return []byte(e.String()), nil
-}
-
-func (e *ActiveClusterSelectionStrategy) UnmarshalText(value []byte) error {
-	switch s := strings.ToUpper(string(value)); s {
-	case "REGION_STICKY":
-		*e = ActiveClusterSelectionStrategyRegionSticky
-		return nil
-	case "EXTERNAL_ENTITY":
-		*e = ActiveClusterSelectionStrategyExternalEntity
-		return nil
-	default:
-		val, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return fmt.Errorf("unknown enum value %q for %q: %v", s, "ActiveClusterSelectionStrategy", err)
-		}
-		*e = ActiveClusterSelectionStrategy(val)
-		return nil
-	}
+	return p.ClusterAttribute.Equals(other.ClusterAttribute)
 }
 
 // DomainStatus is an internal type (TBD...)
@@ -5456,7 +5560,6 @@ type RegisterDomainRequest struct {
 	EmitMetric                             *bool                              `json:"emitMetric,omitempty"`
 	Clusters                               []*ClusterReplicationConfiguration `json:"clusters,omitempty"`
 	ActiveClusterName                      string                             `json:"activeClusterName,omitempty"`
-	ActiveClustersByRegion                 map[string]string                  `json:"activeClustersByRegion,omitempty"`
 	ActiveClusters                         *ActiveClusters                    `json:"activeClusters,omitempty"`
 	Data                                   map[string]string                  `json:"data,omitempty"`
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
@@ -5512,14 +5615,6 @@ func (v *RegisterDomainRequest) GetEmitMetric() (o bool) {
 func (v *RegisterDomainRequest) GetActiveClusterName() (o string) {
 	if v != nil {
 		return v.ActiveClusterName
-	}
-	return
-}
-
-// GetActiveClustersByRegion is an internal getter (TBD...)
-func (v *RegisterDomainRequest) GetActiveClustersByRegion() (o map[string]string) {
-	if v != nil {
-		return v.ActiveClustersByRegion
 	}
 	return
 }
@@ -6531,6 +6626,38 @@ func (v *RetryTaskV2Error) GetRunID() (o string) {
 	return
 }
 
+// GetStartEventID is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetStartEventID() (o int64) {
+	if v != nil && v.StartEventID != nil {
+		return *v.StartEventID
+	}
+	return
+}
+
+// GetStartEventVersion is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetStartEventVersion() (o int64) {
+	if v != nil && v.StartEventVersion != nil {
+		return *v.StartEventVersion
+	}
+	return
+}
+
+// GetEndEventID is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetEndEventID() (o int64) {
+	if v != nil && v.EndEventID != nil {
+		return *v.EndEventID
+	}
+	return
+}
+
+// GetEndEventVersion is an internal getter (TBD...)
+func (v *RetryTaskV2Error) GetEndEventVersion() (o int64) {
+	if v != nil && v.EndEventVersion != nil {
+		return *v.EndEventVersion
+	}
+	return
+}
+
 // ScheduleActivityTaskDecisionAttributes is an internal type (TBD...)
 type ScheduleActivityTaskDecisionAttributes struct {
 	ActivityID                    string        `json:"activityId,omitempty"`
@@ -7288,6 +7415,14 @@ func (v *StartWorkflowExecutionRequest) GetDomain() (o string) {
 	return
 }
 
+// GetTaskList is an internal getter (TBD...)
+func (v *StartWorkflowExecutionRequest) GetTaskList() (o *TaskList) {
+	if v != nil && v.TaskList != nil {
+		return v.TaskList
+	}
+	return
+}
+
 // GetWorkflowID is an internal getter (TBD...)
 func (v *StartWorkflowExecutionRequest) GetWorkflowID() (o string) {
 	if v != nil {
@@ -7445,8 +7580,9 @@ func (v *TaskIDBlock) GetEndID() (o int64) {
 
 // TaskList is an internal type (TBD...)
 type TaskList struct {
-	Name string        `json:"name,omitempty"`
-	Kind *TaskListKind `json:"kind,omitempty"`
+	Name     string        `json:"name,omitempty"`
+	Kind     *TaskListKind `json:"kind,omitempty"`
+	BaseName string        `json:"baseName,omitempty"`
 }
 
 // GetName is an internal getter (TBD...)
@@ -7461,6 +7597,14 @@ func (v *TaskList) GetName() (o string) {
 func (v *TaskList) GetKind() (o TaskListKind) {
 	if v != nil && v.Kind != nil {
 		return *v.Kind
+	}
+	return
+}
+
+// GetBaseName is an internal getter (TBD...)
+func (v *TaskList) GetBaseName() (o string) {
+	if v != nil {
+		return v.BaseName
 	}
 	return
 }
@@ -7882,6 +8026,23 @@ type UpdateDomainRequest struct {
 	SecurityToken                          string                             `json:"securityToken,omitempty"`
 	DeleteBadBinary                        *string                            `json:"deleteBadBinary,omitempty"`
 	FailoverTimeoutInSeconds               *int32                             `json:"failoverTimeoutInSeconds,omitempty"`
+	FailoverReason                         *string                            `json:"failoverReason,omitempty"`
+}
+
+// IsAFailoverRequest identifies if any part of the request is a failover request
+// and if so, will return true
+// this includes:
+//
+// - an active cluster change  (force failver)
+// - any failvoer timeout values (for graceful failover)
+// - or a change to one of the domain's cluster-attribute fields (active-active failover)
+//
+// this is not a validation function
+// and doesn't attempt to give valid or coherent combinations
+func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
+	return v.ActiveClusterName != nil ||
+		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
+		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
 }
 
 // GetName is an internal getter (TBD...)
@@ -7923,6 +8084,19 @@ type UpdateDomainResponse struct {
 	ReplicationConfiguration *DomainReplicationConfiguration `json:"replicationConfiguration,omitempty"`
 	FailoverVersion          int64                           `json:"failoverVersion,omitempty"`
 	IsGlobalDomain           bool                            `json:"isGlobalDomain,omitempty"`
+}
+
+func (v *UpdateDomainResponse) ToFailoverDomainResponse() *FailoverDomainResponse {
+	if v == nil {
+		return nil
+	}
+	return &FailoverDomainResponse{
+		DomainInfo:               v.DomainInfo,
+		Configuration:            v.Configuration,
+		ReplicationConfiguration: v.ReplicationConfiguration,
+		FailoverVersion:          v.FailoverVersion,
+		IsGlobalDomain:           v.IsGlobalDomain,
+	}
 }
 
 // GetDomainInfo is an internal getter (TBD...)
@@ -8162,6 +8336,79 @@ func (e WorkflowExecutionCloseStatus) String() string {
 	return fmt.Sprintf("WorkflowExecutionCloseStatus(%d)", w)
 }
 
+type WorkflowExecutionStatus int32
+
+// Ptr is a helper function for getting pointer value
+func (e WorkflowExecutionStatus) Ptr() *WorkflowExecutionStatus {
+	return &e
+}
+
+// String returns a readable string representation of WorkflowExecutionStatus.
+func (e WorkflowExecutionStatus) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "PENDING"
+	case 1:
+		return "STARTED"
+	case 2:
+		return "COMPLETED"
+	case 3:
+		return "FAILED"
+	case 4:
+		return "CANCELED"
+	case 5:
+		return "TERMINATED"
+	case 6:
+		return "CONTINUED_AS_NEW"
+	case 7:
+		return "TIMED_OUT"
+	}
+	return fmt.Sprintf("WorkflowExecutionStatus(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *WorkflowExecutionStatus) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "PENDING":
+		*e = WorkflowExecutionStatusPending
+		return nil
+	case "STARTED":
+		*e = WorkflowExecutionStatusStarted
+		return nil
+	case "COMPLETED":
+		*e = WorkflowExecutionStatusCompleted
+		return nil
+	case "FAILED":
+		*e = WorkflowExecutionStatusFailed
+		return nil
+	case "CANCELED":
+		*e = WorkflowExecutionStatusCanceled
+		return nil
+	case "TERMINATED":
+		*e = WorkflowExecutionStatusTerminated
+		return nil
+	case "CONTINUED_AS_NEW":
+		*e = WorkflowExecutionStatusContinuedAsNew
+		return nil
+	case "TIMED_OUT":
+		*e = WorkflowExecutionStatusTimedOut
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "WorkflowExecutionStatus", err)
+		}
+		*e = WorkflowExecutionStatus(val)
+		return nil
+	}
+}
+
+// MarshalText encodes WorkflowExecutionStatus to text.
+func (e WorkflowExecutionStatus) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
 // UnmarshalText parses enum value from string representation
 func (e *WorkflowExecutionCloseStatus) UnmarshalText(value []byte) error {
 	switch s := strings.ToUpper(string(value)); s {
@@ -8211,6 +8458,25 @@ const (
 	WorkflowExecutionCloseStatusContinuedAsNew
 	// WorkflowExecutionCloseStatusTimedOut is an option for WorkflowExecutionCloseStatus
 	WorkflowExecutionCloseStatusTimedOut
+)
+
+const (
+	// WorkflowExecutionStatusPending is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusPending WorkflowExecutionStatus = iota
+	// WorkflowExecutionStatusStarted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusStarted
+	// WorkflowExecutionStatusCompleted is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCompleted
+	// WorkflowExecutionStatusFailed is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusFailed
+	// WorkflowExecutionStatusCanceled is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusCanceled
+	// WorkflowExecutionStatusTerminated is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTerminated
+	// WorkflowExecutionStatusContinuedAsNew is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusContinuedAsNew
+	// WorkflowExecutionStatusTimedOut is an option for WorkflowExecutionStatus
+	WorkflowExecutionStatusTimedOut
 )
 
 // WorkflowExecutionCompletedEventAttributes is an internal type (TBD...)
@@ -8346,6 +8612,9 @@ type WorkflowExecutionInfo struct {
 	PartitionConfig              map[string]string             `json:"partitionConfig,omitempty"`
 	CronOverlapPolicy            *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
 	ActiveClusterSelectionPolicy *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	CronSchedule                 *string                       `json:"cronSchedule,omitempty"`
+	ExecutionStatus              *WorkflowExecutionStatus      `json:"executionStatus,omitempty"`
+	ScheduledExecutionTime       *int64                        `json:"scheduledExecutionTime,omitempty"`
 }
 
 // GetExecution is an internal getter (TBD...)
@@ -8416,6 +8685,30 @@ func (v *WorkflowExecutionInfo) GetSearchAttributes() (o *SearchAttributes) {
 func (v *WorkflowExecutionInfo) GetPartitionConfig() (o map[string]string) {
 	if v != nil && v.PartitionConfig != nil {
 		return v.PartitionConfig
+	}
+	return
+}
+
+// GetCronSchedule is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetCronSchedule() (o string) {
+	if v != nil && v.CronSchedule != nil {
+		return *v.CronSchedule
+	}
+	return
+}
+
+// GetExecutionStatus is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetExecutionStatus() (o WorkflowExecutionStatus) {
+	if v != nil && v.ExecutionStatus != nil {
+		return *v.ExecutionStatus
+	}
+	return
+}
+
+// GetScheduledExecutionTime is an internal getter (TBD...)
+func (v *WorkflowExecutionInfo) GetScheduledExecutionTime() (o int64) {
+	if v != nil && v.ScheduledExecutionTime != nil {
+		return *v.ScheduledExecutionTime
 	}
 	return
 }
@@ -9341,6 +9634,11 @@ type RespondCrossClusterTasksCompletedResponse struct {
 
 // StickyWorkerUnavailableError is an internal type (TBD...)
 type StickyWorkerUnavailableError struct {
+	Message string `json:"message,required"`
+}
+
+// ReadOnlyPartitionError is an internal type (TBD...)
+type ReadOnlyPartitionError struct {
 	Message string `json:"message,required"`
 }
 

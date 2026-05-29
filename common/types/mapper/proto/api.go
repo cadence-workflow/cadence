@@ -1194,10 +1194,15 @@ func ToFailoverInfo(t *apiv1.FailoverInfo) *types.FailoverInfo {
 	if t == nil {
 		return nil
 	}
+	startTs := timeToUnixNano(t.GetFailoverStartTimestamp())
+	expireTs := timeToUnixNano(t.GetFailoverExpireTimestamp())
+	if startTs == nil || expireTs == nil {
+		return nil
+	}
 	return &types.FailoverInfo{
 		FailoverVersion:         t.GetFailoverVersion(),
-		FailoverStartTimestamp:  *timeToUnixNano(t.GetFailoverStartTimestamp()),
-		FailoverExpireTimestamp: *timeToUnixNano(t.GetFailoverExpireTimestamp()),
+		FailoverStartTimestamp:  *startTs,
+		FailoverExpireTimestamp: *expireTs,
 		CompletedShardCount:     t.GetCompletedShardCount(),
 		PendingShards:           t.GetPendingShards(),
 	}
@@ -2595,7 +2600,6 @@ func FromRegisterDomainRequest(t *types.RegisterDomainRequest) *apiv1.RegisterDo
 		WorkflowExecutionRetentionPeriod: daysToDuration(&t.WorkflowExecutionRetentionPeriodInDays),
 		Clusters:                         FromClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                t.ActiveClusterName,
-		ActiveClustersByRegion:           t.ActiveClustersByRegion,
 		ActiveClusters:                   FromActiveClusters(t.ActiveClusters),
 		Data:                             t.Data,
 		SecurityToken:                    t.SecurityToken,
@@ -2611,15 +2615,18 @@ func ToRegisterDomainRequest(t *apiv1.RegisterDomainRequest) *types.RegisterDoma
 	if t == nil {
 		return nil
 	}
+	days := durationToDays(t.WorkflowExecutionRetentionPeriod)
+	if days == nil {
+		days = common.Int32Ptr(3) // default to 3 days if not set
+	}
 	return &types.RegisterDomainRequest{
 		Name:                                   t.Name,
 		Description:                            t.Description,
 		OwnerEmail:                             t.OwnerEmail,
-		WorkflowExecutionRetentionPeriodInDays: *durationToDays(t.WorkflowExecutionRetentionPeriod),
+		WorkflowExecutionRetentionPeriodInDays: *days,
 		EmitMetric:                             common.BoolPtr(true), // this is a legacy field that doesn't exist in proto and probably can be removed
 		Clusters:                               ToClusterReplicationConfigurationArray(t.Clusters),
 		ActiveClusterName:                      t.ActiveClusterName,
-		ActiveClustersByRegion:                 t.ActiveClustersByRegion,
 		ActiveClusters:                         ToActiveClusters(t.ActiveClusters),
 		Data:                                   t.Data,
 		SecurityToken:                          t.SecurityToken,
@@ -3989,8 +3996,9 @@ func FromTaskList(t *types.TaskList) *apiv1.TaskList {
 		return nil
 	}
 	return &apiv1.TaskList{
-		Name: t.Name,
-		Kind: FromTaskListKind(t.Kind),
+		Name:     t.Name,
+		Kind:     FromTaskListKind(t.Kind),
+		BaseName: t.BaseName,
 	}
 }
 
@@ -3999,8 +4007,9 @@ func ToTaskList(t *apiv1.TaskList) *types.TaskList {
 		return nil
 	}
 	return &types.TaskList{
-		Name: t.Name,
-		Kind: ToTaskListKind(t.Kind),
+		Name:     t.Name,
+		Kind:     ToTaskListKind(t.Kind),
+		BaseName: t.BaseName,
 	}
 }
 
@@ -4104,6 +4113,9 @@ func ToTaskListStatus(t *apiv1.TaskListStatus) *types.TaskListStatus {
 }
 
 func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *apiv1.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
 	return &apiv1.IsolationGroupMetrics{
 		NewTasksPerSecond: t.NewTasksPerSecond,
 		PollerCount:       t.PollerCount,
@@ -4111,6 +4123,9 @@ func FromIsolationGroupMetrics(t *types.IsolationGroupMetrics) *apiv1.IsolationG
 }
 
 func ToIsolationGroupMetrics(t *apiv1.IsolationGroupMetrics) *types.IsolationGroupMetrics {
+	if t == nil {
+		return nil
+	}
 	return &types.IsolationGroupMetrics{
 		NewTasksPerSecond: t.NewTasksPerSecond,
 		PollerCount:       t.PollerCount,
@@ -4516,7 +4531,8 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 	}
 	return &apiv1.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: *t.DomainActiveClusterName,
+		DomainActiveClusterName: t.GetDomainActiveClusterName(),
+		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4524,9 +4540,14 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	if t == nil {
 		return nil
 	}
+	var domainActiveClusterName *string
+	if t.DomainActiveClusterName != "" {
+		domainActiveClusterName = common.StringPtr(t.DomainActiveClusterName)
+	}
 	return &types.FailoverDomainRequest{
 		DomainName:              t.DomainName,
-		DomainActiveClusterName: common.StringPtr(t.DomainActiveClusterName),
+		DomainActiveClusterName: domainActiveClusterName,
+		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
 	}
 }
 
@@ -4599,6 +4620,231 @@ func ToFailoverDomainResponse(t *apiv1.FailoverDomainResponse) *types.FailoverDo
 		},
 		FailoverVersion: t.Domain.FailoverVersion,
 		IsGlobalDomain:  t.Domain.IsGlobalDomain,
+	}
+}
+
+func FromListFailoverHistoryRequest(t *types.ListFailoverHistoryRequest) *apiv1.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequest{
+		Filters:    FromListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: FromPaginationOptions(t.Pagination),
+	}
+}
+
+func ToListFailoverHistoryRequest(t *apiv1.ListFailoverHistoryRequest) *types.ListFailoverHistoryRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequest{
+		Filters:    ToListFailoverHistoryRequestFilters(t.Filters),
+		Pagination: ToPaginationOptions(t.Pagination),
+	}
+}
+
+func ToListFailoverHistoryResponse(t *apiv1.ListFailoverHistoryResponse) *types.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryResponse{
+		FailoverEvents: ToFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+func FromListFailoverHistoryResponse(t *types.ListFailoverHistoryResponse) *apiv1.ListFailoverHistoryResponse {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryResponse{
+		FailoverEvents: FromFailoverEventArray(t.FailoverEvents),
+		NextPageToken:  t.NextPageToken,
+	}
+}
+
+func FromListFailoverHistoryRequestFilters(t *types.ListFailoverHistoryRequestFilters) *apiv1.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ListFailoverHistoryRequestFilters{
+		DomainId: t.DomainID,
+	}
+}
+
+func ToListFailoverHistoryRequestFilters(t *apiv1.ListFailoverHistoryRequestFilters) *types.ListFailoverHistoryRequestFilters {
+	if t == nil {
+		return nil
+	}
+	return &types.ListFailoverHistoryRequestFilters{
+		DomainID: t.DomainId,
+	}
+}
+
+func FromPaginationOptions(t *types.PaginationOptions) *apiv1.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	pageSize := int32(0)
+	if t.PageSize != nil {
+		pageSize = *t.PageSize
+	}
+	return &apiv1.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func ToPaginationOptions(t *apiv1.PaginationOptions) *types.PaginationOptions {
+	if t == nil {
+		return nil
+	}
+	var pageSize *int32
+	if t.PageSize != 0 {
+		pageSize = common.Int32Ptr(t.PageSize)
+	}
+	return &types.PaginationOptions{
+		PageSize:      pageSize,
+		NextPageToken: t.NextPageToken,
+	}
+}
+
+func FromFailoverEvent(t *types.FailoverEvent) *apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.FailoverEvent{
+		Id:               t.GetID(),
+		CreatedTime:      unixNanoToTime(t.CreatedTime),
+		FailoverType:     FromFailoverType(t.FailoverType),
+		ClusterFailovers: FromClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func ToFailoverEvent(t *apiv1.FailoverEvent) *types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	var id *string
+	if t.Id != "" {
+		id = common.StringPtr(t.Id)
+	}
+	return &types.FailoverEvent{
+		ID:               id,
+		CreatedTime:      timeToUnixNano(t.CreatedTime),
+		FailoverType:     ToFailoverType(t.FailoverType),
+		ClusterFailovers: ToClusterFailoverArray(t.ClusterFailovers),
+	}
+}
+
+func FromFailoverEventArray(t []*types.FailoverEvent) []*apiv1.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = FromFailoverEvent(t[i])
+	}
+	return v
+}
+
+func ToFailoverEventArray(t []*apiv1.FailoverEvent) []*types.FailoverEvent {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.FailoverEvent, len(t))
+	for i := range t {
+		v[i] = ToFailoverEvent(t[i])
+	}
+	return v
+}
+
+func FromClusterFailover(t *types.ClusterFailover) *apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ClusterFailover{
+		FromCluster:      FromActiveClusterInfo(t.FromCluster),
+		ToCluster:        FromActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: FromClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func ToClusterFailover(t *apiv1.ClusterFailover) *types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	return &types.ClusterFailover{
+		FromCluster:      ToActiveClusterInfo(t.FromCluster),
+		ToCluster:        ToActiveClusterInfo(t.ToCluster),
+		ClusterAttribute: ToClusterAttribute(t.ClusterAttribute),
+	}
+}
+
+func FromClusterFailoverArray(t []*types.ClusterFailover) []*apiv1.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*apiv1.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = FromClusterFailover(t[i])
+	}
+	return v
+}
+
+func ToClusterFailoverArray(t []*apiv1.ClusterFailover) []*types.ClusterFailover {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.ClusterFailover, len(t))
+	for i := range t {
+		v[i] = ToClusterFailover(t[i])
+	}
+	return v
+}
+
+func FromActiveClusterInfo(t *types.ActiveClusterInfo) *apiv1.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &apiv1.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func ToActiveClusterInfo(t *apiv1.ActiveClusterInfo) *types.ActiveClusterInfo {
+	if t == nil {
+		return nil
+	}
+	return &types.ActiveClusterInfo{
+		ActiveClusterName: t.ActiveClusterName,
+		FailoverVersion:   t.FailoverVersion,
+	}
+}
+
+func FromFailoverType(t *types.FailoverType) apiv1.FailoverType {
+	if t == nil {
+		return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+	}
+	switch *t {
+	case types.FailoverTypeForce:
+		return apiv1.FailoverType_FAILOVER_TYPE_FORCE
+	case types.FailoverTypeGraceful:
+		return apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL
+	}
+	return apiv1.FailoverType_FAILOVER_TYPE_INVALID
+}
+
+func ToFailoverType(t apiv1.FailoverType) *types.FailoverType {
+	switch t {
+	case apiv1.FailoverType_FAILOVER_TYPE_FORCE:
+		return types.FailoverTypeForce.Ptr()
+	case apiv1.FailoverType_FAILOVER_TYPE_GRACEFUL:
+		return types.FailoverTypeGraceful.Ptr()
+	default:
+		// For FAILOVER_TYPE_INVALID and unknown values, return nil
+		return nil
 	}
 }
 
@@ -4807,6 +5053,55 @@ func ToWorkflowExecutionCloseStatus(t apiv1.WorkflowExecutionCloseStatus) *types
 		return types.WorkflowExecutionCloseStatusContinuedAsNew.Ptr()
 	case apiv1.WorkflowExecutionCloseStatus_WORKFLOW_EXECUTION_CLOSE_STATUS_TIMED_OUT:
 		return types.WorkflowExecutionCloseStatusTimedOut.Ptr()
+	}
+	return nil
+}
+
+func FromWorkflowExecutionStatus(t *types.WorkflowExecutionStatus) apiv1.WorkflowExecutionStatus {
+	if t == nil {
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID
+	}
+	switch *t {
+	case types.WorkflowExecutionStatusPending:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_PENDING
+	case types.WorkflowExecutionStatusStarted:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_STARTED
+	case types.WorkflowExecutionStatusCompleted:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_COMPLETED
+	case types.WorkflowExecutionStatusFailed:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_FAILED
+	case types.WorkflowExecutionStatusCanceled:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CANCELED
+	case types.WorkflowExecutionStatusTerminated:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TERMINATED
+	case types.WorkflowExecutionStatusContinuedAsNew:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW
+	case types.WorkflowExecutionStatusTimedOut:
+		return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TIMED_OUT
+	}
+	return apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID
+}
+
+func ToWorkflowExecutionStatus(t apiv1.WorkflowExecutionStatus) *types.WorkflowExecutionStatus {
+	switch t {
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_INVALID:
+		return nil
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_PENDING:
+		return types.WorkflowExecutionStatusPending.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_STARTED:
+		return types.WorkflowExecutionStatusStarted.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		return types.WorkflowExecutionStatusCompleted.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_FAILED:
+		return types.WorkflowExecutionStatusFailed.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CANCELED:
+		return types.WorkflowExecutionStatusCanceled.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TERMINATED:
+		return types.WorkflowExecutionStatusTerminated.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW:
+		return types.WorkflowExecutionStatusContinuedAsNew.Ptr()
+	case apiv1.WorkflowExecutionStatus_WORKFLOW_EXECUTION_STATUS_TIMED_OUT:
+		return types.WorkflowExecutionStatusTimedOut.Ptr()
 	}
 	return nil
 }
@@ -5021,6 +5316,10 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 	if t.TaskList != nil {
 		tlName = t.TaskList.Name
 	}
+	cronSchedule := ""
+	if t.CronSchedule != nil {
+		cronSchedule = *t.CronSchedule
+	}
 	return &apiv1.WorkflowExecutionInfo{
 		WorkflowExecution:            FromWorkflowExecution(t.Execution),
 		Type:                         FromWorkflowType(t.Type),
@@ -5039,12 +5338,19 @@ func FromWorkflowExecutionInfo(t *types.WorkflowExecutionInfo) *apiv1.WorkflowEx
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 cronSchedule,
+		ExecutionStatus:              FromWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       unixNanoToTime(t.ScheduledExecutionTime),
 	}
 }
 
 func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExecutionInfo {
 	if t == nil {
 		return nil
+	}
+	var cronSchedule *string
+	if t.CronSchedule != "" {
+		cronSchedule = &t.CronSchedule
 	}
 	return &types.WorkflowExecutionInfo{
 		Execution:                    ToWorkflowExecution(t.WorkflowExecution),
@@ -5066,6 +5372,9 @@ func ToWorkflowExecutionInfo(t *apiv1.WorkflowExecutionInfo) *types.WorkflowExec
 		IsCron:                       t.IsCron,
 		CronOverlapPolicy:            ToCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		CronSchedule:                 cronSchedule,
+		ExecutionStatus:              ToWorkflowExecutionStatus(t.ExecutionStatus),
+		ScheduledExecutionTime:       timeToUnixNano(t.ScheduledExecutionTime),
 	}
 }
 
@@ -5566,18 +5875,8 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 		return nil
 	}
 
-	var regionToCluster map[string]*apiv1.ActiveClusterInfo
-	if len(t.ActiveClustersByRegion) > 0 {
-		regionToCluster = make(map[string]*apiv1.ActiveClusterInfo)
-		for region, cluster := range t.ActiveClustersByRegion {
-			regionToCluster[region] = &apiv1.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var activeClustersByClusterAttribute map[string]*apiv1.ClusterAttributeScope
+
 	if t.AttributeScopes != nil {
 		activeClustersByClusterAttribute = make(map[string]*apiv1.ClusterAttributeScope)
 		for scopeType, scope := range t.AttributeScopes {
@@ -5586,7 +5885,6 @@ func FromActiveClusters(t *types.ActiveClusters) *apiv1.ActiveClusters {
 	}
 
 	return &apiv1.ActiveClusters{
-		RegionToCluster:                  regionToCluster,
 		ActiveClustersByClusterAttribute: activeClustersByClusterAttribute,
 	}
 }
@@ -5596,18 +5894,8 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 		return nil
 	}
 
-	var activeClustersByRegion map[string]types.ActiveClusterInfo
-	if len(t.RegionToCluster) > 0 {
-		activeClustersByRegion = make(map[string]types.ActiveClusterInfo)
-		for region, cluster := range t.RegionToCluster {
-			activeClustersByRegion[region] = types.ActiveClusterInfo{
-				ActiveClusterName: cluster.ActiveClusterName,
-				FailoverVersion:   cluster.FailoverVersion,
-			}
-		}
-	}
-
 	var attributeScopes map[string]types.ClusterAttributeScope
+
 	if t.ActiveClustersByClusterAttribute != nil {
 		attributeScopes = make(map[string]types.ClusterAttributeScope)
 		for scopeType, scope := range t.ActiveClustersByClusterAttribute {
@@ -5618,8 +5906,7 @@ func ToActiveClusters(t *apiv1.ActiveClusters) *types.ActiveClusters {
 	}
 
 	return &types.ActiveClusters{
-		ActiveClustersByRegion: activeClustersByRegion,
-		AttributeScopes:        attributeScopes,
+		AttributeScopes: attributeScopes,
 	}
 }
 
@@ -6550,30 +6837,6 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 	if p == nil {
 		return nil
 	}
-	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.GetStrategy() {
-	case types.ActiveClusterSelectionStrategyRegionSticky:
-		return &apiv1.ActiveClusterSelectionPolicy{
-			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,
-			StrategyConfig: &apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig{
-				ActiveClusterStickyRegionConfig: &apiv1.ActiveClusterStickyRegionConfig{
-					StickyRegion: p.StickyRegion,
-				},
-			},
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	case types.ActiveClusterSelectionStrategyExternalEntity:
-		return &apiv1.ActiveClusterSelectionPolicy{
-			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY,
-			StrategyConfig: &apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig{
-				ActiveClusterExternalEntityConfig: &apiv1.ActiveClusterExternalEntityConfig{
-					ExternalEntityType: p.ExternalEntityType,
-					ExternalEntityKey:  p.ExternalEntityKey,
-				},
-			},
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	}
 	return &apiv1.ActiveClusterSelectionPolicy{
 		ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 	}
@@ -6582,22 +6845,6 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
-	}
-	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.Strategy {
-	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY:
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig).ActiveClusterStickyRegionConfig.StickyRegion,
-			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
-		}
-	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY:
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-			ExternalEntityType:             p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityType,
-			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
-			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
-		}
 	}
 	return &types.ActiveClusterSelectionPolicy{
 		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),

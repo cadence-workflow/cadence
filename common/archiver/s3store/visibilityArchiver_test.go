@@ -124,7 +124,7 @@ func (s *visibilityArchiverSuite) SetupSuite() {
 
 	s.container = &archiver.VisibilityBootstrapContainer{
 		Logger:        testlogger.New(s.T()),
-		MetricsClient: metrics.NewClient(scope, metrics.History, metrics.HistogramMigration{}),
+		MetricsClient: metrics.NewClient(scope, metrics.History, metrics.MigrationConfig{}),
 	}
 	s.setupVisibilityDirectory()
 }
@@ -210,7 +210,7 @@ func (s *visibilityArchiverSuite) TestArchive_Success() {
 	s.NoError(err)
 
 	expectedKey := constructTimestampIndex(URI.Path(), testDomainID, primaryIndexKeyWorkflowID, testWorkflowID, secondaryIndexKeyCloseTimeout, closeTimestamp.UnixNano(), testRunID)
-	data, err := download(context.Background(), visibilityArchiver.s3cli, URI, expectedKey)
+	data, err := download(context.Background(), visibilityArchiver.s3cli, URI, visibilityArchiver.region, expectedKey)
 	s.NoError(err, expectedKey)
 
 	archivedRecord := &archiver.ArchiveVisibilityRequest{}

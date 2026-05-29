@@ -325,13 +325,13 @@ func (c *staleWorkflowCheck) checkRunningAge(workflow *persistence.GetWorkflowEx
 func (c *staleWorkflowCheck) checkTimeInSaneRange(t time.Time, kind string) (ok bool, result CheckResult) {
 	if t.IsZero() {
 		// will also be before-impossibly-old, but separated for clarity purposes
-		return false, c.failed(fmt.Sprintf("calculated %v is zero, failing", kind), "")
+		return false, c.failed("calculated time is zero, failing", "kind: %v", kind)
 	}
 	if t.Before(impossiblyOld) || t.After(impossiblyFuture) {
 		// something screwed up, time is outside sane bounds
 		return false, c.failed(
-			fmt.Sprintf("calculated %v seems insane, failing", kind),
-			"expected %v to be within range: %q < actual %q < %q", kind, impossiblyOld, t, impossiblyFuture)
+			"calculated time seems insane, failing",
+			"kind: %v, expected to be within range: %q < actual %q < %q", kind, impossiblyOld, t, impossiblyFuture)
 	}
 	return true, result
 }

@@ -83,6 +83,14 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 	s.T().Skip("skip the test until we store workflow_request in postgres sql")
 }
 
+func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in postgres sql")
+}
+
+func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in postgres sql")
+}
+
 func TestPostgresSQLExecutionManagerSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(ExecutionManagerSuite)
@@ -134,6 +142,16 @@ FAIL: TestPostgresSQLQueuePersistence/TestDomainReplicationQueue (0.26s)
 func TestPostgresSQLConfigPersistence(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(pt.ConfigStorePersistenceSuite)
+	options, err := postgres.GetTestClusterOption()
+	assert.NoError(t, err)
+	s.TestBase = pt.NewTestBaseWithSQL(t, options)
+	s.TestBase.Setup()
+	suite.Run(t, s)
+}
+
+func TestPostgresSQLDomainAuditPersistence(t *testing.T) {
+	testflags.RequirePostgres(t)
+	s := new(pt.DomainAuditPersistenceSuite)
 	options, err := postgres.GetTestClusterOption()
 	assert.NoError(t, err)
 	s.TestBase = pt.NewTestBaseWithSQL(t, options)

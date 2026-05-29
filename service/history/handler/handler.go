@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -31,10 +32,10 @@ import (
 
 	"github.com/pborman/uuid"
 	"go.uber.org/yarpc/yarpcerrors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/cache"
 	commonconstants "github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/log"
@@ -72,19 +73,20 @@ type (
 	handlerImpl struct {
 		resource.Resource
 
-		shuttingDown            int32
-		controller              shard.Controller
-		tokenSerializer         common.TaskTokenSerializer
-		startWG                 sync.WaitGroup
-		config                  *config.Config
-		historyEventNotifier    events.Notifier
-		rateLimiter             quotas.Limiter
-		replicationTaskFetchers replication.TaskFetchers
-		queueTaskProcessor      task.Processor
-		failoverCoordinator     failover.Coordinator
-		workflowIDCache         workflowcache.WFCache
-		ratelimitAggregator     algorithm.RequestWeighted
-		queueFactories          []queue.Factory
+		shuttingDown             int32
+		controller               shard.Controller
+		tokenSerializer          common.TaskTokenSerializer
+		startWG                  sync.WaitGroup
+		config                   *config.Config
+		historyEventNotifier     events.Notifier
+		rateLimiter              quotas.Limiter
+		replicationTaskFetchers  replication.TaskFetchers
+		queueTaskProcessor       task.Processor
+		failoverCoordinator      failover.Coordinator
+		workflowIDCache          workflowcache.WFCache
+		ratelimitAggregator      algorithm.RequestWeighted
+		queueFactories           []queue.Factory
+		replicationBudgetManager cache.Manager
 	}
 )
 
@@ -119,6 +121,7 @@ func (h *handlerImpl) Start() {
 		h.config,
 		h.GetClusterMetadata(),
 		h.GetClientBean(),
+		h.GetMetricsClient(),
 	)
 	if err != nil {
 		h.GetLogger().Fatal("Creating replication task fetchers failed", tag.Error(err))
@@ -135,10 +138,22 @@ func (h *handlerImpl) Start() {
 		h.config,
 	)
 
+	h.replicationBudgetManager = cache.NewBudgetManager(
+		"replication-budget-manager",
+		h.config.ReplicationBudgetManagerMaxSizeBytes,
+		h.config.ReplicationBudgetManagerMaxSizeCount,
+		cache.AdmissionOptimistic,
+		0,
+		h.GetMetricsClient().Scope(metrics.ReplicatorCacheManagerScope, metrics.HostTag(h.config.HostName)),
+		h.GetLogger(),
+		h.config.ReplicationBudgetManagerSoftCapThreshold,
+	)
+
 	h.controller = shard.NewShardController(
 		h.Resource,
 		h,
 		h.config,
+		h.replicationBudgetManager,
 	)
 
 	var taskProcessor task.Processor
@@ -200,6 +215,9 @@ func (h *handlerImpl) Start() {
 // Stop stops the handler
 func (h *handlerImpl) Stop() {
 	h.prepareToShutDown()
+	if h.replicationBudgetManager != nil {
+		h.replicationBudgetManager.Stop()
+	}
 	h.replicationTaskFetchers.Stop()
 	h.controller.Stop()
 	h.queueTaskProcessor.Stop()
@@ -388,6 +406,7 @@ func (h *handlerImpl) RecordDecisionTaskStarted(
 			tag.Error(err1),
 			tag.WorkflowID(recordRequest.WorkflowExecution.GetWorkflowID()),
 			tag.WorkflowRunID(runID),
+			tag.WorkflowDomainName(domainID),
 			tag.WorkflowRunID(recordRequest.WorkflowExecution.GetRunID()),
 			tag.WorkflowScheduleID(recordRequest.GetScheduleID()),
 		)
@@ -755,17 +774,20 @@ func (h *handlerImpl) RemoveTask(
 	case commonconstants.TaskTypeTransfer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(request.GetTaskID())},
+			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	case commonconstants.TaskTypeTimer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID())},
+			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	case commonconstants.TaskTypeReplication:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(request.GetTaskID())},
+			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	default:
 		return constants.ErrInvalidTaskType
@@ -2093,7 +2115,7 @@ func (h *handlerImpl) RatelimitUpdate(
 	//
 	// "_" is ignoring "used RPS" data here.  it is likely useful for being friendlier
 	// to brief, bursty-but-within-limits load, but that has not yet been built.
-	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, maps.Keys(arg.Load))
+	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, slices.Collect(maps.Keys(arg.Load)))
 	if err != nil {
 		return nil, h.error(fmt.Errorf("failed to retrieve updated weights: %w", err), scope, "", "", "")
 	}

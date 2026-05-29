@@ -71,7 +71,6 @@ services:
       - "SECONDARY_FRONTEND_SERVICE=cadence-cluster1"
       - "CASSANDRA_SEEDS=cassandra"
       - "ENABLE_GLOBAL_DOMAIN=true"
-      - "ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN=true"
       - "KEYSPACE=cadence_primary"
       - "VISIBILITY_KEYSPACE=cadence_visibility_primary"
       - "LOG_LEVEL=debug"
@@ -119,7 +118,6 @@ services:
       - "CASSANDRA_SEEDS=cassandra"
       - "IS_NOT_PRIMARY=true"
       - "ENABLE_GLOBAL_DOMAIN=true"
-      - "ENABLE_GLOBAL_ACTIVE_ACTIVE_DOMAIN=true"
       - "KEYSPACE=cadence_secondary"
       - "VISIBILITY_KEYSPACE=cadence_visibility_secondary"
       - "LOG_LEVEL=debug"
@@ -144,6 +142,7 @@ services:
       - "CADENCE_GRPC_PEERS=cadence-cluster0:7833,cadence-cluster1:7833"
       - "CADENCE_GRPC_SERVICES_NAMES=cadence-frontend,cadence-frontend"
       - "CADENCE_CLUSTERS_NAMES=cluster0,cluster1"
+      - "CADENCE_HISTORY_PAGE_V2_ENABLED=OPT_OUT"
     ports:
       - "8088:8088"
     depends_on:

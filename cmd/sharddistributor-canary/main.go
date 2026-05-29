@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -8,14 +10,19 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 	"go.uber.org/yarpc"
+	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/transport/grpc"
 	"go.uber.org/zap"
 
+	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary"
+	canaryConfig "github.com/uber/cadence/service/sharddistributor/canary/config"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
+	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 	"github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/executorclient"
 	"github.com/uber/cadence/tools/common/commoncli"
 )
 
@@ -24,6 +31,8 @@ const (
 	defaultShardDistributorEndpoint = "127.0.0.1:7943"
 	defaultFixedNamespace           = "shard-distributor-canary"
 	defaultEphemeralNamespace       = "shard-distributor-canary-ephemeral"
+	defaultCanaryGRPCPort           = 7953 // Port for canary to receive ping requests
+	defaultNumExecutors             = 1
 
 	shardDistributorServiceName = "cadence-shard-distributor"
 )
@@ -32,34 +41,74 @@ func runApp(c *cli.Context) {
 	endpoint := c.String("endpoint")
 	fixedNamespace := c.String("fixed-namespace")
 	ephemeralNamespace := c.String("ephemeral-namespace")
+	canaryGRPCPort := c.Int("canary-grpc-port")
 
-	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint)).Run()
+	numFixedExecutors := c.Int("num-fixed-executors")
+	numEphemeralExecutors := c.Int("num-ephemeral-executors")
+
+	if c.IsSet("num-executors") {
+		numExecutors := c.Int("num-executors")
+		numFixedExecutors = numExecutors
+		numEphemeralExecutors = numExecutors
+
+	}
+
+	fx.New(opts(fixedNamespace, ephemeralNamespace, endpoint, canaryGRPCPort, numFixedExecutors, numEphemeralExecutors)).Run()
 }
 
-func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
-	config := executorclient.Config{
-		Namespaces: []executorclient.NamespaceConfig{
+func opts(fixedNamespace, ephemeralNamespace, endpoint string, canaryGRPCPort int, numFixedExecutors, numEphemeral int) fx.Option {
+	configuration := clientcommon.Config{
+		Namespaces: []clientcommon.NamespaceConfig{
 			{Namespace: fixedNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
 			{Namespace: ephemeralNamespace, HeartBeatInterval: 1 * time.Second, MigrationMode: config.MigrationModeONBOARDED},
 		},
 	}
 
+	canaryGRPCAddress := fmt.Sprintf("127.0.0.1:%d", canaryGRPCPort)
+
+	// Create listener for GRPC inbound
+	listener, err := net.Listen("tcp", canaryGRPCAddress)
+	if err != nil {
+		panic(err)
+	}
+
 	transport := grpc.NewTransport()
-	yarpcConfig := yarpc.Config{
-		Name: "shard-distributor-canary",
-		Outbounds: yarpc.Outbounds{
-			shardDistributorServiceName: {
-				Unary: transport.NewSingleOutbound(endpoint),
-			},
-		},
+
+	executorMetadata := executorclient.ExecutorMetadata{
+		clientcommon.GrpcAddressMetadataKey: canaryGRPCAddress,
 	}
 
 	return fx.Options(
 		fx.Supply(
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(clock.NewRealTimeSource(), fx.As(new(clock.TimeSource))),
-			yarpcConfig,
-			config,
+			configuration,
+			transport,
+			executorMetadata,
+		),
+
+		fx.Provide(func(peerChooser spectatorclient.SpectatorPeerChooserInterface) yarpc.Config {
+			return yarpc.Config{
+				Name: "shard-distributor-canary",
+				Inbounds: yarpc.Inbounds{
+					transport.NewInbound(listener), // Listen for incoming ping requests
+				},
+				Outbounds: yarpc.Outbounds{
+					shardDistributorServiceName: {
+						Unary:  transport.NewSingleOutbound(endpoint),
+						Stream: transport.NewSingleOutbound(endpoint),
+					},
+					// canary-to-canary outbound uses peer chooser to route to other canary instances
+					"shard-distributor-canary": {
+						Unary:  transport.NewOutbound(peerChooser),
+						Stream: transport.NewOutbound(peerChooser),
+					},
+				},
+			}
+		}),
+
+		fx.Provide(
+			func(t *grpc.Transport) peer.Transport { return t },
 		),
 		fx.Provide(
 			yarpc.NewDispatcher,
@@ -68,13 +117,37 @@ func opts(fixedNamespace, ephemeralNamespace, endpoint string) fx.Option {
 		fx.Provide(zap.NewDevelopment),
 		fx.Provide(log.NewLogger),
 
-		// Start the YARPC dispatcher
-		fx.Invoke(func(lc fx.Lifecycle, dispatcher *yarpc.Dispatcher) {
+		// We do decorate instead of Invoke because we want to start and stop the dispatcher at the
+		// correct time.
+		// It will start before all dependencies are started and stop after all dependencies are stopped.
+		// The Decorate gives fx enough information, so it can start and stop the dispatcher at the correct time.
+		//
+		// It is critical to start and stop the dispatcher at the correct time.
+		// Since the executors need to
+		// be able to send a final "drain" request to the shard distributor before the application is stopped.
+		fx.Decorate(func(
+			lc fx.Lifecycle,
+			dispatcher *yarpc.Dispatcher,
+			server sharddistributorv1.ShardDistributorExecutorCanaryAPIYARPCServer,
+		) *yarpc.Dispatcher {
+			// Register canary procedures and ensure dispatcher lifecycle is managed by fx.
+			dispatcher.Register(sharddistributorv1.BuildShardDistributorExecutorCanaryAPIYARPCProcedures(server))
 			lc.Append(fx.StartStopHook(dispatcher.Start, dispatcher.Stop))
+			return dispatcher
 		}),
 
-		// Include the canary module
-		canary.Module(fixedNamespace, ephemeralNamespace, shardDistributorServiceName),
+		// Include the canary module - it will set up spectator peer choosers and canary client
+		canary.Module(canary.NamespacesNames{
+			FixedNamespace:              fixedNamespace,
+			EphemeralNamespace:          ephemeralNamespace,
+			SharddistributorServiceName: shardDistributorServiceName,
+			Config: canaryConfig.Config{
+				Canary: canaryConfig.CanaryConfig{
+					NumFixedExecutors:     numFixedExecutors,
+					NumEphemeralExecutors: numEphemeral,
+				},
+			},
+		}),
 	)
 }
 
@@ -104,6 +177,26 @@ func buildCLI() *cli.App {
 					Name:  "ephemeral-namespace",
 					Value: defaultEphemeralNamespace,
 					Usage: "namespace for ephemeral shard creation testing",
+				},
+				&cli.IntFlag{
+					Name:  "canary-grpc-port",
+					Value: defaultCanaryGRPCPort,
+					Usage: "port for canary to receive ping requests",
+				},
+				&cli.IntFlag{
+					Name:  "num-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors for fixed and ephemeral to start. Overrides num-fixed-executors and num-ephemeral-executors flags",
+				},
+				&cli.IntFlag{
+					Name:  "num-fixed-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors of fixed namespace to start. Don't use with num-executors",
+				},
+				&cli.IntFlag{
+					Name:  "num-ephemeral-executors",
+					Value: defaultNumExecutors,
+					Usage: "number of executors of ephemeral namespace to start. Don't use with num-executors",
 				},
 			},
 			Action: func(c *cli.Context) error {

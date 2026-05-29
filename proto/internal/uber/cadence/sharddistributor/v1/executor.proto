@@ -36,6 +36,7 @@ message HeartbeatRequest {
   string executor_id = 2;
   ExecutorStatus status = 3;
   map<string, ShardStatusReport> shard_status_reports = 4;
+  map<string, string> metadata = 5;
 }
 
 enum ExecutorStatus {
@@ -82,9 +83,9 @@ enum AssignmentStatus {
 
 // We handle  the migration steps from SD side
 enum MigrationMode {
+  reserved 2, 3;
+  reserved "MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW", "MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH";
   MIGRATION_MODE_INVALID = 0;
   MIGRATION_MODE_LOCAL_PASSTHROUGH = 1;
-  MIGRATION_MODE_LOCAL_PASSTHROUGH_SHADOW = 2;
-  MIGRATION_MODE_DISTRIBUTED_PASSTHROUGH = 3;
   MIGRATION_MODE_ONBOARDED = 4;
 }

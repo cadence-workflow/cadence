@@ -36,8 +36,10 @@ import (
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
+	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -92,12 +94,19 @@ type (
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
 
 		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
-		ShardDistribution ShardDistribution `yaml:"shardDistribution"`
+		ShardDistribution sdconfig.ShardDistribution `yaml:"shardDistribution"`
+
+		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
+		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`
 
 		// Histograms controls timer vs histogram metric emission while they are being migrated.
 		//
 		// Timers will eventually be dropped, and this config will be validation-only (e.g. to error if any explicitly request timers).
 		Histograms metrics.HistogramMigration `yaml:"histograms"`
+		// Gauges controls gauge metric emission during migration.
+		Gauges metrics.GaugeMigration `yaml:"gauge-migration"`
+		// Counters controls counter metric emission during migration.
+		Counters metrics.CounterMigration `yaml:"counter-migration"`
 	}
 
 	// Membership holds peer provider configuration.
@@ -212,6 +221,8 @@ type (
 		// TODO: move dynamic config out of static config
 		// ErrorInjectionRate is the the rate for injecting random error
 		ErrorInjectionRate dynamicproperties.FloatPropertyFn `yaml:"-" json:"-"`
+		// HostName for emitting per-host metrics
+		HostName string `yaml:"-" json:"-"`
 	}
 
 	// DataStore is the configuration for a single datastore
@@ -626,41 +637,6 @@ type (
 	AsyncWorkflowQueueProvider struct {
 		Type   string    `yaml:"type"`
 		Config *YamlNode `yaml:"config"`
-	}
-
-	// ShardDistribution is a configuration for leader election running.
-	// This configuration should be in sync with sharddistributor.
-	ShardDistribution struct {
-		Enabled     bool          `yaml:"enabled"`
-		LeaderStore Store         `yaml:"leaderStore"`
-		Election    Election      `yaml:"election"`
-		Namespaces  []Namespace   `yaml:"namespaces"`
-		Process     LeaderProcess `yaml:"process"`
-		Store       Store         `yaml:"store"`
-	}
-
-	// Store is a generic container for any storage configuration that should be parsed by the implementation.
-	Store struct {
-		StorageParams *YamlNode `yaml:"storageParams"`
-	}
-
-	Namespace struct {
-		Name string `yaml:"name"`
-		Type string `yaml:"type"`
-		Mode string `yaml:"mode"`
-		// ShardNum is defined for fixed namespace.
-		ShardNum int64 `yaml:"shardNum"`
-	}
-
-	Election struct {
-		LeaderPeriod           time.Duration `yaml:"leaderPeriod"`           // Time to hold leadership before resigning
-		MaxRandomDelay         time.Duration `yaml:"maxRandomDelay"`         // Maximum random delay before campaigning
-		FailedElectionCooldown time.Duration `yaml:"failedElectionCooldown"` // wait between election attempts with unhandled errors
-	}
-
-	LeaderProcess struct {
-		Period       time.Duration `yaml:"period"`
-		HeartbeatTTL time.Duration `yaml:"heartbeatTTL"`
 	}
 )
 

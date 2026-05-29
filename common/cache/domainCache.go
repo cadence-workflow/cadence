@@ -678,8 +678,12 @@ func (c *DefaultDomainCache) getDomainByID(
 }
 
 func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
+	start := time.Now()
 	sw := c.scope.StartTimer(metrics.DomainCachePrepareCallbacksLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.scope.ExponentialHistogram(metrics.DomainCachePrepareCallbacksLatencyHistogram, time.Since(start))
+	}()
 
 	for _, prepareCallback := range c.prepareCallbacks {
 		prepareCallback()
@@ -687,8 +691,12 @@ func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
 }
 
 func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*DomainCacheEntry) {
+	start := time.Now()
 	sw := c.scope.StartTimer(metrics.DomainCacheCallbacksLatency)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		c.scope.ExponentialHistogram(metrics.DomainCacheCallbacksLatencyHistogram, time.Since(start))
+	}()
 
 	c.logger.Debug("Domain change callbacks are going to triggered", tag.Number(int64(len(nextDomains))))
 	for _, callback := range c.callbacks {
@@ -890,8 +898,9 @@ func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster, activeClu
 
 // IsActive return whether the domain is active in the current cluster,
 // - for local domain, it is always active
-// - for active-passive domain, it is active if it is not pending active and active cluster is the current cluster
-// - for active-active domain, it is active if the current cluster is in the active clusters list
+// - for global domain, it is active if it is not pending active and the domain's active cluster is the current cluster or if the domain is active-active and the active cluster of one of the cluster attributes is the current cluster
+// TODO(active-active): for active-active domains, we should review this logic because now workflows can be active in different clusters based on the cluster attribute.
+// We should also revisit its usage in history service.
 func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 	if !entry.IsGlobalDomain() {
 		// domain is not a global domain, meaning domain is always "active" within each cluster
@@ -902,25 +911,22 @@ func (entry *DomainCacheEntry) IsActiveIn(currentCluster string) bool {
 		return false
 	}
 
-	// TODO(active-active): review this logic because cluster attribute might be an input
-	if entry.GetReplicationConfig().IsActiveActive() {
-		for _, scope := range entry.GetReplicationConfig().ActiveClusters.AttributeScopes {
+	activeCluster := entry.GetReplicationConfig().ActiveClusterName
+	if currentCluster == activeCluster {
+		return true
+	}
+
+	if activeClusters := entry.GetReplicationConfig().ActiveClusters; activeClusters != nil {
+		for _, scope := range activeClusters.AttributeScopes {
 			for _, cl := range scope.ClusterAttributes {
 				if cl.ActiveClusterName == currentCluster {
 					return true
 				}
 			}
 		}
-
-		return false
 	}
 
-	activeCluster := entry.GetReplicationConfig().ActiveClusterName
-	if currentCluster != activeCluster {
-		return false
-	}
-
-	return true
+	return false
 }
 
 // IsDomainPendingActive returns whether the domain is in pending active state

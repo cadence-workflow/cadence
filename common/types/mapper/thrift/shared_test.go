@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
+	"github.com/uber/cadence/common/testing/testdatagen"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -2287,6 +2288,13 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 				func(e *types.ArchivalStatus, c fuzz.Continue) {
 					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
 				},
+				func(s *string, c fuzz.Continue) {
+					if c.RandBool() {
+						*s = ""
+					} else {
+						c.Fuzz(s)
+					}
+				},
 			).NilChance(0.3)
 
 			var orig *types.RegisterDomainRequest
@@ -3590,12 +3598,12 @@ func TestQueueStateConversion(t *testing.T) {
 	}
 }
 
+// TODO: The way we're testing mappers doesn't have good coverage. The round trip tests don't cover serialization and deserialization of thrift.
+// We should also generate test data in thrift types and do round trip tests from thrift to internal and back to thrift.
 func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	testCases := []*types.ActiveClusterSelectionPolicy{
 		nil,
 		{},
-		&testdata.ActiveClusterSelectionPolicyExternalEntity,
-		&testdata.ActiveClusterSelectionPolicyRegionSticky,
 		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 
@@ -3612,14 +3620,18 @@ func TestActiveClustersConversion(t *testing.T) {
 		nil,
 		{},
 		{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"us-west-1": {
-					ActiveClusterName: "cluster1",
-					FailoverVersion:   1,
-				},
-				"us-east-1": {
-					ActiveClusterName: "cluster2",
-					FailoverVersion:   2,
+			AttributeScopes: map[string]types.ClusterAttributeScope{
+				"region": {
+					ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west-1": {
+							ActiveClusterName: "cluster1",
+							FailoverVersion:   1,
+						},
+						"us-east-1": {
+							ActiveClusterName: "cluster2",
+							FailoverVersion:   2,
+						},
+					},
 				},
 			},
 		},
@@ -3648,12 +3660,6 @@ func TestActiveClustersConversion(t *testing.T) {
 			},
 		},
 		{
-			ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-				"us-west-1": {
-					ActiveClusterName: "cluster1",
-					FailoverVersion:   1,
-				},
-			},
 			AttributeScopes: map[string]types.ClusterAttributeScope{
 				"region": {
 					ClusterAttributes: map[string]types.ActiveClusterInfo{
@@ -3696,5 +3702,17 @@ func TestClusterAttributeScopeConversion(t *testing.T) {
 		thriftObj := FromClusterAttributeScope(original)
 		roundTripObj := ToClusterAttributeScope(thriftObj)
 		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestListFailoverHistoryResponseConversion(t *testing.T) {
+	fuzzer := testdatagen.New(t)
+	for i := 0; i < 100; i++ {
+		var response types.ListFailoverHistoryResponse
+		fuzzer.Fuzz(&response)
+		thriftResponse := FromListFailoverHistoryResponse(&response)
+
+		toResponse := ToListFailoverHistoryResponse(thriftResponse)
+		assert.Equal(t, &response, toResponse)
 	}
 }

@@ -111,3 +111,11 @@ func TestCassandraConfigStorePersistence(t *testing.T) {
 	s.Setup()
 	suite.Run(t, s)
 }
+
+func TestCassandraDomainAuditPersistence(t *testing.T) {
+	testflags.RequireCassandra(t)
+	s := new(persistencetests.DomainAuditPersistenceSuite)
+	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
+	s.Setup()
+	suite.Run(t, s)
+}

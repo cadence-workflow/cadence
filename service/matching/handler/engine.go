@@ -27,11 +27,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
 	"github.com/pborman/uuid"
+	"github.com/uber-go/tally"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -49,16 +49,25 @@ import (
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/event"
 	"github.com/uber/cadence/service/matching/tasklist"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
-// If sticky poller is not seem in last 10s, we treat it as sticky worker unavailable
-// This seems aggressive, but the default sticky schedule_to_start timeout is 5s, so 10s seems reasonable.
-const _stickyPollerUnavailableWindow = 10 * time.Second
+const (
+	// If sticky poller is not seem in last 10s, we treat it as sticky worker unavailable
+	// This seems aggressive, but the default sticky schedule_to_start timeout is 5s, so 10s seems reasonable.
+	_stickyPollerUnavailableWindow = 10 * time.Second
+
+	// _defaultSDReportTTL is the default TTL for shard status reports from matching executor to shard distributor.
+	// This controls how frequently the executor reports its shard load/status to the distributor.
+	_defaultSDReportTTL = 1 * time.Minute
+)
 
 // Implements matching.Engine
 // TODO: Switch implementation from lock/channel based to a partitioned agent
@@ -79,40 +88,36 @@ type (
 	}
 
 	matchingEngineImpl struct {
-		shutdownCompletion          *sync.WaitGroup
-		shutdown                    chan struct{}
-		taskManager                 persistence.TaskManager
-		clusterMetadata             cluster.Metadata
-		historyService              history.Client
-		matchingClient              matching.Client
-		tokenSerializer             common.TaskTokenSerializer
-		logger                      log.Logger
-		metricsClient               metrics.Client
-		taskListsLock               sync.RWMutex                             // locks mutation of taskLists
-		taskLists                   map[tasklist.Identifier]tasklist.Manager // Convert to LRU cache
-		config                      *config.Config
-		lockableQueryTaskMap        lockableQueryTaskMap
-		domainCache                 cache.DomainCache
-		versionChecker              client.VersionChecker
-		membershipResolver          membership.Resolver
-		isolationState              isolationgroup.State
-		timeSource                  clock.TimeSource
-		failoverNotificationVersion int64
+		taskListCreationLock           sync.Mutex
+		taskListRegistry               tasklist.TaskListRegistry
+		shutdownCompletion             *sync.WaitGroup
+		shutdown                       chan struct{}
+		taskManager                    persistence.TaskManager
+		clusterMetadata                cluster.Metadata
+		historyService                 history.Client
+		matchingClient                 matching.Client
+		tokenSerializer                common.TaskTokenSerializer
+		logger                         log.Logger
+		metricsClient                  metrics.Client
+		metricsScope                   tally.Scope
+		executor                       executorclient.Executor[tasklist.ShardProcessor]
+		taskListsFactory               *tasklist.ShardProcessorFactory
+		config                         *config.Config
+		lockableQueryTaskMap           lockableQueryTaskMap
+		domainCache                    cache.DomainCache
+		versionChecker                 client.VersionChecker
+		membershipResolver             membership.Resolver
+		isolationState                 isolationgroup.State
+		timeSource                     clock.TimeSource
+		failoverNotificationVersion    int64
+		ShardDistributorMatchingConfig clientcommon.Config
+		drainObserver                  clientcommon.DrainSignalObserver
+		percentageOnboarded            membership.PercentageOnboarded
 	}
-
-	// HistoryInfo consists of two integer regarding the history size and history count
-	// HistoryInfo struct {
-	//	historySize  int64
-	//	historyCount int64
-	// }
 )
 
 var (
-	// EmptyPollForDecisionTaskResponse is the response when there are no decision tasks to hand out
-	emptyPollForDecisionTaskResponse = &types.MatchingPollForDecisionTaskResponse{}
-	// EmptyPollForActivityTaskResponse is the response when there are no activity tasks to hand out
-	emptyPollForActivityTaskResponse   = &types.MatchingPollForActivityTaskResponse{}
-	historyServiceOperationRetryPolicy = common.CreateHistoryServiceRetryPolicy()
+	recordTaskStartedRetryPolicy = common.CreateRecordTaskStartedRetryPolicy()
 
 	errPumpClosed = errors.New("task list pump closed its channel")
 
@@ -130,32 +135,41 @@ func NewEngine(
 	config *config.Config,
 	logger log.Logger,
 	metricsClient metrics.Client,
+	metricsScope tally.Scope,
 	domainCache cache.DomainCache,
 	resolver membership.Resolver,
 	isolationState isolationgroup.State,
 	timeSource clock.TimeSource,
+	shardDistributorClient executorclient.Client,
+	ShardDistributorMatchingConfig clientcommon.Config,
+	drainObserver clientcommon.DrainSignalObserver,
+	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
-
 	e := &matchingEngineImpl{
-		shutdown:             make(chan struct{}),
-		shutdownCompletion:   &sync.WaitGroup{},
-		taskManager:          taskManager,
-		clusterMetadata:      clusterMetadata,
-		historyService:       historyService,
-		tokenSerializer:      common.NewJSONTaskTokenSerializer(),
-		taskLists:            make(map[tasklist.Identifier]tasklist.Manager),
-		logger:               logger.WithTags(tag.ComponentMatchingEngine),
-		metricsClient:        metricsClient,
-		matchingClient:       matchingClient,
-		config:               config,
-		lockableQueryTaskMap: lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
-		domainCache:          domainCache,
-		versionChecker:       client.NewVersionChecker(),
-		membershipResolver:   resolver,
-		isolationState:       isolationState,
-		timeSource:           timeSource,
+		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
+		shutdown:                       make(chan struct{}),
+		shutdownCompletion:             &sync.WaitGroup{},
+		taskManager:                    taskManager,
+		clusterMetadata:                clusterMetadata,
+		historyService:                 historyService,
+		tokenSerializer:                common.NewJSONTaskTokenSerializer(),
+		logger:                         logger.WithTags(tag.ComponentMatchingEngine),
+		metricsClient:                  metricsClient,
+		metricsScope:                   metricsScope,
+		matchingClient:                 matchingClient,
+		config:                         config,
+		lockableQueryTaskMap:           lockableQueryTaskMap{queryTaskMap: make(map[string]chan *queryResult)},
+		domainCache:                    domainCache,
+		versionChecker:                 client.NewVersionChecker(),
+		membershipResolver:             resolver,
+		isolationState:                 isolationState,
+		timeSource:                     timeSource,
+		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
+		drainObserver:                  drainObserver,
+		percentageOnboarded:            percentageOnboarded,
 	}
 
+	e.setupExecutor(shardDistributorClient)
 	e.shutdownCompletion.Add(1)
 	go e.runMembershipChangeLoop()
 
@@ -163,64 +177,132 @@ func NewEngine(
 }
 
 func (e *matchingEngineImpl) Start() {
+	e.executor.Start(context.Background())
 	e.registerDomainFailoverCallback()
 }
 
 func (e *matchingEngineImpl) Stop() {
 	close(e.shutdown)
+	e.executor.Stop()
 	// Executes Stop() on each task list outside of lock
-	for _, l := range e.getTaskLists(math.MaxInt32) {
+	for _, l := range e.taskListRegistry.AllManagers() {
 		l.Stop()
 	}
 	e.unregisterDomainFailoverCallback()
 	e.shutdownCompletion.Wait()
 }
 
-func (e *matchingEngineImpl) getTaskLists(maxCount int) []tasklist.Manager {
-	e.taskListsLock.RLock()
-	defer e.taskListsLock.RUnlock()
-	lists := make([]tasklist.Manager, 0, len(e.taskLists))
-	count := 0
-	for _, tlMgr := range e.taskLists {
-		lists = append(lists, tlMgr)
-		count++
-		if count >= maxCount {
-			break
+func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient executorclient.Client) {
+	// If no shard-distributor namespaces are configured, use a no-op executor so that
+	// the matching service falls back to local hash-ring assignment entirely.
+	if len(e.ShardDistributorMatchingConfig.Namespaces) == 0 {
+		e.logger.Info("No shard-distributor-matching namespaces configured, using no-op executor")
+		e.executor = executorclient.NewNoopExecutor[tasklist.ShardProcessor]()
+
+		taskListFactory := &tasklist.ShardProcessorFactory{
+			TaskListsRegistry: e.taskListRegistry,
+			ReportTTL:         _defaultSDReportTTL,
+			TimeSource:        e.timeSource,
 		}
+		e.taskListsFactory = taskListFactory
+		return
 	}
-	return lists
+
+	cfg, reportTTL := e.getValidatedShardDistributorConfig()
+
+	taskListFactory := &tasklist.ShardProcessorFactory{
+		TaskListsRegistry: e.taskListRegistry,
+		ReportTTL:         reportTTL,
+		TimeSource:        e.timeSource,
+	}
+	e.taskListsFactory = taskListFactory
+
+	// Get the IP address to advertise to external services
+	// This respects bindOnLocalHost config (127.0.0.1 for local dev, external IP for production)
+	hostIP, err := rpc.GetListenIP(e.config.RPCConfig)
+	if err != nil {
+		e.logger.Fatal("Failed to get listen IP", tag.Error(err))
+	}
+
+	params := executorclient.Params[tasklist.ShardProcessor]{
+		ExecutorClient:        shardDistributorExecutorClient,
+		MetricsScope:          e.metricsScope,
+		Logger:                e.logger,
+		ShardProcessorFactory: taskListFactory,
+		Config:                cfg,
+		TimeSource:            e.timeSource,
+		Metadata: map[string]string{
+			"tchannel": fmt.Sprintf("%d", e.config.RPCConfig.Port),
+			"grpc":     fmt.Sprintf("%d", e.config.RPCConfig.GRPCPort),
+			"hostIP":   hostIP.String(),
+		},
+		DrainObserver: e.drainObserver,
+	}
+	executor, err := executorclient.NewExecutor[tasklist.ShardProcessor](params)
+	if err != nil {
+		e.logger.Fatal("Failed to create new executor", tag.Error(err))
+	}
+
+	e.executor = executor
+}
+
+func (e *matchingEngineImpl) getValidatedShardDistributorConfig() (clientcommon.Config, time.Duration) {
+	cfg := e.ShardDistributorMatchingConfig
+
+	if len(cfg.Namespaces) > 1 {
+		e.logger.Fatal("matching service does not support multiple namespaces", tag.Value(cfg.Namespaces))
+	}
+
+	// Get TTLReport from config, default if not configured
+	reportTTL := _defaultSDReportTTL
+	if len(cfg.Namespaces) == 1 && cfg.Namespaces[0].TTLReport != 0 {
+		reportTTL = cfg.Namespaces[0].TTLReport
+	}
+	return cfg, reportTTL
 }
 
 func (e *matchingEngineImpl) String() string {
 	// Executes taskList.String() on each task list outside of lock
 	buf := new(bytes.Buffer)
-	for _, l := range e.getTaskLists(1000) {
-		fmt.Fprintf(buf, "\n%s", l.String())
+
+	for i, tl := range e.taskListRegistry.AllManagers() {
+		if i >= 1000 {
+			break
+		}
+		fmt.Fprintf(buf, "\n%s", tl.String())
 	}
 	return buf.String()
 }
 
 // Returns taskListManager for a task list. If not already cached gets new range from DB and
 // if successful creates one.
-func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.Manager, error) {
+func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, taskList *tasklist.Identifier, taskListKind types.TaskListKind) (tasklist.Manager, error) {
 	// The first check is an optimization so almost all requests will have a task list manager
 	// and return avoiding the write lock
-	e.taskListsLock.RLock()
-	if result, ok := e.taskLists[*taskList]; ok {
-		e.taskListsLock.RUnlock()
+	result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList)
+	excludedFromShardDistributor := e.isExcludedFromShardDistributor(taskList.GetName())
+
+	// Task lists excluded from the ShardDistributor (short-lived task lists with UUIDs) bypass
+	// the executor/shard-processor entirely and always use local hash-ring assignment.
+	if excludedFromShardDistributor && ok {
 		return result, nil
 	}
-	e.taskListsLock.RUnlock()
+	if !excludedFromShardDistributor {
+		sp, _ := e.executor.GetShardProcess(ctx, taskList.GetName())
+		if sp != nil && ok {
+			return result, nil
+		}
+	}
 
-	err := e.errIfShardLoss(taskList)
+	err := e.errIfShardOwnershipLost(ctx, taskList)
 	if err != nil {
 		return nil, err
 	}
 
 	// If it gets here, write lock and check again in case a task list is created between the two locks
-	e.taskListsLock.Lock()
-	if result, ok := e.taskLists[*taskList]; ok {
-		e.taskListsLock.Unlock()
+	e.taskListCreationLock.Lock()
+	if result, ok := e.taskListRegistry.ManagerByTaskListIdentifier(*taskList); ok {
+		e.taskListCreationLock.Unlock()
 		return result, nil
 	}
 
@@ -231,41 +313,40 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 		tag.WorkflowDomainID(taskList.GetDomainID()),
 	)
 
-	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
-	mgr, err := tasklist.NewManager(
-		e.domainCache,
-		e.logger,
-		e.metricsClient,
-		e.taskManager,
-		e.clusterMetadata,
-		e.isolationState,
-		e.matchingClient,
-		e.removeTaskListManager,
-		taskList,
-		taskListKind,
-		e.config,
-		e.timeSource,
-		e.timeSource.Now(),
-		e.historyService,
-	)
+	logger.Debug("Task list manager state changed", tag.LifeCycleStarting)
+	params := tasklist.ManagerParams{
+		DomainCache:     e.domainCache,
+		Logger:          e.logger,
+		MetricsClient:   e.metricsClient,
+		TaskManager:     e.taskManager,
+		ClusterMetadata: e.clusterMetadata,
+		IsolationState:  e.isolationState,
+		MatchingClient:  e.matchingClient,
+		Registry:        e.taskListRegistry,
+		TaskList:        taskList,
+		TaskListKind:    taskListKind,
+		Cfg:             e.config,
+		TimeSource:      e.timeSource,
+		CreateTime:      e.timeSource.Now(),
+		HistoryService:  e.historyService,
+	}
+	mgr, err := tasklist.NewManager(params)
 	if err != nil {
-		e.taskListsLock.Unlock()
-		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
+		e.taskListCreationLock.Unlock()
+		logger.Warn("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
 
-	e.taskLists[*taskList] = mgr
-	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
-		metrics.TaskListManagersGauge,
-		float64(len(e.taskLists)),
-	)
-	e.taskListsLock.Unlock()
-	err = mgr.Start()
+	e.taskListRegistry.Register(*taskList, mgr)
+	e.taskListCreationLock.Unlock()
+
+	err = mgr.Start(context.Background())
 	if err != nil {
-		logger.Info("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
+		logger.Warn("Task list manager state changed", tag.LifeCycleStartFailed, tag.Error(err))
 		return nil, err
 	}
-	logger.Info("Task list manager state changed", tag.LifeCycleStarted)
+
+	logger.Debug("Task list manager state changed", tag.LifeCycleStarted)
 	event.Log(event.E{
 		TaskListName: taskList.GetName(),
 		TaskListKind: &taskListKind,
@@ -277,46 +358,6 @@ func (e *matchingEngineImpl) getTaskListManager(taskList *tasklist.Identifier, t
 		Host:      e.config.HostName,
 	})
 	return mgr, nil
-}
-
-func (e *matchingEngineImpl) getTaskListByDomainLocked(domainID string, taskListKind *types.TaskListKind) *types.GetTaskListsByDomainResponse {
-	decisionTaskListMap := make(map[string]*types.DescribeTaskListResponse)
-	activityTaskListMap := make(map[string]*types.DescribeTaskListResponse)
-	for tl, tlm := range e.taskLists {
-		if tl.GetDomainID() == domainID && (taskListKind == nil || tlm.GetTaskListKind() == *taskListKind) {
-			if types.TaskListType(tl.GetType()) == types.TaskListTypeDecision {
-				decisionTaskListMap[tl.GetRoot()] = tlm.DescribeTaskList(false)
-			} else {
-				activityTaskListMap[tl.GetRoot()] = tlm.DescribeTaskList(false)
-			}
-		}
-	}
-	return &types.GetTaskListsByDomainResponse{
-		DecisionTaskListMap: decisionTaskListMap,
-		ActivityTaskListMap: activityTaskListMap,
-	}
-}
-
-// For use in tests
-func (e *matchingEngineImpl) updateTaskList(taskList *tasklist.Identifier, mgr tasklist.Manager) {
-	e.taskListsLock.Lock()
-	defer e.taskListsLock.Unlock()
-	e.taskLists[*taskList] = mgr
-}
-
-func (e *matchingEngineImpl) removeTaskListManager(tlMgr tasklist.Manager) {
-	id := tlMgr.TaskListID()
-	e.taskListsLock.Lock()
-	defer e.taskListsLock.Unlock()
-	currentTlMgr, ok := e.taskLists[*id]
-	if ok && tlMgr == currentTlMgr {
-		delete(e.taskLists, *id)
-	}
-
-	e.metricsClient.Scope(metrics.MatchingTaskListMgrScope).UpdateGauge(
-		metrics.TaskListManagersGauge,
-		float64(len(e.taskLists)),
-	)
 }
 
 // AddDecisionTask either delivers task directly to waiting poller or save it into task list persistence.
@@ -378,7 +419,7 @@ func (e *matchingEngineImpl) AddDecisionTask(
 			tag.Dynamic("taskListBaseName", taskListID.GetRoot()))
 	}
 
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -410,6 +451,7 @@ func (e *matchingEngineImpl) AddDecisionTask(
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddDecisionTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -460,7 +502,7 @@ func (e *matchingEngineImpl) AddActivityTask(
 			tag.Dynamic("taskListBaseName", taskListID.GetRoot()))
 	}
 
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -476,16 +518,16 @@ func (e *matchingEngineImpl) AddActivityTask(
 	}
 
 	syncMatched, err := tlMgr.AddTask(hCtx.Context, tasklist.AddTaskParams{
-		TaskInfo:                 taskInfo,
-		Source:                   request.GetSource(),
-		ForwardedFrom:            request.GetForwardedFrom(),
-		ActivityTaskDispatchInfo: request.ActivityTaskDispatchInfo,
+		TaskInfo:      taskInfo,
+		Source:        request.GetSource(),
+		ForwardedFrom: request.GetForwardedFrom(),
 	})
 	if err != nil {
 		return nil, err
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddActivityTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -536,7 +578,7 @@ pollLoop:
 		pollerCtx := tasklist.ContextWithPollerID(hCtx.Context, pollerID)
 		pollerCtx = tasklist.ContextWithIdentity(pollerCtx, request.GetIdentity())
 		pollerCtx = tasklist.ContextWithIsolationGroup(pollerCtx, req.GetIsolationGroup())
-		tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+		tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist manager: %w", err)
 		}
@@ -634,6 +676,24 @@ pollLoop:
 
 		if err != nil {
 			switch err.(type) {
+			case *types.DomainNotActiveError:
+				e.emitInfoOrDebugLog(
+					task.Event.DomainID,
+					"Decision task dropped because domain is not active",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
+					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+				)
+				// NOTE: There is a risk that if the domain is failed over back immediately. To prevent the decision task from being stuck, we must let
+				// history service to regenerate the decision transfer task before dropping the task in matching
+				if err := e.refreshWorkflowTasks(hCtx.Context, task.Event.DomainID, task.WorkflowExecution()); err != nil {
+					task.Finish(err)
+				} else {
+					task.Finish(nil)
+				}
 			case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError:
 				domainName, _ := e.domainCache.GetDomainName(domainID)
 				hCtx.scope.
@@ -654,12 +714,14 @@ pollLoop:
 				)
 				task.Finish(nil)
 			default:
-				e.emitInfoOrDebugLog(
-					task.Event.DomainID,
-					"unknown error recording task started",
+				e.logger.Error("unknown error recording task started",
 					tag.WorkflowDomainID(domainID),
-					tag.Error(err),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
 					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+					tag.Error(err),
 				)
 				task.Finish(err)
 			}
@@ -725,7 +787,7 @@ pollLoop:
 		pollerCtx = tasklist.ContextWithIdentity(pollerCtx, request.GetIdentity())
 		pollerCtx = tasklist.ContextWithIsolationGroup(pollerCtx, req.GetIsolationGroup())
 		taskListKind := request.TaskList.GetKind()
-		tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+		tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't load tasklist manager: %w", err)
 		}
@@ -753,7 +815,7 @@ pollLoop:
 		}
 
 		if task.IsStarted() {
-			// tasks received from remote are already started. So, simply forward the response
+			// task received from remote is already started. So, simply forward the response
 			resp := task.PollForActivityResponse()
 			resp.PartitionConfig = tlMgr.TaskListPartitionConfig()
 			resp.LoadBalancerHints = tlMgr.LoadBalancerHints()
@@ -762,14 +824,28 @@ pollLoop:
 		}
 		e.emitForwardedFromStats(hCtx.scope, task.IsForwarded(), req.GetForwardedFrom())
 		e.emitTaskIsolationMetrics(hCtx.scope, task.Event.PartitionConfig, req.GetIsolationGroup())
-		if task.ActivityTaskDispatchInfo != nil {
-			task.Finish(nil)
-			return e.createSyncMatchPollForActivityTaskResponse(task, task.ActivityTaskDispatchInfo, tlMgr.TaskListPartitionConfig(), tlMgr.LoadBalancerHints()), nil
-		}
 
 		resp, err := e.recordActivityTaskStarted(hCtx.Context, request, task)
 		if err != nil {
 			switch err.(type) {
+			case *types.DomainNotActiveError:
+				e.emitInfoOrDebugLog(
+					task.Event.DomainID,
+					"Decision task dropped because domain is not active",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowID(task.Event.WorkflowID),
+					tag.WorkflowRunID(task.Event.RunID),
+					tag.WorkflowTaskListName(taskListName),
+					tag.WorkflowScheduleID(task.Event.ScheduleID),
+					tag.TaskID(task.Event.TaskID),
+				)
+				// NOTE: There is a risk that if the domain is failed over back immediately. To prevent the decision task from being stuck, we must let
+				// history service to regenerate the decision transfer task before dropping the task in matching
+				if err := e.refreshWorkflowTasks(hCtx.Context, task.Event.DomainID, task.WorkflowExecution()); err != nil {
+					task.Finish(err)
+				} else {
+					task.Finish(nil)
+				}
 			case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError:
 				domainName, _ := e.domainCache.GetDomainName(domainID)
 
@@ -800,50 +876,6 @@ pollLoop:
 	}
 }
 
-func (e *matchingEngineImpl) createSyncMatchPollForActivityTaskResponse(
-	task *tasklist.InternalTask,
-	activityTaskDispatchInfo *types.ActivityTaskDispatchInfo,
-	partitionConfig *types.TaskListPartitionConfig,
-	loadBalancerHints *types.LoadBalancerHints,
-) *types.MatchingPollForActivityTaskResponse {
-
-	scheduledEvent := activityTaskDispatchInfo.ScheduledEvent
-	attributes := scheduledEvent.ActivityTaskScheduledEventAttributes
-	response := &types.MatchingPollForActivityTaskResponse{}
-	response.ActivityID = attributes.ActivityID
-	response.ActivityType = attributes.ActivityType
-	response.Header = attributes.Header
-	response.Input = attributes.Input
-	response.WorkflowExecution = task.WorkflowExecution()
-	response.ScheduledTimestampOfThisAttempt = activityTaskDispatchInfo.ScheduledTimestampOfThisAttempt
-	response.ScheduledTimestamp = scheduledEvent.Timestamp
-	response.ScheduleToCloseTimeoutSeconds = attributes.ScheduleToCloseTimeoutSeconds
-	response.StartedTimestamp = activityTaskDispatchInfo.StartedTimestamp
-	response.StartToCloseTimeoutSeconds = attributes.StartToCloseTimeoutSeconds
-	response.HeartbeatTimeoutSeconds = attributes.HeartbeatTimeoutSeconds
-
-	token := &common.TaskToken{
-		DomainID:        task.Event.DomainID,
-		WorkflowID:      task.Event.WorkflowID,
-		WorkflowType:    activityTaskDispatchInfo.WorkflowType.GetName(),
-		RunID:           task.Event.RunID,
-		ScheduleID:      task.Event.ScheduleID,
-		ScheduleAttempt: common.Int64Default(activityTaskDispatchInfo.Attempt),
-		ActivityID:      attributes.GetActivityID(),
-		ActivityType:    attributes.GetActivityType().GetName(),
-	}
-
-	response.TaskToken, _ = e.tokenSerializer.Serialize(token)
-	response.Attempt = int32(token.ScheduleAttempt)
-	response.HeartbeatDetails = activityTaskDispatchInfo.HeartbeatDetails
-	response.WorkflowType = activityTaskDispatchInfo.WorkflowType
-	response.WorkflowDomain = activityTaskDispatchInfo.WorkflowDomain
-	response.PartitionConfig = partitionConfig
-	response.LoadBalancerHints = loadBalancerHints
-	response.AutoConfigHint = task.AutoConfigHint
-	return response
-}
-
 // QueryWorkflow creates a DecisionTask with query data, send it through sync match channel, wait for that DecisionTask
 // to be processed by worker, and then return the query result.
 func (e *matchingEngineImpl) QueryWorkflow(
@@ -858,7 +890,7 @@ func (e *matchingEngineImpl) QueryWorkflow(
 		return nil, err
 	}
 
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -935,7 +967,7 @@ func (e *matchingEngineImpl) RespondQueryTaskCompleted(hCtx *handlerContext, req
 func (e *matchingEngineImpl) deliverQueryResult(taskID string, queryResult *queryResult) error {
 	queryResultCh, ok := e.lockableQueryTaskMap.get(taskID)
 	if !ok {
-		return &types.InternalServiceError{Message: "query task not found, or already expired"}
+		return &types.EntityNotExistsError{Message: "query task not found, or already expired"}
 	}
 	queryResultCh <- queryResult
 	return nil
@@ -956,7 +988,7 @@ func (e *matchingEngineImpl) CancelOutstandingPoll(
 		return err
 	}
 
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return err
 	}
@@ -982,7 +1014,7 @@ func (e *matchingEngineImpl) DescribeTaskList(
 		return nil, err
 	}
 
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -1034,6 +1066,26 @@ func (e *matchingEngineImpl) listTaskListPartitions(
 	return partitionHostInfo, nil
 }
 
+func (e *matchingEngineImpl) getTaskListsByDomainAndKind(domainID string, taskListKind *types.TaskListKind) *types.GetTaskListsByDomainResponse {
+	decisionTaskListMap := make(map[string]*types.DescribeTaskListResponse)
+	activityTaskListMap := make(map[string]*types.DescribeTaskListResponse)
+
+	for _, tlm := range e.taskListRegistry.ManagersByDomainID(domainID) {
+		if taskListKind == nil || tlm.GetTaskListKind() == *taskListKind {
+			tl := tlm.TaskListID()
+			if types.TaskListType(tl.GetType()) == types.TaskListTypeDecision {
+				decisionTaskListMap[tl.GetRoot()] = tlm.DescribeTaskList(false)
+			} else {
+				activityTaskListMap[tl.GetRoot()] = tlm.DescribeTaskList(false)
+			}
+		}
+	}
+	return &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: decisionTaskListMap,
+		ActivityTaskListMap: activityTaskListMap,
+	}
+}
+
 func (e *matchingEngineImpl) GetTaskListsByDomain(
 	hCtx *handlerContext,
 	request *types.GetTaskListsByDomainRequest,
@@ -1048,9 +1100,7 @@ func (e *matchingEngineImpl) GetTaskListsByDomain(
 		tlKind = nil
 	}
 
-	e.taskListsLock.RLock()
-	defer e.taskListsLock.RUnlock()
-	return e.getTaskListByDomainLocked(domainID, tlKind), nil
+	return e.getTaskListsByDomainAndKind(domainID, tlKind), nil
 }
 
 func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
@@ -1084,7 +1134,7 @@ func (e *matchingEngineImpl) UpdateTaskListPartitionConfig(
 	if !taskListID.IsRoot() {
 		return nil, &types.BadRequestError{Message: "Only root partition's partition config can be updated."}
 	}
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -1116,7 +1166,7 @@ func (e *matchingEngineImpl) RefreshTaskListPartitionConfig(
 	if taskListID.IsRoot() && request.PartitionConfig != nil {
 		return nil, &types.BadRequestError{Message: "PartitionConfig must be nil for root partition."}
 	}
-	tlMgr, err := e.getTaskListManager(taskListID, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(hCtx.Context, taskListID, taskListKind)
 	if err != nil {
 		return nil, err
 	}
@@ -1159,16 +1209,10 @@ func (e *matchingEngineImpl) getAllPartitions(
 }
 
 func (e *matchingEngineImpl) unloadTaskList(tlMgr tasklist.Manager) {
-	id := tlMgr.TaskListID()
-	e.taskListsLock.Lock()
-	currentTlMgr, ok := e.taskLists[*id]
-	if !ok || tlMgr != currentTlMgr {
-		e.taskListsLock.Unlock()
-		return
+	unregistered := e.taskListRegistry.Unregister(tlMgr)
+	if unregistered {
+		tlMgr.Stop()
 	}
-	delete(e.taskLists, *id)
-	e.taskListsLock.Unlock()
-	tlMgr.Stop()
 }
 
 // Populate the decision task response based on context and scheduled/started events.
@@ -1204,6 +1248,7 @@ func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 		token, _ = e.tokenSerializer.Serialize(taskToken)
 		if task.ResponseC == nil {
 			scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
+			scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 		}
 	}
 
@@ -1237,6 +1282,7 @@ func (e *matchingEngineImpl) createPollForActivityTaskResponse(
 	}
 	if task.ResponseC == nil {
 		scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
+		scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 	}
 
 	response := &types.MatchingPollForActivityTaskResponse{}
@@ -1293,9 +1339,12 @@ func (e *matchingEngineImpl) recordDecisionTaskStarted(
 		resp, err = e.historyService.RecordDecisionTaskStarted(ctx, request)
 		return err
 	}
+	requestTimeout := e.config.RecordTaskStartedTimeout(pollReq.Domain)
 	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(historyServiceOperationRetryPolicy),
+		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
+		backoff.WithOperationTimeout(requestTimeout),
+		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
 	return resp, err
@@ -1320,12 +1369,37 @@ func (e *matchingEngineImpl) recordActivityTaskStarted(
 		resp, err = e.historyService.RecordActivityTaskStarted(ctx, request)
 		return err
 	}
+	requestTimeout := e.config.RecordTaskStartedTimeout(pollReq.Domain)
 	throttleRetry := backoff.NewThrottleRetry(
-		backoff.WithRetryPolicy(historyServiceOperationRetryPolicy),
+		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
+		backoff.WithOperationTimeout(requestTimeout),
+		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
 	return resp, err
+}
+
+func (e *matchingEngineImpl) refreshWorkflowTasks(
+	ctx context.Context,
+	domainID string,
+	workflowExecution *types.WorkflowExecution,
+) error {
+	request := &types.HistoryRefreshWorkflowTasksRequest{
+		DomainUIID: domainID,
+		Request: &types.RefreshWorkflowTasksRequest{
+			Execution: workflowExecution,
+		},
+	}
+	err := e.historyService.RefreshWorkflowTasks(ctx, request)
+	if err != nil {
+		var e *types.EntityNotExistsError
+		if errors.As(err, &e) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func (e *matchingEngineImpl) emitForwardedFromStats(
@@ -1375,14 +1449,18 @@ func (e *matchingEngineImpl) emitInfoOrDebugLog(
 	}
 }
 
-func (e *matchingEngineImpl) errIfShardLoss(taskList *tasklist.Identifier) error {
-	if !e.config.EnableTasklistOwnershipGuard() {
-		return nil
-	}
-
+func (e *matchingEngineImpl) errIfShardOwnershipLost(ctx context.Context, taskList *tasklist.Identifier) error {
 	self, err := e.membershipResolver.WhoAmI()
 	if err != nil {
 		return fmt.Errorf("failed to lookup self im membership: %w", err)
+	}
+
+	newNotOwnedByHostError := func(newOwner string) error {
+		return cadence_errors.NewTaskListNotOwnedByHostError(
+			newOwner,
+			self.Identity(),
+			taskList.GetName(),
+		)
 	}
 
 	if e.isShuttingDown() {
@@ -1392,11 +1470,27 @@ func (e *matchingEngineImpl) errIfShardLoss(taskList *tasklist.Identifier) error
 			tag.WorkflowTaskListName(taskList.GetName()),
 		)
 
-		return cadence_errors.NewTaskListNotOwnedByHostError(
-			"not known",
-			self.Identity(),
-			taskList.GetName(),
-		)
+		return newNotOwnedByHostError("not known")
+	}
+
+	// Task lists excluded from the ShardDistributor bypass the executor entirely and rely on
+	// the local hash-ring for ownership, so skip the SD-based ownership check for them.
+	if !e.isExcludedFromShardDistributor(taskList.GetName()) {
+		// We have a shard-processor shared by all the task lists with the same name.
+		// For now there is no 1:1 mapping between shards and tasklists. (#tasklists >= #shards)
+		sp, err := e.executor.GetShardProcess(ctx, taskList.GetName())
+		if err != nil {
+			if errors.Is(err, executorclient.ErrShardProcessNotFound) {
+				// The shard is not assigned to this host – treat it as an ownership loss,
+				// not an internal error.
+				return newNotOwnedByHostError("not known")
+			}
+			return fmt.Errorf("failed to lookup ownership in SD: %w", err)
+		}
+		if sp == nil {
+			return newNotOwnedByHostError("not known")
+		}
+		return nil
 	}
 
 	// Defensive check to make sure we actually own the task list
@@ -1407,18 +1501,13 @@ func (e *matchingEngineImpl) errIfShardLoss(taskList *tasklist.Identifier) error
 	if err != nil {
 		return fmt.Errorf("failed to lookup task list owner: %w", err)
 	}
-
 	if taskListOwner.Identity() != self.Identity() {
 		e.logger.Warn("Request to get tasklist is being rejected because engine does not own this shard",
 			tag.WorkflowDomainID(taskList.GetDomainID()),
 			tag.WorkflowTaskListType(taskList.GetType()),
 			tag.WorkflowTaskListName(taskList.GetName()),
 		)
-		return cadence_errors.NewTaskListNotOwnedByHostError(
-			taskListOwner.Identity(),
-			self.Identity(),
-			taskList.GetName(),
-		)
+		return newNotOwnedByHostError(taskListOwner.Identity())
 	}
 
 	return nil
@@ -1431,6 +1520,10 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	default:
 		return false
 	}
+}
+
+func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
+	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {
@@ -1447,9 +1540,7 @@ func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCac
 
 		taskListNormal := types.TaskListKindNormal
 
-		e.taskListsLock.RLock()
-		resp := e.getTaskListByDomainLocked(domain.GetInfo().ID, &taskListNormal)
-		e.taskListsLock.RUnlock()
+		resp := e.getTaskListsByDomainAndKind(domain.GetInfo().ID, &taskListNormal)
 
 		for taskListName := range resp.DecisionTaskListMap {
 			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeDecision, taskListNormal)
@@ -1461,9 +1552,7 @@ func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCac
 
 		taskListSticky := types.TaskListKindSticky
 
-		e.taskListsLock.RLock()
-		resp = e.getTaskListByDomainLocked(domain.GetInfo().ID, &taskListSticky)
-		e.taskListsLock.RUnlock()
+		resp = e.getTaskListsByDomainAndKind(domain.GetInfo().ID, &taskListSticky)
 
 		for taskListName := range resp.DecisionTaskListMap {
 			e.disconnectTaskListPollersAfterDomainFailover(taskListName, domain, persistence.TaskListTypeDecision, taskListSticky)
@@ -1497,7 +1586,7 @@ func (e *matchingEngineImpl) disconnectTaskListPollersAfterDomainFailover(taskLi
 	if err != nil {
 		return
 	}
-	tlMgr, err := e.getTaskListManager(taskList, taskListKind)
+	tlMgr, err := e.getOrCreateTaskListManager(context.Background(), taskList, taskListKind)
 	if err != nil {
 		e.logger.Error("Couldn't load tasklist manager", tag.Error(err))
 		return
@@ -1537,7 +1626,7 @@ func (m *lockableQueryTaskMap) delete(key string) {
 
 func isMatchingRetryableError(err error) bool {
 	switch err.(type) {
-	case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError:
+	case *types.EntityNotExistsError, *types.WorkflowExecutionAlreadyCompletedError, *types.EventAlreadyStartedError, *types.DomainNotActiveError:
 		return false
 	}
 	return true

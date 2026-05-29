@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorQueueManager implements persistence.QueueManager interface instrumented with error injection.
 type injectorQueueManager struct {
 	wrapped   persistence.QueueManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -23,9 +25,11 @@ func NewQueueManager(
 	wrapped persistence.QueueManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.QueueManager {
 	return &injectorQueueManager{
 		wrapped:   wrapped,
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -36,11 +40,11 @@ func (c *injectorQueueManager) Close() {
 	return
 }
 
-func (c *injectorQueueManager) DeleteMessageFromDLQ(ctx context.Context, messageID int64) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) DeleteMessageFromDLQ(ctx context.Context, request *persistence.DeleteMessageFromDLQRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.DeleteMessageFromDLQ(ctx, messageID)
+		err = c.wrapped.DeleteMessageFromDLQ(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -51,11 +55,11 @@ func (c *injectorQueueManager) DeleteMessageFromDLQ(ctx context.Context, message
 	return
 }
 
-func (c *injectorQueueManager) DeleteMessagesBefore(ctx context.Context, messageID int64) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) DeleteMessagesBefore(ctx context.Context, request *persistence.DeleteMessagesBeforeRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.DeleteMessagesBefore(ctx, messageID)
+		err = c.wrapped.DeleteMessagesBefore(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -66,11 +70,11 @@ func (c *injectorQueueManager) DeleteMessagesBefore(ctx context.Context, message
 	return
 }
 
-func (c *injectorQueueManager) EnqueueMessage(ctx context.Context, messagePayload []byte) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) EnqueueMessage(ctx context.Context, request *persistence.EnqueueMessageRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.EnqueueMessage(ctx, messagePayload)
+		err = c.wrapped.EnqueueMessage(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -81,11 +85,11 @@ func (c *injectorQueueManager) EnqueueMessage(ctx context.Context, messagePayloa
 	return
 }
 
-func (c *injectorQueueManager) EnqueueMessageToDLQ(ctx context.Context, messagePayload []byte) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) EnqueueMessageToDLQ(ctx context.Context, request *persistence.EnqueueMessageToDLQRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.EnqueueMessageToDLQ(ctx, messagePayload)
+		err = c.wrapped.EnqueueMessageToDLQ(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -96,11 +100,11 @@ func (c *injectorQueueManager) EnqueueMessageToDLQ(ctx context.Context, messageP
 	return
 }
 
-func (c *injectorQueueManager) GetAckLevels(ctx context.Context) (m1 map[string]int64, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) GetAckLevels(ctx context.Context, request *persistence.GetAckLevelsRequest) (gp1 *persistence.GetAckLevelsResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		m1, err = c.wrapped.GetAckLevels(ctx)
+		gp1, err = c.wrapped.GetAckLevels(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -111,11 +115,11 @@ func (c *injectorQueueManager) GetAckLevels(ctx context.Context) (m1 map[string]
 	return
 }
 
-func (c *injectorQueueManager) GetDLQAckLevels(ctx context.Context) (m1 map[string]int64, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) GetDLQAckLevels(ctx context.Context, request *persistence.GetDLQAckLevelsRequest) (gp1 *persistence.GetDLQAckLevelsResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		m1, err = c.wrapped.GetDLQAckLevels(ctx)
+		gp1, err = c.wrapped.GetDLQAckLevels(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -126,11 +130,11 @@ func (c *injectorQueueManager) GetDLQAckLevels(ctx context.Context) (m1 map[stri
 	return
 }
 
-func (c *injectorQueueManager) GetDLQSize(ctx context.Context) (i1 int64, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) GetDLQSize(ctx context.Context, request *persistence.GetDLQSizeRequest) (gp1 *persistence.GetDLQSizeResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		i1, err = c.wrapped.GetDLQSize(ctx)
+		gp1, err = c.wrapped.GetDLQSize(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -141,11 +145,11 @@ func (c *injectorQueueManager) GetDLQSize(ctx context.Context) (i1 int64, err er
 	return
 }
 
-func (c *injectorQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, request *persistence.RangeDeleteMessagesFromDLQRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.RangeDeleteMessagesFromDLQ(ctx, firstMessageID, lastMessageID)
+		err = c.wrapped.RangeDeleteMessagesFromDLQ(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -156,11 +160,11 @@ func (c *injectorQueueManager) RangeDeleteMessagesFromDLQ(ctx context.Context, f
 	return
 }
 
-func (c *injectorQueueManager) ReadMessages(ctx context.Context, lastMessageID int64, maxCount int) (q1 persistence.QueueMessageList, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) ReadMessages(ctx context.Context, request *persistence.ReadMessagesRequest) (rp1 *persistence.ReadMessagesResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		q1, err = c.wrapped.ReadMessages(ctx, lastMessageID, maxCount)
+		rp1, err = c.wrapped.ReadMessages(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -171,11 +175,11 @@ func (c *injectorQueueManager) ReadMessages(ctx context.Context, lastMessageID i
 	return
 }
 
-func (c *injectorQueueManager) ReadMessagesFromDLQ(ctx context.Context, firstMessageID int64, lastMessageID int64, pageSize int, pageToken []byte) (qpa1 []*persistence.QueueMessage, ba1 []byte, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) ReadMessagesFromDLQ(ctx context.Context, request *persistence.ReadMessagesFromDLQRequest) (rp1 *persistence.ReadMessagesFromDLQResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		qpa1, ba1, err = c.wrapped.ReadMessagesFromDLQ(ctx, firstMessageID, lastMessageID, pageSize, pageToken)
+		rp1, err = c.wrapped.ReadMessagesFromDLQ(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -186,11 +190,11 @@ func (c *injectorQueueManager) ReadMessagesFromDLQ(ctx context.Context, firstMes
 	return
 }
 
-func (c *injectorQueueManager) UpdateAckLevel(ctx context.Context, messageID int64, clusterName string) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) UpdateAckLevel(ctx context.Context, request *persistence.UpdateAckLevelRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.UpdateAckLevel(ctx, messageID, clusterName)
+		err = c.wrapped.UpdateAckLevel(ctx, request)
 	}
 
 	if fakeErr != nil {
@@ -201,11 +205,11 @@ func (c *injectorQueueManager) UpdateAckLevel(ctx context.Context, messageID int
 	return
 }
 
-func (c *injectorQueueManager) UpdateDLQAckLevel(ctx context.Context, messageID int64, clusterName string) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+func (c *injectorQueueManager) UpdateDLQAckLevel(ctx context.Context, request *persistence.UpdateDLQAckLevelRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
-		err = c.wrapped.UpdateDLQAckLevel(ctx, messageID, clusterName)
+		err = c.wrapped.UpdateDLQAckLevel(ctx, request)
 	}
 
 	if fakeErr != nil {

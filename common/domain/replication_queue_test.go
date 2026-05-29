@@ -224,8 +224,8 @@ func TestGetReplicationMessages(t *testing.T) {
 			name: "handles empty message list",
 			setupMocks: func(mockQueueManager *persistence.MockQueueManager) {
 				mockQueueManager.EXPECT().
-					ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, nil)
+					ReadMessages(gomock.Any(), gomock.Any()).
+					Return(&persistence.ReadMessagesResponse{Messages: nil}, nil)
 			},
 			expectedTasks:  0,
 			expectedLastID: 0,
@@ -237,8 +237,8 @@ func TestGetReplicationMessages(t *testing.T) {
 				// Setup mock to return one encoded message
 				encodedMessage, _ := mockEncodeReplicationTask(123)
 				mockQueueManager.EXPECT().
-					ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*persistence.QueueMessage{{ID: 1, Payload: encodedMessage}}, nil)
+					ReadMessages(gomock.Any(), gomock.Any()).
+					Return(&persistence.ReadMessagesResponse{Messages: []*persistence.QueueMessage{{ID: 1, Payload: encodedMessage}}}, nil)
 			},
 			expectedTasks:  1,
 			expectedLastID: 1,
@@ -251,11 +251,11 @@ func TestGetReplicationMessages(t *testing.T) {
 				encodedMessage1, _ := mockEncodeReplicationTask(123)
 				encodedMessage2, _ := mockEncodeReplicationTask(456)
 				mockQueueManager.EXPECT().
-					ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*persistence.QueueMessage{
+					ReadMessages(gomock.Any(), gomock.Any()).
+					Return(&persistence.ReadMessagesResponse{Messages: []*persistence.QueueMessage{
 						{ID: 1, Payload: encodedMessage1},
 						{ID: 2, Payload: encodedMessage2},
-					}, nil)
+					}}, nil)
 			},
 			expectedTasks:  2,
 			expectedLastID: 2,
@@ -266,7 +266,7 @@ func TestGetReplicationMessages(t *testing.T) {
 			expectedLastID: 100,
 			expectError:    true,
 			setupMocks: func(mockQueueManager *persistence.MockQueueManager) {
-				mockQueueManager.EXPECT().ReadMessages(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("read error"))
+				mockQueueManager.EXPECT().ReadMessages(gomock.Any(), gomock.Any()).Return(nil, errors.New("read error"))
 			},
 		},
 	}
@@ -304,7 +304,10 @@ func TestUpdateAckLevel(t *testing.T) {
 			cluster: "testCluster",
 			wantErr: false,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Eq(int64(100)), gomock.Eq("testCluster")).Return(nil)
+				q.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Eq(&persistence.UpdateAckLevelRequest{
+					MessageID:   int64(100),
+					ClusterName: "testCluster",
+				})).Return(nil)
 			},
 		},
 		{
@@ -313,7 +316,10 @@ func TestUpdateAckLevel(t *testing.T) {
 			cluster: "testCluster",
 			wantErr: true,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Eq(int64(100)), gomock.Eq("testCluster")).Return(errors.New("update error"))
+				q.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Eq(&persistence.UpdateAckLevelRequest{
+					MessageID:   int64(100),
+					ClusterName: "testCluster",
+				})).Return(errors.New("update error"))
 			},
 		},
 	}
@@ -347,14 +353,15 @@ func TestReplicationQueueImpl_GetAckLevels(t *testing.T) {
 			want:    map[string]int64{"testCluster": 100},
 			wantErr: false,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().GetAckLevels(gomock.Any()).Return(map[string]int64{"testCluster": 100}, nil)
+				q.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetAckLevelsResponse{AckLevels: map[string]int64{"testCluster": 100}}, nil)
 			},
 		},
 		{
 			name:    "ack levels retrieval fails",
 			wantErr: true,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().GetAckLevels(gomock.Any()).Return(nil, errors.New("retrieval error"))
+				q.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).Return(nil, errors.New("retrieval error"))
 			},
 		},
 	}
@@ -423,9 +430,10 @@ func TestGetMessagesFromDLQ(t *testing.T) {
 				messages := []*persistence.QueueMessage{
 					{ID: 1, Payload: encodedData},
 				}
-				mockQueue.EXPECT().ReadMessagesFromDLQ(gomock.Any(), tt.firstID, tt.lastID, tt.pageSize, tt.pageToken).Return(messages, []byte("nextToken"), nil)
+				mockQueue.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).
+					Return(&persistence.ReadMessagesFromDLQResponse{Messages: messages, NextPageToken: []byte("nextToken")}, nil)
 			} else {
-				mockQueue.EXPECT().ReadMessagesFromDLQ(gomock.Any(), tt.firstID, tt.lastID, tt.pageSize, tt.pageToken).Return(nil, nil, errors.New("read error"))
+				mockQueue.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(nil, errors.New("read error"))
 			}
 
 			replicationTasks, token, err := rq.GetMessagesFromDLQ(context.Background(), tt.firstID, tt.lastID, tt.pageSize, tt.pageToken)
@@ -452,7 +460,10 @@ func TestUpdateDLQAckLevel(t *testing.T) {
 			lastID:  100,
 			wantErr: false,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Eq(int64(100)), gomock.Eq("domainReplication")).Return(nil)
+				q.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Eq(&persistence.UpdateDLQAckLevelRequest{
+					MessageID:   int64(100),
+					ClusterName: "domainReplication",
+				})).Return(nil)
 			},
 		},
 		{
@@ -460,7 +471,10 @@ func TestUpdateDLQAckLevel(t *testing.T) {
 			lastID:  100,
 			wantErr: true,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Eq(int64(100)), gomock.Eq("domainReplication")).Return(errors.New("update DLQ ack level error"))
+				q.EXPECT().UpdateDLQAckLevel(gomock.Any(), gomock.Eq(&persistence.UpdateDLQAckLevelRequest{
+					MessageID:   int64(100),
+					ClusterName: "domainReplication",
+				})).Return(errors.New("update DLQ ack level error"))
 			},
 		},
 	}
@@ -493,14 +507,15 @@ func TestGetDLQAckLevel(t *testing.T) {
 			want:    100,
 			wantErr: false,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().GetDLQAckLevels(gomock.Any()).Return(map[string]int64{"domainReplication": 100}, nil)
+				q.EXPECT().GetDLQAckLevels(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetDLQAckLevelsResponse{AckLevels: map[string]int64{"domainReplication": 100}}, nil)
 			},
 		},
 		{
 			name:    "DLQ ack level retrieval fails",
 			wantErr: true,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().GetDLQAckLevels(gomock.Any()).Return(nil, errors.New("get DLQ ack level error"))
+				q.EXPECT().GetDLQAckLevels(gomock.Any(), gomock.Any()).Return(nil, errors.New("get DLQ ack level error"))
 			},
 		},
 	}
@@ -536,7 +551,10 @@ func TestRangeDeleteMessagesFromDLQ(t *testing.T) {
 			lastID:  20,
 			wantErr: false,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Eq(int64(10)), gomock.Eq(int64(20))).Return(nil)
+				q.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Eq(&persistence.RangeDeleteMessagesFromDLQRequest{
+					FirstMessageID: int64(10),
+					LastMessageID:  int64(20),
+				})).Return(nil)
 			},
 		},
 		{
@@ -545,7 +563,10 @@ func TestRangeDeleteMessagesFromDLQ(t *testing.T) {
 			lastID:  20,
 			wantErr: true,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Eq(int64(10)), gomock.Eq(int64(20))).Return(errors.New("range delete error"))
+				q.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Eq(&persistence.RangeDeleteMessagesFromDLQRequest{
+					FirstMessageID: int64(10),
+					LastMessageID:  int64(20),
+				})).Return(errors.New("range delete error"))
 			},
 		},
 	}
@@ -578,7 +599,9 @@ func TestDeleteMessageFromDLQ(t *testing.T) {
 			messageID: 15,
 			wantErr:   false,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().DeleteMessageFromDLQ(gomock.Any(), gomock.Eq(int64(15))).Return(nil)
+				q.EXPECT().DeleteMessageFromDLQ(gomock.Any(), gomock.Eq(&persistence.DeleteMessageFromDLQRequest{
+					MessageID: int64(15),
+				})).Return(nil)
 			},
 		},
 		{
@@ -586,7 +609,9 @@ func TestDeleteMessageFromDLQ(t *testing.T) {
 			messageID: 15,
 			wantErr:   true,
 			setupMock: func(q *persistence.MockQueueManager) {
-				q.EXPECT().DeleteMessageFromDLQ(gomock.Any(), gomock.Eq(int64(15))).Return(errors.New("delete error"))
+				q.EXPECT().DeleteMessageFromDLQ(gomock.Any(), gomock.Eq(&persistence.DeleteMessageFromDLQRequest{
+					MessageID: int64(15),
+				})).Return(errors.New("delete error"))
 			},
 		},
 	}
@@ -619,7 +644,7 @@ func TestGetDLQSize(t *testing.T) {
 			wantSize: 10,
 			wantErr:  false,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetDLQSize(gomock.Any()).Return(int64(10), nil)
+				m.EXPECT().GetDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetDLQSizeResponse{Size: int64(10)}, nil)
 			},
 		},
 		{
@@ -627,14 +652,14 @@ func TestGetDLQSize(t *testing.T) {
 			wantSize: 0,
 			wantErr:  false,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetDLQSize(gomock.Any()).Return(int64(0), nil)
+				m.EXPECT().GetDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetDLQSizeResponse{Size: int64(0)}, nil)
 			},
 		},
 		{
 			name:    "propagates error from underlying queue",
 			wantErr: true,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetDLQSize(gomock.Any()).Return(int64(0), errors.New("database error"))
+				m.EXPECT().GetDLQSize(gomock.Any(), gomock.Any()).Return(nil, errors.New("database error"))
 			},
 		},
 	}
@@ -666,30 +691,37 @@ func TestPurgeAckedMessages(t *testing.T) {
 			name:    "successfully purges messages",
 			wantErr: false,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetAckLevels(gomock.Any()).Return(map[string]int64{"clusterA": 5}, nil)
-				m.EXPECT().DeleteMessagesBefore(gomock.Any(), int64(5)).Return(nil)
+				m.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetAckLevelsResponse{AckLevels: map[string]int64{"clusterA": 5}}, nil)
+				m.EXPECT().DeleteMessagesBefore(gomock.Any(), gomock.Eq(&persistence.DeleteMessagesBeforeRequest{
+					MessageID: int64(5),
+				})).Return(nil)
 			},
 		},
 		{
 			name:    "does nothing when no ack levels",
 			wantErr: false,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetAckLevels(gomock.Any()).Return(map[string]int64{}, nil)
+				m.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetAckLevelsResponse{AckLevels: map[string]int64{}}, nil)
 			},
 		},
 		{
 			name:    "error on GetAckLevels",
 			wantErr: true,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetAckLevels(gomock.Any()).Return(nil, errors.New("database error"))
+				m.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).Return(nil, errors.New("database error"))
 			},
 		},
 		{
 			name:    "error on DeleteMessagesBefore",
 			wantErr: true,
 			setupMock: func(m *persistence.MockQueueManager) {
-				m.EXPECT().GetAckLevels(gomock.Any()).Return(map[string]int64{"clusterA": 5}, nil)
-				m.EXPECT().DeleteMessagesBefore(gomock.Any(), int64(5)).Return(errors.New("delete error"))
+				m.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).
+					Return(&persistence.GetAckLevelsResponse{AckLevels: map[string]int64{"clusterA": 5}}, nil)
+				m.EXPECT().DeleteMessagesBefore(gomock.Any(), gomock.Eq(&persistence.DeleteMessagesBeforeRequest{
+					MessageID: int64(5),
+				})).Return(errors.New("delete error"))
 			},
 		},
 	}

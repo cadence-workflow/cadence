@@ -64,6 +64,7 @@ const (
 	asyncWFRequestType        = "async_wf_request_type"
 	workflowTerminationReason = "workflow_termination_reason"
 	workflowCloseStatus       = "workflow_close_status"
+	corruptionType            = "corruption_type"
 	isolationEnabled          = "isolation_enabled"
 	isolationGroup            = "isolation_group"
 	leakCause                 = "leak_cause"
@@ -71,12 +72,21 @@ const (
 	mode                      = "mode"
 	isRetry                   = "is_retry"
 	queryConsistencyLevel     = "query_consistency_level"
+	budgetManagerName         = "budget_manager_name"
 
 	// limiter-side tags
 	globalRatelimitKey            = "global_ratelimit_key"
 	globalRatelimitType           = "global_ratelimit_type"
 	globalRatelimitIsPrimary      = "is_primary"
 	globalRatelimitCollectionName = "global_ratelimit_collection"
+
+	// scheduler-specific tags
+	overlapPolicy = "overlap_policy"
+	triggerSource = "trigger_source"
+
+	// operational dynamic config migration tags
+	onboardingSource = "onboarding_source"
+	onboardingActive = "onboarding_active"
 
 	allValue     = "all"
 	unknownValue = "_unknown_"
@@ -317,6 +327,11 @@ func WorkflowCloseStatusTag(value string) Tag {
 	return simpleMetric{key: workflowCloseStatus, value: value}
 }
 
+// CorruptionTypeTag reports the type of corruption detected
+func CorruptionTypeTag(value string) Tag {
+	return simpleMetric{key: corruptionType, value: value}
+}
+
 func IsolationGroupTag(group string) Tag {
 	return simpleMetric{key: isolationGroup, value: sanitizer.Value(group)}
 }
@@ -347,6 +362,22 @@ func NamespaceTag(namespace string) Tag {
 	return metricWithUnknown("namespace", namespace)
 }
 
+func NamespaceTypeTag(namespaceType string) Tag {
+	return metricWithUnknown("namespace_type", namespaceType)
+}
+
+func HandoverTypeTag(handoverType string) Tag {
+	return metricWithUnknown("handover_type", handoverType)
+}
+
+func ExecutorStatusTag(status string) Tag {
+	return metricWithUnknown("executor_status", status)
+}
+
+func ShardDistributorWatchTypeTag(watchType string) Tag {
+	return metricWithUnknown("watch_type", watchType)
+}
+
 func TaskCategoryTag(category string) Tag {
 	return metricWithUnknown("task_category", category)
 }
@@ -366,12 +397,41 @@ func ActiveClusterLookupFnTag(fn string) Tag {
 	return metricWithUnknown("fn", fn)
 }
 
-// ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
-func ActiveClusterSelectionStrategyTag(strategy string) Tag {
-	return metricWithUnknown("strategy", strategy)
+// OverlapPolicyTag returns a new overlap_policy tag for scheduler metrics.
+func OverlapPolicyTag(value string) Tag {
+	return metricWithUnknown(overlapPolicy, value)
+}
+
+// TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
+func TriggerSourceTag(value string) Tag {
+	return metricWithUnknown(triggerSource, value)
+}
+
+// OnboardingSourceTag tags a metric with the source the value was read from
+// during the operational dynamic config migration. Expected values are
+// "dynamicconfig" (generic dynamic config) and "operational" (cassandra-backed
+// operational dynamic config store).
+func OnboardingSourceTag(value string) Tag {
+	return metricWithUnknown(onboardingSource, value)
+}
+
+// OnboardingActiveTag tags a metric with whether the source it was read from
+// is the currently-active source of truth. Tag value is "active" when the
+// source is authoritative and "shadow" when it is read only for comparison.
+func OnboardingActiveTag(active bool) Tag {
+	value := "shadow"
+	if active {
+		value = "active"
+	}
+	return simpleMetric{key: onboardingActive, value: value}
 }
 
 // QueryConsistencyLevelTag returns a new query consistency level tag.
 func QueryConsistencyLevelTag(level string) Tag {
 	return metricWithUnknown(queryConsistencyLevel, level)
+}
+
+// BudgetManagerNameTag returns a new budget manager name tag.
+func BudgetManagerNameTag(name string) Tag {
+	return metricWithUnknown(budgetManagerName, name)
 }

@@ -32,7 +32,7 @@ import (
 
 // TestIsActiveActiveMethodsAreInSync ensures that the IsActiveActive() implementations
 // in both persistence.DomainReplicationConfig and types.DomainReplicationConfiguration
-// behave identically for all possible input combinations.
+// behave identically
 func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -59,23 +59,31 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			want:              false,
 		},
 		{
-			name: "both with only ActiveClustersByRegion populated should return true",
+			name: "both with only AttributeScopes populated should return true",
 			typesConfig: &types.DomainReplicationConfiguration{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+							},
 						},
 					},
 				},
 			},
 			persistenceConfig: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+							},
 						},
 					},
 				},
@@ -113,64 +121,6 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 				},
 			},
 			want: true,
-		},
-		{
-			name: "both with both formats populated should return true",
-			typesConfig: &types.DomainReplicationConfiguration{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-					},
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"us-west-1": {
-									ActiveClusterName: "cluster2",
-									FailoverVersion:   200,
-								},
-							},
-						},
-					},
-				},
-			},
-			persistenceConfig: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-					},
-					AttributeScopes: map[string]types.ClusterAttributeScope{
-						"region": {
-							ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"us-west-1": {
-									ActiveClusterName: "cluster2",
-									FailoverVersion:   200,
-								},
-							},
-						},
-					},
-				},
-			},
-			want: true,
-		},
-		{
-			name: "both with empty ActiveClustersByRegion map should return false",
-			typesConfig: &types.DomainReplicationConfiguration{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
-				},
-			},
-			persistenceConfig: &DomainReplicationConfig{
-				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{},
-				},
-			},
-			want: false,
 		},
 		{
 			name: "both with empty AttributeScopes map should return false",
@@ -275,39 +225,47 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "both with multiple regions in ActiveClustersByRegion should return true",
+			name: "both with multiple regions in AttributeScopes should return true",
 			typesConfig: &types.DomainReplicationConfiguration{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-						"us-west-1": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   200,
-						},
-						"eu-west-1": {
-							ActiveClusterName: "cluster3",
-							FailoverVersion:   300,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+								"us-west-1": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   200,
+								},
+								"eu-west-1": {
+									ActiveClusterName: "cluster3",
+									FailoverVersion:   300,
+								},
+							},
 						},
 					},
 				},
 			},
 			persistenceConfig: &DomainReplicationConfig{
 				ActiveClusters: &types.ActiveClusters{
-					ActiveClustersByRegion: map[string]types.ActiveClusterInfo{
-						"us-east-1": {
-							ActiveClusterName: "cluster1",
-							FailoverVersion:   100,
-						},
-						"us-west-1": {
-							ActiveClusterName: "cluster2",
-							FailoverVersion:   200,
-						},
-						"eu-west-1": {
-							ActiveClusterName: "cluster3",
-							FailoverVersion:   300,
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east-1": {
+									ActiveClusterName: "cluster1",
+									FailoverVersion:   100,
+								},
+								"us-west-1": {
+									ActiveClusterName: "cluster2",
+									FailoverVersion:   200,
+								},
+								"eu-west-1": {
+									ActiveClusterName: "cluster3",
+									FailoverVersion:   300,
+								},
+							},
 						},
 					},
 				},
@@ -384,6 +342,10 @@ func TestIsActiveActiveMethodsAreInSync(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typesResult := tt.typesConfig.IsActiveActive()
 			persistenceResult := tt.persistenceConfig.IsActiveActive()
+
+			if tt.persistenceConfig != nil && tt.typesConfig != nil {
+				assert.Equal(t, tt.persistenceConfig.ActiveClusters, tt.typesConfig.ActiveClusters)
+			}
 
 			// Assert that both implementations return the same value
 			assert.Equal(t, persistenceResult, typesResult,

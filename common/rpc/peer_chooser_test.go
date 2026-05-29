@@ -77,13 +77,20 @@ func TestDNSPeerChooserFactory(t *testing.T) {
 
 	require.True(t, chooser.IsRunning())
 
-	// Wait for refresh
-	time.Sleep(interval + 50*time.Millisecond)
-
-	peer, _, err := chooser.Choose(ctx, &transport.Request{})
-	require.NoError(t, err)
-	require.NotNil(t, peer)
-	assert.Equal(t, "fakePeer", peer.Identifier())
+	// Poll until the DNS refresh populates the peer list.
+	var gotPeer peer.Peer
+	require.Eventually(t, func() bool {
+		attemptCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		p, _, err := chooser.Choose(attemptCtx, &transport.Request{})
+		if err != nil {
+			return false
+		}
+		gotPeer = p
+		return true
+	}, 500*time.Millisecond, interval)
+	require.NotNil(t, gotPeer)
+	assert.Equal(t, "fakePeer", gotPeer.Identifier())
 }
 
 func TestDirectPeerChooserFactory(t *testing.T) {

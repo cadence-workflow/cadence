@@ -34,10 +34,10 @@ type (
 
 	// Scheduler is the generic interface for scheduling tasks with priority
 	// and processing them
-	Scheduler interface {
+	Scheduler[T Task] interface {
 		common.Daemon
-		Submit(task PriorityTask) error
-		TrySubmit(task PriorityTask) (bool, error)
+		Submit(task T) error
+		TrySubmit(task T) (bool, error)
 	}
 
 	// SchedulerType respresents the type of the task scheduler implementation
@@ -90,6 +90,22 @@ type (
 		IsEmpty() bool
 		// Len return the size of the queue
 		Len() int
+	}
+
+	// Schedule represents a stateless schedule definition
+	Schedule[V any] interface {
+		// NewIterator creates a new stateful iterator for this schedule
+		NewIterator() Iterator[V]
+
+		// Len returns the length of the schedule
+		Len() int
+	}
+
+	// Iterator represents a stateful iteration through a schedule
+	Iterator[V any] interface {
+		// Next returns the next value in the iteration
+		// Returns (value, true) if available, (zero value, false) if exhausted
+		TryNext() (V, bool)
 	}
 )
 

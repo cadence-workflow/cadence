@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
 
@@ -73,6 +74,9 @@ type (
 		ESClient           es.GenericClient
 		ESConfig           *config.ElasticSearchConfig
 
+		// RPC configuration
+		RPCConfig config.RPC
+
 		DynamicConfig              dynamicconfig.Client
 		ClusterRedirectionPolicy   *config.ClusterRedirectionPolicy
 		PublicClient               workflowserviceclient.Interface
@@ -82,6 +86,7 @@ type (
 		AuthorizationConfig        config.Authorization     // NOTE: empty(default) struct will get a authorization.NoopAuthorizer
 		IsolationGroupStore        configstore.Client       // This can be nil, the default config store will be created if so
 		IsolationGroupState        isolationgroup.State     // This can be nil, the default state store will be chosen if so
+		OperationalConfigStore     configstore.Client
 		PinotConfig                *config.PinotVisibilityConfig
 		KafkaConfig                config.KafkaConfig
 		PinotClient                pinot.GenericClient
@@ -94,5 +99,16 @@ type (
 		// NewPersistenceBeanFn can be used to override the default persistence bean creation in unit tests to avoid DB setup
 		NewPersistenceBeanFn  func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error)
 		DiagnosticsInvariants []invariant.Invariant
+
+		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
+		ShardDistributorMatchingConfig clientcommon.Config
+
+		// DrainObserver is an optional observer that signals when this instance is
+		// drained from service discovery.
+		// It is used by shard-distributor executor clients to
+		// gracefully stop processing during drains.
+		DrainObserver clientcommon.DrainSignalObserver
+
+		PercentageOnboarded membership.PercentageOnboarded
 	}
 )

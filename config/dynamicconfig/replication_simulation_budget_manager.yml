@@ -1,0 +1,43 @@
+# This file is used as dynamicconfig override for "budget_manager" replication simulation scenario
+# It enables the replication budget manager to test cache capacity management during replication
+
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+
+# Replication task processor settings
+history.replicatorTaskBatchSize:
+  - value: 25
+    constraints: {}
+
+frontend.failoverCoolDown:
+  - value: 5s
+
+history.ReplicationTaskProcessorStartWait: # default is 5s. repl task processor sleeps this much before processing received messages.
+  - value: 10ms
+
+# Set budget limits for testing
+# Max size in bytes - set to a moderate value to test capacity enforcement
+history.replicationBudgetManagerMaxSizeBytes:
+  - value: 1048576  # 1MB
+    constraints: {}
+
+# Max count - set to a moderate value to test count enforcement
+history.replicationBudgetManagerMaxSizeCount:
+  - value: 100
+    constraints: {}
+
+# Soft cap threshold - test fair-share enforcement
+history.replicationBudgetManagerSoftCapThreshold:
+  - value: 0.8  # 80% soft cap
+    constraints: {}
+
+# Cache settings for replication
+history.replicatorCacheCapacity:
+  - value: 50
+    constraints: {}
+
+history.replicatorCacheMaxSize:
+  - value: 524288  # 512KB per cache
+    constraints: {}

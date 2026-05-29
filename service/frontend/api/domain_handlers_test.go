@@ -417,3 +417,145 @@ func TestDeleteDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestListFailoverHistory(t *testing.T) {
+	domainID := "test-domain-id"
+	eventID1 := "event-id-1"
+	customPageSize := int32(100)
+	nextPageToken := []byte("next-page-token")
+
+	testCases := []struct {
+		name          string
+		req           *types.ListFailoverHistoryRequest
+		setupMocks    func(*mockDeps)
+		expectError   bool
+		expectedError string
+		verifyResp    func(t *testing.T, resp *types.ListFailoverHistoryResponse)
+	}{
+		{
+			name: "success_with_default_page_size",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: domainID,
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockResource.DomainAuditMgr.EXPECT().GetDomainAuditLogs(
+					gomock.Any(),
+					&persistence.GetDomainAuditLogsRequest{
+						DomainID:      domainID,
+						OperationType: persistence.DomainAuditOperationTypeFailover,
+						PageSize:      50,
+						NextPageToken: nil,
+					},
+				).Return(&persistence.GetDomainAuditLogsResponse{
+					AuditLogs: []*persistence.DomainAuditLog{
+						{
+							EventID:  eventID1,
+							DomainID: domainID,
+							StateBefore: &persistence.GetDomainResponse{
+								ReplicationConfig: &persistence.DomainReplicationConfig{
+									ActiveClusterName: "cluster-us-west",
+								},
+								FailoverVersion: 1,
+							},
+							StateAfter: &persistence.GetDomainResponse{
+								ReplicationConfig: &persistence.DomainReplicationConfig{
+									ActiveClusterName: "cluster-us-east",
+								},
+								FailoverVersion: 2,
+							},
+						},
+					},
+					NextPageToken: nextPageToken,
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
+				assert.NotNil(t, resp)
+				assert.Len(t, resp.FailoverEvents, 1)
+				assert.Equal(t, nextPageToken, resp.NextPageToken)
+				assert.NotNil(t, resp.FailoverEvents[0].ClusterFailovers)
+				assert.Len(t, resp.FailoverEvents[0].ClusterFailovers, 1)
+				assert.Equal(t, "cluster-us-west", resp.FailoverEvents[0].ClusterFailovers[0].FromCluster.ActiveClusterName)
+				assert.Equal(t, "cluster-us-east", resp.FailoverEvents[0].ClusterFailovers[0].ToCluster.ActiveClusterName)
+			},
+		},
+		{
+			name: "success_with_custom_page_size",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: domainID,
+				},
+				Pagination: &types.PaginationOptions{
+					PageSize: &customPageSize,
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockResource.DomainAuditMgr.EXPECT().GetDomainAuditLogs(
+					gomock.Any(),
+					&persistence.GetDomainAuditLogsRequest{
+						DomainID:      domainID,
+						OperationType: persistence.DomainAuditOperationTypeFailover,
+						PageSize:      100,
+						NextPageToken: nil,
+					},
+				).Return(&persistence.GetDomainAuditLogsResponse{
+					AuditLogs:     []*persistence.DomainAuditLog{},
+					NextPageToken: nil,
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
+				assert.NotNil(t, resp)
+				assert.Len(t, resp.FailoverEvents, 0)
+				assert.Nil(t, resp.NextPageToken)
+			},
+		},
+		{
+			name: "error_nil_filters",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: nil,
+			},
+			setupMocks: func(deps *mockDeps) {
+				// No mocks needed as validation fails early
+			},
+			expectError:   true,
+			expectedError: "DomainID is required in filters",
+		},
+		{
+			name: "error_get_domain_audit_logs_fails",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: domainID,
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockResource.DomainAuditMgr.EXPECT().GetDomainAuditLogs(
+					gomock.Any(),
+					gomock.Any(),
+				).Return(nil, errors.New("persistence error"))
+			},
+			expectError:   true,
+			expectedError: "persistence error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			wh, deps := setupMocksForWorkflowHandler(t)
+			tc.setupMocks(deps)
+
+			resp, err := wh.ListFailoverHistory(context.Background(), tc.req)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedError)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				tc.verifyResp(t, resp)
+			}
+		})
+	}
+}

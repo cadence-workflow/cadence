@@ -98,7 +98,7 @@ func (m *sqlTaskStore) LeaseTaskList(
 				AckLevel:        ackLevel,
 				Kind:            int16(request.TaskListKind),
 				ExpiryTimestamp: time.Unix(0, 0),
-				LastUpdated:     time.Now(),
+				LastUpdated:     request.CurrentTimeStamp,
 			}
 			blob, err := m.parser.TaskListInfoToBlob(tlInfo)
 			if err != nil {
@@ -155,7 +155,7 @@ func (m *sqlTaskStore) LeaseTaskList(
 		if err1 != nil {
 			return err1
 		}
-		now := time.Now()
+		now := request.CurrentTimeStamp
 		tlInfo.LastUpdated = now
 		blob, err1 := m.parser.TaskListInfoToBlob(tlInfo)
 		if err1 != nil {
@@ -245,15 +245,16 @@ func (m *sqlTaskStore) UpdateTaskList(
 ) (*persistence.UpdateTaskListResponse, error) {
 	dbShardID := sqlplugin.GetDBShardIDFromDomainIDAndTasklist(request.TaskListInfo.DomainID, request.TaskListInfo.Name, m.db.GetTotalNumDBShards())
 	domainID := serialization.MustParseUUID(request.TaskListInfo.DomainID)
+	now := request.CurrentTimeStamp
 	tlInfo := &serialization.TaskListInfo{
 		AckLevel:                request.TaskListInfo.AckLevel,
 		Kind:                    int16(request.TaskListInfo.Kind),
 		ExpiryTimestamp:         time.Unix(0, 0),
-		LastUpdated:             time.Now(),
+		LastUpdated:             now,
 		AdaptivePartitionConfig: toSerializationTaskListPartitionConfig(request.TaskListInfo.AdaptivePartitionConfig),
 	}
 	if persistence.TaskListKindHasTTL(request.TaskListInfo.Kind) {
-		tlInfo.ExpiryTimestamp = time.Now().Add(taskListTTL)
+		tlInfo.ExpiryTimestamp = now.Add(taskListTTL)
 	}
 
 	var resp *persistence.UpdateTaskListResponse
@@ -436,14 +437,14 @@ func (m *sqlTaskStore) CreateTasks(
 					ttl = *maxAllowedTTL
 				}
 			}
-			expiryTime = time.Now().Add(ttl)
+			expiryTime = request.CurrentTimeStamp.Add(ttl)
 		}
 		blob, err := m.parser.TaskInfoToBlob(&serialization.TaskInfo{
 			WorkflowID:       v.Data.WorkflowID,
 			RunID:            serialization.MustParseUUID(v.Data.RunID),
 			ScheduleID:       v.Data.ScheduleID,
 			ExpiryTimestamp:  expiryTime,
-			CreatedTimestamp: time.Now(),
+			CreatedTimestamp: request.CurrentTimeStamp,
 			PartitionConfig:  v.Data.PartitionConfig,
 		})
 		if err != nil {

@@ -54,6 +54,7 @@ import (
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 	"github.com/uber/cadence/service/worker/scanner/tasklist"
 	"github.com/uber/cadence/service/worker/scanner/timers"
+	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 type (
@@ -84,12 +85,15 @@ type (
 		PersistenceGlobalMaxQPS             dynamicproperties.IntPropertyFn
 		PersistenceMaxQPS                   dynamicproperties.IntPropertyFn
 		EnableBatcher                       dynamicproperties.BoolPropertyFn
+		EnableScheduler                     dynamicproperties.BoolPropertyFnWithDomainFilter
+		SchedulerWorkerRefreshInterval      dynamicproperties.DurationPropertyFn
 		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
 		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 		EnableFailoverManager               dynamicproperties.BoolPropertyFn
 		DomainReplicationMaxRetryDuration   dynamicproperties.DurationPropertyFn
 		EnableESAnalyzer                    dynamicproperties.BoolPropertyFn
 		EnableAsyncWorkflowConsumption      dynamicproperties.BoolPropertyFn
+		EnableDomainAuditLogging            dynamicproperties.BoolPropertyFn
 		HostName                            string
 	}
 )
@@ -180,6 +184,8 @@ func NewConfig(params *resource.Params) *Config {
 			ESAnalyzerWorkflowTypeDomains:            dc.GetStringProperty(dynamicproperties.ESAnalyzerWorkflowTypeMetricDomains),
 		},
 		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
+		EnableScheduler:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
+		SchedulerWorkerRefreshInterval:      dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval),
 		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
 		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
 		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
@@ -189,6 +195,7 @@ func NewConfig(params *resource.Params) *Config {
 		PersistenceMaxQPS:                   dc.GetIntProperty(dynamicproperties.WorkerPersistenceMaxQPS),
 		DomainReplicationMaxRetryDuration:   dc.GetDurationProperty(dynamicproperties.WorkerReplicationTaskMaxRetryDuration),
 		EnableAsyncWorkflowConsumption:      dc.GetBoolProperty(dynamicproperties.EnableAsyncWorkflowConsumption),
+		EnableDomainAuditLogging:            dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		HostName:                            params.HostName,
 	}
 	advancedVisWritingMode := dc.GetStringProperty(
@@ -243,6 +250,8 @@ func (s *Service) Start() {
 		s.ensureDomainExists(constants.BatcherLocalDomainName)
 		s.startBatcher()
 	}
+	sm := s.startSchedulerWorkerManager()
+	defer sm.Stop()
 	if s.config.EnableParentClosePolicyWorker() {
 		s.startParentClosePolicyProcessor()
 	}
@@ -336,6 +345,22 @@ func (s *Service) startBatcher() {
 	}
 }
 
+func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
+	params := &scheduler.BootstrapParams{
+		ServiceClient:      s.params.PublicClient,
+		FrontendClient:     s.GetClientBean().GetFrontendClient(),
+		MetricsClient:      s.GetMetricsClient(),
+		Logger:             s.GetLogger(),
+		DomainCache:        s.GetDomainCache(),
+		MembershipResolver: s.GetMembershipResolver(),
+		HostInfo:           s.GetHostInfo(),
+		RefreshInterval:    s.config.SchedulerWorkerRefreshInterval,
+	}
+	wm := scheduler.NewWorkerManager(params, s.config.EnableScheduler)
+	wm.Start()
+	return wm
+}
+
 func (s *Service) startScanner() {
 	params := &scanner.BootstrapParams{
 		Config:     *s.config.ScannerCfg,
@@ -376,8 +401,10 @@ func (s *Service) startDiagnostics() {
 func (s *Service) startReplicator() {
 	domainReplicationTaskExecutor := domain.NewReplicationTaskExecutor(
 		s.Resource.GetDomainManager(),
+		s.Resource.GetDomainAuditManager(),
 		s.Resource.GetTimeSource(),
 		s.Resource.GetLogger(),
+		s.config.EnableDomainAuditLogging,
 	)
 	msgReplicator := replicator.NewReplicator(
 		s.GetClusterMetadata(),

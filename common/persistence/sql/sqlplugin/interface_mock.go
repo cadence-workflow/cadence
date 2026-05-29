@@ -99,6 +99,21 @@ func (m *MocktableCRUD) EXPECT() *MocktableCRUDMockRecorder {
 	return m.recorder
 }
 
+// DeleteFromActiveClusterSelectionPolicy mocks base method.
+func (m *MocktableCRUD) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteFromActiveClusterSelectionPolicy", ctx, filter)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteFromActiveClusterSelectionPolicy indicates an expected call of DeleteFromActiveClusterSelectionPolicy.
+func (mr *MocktableCRUDMockRecorder) DeleteFromActiveClusterSelectionPolicy(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFromActiveClusterSelectionPolicy", reflect.TypeOf((*MocktableCRUD)(nil).DeleteFromActiveClusterSelectionPolicy), ctx, filter)
+}
+
 // DeleteFromActivityInfoMaps mocks base method.
 func (m *MocktableCRUD) DeleteFromActivityInfoMaps(ctx context.Context, filter *ActivityInfoMapsFilter) (sql.Result, error) {
 	m.ctrl.T.Helper()
@@ -577,6 +592,21 @@ func (mr *MocktableCRUDMockRecorder) InsertConfig(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertConfig", reflect.TypeOf((*MocktableCRUD)(nil).InsertConfig), ctx, row)
 }
 
+// InsertIntoActiveClusterSelectionPolicy mocks base method.
+func (m *MocktableCRUD) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *ActiveClusterSelectionPolicyRow) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntoActiveClusterSelectionPolicy", ctx, row)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertIntoActiveClusterSelectionPolicy indicates an expected call of InsertIntoActiveClusterSelectionPolicy.
+func (mr *MocktableCRUDMockRecorder) InsertIntoActiveClusterSelectionPolicy(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoActiveClusterSelectionPolicy", reflect.TypeOf((*MocktableCRUD)(nil).InsertIntoActiveClusterSelectionPolicy), ctx, row)
+}
+
 // InsertIntoBufferedEvents mocks base method.
 func (m *MocktableCRUD) InsertIntoBufferedEvents(ctx context.Context, rows []BufferedEventsRow) (sql.Result, error) {
 	m.ctrl.T.Helper()
@@ -635,6 +665,21 @@ func (m *MocktableCRUD) InsertIntoDomain(ctx context.Context, rows *DomainRow) (
 func (mr *MocktableCRUDMockRecorder) InsertIntoDomain(ctx, rows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoDomain", reflect.TypeOf((*MocktableCRUD)(nil).InsertIntoDomain), ctx, rows)
+}
+
+// InsertIntoDomainAuditLog mocks base method.
+func (m *MocktableCRUD) InsertIntoDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntoDomainAuditLog", ctx, row)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertIntoDomainAuditLog indicates an expected call of InsertIntoDomainAuditLog.
+func (mr *MocktableCRUDMockRecorder) InsertIntoDomainAuditLog(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoDomainAuditLog", reflect.TypeOf((*MocktableCRUD)(nil).InsertIntoDomainAuditLog), ctx, row)
 }
 
 // InsertIntoExecutions mocks base method.
@@ -1146,6 +1191,21 @@ func (mr *MocktableCRUDMockRecorder) ReplaceIntoVisibility(ctx, row any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceIntoVisibility", reflect.TypeOf((*MocktableCRUD)(nil).ReplaceIntoVisibility), ctx, row)
 }
 
+// SelectFromActiveClusterSelectionPolicy mocks base method.
+func (m *MocktableCRUD) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (*ActiveClusterSelectionPolicyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectFromActiveClusterSelectionPolicy", ctx, filter)
+	ret0, _ := ret[0].(*ActiveClusterSelectionPolicyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectFromActiveClusterSelectionPolicy indicates an expected call of SelectFromActiveClusterSelectionPolicy.
+func (mr *MocktableCRUDMockRecorder) SelectFromActiveClusterSelectionPolicy(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromActiveClusterSelectionPolicy", reflect.TypeOf((*MocktableCRUD)(nil).SelectFromActiveClusterSelectionPolicy), ctx, filter)
+}
+
 // SelectFromActivityInfoMaps mocks base method.
 func (m *MocktableCRUD) SelectFromActivityInfoMaps(ctx context.Context, filter *ActivityInfoMapsFilter) ([]ActivityInfoMapsRow, error) {
 	m.ctrl.T.Helper()
@@ -1234,6 +1294,21 @@ func (m *MocktableCRUD) SelectFromDomain(ctx context.Context, filter *DomainFilt
 func (mr *MocktableCRUDMockRecorder) SelectFromDomain(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromDomain", reflect.TypeOf((*MocktableCRUD)(nil).SelectFromDomain), ctx, filter)
+}
+
+// SelectFromDomainAuditLogs mocks base method.
+func (m *MocktableCRUD) SelectFromDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectFromDomainAuditLogs", ctx, filter)
+	ret0, _ := ret[0].([]*DomainAuditLogRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectFromDomainAuditLogs indicates an expected call of SelectFromDomainAuditLogs.
+func (mr *MocktableCRUDMockRecorder) SelectFromDomainAuditLogs(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromDomainAuditLogs", reflect.TypeOf((*MocktableCRUD)(nil).SelectFromDomainAuditLogs), ctx, filter)
 }
 
 // SelectFromDomainMetadata mocks base method.
@@ -1892,6 +1967,21 @@ func (mr *MockTxMockRecorder) Commit() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commit", reflect.TypeOf((*MockTx)(nil).Commit))
 }
 
+// DeleteFromActiveClusterSelectionPolicy mocks base method.
+func (m *MockTx) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteFromActiveClusterSelectionPolicy", ctx, filter)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteFromActiveClusterSelectionPolicy indicates an expected call of DeleteFromActiveClusterSelectionPolicy.
+func (mr *MockTxMockRecorder) DeleteFromActiveClusterSelectionPolicy(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFromActiveClusterSelectionPolicy", reflect.TypeOf((*MockTx)(nil).DeleteFromActiveClusterSelectionPolicy), ctx, filter)
+}
+
 // DeleteFromActivityInfoMaps mocks base method.
 func (m *MockTx) DeleteFromActivityInfoMaps(ctx context.Context, filter *ActivityInfoMapsFilter) (sql.Result, error) {
 	m.ctrl.T.Helper()
@@ -2370,6 +2460,21 @@ func (mr *MockTxMockRecorder) InsertConfig(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertConfig", reflect.TypeOf((*MockTx)(nil).InsertConfig), ctx, row)
 }
 
+// InsertIntoActiveClusterSelectionPolicy mocks base method.
+func (m *MockTx) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *ActiveClusterSelectionPolicyRow) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntoActiveClusterSelectionPolicy", ctx, row)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertIntoActiveClusterSelectionPolicy indicates an expected call of InsertIntoActiveClusterSelectionPolicy.
+func (mr *MockTxMockRecorder) InsertIntoActiveClusterSelectionPolicy(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoActiveClusterSelectionPolicy", reflect.TypeOf((*MockTx)(nil).InsertIntoActiveClusterSelectionPolicy), ctx, row)
+}
+
 // InsertIntoBufferedEvents mocks base method.
 func (m *MockTx) InsertIntoBufferedEvents(ctx context.Context, rows []BufferedEventsRow) (sql.Result, error) {
 	m.ctrl.T.Helper()
@@ -2428,6 +2533,21 @@ func (m *MockTx) InsertIntoDomain(ctx context.Context, rows *DomainRow) (sql.Res
 func (mr *MockTxMockRecorder) InsertIntoDomain(ctx, rows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoDomain", reflect.TypeOf((*MockTx)(nil).InsertIntoDomain), ctx, rows)
+}
+
+// InsertIntoDomainAuditLog mocks base method.
+func (m *MockTx) InsertIntoDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntoDomainAuditLog", ctx, row)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertIntoDomainAuditLog indicates an expected call of InsertIntoDomainAuditLog.
+func (mr *MockTxMockRecorder) InsertIntoDomainAuditLog(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoDomainAuditLog", reflect.TypeOf((*MockTx)(nil).InsertIntoDomainAuditLog), ctx, row)
 }
 
 // InsertIntoExecutions mocks base method.
@@ -3009,6 +3129,21 @@ func (mr *MockTxMockRecorder) Rollback() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Rollback", reflect.TypeOf((*MockTx)(nil).Rollback))
 }
 
+// SelectFromActiveClusterSelectionPolicy mocks base method.
+func (m *MockTx) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (*ActiveClusterSelectionPolicyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectFromActiveClusterSelectionPolicy", ctx, filter)
+	ret0, _ := ret[0].(*ActiveClusterSelectionPolicyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectFromActiveClusterSelectionPolicy indicates an expected call of SelectFromActiveClusterSelectionPolicy.
+func (mr *MockTxMockRecorder) SelectFromActiveClusterSelectionPolicy(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromActiveClusterSelectionPolicy", reflect.TypeOf((*MockTx)(nil).SelectFromActiveClusterSelectionPolicy), ctx, filter)
+}
+
 // SelectFromActivityInfoMaps mocks base method.
 func (m *MockTx) SelectFromActivityInfoMaps(ctx context.Context, filter *ActivityInfoMapsFilter) ([]ActivityInfoMapsRow, error) {
 	m.ctrl.T.Helper()
@@ -3097,6 +3232,21 @@ func (m *MockTx) SelectFromDomain(ctx context.Context, filter *DomainFilter) ([]
 func (mr *MockTxMockRecorder) SelectFromDomain(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromDomain", reflect.TypeOf((*MockTx)(nil).SelectFromDomain), ctx, filter)
+}
+
+// SelectFromDomainAuditLogs mocks base method.
+func (m *MockTx) SelectFromDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectFromDomainAuditLogs", ctx, filter)
+	ret0, _ := ret[0].([]*DomainAuditLogRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectFromDomainAuditLogs indicates an expected call of SelectFromDomainAuditLogs.
+func (mr *MockTxMockRecorder) SelectFromDomainAuditLogs(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromDomainAuditLogs", reflect.TypeOf((*MockTx)(nil).SelectFromDomainAuditLogs), ctx, filter)
 }
 
 // SelectFromDomainMetadata mocks base method.
@@ -3599,6 +3749,21 @@ func (mr *MockDBMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDB)(nil).Close))
 }
 
+// DeleteFromActiveClusterSelectionPolicy mocks base method.
+func (m *MockDB) DeleteFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteFromActiveClusterSelectionPolicy", ctx, filter)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteFromActiveClusterSelectionPolicy indicates an expected call of DeleteFromActiveClusterSelectionPolicy.
+func (mr *MockDBMockRecorder) DeleteFromActiveClusterSelectionPolicy(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFromActiveClusterSelectionPolicy", reflect.TypeOf((*MockDB)(nil).DeleteFromActiveClusterSelectionPolicy), ctx, filter)
+}
+
 // DeleteFromActivityInfoMaps mocks base method.
 func (m *MockDB) DeleteFromActivityInfoMaps(ctx context.Context, filter *ActivityInfoMapsFilter) (sql.Result, error) {
 	m.ctrl.T.Helper()
@@ -4091,6 +4256,21 @@ func (mr *MockDBMockRecorder) InsertConfig(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertConfig", reflect.TypeOf((*MockDB)(nil).InsertConfig), ctx, row)
 }
 
+// InsertIntoActiveClusterSelectionPolicy mocks base method.
+func (m *MockDB) InsertIntoActiveClusterSelectionPolicy(ctx context.Context, row *ActiveClusterSelectionPolicyRow) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntoActiveClusterSelectionPolicy", ctx, row)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertIntoActiveClusterSelectionPolicy indicates an expected call of InsertIntoActiveClusterSelectionPolicy.
+func (mr *MockDBMockRecorder) InsertIntoActiveClusterSelectionPolicy(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoActiveClusterSelectionPolicy", reflect.TypeOf((*MockDB)(nil).InsertIntoActiveClusterSelectionPolicy), ctx, row)
+}
+
 // InsertIntoBufferedEvents mocks base method.
 func (m *MockDB) InsertIntoBufferedEvents(ctx context.Context, rows []BufferedEventsRow) (sql.Result, error) {
 	m.ctrl.T.Helper()
@@ -4149,6 +4329,21 @@ func (m *MockDB) InsertIntoDomain(ctx context.Context, rows *DomainRow) (sql.Res
 func (mr *MockDBMockRecorder) InsertIntoDomain(ctx, rows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoDomain", reflect.TypeOf((*MockDB)(nil).InsertIntoDomain), ctx, rows)
+}
+
+// InsertIntoDomainAuditLog mocks base method.
+func (m *MockDB) InsertIntoDomainAuditLog(ctx context.Context, row *DomainAuditLogRow) (sql.Result, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntoDomainAuditLog", ctx, row)
+	ret0, _ := ret[0].(sql.Result)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertIntoDomainAuditLog indicates an expected call of InsertIntoDomainAuditLog.
+func (mr *MockDBMockRecorder) InsertIntoDomainAuditLog(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoDomainAuditLog", reflect.TypeOf((*MockDB)(nil).InsertIntoDomainAuditLog), ctx, row)
 }
 
 // InsertIntoExecutions mocks base method.
@@ -4730,6 +4925,21 @@ func (mr *MockDBMockRecorder) ReplaceIntoVisibility(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceIntoVisibility", reflect.TypeOf((*MockDB)(nil).ReplaceIntoVisibility), ctx, row)
 }
 
+// SelectFromActiveClusterSelectionPolicy mocks base method.
+func (m *MockDB) SelectFromActiveClusterSelectionPolicy(ctx context.Context, filter *ActiveClusterSelectionPolicyFilter) (*ActiveClusterSelectionPolicyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectFromActiveClusterSelectionPolicy", ctx, filter)
+	ret0, _ := ret[0].(*ActiveClusterSelectionPolicyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectFromActiveClusterSelectionPolicy indicates an expected call of SelectFromActiveClusterSelectionPolicy.
+func (mr *MockDBMockRecorder) SelectFromActiveClusterSelectionPolicy(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromActiveClusterSelectionPolicy", reflect.TypeOf((*MockDB)(nil).SelectFromActiveClusterSelectionPolicy), ctx, filter)
+}
+
 // SelectFromActivityInfoMaps mocks base method.
 func (m *MockDB) SelectFromActivityInfoMaps(ctx context.Context, filter *ActivityInfoMapsFilter) ([]ActivityInfoMapsRow, error) {
 	m.ctrl.T.Helper()
@@ -4818,6 +5028,21 @@ func (m *MockDB) SelectFromDomain(ctx context.Context, filter *DomainFilter) ([]
 func (mr *MockDBMockRecorder) SelectFromDomain(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromDomain", reflect.TypeOf((*MockDB)(nil).SelectFromDomain), ctx, filter)
+}
+
+// SelectFromDomainAuditLogs mocks base method.
+func (m *MockDB) SelectFromDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectFromDomainAuditLogs", ctx, filter)
+	ret0, _ := ret[0].([]*DomainAuditLogRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectFromDomainAuditLogs indicates an expected call of SelectFromDomainAuditLogs.
+func (mr *MockDBMockRecorder) SelectFromDomainAuditLogs(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromDomainAuditLogs", reflect.TypeOf((*MockDB)(nil).SelectFromDomainAuditLogs), ctx, filter)
 }
 
 // SelectFromDomainMetadata mocks base method.

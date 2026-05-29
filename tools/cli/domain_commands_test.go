@@ -24,6 +24,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -314,6 +315,32 @@ func (s *cliAppSuite) TestDomainUpdate() {
 			},
 		},
 		{
+			"active-active domain failover via JSON",
+			`cadence --do test-domain domain update --active_clusters_json '{"attributeScopes":{"region":{"clusterAttributes":{"region1":{"activeClusterName":"c1"},"region2":{"activeClusterName":"c2"}}}}}'`,
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
+					Name: "test-domain",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {ActiveClusterName: "c1"},
+									"region2": {ActiveClusterName: "c2"},
+								},
+							},
+						},
+					},
+				}).Return(&types.UpdateDomainResponse{}, nil)
+			},
+		},
+		{
+			"active-active domain failover with both --active_clusters and --active_clusters_json errors",
+			`cadence --do test-domain domain update --active_clusters region.region1:c1 --active_clusters_json '{"attributeScopes":{}}'`,
+			"Cannot use both",
+			func() {},
+		},
+		{
 			"domain not exist",
 			"cadence --do test-domain domain update --desc new-description",
 			"does not exist",
@@ -427,6 +454,26 @@ func TestParseActiveClustersByClusterAttribute(t *testing.T) {
 				},
 			},
 		},
+		"clusters apparently can contain dashes": {
+			clusters: "region.newyork:cluster-0-us-east-1",
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"newyork": {ActiveClusterName: "cluster-0-us-east-1"},
+					}},
+				},
+			},
+		},
+		"other things can use dashes too": {
+			clusters: "region-us-east1.new-york:cluster-0-us-east-1",
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region-us-east1": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"new-york": {ActiveClusterName: "cluster-0-us-east-1"},
+					}},
+				},
+			},
+		},
 		"duplicate keys consistutes an error in parsing and shouldn't be allowed": {
 			clusters:      "region.newyork:cluster0,region.newyork:cluster1",
 			expectedError: fmt.Errorf(`option active_clusters format is invalid. the key "newyork" was duplicated. This can only map to a single active cluster`),
@@ -446,6 +493,297 @@ func TestParseActiveClustersByClusterAttribute(t *testing.T) {
 			activeClusters, err := parseActiveClustersByClusterAttribute(td.clusters)
 			assert.Equal(t, td.expected, activeClusters)
 			assert.Equal(t, td.expectedError, err)
+		})
+	}
+}
+
+func TestParseActiveClustersByClusterAttributeFromJSON(t *testing.T) {
+	testCases := map[string]struct {
+		jsonStr       string
+		expected      types.ActiveClusters
+		expectedError bool
+	}{
+		"valid JSON": {
+			jsonStr: `{"attributeScopes":{"region-us-east1":{"clusterAttributes":{"new-york":{"activeClusterName":"cluster-0-us-east-1","failoverVersion":0}}}}}`,
+			expected: types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region-us-east1": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"new-york": {ActiveClusterName: "cluster-0-us-east-1", FailoverVersion: 0},
+					}},
+				},
+			},
+		},
+		"making nerds upset with brackets": {
+			jsonStr:       `{"`,
+			expectedError: true,
+		},
+	}
+
+	for name, td := range testCases {
+		t.Run(name, func(t *testing.T) {
+			activeClusters, err := parseActiveClustersByClusterAttributeFromJSON(td.jsonStr)
+			assert.Equal(t, td.expected, activeClusters)
+			if td.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRenderFailoverHistoryTable(t *testing.T) {
+	testCases := map[string]struct {
+		response       *types.ListFailoverHistoryResponse
+		expectedOutput []string // Substrings that should be present in output
+	}{
+		"single failover event with one cluster failover": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-1"),
+						CreatedTime: common.Int64Ptr(1700000000000000000), // 2023-11-14T22:13:20Z
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeGraceful
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-a"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-b"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-west",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-1",
+				"2023-11-14", // Just check date, not full timestamp with timezone
+				"cluster-a -> cluster-b",
+				"region.us-west",
+				"FAILOVER TIMESTAMP", // New column header (uppercase)
+				"CLUSTER ATTRIBUTE",  // Conditional column header (uppercase)
+			},
+		},
+		"single failover event with multiple cluster failovers": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-2"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeForce
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-a"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-b"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-west",
+								},
+							},
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-c"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-d"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "zone",
+									Name:  "az-1",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-2",
+				"cluster-a -> cluster-b",
+				"region.us-west",
+				"cluster-c -> cluster-d",
+				"zone.az-1",
+			},
+		},
+		"failover event with nil ActiveClusterName": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-3"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeGraceful
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: ""},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: ""},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-east",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-3",
+				" -> ",
+				"region.us-east",
+			},
+		},
+		"failover event with nil ClusterAttribute": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-4"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeForce
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster:      &types.ActiveClusterInfo{ActiveClusterName: "cluster-x"},
+								ToCluster:        &types.ActiveClusterInfo{ActiveClusterName: "cluster-y"},
+								ClusterAttribute: nil,
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-4",
+				"cluster-x -> cluster-y",
+				"FAILOVER", // Should have 3-column table (no Cluster Attribute column, uppercase)
+			},
+		},
+		"failover event with empty ClusterAttribute scope and name": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-5"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						FailoverType: func() *types.FailoverType {
+							t := types.FailoverTypeGraceful
+							return &t
+						}(),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-m"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-n"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "",
+									Name:  "",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-5",
+				"cluster-m -> cluster-n",
+			},
+		},
+		"failover event with no cluster failovers": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:               common.StringPtr("event-6"),
+						CreatedTime:      common.Int64Ptr(1700000000000000000),
+						ClusterFailovers: []*types.ClusterFailover{},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-6",
+				"2023-11-14", // Just check date, not full timestamp with timezone
+			},
+		},
+		"failover event with nil FromCluster and ToCluster": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-7"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: nil,
+								ToCluster:   nil,
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "region",
+									Name:  "us-central",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-7",
+				" -> ",
+				"region.us-central",
+			},
+		},
+		"multiple failover events": {
+			response: &types.ListFailoverHistoryResponse{
+				FailoverEvents: []*types.FailoverEvent{
+					{
+						ID:          common.StringPtr("event-8"),
+						CreatedTime: common.Int64Ptr(1700000000000000000),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-1"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-2"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "dc",
+									Name:  "dc1",
+								},
+							},
+						},
+					},
+					{
+						ID:          common.StringPtr("event-9"),
+						CreatedTime: common.Int64Ptr(1700001000000000000),
+						ClusterFailovers: []*types.ClusterFailover{
+							{
+								FromCluster: &types.ActiveClusterInfo{ActiveClusterName: "cluster-3"},
+								ToCluster:   &types.ActiveClusterInfo{ActiveClusterName: "cluster-4"},
+								ClusterAttribute: &types.ClusterAttribute{
+									Scope: "dc",
+									Name:  "dc2",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedOutput: []string{
+				"event-8",
+				"cluster-1 -> cluster-2",
+				"dc.dc1",
+				"event-9",
+				"cluster-3 -> cluster-4",
+				"dc.dc2",
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			var output strings.Builder
+			renderFailoverHistoryTableToWriter(&output, tc.response)
+
+			result := output.String()
+			for _, expected := range tc.expectedOutput {
+				assert.Contains(t, result, expected, "output should contain '%s'", expected)
+			}
 		})
 	}
 }

@@ -315,6 +315,45 @@ func TestUpdatePartitionConfig(t *testing.T) {
 	}
 }
 
+func TestInvalidatePartitionCache(t *testing.T) {
+	testCases := []struct {
+		name             string
+		taskListKind     types.TaskListKind
+		expectDeleteCall bool
+	}{
+		{
+			name:             "invalidate cache for normal task list",
+			taskListKind:     types.TaskListKindNormal,
+			expectDeleteCall: true,
+		},
+		{
+			name:             "skip invalidation for sticky task list",
+			taskListKind:     types.TaskListKindSticky,
+			expectDeleteCall: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			partitionProvider, mockCache := setUpMocksForPartitionConfigProvider(t, true)
+
+			kind := tc.taskListKind
+			taskList := types.TaskList{Name: "test-task-list", Kind: &kind}
+
+			if tc.expectDeleteCall {
+				expectedKey := key{
+					domainID:     "test-domain-id",
+					taskListName: "test-task-list",
+					taskListType: 0,
+				}
+				mockCache.EXPECT().Delete(expectedKey).Times(1)
+			}
+
+			partitionProvider.InvalidatePartitionCache("test-domain-id", taskList, 0)
+		})
+	}
+}
+
 func partitions(num int) map[int]*types.TaskListPartition {
 	result := make(map[int]*types.TaskListPartition, num)
 	for i := 0; i < num; i++ {

@@ -86,4 +86,19 @@ type (
 		*require.Assertions
 		*IntegrationBase
 	}
+
+	DecisionTimeoutMaxAttemptsIntegrationSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
+
+	WorkflowTimerTaskCleanupSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
+
+	WorkflowTimerTaskCleanupDisabledSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
 )

@@ -1622,6 +1622,7 @@ func (wh *WorkflowHandler) StartWorkflowExecutionAsync(
 		return nil, fmt.Errorf("failed to encode StartWorkflowExecutionAsyncRequest: %v", err)
 	}
 	scope.RecordTimer(metrics.AsyncRequestPayloadSize, time.Duration(len(payload)))
+	scope.IntExponentialHistogram(metrics.AsyncRequestPayloadSizeHistogram, len(payload))
 
 	// propagate the headers from the context to the message
 	header := &shared.Header{
@@ -2247,6 +2248,7 @@ func (wh *WorkflowHandler) SignalWithStartWorkflowExecutionAsync(
 		return nil, fmt.Errorf("failed to encode SignalWithStartWorkflowExecutionAsyncRequest: %v", err)
 	}
 	scope.RecordTimer(metrics.AsyncRequestPayloadSize, time.Duration(len(payload)))
+	scope.IntExponentialHistogram(metrics.AsyncRequestPayloadSizeHistogram, len(payload))
 
 	// propagate the headers from the context to the message
 	header := &shared.Header{
@@ -2860,6 +2862,7 @@ func (wh *WorkflowHandler) getHistory(
 	}
 
 	scope.RecordTimer(metrics.HistorySize, time.Duration(size))
+	scope.IntExponentialHistogram(metrics.HistorySizeHistogram, size)
 
 	isLastPage := len(nextPageToken) == 0
 	if err := verifyHistoryIsComplete(

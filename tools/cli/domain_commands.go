@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/pborman/uuid"
 	"github.com/urfave/cli/v2"
 
@@ -217,6 +218,8 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusterName:        common.StringPtr(activeCluster),
 			FailoverTimeoutInSeconds: failoverTimeout,
 		}
+	} else if c.IsSet(FlagActiveClusters) && c.IsSet(FlagActiveClustersJSON) {
+		return commoncli.Problem("Cannot use both --active_clusters and --active_clusters_json flags.", nil)
 	} else if c.IsSet(FlagActiveClusters) { // active-active domain failover
 		activeClusters, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
 		if err != nil {
@@ -228,6 +231,16 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusters: &types.ActiveClusters{
 				AttributeScopes: activeClusters.AttributeScopes,
 			},
+		}
+	} else if c.IsSet(FlagActiveClustersJSON) { // active-active domain failover via JSON
+		activeClusters, err := parseActiveClustersByClusterAttributeFromJSON(c.String(FlagActiveClustersJSON))
+		if err != nil {
+			return err
+		}
+
+		updateRequest = &types.UpdateDomainRequest{
+			Name:           domainName,
+			ActiveClusters: &activeClusters,
 		}
 	} else {
 		resp, err := d.describeDomain(ctx, &types.DescribeDomainRequest{
@@ -320,8 +333,15 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 	updateRequest.SecurityToken = securityToken
 	_, err = d.updateDomain(ctx, updateRequest)
 	if err != nil {
-		if _, ok := err.(*types.EntityNotExistsError); ok {
+		var entityNotExistsErr *types.EntityNotExistsError
+		if errors.As(err, &entityNotExistsErr) {
 			return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+		}
+		var accessDeniedErr *types.AccessDeniedError
+		if errors.As(err, &accessDeniedErr) {
+			fmt.Fprintf(os.Stderr, "WARNING: Update domain operation may not be available for general user use and is reserved for administrative operations.\n")
+			fmt.Fprintf(os.Stderr, "Please use the 'cadence domain failover' cli-command instead for domain management.\n")
+			return commoncli.Problem("Operation UpdateDomain failed due to authorization.", err)
 		}
 		return commoncli.Problem("Operation UpdateDomain failed.", err)
 	}
@@ -450,7 +470,9 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
 
-	var failoverRequest *types.FailoverDomainRequest
+	failoverRequest := &types.FailoverDomainRequest{
+		DomainName: domainName,
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
@@ -458,15 +480,39 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 		return commoncli.Problem("Error in creating context: ", err)
 	}
 
+	if c.IsSet(FlagActiveClustersJSON) && c.IsSet(FlagActiveClusters) {
+		return commoncli.Problem("Cannot use both --active_clusters_json and --active_clusters flags.", nil)
+	}
+
+	if !c.IsSet(FlagActiveClusterName) && !c.IsSet(FlagActiveClusters) && !c.IsSet(FlagActiveClustersJSON) {
+		return commoncli.Problem("At least one of the flags --active_cluster, --active_clusters or --active_clusters_json must be provided.", nil)
+	}
+
 	if c.IsSet(FlagActiveClusterName) { // active-passive domain failover
 		activeCluster := c.String(FlagActiveClusterName)
-		fmt.Printf("Will set active cluster name to: %s, other flag will be omitted.\n", activeCluster)
-
-		failoverRequest = &types.FailoverDomainRequest{
-			DomainName:              domainName,
-			DomainActiveClusterName: common.StringPtr(activeCluster),
-		}
+		failoverRequest.DomainActiveClusterName = common.StringPtr(activeCluster)
 	}
+	if c.IsSet(FlagActiveClusters) { // active-active domain failover
+		ac, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
+		if err != nil {
+			return err
+		}
+		failoverRequest.ActiveClusters = &ac
+	}
+
+	if c.IsSet(FlagActiveClustersJSON) {
+		ac, err := parseActiveClustersByClusterAttributeFromJSON(c.String(FlagActiveClustersJSON))
+		if err != nil {
+			return err
+		}
+		failoverRequest.ActiveClusters = &ac
+	}
+	// Set the reason for failover (will use default value if not specified)
+	reason := c.String(FlagFailoverReason)
+	if reason != "" {
+		failoverRequest.Reason = common.StringPtr(reason)
+	}
+
 	_, err = d.failoverDomain(ctx, failoverRequest)
 	if err != nil {
 		if _, ok := err.(*types.EntityNotExistsError); ok {
@@ -574,7 +620,6 @@ EmitMetrics: {{.EmitMetrics}}
 IsGlobal(XDC)Domain: {{.IsGlobal}}
 ActiveClusterName: {{.ActiveCluster}}
 IsActiveActiveDomain: {{.IsActiveActiveDomain}}
-ActiveClustersByRegion: {{.ActiveClustersByRegion}}
 Clusters: {{if .IsGlobal}}{{.Clusters}}{{else}}N/A, Not a global domain{{end}}
 HistoryArchivalStatus: {{.HistoryArchivalStatus}}{{with .HistoryArchivalURI}}
 HistoryArchivalURI: {{.}}{{end}}
@@ -583,7 +628,9 @@ VisibilityArchivalURI: {{.}}{{end}}
 {{with .BadBinaries}}Bad binaries to reset:
 {{table .}}{{end}}
 {{with .FailoverInfo}}Graceful failover info:
-{{table .}}{{end}}`
+{{table .}}{{end}}
+{{if .IsActiveActiveDomain}}To see active clusters by cluster attribute use --print-json.
+{{end}}`
 
 // DescribeDomain updates a domain
 func (d *domainCLIImpl) DescribeDomain(c *cli.Context) error {
@@ -647,34 +694,34 @@ type FailoverInfoRow struct {
 	PendingShard        []int32   `header:"Pending Shard"`
 }
 
-type ActiveClusterInfoRow struct {
-	Region          string `header:"Region"`
-	ClusterName     string `header:"Cluster Name"`
-	FailoverVersion int64  `header:"Failover Version"`
+type FailoverHistoryRow struct {
+	EventID     string    `header:"Event ID"`
+	CreatedTime time.Time `header:"Created Time"`
+	FromCluster string    `header:"From Cluster"`
+	ToCluster   string    `header:"To Cluster"`
+	Attribute   string    `header:"Cluster Attribute"`
 }
 
 type DomainRow struct {
-	Name                             string `header:"Name"`
-	UUID                             string `header:"UUID"`
-	Description                      string
-	OwnerEmail                       string
-	DomainData                       map[string]string  `header:"Domain Data"`
-	Status                           types.DomainStatus `header:"Status"`
-	IsGlobal                         bool               `header:"Is Global Domain"`
-	ActiveCluster                    string             `header:"Active Cluster"`
-	Clusters                         []string           `header:"Clusters"`
-	RetentionDays                    int32              `header:"Retention Days"`
-	EmitMetrics                      bool
-	HistoryArchivalStatus            types.ArchivalStatus `header:"History Archival Status"`
-	HistoryArchivalURI               string               `header:"History Archival URI"`
-	VisibilityArchivalStatus         types.ArchivalStatus `header:"Visibility Archival Status"`
-	VisibilityArchivalURI            string               `header:"Visibility Archival URI"`
-	BadBinaries                      []BadBinaryRow
-	FailoverInfo                     *FailoverInfoRow
-	LongRunningWorkFlowNum           *int
-	IsActiveActiveDomain             bool
-	ActiveClustersByRegion           []ActiveClusterInfoRow // todo (david.porter) remove this as it's not in use
-	ActiveClustersByClusterAttribute []ActiveClusterInfoRow
+	Name                     string `header:"Name"`
+	UUID                     string `header:"UUID"`
+	Description              string
+	OwnerEmail               string
+	DomainData               map[string]string  `header:"Domain Data"`
+	Status                   types.DomainStatus `header:"Status"`
+	IsGlobal                 bool               `header:"Is Global Domain"`
+	ActiveCluster            string             `header:"Active Cluster"`
+	Clusters                 []string           `header:"Clusters"`
+	RetentionDays            int32              `header:"Retention Days"`
+	EmitMetrics              bool
+	HistoryArchivalStatus    types.ArchivalStatus `header:"History Archival Status"`
+	HistoryArchivalURI       string               `header:"History Archival URI"`
+	VisibilityArchivalStatus types.ArchivalStatus `header:"Visibility Archival Status"`
+	VisibilityArchivalURI    string               `header:"Visibility Archival URI"`
+	BadBinaries              []BadBinaryRow
+	FailoverInfo             *FailoverInfoRow
+	LongRunningWorkFlowNum   *int
+	IsActiveActiveDomain     bool
 }
 
 type DomainMigrationRow struct {
@@ -719,24 +766,7 @@ func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
 		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
 		IsActiveActiveDomain:     domain.ReplicationConfiguration.IsActiveActive(),
-		ActiveClustersByRegion:   newActiveClustersByRegion(domain.ReplicationConfiguration.GetActiveClusters()),
 	}
-}
-
-// TODO: Support ClusterAttributes
-func newActiveClustersByRegion(activeClusters *types.ActiveClusters) []ActiveClusterInfoRow {
-	if activeClusters == nil {
-		return nil
-	}
-	rows := []ActiveClusterInfoRow{}
-	for region, cluster := range activeClusters.GetActiveClustersByRegion() {
-		rows = append(rows, ActiveClusterInfoRow{
-			Region:          region,
-			ClusterName:     cluster.ActiveClusterName,
-			FailoverVersion: cluster.FailoverVersion,
-		})
-	}
-	return rows
 }
 
 func newFailoverInfoRow(info *types.FailoverInfo) *FailoverInfoRow {
@@ -766,6 +796,70 @@ func newBadBinaryRows(bb *types.BadBinaries) []BadBinaryRow {
 		})
 	}
 	return rows
+}
+
+func renderFailoverHistoryTable(response *types.ListFailoverHistoryResponse) {
+	renderFailoverHistoryTableToWriter(os.Stdout, response)
+}
+
+func renderFailoverHistoryTableToWriter(writer interface{ Write([]byte) (int, error) }, response *types.ListFailoverHistoryResponse) {
+	table := tablewriter.NewWriter(writer)
+	table.SetRowLine(true)
+	table.SetBorder(true)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(true)
+	table.SetAutoMergeCells(true)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+
+	displayClusterAttributeCol := false
+	var columnsToRender [][]string
+
+	for _, event := range response.GetFailoverEvents() {
+		eventID := event.GetID()
+		createdTime := time.Unix(0, event.GetCreatedTime()).Format(time.RFC3339)
+		clusterFailovers := event.GetClusterFailovers()
+
+		if len(clusterFailovers) == 0 {
+			// If no cluster failovers, show event info only
+			table.Append([]string{eventID, createdTime, "-", "-", "-"})
+			continue
+		}
+
+		for _, failover := range clusterFailovers {
+			fromCluster := ""
+			if fromInfo := failover.GetFromCluster(); fromInfo != nil {
+				fromCluster = fromInfo.ActiveClusterName
+			}
+			toCluster := ""
+			if toInfo := failover.GetToCluster(); toInfo != nil {
+				toCluster = toInfo.ActiveClusterName
+			}
+			domainFailover := fmt.Sprintf("%s -> %s", fromCluster, toCluster)
+
+			attribute := ""
+			if attr := failover.GetClusterAttribute(); attr != nil {
+				if attr.Scope != "" && attr.Name != "" {
+					attribute = fmt.Sprintf("%s.%s", attr.Scope, attr.Name)
+					displayClusterAttributeCol = true
+				}
+			}
+			if displayClusterAttributeCol {
+				columnsToRender = append(columnsToRender, []string{eventID, createdTime, domainFailover, attribute})
+			} else {
+				columnsToRender = append(columnsToRender, []string{eventID, createdTime, domainFailover})
+			}
+		}
+	}
+	table.AppendBulk(columnsToRender)
+
+	if displayClusterAttributeCol {
+		table.SetHeader([]string{"Event ID", "Failover Timestamp", "Failover", "Cluster Attribute"})
+	} else {
+		table.SetHeader([]string{"Event ID", "Failover Timestamp", "Failover"})
+	}
+
+	table.Render()
 }
 
 func domainTableOptions(c *cli.Context) RenderOptions {
@@ -912,6 +1006,91 @@ func (d *domainCLIImpl) deleteDomain(
 	return d.domainHandler.DeleteDomain(ctx, request)
 }
 
+// ListFailoverHistory lists the failover history for a domain
+func (d *domainCLIImpl) ListFailoverHistory(c *cli.Context) error {
+	domainName, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+
+	// Get domain ID by describing the domain first
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	describeResp, err := d.describeDomain(ctx, &types.DescribeDomainRequest{
+		Name: common.StringPtr(domainName),
+	})
+	if err != nil {
+		if _, ok := err.(*types.EntityNotExistsError); ok {
+			return commoncli.Problem(fmt.Sprintf("Domain %s does not exist.", domainName), err)
+		}
+		return commoncli.Problem("Failed to describe domain.", err)
+	}
+
+	domainID := describeResp.DomainInfo.GetUUID()
+
+	limit := 10
+	if c.Bool(FlagAll) {
+		limit = -1
+	}
+
+	printJSON := c.Bool(FlagPrintJSON)
+	allResponses := &types.ListFailoverHistoryResponse{}
+
+	var nextPageToken []byte
+
+	for {
+		request := &types.ListFailoverHistoryRequest{
+			Filters: &types.ListFailoverHistoryRequestFilters{
+				DomainID: domainID,
+			},
+			Pagination: &types.PaginationOptions{
+				PageSize:      common.Int32Ptr(int32(10)),
+				NextPageToken: nextPageToken,
+			},
+		}
+
+		ctx, cancel, err = newContext(c)
+		if err != nil {
+			return commoncli.Problem("Error in creating context: ", err)
+		}
+
+		resp, err := d.frontendClient.ListFailoverHistory(ctx, request)
+		cancel()
+		if err != nil {
+			return commoncli.Problem("Failed to list failover history.", err)
+		}
+		allResponses.FailoverEvents = append(allResponses.FailoverEvents, resp.FailoverEvents...)
+		nextPageToken = resp.NextPageToken
+		if len(nextPageToken) == 0 || nextPageToken == nil {
+			break
+		}
+		if limit > 0 && len(allResponses.FailoverEvents) >= int(limit) {
+			break
+		}
+	}
+
+	if printJSON {
+		output, err := json.Marshal(allResponses)
+		if err != nil {
+			return commoncli.Problem("Failed to encode failover history into JSON.", err)
+		}
+		fmt.Println(string(output))
+		return nil
+	}
+
+	if len(allResponses.GetFailoverEvents()) == 0 {
+		fmt.Println("No failover history found for domain:", domainName)
+		return nil
+	}
+
+	renderFailoverHistoryTable(allResponses)
+	return nil
+}
+
 func (d *domainCLIImpl) describeDomain(
 	ctx context.Context,
 	request *types.DescribeDomainRequest,
@@ -958,8 +1137,16 @@ func clustersToStrings(clusters []*types.ClusterReplicationConfiguration) []stri
 	return res
 }
 
+func parseActiveClustersByClusterAttributeFromJSON(jsonStr string) (types.ActiveClusters, error) {
+	ac := types.ActiveClusters{}
+	if err := json.Unmarshal([]byte(jsonStr), &ac); err != nil {
+		return types.ActiveClusters{}, fmt.Errorf("couldn't parse the JSON: %w. Got %s", err, jsonStr)
+	}
+	return ac, nil
+}
+
 func parseActiveClustersByClusterAttribute(clusters string) (types.ActiveClusters, error) {
-	split := regexp.MustCompile(`(?P<attribute>[a-zA-Z0-9_]+).(?P<scope>[a-zA-Z0-9_]+):(?P<name>[a-zA-Z0-9_]+)`)
+	split := regexp.MustCompile(`(?P<attribute>[a-zA-Z0-9_-]+).(?P<scope>[a-zA-Z0-9_-]+):(?P<name>[a-zA-Z0-9_-]+)`)
 	matches := split.FindAllStringSubmatch(clusters, -1)
 	if len(matches) == 0 {
 		return types.ActiveClusters{}, fmt.Errorf("option %s format is invalid. Expected format is 'region.dca:dev2_dca,region.phx:dev2_phx'", FlagActiveClusters)

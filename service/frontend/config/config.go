@@ -50,13 +50,21 @@ type Config struct {
 	VisibilityRPS                     dynamicproperties.IntPropertyFn
 	AsyncRPS                          dynamicproperties.IntPropertyFn
 	MaxDomainUserRPSPerInstance       dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxTaskListUserRPSPerInstance     dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 	MaxDomainWorkerRPSPerInstance     dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxTaskListWorkerRPSPerInstance   dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 	MaxDomainVisibilityRPSPerInstance dynamicproperties.IntPropertyFnWithDomainFilter
 	MaxDomainAsyncRPSPerInstance      dynamicproperties.IntPropertyFnWithDomainFilter
+	MaxTaskListAsyncRPSPerInstance    dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 	GlobalDomainUserRPS               dynamicproperties.IntPropertyFnWithDomainFilter
+	GlobalTaskListUserRPS             dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 	GlobalDomainWorkerRPS             dynamicproperties.IntPropertyFnWithDomainFilter
+	GlobalTaskListWorkerRPS           dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 	GlobalDomainVisibilityRPS         dynamicproperties.IntPropertyFnWithDomainFilter
 	GlobalDomainAsyncRPS              dynamicproperties.IntPropertyFnWithDomainFilter
+	GlobalTaskListAsyncRPS            dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
+	MaxWorkerPollDelay                dynamicproperties.DurationPropertyFnWithDomainFilter
+	RateLimiterBypassCallerTypes      dynamicproperties.ListPropertyFn
 	EnableClientVersionCheck          dynamicproperties.BoolPropertyFn
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
 	DisallowQuery                     dynamicproperties.BoolPropertyFnWithDomainFilter
@@ -69,7 +77,8 @@ type Config struct {
 	GlobalRatelimiterUpdateInterval dynamicproperties.DurationPropertyFn
 
 	// isolation configuration
-	EnableTasklistIsolation dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableTasklistIsolation  dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
 
 	// id length limits
 	MaxIDLengthWarnLimit  dynamicproperties.IntPropertyFn
@@ -93,10 +102,11 @@ type Config struct {
 	ThrottledLogRPS dynamicproperties.IntPropertyFn
 
 	// Domain specific config
-	EnableDomainNotActiveAutoForwarding         dynamicproperties.BoolPropertyFnWithDomainFilter
-	EnableGracefulFailover                      dynamicproperties.BoolPropertyFn
-	DomainFailoverRefreshInterval               dynamicproperties.DurationPropertyFn
-	DomainFailoverRefreshTimerJitterCoefficient dynamicproperties.FloatPropertyFn
+	EnableDomainNotActiveAutoForwarding               dynamicproperties.BoolPropertyFnWithDomainFilter
+	EnableGracefulFailover                            dynamicproperties.BoolPropertyFn
+	DomainFailoverRefreshInterval                     dynamicproperties.DurationPropertyFn
+	DomainFailoverRefreshTimerJitterCoefficient       dynamicproperties.FloatPropertyFn
+	EnableActiveClusterSelectionPolicyInStartWorkflow dynamicproperties.BoolPropertyFnWithDomainFilter
 
 	// ValidSearchAttributes is legal indexed keys that can be used in list APIs
 	ValidSearchAttributes             dynamicproperties.MapPropertyFn
@@ -125,74 +135,85 @@ type Config struct {
 func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVisConfigExist bool, hostName string, logger log.Logger) *Config {
 	logger.Debugf("Creating new frontend config for host %s, numHistoryShards: %d, isAdvancedVisConfigExist: %t", hostName, numHistoryShards, isAdvancedVisConfigExist)
 	return &Config{
-		NumHistoryShards:                            numHistoryShards,
-		IsAdvancedVisConfigExist:                    isAdvancedVisConfigExist,
-		PersistenceMaxQPS:                           dc.GetIntProperty(dynamicproperties.FrontendPersistenceMaxQPS),
-		PersistenceGlobalMaxQPS:                     dc.GetIntProperty(dynamicproperties.FrontendPersistenceGlobalMaxQPS),
-		VisibilityMaxPageSize:                       dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendVisibilityMaxPageSize),
-		EnableVisibilitySampling:                    dc.GetBoolProperty(dynamicproperties.EnableVisibilitySampling),
-		EnableReadFromClosedExecutionV2:             dc.GetBoolProperty(dynamicproperties.EnableReadFromClosedExecutionV2),
-		VisibilityListMaxQPS:                        dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendVisibilityListMaxQPS),
-		ESVisibilityListMaxQPS:                      dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendESVisibilityListMaxQPS),
-		ReadVisibilityStoreName:                     dc.GetStringPropertyFilteredByDomain(dynamicproperties.ReadVisibilityStoreName),
-		EnableLogCustomerQueryParameter:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableLogCustomerQueryParameter),
-		ESIndexMaxResultWindow:                      dc.GetIntProperty(dynamicproperties.FrontendESIndexMaxResultWindow),
-		HistoryMaxPageSize:                          dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendHistoryMaxPageSize),
-		UserRPS:                                     dc.GetIntProperty(dynamicproperties.FrontendUserRPS),
-		WorkerRPS:                                   dc.GetIntProperty(dynamicproperties.FrontendWorkerRPS),
-		VisibilityRPS:                               dc.GetIntProperty(dynamicproperties.FrontendVisibilityRPS),
-		AsyncRPS:                                    dc.GetIntProperty(dynamicproperties.FrontendAsyncRPS),
-		MaxDomainUserRPSPerInstance:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainUserRPSPerInstance),
-		MaxDomainWorkerRPSPerInstance:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainWorkerRPSPerInstance),
-		MaxDomainVisibilityRPSPerInstance:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainVisibilityRPSPerInstance),
-		MaxDomainAsyncRPSPerInstance:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainAsyncRPSPerInstance),
-		GlobalDomainUserRPS:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainUserRPS),
-		GlobalDomainWorkerRPS:                       dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainWorkerRPS),
-		GlobalDomainVisibilityRPS:                   dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainVisibilityRPS),
-		GlobalDomainAsyncRPS:                        dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainAsyncRPS),
-		GlobalRatelimiterKeyMode:                    dc.GetStringPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterMode),
-		GlobalRatelimiterUpdateInterval:             dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
-		MaxIDLengthWarnLimit:                        dc.GetIntProperty(dynamicproperties.MaxIDLengthWarnLimit),
-		DomainNameMaxLength:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.DomainNameMaxLength),
-		IdentityMaxLength:                           dc.GetIntPropertyFilteredByDomain(dynamicproperties.IdentityMaxLength),
-		WorkflowIDMaxLength:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDMaxLength),
-		SignalNameMaxLength:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.SignalNameMaxLength),
-		WorkflowTypeMaxLength:                       dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowTypeMaxLength),
-		RequestIDMaxLength:                          dc.GetIntPropertyFilteredByDomain(dynamicproperties.RequestIDMaxLength),
-		TaskListNameMaxLength:                       dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskListNameMaxLength),
-		EnableAdminProtection:                       dc.GetBoolProperty(dynamicproperties.EnableAdminProtection),
-		AdminOperationToken:                         dc.GetStringProperty(dynamicproperties.AdminOperationToken),
-		DisableListVisibilityByFilter:               dc.GetBoolPropertyFilteredByDomain(dynamicproperties.DisableListVisibilityByFilter),
-		BlobSizeLimitError:                          dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitError),
-		BlobSizeLimitWarn:                           dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
-		ThrottledLogRPS:                             dc.GetIntProperty(dynamicproperties.FrontendThrottledLogRPS),
-		ShutdownDrainDuration:                       dc.GetDurationProperty(dynamicproperties.FrontendShutdownDrainDuration),
-		WarmupDuration:                              dc.GetDurationProperty(dynamicproperties.FrontendWarmupDuration),
-		EnableDomainNotActiveAutoForwarding:         dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDomainNotActiveAutoForwarding),
-		EnableGracefulFailover:                      dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),
-		DomainFailoverRefreshInterval:               dc.GetDurationProperty(dynamicproperties.DomainFailoverRefreshInterval),
-		DomainFailoverRefreshTimerJitterCoefficient: dc.GetFloat64Property(dynamicproperties.DomainFailoverRefreshTimerJitterCoefficient),
-		EnableClientVersionCheck:                    dc.GetBoolProperty(dynamicproperties.EnableClientVersionCheck),
-		EnableQueryAttributeValidation:              dc.GetBoolProperty(dynamicproperties.EnableQueryAttributeValidation),
-		ValidSearchAttributes:                       dc.GetMapProperty(dynamicproperties.ValidSearchAttributes),
-		SearchAttributesNumberOfKeysLimit:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesNumberOfKeysLimit),
-		SearchAttributesSizeOfValueLimit:            dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesSizeOfValueLimit),
-		SearchAttributesTotalSizeLimit:              dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesTotalSizeLimit),
-		PinotOptimizedQueryColumns:                  dc.GetMapProperty(dynamicproperties.PinotOptimizedQueryColumns),
-		VisibilityArchivalQueryMaxPageSize:          dc.GetIntProperty(dynamicproperties.VisibilityArchivalQueryMaxPageSize),
-		DisallowQuery:                               dc.GetBoolPropertyFilteredByDomain(dynamicproperties.DisallowQuery),
-		SendRawWorkflowHistory:                      dc.GetBoolPropertyFilteredByDomain(dynamicproperties.SendRawWorkflowHistory),
-		DecisionResultCountLimit:                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendDecisionResultCountLimit),
-		EmitSignalNameMetricsTag:                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.FrontendEmitSignalNameMetricsTag),
-		Lockdown:                                    dc.GetBoolPropertyFilteredByDomain(dynamicproperties.Lockdown),
-		EnableTasklistIsolation:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		NumHistoryShards:                                  numHistoryShards,
+		IsAdvancedVisConfigExist:                          isAdvancedVisConfigExist,
+		PersistenceMaxQPS:                                 dc.GetIntProperty(dynamicproperties.FrontendPersistenceMaxQPS),
+		PersistenceGlobalMaxQPS:                           dc.GetIntProperty(dynamicproperties.FrontendPersistenceGlobalMaxQPS),
+		VisibilityMaxPageSize:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendVisibilityMaxPageSize),
+		EnableVisibilitySampling:                          dc.GetBoolProperty(dynamicproperties.EnableVisibilitySampling),
+		EnableReadFromClosedExecutionV2:                   dc.GetBoolProperty(dynamicproperties.EnableReadFromClosedExecutionV2),
+		VisibilityListMaxQPS:                              dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendVisibilityListMaxQPS),
+		ESVisibilityListMaxQPS:                            dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendESVisibilityListMaxQPS),
+		ReadVisibilityStoreName:                           dc.GetStringPropertyFilteredByDomain(dynamicproperties.ReadVisibilityStoreName),
+		EnableLogCustomerQueryParameter:                   dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableLogCustomerQueryParameter),
+		ESIndexMaxResultWindow:                            dc.GetIntProperty(dynamicproperties.FrontendESIndexMaxResultWindow),
+		HistoryMaxPageSize:                                dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendHistoryMaxPageSize),
+		UserRPS:                                           dc.GetIntProperty(dynamicproperties.FrontendUserRPS),
+		WorkerRPS:                                         dc.GetIntProperty(dynamicproperties.FrontendWorkerRPS),
+		VisibilityRPS:                                     dc.GetIntProperty(dynamicproperties.FrontendVisibilityRPS),
+		AsyncRPS:                                          dc.GetIntProperty(dynamicproperties.FrontendAsyncRPS),
+		MaxDomainUserRPSPerInstance:                       dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainUserRPSPerInstance),
+		MaxTaskListUserRPSPerInstance:                     dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.FrontendMaxTaskListUserRPSPerInstance),
+		MaxDomainWorkerRPSPerInstance:                     dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainWorkerRPSPerInstance),
+		MaxTaskListWorkerRPSPerInstance:                   dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.FrontendMaxTaskListWorkerRPSPerInstance),
+		MaxDomainVisibilityRPSPerInstance:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainVisibilityRPSPerInstance),
+		MaxDomainAsyncRPSPerInstance:                      dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxDomainAsyncRPSPerInstance),
+		MaxTaskListAsyncRPSPerInstance:                    dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.FrontendMaxTaskListAsyncRPSPerInstance),
+		GlobalDomainUserRPS:                               dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainUserRPS),
+		GlobalTaskListUserRPS:                             dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.FrontendGlobalTaskListUserRPS),
+		GlobalDomainWorkerRPS:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainWorkerRPS),
+		GlobalTaskListWorkerRPS:                           dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.FrontendGlobalTaskListWorkerRPS),
+		GlobalDomainVisibilityRPS:                         dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainVisibilityRPS),
+		GlobalDomainAsyncRPS:                              dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendGlobalDomainAsyncRPS),
+		GlobalTaskListAsyncRPS:                            dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.FrontendGlobalTaskListAsyncRPS),
+		MaxWorkerPollDelay:                                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendMaxWorkerPollDelay),
+		RateLimiterBypassCallerTypes:                      dc.GetListProperty(dynamicproperties.RateLimiterBypassCallerTypes),
+		GlobalRatelimiterKeyMode:                          dc.GetStringPropertyFilteredByRatelimitKey(dynamicproperties.FrontendGlobalRatelimiterMode),
+		GlobalRatelimiterUpdateInterval:                   dc.GetDurationProperty(dynamicproperties.GlobalRatelimiterUpdateInterval),
+		MaxIDLengthWarnLimit:                              dc.GetIntProperty(dynamicproperties.MaxIDLengthWarnLimit),
+		DomainNameMaxLength:                               dc.GetIntPropertyFilteredByDomain(dynamicproperties.DomainNameMaxLength),
+		IdentityMaxLength:                                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.IdentityMaxLength),
+		WorkflowIDMaxLength:                               dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowIDMaxLength),
+		SignalNameMaxLength:                               dc.GetIntPropertyFilteredByDomain(dynamicproperties.SignalNameMaxLength),
+		WorkflowTypeMaxLength:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowTypeMaxLength),
+		RequestIDMaxLength:                                dc.GetIntPropertyFilteredByDomain(dynamicproperties.RequestIDMaxLength),
+		TaskListNameMaxLength:                             dc.GetIntPropertyFilteredByDomain(dynamicproperties.TaskListNameMaxLength),
+		EnableAdminProtection:                             dc.GetBoolProperty(dynamicproperties.EnableAdminProtection),
+		AdminOperationToken:                               dc.GetStringProperty(dynamicproperties.AdminOperationToken),
+		DisableListVisibilityByFilter:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.DisableListVisibilityByFilter),
+		BlobSizeLimitError:                                dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitError),
+		BlobSizeLimitWarn:                                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
+		ThrottledLogRPS:                                   dc.GetIntProperty(dynamicproperties.FrontendThrottledLogRPS),
+		ShutdownDrainDuration:                             dc.GetDurationProperty(dynamicproperties.FrontendShutdownDrainDuration),
+		WarmupDuration:                                    dc.GetDurationProperty(dynamicproperties.FrontendWarmupDuration),
+		EnableDomainNotActiveAutoForwarding:               dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableDomainNotActiveAutoForwarding),
+		EnableGracefulFailover:                            dc.GetBoolProperty(dynamicproperties.EnableGracefulFailover),
+		DomainFailoverRefreshInterval:                     dc.GetDurationProperty(dynamicproperties.DomainFailoverRefreshInterval),
+		DomainFailoverRefreshTimerJitterCoefficient:       dc.GetFloat64Property(dynamicproperties.DomainFailoverRefreshTimerJitterCoefficient),
+		EnableActiveClusterSelectionPolicyInStartWorkflow: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableActiveClusterSelectionPolicyInStartWorkflow),
+		EnableClientVersionCheck:                          dc.GetBoolProperty(dynamicproperties.EnableClientVersionCheck),
+		EnableQueryAttributeValidation:                    dc.GetBoolProperty(dynamicproperties.EnableQueryAttributeValidation),
+		ValidSearchAttributes:                             dc.GetMapProperty(dynamicproperties.ValidSearchAttributes),
+		SearchAttributesNumberOfKeysLimit:                 dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesNumberOfKeysLimit),
+		SearchAttributesSizeOfValueLimit:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesSizeOfValueLimit),
+		SearchAttributesTotalSizeLimit:                    dc.GetIntPropertyFilteredByDomain(dynamicproperties.SearchAttributesTotalSizeLimit),
+		PinotOptimizedQueryColumns:                        dc.GetMapProperty(dynamicproperties.PinotOptimizedQueryColumns),
+		VisibilityArchivalQueryMaxPageSize:                dc.GetIntProperty(dynamicproperties.VisibilityArchivalQueryMaxPageSize),
+		DisallowQuery:                                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.DisallowQuery),
+		SendRawWorkflowHistory:                            dc.GetBoolPropertyFilteredByDomain(dynamicproperties.SendRawWorkflowHistory),
+		DecisionResultCountLimit:                          dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendDecisionResultCountLimit),
+		EmitSignalNameMetricsTag:                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.FrontendEmitSignalNameMetricsTag),
+		Lockdown:                                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.Lockdown),
+		EnableTasklistIsolation:                           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
+		EnableDomainAuditLogging:                          dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		DomainConfig: domain.Config{
-			MaxBadBinaryCount:      dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
-			MinRetentionDays:       dc.GetIntProperty(dynamicproperties.MinRetentionDays),
-			MaxRetentionDays:       dc.GetIntProperty(dynamicproperties.MaxRetentionDays),
-			FailoverCoolDown:       dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendFailoverCoolDown),
-			RequiredDomainDataKeys: dc.GetMapProperty(dynamicproperties.RequiredDomainDataKeys),
-			FailoverHistoryMaxSize: dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendFailoverHistoryMaxSize),
+			MaxBadBinaryCount:        dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
+			MinRetentionDays:         dc.GetIntProperty(dynamicproperties.MinRetentionDays),
+			MaxRetentionDays:         dc.GetIntProperty(dynamicproperties.MaxRetentionDays),
+			FailoverCoolDown:         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.FrontendFailoverCoolDown),
+			RequiredDomainDataKeys:   dc.GetMapProperty(dynamicproperties.RequiredDomainDataKeys),
+			FailoverHistoryMaxSize:   dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendFailoverHistoryMaxSize),
+			EnableDomainAuditLogging: dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
 		},
 		HostName: hostName,
 	}

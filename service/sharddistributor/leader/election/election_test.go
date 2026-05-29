@@ -34,7 +34,7 @@ var (
 )
 
 func TestElector_Run(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
@@ -50,6 +50,7 @@ func TestElector_Run(t *testing.T) {
 		close(finished)
 		return nil
 	})
+	election.EXPECT().Cleanup(gomock.Any()).Return(nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)
@@ -109,10 +110,15 @@ func TestElector_Run(t *testing.T) {
 	assert.False(t, onResignCalled, "OnResign callback should not have been called")
 	cancel()
 	<-finished
+	// Drain leaderChan until it is closed: the goroutine sends false and then
+	// closes the channel only after resign() (including Cleanup) has returned,
+	// so this guarantees all mock expectations are satisfied before the test exits.
+	for range leaderChan {
+	}
 }
 
 func TestElector_Run_Resign(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 	t.Run("context_canceled", func(t *testing.T) {
 		leaderChan, p := prepareRun(t, nil, nil)
 		p.election.EXPECT().Resign(gomock.Any()).Return(nil)
@@ -228,6 +234,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 
 	election := store.NewMockElection(ctrl)
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
+	election.EXPECT().Cleanup(gomock.Any()).Return(nil)
 	election.EXPECT().Done().Return(electionCh)
 
 	leaderStore := store.NewMockElector(ctrl)
@@ -298,7 +305,7 @@ func prepareRun(t *testing.T, onLeader, onResign ProcessFunc) (<-chan bool, runP
 }
 
 func TestOnLeader_Error(t *testing.T) {
-	goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t)
 
 	ctrl := gomock.NewController(t)
 	logger := testlogger.New(t)
@@ -308,6 +315,7 @@ func TestOnLeader_Error(t *testing.T) {
 	election.EXPECT().Campaign(gomock.Any(), _testHost).Return(nil)
 	// Expect resignation after onLeader failure
 	election.EXPECT().Resign(gomock.Any()).Return(nil)
+	election.EXPECT().Cleanup(gomock.Any()).Return(nil)
 
 	leaderStore := store.NewMockElector(ctrl)
 	leaderStore.EXPECT().CreateElection(gomock.Any(), _testNamespace.Name).Return(election, nil)

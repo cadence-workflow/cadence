@@ -62,7 +62,6 @@ func testMutableStateBuilder(t *testing.T) *mutableStateBuilder {
 	// set the checksum probabilities to 100% for exercising during test
 	mockShard.GetConfig().MutableStateChecksumGenProbability = func(domain string) int { return 100 }
 	mockShard.GetConfig().MutableStateChecksumVerifyProbability = func(domain string) int { return 100 }
-	mockShard.GetConfig().EnableRetryForChecksumFailure = func(domain string) bool { return true }
 	logger := log.NewNoop()
 
 	mockShard.Resource.MatchingClient.EXPECT().AddActivityTask(gomock.Any(), gomock.Any()).Return(&types.AddActivityTaskResponse{}, nil).AnyTimes()
@@ -92,8 +91,6 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 		expectedAttributes *types.ActivityTaskScheduledEventAttributes
 		expectedInfo       *persistence.ActivityInfo
 		expectedDispatch   *types.ActivityLocalDispatchInfo
-		expectedDispatched bool
-		expectedStarted    bool
 		expectedError      error
 	}{
 		{
@@ -206,61 +203,6 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				NonRetriableErrors:     retryPolicy.NonRetriableErrorReasons,
 			},
 		},
-		{
-			name:             "success - ephemeral workflow dispatches activities as ephemeral",
-			workflowTaskList: &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
-			attr: &types.ScheduleActivityTaskDecisionAttributes{
-				ActivityID:                    "activityID",
-				ActivityType:                  activityType,
-				Domain:                        constants.TestDomainName,
-				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindNormal.Ptr()},
-				Input:                         []byte("input"),
-				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
-				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
-				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
-				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
-				RetryPolicy:                   retryPolicy,
-				Header:                        header,
-				RequestLocalDispatch:          false,
-			},
-			expectedAttributes: &types.ActivityTaskScheduledEventAttributes{
-				ActivityID:                    "activityID",
-				ActivityType:                  activityType,
-				Domain:                        &constants.TestDomainName,
-				TaskList:                      &types.TaskList{Name: "taskList", Kind: types.TaskListKindEphemeral.Ptr()},
-				Input:                         []byte("input"),
-				ScheduleToCloseTimeoutSeconds: common.Int32Ptr(1),
-				ScheduleToStartTimeoutSeconds: common.Int32Ptr(2),
-				StartToCloseTimeoutSeconds:    common.Int32Ptr(3),
-				HeartbeatTimeoutSeconds:       common.Int32Ptr(4),
-				DecisionTaskCompletedEventID:  0,
-				RetryPolicy:                   retryPolicy,
-				Header:                        header,
-			},
-			expectedInfo: &persistence.ActivityInfo{
-				Version:                commonconstants.EmptyVersion,
-				ScheduleID:             1,
-				ScheduledEventBatchID:  0,
-				ScheduledTime:          currentTime,
-				StartedID:              commonconstants.EmptyEventID,
-				DomainID:               constants.TestDomainID,
-				ActivityID:             "activityID",
-				ScheduleToCloseTimeout: 1,
-				ScheduleToStartTimeout: 2,
-				StartToCloseTimeout:    3,
-				HeartbeatTimeout:       4,
-				CancelRequestID:        commonconstants.EmptyEventID,
-				TaskList:               "taskList",
-				TaskListKind:           types.TaskListKindEphemeral,
-				HasRetryPolicy:         true,
-				InitialInterval:        retryPolicy.InitialIntervalInSeconds,
-				BackoffCoefficient:     retryPolicy.BackoffCoefficient,
-				MaximumInterval:        retryPolicy.MaximumIntervalInSeconds,
-				ExpirationTime:         currentTime.Add(time.Duration(retryPolicy.ExpirationIntervalInSeconds) * time.Second),
-				MaximumAttempts:        retryPolicy.MaximumAttempts,
-				NonRetriableErrors:     retryPolicy.NonRetriableErrorReasons,
-			},
-		},
 	}
 
 	for _, tc := range cases {
@@ -274,9 +216,7 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				mb.executionInfo.TaskListKind = tc.workflowTaskList.GetKind()
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			event, activityInfo, dispatchInfo, dispatched, started, err := mb.AddActivityTaskScheduledEvent(ctx, 0, tc.attr, tc.dispatch)
+			event, activityInfo, dispatchInfo, err := mb.AddActivityTaskScheduledEvent(0, tc.attr)
 			if tc.expectedError != nil {
 				assert.ErrorIs(t, err, tc.expectedError)
 				assert.Nil(t, event)
@@ -289,8 +229,6 @@ func Test__AddActivityTaskScheduledEvent(t *testing.T) {
 				assert.Equal(t, tc.expectedInfo, activityInfo)
 				assert.Equal(t, tc.expectedDispatch, dispatchInfo)
 			}
-			assert.Equal(t, tc.expectedDispatched, dispatched)
-			assert.Equal(t, tc.expectedStarted, started)
 		})
 	}
 }
@@ -428,14 +366,6 @@ func Test__AddActivityTaskCompletedEvent(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), event.ActivityTaskCompletedEventAttributes.ScheduledEventID)
 	})
-}
-
-func Test__tryDispatchActivityTask(t *testing.T) {
-	mb := testMutableStateBuilder(t)
-	event := &types.HistoryEvent{}
-	ai := &persistence.ActivityInfo{}
-	result := mb.tryDispatchActivityTask(context.Background(), event, ai)
-	assert.True(t, result)
 }
 
 func Test__ReplicateActivityTaskCanceledEvent(t *testing.T) {

@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorHistoryManager implements persistence.HistoryManager interface instrumented with error injection.
 type injectorHistoryManager struct {
 	wrapped   persistence.HistoryManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -23,16 +25,18 @@ func NewHistoryManager(
 	wrapped persistence.HistoryManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.HistoryManager {
 	return &injectorHistoryManager{
 		wrapped:   wrapped,
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}
 }
 
 func (c *injectorHistoryManager) AppendHistoryNodes(ctx context.Context, request *persistence.AppendHistoryNodesRequest) (ap1 *persistence.AppendHistoryNodesResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		ap1, err = c.wrapped.AppendHistoryNodes(ctx, request)
@@ -52,7 +56,7 @@ func (c *injectorHistoryManager) Close() {
 }
 
 func (c *injectorHistoryManager) DeleteHistoryBranch(ctx context.Context, request *persistence.DeleteHistoryBranchRequest) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.DeleteHistoryBranch(ctx, request)
@@ -67,7 +71,7 @@ func (c *injectorHistoryManager) DeleteHistoryBranch(ctx context.Context, reques
 }
 
 func (c *injectorHistoryManager) ForkHistoryBranch(ctx context.Context, request *persistence.ForkHistoryBranchRequest) (fp1 *persistence.ForkHistoryBranchResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		fp1, err = c.wrapped.ForkHistoryBranch(ctx, request)
@@ -82,7 +86,7 @@ func (c *injectorHistoryManager) ForkHistoryBranch(ctx context.Context, request 
 }
 
 func (c *injectorHistoryManager) GetAllHistoryTreeBranches(ctx context.Context, request *persistence.GetAllHistoryTreeBranchesRequest) (gp1 *persistence.GetAllHistoryTreeBranchesResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetAllHistoryTreeBranches(ctx, request)
@@ -97,7 +101,7 @@ func (c *injectorHistoryManager) GetAllHistoryTreeBranches(ctx context.Context, 
 }
 
 func (c *injectorHistoryManager) GetHistoryTree(ctx context.Context, request *persistence.GetHistoryTreeRequest) (gp1 *persistence.GetHistoryTreeResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		gp1, err = c.wrapped.GetHistoryTree(ctx, request)
@@ -116,7 +120,7 @@ func (c *injectorHistoryManager) GetName() (s1 string) {
 }
 
 func (c *injectorHistoryManager) ReadHistoryBranch(ctx context.Context, request *persistence.ReadHistoryBranchRequest) (rp1 *persistence.ReadHistoryBranchResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		rp1, err = c.wrapped.ReadHistoryBranch(ctx, request)
@@ -131,7 +135,7 @@ func (c *injectorHistoryManager) ReadHistoryBranch(ctx context.Context, request 
 }
 
 func (c *injectorHistoryManager) ReadHistoryBranchByBatch(ctx context.Context, request *persistence.ReadHistoryBranchRequest) (rp1 *persistence.ReadHistoryBranchByBatchResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		rp1, err = c.wrapped.ReadHistoryBranchByBatch(ctx, request)
@@ -146,7 +150,7 @@ func (c *injectorHistoryManager) ReadHistoryBranchByBatch(ctx context.Context, r
 }
 
 func (c *injectorHistoryManager) ReadRawHistoryBranch(ctx context.Context, request *persistence.ReadHistoryBranchRequest) (rp1 *persistence.ReadRawHistoryBranchResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		rp1, err = c.wrapped.ReadRawHistoryBranch(ctx, request)

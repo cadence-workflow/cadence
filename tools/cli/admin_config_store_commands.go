@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli/v2"
@@ -110,7 +111,22 @@ func AdminUpdateDynamicConfig(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found", err)
 	}
-	dcValues := c.StringSlice(FlagDynamicConfigValue)
+	dcValuesRaw := c.StringSlice(FlagDynamicConfigValue)
+
+	// WORKAROUND: urfave/cli v2 StringSliceFlag splits on commas by default.
+	// This breaks JSON values. Try reassembling the split pieces.
+	var dcValues []string
+	if len(dcValuesRaw) > 1 && strings.HasPrefix(dcValuesRaw[0], "{") {
+		assembled := strings.Join(dcValuesRaw, ",")
+		var test interface{}
+		if json.Unmarshal([]byte(assembled), &test) == nil {
+			dcValues = []string{assembled}
+		} else {
+			dcValues = dcValuesRaw
+		}
+	} else {
+		dcValues = dcValuesRaw
+	}
 
 	ctx, cancel, err := newContext(c)
 	defer cancel()
@@ -217,6 +233,207 @@ func AdminListDynamicConfig(c *cli.Context) error {
 			cliEntry, err := convertToInputEntry(dcEntry)
 			if err != nil {
 				fmt.Printf("Cannot parse list response.\n")
+			}
+			cliEntries = append(cliEntries, cliEntry)
+		}
+		prettyPrintJSONObject(getDeps(c).Output(), cliEntries)
+	}
+	return nil
+}
+
+// AdminGetOperationalDynamicConfig gets the value of the specified operational dynamic config
+// parameter (cassandra-backed store) matching the specified filter.
+func AdminGetOperationalDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
+
+	configName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
+
+	filter := c.String(FlagDynamicConfigFilter)
+
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	parsedFilters, err := parseInputFilter(filter)
+	if err != nil {
+		return commoncli.Problem("Failed to parse input filter array", err)
+	}
+
+	req := &types.GetOperationalDynamicConfigRequest{
+		ConfigName: configName,
+		Filters:    parsedFilters,
+	}
+
+	val, err := adminClient.GetOperationalDynamicConfig(ctx, req)
+	if err != nil {
+		return commoncli.Problem("Failed to get operational dynamic config value", err)
+	}
+
+	if val == nil || val.Value == nil || len(val.Value.Data) == 0 {
+		fmt.Println("No values stored for the specified operational dynamic config.")
+		return nil
+	}
+
+	var umVal interface{}
+	err = json.Unmarshal(val.Value.Data, &umVal)
+	if err != nil {
+		return commoncli.Problem("Failed to unmarshal response", err)
+	}
+
+	if umVal == nil {
+		fmt.Printf("No values stored for specified operational dynamic config.\n")
+	} else {
+		prettyPrintJSONObject(getDeps(c).Output(), umVal)
+	}
+
+	return nil
+}
+
+// AdminUpdateOperationalDynamicConfig updates the specified operational dynamic config parameter
+// (cassandra-backed store) with the specified values.
+func AdminUpdateOperationalDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
+
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
+	dcValuesRaw := c.StringSlice(FlagDynamicConfigValue)
+
+	// WORKAROUND: urfave/cli v2 StringSliceFlag splits on commas by default.
+	// This breaks JSON values. Try reassembling the split pieces.
+	var dcValues []string
+	if len(dcValuesRaw) > 1 && strings.HasPrefix(dcValuesRaw[0], "{") {
+		assembled := strings.Join(dcValuesRaw, ",")
+		var test interface{}
+		if json.Unmarshal([]byte(assembled), &test) == nil {
+			dcValues = []string{assembled}
+		} else {
+			dcValues = dcValuesRaw
+		}
+	} else {
+		dcValues = dcValuesRaw
+	}
+
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+	var parsedValues []*types.DynamicConfigValue
+
+	if dcValues != nil {
+		parsedValues = make([]*types.DynamicConfigValue, 0, len(dcValues))
+
+		for _, valueString := range dcValues {
+			var parsedInputValue *cliValue
+			err := json.Unmarshal([]byte(valueString), &parsedInputValue)
+			if err != nil {
+				return commoncli.Problem("Unable to unmarshal value to inputValue", err)
+			}
+			parsedValue, err := convertFromInputValue(parsedInputValue)
+			if err != nil {
+				return commoncli.Problem("Unable to convert from inputValue to DynamicConfigValue", err)
+			}
+			parsedValues = append(parsedValues, parsedValue)
+		}
+	} else {
+		parsedValues = nil
+	}
+
+	req := &types.UpdateOperationalDynamicConfigRequest{
+		ConfigName:   dcName,
+		ConfigValues: parsedValues,
+	}
+
+	err = adminClient.UpdateOperationalDynamicConfig(ctx, req)
+	if err != nil {
+		return commoncli.Problem("Failed to update operational dynamic config value", err)
+	}
+	fmt.Printf("Operational Dynamic Config %q updated with %s \n", dcName, dcValues)
+	return nil
+}
+
+// AdminRestoreOperationalDynamicConfig removes values of the specified operational dynamic config
+// parameter (cassandra-backed store) matching the specified filter.
+func AdminRestoreOperationalDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
+
+	dcName, err := getRequiredOption(c, FlagDynamicConfigName)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
+	filter := c.String(FlagDynamicConfigFilter)
+
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+
+	parsedFilters, err := parseInputFilter(filter)
+	if err != nil {
+		return commoncli.Problem("Failed to parse input filter", err)
+	}
+
+	req := &types.RestoreOperationalDynamicConfigRequest{
+		ConfigName: dcName,
+		Filters:    parsedFilters,
+	}
+
+	err = adminClient.RestoreOperationalDynamicConfig(ctx, req)
+	if err != nil {
+		return commoncli.Problem("Failed to restore operational dynamic config value", err)
+	}
+	fmt.Printf("Operational Dynamic Config %q restored\n", dcName)
+	return nil
+}
+
+// AdminListOperationalDynamicConfig lists all values stored in the operational dynamic config
+// (cassandra-backed store).
+func AdminListOperationalDynamicConfig(c *cli.Context) error {
+	adminClient, err := getDeps(c).ServerAdminClient(c)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+	req := &types.ListOperationalDynamicConfigRequest{
+		ConfigName: "", // empty string means all config values
+	}
+
+	val, err := adminClient.ListOperationalDynamicConfig(ctx, req)
+	if err != nil {
+		return commoncli.Problem("Failed to list operational dynamic config value(s)", err)
+	}
+
+	if val == nil || val.Entries == nil || len(val.Entries) == 0 {
+		fmt.Printf("No operational dynamic config values stored to list.\n")
+	} else {
+		cliEntries := make([]*cliEntry, 0, len(val.Entries))
+		for _, dcEntry := range val.Entries {
+			cliEntry, err := convertToInputEntry(dcEntry)
+			if err != nil {
+				fmt.Printf("Cannot parse list response entry, skipping.\n")
+				continue
 			}
 			cliEntries = append(cliEntries, cliEntry)
 		}

@@ -38,3 +38,7 @@ func (c *sharddistributorClient) GetShardOwner(ctx context.Context, gp1 *types.G
 	defer cancel()
 	return c.client.GetShardOwner(ctx, gp1, p1...)
 }
+
+func (c *sharddistributorClient) WatchNamespaceState(ctx context.Context, wp1 *types.WatchNamespaceStateRequest, p1 ...yarpc.CallOption) (w1 sharddistributor.WatchNamespaceStateClient, err error) {
+	return c.client.WatchNamespaceState(ctx, wp1, p1...)
+}

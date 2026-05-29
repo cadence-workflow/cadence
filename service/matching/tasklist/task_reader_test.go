@@ -26,6 +26,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
+	commonConfig "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -268,7 +270,8 @@ func TestGetDispatchTimeout(t *testing.T) {
 			isolationDuration: noIsolationTimeout,
 			dispatchRps:       0.1,
 			// rate is divided by 4 isolation groups (plus default buffer) and only one task gets dispatched per 10 seconds
-			expected: 50 * time.Second,
+			// taskDispatchTimeoutBuffer is added to ensure there is room for the rate-limiter wait
+			expected: 50*time.Second + taskDispatchTimeoutBuffer,
 		},
 		{
 			name:              "with isolation - low dispatch rps extends timeout",
@@ -277,7 +280,8 @@ func TestGetDispatchTimeout(t *testing.T) {
 			// rate is divided by 4 isolation groups (plus default buffer) and only one task gets dispatched per 10 seconds
 			// This means taskIsolationDuration is extended, and we don't leak tasks as quickly if the
 			// task list has a very low RPS
-			expected: 50 * time.Second,
+			// taskDispatchTimeoutBuffer is added to ensure there is room for the rate-limiter wait
+			expected: 50*time.Second + taskDispatchTimeoutBuffer,
 		},
 	}
 
@@ -291,7 +295,6 @@ func TestGetDispatchTimeout(t *testing.T) {
 
 			actual := reader.getDispatchTimeout(tc.dispatchRps, tc.isolationDuration)
 			assert.Equal(t, tc.expected, actual)
-
 		})
 	}
 }
@@ -381,7 +384,7 @@ func TestTaskPump(t *testing.T) {
 }
 
 func defaultConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", func() []string {
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string {
 		return defaultIsolationGroups
 	})
 	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
@@ -434,6 +437,30 @@ func requireCallbackInvocation(t *testing.T, msg string) func() {
 	return func() {
 		called = true
 	}
+}
+
+func TestGetTasksPumpHandleErrStopNoDeadlock(t *testing.T) {
+	controller := gomock.NewController(t)
+	c := defaultConfig()
+	c.UpdateAckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
+
+	tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), controller, c, clock.NewRealTimeSource())
+
+	err := tlm.taskWriter.Start()
+	require.NoError(t, err)
+
+	// Force ConditionFailedError on the next persistAckLevel -> handleErr -> Stop() path
+	tm := tlm.db.store.(*TestTaskManager)
+	tm.SetRangeID(tlm.taskListID, 999)
+
+	tlm.taskReader.Start()
+
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&tlm.stopped) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// Wait for the async go c.Stop() to fully complete
+	tlm.Stop()
 }
 
 func TestTaskReaderBatchSizeValidation(t *testing.T) {

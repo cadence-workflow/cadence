@@ -42,6 +42,9 @@ type (
 		GetDomainManager() persistence.DomainManager
 		SetDomainManager(persistence.DomainManager)
 
+		GetDomainAuditManager() persistence.DomainAuditManager
+		SetDomainAuditManager(persistence.DomainAuditManager)
+
 		GetTaskManager() persistence.TaskManager
 		SetTaskManager(persistence.TaskManager)
 
@@ -62,17 +65,22 @@ type (
 
 		GetConfigStoreManager() persistence.ConfigStoreManager
 		SetConfigStoreManager(persistence.ConfigStoreManager)
+
+		GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
+		SetHistoryTaskDLQManager(persistence.HistoryTaskDLQManager)
 	}
 
 	// BeanImpl stores persistence managers
 	BeanImpl struct {
 		domainManager                 persistence.DomainManager
+		domainAuditManager            persistence.DomainAuditManager
 		taskManager                   persistence.TaskManager
 		visibilityManager             persistence.VisibilityManager
 		domainReplicationQueueManager persistence.QueueManager
 		shardManager                  persistence.ShardManager
 		historyManager                persistence.HistoryManager
 		configStoreManager            persistence.ConfigStoreManager
+		historyTaskDLQManager         persistence.HistoryTaskDLQManager
 		executionManagerFactory       persistence.ExecutionManagerFactory
 
 		sync.RWMutex
@@ -101,6 +109,11 @@ func NewBeanFromFactory(
 ) (Bean, error) {
 
 	metadataMgr, err := factory.NewDomainManager()
+	if err != nil {
+		return nil, err
+	}
+
+	domainAuditMgr, err := factory.NewDomainAuditManager()
 	if err != nil {
 		return nil, err
 	}
@@ -135,14 +148,21 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
+	historyTaskDLQMgr, err := factory.NewHistoryTaskDLQManager()
+	if err != nil {
+		return nil, err
+	}
+
 	return NewBean(
 		metadataMgr,
+		domainAuditMgr,
 		taskMgr,
 		visibilityMgr,
 		domainReplicationQueue,
 		shardMgr,
 		historyMgr,
 		configStoreMgr,
+		historyTaskDLQMgr,
 		factory,
 	), nil
 }
@@ -150,22 +170,26 @@ func NewBeanFromFactory(
 // NewBean create a new store bean
 func NewBean(
 	domainManager persistence.DomainManager,
+	domainAuditManager persistence.DomainAuditManager,
 	taskManager persistence.TaskManager,
 	visibilityManager persistence.VisibilityManager,
 	domainReplicationQueueManager persistence.QueueManager,
 	shardManager persistence.ShardManager,
 	historyManager persistence.HistoryManager,
 	configStoreManager persistence.ConfigStoreManager,
+	historyTaskDLQManager persistence.HistoryTaskDLQManager,
 	executionManagerFactory persistence.ExecutionManagerFactory,
 ) *BeanImpl {
 	return &BeanImpl{
 		domainManager:                 domainManager,
+		domainAuditManager:            domainAuditManager,
 		taskManager:                   taskManager,
 		visibilityManager:             visibilityManager,
 		domainReplicationQueueManager: domainReplicationQueueManager,
 		shardManager:                  shardManager,
 		historyManager:                historyManager,
 		configStoreManager:            configStoreManager,
+		historyTaskDLQManager:         historyTaskDLQManager,
 		executionManagerFactory:       executionManagerFactory,
 
 		shardIDToExecutionManager: make(map[int]persistence.ExecutionManager),
@@ -190,6 +214,26 @@ func (s *BeanImpl) SetDomainManager(
 	defer s.Unlock()
 
 	s.domainManager = domainManager
+}
+
+// GetDomainAuditManager get DomainAuditManager
+func (s *BeanImpl) GetDomainAuditManager() persistence.DomainAuditManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.domainAuditManager
+}
+
+// SetDomainAuditManager set DomainAuditManager
+func (s *BeanImpl) SetDomainAuditManager(
+	domainAuditManager persistence.DomainAuditManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.domainAuditManager = domainAuditManager
 }
 
 // GetTaskManager get TaskManager
@@ -354,6 +398,26 @@ func (s *BeanImpl) SetConfigStoreManager(
 	s.configStoreManager = configStoreManager
 }
 
+// GetHistoryTaskDLQManager gets HistoryTaskDLQManager
+func (s *BeanImpl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.historyTaskDLQManager
+}
+
+// SetHistoryTaskDLQManager sets HistoryTaskDLQManager
+func (s *BeanImpl) SetHistoryTaskDLQManager(
+	historyTaskDLQManager persistence.HistoryTaskDLQManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.historyTaskDLQManager = historyTaskDLQManager
+}
+
 // Close cleanup connections
 func (s *BeanImpl) Close() {
 
@@ -361,6 +425,9 @@ func (s *BeanImpl) Close() {
 	defer s.Unlock()
 
 	s.domainManager.Close()
+	if s.domainAuditManager != nil {
+		s.domainAuditManager.Close()
+	}
 	s.taskManager.Close()
 	if s.visibilityManager != nil {
 		// visibilityManager can be nil
@@ -373,5 +440,9 @@ func (s *BeanImpl) Close() {
 	s.configStoreManager.Close()
 	for _, executionMgr := range s.shardIDToExecutionManager {
 		executionMgr.Close()
+	}
+
+	if s.historyTaskDLQManager != nil {
+		s.historyTaskDLQManager.Close()
 	}
 }

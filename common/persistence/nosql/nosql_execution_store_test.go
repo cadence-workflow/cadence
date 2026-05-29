@@ -249,15 +249,25 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			name: "UpdateWorkflowModeBypassCurrent - assertNotCurrentExecution failure",
 			setupMock: func(mockDB *nosqlplugin.MockDB, shardID int) {
 				mockDB.EXPECT().
+					SelectCurrentWorkflow(gomock.Any(), shardID, constants.TestDomainID, constants.TestWorkflowID).
+					Return(&nosqlplugin.CurrentWorkflowRow{
+						RunID: constants.TestRunID,
+					}, nil).
+					Times(1)
+				mockDB.EXPECT().
 					UpdateWorkflowExecutionWithTasks(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), nil, gomock.Any(), gomock.Any()).
 					Times(0)
 			},
 			request: func() *persistence.InternalUpdateWorkflowExecutionRequest {
 				req := newUpdateWorkflowExecutionRequest()
 				req.Mode = persistence.UpdateWorkflowModeBypassCurrent
+				// BypassCurrent is invalid for CREATED/RUNNING workflows; set a terminal state so the
+				// request passes ValidateUpdateWorkflowModeState and reaches assertNotCurrentExecution.
+				req.UpdateWorkflowMutation.ExecutionInfo.State = persistence.WorkflowStateCompleted
+				req.UpdateWorkflowMutation.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 				return req
 			},
-			expectedError: &types.InternalServiceError{Message: "assertNotCurrentExecution failure"},
+			expectedError: &persistence.ConditionFailedError{},
 		},
 		{
 			name: "Unknown update mode",
@@ -271,14 +281,24 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			expectedError: &types.InternalServiceError{Message: "UpdateWorkflowExecution: unknown mode: -1"},
 		},
 		{
-			name:      "Bypass_current_execution_failure_due_to_assertNotCurrentExecution",
-			setupMock: func(mockDB *nosqlplugin.MockDB, shardID int) {},
+			name: "Bypass_current_execution_failure_due_to_assertNotCurrentExecution",
+			setupMock: func(mockDB *nosqlplugin.MockDB, shardID int) {
+				mockDB.EXPECT().
+					SelectCurrentWorkflow(gomock.Any(), shardID, constants.TestDomainID, constants.TestWorkflowID).
+					Return(&nosqlplugin.CurrentWorkflowRow{
+						RunID: constants.TestRunID,
+					}, nil).
+					Times(1)
+			},
 			request: func() *persistence.InternalUpdateWorkflowExecutionRequest {
 				req := newUpdateWorkflowExecutionRequest()
 				req.Mode = persistence.UpdateWorkflowModeBypassCurrent
+				// See comment above: ensure the request is valid for BypassCurrent.
+				req.UpdateWorkflowMutation.ExecutionInfo.State = persistence.WorkflowStateCompleted
+				req.UpdateWorkflowMutation.ExecutionInfo.CloseStatus = persistence.WorkflowCloseStatusCompleted
 				return req
 			},
-			expectedError: &types.InternalServiceError{Message: "assertNotCurrentExecution failure"},
+			expectedError: &persistence.ConditionFailedError{},
 		},
 		{
 			name: "Update with new snapshot (continue as new)",
@@ -1842,10 +1862,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, int64(1), time.Unix(10, 10)).Return(nil)
+				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)}).Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -1853,10 +1873,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.NewImmediateTaskKey(2),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, int64(2)).Return(nil)
+				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)}).Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -1864,10 +1884,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.NewImmediateTaskKey(3),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, int64(3)).Return(nil)
+				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)}).Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -1883,10 +1903,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, int64(1), time.Unix(10, 10)).Return(errors.New("db error"))
+				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)}).Return(errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
@@ -1895,10 +1915,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.NewImmediateTaskKey(2),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, int64(2)).Return(errors.New("db error"))
+				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)}).Return(errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
@@ -1907,10 +1927,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.NewImmediateTaskKey(3),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, int64(3)).Return(errors.New("db error"))
+				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)}).Return(errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
@@ -1935,4 +1955,80 @@ func TestCompleteHistoryTask(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolveShardID(t *testing.T) {
+	tests := []struct {
+		name           string
+		reqID          *int
+		storeID        int
+		expectedShard  int
+		expectedReason string
+	}{
+		{name: "nil request shard id is reported as missing", reqID: nil, storeID: 5, expectedShard: 5, expectedReason: "missing"},
+		{name: "matching request shard id has no reason", reqID: common.IntPtr(5), storeID: 5, expectedShard: 5, expectedReason: ""},
+		{name: "differing request shard id falls back to store and is reported as mismatch", reqID: common.IntPtr(9), storeID: 5, expectedShard: 5, expectedReason: "mismatch"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			shard, reason := resolveShardID(tc.reqID, tc.storeID)
+			assert.Equal(t, tc.expectedShard, shard)
+			assert.Equal(t, tc.expectedReason, reason)
+		})
+	}
+}
+
+func TestGetWorkflowExecution_usesStoreShardIDWhenRequestShardIDDiffers(t *testing.T) {
+	ctx := context.Background()
+	const storeShardID = 1
+	const requestShardID = 9
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockDB := nosqlplugin.NewMockDB(ctrl)
+	// Even though the request carries a different ShardID, the store's shard ID
+	// is the source of truth during migration and must be the one that hits the DB.
+	mockDB.EXPECT().
+		SelectWorkflowExecution(ctx, storeShardID, gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&nosqlplugin.WorkflowExecution{}, nil).
+		Times(1)
+
+	store := &nosqlExecutionStore{
+		shardID:    storeShardID,
+		nosqlStore: nosqlStore{logger: log.NewNoop(), db: mockDB},
+	}
+	req := newGetWorkflowExecutionRequest()
+	req.ShardID = common.IntPtr(requestShardID)
+
+	_, err := store.GetWorkflowExecution(ctx, req)
+	require.NoError(t, err)
+}
+
+func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDInconsistent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockLogger := log.NewMockLogger(ctrl)
+	// One Warn per distinct operation, regardless of how many calls hit the same operation
+	// or whether the inconsistency is "missing" or "mismatch".
+	mockLogger.EXPECT().
+		Warn("execution store request inconsistent with store shard ID; using store shard ID", gomock.Any()).
+		Times(2)
+
+	store := &nosqlExecutionStore{
+		shardID: 123,
+		nosqlStore: nosqlStore{
+			logger: mockLogger,
+		},
+	}
+
+	// nil request shard id (missing) - logs once for "GetWorkflowExecution".
+	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	// Same operation, deduped - no additional log.
+	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
+	// Different operation with a mismatching shard id - logs once for "UpdateWorkflowExecution"
+	// and still falls back to the store's shard ID (123) rather than honoring the request value.
+	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(999), "UpdateWorkflowExecution"))
+	// Matching shard id - no log, returns store shard id.
+	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(123), "DeleteWorkflowExecution"))
 }

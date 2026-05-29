@@ -13,14 +13,26 @@ import (
 	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
+func (g frontendClient) BackfillSchedule(ctx context.Context, bp1 *types.BackfillScheduleRequest, p1 ...yarpc.CallOption) (bp2 *types.BackfillScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g frontendClient) CountWorkflowExecutions(ctx context.Context, cp1 *types.CountWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (cp2 *types.CountWorkflowExecutionsResponse, err error) {
 	response, err := g.c.CountWorkflowExecutions(ctx, thrift.FromCountWorkflowExecutionsRequest(cp1), p1...)
 	return thrift.ToCountWorkflowExecutionsResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) CreateSchedule(ctx context.Context, cp1 *types.CreateScheduleRequest, p1 ...yarpc.CallOption) (cp2 *types.CreateScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g frontendClient) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.DeleteDomain(ctx, thrift.FromDeleteDomainRequest(dp1), p1...)
 	return thrift.ToError(err)
+}
+
+func (g frontendClient) DeleteSchedule(ctx context.Context, dp1 *types.DeleteScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DeleteScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest, p1 ...yarpc.CallOption) (err error) {
@@ -31,6 +43,10 @@ func (g frontendClient) DeprecateDomain(ctx context.Context, dp1 *types.Deprecat
 func (g frontendClient) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeDomainResponse, err error) {
 	response, err := g.c.DescribeDomain(ctx, thrift.FromDescribeDomainRequest(dp1), p1...)
 	return thrift.ToDescribeDomainResponse(response), thrift.ToError(err)
+}
+
+func (g frontendClient) DescribeSchedule(ctx context.Context, dp1 *types.DescribeScheduleRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g frontendClient) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTaskListRequest, p1 ...yarpc.CallOption) (dp2 *types.DescribeTaskListResponse, err error) {
@@ -88,9 +104,18 @@ func (g frontendClient) ListDomains(ctx context.Context, lp1 *types.ListDomainsR
 	return thrift.ToListDomainsResponse(response), thrift.ToError(err)
 }
 
+func (g frontendClient) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest, p1 ...yarpc.CallOption) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	response, err := g.c.ListFailoverHistory(ctx, thrift.FromListFailoverHistoryRequest(lp1), p1...)
+	return thrift.ToListFailoverHistoryResponse(response), thrift.ToError(err)
+}
+
 func (g frontendClient) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {
 	response, err := g.c.ListOpenWorkflowExecutions(ctx, thrift.FromListOpenWorkflowExecutionsRequest(lp1), p1...)
 	return thrift.ToListOpenWorkflowExecutionsResponse(response), thrift.ToError(err)
+}
+
+func (g frontendClient) ListSchedules(ctx context.Context, lp1 *types.ListSchedulesRequest, p1 ...yarpc.CallOption) (lp2 *types.ListSchedulesResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.ListTaskListPartitionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListTaskListPartitionsResponse, err error) {
@@ -101,6 +126,10 @@ func (g frontendClient) ListTaskListPartitions(ctx context.Context, lp1 *types.L
 func (g frontendClient) ListWorkflowExecutions(ctx context.Context, lp1 *types.ListWorkflowExecutionsRequest, p1 ...yarpc.CallOption) (lp2 *types.ListWorkflowExecutionsResponse, err error) {
 	response, err := g.c.ListWorkflowExecutions(ctx, thrift.FromListWorkflowExecutionsRequest(lp1), p1...)
 	return thrift.ToListWorkflowExecutionsResponse(response), thrift.ToError(err)
+}
+
+func (g frontendClient) PauseSchedule(ctx context.Context, pp1 *types.PauseScheduleRequest, p1 ...yarpc.CallOption) (pp2 *types.PauseScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g frontendClient) PollForActivityTask(ctx context.Context, pp1 *types.PollForActivityTaskRequest, p1 ...yarpc.CallOption) (pp2 *types.PollForActivityTaskResponse, err error) {
@@ -238,7 +267,15 @@ func (g frontendClient) TerminateWorkflowExecution(ctx context.Context, tp1 *typ
 	return thrift.ToError(err)
 }
 
+func (g frontendClient) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UnpauseScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g frontendClient) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateDomainResponse, err error) {
 	response, err := g.c.UpdateDomain(ctx, thrift.FromUpdateDomainRequest(up1), p1...)
 	return thrift.ToUpdateDomainResponse(response), thrift.ToError(err)
+}
+
+func (g frontendClient) UpdateSchedule(ctx context.Context, up1 *types.UpdateScheduleRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateScheduleResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }

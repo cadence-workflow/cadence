@@ -56,17 +56,17 @@ func (mr *MockTaskFetcherMockRecorder) GetRateLimiter() *gomock.Call {
 }
 
 // GetRequestChan mocks base method.
-func (m *MockTaskFetcher) GetRequestChan() chan<- *request {
+func (m *MockTaskFetcher) GetRequestChan(shardID int) chan<- *request {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetRequestChan")
+	ret := m.ctrl.Call(m, "GetRequestChan", shardID)
 	ret0, _ := ret[0].(chan<- *request)
 	return ret0
 }
 
 // GetRequestChan indicates an expected call of GetRequestChan.
-func (mr *MockTaskFetcherMockRecorder) GetRequestChan() *gomock.Call {
+func (mr *MockTaskFetcherMockRecorder) GetRequestChan(shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRequestChan", reflect.TypeOf((*MockTaskFetcher)(nil).GetRequestChan))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRequestChan", reflect.TypeOf((*MockTaskFetcher)(nil).GetRequestChan), shardID)
 }
 
 // GetSourceCluster mocks base method.

@@ -23,11 +23,13 @@ package proto
 import (
 	"testing"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
 	historyv1 "github.com/uber/cadence/.gen/proto/history/v1"
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
 )
 
@@ -392,4 +394,402 @@ func TestRatelimitUpdate(t *testing.T) {
 		assert.Equal(t, &types.RatelimitUpdateRequest{Any: internal}, ToHistoryRatelimitUpdateRequest(&historyv1.RatelimitUpdateRequest{Data: proto}), "request to internal")
 		assert.Equal(t, &historyv1.RatelimitUpdateResponse{Data: proto}, FromHistoryRatelimitUpdateResponse(&types.RatelimitUpdateResponse{Any: internal}), "response from internal")
 	})
+}
+
+// --- Fuzz tests for history mapper functions ---
+
+// HistoryStartWorkflowExecutionRequestFuzzer ensures ContinuedFailureReason is non-nil
+// when ContinuedFailureDetails is non-nil. FromFailure(nil, details) returns nil (drops
+// details when reason is nil), so a nil reason with non-nil details breaks the round-trip.
+func HistoryStartWorkflowExecutionRequestFuzzer(r *types.HistoryStartWorkflowExecutionRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.ContinuedFailureReason == nil && len(r.ContinuedFailureDetails) > 0 {
+		reason := ""
+		r.ContinuedFailureReason = &reason
+	}
+}
+
+// HistoryQueryWorkflowResponseFuzzer ensures Response is always non-nil.
+// FromHistoryQueryWorkflowResponse returns nil when t.Response is nil, which breaks
+// the round-trip (To(nil) == nil != &{Response: nil}).
+func HistoryQueryWorkflowResponseFuzzer(r *types.HistoryQueryWorkflowResponse, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.Response == nil {
+		r.Response = &types.QueryWorkflowResponse{}
+	}
+}
+
+// HistoryReapplyEventsRequestFuzzer ensures Request is always non-nil.
+// FromHistoryReapplyEventsRequest returns nil when t.Request is nil, which breaks
+// the round-trip (To(nil) == nil != &{Request: nil}).
+func HistoryReapplyEventsRequestFuzzer(r *types.HistoryReapplyEventsRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.Request == nil {
+		r.Request = &types.ReapplyEventsRequest{}
+	}
+}
+
+// RespondActivityTaskFailedRequestFuzzer ensures Reason is non-nil when
+// Details is non-nil. FromFailure(nil, details) returns nil (drops details when
+// reason is nil), so a nil Reason with non-nil Details breaks the round-trip.
+func RespondActivityTaskFailedRequestFuzzer(r *types.RespondActivityTaskFailedRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.Reason == nil && len(r.Details) > 0 {
+		reason := ""
+		r.Reason = &reason
+	}
+}
+
+// SyncActivityRequestFuzzer ensures LastFailureReason is non-nil when
+// LastFailureDetails is non-nil. FromFailure(nil, details) returns nil (drops
+// details when reason is nil), so a nil reason with non-nil details breaks the
+// round-trip.
+func SyncActivityRequestFuzzer(r *types.SyncActivityRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.LastFailureReason == nil && len(r.LastFailureDetails) > 0 {
+		reason := ""
+		r.LastFailureReason = &reason
+	}
+}
+
+// HistoryRefreshWorkflowTasksRequestFuzzer ensures Request is always non-nil.
+// FromHistoryRefreshWorkflowTasksRequest returns nil when t.Request is nil, which breaks
+// the round-trip (To(nil) == nil != &{Request: nil}).
+func HistoryRefreshWorkflowTasksRequestFuzzer(r *types.HistoryRefreshWorkflowTasksRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.Request == nil {
+		r.Request = &types.RefreshWorkflowTasksRequest{}
+	}
+}
+
+func TestHistoryCloseShardRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryCloseShardRequest, ToHistoryCloseShardRequest)
+}
+
+func TestHistoryDescribeHistoryHostResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeHistoryHostResponse, ToHistoryDescribeHistoryHostResponse)
+}
+
+func TestHistoryDescribeMutableStateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeMutableStateRequest, ToHistoryDescribeMutableStateRequest)
+}
+
+func TestHistoryDescribeMutableStateResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeMutableStateResponse, ToHistoryDescribeMutableStateResponse)
+}
+
+func TestHistoryDescribeWorkflowExecutionRequestFuzz(t *testing.T) {
+	// DescribeWorkflowExecutionRequest.QueryConsistencyLevel is an enum (0-1);
+	// out-of-range values map to nil on the return path.
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeWorkflowExecutionRequest, ToHistoryDescribeWorkflowExecutionRequest,
+		testutils.WithCustomFuncs(QueryConsistencyLevelFuzzer),
+	)
+}
+
+func TestHistoryGetDLQReplicationMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetDLQReplicationMessagesRequest, ToHistoryGetDLQReplicationMessagesRequest)
+}
+
+func TestHistoryGetFailoverInfoRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetFailoverInfoRequest, ToHistoryGetFailoverInfoRequest)
+}
+
+func TestHistoryGetFailoverInfoResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetFailoverInfoResponse, ToHistoryGetFailoverInfoResponse)
+}
+
+func TestHistoryGetMutableStateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetMutableStateRequest, ToHistoryGetMutableStateRequest)
+}
+
+func TestHistoryGetReplicationMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetReplicationMessagesRequest, ToHistoryGetReplicationMessagesRequest)
+}
+
+func TestHistoryCountDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryCountDLQMessagesRequest, ToHistoryCountDLQMessagesRequest)
+}
+
+func TestHistoryCountDLQMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryCountDLQMessagesResponse, ToHistoryCountDLQMessagesResponse)
+}
+
+func TestHistoryNotifyFailoverMarkersRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryNotifyFailoverMarkersRequest, ToHistoryNotifyFailoverMarkersRequest)
+}
+
+func TestHistoryPollMutableStateRequestFuzz(t *testing.T) {
+	// [BUG] VersionHistoryItem exists in types.PollMutableStateRequest but is not mapped
+	// in FromHistoryPollMutableStateRequest; it is silently dropped.
+	testutils.RunMapperFuzzTest(t, FromHistoryPollMutableStateRequest, ToHistoryPollMutableStateRequest,
+		testutils.WithExcludedFields("VersionHistoryItem"),
+	)
+}
+
+func TestHistoryRecordActivityTaskHeartbeatRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordActivityTaskHeartbeatRequest, ToHistoryRecordActivityTaskHeartbeatRequest)
+}
+
+func TestHistoryRecordActivityTaskHeartbeatResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordActivityTaskHeartbeatResponse, ToHistoryRecordActivityTaskHeartbeatResponse)
+}
+
+func TestHistoryRecordActivityTaskStartedRequestFuzz(t *testing.T) {
+	// Contains PollForActivityTaskRequest which has TaskList (TaskListKind, TaskListType).
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordActivityTaskStartedRequest, ToHistoryRecordActivityTaskStartedRequest,
+		testutils.WithCommonEnumFuzzers(),
+	)
+}
+
+func TestHistoryRecordChildExecutionCompletedRequestFuzz(t *testing.T) {
+	// CompletionEvent is a HistoryEvent requiring complex enum handling;
+	// it is tested comprehensively in api_test.go (TestHistoryEventFuzz).
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordChildExecutionCompletedRequest, ToHistoryRecordChildExecutionCompletedRequest,
+		testutils.WithExcludedFields("CompletionEvent"),
+	)
+}
+
+func TestHistoryRecordDecisionTaskStartedRequestFuzz(t *testing.T) {
+	// Contains PollForDecisionTaskRequest which has TaskList (TaskListKind, TaskListType).
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordDecisionTaskStartedRequest, ToHistoryRecordDecisionTaskStartedRequest,
+		testutils.WithCommonEnumFuzzers(),
+	)
+}
+
+func TestHistoryRemoveSignalMutableStateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRemoveSignalMutableStateRequest, ToHistoryRemoveSignalMutableStateRequest)
+}
+
+func TestHistoryReplicateEventsV2RequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryReplicateEventsV2Request, ToHistoryReplicateEventsV2Request,
+		testutils.WithCustomFuncs(testutils.EncodingTypeFuzzer),
+	)
+}
+
+func TestHistoryRequestCancelWorkflowExecutionRequestFuzz(t *testing.T) {
+	// [BUG] ExternalInitiatedEventID: nil input maps to &0 (non-nil) via ToExternalInitiatedID.
+	testutils.RunMapperFuzzTest(t, FromHistoryRequestCancelWorkflowExecutionRequest, ToHistoryRequestCancelWorkflowExecutionRequest,
+		testutils.WithExcludedFields("ExternalInitiatedEventID"),
+	)
+}
+
+func TestHistoryResetStickyTaskListRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetStickyTaskListRequest, ToHistoryResetStickyTaskListRequest)
+}
+
+func TestHistoryResetWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetWorkflowExecutionRequest, ToHistoryResetWorkflowExecutionRequest)
+}
+
+func TestHistoryResetWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetWorkflowExecutionResponse, ToHistoryResetWorkflowExecutionResponse)
+}
+
+func TestHistoryRespondActivityTaskCanceledRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondActivityTaskCanceledRequest, ToHistoryRespondActivityTaskCanceledRequest)
+}
+
+func TestHistoryRespondActivityTaskCompletedRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondActivityTaskCompletedRequest, ToHistoryRespondActivityTaskCompletedRequest)
+}
+
+func TestHistoryRespondActivityTaskFailedRequestFuzz(t *testing.T) {
+	// [BUG] FromFailure(nil, details) returns nil when Reason is nil, silently dropping Details.
+	// RespondActivityTaskFailedRequestFuzzer ensures Reason is non-nil when Details is set.
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondActivityTaskFailedRequest, ToHistoryRespondActivityTaskFailedRequest,
+		testutils.WithCustomFuncs(RespondActivityTaskFailedRequestFuzzer),
+	)
+}
+
+func TestHistoryRespondDecisionTaskCompletedResponseFuzz(t *testing.T) {
+	// StartedResponse is a RecordDecisionTaskStartedResponse; tested separately in
+	// TestHistoryRecordDecisionTaskStartedResponseFuzz.
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondDecisionTaskCompletedResponse, ToHistoryRespondDecisionTaskCompletedResponse,
+		testutils.WithExcludedFields("StartedResponse"),
+	)
+}
+
+func TestHistoryRespondDecisionTaskFailedRequestFuzz(t *testing.T) {
+	// DecisionTaskFailedCause has 23 valid values (0-22); out-of-range values map to nil.
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondDecisionTaskFailedRequest, ToHistoryRespondDecisionTaskFailedRequest,
+		testutils.WithCustomFuncs(DecisionTaskFailedCauseFuzzer),
+	)
+}
+
+func TestHistoryScheduleDecisionTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryScheduleDecisionTaskRequest, ToHistoryScheduleDecisionTaskRequest)
+}
+
+func TestHistorySignalWithStartWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistorySignalWithStartWorkflowExecutionResponse, ToHistorySignalWithStartWorkflowExecutionResponse)
+}
+
+func TestHistorySignalWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistorySignalWorkflowExecutionRequest, ToHistorySignalWorkflowExecutionRequest)
+}
+
+func TestHistoryStartWorkflowExecutionResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryStartWorkflowExecutionResponse, ToHistoryStartWorkflowExecutionResponse)
+}
+
+func TestHistoryTerminateWorkflowExecutionRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryTerminateWorkflowExecutionRequest, ToHistoryTerminateWorkflowExecutionRequest)
+}
+
+func TestHistoryGetCrossClusterTasksRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryGetCrossClusterTasksRequest, ToHistoryGetCrossClusterTasksRequest)
+}
+
+func TestHistoryRespondCrossClusterTasksCompletedRequestFuzz(t *testing.T) {
+	// TaskResponses contains CrossClusterTaskResponses with oneof constraints tested in shared_test.go.
+	testutils.RunMapperFuzzTest(t, FromHistoryRespondCrossClusterTasksCompletedRequest, ToHistoryRespondCrossClusterTasksCompletedRequest,
+		testutils.WithExcludedFields("TaskResponses"),
+	)
+}
+
+func TestHistoryRatelimitUpdateRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRatelimitUpdateRequest, ToHistoryRatelimitUpdateRequest)
+}
+
+func TestHistoryRatelimitUpdateResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRatelimitUpdateResponse, ToHistoryRatelimitUpdateResponse)
+}
+
+func TestHistorySyncActivityRequestFuzz(t *testing.T) {
+	// [BUG] LastFailureReason + LastFailureDetails merge into LastFailure (Failure object);
+	// FromFailure(nil, details) drops details when reason is nil, breaking the round-trip.
+	// SyncActivityRequestFuzzer ensures LastFailureReason is non-nil when Details is set.
+	// WorkflowID + RunID merge into WorkflowExecution and split back correctly.
+	testutils.RunMapperFuzzTest(t, FromHistorySyncActivityRequest, ToHistorySyncActivityRequest,
+		testutils.WithCustomFuncs(SyncActivityRequestFuzzer),
+	)
+}
+
+func TestHistoryMergeDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryMergeDLQMessagesRequest, ToHistoryMergeDLQMessagesRequest,
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
+	)
+}
+
+func TestHistoryMergeDLQMessagesResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryMergeDLQMessagesResponse, ToHistoryMergeDLQMessagesResponse)
+}
+
+func TestHistoryPurgeDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryPurgeDLQMessagesRequest, ToHistoryPurgeDLQMessagesRequest,
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
+	)
+}
+
+func TestHistoryReadDLQMessagesRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryReadDLQMessagesRequest, ToHistoryReadDLQMessagesRequest,
+		testutils.WithCustomFuncs(testutils.DLQTypeFuzzer),
+	)
+}
+
+func TestHistoryDescribeQueueRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryDescribeQueueRequest, ToHistoryDescribeQueueRequest,
+		testutils.WithCustomFuncs(testutils.TaskTypeFuzzer),
+	)
+}
+
+func TestHistoryRemoveTaskRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryRemoveTaskRequest, ToHistoryRemoveTaskRequest,
+		testutils.WithCustomFuncs(testutils.TaskTypeFuzzer),
+	)
+}
+
+func TestHistoryResetQueueRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryResetQueueRequest, ToHistoryResetQueueRequest,
+		testutils.WithCustomFuncs(testutils.TaskTypeFuzzer),
+	)
+}
+
+func TestHistoryGetMutableStateResponseFuzz(t *testing.T) {
+	// [BUG] WorkflowCloseState: nil input maps to a non-nil *int32 on To (always returns Int32Ptr).
+	// IsWorkflowRunning is derived from WorkflowState == WORKFLOW_STATE_RUNNING on To and not
+	// stored on From; excluding it avoids a false round-trip failure.
+	// WorkflowStateFuzzer constrains WorkflowState (*int32) to valid values (0-5) to prevent
+	// out-of-range proto enum mapping to INVALID breaking the round-trip.
+	testutils.RunMapperFuzzTest(t, FromHistoryGetMutableStateResponse, ToHistoryGetMutableStateResponse,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithCustomFuncs(testutils.WorkflowStateFuzzer),
+		testutils.WithExcludedFields("IsWorkflowRunning", "WorkflowCloseState"),
+	)
+}
+
+func TestHistoryPollMutableStateResponseFuzz(t *testing.T) {
+	// [BUG] WorkflowCloseState: nil input maps to a non-nil *int32 on To (always returns Int32Ptr).
+	// WorkflowStateFuzzer constrains WorkflowState (*int32) to valid values (0-5).
+	testutils.RunMapperFuzzTest(t, FromHistoryPollMutableStateResponse, ToHistoryPollMutableStateResponse,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithCustomFuncs(testutils.WorkflowStateFuzzer),
+		testutils.WithExcludedFields("WorkflowCloseState"),
+	)
+}
+
+func TestHistoryRecordActivityTaskStartedResponseFuzz(t *testing.T) {
+	// [BUG] Attempt is int64 in types but int32 in proto; values outside int32 range are truncated.
+	// ScheduledEvent is a HistoryEvent requiring complex enum handling;
+	// it is tested comprehensively in api_test.go (TestHistoryEventFuzz).
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordActivityTaskStartedResponse, ToHistoryRecordActivityTaskStartedResponse,
+		testutils.WithExcludedFields("Attempt", "ScheduledEvent"),
+	)
+}
+
+func TestHistoryRecordDecisionTaskStartedResponseFuzz(t *testing.T) {
+	// [BUG] Attempt is int64 in types but int32 in proto; values outside int32 range are truncated.
+	// DecisionInfo contains TransientDecisionInfo which has HistoryEvent fields requiring complex
+	// enum handling; it is tested comprehensively in api_test.go (TestHistoryEventFuzz).
+	// WorkflowExecutionTaskList has TaskListKind/TaskListType enums; WithCommonEnumFuzzers covers them.
+	testutils.RunMapperFuzzTest(t, FromHistoryRecordDecisionTaskStartedResponse, ToHistoryRecordDecisionTaskStartedResponse,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithExcludedFields("Attempt", "DecisionInfo"),
+	)
+}
+
+func TestHistorySyncShardStatusRequestFuzz(t *testing.T) {
+	// [BUG] ShardID is int64 in types but int32 in proto; values outside int32 range are truncated.
+	testutils.RunMapperFuzzTest(t, FromHistorySyncShardStatusRequest, ToHistorySyncShardStatusRequest,
+		testutils.WithExcludedFields("ShardID"),
+	)
+}
+
+func TestHistoryQueryWorkflowResponseFuzz(t *testing.T) {
+	// FromHistoryQueryWorkflowResponse returns nil when t.Response == nil, so round-trip
+	// fails for nil Response. HistoryQueryWorkflowResponseFuzzer ensures Response is always set.
+	// QueryRejected contains QueryRejectCondition which needs a constrained fuzzer.
+	testutils.RunMapperFuzzTest(t, FromHistoryQueryWorkflowResponse, ToHistoryQueryWorkflowResponse,
+		testutils.WithCustomFuncs(HistoryQueryWorkflowResponseFuzzer, QueryRejectConditionFuzzer),
+	)
+}
+
+func TestHistoryReapplyEventsRequestFuzz(t *testing.T) {
+	// FromHistoryReapplyEventsRequest returns nil when t.Request == nil, so round-trip
+	// fails for nil Request. HistoryReapplyEventsRequestFuzzer ensures Request is always set.
+	testutils.RunMapperFuzzTest(t, FromHistoryReapplyEventsRequest, ToHistoryReapplyEventsRequest,
+		testutils.WithCustomFuncs(HistoryReapplyEventsRequestFuzzer, testutils.EncodingTypeFuzzer),
+	)
+}
+
+func TestHistoryRefreshWorkflowTasksRequestFuzz(t *testing.T) {
+	// FromHistoryRefreshWorkflowTasksRequest returns nil when t.Request == nil, so round-trip
+	// fails for nil Request. HistoryRefreshWorkflowTasksRequestFuzzer ensures Request is always set.
+	testutils.RunMapperFuzzTest(t, FromHistoryRefreshWorkflowTasksRequest, ToHistoryRefreshWorkflowTasksRequest,
+		testutils.WithCustomFuncs(HistoryRefreshWorkflowTasksRequestFuzzer),
+	)
+}
+
+func TestHistoryStartWorkflowExecutionRequestFuzz(t *testing.T) {
+	// [BUG] StartRequest contains WorkflowIDReusePolicy (out-of-range → nil) and
+	// ExternalEntityType/ExternalEntityKey fields not mapped through proto (silently dropped).
+	// Exclude StartRequest; it is tested via api_test.go.
+	// ContinueAsNewInitiator is an enum (0-2); HistoryContinueAsNewInitiatorFuzzer constrains it.
+	// [BUG] ContinuedFailureDetails dropped when ContinuedFailureReason is nil (FromFailure);
+	// HistoryStartWorkflowExecutionRequestFuzzer ensures reason is non-nil when details are set.
+	testutils.RunMapperFuzzTest(t, FromHistoryStartWorkflowExecutionRequest, ToHistoryStartWorkflowExecutionRequest,
+		testutils.WithCommonEnumFuzzers(),
+		testutils.WithCustomFuncs(ContinueAsNewInitiatorFuzzer, HistoryStartWorkflowExecutionRequestFuzzer),
+		testutils.WithExcludedFields("StartRequest"),
+	)
 }

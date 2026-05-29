@@ -137,6 +137,9 @@ func TestTaskListLimiter(t *testing.T) {
 				MinTaskThrottlingBurstSize: func() int {
 					return 1
 				},
+				OverrideTaskListRPS: func() float64 {
+					return 0
+				},
 			}
 			limiter := newTaskListLimiter(mockClock, scope, tlConfig, func() int {
 				return numPartitions

@@ -617,6 +617,72 @@ func (s *IntegrationSuite) TestDelayStartWorkflow() {
 	)
 }
 
+func (s *IntegrationSuite) TestSignalDoesNotOverrideDelayStart() {
+	id := "integration-signal-delay-start-test"
+	wt := "integration-signal-delay-start-test-type"
+	tl := "integration-signal-delay-start-test-tasklist"
+	identity := "worker1"
+
+	workflowType := &types.WorkflowType{Name: wt}
+	taskList := &types.TaskList{Name: tl}
+
+	// Start workflow with a very large delay (300s) so it won't fire during the test
+	request := &types.StartWorkflowExecutionRequest{
+		RequestID:                           uuid.New(),
+		Domain:                              s.DomainName,
+		WorkflowID:                          id,
+		WorkflowType:                        workflowType,
+		TaskList:                            taskList,
+		Input:                               nil,
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+		Identity:                            identity,
+		DelayStartSeconds:                   common.Int32Ptr(300),
+	}
+
+	ctx, cancel := createContext()
+	defer cancel()
+	we, err := s.Engine.StartWorkflowExecution(ctx, request)
+	s.NoError(err)
+	s.NotNil(we)
+
+	// Signal the workflow before the delay expires
+	signalName := "test-signal"
+	signalInput := []byte(`"payload"`)
+	ctx2, cancel2 := createContext()
+	defer cancel2()
+	err = s.Engine.SignalWorkflowExecution(ctx2, &types.SignalWorkflowExecutionRequest{
+		Domain: s.DomainName,
+		WorkflowExecution: &types.WorkflowExecution{
+			WorkflowID: id,
+			RunID:      we.RunID,
+		},
+		SignalName: signalName,
+		Input:      signalInput,
+		Identity:   identity,
+	})
+	s.NoError(err)
+
+	// Describe the workflow and verify no decision task is pending
+	ctx3, cancel3 := createContext()
+	defer cancel3()
+	descResp, err := s.Engine.DescribeWorkflowExecution(ctx3, &types.DescribeWorkflowExecutionRequest{
+		Domain: s.DomainName,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: id,
+			RunID:      we.RunID,
+		},
+	})
+	s.NoError(err)
+	s.NotNil(descResp)
+
+	// Workflow should still be open (no close time, no close status)
+	s.Nil(descResp.WorkflowExecutionInfo.CloseStatus)
+
+	// No decision task should have been scheduled — the signal must not override DelayStart
+	s.Nil(descResp.PendingDecision, "Signal should not schedule a decision task before DelayStart expires")
+}
+
 func RunSequentialWorkflow(
 	s *IntegrationSuite,
 	workflowID string,

@@ -23,10 +23,9 @@
 package tasklist
 
 import (
+	"maps"
 	"math"
 	"slices"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/metrics"
@@ -84,7 +83,7 @@ func (i *isolationBalancer) adjustWritePartitions(metrics *aggregatePartitionMet
 }
 
 func (i *isolationBalancer) reset() {
-	maps.Clear(i.groupState)
+	clear(i.groupState)
 }
 
 func (i *isolationBalancer) refreshGroups(metrics *aggregatePartitionMetrics, writePartitions map[int]*types.TaskListPartition) {
@@ -178,7 +177,7 @@ func (i *isolationBalancer) calculatePartitionGoal(aggregateMetrics *aggregatePa
 		sustainedOverLoad := state.overLoad.Check(groupQPS > upscaleThreshold)
 		sustainedUnderLoad := state.underLoad.Check(groupQPS < downscaleThreshold)
 
-		idealPartitions := getNumberOfPartitions(groupQPS, upscaleRps)
+		idealPartitions := getNumberOfPartitions(groupQPS, upscaleRps, 1)
 		// partitions must be >= minPartitions and <= writePartitionCount
 		targetPartitions := min(max(minPartitions, idealPartitions), writePartitionCount)
 
@@ -243,7 +242,7 @@ func (i *isolationBalancer) applyGroupChanges(m *aggregatePartitionMetrics, part
 		if len(groups) == 0 {
 			result[id] = &types.TaskListPartition{}
 		} else {
-			asSlice := maps.Keys(groups)
+			asSlice := slices.Collect(maps.Keys(groups))
 			// Sort for the sake of stability
 			slices.Sort(asSlice)
 			result[id] = &types.TaskListPartition{IsolationGroups: asSlice}
@@ -303,7 +302,7 @@ func ensureMinimumGroupsPerPartition(minGroups int, groupSizePerPartition map[st
 	// in size, so we use a simple heuristic of minimizing the difference in total size between the two partitions that
 	// we're considering.
 	changed := false
-	partitionIDsByGroupCount := maps.Keys(groupsByPartitionID)
+	partitionIDsByGroupCount := slices.Collect(maps.Keys(groupsByPartitionID))
 	slices.SortFunc(partitionIDsByGroupCount, func(a, b int) int {
 		aLen := len(groupsByPartitionID[a])
 		bLen := len(groupsByPartitionID[b])

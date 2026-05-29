@@ -92,6 +92,20 @@ func (mr *MockStoreMockRecorder) AssignShards(ctx, namespace, request, guard any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignShards", reflect.TypeOf((*MockStore)(nil).AssignShards), ctx, namespace, request, guard)
 }
 
+// DeleteAssignedStates mocks base method.
+func (m *MockStore) DeleteAssignedStates(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAssignedStates", ctx, namespace, executorIDs, guard)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAssignedStates indicates an expected call of DeleteAssignedStates.
+func (mr *MockStoreMockRecorder) DeleteAssignedStates(ctx, namespace, executorIDs, guard any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAssignedStates", reflect.TypeOf((*MockStore)(nil).DeleteAssignedStates), ctx, namespace, executorIDs, guard)
+}
+
 // DeleteExecutors mocks base method.
 func (m *MockStore) DeleteExecutors(ctx context.Context, namespace string, executorIDs []string, guard GuardFunc) error {
 	m.ctrl.T.Helper()
@@ -104,6 +118,35 @@ func (m *MockStore) DeleteExecutors(ctx context.Context, namespace string, execu
 func (mr *MockStoreMockRecorder) DeleteExecutors(ctx, namespace, executorIDs, guard any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExecutors", reflect.TypeOf((*MockStore)(nil).DeleteExecutors), ctx, namespace, executorIDs, guard)
+}
+
+// DeleteShardStats mocks base method.
+func (m *MockStore) DeleteShardStats(ctx context.Context, namespace string, shardIDs []string, guard GuardFunc) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteShardStats", ctx, namespace, shardIDs, guard)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteShardStats indicates an expected call of DeleteShardStats.
+func (mr *MockStoreMockRecorder) DeleteShardStats(ctx, namespace, shardIDs, guard any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteShardStats", reflect.TypeOf((*MockStore)(nil).DeleteShardStats), ctx, namespace, shardIDs, guard)
+}
+
+// GetExecutor mocks base method.
+func (m *MockStore) GetExecutor(ctx context.Context, namespace, executorID string) (*ShardOwner, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExecutor", ctx, namespace, executorID)
+	ret0, _ := ret[0].(*ShardOwner)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExecutor indicates an expected call of GetExecutor.
+func (mr *MockStoreMockRecorder) GetExecutor(ctx, namespace, executorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutor", reflect.TypeOf((*MockStore)(nil).GetExecutor), ctx, namespace, executorID)
 }
 
 // GetHeartbeat mocks base method.
@@ -123,10 +166,10 @@ func (mr *MockStoreMockRecorder) GetHeartbeat(ctx, namespace, executorID any) *g
 }
 
 // GetShardOwner mocks base method.
-func (m *MockStore) GetShardOwner(ctx context.Context, namespace, shardID string) (string, error) {
+func (m *MockStore) GetShardOwner(ctx context.Context, namespace, shardID string) (*ShardOwner, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShardOwner", ctx, namespace, shardID)
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(*ShardOwner)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -166,17 +209,33 @@ func (mr *MockStoreMockRecorder) RecordHeartbeat(ctx, namespace, executorID, sta
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordHeartbeat", reflect.TypeOf((*MockStore)(nil).RecordHeartbeat), ctx, namespace, executorID, state)
 }
 
-// Subscribe mocks base method.
-func (m *MockStore) Subscribe(ctx context.Context, namespace string) (<-chan int64, error) {
+// SubscribeToAssignmentChanges mocks base method.
+func (m *MockStore) SubscribeToAssignmentChanges(ctx context.Context, namespace string) (<-chan map[*ShardOwner][]string, func(), error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", ctx, namespace)
+	ret := m.ctrl.Call(m, "SubscribeToAssignmentChanges", ctx, namespace)
+	ret0, _ := ret[0].(<-chan map[*ShardOwner][]string)
+	ret1, _ := ret[1].(func())
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SubscribeToAssignmentChanges indicates an expected call of SubscribeToAssignmentChanges.
+func (mr *MockStoreMockRecorder) SubscribeToAssignmentChanges(ctx, namespace any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubscribeToAssignmentChanges", reflect.TypeOf((*MockStore)(nil).SubscribeToAssignmentChanges), ctx, namespace)
+}
+
+// SubscribeToExecutorStatusChanges mocks base method.
+func (m *MockStore) SubscribeToExecutorStatusChanges(ctx context.Context, namespace string) (<-chan int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SubscribeToExecutorStatusChanges", ctx, namespace)
 	ret0, _ := ret[0].(<-chan int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Subscribe indicates an expected call of Subscribe.
-func (mr *MockStoreMockRecorder) Subscribe(ctx, namespace any) *gomock.Call {
+// SubscribeToExecutorStatusChanges indicates an expected call of SubscribeToExecutorStatusChanges.
+func (mr *MockStoreMockRecorder) SubscribeToExecutorStatusChanges(ctx, namespace any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockStore)(nil).Subscribe), ctx, namespace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubscribeToExecutorStatusChanges", reflect.TypeOf((*MockStore)(nil).SubscribeToExecutorStatusChanges), ctx, namespace)
 }

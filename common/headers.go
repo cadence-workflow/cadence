@@ -20,6 +20,8 @@
 
 package common
 
+import "github.com/uber/cadence/common/types"
+
 const (
 	// LibraryVersionHeaderName refers to the name of the
 	// tchannel / http header that contains the client
@@ -54,4 +56,7 @@ const (
 
 	// ClientIsolationGroupHeaderName refers to the name of the header that contains the isolation group which the client request is from
 	ClientIsolationGroupHeaderName = "cadence-client-isolation-group"
+
+	// CallerTypeHeaderName refers to the name of the header that contains the caller type (CLI, UI, SDK, internal, etc.)
+	CallerTypeHeaderName = types.CallerTypeHeaderName
 )

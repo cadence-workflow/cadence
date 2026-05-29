@@ -145,7 +145,12 @@ var (
 		&cli.StringSliceFlag{
 			Name:    FlagActiveClusters,
 			Aliases: []string{"acs"},
-			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+			Usage:   "Active clusters by cluster attribute in the format '<attr-scope>.<attr-name>:<cluster_name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringFlag{
+			Name:    FlagActiveClustersJSON,
+			Aliases: []string{"acs-json"},
+			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"<attr-scope>":{"clusterAttributes":{"<attr-name>":{"activeClusterName":"<cluster_name>"}}}}}`,
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,
@@ -270,6 +275,35 @@ var (
 			Aliases: []string{"ac"},
 			Usage:   "Active cluster name",
 		},
+		&cli.StringSliceFlag{
+			Name:    FlagActiveClusters,
+			Aliases: []string{"acs"},
+			Usage:   "Active clusters by cluster attribute in the format '<attr-scope>.<attr-name>:<cluster_name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringFlag{
+			Name:    FlagActiveClustersJSON,
+			Aliases: []string{"acs-json"},
+			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"<attr-scope>":{"clusterAttributes":{"<attr-name>":{"activeClusterName":"<cluster_name>"}}}}}`,
+		},
+		&cli.StringFlag{
+			Name:    FlagFailoverReason,
+			Aliases: []string{"r"},
+			Usage:   "Reason for failover (for tracking and transparency)",
+		},
+	}
+
+	listFailoverHistoryFlags = []cli.Flag{
+		&cli.BoolFlag{
+			Name:    FlagAll,
+			Aliases: []string{"a"},
+			Usage:   "List all failover history events",
+		},
+		&cli.BoolFlag{
+			Name:    FlagPrintJSON,
+			Aliases: []string{"pjson"},
+			Usage:   "Print in raw JSON format",
+		},
+		getFormatFlag(),
 	}
 
 	adminDomainCommonFlags = getDBFlags()
@@ -376,6 +410,7 @@ func initializeDomainHandler(
 		domainConfig,
 		logger,
 		domainManager,
+		nil, // domainAuditManager not needed for CLI tools
 		clusterMetadata,
 		initializeDomainReplicator(logger),
 		archivalMetadata,
@@ -486,7 +521,7 @@ func initializeDynamicConfig(
 }
 
 func initializeMetricsClient() metrics.Client {
-	return metrics.NewClient(tally.NoopScope, metrics.Common, metrics.HistogramMigration{})
+	return metrics.NewClient(tally.NoopScope, metrics.Common, metrics.MigrationConfig{})
 }
 
 func getEnvironment(c *cli.Context) string {

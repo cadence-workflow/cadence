@@ -24,24 +24,42 @@ import "github.com/uber/cadence/common/types"
 
 // valid indexed fields on ES
 const (
-	DomainID        = "DomainID"
-	WorkflowID      = "WorkflowID"
-	RunID           = "RunID"
-	WorkflowType    = "WorkflowType"
-	StartTime       = "StartTime"
-	ExecutionTime   = "ExecutionTime"
-	CloseTime       = "CloseTime"
-	CloseStatus     = "CloseStatus"
-	HistoryLength   = "HistoryLength"
-	Encoding        = "Encoding"
-	KafkaKey        = "KafkaKey"
-	BinaryChecksums = "BinaryChecksums"
-	TaskList        = "TaskList"
-	IsCron          = "IsCron"
-	NumClusters     = "NumClusters"
-	UpdateTime      = "UpdateTime"
-	CustomDomain    = "CustomDomain" // to support batch workflow
-	Operator        = "Operator"     // to support batch workflow
+	DomainID               = "DomainID"
+	WorkflowID             = "WorkflowID"
+	RunID                  = "RunID"
+	WorkflowType           = "WorkflowType"
+	StartTime              = "StartTime"
+	ExecutionTime          = "ExecutionTime"
+	CloseTime              = "CloseTime"
+	CloseStatus            = "CloseStatus"
+	HistoryLength          = "HistoryLength"
+	Encoding               = "Encoding"
+	KafkaKey               = "KafkaKey"
+	BinaryChecksums        = "BinaryChecksums"
+	TaskList               = "TaskList"
+	ClusterAttributeScope  = "ClusterAttributeScope"
+	ClusterAttributeName   = "ClusterAttributeName"
+	IsCron                 = "IsCron"
+	NumClusters            = "NumClusters"
+	UpdateTime             = "UpdateTime"
+	CronSchedule           = "CronSchedule"
+	ExecutionStatus        = "ExecutionStatus"
+	ScheduledExecutionTime = "ScheduledExecutionTime"
+	CustomDomain           = "CustomDomain" // to support batch workflow
+	Operator               = "Operator"     // to support batch workflow
+
+	// Schedule search attributes set on target workflows started by the scheduler.
+	CadenceScheduleID         = "CadenceScheduleID"
+	CadenceScheduleTime       = "CadenceScheduleTime"
+	CadenceScheduleIsBackfill = "CadenceScheduleIsBackfill"
+	// CadenceScheduleBackfillID is set on target workflows started by a schedule
+	// backfill when the client supplied a non-empty BackfillID (keyword).
+	CadenceScheduleBackfillID = "CadenceScheduleBackfillID"
+
+	// Schedule search attributes set on the scheduler workflow itself (used by ListSchedules).
+	CadenceScheduleState        = "CadenceScheduleState"
+	CadenceScheduleCron         = "CadenceScheduleCron"
+	CadenceScheduleWorkflowType = "CadenceScheduleWorkflowType"
 
 	CustomStringField    = "CustomStringField"
 	CustomKeywordField   = "CustomKeywordField"
@@ -76,6 +94,15 @@ func createDefaultIndexedKeys() map[string]interface{} {
 		BinaryChecksums:      types.IndexedValueTypeKeyword,
 		CustomDomain:         types.IndexedValueTypeString,
 		Operator:             types.IndexedValueTypeString,
+		// Schedule search attributes are set by the scheduler workflow/activity via
+		// UpsertSearchAttributes and StartWorkflow
+		CadenceScheduleID:           types.IndexedValueTypeKeyword,
+		CadenceScheduleTime:         types.IndexedValueTypeDatetime,
+		CadenceScheduleIsBackfill:   types.IndexedValueTypeBool,
+		CadenceScheduleState:        types.IndexedValueTypeKeyword,
+		CadenceScheduleCron:         types.IndexedValueTypeKeyword,
+		CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
+		CadenceScheduleBackfillID:   types.IndexedValueTypeKeyword,
 	}
 	for k, v := range systemIndexedKeys {
 		defaultIndexedKeys[k] = v
@@ -90,19 +117,24 @@ func GetDefaultIndexedKeys() map[string]interface{} {
 
 // systemIndexedKeys is Cadence created visibility keys
 var systemIndexedKeys = map[string]interface{}{
-	DomainID:      types.IndexedValueTypeKeyword,
-	WorkflowID:    types.IndexedValueTypeKeyword,
-	RunID:         types.IndexedValueTypeKeyword,
-	WorkflowType:  types.IndexedValueTypeKeyword,
-	StartTime:     types.IndexedValueTypeInt,
-	ExecutionTime: types.IndexedValueTypeInt,
-	CloseTime:     types.IndexedValueTypeInt,
-	CloseStatus:   types.IndexedValueTypeInt,
-	HistoryLength: types.IndexedValueTypeInt,
-	TaskList:      types.IndexedValueTypeKeyword,
-	IsCron:        types.IndexedValueTypeBool,
-	NumClusters:   types.IndexedValueTypeInt,
-	UpdateTime:    types.IndexedValueTypeInt,
+	DomainID:               types.IndexedValueTypeKeyword,
+	WorkflowID:             types.IndexedValueTypeKeyword,
+	RunID:                  types.IndexedValueTypeKeyword,
+	WorkflowType:           types.IndexedValueTypeKeyword,
+	StartTime:              types.IndexedValueTypeInt,
+	ExecutionTime:          types.IndexedValueTypeInt,
+	CloseTime:              types.IndexedValueTypeInt,
+	CloseStatus:            types.IndexedValueTypeInt,
+	HistoryLength:          types.IndexedValueTypeInt,
+	TaskList:               types.IndexedValueTypeKeyword,
+	IsCron:                 types.IndexedValueTypeBool,
+	NumClusters:            types.IndexedValueTypeInt,
+	UpdateTime:             types.IndexedValueTypeInt,
+	CronSchedule:           types.IndexedValueTypeKeyword,
+	ExecutionStatus:        types.IndexedValueTypeInt,
+	ScheduledExecutionTime: types.IndexedValueTypeInt,
+	ClusterAttributeScope:  types.IndexedValueTypeKeyword,
+	ClusterAttributeName:   types.IndexedValueTypeKeyword,
 }
 
 // IsSystemIndexedKey return true is key is system added

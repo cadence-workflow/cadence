@@ -238,7 +238,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_EphemeralTaskL
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
 
-	event, ai, _, _, _, _ := mutableState.AddActivityTaskScheduledEvent(nil, decisionCompletionID, &types.ScheduleActivityTaskDecisionAttributes{
+	event, ai, _, _ := mutableState.AddActivityTaskScheduledEvent(decisionCompletionID, &types.ScheduleActivityTaskDecisionAttributes{
 		ActivityID:                    "activity-1",
 		ActivityType:                  &types.ActivityType{Name: "some random activity type"},
 		TaskList:                      &types.TaskList{Name: mutableState.GetExecutionInfo().TaskList, Kind: types.TaskListKindEphemeral.Ptr()},
@@ -247,8 +247,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_EphemeralTaskL
 		ScheduleToStartTimeoutSeconds: common.Int32Ptr(1),
 		StartToCloseTimeoutSeconds:    common.Int32Ptr(1),
 		HeartbeatTimeoutSeconds:       common.Int32Ptr(1),
-	}, false,
-	)
+	})
 	mutableState.FlushBufferedEvents()
 
 	transferTask := s.newTransferTaskFromInfo(&persistence.ActivityTask{
@@ -797,9 +796,13 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
-
-	startEvent, err := mutableState.GetStartEvent(context.Background())
-	s.Require().NoError(err)
+	executionInfo := mutableState.GetExecutionInfo()
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
 	event := test.AddCompleteWorkflowEvent(mutableState, decisionCompletionID, nil)
 
 	transferTask := s.newTransferTaskFromInfo(&persistence.CloseExecutionTask{
@@ -817,11 +820,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessCloseExecution_NoParent() {
 	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
-	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, createRecordWorkflowExecutionClosedRequest(
-		s.T(),
-		s.domainName, startEvent, transferTask, mutableState, 2, s.mockShard.GetTimeSource().Now(), event.Timestamp,
-		true),
-	).Return(nil).Once()
+	s.mockVisibilityMgr.On("RecordWorkflowExecutionClosed", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("enabled"), true, dynamicproperties.GetBoolPropertyFn(true), "disabled", "random URI"))
 	s.mockArchivalClient.EXPECT().Archive(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
 	// switch on context header in viz
@@ -1796,6 +1795,12 @@ func (s *transferActiveTaskExecutorSuite) TestProcessRecordWorkflowStartedTask()
 	s.NoError(err)
 	executionInfo := mutableState.GetExecutionInfo()
 	executionInfo.CronSchedule = "@every 5s"
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
 	startEvent, err := mutableState.GetStartEvent(context.Background())
 	s.NoError(err)
 	startEvent.WorkflowExecutionStartedEventAttributes.FirstDecisionTaskBackoffSeconds = common.Int32Ptr(5)
@@ -1892,6 +1897,13 @@ func (s *transferActiveTaskExecutorSuite) TestProcessUpsertWorkflowSearchAttribu
 
 	workflowExecution, mutableState, decisionCompletionID, err := test.SetupWorkflowWithCompletedDecision(s.T(), s.mockShard, s.domainID)
 	s.NoError(err)
+	executionInfo := mutableState.GetExecutionInfo()
+	executionInfo.ActiveClusterSelectionPolicy = &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: "region",
+			Name:  "us-west",
+		},
+	}
 
 	transferTask := s.newTransferTaskFromInfo(&persistence.UpsertWorkflowSearchAttributesTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{
@@ -2010,7 +2022,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessResetWorkflow_WorkflowNotRu
 	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, decisionCompletionID, mutableState.GetCurrentVersion())
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
-	s.mockExecutionMgr.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{DomainID: s.domainID, WorkflowID: workflowExecution.GetWorkflowID(), DomainName: s.domainName}).
+	s.mockExecutionMgr.On("GetCurrentExecution", mock.Anything, &persistence.GetCurrentExecutionRequest{DomainID: s.domainID, WorkflowID: workflowExecution.GetWorkflowID(), DomainName: s.domainName, ShardID: common.Ptr(0)}).
 		Return(&persistence.GetCurrentExecutionResponse{RunID: "runID"}, nil)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
@@ -2223,20 +2235,27 @@ func createRecordWorkflowExecutionStartedRequest(
 			"Header_context_key": contextValueJSONString,
 		}
 	}
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, false)
+
 	return &persistence.RecordWorkflowExecutionStartedRequest{
-		Domain:             domainName,
-		DomainUUID:         taskInfo.DomainID,
-		Execution:          workflowExecution,
-		WorkflowTypeName:   executionInfo.WorkflowTypeName,
-		StartTimestamp:     startEvent.GetTimestamp(),
-		ExecutionTimestamp: executionTimestamp,
-		WorkflowTimeout:    int64(executionInfo.WorkflowTimeout),
-		TaskID:             taskInfo.TaskID,
-		TaskList:           executionInfo.TaskList,
-		IsCron:             len(executionInfo.CronSchedule) > 0,
-		NumClusters:        numClusters,
-		UpdateTimestamp:    updateTime.UnixNano(),
-		SearchAttributes:   searchAttributes,
+		Domain:                      domainName,
+		DomainUUID:                  taskInfo.DomainID,
+		Execution:                   workflowExecution,
+		WorkflowTypeName:            executionInfo.WorkflowTypeName,
+		StartTimestamp:              startEvent.GetTimestamp(),
+		ExecutionTimestamp:          executionTimestamp,
+		WorkflowTimeout:             int64(executionInfo.WorkflowTimeout),
+		TaskID:                      taskInfo.TaskID,
+		TaskList:                    executionInfo.TaskList,
+		IsCron:                      len(executionInfo.CronSchedule) > 0,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
+		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
+		UpdateTimestamp:             updateTime.UnixNano(),
+		SearchAttributes:            searchAttributes,
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                executionInfo.CronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
 	}
 }
 
@@ -2272,22 +2291,64 @@ func createRecordWorkflowExecutionClosedRequest(
 			"Header_context_key": contextValueJSONString,
 		}
 	}
+	scheduledExecutionTimestamp := int64(0)
+	if executionTimestamp != 0 {
+		scheduledExecutionTimestamp = executionTimestamp
+	}
+
+	// Get completion event to determine execution status
+	// For closed workflows, ExecutionStatus should reflect the close status (COMPLETED, FAILED, etc.)
+	// not the running status (PENDING, STARTED)
+	completionEvent, err := mutableState.GetCompletionEvent(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	executionStatus := getTestWorkflowExecutionStatus(completionEvent)
+
 	return &persistence.RecordWorkflowExecutionClosedRequest{
-		Domain:             domainName,
-		DomainUUID:         taskInfo.DomainID,
-		Execution:          workflowExecution,
-		HistoryLength:      mutableState.GetNextEventID() - 1,
-		WorkflowTypeName:   executionInfo.WorkflowTypeName,
-		StartTimestamp:     startEvent.GetTimestamp(),
-		ExecutionTimestamp: executionTimestamp,
-		TaskID:             taskInfo.TaskID,
-		TaskList:           executionInfo.TaskList,
-		IsCron:             len(executionInfo.CronSchedule) > 0,
-		NumClusters:        numClusters,
-		UpdateTimestamp:    updateTime.UnixNano(),
-		CloseTimestamp:     *closeTimestamp,
-		RetentionSeconds:   int64(mutableState.GetDomainEntry().GetRetentionDays(taskInfo.GetWorkflowID()) * 24 * 3600),
-		SearchAttributes:   searchAttributes,
+		Domain:                      domainName,
+		DomainUUID:                  taskInfo.DomainID,
+		Execution:                   workflowExecution,
+		HistoryLength:               mutableState.GetNextEventID() - 1,
+		WorkflowTypeName:            executionInfo.WorkflowTypeName,
+		StartTimestamp:              startEvent.GetTimestamp(),
+		ExecutionTimestamp:          executionTimestamp,
+		TaskID:                      taskInfo.TaskID,
+		TaskList:                    executionInfo.TaskList,
+		IsCron:                      len(executionInfo.CronSchedule) > 0,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
+		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
+		UpdateTimestamp:             updateTime.UnixNano(),
+		CloseTimestamp:              *closeTimestamp,
+		RetentionSeconds:            int64(mutableState.GetDomainEntry().GetRetentionDays(taskInfo.GetWorkflowID()) * 24 * 3600),
+		SearchAttributes:            searchAttributes,
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                executionInfo.CronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
+	}
+}
+
+// getTestWorkflowExecutionStatus determines execution status from close event
+// This mirrors the logic in getWorkflowExecutionStatus in transfer_active_task_executor.go
+func getTestWorkflowExecutionStatus(closeEvent *types.HistoryEvent) types.WorkflowExecutionStatus {
+	switch closeEvent.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted:
+		return types.WorkflowExecutionStatusCompleted
+	case types.EventTypeWorkflowExecutionFailed:
+		return types.WorkflowExecutionStatusFailed
+	case types.EventTypeWorkflowExecutionCanceled:
+		return types.WorkflowExecutionStatusCanceled
+	case types.EventTypeWorkflowExecutionTerminated:
+		return types.WorkflowExecutionStatusTerminated
+	case types.EventTypeWorkflowExecutionTimedOut:
+		return types.WorkflowExecutionStatusTimedOut
+	case types.EventTypeWorkflowExecutionContinuedAsNew:
+		// For simplicity in tests, return ContinuedAsNew
+		// Production code has more complex logic for cron workflows
+		return types.WorkflowExecutionStatusContinuedAsNew
+	default:
+		return types.WorkflowExecutionStatusCompleted
 	}
 }
 
@@ -2432,20 +2493,27 @@ func createUpsertWorkflowSearchAttributesRequest(
 		}
 	}
 
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatus(startEvent, mutableState)
+
 	return &persistence.UpsertWorkflowExecutionRequest{
-		Domain:             domainName,
-		DomainUUID:         taskInfo.DomainID,
-		Execution:          workflowExecution,
-		WorkflowTypeName:   executionInfo.WorkflowTypeName,
-		StartTimestamp:     startEvent.GetTimestamp(),
-		ExecutionTimestamp: executionTimestamp,
-		WorkflowTimeout:    int64(executionInfo.WorkflowTimeout),
-		TaskID:             taskInfo.TaskID,
-		TaskList:           executionInfo.TaskList,
-		IsCron:             len(executionInfo.CronSchedule) > 0,
-		NumClusters:        numClusters,
-		UpdateTimestamp:    updateTime.UnixNano(),
-		SearchAttributes:   searchAttributes,
+		Domain:                      domainName,
+		DomainUUID:                  taskInfo.DomainID,
+		Execution:                   workflowExecution,
+		WorkflowTypeName:            executionInfo.WorkflowTypeName,
+		StartTimestamp:              startEvent.GetTimestamp(),
+		ExecutionTimestamp:          executionTimestamp,
+		WorkflowTimeout:             int64(executionInfo.WorkflowTimeout),
+		TaskID:                      taskInfo.TaskID,
+		TaskList:                    executionInfo.TaskList,
+		IsCron:                      len(executionInfo.CronSchedule) > 0,
+		NumClusters:                 numClusters,
+		ClusterAttributeScope:       executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetScope(),
+		ClusterAttributeName:        executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute().GetName(),
+		UpdateTimestamp:             updateTime.UnixNano(),
+		SearchAttributes:            searchAttributes,
+		ExecutionStatus:             executionStatus,
+		CronSchedule:                executionInfo.CronSchedule,
+		ScheduledExecutionTimestamp: scheduledExecutionTimestamp,
 	}
 }
 

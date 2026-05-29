@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
+	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -45,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -57,6 +59,7 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/taskvalidator"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -84,17 +87,19 @@ type (
 
 		// internal services clients
 
-		SDKClient            *publicservicetest.MockClient
-		FrontendClient       *frontend.MockClient
-		MatchingClient       *matching.MockClient
-		HistoryClient        *history.MockClient
-		RemoteAdminClient    *admin.MockClient
-		RemoteFrontendClient *frontend.MockClient
-		ClientBean           *client.MockBean
+		SDKClient                      *publicservicetest.MockClient
+		FrontendClient                 *frontend.MockClient
+		MatchingClient                 *matching.MockClient
+		HistoryClient                  *history.MockClient
+		ShardDistributorExecutorClient *sharddistributorexecutor.MockClient
+		RemoteAdminClient              *admin.MockClient
+		RemoteFrontendClient           *frontend.MockClient
+		ClientBean                     *client.MockBean
 
 		// persistence clients
 
 		MetadataMgr     *mocks.MetadataManager
+		DomainAuditMgr  *persistence.MockDomainAuditManager
 		TaskMgr         *mocks.TaskManager
 		VisibilityMgr   *mocks.VisibilityManager
 		ShardMgr        *mocks.ShardManager
@@ -102,11 +107,12 @@ type (
 		ExecutionMgr    *mocks.ExecutionManager
 		PersistenceBean *persistenceClient.MockBean
 
-		IsolationGroups     *isolationgroup.MockState
-		IsolationGroupStore *configstore.MockClient
-		HostName            string
-		Logger              log.Logger
-		taskvalidator       taskvalidator.Checker
+		IsolationGroups        *isolationgroup.MockState
+		IsolationGroupStore    configstore.Client
+		OperationalConfigStore configstore.Client
+		HostName               string
+		Logger                 log.Logger
+		taskvalidator          taskvalidator.Checker
 
 		AsyncWorkflowQueueProvider *queue.MockProvider
 
@@ -143,8 +149,10 @@ func NewTest(
 	clientBean.EXPECT().GetHistoryClient().Return(historyClient).AnyTimes()
 	clientBean.EXPECT().GetRemoteAdminClient(gomock.Any()).Return(remoteAdminClient, nil).AnyTimes()
 	clientBean.EXPECT().GetRemoteFrontendClient(gomock.Any()).Return(remoteFrontendClient, nil).AnyTimes()
+	shardDistributorExecutorClient := sharddistributorexecutor.NewMockClient(controller)
 
 	metadataMgr := &mocks.MetadataManager{}
+	domainAuditMgr := persistence.NewMockDomainAuditManager(controller)
 	taskMgr := &mocks.TaskManager{}
 	visibilityMgr := &mocks.VisibilityManager{}
 	shardMgr := &mocks.ShardManager{}
@@ -155,11 +163,13 @@ func NewTest(
 	domainReplicationQueue.EXPECT().Stop().AnyTimes()
 	persistenceBean := persistenceClient.NewMockBean(controller)
 	persistenceBean.EXPECT().GetDomainManager().Return(metadataMgr).AnyTimes()
+	persistenceBean.EXPECT().GetDomainAuditManager().Return(domainAuditMgr).AnyTimes()
 	persistenceBean.EXPECT().GetTaskManager().Return(taskMgr).AnyTimes()
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
 	persistenceBean.EXPECT().GetExecutionManager(gomock.Any()).Return(executionMgr, nil).AnyTimes()
+	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(controller)).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
@@ -184,7 +194,7 @@ func NewTest(
 		ActiveClusterMgr:        activeClusterMgr,
 		TimeSource:              clock.NewRealTimeSource(),
 		PayloadSerializer:       persistence.NewPayloadSerializer(),
-		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex, metrics.HistogramMigration{}),
+		MetricsClient:           metrics.NewClient(scope, serviceMetricsIndex, metrics.MigrationConfig{}),
 		ArchivalMetadata:        &archiver.MockArchivalMetadata{},
 		ArchiverProvider:        provider.NewMockArchiverProvider(controller),
 		BlobstoreClient:         blobstore.NewMockClient(controller),
@@ -195,17 +205,19 @@ func NewTest(
 
 		// internal services clients
 
-		SDKClient:            publicservicetest.NewMockClient(oldgomock.NewController(t)),
-		FrontendClient:       frontendClient,
-		MatchingClient:       matchingClient,
-		HistoryClient:        historyClient,
-		RemoteAdminClient:    remoteAdminClient,
-		RemoteFrontendClient: remoteFrontendClient,
-		ClientBean:           clientBean,
+		SDKClient:                      publicservicetest.NewMockClient(oldgomock.NewController(t)),
+		FrontendClient:                 frontendClient,
+		MatchingClient:                 matchingClient,
+		HistoryClient:                  historyClient,
+		RemoteAdminClient:              remoteAdminClient,
+		RemoteFrontendClient:           remoteFrontendClient,
+		ClientBean:                     clientBean,
+		ShardDistributorExecutorClient: shardDistributorExecutorClient,
 
 		// persistence clients
 
 		MetadataMgr:     metadataMgr,
+		DomainAuditMgr:  domainAuditMgr,
 		TaskMgr:         taskMgr,
 		VisibilityMgr:   visibilityMgr,
 		ShardMgr:        shardMgr,
@@ -213,6 +225,7 @@ func NewTest(
 		ExecutionMgr:    executionMgr,
 		PersistenceBean: persistenceBean,
 		IsolationGroups: isolationGroupMock,
+
 		// logger
 
 		Logger: logger,
@@ -292,6 +305,11 @@ func (s *Test) GetMetricsClient() metrics.Client {
 	return s.MetricsClient
 }
 
+// GetMetricsScope for testing
+func (s *Test) GetMetricsScope() tally.Scope {
+	return s.MetricsScope
+}
+
 // GetMessagingClient for testing
 func (s *Test) GetMessagingClient() messaging.Client {
 	panic("user should implement this method for test")
@@ -354,6 +372,10 @@ func (s *Test) GetHistoryClient() history.Client {
 	return s.HistoryClient
 }
 
+func (s *Test) GetShardDistributorExecutorClient() executorclient.Client {
+	return s.ShardDistributorExecutorClient
+}
+
 // GetRemoteAdminClient for testing
 func (s *Test) GetRemoteAdminClient(
 	cluster string,
@@ -382,6 +404,11 @@ func (s *Test) GetDomainManager() persistence.DomainManager {
 	return s.MetadataMgr
 }
 
+// GetDomainAuditManager for testing
+func (s *Test) GetDomainAuditManager() persistence.DomainAuditManager {
+	return s.DomainAuditMgr
+}
+
 // GetTaskManager for testing
 func (s *Test) GetTaskManager() persistence.TaskManager {
 	return s.TaskMgr
@@ -400,6 +427,11 @@ func (s *Test) GetShardManager() persistence.ShardManager {
 // GetHistoryManager for testing
 func (s *Test) GetHistoryManager() persistence.HistoryManager {
 	return s.HistoryMgr
+}
+
+// GetHistoryTaskDLQManager for testing
+func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return s.PersistenceBean.GetHistoryTaskDLQManager()
 }
 
 // GetExecutionManager for testing
@@ -446,6 +478,16 @@ func (s *Test) GetIsolationGroupState() isolationgroup.State {
 // isolation-group stores
 func (s *Test) GetIsolationGroupStore() configstore.Client {
 	return s.IsolationGroupStore
+}
+
+// GetOperationalConfigStore returns the operational dynamic config store
+func (s *Test) GetOperationalConfigStore() configstore.Client {
+	return s.OperationalConfigStore
+}
+
+// GetOperationalDynamicConfig returns a Collection backed by a no-op client for tests.
+func (s *Test) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	return dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), s.Logger)
 }
 
 func (s *Test) GetAsyncWorkflowQueueProvider() queue.Provider {

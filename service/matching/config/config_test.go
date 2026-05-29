@@ -29,6 +29,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
@@ -43,65 +44,70 @@ type configTestCase struct {
 func TestNewConfig(t *testing.T) {
 	hostname := "hostname"
 	fields := map[string]configTestCase{
-		"PersistenceMaxQPS":                         {dynamicproperties.MatchingPersistenceMaxQPS, 1},
-		"PersistenceGlobalMaxQPS":                   {dynamicproperties.MatchingPersistenceGlobalMaxQPS, 2},
-		"EnableSyncMatch":                           {dynamicproperties.MatchingEnableSyncMatch, true},
-		"UserRPS":                                   {dynamicproperties.MatchingUserRPS, 3},
-		"WorkerRPS":                                 {dynamicproperties.MatchingWorkerRPS, 4},
-		"DomainUserRPS":                             {dynamicproperties.MatchingDomainUserRPS, 5},
-		"DomainWorkerRPS":                           {dynamicproperties.MatchingDomainWorkerRPS, 6},
-		"RangeSize":                                 {nil, int64(100000)},
-		"ReadRangeSize":                             {dynamicproperties.MatchingReadRangeSize, 50000},
-		"GetTasksBatchSize":                         {dynamicproperties.MatchingGetTasksBatchSize, 7},
-		"UpdateAckInterval":                         {dynamicproperties.MatchingUpdateAckInterval, time.Duration(8)},
-		"IdleTasklistCheckInterval":                 {dynamicproperties.MatchingIdleTasklistCheckInterval, time.Duration(9)},
-		"MaxTasklistIdleTime":                       {dynamicproperties.MaxTasklistIdleTime, time.Duration(10)},
-		"LongPollExpirationInterval":                {dynamicproperties.MatchingLongPollExpirationInterval, time.Duration(11)},
-		"MinTaskThrottlingBurstSize":                {dynamicproperties.MatchingMinTaskThrottlingBurstSize, 12},
-		"MaxTaskDeleteBatchSize":                    {dynamicproperties.MatchingMaxTaskDeleteBatchSize, 13},
-		"OutstandingTaskAppendsThreshold":           {dynamicproperties.MatchingOutstandingTaskAppendsThreshold, 14},
-		"MaxTaskBatchSize":                          {dynamicproperties.MatchingMaxTaskBatchSize, 15},
-		"ThrottledLogRPS":                           {dynamicproperties.MatchingThrottledLogRPS, 16},
-		"NumTasklistWritePartitions":                {dynamicproperties.MatchingNumTasklistWritePartitions, 17},
-		"NumTasklistReadPartitions":                 {dynamicproperties.MatchingNumTasklistReadPartitions, 18},
-		"ForwarderMaxOutstandingPolls":              {dynamicproperties.MatchingForwarderMaxOutstandingPolls, 19},
-		"ForwarderMaxOutstandingTasks":              {dynamicproperties.MatchingForwarderMaxOutstandingTasks, 20},
-		"ForwarderMaxRatePerSecond":                 {dynamicproperties.MatchingForwarderMaxRatePerSecond, 21},
-		"ForwarderMaxChildrenPerNode":               {dynamicproperties.MatchingForwarderMaxChildrenPerNode, 22},
-		"ShutdownDrainDuration":                     {dynamicproperties.MatchingShutdownDrainDuration, time.Duration(23)},
-		"EnableDebugMode":                           {dynamicproperties.EnableDebugMode, false},
-		"EnableTaskInfoLogByDomainID":               {dynamicproperties.MatchingEnableTaskInfoLogByDomainID, true},
-		"ActivityTaskSyncMatchWaitTime":             {dynamicproperties.MatchingActivityTaskSyncMatchWaitTime, time.Duration(24)},
-		"EnableTasklistIsolation":                   {dynamicproperties.EnableTasklistIsolation, false},
-		"AsyncTaskDispatchTimeout":                  {dynamicproperties.AsyncTaskDispatchTimeout, time.Duration(25)},
-		"LocalPollWaitTime":                         {dynamicproperties.LocalPollWaitTime, time.Duration(10)},
-		"LocalTaskWaitTime":                         {dynamicproperties.LocalTaskWaitTime, time.Duration(10)},
-		"HostName":                                  {nil, hostname},
-		"TaskDispatchRPS":                           {nil, 100000.0},
-		"TaskDispatchRPSTTL":                        {nil, time.Minute},
-		"MaxTimeBetweenTaskDeletes":                 {nil, time.Second},
-		"AllIsolationGroups":                        {nil, []string{"zone-1", "zone-2"}},
-		"EnableTasklistOwnershipGuard":              {dynamicproperties.MatchingEnableTasklistGuardAgainstOwnershipShardLoss, false},
-		"EnableGetNumberOfPartitionsFromCache":      {dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, false},
-		"EnablePartitionEmptyCheck":                 {dynamicproperties.MatchingEnablePartitionEmptyCheck, true},
-		"PartitionUpscaleRPS":                       {dynamicproperties.MatchingPartitionUpscaleRPS, 30},
-		"PartitionDownscaleFactor":                  {dynamicproperties.MatchingPartitionDownscaleFactor, 31.0},
-		"PartitionUpscaleSustainedDuration":         {dynamicproperties.MatchingPartitionUpscaleSustainedDuration, time.Duration(32)},
-		"PartitionDownscaleSustainedDuration":       {dynamicproperties.MatchingPartitionDownscaleSustainedDuration, time.Duration(33)},
-		"AdaptiveScalerUpdateInterval":              {dynamicproperties.MatchingAdaptiveScalerUpdateInterval, time.Duration(34)},
-		"EnableAdaptiveScaler":                      {dynamicproperties.MatchingEnableAdaptiveScaler, true},
-		"QPSTrackerInterval":                        {dynamicproperties.MatchingQPSTrackerInterval, 5 * time.Second},
-		"EnableStandbyTaskCompletion":               {dynamicproperties.MatchingEnableStandbyTaskCompletion, false},
-		"EnableClientAutoConfig":                    {dynamicproperties.MatchingEnableClientAutoConfig, false},
-		"TaskIsolationDuration":                     {dynamicproperties.TaskIsolationDuration, time.Duration(35)},
-		"TaskIsolationPollerWindow":                 {dynamicproperties.TaskIsolationPollerWindow, time.Duration(36)},
-		"EnablePartitionIsolationGroupAssignment":   {dynamicproperties.EnablePartitionIsolationGroupAssignment, true},
-		"IsolationGroupUpscaleSustainedDuration":    {dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration, time.Duration(37)},
-		"IsolationGroupDownscaleSustainedDuration":  {dynamicproperties.MatchingIsolationGroupDownscaleSustainedDuration, time.Duration(38)},
-		"IsolationGroupHasPollersSustainedDuration": {dynamicproperties.MatchingIsolationGroupHasPollersSustainedDuration, time.Duration(39)},
-		"IsolationGroupNoPollersSustainedDuration":  {dynamicproperties.MatchingIsolationGroupNoPollersSustainedDuration, time.Duration(40)},
-		"IsolationGroupsPerPartition":               {dynamicproperties.MatchingIsolationGroupsPerPartition, 41},
-		"EnableReturnAllTaskListKinds":              {dynamicproperties.MatchingEnableReturnAllTaskListKinds, true},
+		"PersistenceMaxQPS":                          {dynamicproperties.MatchingPersistenceMaxQPS, 1},
+		"PersistenceGlobalMaxQPS":                    {dynamicproperties.MatchingPersistenceGlobalMaxQPS, 2},
+		"EnableSyncMatch":                            {dynamicproperties.MatchingEnableSyncMatch, true},
+		"UserRPS":                                    {dynamicproperties.MatchingUserRPS, 3},
+		"WorkerRPS":                                  {dynamicproperties.MatchingWorkerRPS, 4},
+		"DomainUserRPS":                              {dynamicproperties.MatchingDomainUserRPS, 5},
+		"DomainWorkerRPS":                            {dynamicproperties.MatchingDomainWorkerRPS, 6},
+		"RangeSize":                                  {nil, int64(100000)},
+		"ReadRangeSize":                              {dynamicproperties.MatchingReadRangeSize, 50000},
+		"GetTasksBatchSize":                          {dynamicproperties.MatchingGetTasksBatchSize, 7},
+		"UpdateAckInterval":                          {dynamicproperties.MatchingUpdateAckInterval, time.Duration(8)},
+		"IdleTasklistCheckInterval":                  {dynamicproperties.MatchingIdleTasklistCheckInterval, time.Duration(9)},
+		"MaxTasklistIdleTime":                        {dynamicproperties.MaxTasklistIdleTime, time.Duration(10)},
+		"LongPollExpirationInterval":                 {dynamicproperties.MatchingLongPollExpirationInterval, time.Duration(11)},
+		"MinTaskThrottlingBurstSize":                 {dynamicproperties.MatchingMinTaskThrottlingBurstSize, 12},
+		"MaxTaskDeleteBatchSize":                     {dynamicproperties.MatchingMaxTaskDeleteBatchSize, 13},
+		"OutstandingTaskAppendsThreshold":            {dynamicproperties.MatchingOutstandingTaskAppendsThreshold, 14},
+		"MaxTaskBatchSize":                           {dynamicproperties.MatchingMaxTaskBatchSize, 15},
+		"ThrottledLogRPS":                            {dynamicproperties.MatchingThrottledLogRPS, 16},
+		"NumTasklistWritePartitions":                 {dynamicproperties.MatchingNumTasklistWritePartitions, 17},
+		"NumTasklistReadPartitions":                  {dynamicproperties.MatchingNumTasklistReadPartitions, 18},
+		"ForwarderMaxOutstandingPolls":               {dynamicproperties.MatchingForwarderMaxOutstandingPolls, 19},
+		"ForwarderMaxOutstandingTasks":               {dynamicproperties.MatchingForwarderMaxOutstandingTasks, 20},
+		"ForwarderMaxRatePerSecond":                  {dynamicproperties.MatchingForwarderMaxRatePerSecond, 21},
+		"ForwarderMaxChildrenPerNode":                {dynamicproperties.MatchingForwarderMaxChildrenPerNode, 22},
+		"ShutdownDrainDuration":                      {dynamicproperties.MatchingShutdownDrainDuration, time.Duration(23)},
+		"EnableDebugMode":                            {dynamicproperties.EnableDebugMode, false},
+		"EnableTaskInfoLogByDomainID":                {dynamicproperties.MatchingEnableTaskInfoLogByDomainID, true},
+		"ActivityTaskSyncMatchWaitTime":              {dynamicproperties.MatchingActivityTaskSyncMatchWaitTime, time.Duration(24)},
+		"EnableTasklistIsolation":                    {dynamicproperties.EnableTasklistIsolation, false},
+		"AsyncTaskDispatchTimeout":                   {dynamicproperties.AsyncTaskDispatchTimeout, time.Duration(25)},
+		"LocalPollWaitTime":                          {dynamicproperties.LocalPollWaitTime, time.Duration(10)},
+		"LocalTaskWaitTime":                          {dynamicproperties.LocalTaskWaitTime, time.Duration(10)},
+		"HostName":                                   {nil, hostname},
+		"RPCConfig":                                  {nil, config.RPC{}},
+		"TaskDispatchRPS":                            {nil, 100000.0},
+		"TaskDispatchRPSTTL":                         {nil, time.Minute},
+		"MaxTimeBetweenTaskDeletes":                  {nil, time.Second},
+		"AllIsolationGroups":                         {nil, []string{"zone-1", "zone-2"}},
+		"EnableGetNumberOfPartitionsFromCache":       {dynamicproperties.MatchingEnableGetNumberOfPartitionsFromCache, false},
+		"EnablePartitionEmptyCheck":                  {dynamicproperties.MatchingEnablePartitionEmptyCheck, true},
+		"PartitionUpscaleRPS":                        {dynamicproperties.MatchingPartitionUpscaleRPS, 30},
+		"PartitionDownscaleFactor":                   {dynamicproperties.MatchingPartitionDownscaleFactor, 31.0},
+		"PartitionUpscaleSustainedDuration":          {dynamicproperties.MatchingPartitionUpscaleSustainedDuration, time.Duration(32)},
+		"PartitionDownscaleSustainedDuration":        {dynamicproperties.MatchingPartitionDownscaleSustainedDuration, time.Duration(33)},
+		"AdaptiveScalerUpdateInterval":               {dynamicproperties.MatchingAdaptiveScalerUpdateInterval, time.Duration(34)},
+		"EnableAdaptiveScaler":                       {dynamicproperties.MatchingEnableAdaptiveScaler, true},
+		"QPSTrackerInterval":                         {dynamicproperties.MatchingQPSTrackerInterval, 5 * time.Second},
+		"OverrideTaskListRPS":                        {dynamicproperties.MatchingOverrideTaskListRPS, 1500.0},
+		"EnableStandbyTaskCompletion":                {dynamicproperties.MatchingEnableStandbyTaskCompletion, false},
+		"EnableClientAutoConfig":                     {dynamicproperties.MatchingEnableClientAutoConfig, false},
+		"TaskIsolationDuration":                      {dynamicproperties.TaskIsolationDuration, time.Duration(35)},
+		"TaskIsolationPollerWindow":                  {dynamicproperties.TaskIsolationPollerWindow, time.Duration(36)},
+		"EnablePartitionIsolationGroupAssignment":    {dynamicproperties.EnablePartitionIsolationGroupAssignment, true},
+		"IsolationGroupUpscaleSustainedDuration":     {dynamicproperties.MatchingIsolationGroupUpscaleSustainedDuration, time.Duration(37)},
+		"IsolationGroupDownscaleSustainedDuration":   {dynamicproperties.MatchingIsolationGroupDownscaleSustainedDuration, time.Duration(38)},
+		"IsolationGroupHasPollersSustainedDuration":  {dynamicproperties.MatchingIsolationGroupHasPollersSustainedDuration, time.Duration(39)},
+		"IsolationGroupNoPollersSustainedDuration":   {dynamicproperties.MatchingIsolationGroupNoPollersSustainedDuration, time.Duration(40)},
+		"IsolationGroupsPerPartition":                {dynamicproperties.MatchingIsolationGroupsPerPartition, 41},
+		"EnableReturnAllTaskListKinds":               {dynamicproperties.MatchingEnableReturnAllTaskListKinds, true},
+		"AppendTaskTimeout":                          {dynamicproperties.AppendTaskTimeout, time.Duration(42)},
+		"ExcludeShortLivedTaskListsFromShardManager": {dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager, false},
+		"RecordTaskStartedTimeout":                   {dynamicproperties.MatchingRecordTaskStartedTimeout, time.Duration(43)},
+		"MinTaskListWritePartitions":                 {dynamicproperties.MatchingTaskListMinimumWritePartitions, 1},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
@@ -114,7 +120,7 @@ func TestNewConfig(t *testing.T) {
 	}
 	dc := dynamicconfig.NewCollection(client, testlogger.New(t))
 
-	config := NewConfig(dc, hostname, isolationGroupsHelper)
+	config := NewConfig(dc, hostname, config.RPC{}, isolationGroupsHelper)
 
 	assertFieldsMatch(t, *config, fields)
 }
@@ -222,7 +228,7 @@ func TestGetTasksBatchSizeValidation(t *testing.T) {
 			assert.NoError(t, err)
 
 			dc := dynamicconfig.NewCollection(client, testlogger.New(t))
-			config := NewConfig(dc, "test-host", isolationGroupsHelper)
+			config := NewConfig(dc, "test-host", config.RPC{}, isolationGroupsHelper)
 
 			// Test that GetTasksBatchSize returns the raw value (validation happens at usage site)
 			result := config.GetTasksBatchSize("test-domain", "test-tasklist", int(types.TaskListTypeDecision))

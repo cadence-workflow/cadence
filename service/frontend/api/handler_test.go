@@ -34,11 +34,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
+	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/yarpctest"
 
-	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common"
@@ -97,6 +97,7 @@ type (
 		mockVisibilityArchiver *archiver.VisibilityArchiverMock
 		mockVersionChecker     *client.MockVersionChecker
 		mockTokenSerializer    *common.MockTaskTokenSerializer
+		mockDomainAuditManager *persistence.MockDomainAuditManager
 
 		testDomain   string
 		testDomainID string
@@ -137,6 +138,7 @@ func (s *workflowHandlerSuite) SetupTest() {
 	s.mockHistoryArchiver = &archiver.HistoryArchiverMock{}
 	s.mockVisibilityArchiver = &archiver.VisibilityArchiverMock{}
 	s.mockVersionChecker = client.NewMockVersionChecker(s.controller)
+	s.mockDomainAuditManager = persistence.NewMockDomainAuditManager(s.controller)
 
 	// these tests don't mock the domain handler
 	config := s.newConfig(dc.NewInMemoryClient())
@@ -144,6 +146,7 @@ func (s *workflowHandlerSuite) SetupTest() {
 		config.DomainConfig,
 		s.mockResource.GetLogger(),
 		s.mockResource.GetDomainManager(),
+		s.mockDomainAuditManager,
 		s.mockResource.GetClusterMetadata(),
 		domain.NewDomainReplicator(s.mockProducer, s.mockResource.GetLogger()),
 		s.mockResource.GetArchivalMetadata(),
@@ -1565,6 +1568,7 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 		s.newConfig(dc.NewInMemoryClient()).DomainConfig,
 		s.mockResource.GetLogger(),
 		s.mockResource.GetDomainManager(),
+		s.mockDomainAuditManager,
 		s.mockResource.GetClusterMetadata(),
 		domain.NewDomainReplicator(s.mockProducer, s.mockResource.GetLogger()),
 		s.mockResource.GetArchivalMetadata(),
@@ -1574,8 +1578,6 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil)
-	s.mockArchivalMetadata.On("GetHistoryConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("disabled"), false, dynamicproperties.GetBoolPropertyFn(false), "disabled", "some random URI"))
-	s.mockArchivalMetadata.On("GetVisibilityConfig").Return(archiver.NewArchivalConfig("enabled", dynamicproperties.GetStringPropertyFn("disabled"), false, dynamicproperties.GetBoolPropertyFn(false), "disabled", "some random URI"))
 	s.mockProducer.On("Publish", mock.Anything, mock.Anything).Return(nil).Once()
 	s.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
 		Return(describeDomainResponseServer, nil).AnyTimes()
@@ -2227,8 +2229,7 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution() {
 								Name: "tasklist",
 							},
 							ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-								ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-								StickyRegion:                   "us-west-1",
+								ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "us-west-1"},
 							},
 						},
 					}},
@@ -2240,11 +2241,9 @@ func (s *workflowHandlerSuite) TestRestartWorkflowExecution() {
 						if request.StartRequest.ActiveClusterSelectionPolicy == nil {
 							return nil, errors.New("expected ActiveClusterSelectionPolicy to be preserved")
 						}
-						if *request.StartRequest.ActiveClusterSelectionPolicy.ActiveClusterSelectionStrategy != types.ActiveClusterSelectionStrategyRegionSticky {
-							return nil, errors.New("ActiveClusterSelectionStrategy not preserved")
-						}
-						if request.StartRequest.ActiveClusterSelectionPolicy.StickyRegion != "us-west-1" {
-							return nil, errors.New("StickyRegion not preserved")
+						attr := request.StartRequest.ActiveClusterSelectionPolicy.ClusterAttribute
+						if attr == nil || attr.Scope != "region" || attr.Name != "us-west-1" {
+							return nil, errors.New("ClusterAttribute not preserved")
 						}
 						return &types.StartWorkflowExecutionResponse{RunID: testRunID}, nil
 					},
@@ -4743,11 +4742,11 @@ func (s *workflowHandlerSuite) TestNormalizeVersionedErrors() {
 		},
 	})
 
-	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", shared.FeatureFlags{}).Return(nil)
+	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", apiv1.FeatureFlags{}).Return(nil)
 	err := wh.normalizeVersionedErrors(ctx, &types.WorkflowExecutionAlreadyCompletedError{})
 	s.IsType(err, &types.WorkflowExecutionAlreadyCompletedError{})
 
-	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", shared.FeatureFlags{}).Return(errors.New("error"))
+	s.mockVersionChecker.EXPECT().SupportsWorkflowAlreadyCompletedError("impl-header", "feature-version", apiv1.FeatureFlags{}).Return(errors.New("error"))
 	err = wh.normalizeVersionedErrors(ctx, &types.WorkflowExecutionAlreadyCompletedError{})
 	s.IsType(err, &types.EntityNotExistsError{})
 }
@@ -4832,7 +4831,7 @@ func TestWorkflowDescribeEmitStatusMetrics(t *testing.T) {
 			scope := tally.NewTestScope("", nil)
 			mockR := resource.Test{
 				MetricsScope:  scope,
-				MetricsClient: metrics.NewClient(scope, 1, metrics.HistogramMigration{}),
+				MetricsClient: metrics.NewClient(scope, 1, metrics.MigrationConfig{}),
 			}
 
 			wh := WorkflowHandler{
@@ -4934,8 +4933,7 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 				CronSchedule:                    "0 */2 * * *",
 				FirstDecisionTaskBackoffSeconds: common.Int32Ptr(30),
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-					StickyRegion:                   "us-west-2",
+					ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "us-west-2"},
 				},
 			},
 			domain:      "test-domain",
@@ -4950,9 +4948,7 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 				WorkflowType: &types.WorkflowType{Name: "testWorkflow"},
 				TaskList:     &types.TaskList{Name: "testTaskList"},
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-					ExternalEntityType:             "order",
-					ExternalEntityKey:              "order-789",
+					ClusterAttribute: &types.ClusterAttribute{Scope: "external", Name: "order-789"},
 				},
 			},
 			domain:      "test-domain",

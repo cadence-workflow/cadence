@@ -6,6 +6,7 @@ package errorinjectors
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/persistence"
@@ -14,6 +15,7 @@ import (
 // injectorConfigStoreManager implements persistence.ConfigStoreManager interface instrumented with error injection.
 type injectorConfigStoreManager struct {
 	wrapped   persistence.ConfigStoreManager
+	starttime time.Time
 	errorRate float64
 	logger    log.Logger
 }
@@ -23,9 +25,11 @@ func NewConfigStoreManager(
 	wrapped persistence.ConfigStoreManager,
 	errorRate float64,
 	logger log.Logger,
+	starttime time.Time,
 ) persistence.ConfigStoreManager {
 	return &injectorConfigStoreManager{
 		wrapped:   wrapped,
+		starttime: starttime,
 		errorRate: errorRate,
 		logger:    logger,
 	}
@@ -37,7 +41,7 @@ func (c *injectorConfigStoreManager) Close() {
 }
 
 func (c *injectorConfigStoreManager) FetchDynamicConfig(ctx context.Context, cfgType persistence.ConfigType) (fp1 *persistence.FetchDynamicConfigResponse, err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		fp1, err = c.wrapped.FetchDynamicConfig(ctx, cfgType)
@@ -52,7 +56,7 @@ func (c *injectorConfigStoreManager) FetchDynamicConfig(ctx context.Context, cfg
 }
 
 func (c *injectorConfigStoreManager) UpdateDynamicConfig(ctx context.Context, request *persistence.UpdateDynamicConfigRequest, cfgType persistence.ConfigType) (err error) {
-	fakeErr := generateFakeError(c.errorRate)
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
 		err = c.wrapped.UpdateDynamicConfig(ctx, request, cfgType)

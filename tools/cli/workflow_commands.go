@@ -134,6 +134,43 @@ func DiagnoseWorkflow(c *cli.Context) error {
 	return nil
 }
 
+// RefreshWorkflowTasks refreshes all the tasks of a workflow
+func RefreshWorkflowTasks(c *cli.Context) error {
+	wfClient, err := getWorkflowClient(c)
+	if err != nil {
+		return err
+	}
+
+	domain, err := getRequiredOption(c, FlagDomain)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	wid, err := getRequiredOption(c, FlagWorkflowID)
+	if err != nil {
+		return commoncli.Problem("Required flag not found: ", err)
+	}
+	rid := c.String(FlagRunID)
+
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error creating context: ", err)
+	}
+	defer cancel()
+
+	err = wfClient.RefreshWorkflowTasks(ctx, &types.RefreshWorkflowTasksRequest{
+		Domain: domain,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: wid,
+			RunID:      rid,
+		},
+	})
+	if err != nil {
+		return commoncli.Problem("Refresh workflow tasks failed.", err)
+	}
+	fmt.Println("Refresh workflow tasks succeeded.")
+	return nil
+}
+
 // ShowHistory shows the history of given workflow execution based on workflowID and runID.
 func ShowHistory(c *cli.Context) error {
 	wid, err := getRequiredOption(c, FlagWorkflowID)
@@ -416,6 +453,10 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 	if err != nil {
 		return nil, commoncli.Problem("Error in starting wf request: ", err)
 	}
+	activeClusterSelectionPolicy, err := parseClusterAttributes(c.String(FlagClusterAttributeScope), c.String(FlagClusterAttributeName))
+	if err != nil {
+		return nil, commoncli.Problem("Error parsing cluster attributes: ", err)
+	}
 	startRequest := &types.StartWorkflowExecutionRequest{
 		RequestID:  uuid.New(),
 		Domain:     domain,
@@ -431,6 +472,7 @@ func constructStartWorkflowRequest(c *cli.Context) (*types.StartWorkflowExecutio
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(int32(dt)),
 		Identity:                            getCliIdentity(),
 		WorkflowIDReusePolicy:               reusePolicy,
+		ActiveClusterSelectionPolicy:        activeClusterSelectionPolicy,
 	}
 	if c.IsSet(FlagCronSchedule) {
 		startRequest.CronSchedule = c.String(FlagCronSchedule)
@@ -856,6 +898,7 @@ func constructSignalWithStartWorkflowRequest(c *cli.Context) (*types.SignalWithS
 		DelayStartSeconds:                   startRequest.DelayStartSeconds,
 		JitterStartSeconds:                  startRequest.JitterStartSeconds,
 		FirstRunAtTimestamp:                 startRequest.FirstRunAtTimeStamp,
+		ActiveClusterSelectionPolicy:        startRequest.ActiveClusterSelectionPolicy,
 	}, nil
 }
 
@@ -1148,19 +1191,20 @@ type describeWorkflowExecutionResponse struct {
 
 // workflowExecutionInfo has same fields as types.WorkflowExecutionInfo, but has datetime instead of raw time
 type workflowExecutionInfo struct {
-	Execution         *types.WorkflowExecution
-	Type              *types.WorkflowType
-	StartTime         *string // change from *int64
-	CloseTime         *string // change from *int64
-	CloseStatus       *types.WorkflowExecutionCloseStatus
-	HistoryLength     int64
-	ParentDomainID    *string
-	ParentExecution   *types.WorkflowExecution
-	Memo              *types.Memo
-	SearchAttributes  map[string]interface{}
-	AutoResetPoints   *types.ResetPoints
-	PartitionConfig   map[string]string
-	CronOverlapPolicy *types.CronOverlapPolicy
+	Execution                    *types.WorkflowExecution
+	Type                         *types.WorkflowType
+	StartTime                    *string // change from *int64
+	CloseTime                    *string // change from *int64
+	CloseStatus                  *types.WorkflowExecutionCloseStatus
+	HistoryLength                int64
+	ParentDomainID               *string
+	ParentExecution              *types.WorkflowExecution
+	Memo                         *types.Memo
+	SearchAttributes             map[string]interface{}
+	AutoResetPoints              *types.ResetPoints
+	PartitionConfig              map[string]string
+	CronOverlapPolicy            *types.CronOverlapPolicy
+	ActiveClusterSelectionPolicy *types.ActiveClusterSelectionPolicy
 }
 
 // pendingActivityInfo has same fields as types.PendingActivityInfo, but different field type for better display
@@ -1199,19 +1243,20 @@ func convertDescribeWorkflowExecutionResponse(resp *types.DescribeWorkflowExecut
 		return nil, fmt.Errorf("error converting search attributes: %w", err)
 	}
 	executionInfo := workflowExecutionInfo{
-		Execution:         info.Execution,
-		Type:              info.Type,
-		StartTime:         common.StringPtr(timestampToString(info.GetStartTime(), false)),
-		CloseTime:         common.StringPtr(timestampToString(info.GetCloseTime(), false)),
-		CloseStatus:       info.CloseStatus,
-		HistoryLength:     info.HistoryLength,
-		ParentDomainID:    info.ParentDomainID,
-		ParentExecution:   info.ParentExecution,
-		Memo:              info.Memo,
-		SearchAttributes:  searchattributes,
-		AutoResetPoints:   info.AutoResetPoints,
-		PartitionConfig:   info.PartitionConfig,
-		CronOverlapPolicy: info.CronOverlapPolicy,
+		Execution:                    info.Execution,
+		Type:                         info.Type,
+		StartTime:                    common.StringPtr(timestampToString(info.GetStartTime(), false)),
+		CloseTime:                    common.StringPtr(timestampToString(info.GetCloseTime(), false)),
+		CloseStatus:                  info.CloseStatus,
+		HistoryLength:                info.HistoryLength,
+		ParentDomainID:               info.ParentDomainID,
+		ParentExecution:              info.ParentExecution,
+		Memo:                         info.Memo,
+		SearchAttributes:             searchattributes,
+		AutoResetPoints:              info.AutoResetPoints,
+		PartitionConfig:              info.PartitionConfig,
+		CronOverlapPolicy:            info.CronOverlapPolicy,
+		ActiveClusterSelectionPolicy: info.ActiveClusterSelectionPolicy,
 	}
 
 	var pendingActs []*pendingActivityInfo
@@ -1347,19 +1392,22 @@ func printRunStatus(event *types.HistoryEvent) {
 
 // WorkflowRow is a presentation layer entity use to render a table of workflows
 type WorkflowRow struct {
-	WorkflowType     string                 `header:"Workflow Type" maxLength:"32"`
-	WorkflowID       string                 `header:"Workflow ID"`
-	RunID            string                 `header:"Run ID"`
-	TaskList         string                 `header:"Task List"`
-	IsCron           bool                   `header:"Is Cron"`
-	StartTime        time.Time              `header:"Start Time"`
-	ExecutionTime    time.Time              `header:"Execution Time"`
-	EndTime          time.Time              `header:"End Time"`
-	CloseStatus      string                 `header:"Close Status"`
-	HistoryLength    int64                  `header:"History Length"`
-	UpdateTime       time.Time              `header:"Update Time"`
-	Memo             map[string]string      `header:"Memo"`
-	SearchAttributes map[string]interface{} `header:"Search Attributes"`
+	WorkflowType           string                 `header:"Workflow Type" maxLength:"32"`
+	WorkflowID             string                 `header:"Workflow ID"`
+	RunID                  string                 `header:"Run ID"`
+	TaskList               string                 `header:"Task List"`
+	IsCron                 bool                   `header:"Is Cron"`
+	StartTime              time.Time              `header:"Start Time"`
+	ExecutionTime          time.Time              `header:"Execution Time"`
+	EndTime                time.Time              `header:"End Time"`
+	CloseStatus            string                 `header:"Close Status"`
+	HistoryLength          int64                  `header:"History Length"`
+	UpdateTime             time.Time              `header:"Update Time"`
+	Memo                   map[string]string      `header:"Memo"`
+	SearchAttributes       map[string]interface{} `header:"Search Attributes"`
+	ExecutionStatus        string                 `header:"Execution Status"`
+	CronSchedule           string                 `header:"Cron Schedule"`
+	ScheduledExecutionTime time.Time              `header:"Scheduled Execution Time"`
 }
 
 func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) {
@@ -1377,20 +1425,46 @@ func newWorkflowRow(workflow *types.WorkflowExecutionInfo) (WorkflowRow, error) 
 		sa[k] = decodedVal
 	}
 
+	// Convert ExecutionStatus enum to string
+	executionStatus := ""
+	if workflow.ExecutionStatus != nil {
+		switch workflow.GetExecutionStatus() {
+		case types.WorkflowExecutionStatusPending:
+			executionStatus = "PENDING"
+		case types.WorkflowExecutionStatusStarted:
+			executionStatus = "STARTED"
+		case types.WorkflowExecutionStatusCompleted:
+			executionStatus = "COMPLETED"
+		case types.WorkflowExecutionStatusFailed:
+			executionStatus = "FAILED"
+		case types.WorkflowExecutionStatusCanceled:
+			executionStatus = "CANCELED"
+		case types.WorkflowExecutionStatusTerminated:
+			executionStatus = "TERMINATED"
+		case types.WorkflowExecutionStatusContinuedAsNew:
+			executionStatus = "CONTINUED_AS_NEW"
+		case types.WorkflowExecutionStatusTimedOut:
+			executionStatus = "TIMED_OUT"
+		}
+	}
+
 	return WorkflowRow{
-		WorkflowType:     workflow.Type.GetName(),
-		WorkflowID:       workflow.Execution.GetWorkflowID(),
-		RunID:            workflow.Execution.GetRunID(),
-		TaskList:         workflow.TaskList.GetName(),
-		IsCron:           workflow.IsCron,
-		StartTime:        time.Unix(0, workflow.GetStartTime()),
-		ExecutionTime:    time.Unix(0, workflow.GetExecutionTime()),
-		EndTime:          time.Unix(0, workflow.GetCloseTime()),
-		UpdateTime:       time.Unix(0, workflow.GetUpdateTime()),
-		CloseStatus:      workflow.GetCloseStatus().String(),
-		HistoryLength:    workflow.HistoryLength,
-		Memo:             memo,
-		SearchAttributes: sa,
+		WorkflowType:           workflow.Type.GetName(),
+		WorkflowID:             workflow.Execution.GetWorkflowID(),
+		RunID:                  workflow.Execution.GetRunID(),
+		TaskList:               workflow.TaskList.GetName(),
+		IsCron:                 workflow.IsCron,
+		StartTime:              time.Unix(0, workflow.GetStartTime()),
+		ExecutionTime:          time.Unix(0, workflow.GetExecutionTime()),
+		EndTime:                time.Unix(0, workflow.GetCloseTime()),
+		UpdateTime:             time.Unix(0, workflow.GetUpdateTime()),
+		CloseStatus:            workflow.GetCloseStatus().String(),
+		HistoryLength:          workflow.HistoryLength,
+		Memo:                   memo,
+		SearchAttributes:       sa,
+		ExecutionStatus:        executionStatus,
+		CronSchedule:           workflow.GetCronSchedule(),
+		ScheduledExecutionTime: time.Unix(0, workflow.GetScheduledExecutionTime()),
 	}, nil
 }
 
@@ -1403,9 +1477,11 @@ func workflowTableOptions(c *cli.Context) RenderOptions {
 		PrintDateTime:   c.Bool(FlagPrintDateTime),
 		PrintRawTime:    c.Bool(FlagPrintRawTime),
 		OptionalColumns: map[string]bool{
-			"End Time":          !(c.Bool(FlagOpen) || isScanQueryOpen),
-			"Memo":              c.Bool(FlagPrintMemo),
-			"Search Attributes": c.Bool(FlagPrintSearchAttr),
+			"End Time":                 !(c.Bool(FlagOpen) || isScanQueryOpen),
+			"Memo":                     c.Bool(FlagPrintMemo),
+			"Search Attributes":        c.Bool(FlagPrintSearchAttr),
+			"Cron Schedule":            c.Bool(FlagPrintCron),
+			"Scheduled Execution Time": c.Bool(FlagPrintCron),
 		},
 	}
 }
@@ -2689,4 +2765,21 @@ func mapQueryRejectConditionFromFlag(flag string) (types.QueryRejectCondition, e
 	}
 
 	return rejectCondition, nil
+}
+
+func parseClusterAttributes(clusterAttributeScope string, clusterAttributeName string) (*types.ActiveClusterSelectionPolicy, error) {
+	if clusterAttributeScope == "" && clusterAttributeName == "" {
+		// default case, these values are optional so most workflows will not use them
+		return nil, nil
+	}
+	if clusterAttributeScope == "" || clusterAttributeName == "" {
+		return nil, fmt.Errorf("invalid cluster attribute, scope or name is empty, either use both or none to start workflows. got %q.%q", clusterAttributeScope, clusterAttributeName)
+	}
+	policy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{
+			Scope: clusterAttributeScope,
+			Name:  clusterAttributeName,
+		},
+	}
+	return policy, nil
 }

@@ -142,6 +142,7 @@ FRESH_ALL_SRC = $(shell \
 		-o -path './.build/*' \
 		-o -path './.bin/*' \
 		-o -path './.git/*' \
+		-o -path './.worktrees/*' \
 	\) \
 	-prune \
 	-o -name '*.go' \
@@ -170,7 +171,7 @@ LINT_SRC := $(filter-out %_test.go ./.gen/%, $(ALL_SRC))
 # the good news is that you can just drop that and `cd` to the folder and it works.
 define go_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from internal/tools/go.mod..."
-$Q cd internal/tools; go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q cd internal/tools; GOTOOLCHAIN=auto go build -mod=readonly -o ../../$(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # same as go_build_tool, but uses our main module file, not the tools one.
@@ -182,7 +183,7 @@ endef
 define go_mod_build_tool
 $Q echo "building $(or $(2), $(notdir $(1))) from go.mod..."
 $Q ./scripts/check-gomod-version.sh $(1) $(if $(verbose),-v)
-$Q go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
+$Q GOTOOLCHAIN=auto go build -mod=readonly -o $(BIN)/$(or $(2), $(notdir $(1))) $(1)
 endef
 
 # utility target.
@@ -219,6 +220,9 @@ $(BIN)/gowrap: go.mod go.work
 $(BIN)/revive: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/mgechev/revive)
 
+$(BIN)/nilaway: internal/tools/go.mod go.work
+	$(call go_build_tool,go.uber.org/nilaway/cmd/nilaway,nilaway)
+
 $(BIN)/protoc-gen-gogofast: go.mod go.work | $(BIN)
 	$(call go_mod_build_tool,github.com/gogo/protobuf/protoc-gen-gogofast)
 
@@ -232,10 +236,10 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
-BUF_VERSION = 0.36.0
+BUF_VERSION = 1.47.2
 OS = $(shell uname -s)
 ARCH = $(shell $(EMULATE_X86) uname -m)
-BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(ARCH)
+BUF_URL = https://github.com/bufbuild/buf/releases/download/v$(BUF_VERSION)/buf-$(OS)-$(shell uname -m)
 # use BUF_VERSION_BIN as a bin prerequisite, not "buf", so the correct version will be used.
 # otherwise this must be a .PHONY rule, or the buf bin / symlink could become out of date.
 BUF_VERSION_BIN = buf-$(BUF_VERSION)
@@ -399,18 +403,20 @@ $(BUILD)/gomod-lint: go.mod  $(SUBMODULE_FILES) | $(BUILD)
 
 # note that LINT_SRC is fairly fake as a prerequisite.
 # it's a coarse "you probably don't need to re-lint" filter, nothing more.
-$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive | $(BUILD)
+$(BUILD)/code-lint: $(LINT_SRC) $(BIN)/revive $(BIN)/nilaway | $(BUILD)
 	$Q echo "lint..."
 	$Q # non-optional vet checks.  unfortunately these are not currently included in `go test`'s default behavior.
 	$Q go vet -copylocks ./... ./common/archiver/gcloud/...
-	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -formatter stylish ./...
+	$Q $(BIN)/revive -config revive.toml -exclude './vendor/...' -exclude './.gen/...' -exclude './.worktrees/...' -formatter stylish ./...
 	$Q # look for go files with "//comments", and ignore "//go:build"-style directives ("grep -n" shows "file:line: //go:build" so the regex is a bit complex)
-	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
+	$Q bad="$$(find . -type f -name '*.go' -not -path './idls/*' -not -path './.worktrees/*' | xargs grep -n -E '^\s*//\S' | grep -E -v '^[^:]+:[^:]+:\s*//[a-z]+:[a-z]+' || true)"; \
 		if [ -n "$$bad" ]; then \
 		  echo "$$bad" >&2; \
 		  echo 'non-directive comments must have a space after the "//"' >&2; \
 		  exit 1; \
 		fi
+	$Q echo "nilaway check..."
+	$Q GOTOOLCHAIN=go1.24.0 $(BIN)/nilaway -test=false github.com/uber/cadence/common/types/mapper/...
 	$Q touch $@
 
 $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
@@ -423,9 +429,9 @@ $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DO
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
 	$Q # goimports thrashes on internal/tools, sadly.  just hide it.
-	$Q $(BIN)/goimports -w $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC))
+	$Q echo $(filter-out ./internal/tools/tools.go,$(FRESH_ALL_SRC)) | xargs $(BIN)/goimports -w
 	$Q echo "grouping imports..."
-	$Q $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank $(FRESH_ALL_SRC)
+	$Q echo $(FRESH_ALL_SRC) | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
 	$Q touch $@
 
 # ====================================
@@ -462,10 +468,14 @@ $Q echo "make $1..."
 $Q output=$$(mktemp); $(MAKE) $1 > $$output 2>&1 || ( cat $$output; echo -e '\nfailed `make $1`, check output above' >&2; exit 1)
 endef
 
+override GEN_DIR := $(patsubst %/,%,$(strip $(GEN_DIR)))
+GO_GENERATE_SCOPE ?= $(if $(GEN_DIR),./$(GEN_DIR)/...,./...)
+GO_GENERATE_MAKE_ARG = $(if $(GEN_DIR),GEN_DIR=$(GEN_DIR),)
+
 # pre-PR target to build and refresh everything
-pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests.  Recommended before opening a github PR
+pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run tests. Optional: GEN_DIR=path/to/package to scope go-generate
 	$Q $(if $(verbose),$(MAKE) tidy,$(call make_quietly,tidy))
-	$Q $(if $(verbose),$(MAKE) go-generate,$(call make_quietly,go-generate))
+	$Q $(if $(verbose),$(MAKE) go-generate $(GO_GENERATE_MAKE_ARG),$(call make_quietly,go-generate $(GO_GENERATE_MAKE_ARG)))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
 
@@ -542,7 +552,7 @@ go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `
 	$Q $(BIN)/mockery --log-level error
 	$Q echo "running go generate ./..., this takes a few minutes..."
 	$Q # add our bins to PATH so `go generate` can find them
-	$Q $(BIN_PATH) go generate $(if $(verbose),-v) ./...
+	$Q $(BIN_PATH) go generate $(if $(verbose),-v) $(GO_GENERATE_SCOPE)
 	$Q $(MAKE) --no-print-directory fmt
 
 release: ## Re-generate generated code and run tests
@@ -704,7 +714,7 @@ integration_tests_etcd:
 
 	$Q echo "Running integration tests with etcd"
 	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
-	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
+	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testhelper.SetupStoreTestCluster\|testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
 		echo "Found etcd test directories:"; \
 		echo "$$ETCD_TEST_DIRS"; \
 		echo "Using ETCD_ENDPOINTS='$(ETCD_ENDPOINTS)'"; \
@@ -790,8 +800,8 @@ install-schema-es-v6:
 	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
 
 install-schema-es-opensearch:
-	curl -X PUT "https://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/os2/visibility/index_template.json -u admin:DevTestInitial123! --insecure
-	curl -X PUT "https://127.0.0.1:9200/cadence-visibility-dev" -u admin:DevTestInitial123! --insecure
+	curl -X PUT "http://127.0.0.1:9200/_template/cadence-visibility-template" -H 'Content-Type: application/json' -d @./schema/elasticsearch/os2/visibility/index_template.json
+	curl -X PUT "http://127.0.0.1:9200/cadence-visibility-dev"
 
 start: bins
 	./cadence-server start

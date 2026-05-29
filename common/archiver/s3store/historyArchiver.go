@@ -48,8 +48,13 @@ import (
 )
 
 const (
-	// URIScheme is the scheme for the s3 implementation
-	URIScheme               = "s3"
+	// URIScheme is the scheme for the s3 implementation using a plain bucket name.
+	URIScheme = "s3"
+	// URISchemeAccessPoint is the scheme for S3 access point URIs.
+	// Format: s3-ap://<account-id>/<access-point-name>[/<path>]
+	// The region is injected from the archiver's configured AWS region,
+	// so the same URI works across all regions (useful for global domains).
+	URISchemeAccessPoint    = "s3-ap"
 	errEncodeHistory        = "failed to encode history batches"
 	errWriteKey             = "failed to write history to s3"
 	defaultBlobstoreTimeout = 60 * time.Second
@@ -57,15 +62,18 @@ const (
 )
 
 var (
-	errNoBucketSpecified = errors.New("no bucket specified")
-	errBucketNotExists   = errors.New("requested bucket does not exist")
-	errEmptyAwsRegion    = errors.New("empty aws region")
+	errNoBucketSpecified      = errors.New("no bucket specified")
+	errBucketNotExists        = errors.New("requested bucket does not exist")
+	errEmptyAwsRegion         = errors.New("empty aws region")
+	errInvalidAccessPointURI  = errors.New("invalid s3-ap URI: expected s3-ap://<account-id>/<access-point-name>[/<path>]")
+	errInvalidAccessPointAcct = errors.New("invalid s3-ap URI: account id must be 12 digits")
 )
 
 type (
 	historyArchiver struct {
 		container *archiver.HistoryBootstrapContainer
 		s3cli     s3iface.S3API
+		region    string
 		// only set in test code
 		historyIterator archiver.HistoryIterator
 	}
@@ -112,6 +120,7 @@ func newHistoryArchiver(
 	return &historyArchiver{
 		container:       container,
 		s3cli:           s3.New(sess),
+		region:          config.Region,
 		historyIterator: historyIterator,
 	}, nil
 }
@@ -188,9 +197,9 @@ func (h *historyArchiver) Archive(
 			return err
 		}
 
-		key := constructHistoryKey(URI.Path(), request.DomainID, request.WorkflowID, request.RunID, request.CloseFailoverVersion, progress.BatchIdx)
+		key := constructHistoryKey(s3KeyPath(URI), request.DomainID, request.WorkflowID, request.RunID, request.CloseFailoverVersion, progress.BatchIdx)
 
-		exists, err := keyExists(ctx, h.s3cli, URI, key)
+		exists, err := keyExists(ctx, h.s3cli, URI, key, h.region)
 		if err != nil {
 			logger := logger.WithTags(tag.ArchivalArchiveFailReason(errWriteKey), tag.Error(err))
 			if isRetryableError(err) {
@@ -204,7 +213,7 @@ func (h *historyArchiver) Archive(
 		if exists {
 			scope.IncCounter(metrics.HistoryArchiverBlobExistsCount)
 		} else {
-			if err := upload(ctx, h.s3cli, URI, key, encodedHistoryBlob); err != nil {
+			if err := upload(ctx, h.s3cli, URI, h.region, key, encodedHistoryBlob); err != nil {
 				logger := logger.WithTags(tag.ArchivalArchiveFailReason(errWriteKey), tag.Error(err))
 				if isRetryableError(err) {
 					logger.Error(archiver.ArchiveTransientErrorMsg)
@@ -215,6 +224,7 @@ func (h *historyArchiver) Archive(
 			}
 			progress.uploadedSize += blobSize
 			scope.RecordTimer(metrics.HistoryArchiverBlobSize, time.Duration(blobSize))
+			scope.IntExponentialHistogram(metrics.HistoryArchiverBlobSizeHistogram, int(blobSize))
 		}
 
 		progress.historySize += blobSize
@@ -223,7 +233,11 @@ func (h *historyArchiver) Archive(
 	}
 
 	scope.RecordTimer(metrics.HistoryArchiverTotalUploadSize, time.Duration(progress.uploadedSize))
+	scope.IntExponentialHistogram(metrics.HistoryArchiverTotalUploadSizeHistogram, int(progress.uploadedSize))
+
 	scope.RecordTimer(metrics.HistoryArchiverHistorySize, time.Duration(progress.historySize))
+	scope.IntExponentialHistogram(metrics.HistoryArchiverHistorySizeHistogram, int(progress.historySize))
+
 	scope.IncCounter(metrics.HistoryArchiverArchiveSuccessCount)
 	return nil
 }
@@ -304,9 +318,9 @@ func (h *historyArchiver) Get(
 			isTruncated = true
 			break
 		}
-		key := constructHistoryKey(URI.Path(), request.DomainID, request.WorkflowID, request.RunID, token.CloseFailoverVersion, token.BatchIdx)
+		key := constructHistoryKey(s3KeyPath(URI), request.DomainID, request.WorkflowID, request.RunID, token.CloseFailoverVersion, token.BatchIdx)
 
-		encodedRecord, err := download(ctx, h.s3cli, URI, key)
+		encodedRecord, err := download(ctx, h.s3cli, URI, h.region, key)
 		if err != nil {
 			if isRetryableError(err) {
 				return nil, &types.InternalServiceError{Message: err.Error()}
@@ -351,7 +365,7 @@ func (h *historyArchiver) ValidateURI(URI archiver.URI) error {
 	if err != nil {
 		return err
 	}
-	return bucketExists(context.TODO(), h.s3cli, URI)
+	return bucketExists(context.TODO(), h.s3cli, URI, h.region)
 }
 
 func getNextHistoryBlob(ctx context.Context, historyIterator archiver.HistoryIterator) (*archiver.HistoryBlob, error) {
@@ -382,9 +396,13 @@ func getNextHistoryBlob(ctx context.Context, historyIterator archiver.HistoryIte
 func (h *historyArchiver) getHighestVersion(ctx context.Context, URI archiver.URI, request *archiver.GetHistoryRequest) (*int64, error) {
 	ctx, cancel := ensureContextTimeout(ctx)
 	defer cancel()
-	var prefix = constructHistoryKeyPrefix(URI.Path(), request.DomainID, request.WorkflowID, request.RunID) + "/"
+	bucket, err := s3Bucket(URI, h.region)
+	if err != nil {
+		return nil, err
+	}
+	var prefix = constructHistoryKeyPrefix(s3KeyPath(URI), request.DomainID, request.WorkflowID, request.RunID) + "/"
 	results, err := h.s3cli.ListObjectsV2WithContext(ctx, &s3.ListObjectsV2Input{
-		Bucket:    aws.String(URI.Hostname()),
+		Bucket:    aws.String(bucket),
 		Prefix:    aws.String(prefix),
 		Delimiter: aws.String("/"),
 	})

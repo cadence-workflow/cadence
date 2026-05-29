@@ -1,6 +1,7 @@
 package queuev2
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -35,6 +36,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 	mockMetricsScope := metrics.NoopScope
 	mockTimeSource := clock.NewMockedTimeSource()
 	mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
+	mockQueueReader := NewMockQueueReader(ctrl)
 
 	// Setup mock expectations
 	mockShard.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).AnyTimes()
@@ -60,9 +62,21 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 			ScheduledTimeNano: mockTimeSource.Now().UnixNano(),
 		},
 	}, nil).AnyTimes()
+	mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
 	mockShard.EXPECT().GetExecutionManager().Return(mockExecutionManager).AnyTimes()
 	mockExecutionManager.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, nil).AnyTimes()
 	mockExecutionManager.EXPECT().RangeCompleteHistoryTask(gomock.Any(), gomock.Any()).Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).AnyTimes()
+	mockQueueReader.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
+			return &GetTaskResponse{
+				Progress: &GetTaskProgress{
+					Range:       req.Progress.Range,
+					NextTaskKey: req.Progress.ExclusiveMaxTaskKey,
+				},
+			}, nil
+		},
+	).AnyTimes()
+	mockQueueReader.EXPECT().LookAHead(gomock.Any(), gomock.Any()).Return(&LookAHeadResponse{}, nil).AnyTimes()
 	mockShard.EXPECT().UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryTimer, cluster.TestCurrentClusterName).Return(persistence.NewHistoryTaskKey(time.Now(), 10)).AnyTimes()
 	mockShard.EXPECT().UpdateQueueState(persistence.HistoryTaskCategoryTimer, gomock.Any()).Return(nil).AnyTimes()
 
@@ -92,6 +106,7 @@ func TestScheduledQueue_LifeCycle(t *testing.T) {
 		mockLogger,
 		mockMetricsClient,
 		mockMetricsScope,
+		mockQueueReader,
 		options,
 	).(*scheduledQueue)
 
@@ -124,31 +139,20 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	tests := []struct {
-		name           string
-		setupMocks     func(*gomock.Controller, *MockQueueReader, clock.TimeSource, *clock.MockTimerGate)
-		expectedUpdate time.Time
+		name       string
+		setupMocks func(*gomock.Controller, *MockQueueReader, clock.TimeSource, *clock.MockTimerGate)
 	}{
 		{
 			name: "successful look ahead with future task",
 			setupMocks: func(ctrl *gomock.Controller, mockReader *MockQueueReader, mockTimeSource clock.TimeSource, mockTimerGate *clock.MockTimerGate) {
 				now := mockTimeSource.Now()
 				futureTime := now.Add(time.Hour)
-				mockReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
-					Progress: &GetTaskProgress{
-						Range: Range{
-							InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
-							ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-						},
-						NextTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-					},
-					Predicate: NewUniversalPredicate(),
-					PageSize:  1,
-				}).Return(&GetTaskResponse{
-					Tasks: []persistence.Task{
-						&persistence.DecisionTimeoutTask{
-							TaskData: persistence.TaskData{
-								VisibilityTimestamp: futureTime,
-							},
+				mockReader.EXPECT().LookAHead(gomock.Any(), &LookAHeadRequest{
+					InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
+				}).Return(&LookAHeadResponse{
+					Task: &persistence.DecisionTimeoutTask{
+						TaskData: persistence.TaskData{
+							VisibilityTimestamp: futureTime,
 						},
 					},
 				}, nil)
@@ -159,36 +163,21 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 			name: "no tasks found",
 			setupMocks: func(ctrl *gomock.Controller, mockReader *MockQueueReader, mockTimeSource clock.TimeSource, mockTimerGate *clock.MockTimerGate) {
 				now := mockTimeSource.Now()
-				mockReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
-					Progress: &GetTaskProgress{
-						Range: Range{
-							InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
-							ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-						},
-						NextTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-					},
-					Predicate: NewUniversalPredicate(),
-					PageSize:  1,
-				}).Return(&GetTaskResponse{
-					Tasks: []persistence.Task{},
+				lookAheadMaxTime := now.Add(time.Second * 10)
+				mockReader.EXPECT().LookAHead(gomock.Any(), &LookAHeadRequest{
+					InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
+				}).Return(&LookAHeadResponse{
+					LookAheadMaxTime: lookAheadMaxTime,
 				}, nil)
-				mockTimerGate.EXPECT().Update(now.Add(time.Second * 10))
+				mockTimerGate.EXPECT().Update(lookAheadMaxTime)
 			},
 		},
 		{
 			name: "error during look ahead",
 			setupMocks: func(ctrl *gomock.Controller, mockReader *MockQueueReader, mockTimeSource clock.TimeSource, mockTimerGate *clock.MockTimerGate) {
 				now := mockTimeSource.Now()
-				mockReader.EXPECT().GetTask(gomock.Any(), &GetTaskRequest{
-					Progress: &GetTaskProgress{
-						Range: Range{
-							InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
-							ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-						},
-						NextTaskKey: persistence.NewHistoryTaskKey(now.Add(time.Second*10), 0),
-					},
-					Predicate: NewUniversalPredicate(),
-					PageSize:  1,
+				mockReader.EXPECT().LookAHead(gomock.Any(), &LookAHeadRequest{
+					InclusiveMinTaskKey: persistence.NewHistoryTaskKey(now, 0),
 				}).Return(nil, errors.New("test error"))
 				mockTimerGate.EXPECT().Update(now)
 			},
@@ -242,10 +231,10 @@ func TestScheduledQueue_LookAheadTask(t *testing.T) {
 				newTimerCh: make(chan struct{}, 1),
 			}
 
-			// Setup test-specific mocks and get expected update time
+			// Setup test-specific mocks
 			tt.setupMocks(ctrl, mockQueueReader, mockTimeSource, mockTimerGate)
 
-			// Execute lookAheadTask
+			// Execute lookAheadTask directly instead of inlining its logic
 			queue.lookAheadTask()
 		})
 	}

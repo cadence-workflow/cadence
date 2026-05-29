@@ -25,6 +25,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -98,6 +99,7 @@ func NewTransferActiveTaskExecutor(
 			executionCache,
 			logger,
 			config,
+			nil, // ActiveTaskExecutor never needs a DLQ writer
 		),
 		historyClient: shard.GetService().GetHistoryClient(),
 		parentClosePolicyClient: parentclosepolicy.NewClient(
@@ -203,7 +205,7 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 
 	timeout := min(ai.ScheduleToStartTimeout, constants.MaxTaskTimeout)
 
-	taskList := &types.TaskList{
+	taskList := types.TaskList{
 		Name: ai.TaskList,
 		Kind: ai.TaskListKind.Ptr(),
 	}
@@ -219,10 +221,17 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return errWorkflowRateLimited
 	}
 
-	err = t.pushActivity(ctx, task, taskList, timeout, mutableState.GetExecutionInfo().PartitionConfig)
+	pushActivityInfo := &pushActivityToMatchingInfo{
+		activityScheduleToStartTimeout: timeout,
+		tasklist:                       taskList,
+		partitionConfig:                mutableState.GetExecutionInfo().PartitionConfig,
+	}
+	err = t.pushActivity(ctx, task, pushActivityInfo)
 	if err == nil {
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskActivityScope)
-		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
+		scheduleToStartLatency := time.Since(task.GetVisibilityTimestamp())
+		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
+		scope.ExponentialHistogram(metrics.ScheduleToStartHistoryQueueLatencyPerTaskListHistogram, scheduleToStartLatency)
 	}
 	return err
 }
@@ -273,7 +282,7 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 	// that logic has a bug which timer task for that sticky decision is not generated
 	// the correct logic should check whether the decision task is a sticky decision
 	// task or not.
-	taskList := &types.TaskList{
+	taskList := types.TaskList{
 		Name: task.TaskList,
 		Kind: executionInfo.TaskListKind.Ptr(),
 	}
@@ -301,10 +310,14 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		return errWorkflowRateLimited
 	}
 
-	err = t.pushDecision(ctx, task, taskList, decisionTimeout, mutableState.GetExecutionInfo().PartitionConfig)
+	err = t.pushDecision(ctx, task, &pushDecisionToMatchingInfo{
+		decisionScheduleToStartTimeout: decisionTimeout,
+		tasklist:                       taskList,
+		partitionConfig:                mutableState.GetExecutionInfo().PartitionConfig,
+	})
 	if _, ok := err.(*types.StickyWorkerUnavailableError); ok {
 		// sticky worker is unavailable, switch to non-sticky task list
-		taskList = &types.TaskList{
+		taskList = types.TaskList{
 			Name: mutableState.GetExecutionInfo().TaskList,
 		}
 
@@ -313,11 +326,17 @@ func (t *transferActiveTaskExecutor) processDecisionTask(
 		// There is no need to reset sticky, because if this task is picked by new worker, the new worker will reset
 		// the sticky queue to a new one. However, if worker is completely down, that schedule_to_start timeout task
 		// will re-create a new non-sticky task and reset sticky.
-		err = t.pushDecision(ctx, task, taskList, decisionTimeout, mutableState.GetExecutionInfo().PartitionConfig)
+		err = t.pushDecision(ctx, task, &pushDecisionToMatchingInfo{
+			decisionScheduleToStartTimeout: decisionTimeout,
+			tasklist:                       taskList,
+			partitionConfig:                mutableState.GetExecutionInfo().PartitionConfig,
+		})
 	}
 	if err == nil {
 		scope := common.NewPerTaskListScope(domainName, taskList.Name, taskList.GetKind(), t.metricsClient, metrics.TransferActiveTaskDecisionScope)
-		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, time.Since(task.GetVisibilityTimestamp()))
+		scheduleToStartLatency := time.Since(task.GetVisibilityTimestamp())
+		scope.RecordTimer(metrics.ScheduleToStartHistoryQueueLatencyPerTaskList, scheduleToStartLatency)
+		scope.ExponentialHistogram(metrics.ScheduleToStartHistoryQueueLatencyPerTaskListHistogram, scheduleToStartLatency)
 	}
 	return err
 }
@@ -414,6 +433,7 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	workflowCloseStatus := persistence.ToInternalWorkflowExecutionCloseStatus(executionInfo.CloseStatus)
 	workflowHistoryLength := mutableState.GetNextEventID() - 1
 	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := executionInfo.CronSchedule
 	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 	updateTimestamp := t.shard.GetTimeSource().Now()
 
@@ -428,6 +448,16 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 	headers := getWorkflowHeaders(startEvent)
 	domainName := mutableState.GetDomainEntry().GetInfo().Name
 	children := mutableState.GetPendingChildExecutionInfos()
+
+	executionStatus := getWorkflowExecutionStatus(mutableState, completionEvent)
+
+	// Calculate ScheduledExecutionTime
+	scheduledExecutionTimestamp := startEvent.GetTimestamp()
+	if startEvent.WorkflowExecutionStartedEventAttributes != nil &&
+		startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds() > 0 {
+		scheduledExecutionTimestamp = startEvent.GetTimestamp() +
+			int64(startEvent.WorkflowExecutionStartedEventAttributes.GetFirstDecisionTaskBackoffSeconds())*int64(time.Second)
+	}
 
 	// we've gathered all necessary information from mutable state.
 	// release the context lock since we no longer need mutable state builder and
@@ -451,10 +481,14 @@ func (t *transferActiveTaskExecutor) processCloseExecutionTaskHelper(
 			visibilityMemo,
 			executionInfo.TaskList,
 			isCron,
+			cronSchedule,
 			numClusters,
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			executionStatus,
+			scheduledExecutionTimestamp,
 		); err != nil {
 			return err
 		}
@@ -869,6 +903,7 @@ func (t *transferActiveTaskExecutor) processStartChildExecution(
 				tag.WorkflowRunID(task.RunID),
 				tag.TargetWorkflowDomainID(task.TargetDomainID),
 				tag.TargetWorkflowID(attributes.WorkflowID),
+				tag.WorkflowRequestID(childInfo.CreateRequestID),
 			)
 			err = recordStartChildExecutionFailed(ctx, t.logger, task, wfContext, attributes, t.shard.GetTimeSource().Now())
 		default:
@@ -989,8 +1024,18 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 	searchAttr := copySearchAttributes(executionInfo.SearchAttributes)
 	headers := getWorkflowHeaders(startEvent)
 	isCron := len(executionInfo.CronSchedule) > 0
+	cronSchedule := ""
+	if isCron {
+		cronSchedule = executionInfo.CronSchedule
+	}
 	numClusters := (int16)(len(domainEntry.GetReplicationConfig().Clusters))
 	updateTimestamp := t.shard.GetTimeSource().Now()
+
+	isAdvancedVisibilityEnabled := common.IsAdvancedVisibilityWritingEnabled(
+		t.config.WriteVisibilityStoreName(),
+		t.config.IsAdvancedVisConfigExist,
+	)
+	executionStatus, scheduledExecutionTimestamp := determineExecutionStatusForVisibility(startEvent, mutableState, isAdvancedVisibilityEnabled)
 
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
@@ -1015,6 +1060,10 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 			updateTimestamp.UnixNano(),
 			searchAttr,
 			headers,
+			executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+			cronSchedule,
+			executionStatus,
+			scheduledExecutionTimestamp,
 		)
 	}
 	return t.upsertWorkflowExecution(
@@ -1034,6 +1083,10 @@ func (t *transferActiveTaskExecutor) processRecordWorkflowStartedOrUpsertHelper(
 		updateTimestamp.UnixNano(),
 		searchAttr,
 		headers,
+		executionInfo.ActiveClusterSelectionPolicy.GetClusterAttribute(),
+		cronSchedule,
+		executionStatus,
+		scheduledExecutionTimestamp,
 	)
 }
 
@@ -1079,6 +1132,7 @@ func (t *transferActiveTaskExecutor) processResetWorkflow(
 			DomainID:   task.DomainID,
 			WorkflowID: task.WorkflowID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
 		})
 		if err != nil {
 			return err
@@ -1929,4 +1983,64 @@ func filterPendingChildExecutions(
 	}
 
 	return filteredChildren, nil
+}
+
+func getWorkflowExecutionStatus(mutableState execution.MutableState, closeEvent *types.HistoryEvent) types.WorkflowExecutionStatus {
+	// Extract close status from the close event
+	var closeStatus types.WorkflowExecutionCloseStatus
+
+	switch closeEvent.GetEventType() {
+	case types.EventTypeWorkflowExecutionCompleted:
+		closeStatus = types.WorkflowExecutionCloseStatusCompleted
+	case types.EventTypeWorkflowExecutionFailed:
+		closeStatus = types.WorkflowExecutionCloseStatusFailed
+	case types.EventTypeWorkflowExecutionCanceled:
+		closeStatus = types.WorkflowExecutionCloseStatusCanceled
+	case types.EventTypeWorkflowExecutionTerminated:
+		closeStatus = types.WorkflowExecutionCloseStatusTerminated
+	case types.EventTypeWorkflowExecutionTimedOut:
+		closeStatus = types.WorkflowExecutionCloseStatusTimedOut
+	case types.EventTypeWorkflowExecutionContinuedAsNew:
+		closeStatus = types.WorkflowExecutionCloseStatusContinuedAsNew
+
+		// For cron workflows that continue as new:
+		// - If FailureReason is present and non-empty, the workflow failed
+		// - If FailureReason is nil/empty, the workflow completed successfully
+		if attr := closeEvent.WorkflowExecutionContinuedAsNewEventAttributes; attr != nil {
+			failureReason := attr.GetFailureReason()
+			if failureReason != "" {
+				// Workflow failed - check if it's a timeout or generic failure
+				if strings.Contains(strings.ToLower(failureReason), "timeout") ||
+					strings.Contains(strings.ToLower(failureReason), "timed out") {
+					closeStatus = types.WorkflowExecutionCloseStatusTimedOut
+				} else {
+					closeStatus = types.WorkflowExecutionCloseStatusFailed
+				}
+			} else {
+				// No failure reason means successful completion
+				closeStatus = types.WorkflowExecutionCloseStatusCompleted
+			}
+		}
+	default:
+		// Unknown close event, default to completed
+		closeStatus = types.WorkflowExecutionCloseStatusCompleted
+	}
+
+	// Map close status to execution status
+	switch closeStatus {
+	case types.WorkflowExecutionCloseStatusCompleted:
+		return types.WorkflowExecutionStatusCompleted
+	case types.WorkflowExecutionCloseStatusFailed:
+		return types.WorkflowExecutionStatusFailed
+	case types.WorkflowExecutionCloseStatusCanceled:
+		return types.WorkflowExecutionStatusCanceled
+	case types.WorkflowExecutionCloseStatusTerminated:
+		return types.WorkflowExecutionStatusTerminated
+	case types.WorkflowExecutionCloseStatusContinuedAsNew:
+		return types.WorkflowExecutionStatusContinuedAsNew
+	case types.WorkflowExecutionCloseStatusTimedOut:
+		return types.WorkflowExecutionStatusTimedOut
+	default:
+		return types.WorkflowExecutionStatusCompleted
+	}
 }

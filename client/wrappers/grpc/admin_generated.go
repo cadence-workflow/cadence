@@ -89,6 +89,11 @@ func (g adminClient) GetGlobalIsolationGroups(ctx context.Context, request *type
 	return proto.ToAdminGetGlobalIsolationGroupsResponse(response), proto.ToError(err)
 }
 
+func (g adminClient) GetOperationalDynamicConfig(ctx context.Context, gp1 *types.GetOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (gp2 *types.GetOperationalDynamicConfigResponse, err error) {
+	response, err := g.c.GetOperationalDynamicConfig(ctx, proto.FromAdminGetOperationalDynamicConfigRequest(gp1), p1...)
+	return proto.ToAdminGetOperationalDynamicConfigResponse(response), proto.ToError(err)
+}
+
 func (g adminClient) GetReplicationMessages(ctx context.Context, gp1 *types.GetReplicationMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetReplicationMessagesResponse, err error) {
 	response, err := g.c.GetReplicationMessages(ctx, proto.FromAdminGetReplicationMessagesRequest(gp1), p1...)
 	return proto.ToAdminGetReplicationMessagesResponse(response), proto.ToError(err)
@@ -102,6 +107,11 @@ func (g adminClient) GetWorkflowExecutionRawHistoryV2(ctx context.Context, gp1 *
 func (g adminClient) ListDynamicConfig(ctx context.Context, lp1 *types.ListDynamicConfigRequest, p1 ...yarpc.CallOption) (lp2 *types.ListDynamicConfigResponse, err error) {
 	response, err := g.c.ListDynamicConfig(ctx, proto.FromAdminListDynamicConfigRequest(lp1), p1...)
 	return proto.ToAdminListDynamicConfigResponse(response), proto.ToError(err)
+}
+
+func (g adminClient) ListOperationalDynamicConfig(ctx context.Context, lp1 *types.ListOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOperationalDynamicConfigResponse, err error) {
+	response, err := g.c.ListOperationalDynamicConfig(ctx, proto.FromAdminListOperationalDynamicConfigRequest(lp1), p1...)
+	return proto.ToAdminListOperationalDynamicConfigResponse(response), proto.ToError(err)
 }
 
 func (g adminClient) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.AdminMaintainWorkflowRequest, p1 ...yarpc.CallOption) (ap2 *types.AdminMaintainWorkflowResponse, err error) {
@@ -154,6 +164,11 @@ func (g adminClient) RestoreDynamicConfig(ctx context.Context, rp1 *types.Restor
 	return proto.ToError(err)
 }
 
+func (g adminClient) RestoreOperationalDynamicConfig(ctx context.Context, rp1 *types.RestoreOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	_, err = g.c.RestoreOperationalDynamicConfig(ctx, proto.FromAdminRestoreOperationalDynamicConfigRequest(rp1), p1...)
+	return proto.ToError(err)
+}
+
 func (g adminClient) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, request *types.UpdateDomainAsyncWorkflowConfiguratonRequest, opts ...yarpc.CallOption) (up1 *types.UpdateDomainAsyncWorkflowConfiguratonResponse, err error) {
 	response, err := g.c.UpdateDomainAsyncWorkflowConfiguraton(ctx, proto.FromAdminUpdateDomainAsyncWorkflowConfiguratonRequest(request), opts...)
 	return proto.ToAdminUpdateDomainAsyncWorkflowConfiguratonResponse(response), proto.ToError(err)
@@ -172,6 +187,11 @@ func (g adminClient) UpdateDynamicConfig(ctx context.Context, up1 *types.UpdateD
 func (g adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *types.UpdateGlobalIsolationGroupsRequest, opts ...yarpc.CallOption) (up1 *types.UpdateGlobalIsolationGroupsResponse, err error) {
 	response, err := g.c.UpdateGlobalIsolationGroups(ctx, proto.FromAdminUpdateGlobalIsolationGroupsRequest(request), opts...)
 	return proto.ToAdminUpdateGlobalIsolationGroupsResponse(response), proto.ToError(err)
+}
+
+func (g adminClient) UpdateOperationalDynamicConfig(ctx context.Context, up1 *types.UpdateOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	_, err = g.c.UpdateOperationalDynamicConfig(ctx, proto.FromAdminUpdateOperationalDynamicConfigRequest(up1), p1...)
+	return proto.ToError(err)
 }
 
 func (g adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {

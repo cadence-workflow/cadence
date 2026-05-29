@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/uber/cadence/common"
 	cadence_errors "github.com/uber/cadence/common/errors"
@@ -55,11 +56,12 @@ func newHandlerContext(
 }
 
 // startProfiling initiates recording of request metrics
-func (reqCtx *handlerContext) startProfiling(wg *sync.WaitGroup) metrics.Stopwatch {
+func (reqCtx *handlerContext) startProfiling(wg *sync.WaitGroup) (metrics.Stopwatch, time.Time) {
 	wg.Wait()
+	start := time.Now()
 	sw := reqCtx.scope.StartTimer(metrics.CadenceLatencyPerTaskList)
 	reqCtx.scope.IncCounter(metrics.CadenceRequestsPerTaskList)
-	return sw
+	return sw, start
 }
 
 func (reqCtx *handlerContext) handleErr(err error) error {
@@ -103,6 +105,9 @@ func (reqCtx *handlerContext) handleErr(err error) error {
 		return err
 	case errors.As(err, new(*types.StickyWorkerUnavailableError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrStickyWorkerUnavailablePerTaskListCounter)
+		return err
+	case errors.As(err, new(*types.ReadOnlyPartitionError)):
+		reqCtx.scope.IncCounter(metrics.CadenceErrReadOnlyPartitionPerTaskListCounter)
 		return err
 	case errors.As(err, new(*cadence_errors.TaskListNotOwnedByHostError)):
 		reqCtx.scope.IncCounter(metrics.CadenceErrTaskListNotOwnedByHostPerTaskListCounter)

@@ -21,9 +21,11 @@
 // SOFTWARE.
 
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Manager
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskListRegistry
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskMatcher
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist Forwarder
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist TaskCompleter
+//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interfaces_mock.go github.com/uber/cadence/service/matching/tasklist ShardProcessor
 
 package tasklist
 
@@ -32,11 +34,34 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
+	// TaskListRegistry is a registry of task list managers
+	// it tracks all task list managers and provides a way to get them by identifier, domain ID, or task list name
+	TaskListRegistry interface {
+		// Register registers a manager for a given identifier.
+		// we can override the manager for the same identifier if it is already registered
+		// this case should be handled by the caller
+		Register(id Identifier, mgr Manager)
+
+		// Unregister unregisters a manager for a given identifier.
+		// it returns true if the manager was unregistered, false if it was not found
+		Unregister(mgr Manager) bool
+
+		// AllManagers returns a list of all managers.
+		AllManagers() []Manager
+
+		ManagersByDomainID(domainID string) []Manager
+		ManagersByTaskListName(name string) []Manager
+		// ManagerByTaskListIdentifier returns a manager for a given identifier.
+		// it returns the manager and true if it was found, false if it was not found
+		ManagerByTaskListIdentifier(id Identifier) (Manager, bool)
+	}
+
 	Manager interface {
-		Start() error
+		Start(ctx context.Context) error
 		Stop()
 		// AddTask adds a task to the task list. This method will first attempt a synchronous
 		// match with a poller. When that fails, task will be written to database and later
@@ -64,6 +89,7 @@ type (
 		UpdateTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		RefreshTaskListPartitionConfig(context.Context, *types.TaskListPartitionConfig) error
 		LoadBalancerHints() *types.LoadBalancerHints
+		QueriesPerSecond() float64
 		ReleaseBlockedPollers() error
 	}
 
@@ -88,5 +114,12 @@ type (
 
 	TaskCompleter interface {
 		CompleteTaskIfStarted(ctx context.Context, task *InternalTask) error
+	}
+
+	ShardProcessor interface {
+		Start(ctx context.Context) error
+		Stop()
+		GetShardReport() executorclient.ShardReport
+		SetShardStatus(types.ShardStatus)
 	}
 )
