@@ -1,4 +1,4 @@
-FROM golang:1.24.5-bookworm
+FROM golang:1.24.5-bullseye
 
 # Tried to set Python to ignore warnings due to the instructions at this link:
 # https://github.com/yaml/pyyaml/wiki/PyYAML-yaml.load(input)-Deprecation
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       gettext-base \
       libyaml-dev \
       python3-pip \
-      python3-setuptools \
+      python-setuptools \
       time \
       unzip \
       ca-certificates \
