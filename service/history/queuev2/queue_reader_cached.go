@@ -111,16 +111,21 @@ type cachedQueueReader struct {
 	// Always update via updateExclusiveUpperBound to keep the prefetch loop in sync.
 	exclusiveUpperBound persistence.HistoryTaskKey
 
-	// prefetchTargetUpper is the exclusive upper key the current in-flight prefetch
+	// prefetchTargetUpper is the new exclusive upper key the current in-flight prefetch
 	// is aiming to reach. Set under mu before the DB call; cleared to
-	// MinimumHistoryTaskKey after the call completes.
-	// MinimumHistoryTaskKey means no prefetch is in-flight.
+	// MinimumHistoryTaskKey after the call completes
 	prefetchTargetUpper persistence.HistoryTaskKey
 
-	// pendingInjectBuffer accumulates tasks arriving via Inject while a prefetch
-	// DB call is in-flight and whose key falls in [exclusiveUpperBound, prefetchTargetUpper).
-	// Drained into the in-memory queue after the prefetch completes.
-	// Guarded by mu.
+	// pendingInjectBuffer holds tasks that arrive via Inject while a prefetch is in-flight
+	// with keys in [exclusiveUpperBound, prefetchTargetUpper).
+	//
+	// Without this buffer, a task saved to DB during a prefetch may be missed: its key is
+	// beyond the current exclusiveUpperBound, so it is not injected into the cache, and the
+	// prefetch may not see it due to a race between reading from DB and the task being saved.
+	// When the prefetch completes, it advances exclusiveUpperBound past the task's key,
+	// leaving the task permanently dropped from the cache.
+	//
+	// These tasks are drained into the cache after the prefetch extends the window.
 	pendingInjectBuffer []persistence.Task
 
 	ctx    context.Context
@@ -406,14 +411,16 @@ func (q *cachedQueueReader) isTaskCovered(key persistence.HistoryTaskKey) bool {
 	return !key.Less(q.inclusiveLowerBound) && key.Less(q.exclusiveUpperBound)
 }
 
-// isToBufferTask reports whether t should be placed in pendingInjectBuffer so it can
-// be drained once the in-flight prefetch extends the window to cover it.
+// isToBufferTask reports whether the given task key should be placed in pendingInjectBuffer
+// and within [exclusiveUpperBound, prefetchTargetUpper) and if a prefetch is in-flight
 // Caller must hold q.mu (read or write).
-func (q *cachedQueueReader) isToBufferTask(t persistence.Task) bool {
-	key := t.GetTaskKey()
-	return !q.prefetchTargetUpper.Equal(persistence.MinimumHistoryTaskKey) &&
-		!key.Less(q.inclusiveLowerBound) &&
-		key.Less(q.prefetchTargetUpper)
+func (q *cachedQueueReader) isToBufferTask(key persistence.HistoryTaskKey) bool {
+	// there is no in-flight prefetch, so no tasks should be buffered.
+	if q.prefetchTargetUpper.Equal(persistence.MinimumHistoryTaskKey) {
+		return false
+	}
+
+	return key.GreaterOrEqual(q.exclusiveUpperBound) && key.Less(q.prefetchTargetUpper)
 }
 
 // putTasks adds tasks to the cache and enforces the size cap.
@@ -561,7 +568,7 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 			covered = append(covered, t)
 			continue
 		}
-		if q.isToBufferTask(t) {
+		if q.isToBufferTask(t.GetTaskKey()) {
 			q.pendingInjectBuffer = append(q.pendingInjectBuffer, t)
 			continue
 		}
