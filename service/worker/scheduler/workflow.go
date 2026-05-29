@@ -387,9 +387,9 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
-// concurrencyLimitString renders a *int32 limit for log fields, printing "<nil>"
-// when unset so logs distinguish "no user limit" from "explicit 0 (unlimited)".
-func concurrencyLimitString(v *int32) string {
+// formatOptionalInt32 renders a *int32 for log fields, printing "<nil>" when
+// unset so logs distinguish "no user value" from "explicit 0".
+func formatOptionalInt32(v *int32) string {
 	if v == nil {
 		return "<nil>"
 	}
@@ -448,7 +448,7 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 			logger.Warn("policy change cleared running workflows tracking",
 				zap.String("from", previousOverlap.String()),
 				zap.String("to", newOverlap.String()),
-				zap.String("newLimit", concurrencyLimitString(newLimit)),
+				zap.String("newLimit", formatOptionalInt32(newLimit)),
 				zap.Int("clearedCount", len(state.RunningWorkflows)))
 			state.RunningWorkflows = nil
 		}
@@ -632,7 +632,7 @@ func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *Scheduler
 			zap.Time("scheduledTime", scheduledTime),
 			zap.String("reason", reason),
 			zap.Int("effectiveLimit", effective),
-			zap.String("userBufferLimit", concurrencyLimitString(input.Policies.BufferLimit)),
+			zap.String("userBufferLimit", formatOptionalInt32(input.Policies.BufferLimit)),
 			zap.Int("systemLimit", MaxBufferedFiresSystemLimit),
 			zap.Int("bufferSize", len(state.BufferedFires)),
 		)
