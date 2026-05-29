@@ -3727,3 +3727,7 @@ func TestFailoverDomainRequestConversion(t *testing.T) {
 		assert.Equal(t, item, ToFailoverDomainRequest(FromFailoverDomainRequest(item)))
 	}
 }
+
+func TestFailoverDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
+}

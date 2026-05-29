@@ -1831,7 +1831,6 @@ func (v *FailoverDomainRequest) GetReason() (o string) {
 	return
 }
 
-// GetFailoverTimeoutInSeconds is an internal getter (TBD...)
 func (v *FailoverDomainRequest) GetFailoverTimeoutInSeconds() (o int32) {
 	if v != nil && v.FailoverTimeoutInSeconds != nil {
 		return *v.FailoverTimeoutInSeconds

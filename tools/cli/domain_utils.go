@@ -293,7 +293,7 @@ var (
 		&cli.IntFlag{
 			Name:    FlagFailoverTimeout,
 			Aliases: []string{"fts"},
-			Usage:   "[Optional] Graceful failover timeout in seconds. If set, the failover is performed gracefully instead of force.",
+			Usage:   "[Optional] Graceful failover timeout in seconds. When set, the incoming active cluster waits up to this duration for pending replication tasks to drain before taking over",
 		},
 	}
 

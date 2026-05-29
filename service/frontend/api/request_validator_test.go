@@ -1112,7 +1112,7 @@ func TestValidateFailoverDomainRequest(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name: "success - active cluster",
+			name: "success - active-passive failover",
 			req: &types.FailoverDomainRequest{
 				DomainName:              "domain",
 				DomainActiveClusterName: common.Ptr("cluster0"),
@@ -1120,7 +1120,7 @@ func TestValidateFailoverDomainRequest(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "success - active clusters",
+			name: "success - active-active failover",
 			req: &types.FailoverDomainRequest{
 				DomainName: "domain",
 				ActiveClusters: &types.ActiveClusters{

@@ -108,16 +108,8 @@ func (wh *WorkflowHandler) UpdateDomain(
 	}
 
 	isGraceFailover := updateRequest != nil && isGraceFailoverRequest(updateRequest)
-	emitInitiationFailure := func(reason string) {
-		if !isGraceFailover {
-			return
-		}
-		wh.GetMetricsClient().Scope(
-			metrics.FrontendUpdateDomainScope,
-			metrics.DomainTag(updateRequest.GetName()),
-			metrics.ReasonTag(reason),
-		).IncCounter(metrics.GracefulFailoverInitiationFailure)
-	}
+	emitInitiationFailure := wh.gracefulFailoverInitiationFailureEmitter(
+		metrics.FrontendUpdateDomainScope, updateRequest.GetName(), isGraceFailover)
 
 	if err := wh.requestValidator.ValidateUpdateDomainRequest(ctx, updateRequest); err != nil {
 		emitInitiationFailure("validation")
@@ -224,16 +216,8 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 	}
 
 	isGraceful := failoverRequest != nil && failoverRequest.FailoverTimeoutInSeconds != nil
-	emitInitiationFailure := func(reason string) {
-		if !isGraceful {
-			return
-		}
-		wh.GetMetricsClient().Scope(
-			metrics.FrontendFailoverDomainScope,
-			metrics.DomainTag(failoverRequest.GetDomainName()),
-			metrics.ReasonTag(reason),
-		).IncCounter(metrics.GracefulFailoverInitiationFailure)
-	}
+	emitInitiationFailure := wh.gracefulFailoverInitiationFailureEmitter(
+		metrics.FrontendFailoverDomainScope, failoverRequest.GetDomainName(), isGraceful)
 
 	if err := wh.requestValidator.ValidateFailoverDomainRequest(ctx, failoverRequest); err != nil {
 		emitInitiationFailure("validation")
@@ -331,4 +315,17 @@ func (wh *WorkflowHandler) ListFailoverHistory(ctx context.Context, request *typ
 		FailoverEvents: failoverEvents,
 		NextPageToken:  auditLogsResp.NextPageToken,
 	}, nil
+}
+
+func (wh *WorkflowHandler) gracefulFailoverInitiationFailureEmitter(scope metrics.ScopeIdx, domainName string, isGraceful bool) func(reason string) {
+	return func(reason string) {
+		if !isGraceful {
+			return
+		}
+		wh.GetMetricsClient().Scope(
+			scope,
+			metrics.DomainTag(domainName),
+			metrics.ReasonTag(reason),
+		).IncCounter(metrics.GracefulFailoverInitiationFailure)
+	}
 }
