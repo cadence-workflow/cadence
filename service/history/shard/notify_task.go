@@ -44,7 +44,7 @@ func isOperationPossiblySuccessfulError(err error) bool {
 // isNotifyTaskNeeded determines whether task notification should be sent based on the error returned from a persistence operation.
 // Returns isNotify=true when the persistence write may have landed (success or ambiguous error), false for definitive failures.
 // Returns persistenceError=true when the write outcome is uncertain (ambiguous error), so processors can handle duplicates.
-func isNotifyTaskNeeded(err error) (isNotify, persistenceError bool) {
+func isNotifyTaskNeeded(err error) (notify, persistenceError bool) {
 	if err == nil {
 		return true, false
 	}
@@ -60,7 +60,7 @@ func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
 	request *persistence.CreateWorkflowExecutionRequest,
 	err error,
 ) {
-	if isNotify, persistenceError := isNotifyTaskNeeded(err); isNotify {
+	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
 	}
 }
@@ -71,7 +71,7 @@ func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
 	request *persistence.UpdateWorkflowExecutionRequest,
 	err error,
 ) {
-	if isNotify, persistenceError := isNotifyTaskNeeded(err); isNotify {
+	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromMutation(&request.UpdateWorkflowMutation, persistenceError)
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 	}
@@ -83,7 +83,7 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 	request *persistence.ConflictResolveWorkflowExecutionRequest,
 	err error,
 ) {
-	if isNotify, persistenceError := isNotifyTaskNeeded(err); isNotify {
+	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromSnapshot(&request.ResetWorkflowSnapshot, persistenceError)
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
