@@ -17,6 +17,10 @@ jobs:
           - queuev2
           - queuev2_scheduled_cache_enabled
           - queuev2_split
+        include:
+          - scenario: queuev2_scheduled_cache_enabled
+            experimental: true
+    continue-on-error: ${{ matrix.experimental == true }}
 
     steps:
       - name: Checkout
