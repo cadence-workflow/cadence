@@ -437,12 +437,13 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 			state.BufferedFires = nil
 		}
 		// Drop running-workflow tracking when leaving bounded CONCURRENT: the
-		// list is meaningless under any other policy or when limit becomes 0.
+		// list is meaningless under any other policy or when the new limit is
+		// unbounded (nil = unset, *int32(0) = explicit unlimited).
 		newOverlap := input.Policies.OverlapPolicy
 		newLimit := input.Policies.ConcurrencyLimit
-		newLimitIsZero := newLimit != nil && *newLimit == 0
+		newLimitIsUnbounded := newLimit == nil || *newLimit == 0
 		if previousOverlap == types.ScheduleOverlapPolicyConcurrent &&
-			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimitIsZero) &&
+			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimitIsUnbounded) &&
 			len(state.RunningWorkflows) > 0 {
 			logger.Warn("policy change cleared running workflows tracking",
 				zap.String("from", previousOverlap.String()),

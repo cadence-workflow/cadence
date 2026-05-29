@@ -1553,6 +1553,15 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 			wantNil:           true,
 		},
 		{
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=nil) clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         common.Int32Ptr(2),
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           nil,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
 			name:              "CONCURRENT(limit=2) -> BUFFER clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
 			fromLimit:         common.Int32Ptr(2),

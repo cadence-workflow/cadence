@@ -1240,10 +1240,9 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
-// TestWarnIfBufferLimitExceedsSystemLimit_NilSafe guards the B1 fix: callers
-// pass *types.SchedulePolicies and BufferLimit is *int32, so the helper must
-// not panic on nil policies or nil BufferLimit. It must also no-op when the
-// overlap policy isn't Buffer (limit has no effect there).
+// TestWarnIfBufferLimitExceedsSystemLimit_NilSafe verifies the helper does not
+// panic when policies or policies.BufferLimit is nil, and that it stays a no-op
+// when the overlap policy is not Buffer (BufferLimit has no effect there).
 func TestWarnIfBufferLimitExceedsSystemLimit_NilSafe(t *testing.T) {
 	f := newScheduleTestFixture(t)
 	defer f.finish()
