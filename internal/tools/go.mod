@@ -2,7 +2,7 @@ module github.com/uber/cadence/internal/tools
 
 go 1.24.0
 
-toolchain go1.24.7
+toolchain go1.24.5
 
 require (
 	github.com/daixiang0/gci v0.12.0

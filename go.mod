@@ -2,7 +2,7 @@ module github.com/uber/cadence
 
 go 1.24
 
-toolchain go1.24.7
+toolchain go1.24.5
 
 require (
 	github.com/MicahParks/keyfunc/v2 v2.1.0
