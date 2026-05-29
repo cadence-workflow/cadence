@@ -133,8 +133,8 @@ func standbyTaskPostActionWriteToDLQ(
 			}
 		}
 
-		domainTag, _ := getDomainTagByID(shard.GetDomainCache(), domainID)
-		metricsScope := shard.GetMetricsClient().Scope(metrics.HistoryTaskStandbyDLQScope, domainTag)
+		domainName, _ := shard.GetDomainCache().GetDomainName(domainID)
+		metricsScope := shard.GetMetricsClient().Scope(metrics.HistoryTaskStandbyDLQScope, metrics.DomainTag(domainName))
 
 		taskTags := []tag.Tag{
 			tag.WorkflowID(task.GetWorkflowID()),
@@ -150,7 +150,6 @@ func standbyTaskPostActionWriteToDLQ(
 		switch isDeadLetterQueueEnabled {
 		case constants.HistoryTaskDLQModeEnabled:
 			logger.Warn("Writing standby task to DLQ due to task being pending for too long.", taskTags...)
-			metricsScope.Tagged(metrics.HistoryTaskDLQModeTag(constants.HistoryTaskDLQModeEnabled)).IncCounter(metrics.TaskDLQPerDomain)
 			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
@@ -160,7 +159,6 @@ func standbyTaskPostActionWriteToDLQ(
 			})
 		case constants.HistoryTaskDLQModeShadow:
 			logger.Warn("Writing standby task to DLQ in shadow mode; task will be discarded.", taskTags...)
-			metricsScope.Tagged(metrics.HistoryTaskDLQModeTag(constants.HistoryTaskDLQModeShadow)).IncCounter(metrics.TaskDLQPerDomain)
 			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
 				DomainID:              task.GetDomainID(),
@@ -171,10 +169,11 @@ func standbyTaskPostActionWriteToDLQ(
 			if err != nil {
 				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.")
 			}
+			metricsScope.Tagged(metrics.HistoryTaskDLQDiscardCauseTag(constants.HistoryTaskDLQModeShadow)).IncCounter(metrics.TaskDLQDiscardPerDomain)
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		default:
 			logger.Warn("DLQ not enabled for domain; discarding standby task.", taskTags...)
-			metricsScope.Tagged(metrics.HistoryTaskDLQModeTag(constants.HistoryTaskDLQModeDisabled)).IncCounter(metrics.TaskDLQPerDomain)
+			metricsScope.Tagged(metrics.HistoryTaskDLQDiscardCauseTag(constants.HistoryTaskDLQModeDisabled)).IncCounter(metrics.TaskDLQDiscardPerDomain)
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		}
 	}

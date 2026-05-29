@@ -35,6 +35,7 @@ const (
 
 	instance                  = "instance"
 	domain                    = "domain"
+	domainID                  = "domain_id"
 	domainType                = "domain_type"
 	clusterGroup              = "cluster_group"
 	sourceCluster             = "source_cluster"
@@ -88,10 +89,17 @@ const (
 	onboardingSource = "onboarding_source"
 	onboardingActive = "onboarding_active"
 
-	historyTaskDLQMode = "history_task_dlq_mode"
+	historyTaskDLQOutcome = "outcome"
+	historyTaskDLQCause   = "cause"
 
 	allValue     = "all"
 	unknownValue = "_unknown_"
+)
+
+// String values for the HistoryTaskDLQ outcome tag.
+const (
+	HistoryTaskDLQOutcomeSuccess = "success"
+	HistoryTaskDLQOutcomeFailure = "failure"
 )
 
 var (
@@ -130,6 +138,14 @@ func ShardIDTag(shardIDVal int) Tag {
 // this converts that to an unknown domain.
 func DomainTag(value string) Tag {
 	return metricWithUnknown(domain, value)
+}
+
+// DomainIDTag returns a new domain_id tag. If a blank ID is provided then this
+// converts it to an unknown domain. Prefer this when emitting metrics from
+// layers (like persistence) that already have the domain ID but would need to
+// resolve the name through the domain cache.
+func DomainIDTag(value string) Tag {
+	return metricWithUnknown(domainID, value)
 }
 
 // DomainTypeTag returns a tag for domain type.
@@ -433,9 +449,14 @@ func QueryConsistencyLevelTag(level string) Tag {
 	return metricWithUnknown(queryConsistencyLevel, level)
 }
 
-// HistoryTaskDLQModeTag returns a tag for the standby task DLQ mode (enabled/shadow/disabled).
-func HistoryTaskDLQModeTag(mode string) Tag {
-	return simpleMetric{key: historyTaskDLQMode, value: mode}
+// HistoryTaskDLQOutcomeTag returns a tag for the outcome of a DLQ write attempt (success|failure).
+func HistoryTaskDLQOutcomeTag(outcome string) Tag {
+	return simpleMetric{key: historyTaskDLQOutcome, value: outcome}
+}
+
+// HistoryTaskDLQDiscardCauseTag returns a tag for the cause of a terminal standby-task discard (disabled|shadow).
+func HistoryTaskDLQDiscardCauseTag(cause string) Tag {
+	return simpleMetric{key: historyTaskDLQCause, value: cause}
 }
 
 // BudgetManagerNameTag returns a new budget manager name tag.

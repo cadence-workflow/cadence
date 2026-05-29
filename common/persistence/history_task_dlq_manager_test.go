@@ -32,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 )
 
 func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
@@ -117,6 +118,7 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 				persistence:    mockStore,
 				taskSerializer: mockSerializer,
 				logger:         log.NewNoop(),
+				metricsClient:  metrics.NewNoopMetricsClient(),
 				timeSrc:        clock.NewMockedTimeSourceAt(now),
 			}
 			err := mgr.CreateHistoryDLQTask(context.Background(), CreateHistoryDLQTaskRequest{
@@ -141,7 +143,7 @@ func TestHistoryTaskDLQManager_GetName(t *testing.T) {
 	mockStore := NewMockHistoryDLQTaskStore(ctrl)
 	mockStore.EXPECT().GetName().Return("cassandra")
 
-	mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
+	mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop(), metrics.NewNoopMetricsClient())
 	assert.Equal(t, "cassandra", mgr.GetName())
 }
 
@@ -150,7 +152,7 @@ func TestHistoryTaskDLQManager_Close(t *testing.T) {
 	mockStore := NewMockHistoryDLQTaskStore(ctrl)
 	mockStore.EXPECT().Close()
 
-	mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
+	mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop(), metrics.NewNoopMetricsClient())
 	mgr.Close()
 }
 
@@ -297,7 +299,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			mockStore := NewMockHistoryDLQTaskStore(ctrl)
 			tc.mockSetup(mockStore)
 
-			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
+			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop(), metrics.NewNoopMetricsClient())
 			got, err := mgr.GetAckLevels(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
@@ -397,7 +399,7 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 			mockSerializer := NewMockHistoryTaskSerializer(ctrl)
 			tc.mockSetup(mockStore, mockSerializer)
 
-			mgr := NewHistoryTaskDLQManager(mockStore, mockSerializer, log.NewNoop())
+			mgr := NewHistoryTaskDLQManager(mockStore, mockSerializer, log.NewNoop(), metrics.NewNoopMetricsClient())
 			resp, err := mgr.GetTasks(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
@@ -528,7 +530,7 @@ func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
 			mockStore := NewMockHistoryDLQTaskStore(ctrl)
 			tc.mockSetup(mockStore)
 
-			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
+			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop(), metrics.NewNoopMetricsClient())
 			err := mgr.DeleteTasks(context.Background(), tc.request)
 
 			if tc.wantErr != "" {

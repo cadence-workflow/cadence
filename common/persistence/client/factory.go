@@ -284,7 +284,7 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 		return nil, err
 	}
 	taskSerializer := serialization.NewTaskSerializer(parser)
-	return p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger), nil
+	return p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger, f.metricsClient), nil
 }
 
 // NewExecutionManager returns a new execution manager for a given shardID

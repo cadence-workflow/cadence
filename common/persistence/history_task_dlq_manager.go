@@ -29,6 +29,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 )
 
 // HistoryTaskSerializer serializes and deserializes history tasks. It is a subset of
@@ -43,6 +44,7 @@ type historyTaskDLQManagerImpl struct {
 	persistence    HistoryDLQTaskStore
 	taskSerializer HistoryTaskSerializer
 	logger         log.Logger
+	metricsClient  metrics.Client
 	timeSrc        clock.TimeSource
 }
 
@@ -51,20 +53,34 @@ func NewHistoryTaskDLQManager(
 	persistence HistoryDLQTaskStore,
 	taskSerializer HistoryTaskSerializer,
 	logger log.Logger,
+	metricsClient metrics.Client,
 ) HistoryTaskDLQManager {
 	return &historyTaskDLQManagerImpl{
 		persistence:    persistence,
 		taskSerializer: taskSerializer,
 		logger:         logger,
+		metricsClient:  metricsClient,
 		timeSrc:        clock.NewRealTimeSource(),
 	}
 }
 
 // CreateHistoryDLQTask serializes the task and writes it to the DLQ store.
+// Emits a per-domain write outcome counter regardless of which caller invoked it.
 func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	ctx context.Context,
 	request CreateHistoryDLQTaskRequest,
-) error {
+) (retErr error) {
+	defer func() {
+		outcome := metrics.HistoryTaskDLQOutcomeSuccess
+		if retErr != nil {
+			outcome = metrics.HistoryTaskDLQOutcomeFailure
+		}
+		m.metricsClient.
+			Scope(metrics.HistoryTaskDLQWriteScope, metrics.DomainIDTag(request.DomainID)).
+			Tagged(metrics.HistoryTaskDLQOutcomeTag(outcome)).
+			IncCounter(metrics.TaskDLQWritePerDomain)
+	}()
+
 	blob, err := m.taskSerializer.SerializeTask(request.Task.GetTaskCategory(), request.Task)
 	if err != nil {
 		return fmt.Errorf("failed to serialize history DLQ task: %w", err)
