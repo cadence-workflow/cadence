@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -445,7 +446,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -471,7 +472,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 3
+				r.ConcurrencyLimit = common.Int32Ptr(3)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -501,7 +502,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -538,7 +539,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 1
+				r.ConcurrencyLimit = common.Int32Ptr(1)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 				}
@@ -566,7 +567,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 				}
@@ -583,7 +584,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 3
+				r.ConcurrencyLimit = common.Int32Ptr(3)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 				}
@@ -896,7 +897,7 @@ func TestProcessScheduleFireActivityMetrics(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -1092,14 +1093,16 @@ func TestProcessScheduleFireActivityLatency(t *testing.T) {
 func TestEffectiveConcurrencyLimit(t *testing.T) {
 	tests := []struct {
 		name      string
-		userLimit int32
+		userLimit *int32
 		want      int32
 	}{
-		{"below system limit returned as-is", 1, 1},
-		{"typical value returned as-is", 10, 10},
-		{"at system limit returned as-is", MaxConcurrencyLimitSystemLimit, MaxConcurrencyLimitSystemLimit},
-		{"one above system limit clamped", MaxConcurrencyLimitSystemLimit + 1, MaxConcurrencyLimitSystemLimit},
-		{"large value clamped to system limit", 10000, MaxConcurrencyLimitSystemLimit},
+		{"nil returns zero", nil, 0},
+		{"explicit zero returns zero", common.Int32Ptr(0), 0},
+		{"below system limit returned as-is", common.Int32Ptr(1), 1},
+		{"typical value returned as-is", common.Int32Ptr(10), 10},
+		{"at system limit returned as-is", common.Int32Ptr(MaxConcurrencyLimitSystemLimit), MaxConcurrencyLimitSystemLimit},
+		{"one above system limit clamped", common.Int32Ptr(MaxConcurrencyLimitSystemLimit + 1), MaxConcurrencyLimitSystemLimit},
+		{"large value clamped to system limit", common.Int32Ptr(10000), MaxConcurrencyLimitSystemLimit},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

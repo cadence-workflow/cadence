@@ -79,7 +79,7 @@ func processScheduleFireActivity(ctx context.Context, req ProcessFireRequest) (r
 	// completed entries, and enforce the cap. When under the cap, falls through
 	// to the shared start block; stillRunning is used there to build
 	// result.ActiveWorkflows. When at or over the cap, returns early with a skip.
-	isBoundedConcurrent := policy == types.ScheduleOverlapPolicyConcurrent && req.ConcurrencyLimit > 0
+	isBoundedConcurrent := policy == types.ScheduleOverlapPolicyConcurrent && req.ConcurrencyLimit != nil && *req.ConcurrencyLimit > 0
 	var stillRunning []RunningWorkflowInfo
 	if isBoundedConcurrent {
 		effectiveLimit := effectiveConcurrencyLimit(req.ConcurrencyLimit)

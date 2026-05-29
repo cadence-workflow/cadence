@@ -156,8 +156,8 @@ var (
 		CatchUpPolicy:    types.ScheduleCatchUpPolicyAll,
 		CatchUpWindow:    time.Hour,
 		PauseOnFailure:   true,
-		BufferLimit:      5,
-		ConcurrencyLimit: 2,
+		BufferLimit:      common.Int32Ptr(5),
+		ConcurrencyLimit: common.Int32Ptr(2),
 	}
 
 	SchedulePauseInfo = types.SchedulePauseInfo{

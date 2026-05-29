@@ -88,7 +88,7 @@ func (sc *scheduleCLIImpl) CreateSchedule(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if policies != nil && policies.ConcurrencyLimit > 0 &&
+	if policies != nil && policies.ConcurrencyLimit != nil && *policies.ConcurrencyLimit > 0 &&
 		policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
 		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
 	}
@@ -168,7 +168,7 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 	}
 	// Only reject explicit conflicts; standalone --concurrency_limit updates are
 	// valid when the schedule's existing server-side policy is already concurrent.
-	if policies != nil && policies.ConcurrencyLimit > 0 &&
+	if policies != nil && policies.ConcurrencyLimit != nil && *policies.ConcurrencyLimit > 0 &&
 		c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
 		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
 	}
@@ -403,7 +403,7 @@ func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
 		if limit < 0 {
 			return nil, commoncli.Problem("--concurrency_limit must be >= 0", nil)
 		}
-		policies.ConcurrencyLimit = limit
+		policies.ConcurrencyLimit = &limit
 	}
 	return policies, nil
 }
