@@ -156,3 +156,129 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 		}
 	}
 }
+
+// TestScheduleFullCreateRoundTrip creates a schedule with every optional field set
+// and asserts DescribeSchedule returns them unchanged. It exercises the full
+// CreateSchedule -> DescribeSchedule mapping path that the CLI cannot reach (the
+// CLI only exposes cron/workflowType/taskList/timeouts/input/overlap/catchup/
+// concurrencyLimit). Some assertions may surface gaps in the Describe response
+// mapping (e.g. schedule-level Memo/SearchAttributes, createTime/lastUpdateTime).
+func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
+	if s.TestClusterConfig.WorkerConfig == nil || !s.TestClusterConfig.WorkerConfig.EnableScheduler {
+		s.T().Skip("scheduler worker manager not enabled on this cluster")
+	}
+
+	scheduleID := s.RandomizeStr("full-create")
+	start := time.Now().Add(2 * time.Minute).Round(time.Second).UTC()
+	end := start.Add(time.Hour)
+
+	createReq := &types.CreateScheduleRequest{
+		Domain:     s.DomainName,
+		ScheduleID: scheduleID,
+		Spec: &types.ScheduleSpec{
+			CronExpression: "@every 30s", // @every descriptor; faster than the 1-min standard-cron floor
+			StartTime:      start,
+			EndTime:        end,
+			Jitter:         15 * time.Second,
+		},
+		Action: &types.ScheduleAction{
+			StartWorkflow: &types.StartWorkflowAction{
+				WorkflowType:                        &types.WorkflowType{Name: "full-create-target"},
+				TaskList:                            &types.TaskList{Name: s.RandomizeStr("full-tl")},
+				Input:                               []byte(`"hello"`),
+				WorkflowIDPrefix:                    "wfpfx-",
+				ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(60),
+				TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(10),
+				RetryPolicy: &types.RetryPolicy{
+					InitialIntervalInSeconds:    1,
+					BackoffCoefficient:          2.0,
+					MaximumIntervalInSeconds:    10,
+					MaximumAttempts:             3,
+					ExpirationIntervalInSeconds: 100,
+				},
+				Memo: &types.Memo{Fields: map[string][]byte{"actionMemo": []byte(`"m"`)}},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"CustomKeywordField": []byte(`"sa"`)},
+				},
+			},
+		},
+		Policies: &types.SchedulePolicies{
+			OverlapPolicy:    types.ScheduleOverlapPolicyBuffer,
+			CatchUpPolicy:    types.ScheduleCatchUpPolicyOne,
+			CatchUpWindow:    time.Hour,
+			PauseOnFailure:   true,
+			BufferLimit:      common.Int32Ptr(5),
+			ConcurrencyLimit: common.Int32Ptr(0),
+		},
+		Memo: &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
+		SearchAttributes: &types.SearchAttributes{
+			IndexedFields: map[string][]byte{"CustomIntField": []byte(`7`)},
+		},
+	}
+
+	createCtx, createCancel := createContext()
+	_, err := s.Engine.CreateSchedule(createCtx, createReq)
+	createCancel()
+	s.Require().NoError(err, "CreateSchedule failed")
+
+	defer func() {
+		delCtx, delCancel := createContext()
+		defer delCancel()
+		if _, derr := s.Engine.DeleteSchedule(delCtx, &types.DeleteScheduleRequest{
+			Domain:     s.DomainName,
+			ScheduleID: scheduleID,
+		}); derr != nil {
+			s.Logger.Warn("DeleteSchedule (cleanup) failed", tag.Error(derr))
+		}
+	}()
+
+	// DescribeSchedule queries the scheduler workflow, which must handle its first
+	// decision task before it can be queried; retry briefly to ride out that window.
+	var desc *types.DescribeScheduleResponse
+	s.Require().Eventually(func() bool {
+		c, cc := createContext()
+		defer cc()
+		d, e := s.Engine.DescribeSchedule(c, &types.DescribeScheduleRequest{
+			Domain:     s.DomainName,
+			ScheduleID: scheduleID,
+		})
+		if e != nil {
+			s.Logger.Info("DescribeSchedule not ready yet", tag.Error(e))
+			return false
+		}
+		desc = d
+		return true
+	}, 20*time.Second, time.Second, "DescribeSchedule never became queryable")
+
+	// Spec round-trip.
+	s.Equal("@every 30s", desc.GetSpec().GetCronExpression())
+	s.WithinDuration(start, desc.GetSpec().GetStartTime(), time.Second)
+	s.WithinDuration(end, desc.GetSpec().GetEndTime(), time.Second)
+	s.Equal(15*time.Second, desc.GetSpec().GetJitter())
+
+	// Action round-trip.
+	sw := desc.GetAction().GetStartWorkflow()
+	s.Require().NotNil(sw)
+	s.Equal("full-create-target", sw.GetWorkflowType().GetName())
+	s.Equal("wfpfx-", sw.GetWorkflowIDPrefix())
+	s.Equal([]byte(`"hello"`), sw.GetInput())
+	s.Equal(int32(60), sw.GetExecutionStartToCloseTimeoutSeconds())
+	s.Equal(int32(10), sw.GetTaskStartToCloseTimeoutSeconds())
+	s.Require().NotNil(sw.GetRetryPolicy())
+	s.Equal(int32(3), sw.GetRetryPolicy().MaximumAttempts)
+
+	// Policies round-trip, including the nullable limit fields.
+	pol := desc.GetPolicies()
+	s.Require().NotNil(pol)
+	s.Equal(types.ScheduleOverlapPolicyBuffer, pol.GetOverlapPolicy())
+	s.Equal(types.ScheduleCatchUpPolicyOne, pol.GetCatchUpPolicy())
+	s.Equal(time.Hour, pol.GetCatchUpWindow())
+	s.True(pol.GetPauseOnFailure())
+	s.Require().NotNil(pol.GetBufferLimit())
+	s.Equal(int32(5), *pol.GetBufferLimit())
+	s.Require().NotNil(pol.GetConcurrencyLimit())
+	s.Equal(int32(0), *pol.GetConcurrencyLimit())
+
+	// Schedule starts active.
+	s.False(desc.GetState().GetPaused())
+}
