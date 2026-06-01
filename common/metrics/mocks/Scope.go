@@ -406,25 +406,28 @@ func (_c *Scope_StartTimer_Call) RunAndReturn(run func(timer metrics.MetricIdx) 
 	return _c
 }
 
-// Tagged provides a mock function with given fields: tags
+// Tagged provides a mock function for the type Scope
 func (_mock *Scope) Tagged(tags ...metrics.Tag) metrics.Scope {
-	_va := make([]interface{}, len(tags))
-	for _i := range tags {
-		_va[_i] = tags[_i]
+	var tmpRet mock.Arguments
+	if len(tags) > 0 {
+		tmpRet = _mock.Called(tags)
+	} else {
+		tmpRet = _mock.Called()
 	}
-	var _ca []interface{}
-	_ca = append(_ca, _va...)
-	ret := _mock.Called(_ca...)
+	ret := tmpRet
+
+	if len(ret) == 0 {
+		panic("no return value specified for Tagged")
+	}
 
 	var r0 metrics.Scope
-	if rf, ok := ret.Get(0).(func(...metrics.Tag) metrics.Scope); ok {
-		r0 = rf(tags...)
+	if returnFunc, ok := ret.Get(0).(func(...metrics.Tag) metrics.Scope); ok {
+		r0 = returnFunc(tags...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(metrics.Scope)
 		}
 	}
-
 	return r0
 }
 
