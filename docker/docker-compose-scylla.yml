@@ -33,7 +33,7 @@ services:
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001"
       - "PROMETHEUS_ENDPOINT_2=0.0.0.0:8002"
       - "PROMETHEUS_ENDPOINT_3=0.0.0.0:8003"
-      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml"
+      - "DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/development.yaml"
     depends_on:
       - scylla
       - prometheus
