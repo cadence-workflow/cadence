@@ -105,7 +105,7 @@ func NewPartitionConfigProvider(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-			MetricsScope:    metricsClient.Scope(metrics.PartitionConfigProviderScope),
+			MetricsScope:    metricsClient.Scope(metrics.PartitionConfigProviderScope).Tagged(metrics.NonShardTag()),
 			Logger:          logger,
 		}),
 	}
