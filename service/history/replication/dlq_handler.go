@@ -23,6 +23,8 @@ package replication
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -36,11 +38,14 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/shard"
 )
 
 const (
-	defaultBeginningMessageID = -1
+	defaultBeginningMessageID        = -1
+	dlqProcessorTimerCoefficient     = 0.05
+	dlqProcessorRetryInitialInterval = 100 * time.Millisecond
 )
 
 var (
@@ -80,9 +85,13 @@ type (
 	dlqHandlerImpl struct {
 		taskExecutors map[string]TaskExecutor
 		shard         shard.Context
+		config        *config.Config
 		logger        log.Logger
 		metricsClient metrics.Client
+		ctx           context.Context
+		cancel        context.CancelFunc
 		done          chan struct{}
+		wg            sync.WaitGroup
 		status        int32
 		timeSource    clock.TimeSource
 
@@ -103,11 +112,15 @@ func NewDLQHandler(
 		panic("Failed to initialize replication DLQ handler due to nil task executors")
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	return &dlqHandlerImpl{
 		shard:         shard,
 		taskExecutors: taskExecutors,
+		config:        shard.GetConfig(),
 		logger:        shard.GetLogger(),
 		metricsClient: shard.GetMetricsClient(),
+		ctx:           ctx,
+		cancel:        cancel,
 		done:          make(chan struct{}),
 		timeSource:    clock.NewRealTimeSource(),
 	}
@@ -119,7 +132,12 @@ func (r *dlqHandlerImpl) Start() {
 		return
 	}
 
+	r.wg.Add(1)
 	go r.emitDLQSizeMetricsLoop()
+	if r.config.ReplicationDLQProcessorEnabled() {
+		r.wg.Add(1)
+		go r.processorLoop()
+	}
 	r.logger.Info("DLQ handler started.")
 }
 
@@ -130,29 +148,42 @@ func (r *dlqHandlerImpl) Stop() {
 	}
 
 	r.logger.Debug("DLQ handler shutting down.")
+	r.cancel()
 	close(r.done)
+
+	if !common.AwaitWaitGroup(&r.wg, 10*time.Second) {
+		r.logger.Warn("DLQ handler timed out on shutdown.")
+	}
 }
 
 func (r *dlqHandlerImpl) GetMessageCount(ctx context.Context, forceFetch bool) (map[string]int64, error) {
-	if forceFetch || r.latestCounts == nil {
+	r.mu.Lock()
+	needFetch := forceFetch || r.latestCounts == nil
+	r.mu.Unlock()
+
+	if needFetch {
 		if err := r.fetchAndEmitMessageCount(ctx); err != nil {
 			return nil, err
 		}
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.latestCounts, nil
 }
 
 func (r *dlqHandlerImpl) fetchAndEmitMessageCount(ctx context.Context) error {
 	shardID := strconv.Itoa(r.shard.GetShardID())
 	result := map[string]int64{}
+	var lastErr error
 	for sourceCluster := range r.taskExecutors {
 		request := persistence.GetReplicationDLQSizeRequest{SourceClusterName: sourceCluster, ShardID: common.Ptr(r.shard.GetShardID())}
 		response, err := r.shard.GetExecutionManager().GetReplicationDLQSize(ctx, &request)
 		if err != nil {
 			r.logger.Error("failed to get replication DLQ size", tag.SourceCluster(sourceCluster), tag.Error(err))
 			r.metricsClient.Scope(metrics.ReplicationDLQStatsScope).IncCounter(metrics.ReplicationDLQProbeFailed)
-			return err
+			lastErr = err
+			continue
 		}
 		r.metricsClient.Scope(
 			metrics.ReplicationDLQStatsScope,
@@ -166,13 +197,17 @@ func (r *dlqHandlerImpl) fetchAndEmitMessageCount(ctx context.Context) error {
 	}
 
 	r.mu.Lock()
-	r.latestCounts = result
+	if lastErr == nil {
+		r.latestCounts = result
+	}
 	r.mu.Unlock()
 
-	return nil
+	return lastErr
 }
 
 func (r *dlqHandlerImpl) emitDLQSizeMetricsLoop() {
+	defer r.wg.Done()
+
 	getInterval := func() time.Duration {
 		return backoff.JitDuration(
 			dlqMetricsEmitTimerInterval,
@@ -186,12 +221,163 @@ func (r *dlqHandlerImpl) emitDLQSizeMetricsLoop() {
 	for {
 		select {
 		case <-timer.Chan():
-			r.fetchAndEmitMessageCount(context.Background())
+			r.fetchAndEmitMessageCount(r.ctx)
 			timer.Reset(getInterval())
 		case <-r.done:
 			return
 		}
 	}
+}
+
+func (r *dlqHandlerImpl) processorLoop() {
+	defer r.wg.Done()
+
+	rescanInterval := r.config.ReplicationDLQProcessorRescanInterval()
+	if rescanInterval <= 0 {
+		r.logger.Error("DLQ processor rescan interval must be positive; processor will not run",
+			tag.Value(rescanInterval))
+		return
+	}
+	if maxRetries := r.config.ReplicationDLQProcessorMaxRetries(); maxRetries <= 0 {
+		r.logger.Error("DLQ processor max retries must be positive; processor will not run",
+			tag.Value(maxRetries))
+		return
+	}
+
+	timer := r.timeSource.NewTimer(time.Duration(rand.Int63n(int64(rescanInterval))))
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-r.done:
+			return
+		case <-timer.Chan():
+			for sourceCluster := range r.taskExecutors {
+				r.scanAndProcess(sourceCluster)
+			}
+			timer.Reset(backoff.JitDuration(
+				r.config.ReplicationDLQProcessorRescanInterval(),
+				dlqProcessorTimerCoefficient,
+			))
+		}
+	}
+}
+
+func (r *dlqHandlerImpl) scanAndProcess(sourceCluster string) {
+	pageSize := r.config.ReplicationDLQProcessorPageSize()
+	var pageToken []byte
+	for {
+		select {
+		case <-r.done:
+			return
+		default:
+		}
+		resp, err := r.shard.GetExecutionManager().GetReplicationTasksFromDLQ(
+			r.ctx,
+			&persistence.GetReplicationTasksFromDLQRequest{
+				SourceClusterName: sourceCluster,
+				ReadLevel:         defaultBeginningMessageID + 1,
+				MaxReadLevel:      math.MaxInt64,
+				BatchSize:         pageSize,
+				NextPageToken:     pageToken,
+				ShardID:           common.Ptr(r.shard.GetShardID()),
+			},
+		)
+		if err != nil {
+			r.logger.Error("DLQ processor failed to scan tasks",
+				tag.SourceCluster(sourceCluster),
+				tag.Error(err),
+			)
+			return
+		}
+		tasks, _, err := r.hydrateDLQTasks(r.ctx, sourceCluster, resp.Tasks)
+		if err != nil {
+			r.logger.Error("DLQ processor failed to hydrate tasks",
+				tag.SourceCluster(sourceCluster),
+				tag.Error(err),
+			)
+			return
+		}
+		for _, task := range tasks {
+			select {
+			case <-r.done:
+				return
+			default:
+			}
+			r.processTask(sourceCluster, task)
+		}
+		pageToken = resp.NextPageToken
+		if len(pageToken) == 0 {
+			return
+		}
+	}
+}
+
+func (r *dlqHandlerImpl) processTask(sourceCluster string, task *types.ReplicationTask) {
+	if task == nil {
+		return
+	}
+
+	domainID, workflowID, runID := task.GetWorkflowIdentifiers()
+	taskLogger := r.logger.WithTags(
+		tag.WorkflowDomainID(domainID),
+		tag.WorkflowID(workflowID),
+		tag.WorkflowRunID(runID),
+		tag.TaskID(task.SourceTaskID),
+		tag.SourceCluster(sourceCluster),
+	)
+
+	executor, ok := r.taskExecutors[sourceCluster]
+	if !ok {
+		taskLogger.Error("DLQ processor has no executor for source cluster")
+		return
+	}
+
+	maxRetries := r.config.ReplicationDLQProcessorMaxRetries()
+	retryPolicy := backoff.NewExponentialRetryPolicy(dlqProcessorRetryInitialInterval)
+	retryPolicy.SetMaximumAttempts(maxRetries)
+	throttle := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(retryPolicy),
+		backoff.WithRetryableError(func(error) bool {
+			select {
+			case <-r.done:
+				return false
+			default:
+				return true
+			}
+		}),
+	)
+
+	err := throttle.Do(r.ctx, func(context.Context) error {
+		_, execErr := executor.execute(task, true)
+		return execErr
+	})
+
+	if err == nil {
+		// Success — point-delete so the next rescan skips this task.
+		if delErr := r.shard.GetExecutionManager().DeleteReplicationTaskFromDLQ(
+			r.ctx,
+			&persistence.DeleteReplicationTaskFromDLQRequest{
+				SourceClusterName: sourceCluster,
+				TaskID:            task.SourceTaskID,
+				ShardID:           common.Ptr(r.shard.GetShardID()),
+			},
+		); delErr != nil {
+			taskLogger.Error("DLQ processor failed to delete task after successful execution", tag.Error(delErr))
+		}
+		return
+	}
+
+	select {
+	case <-r.done:
+		return
+	default:
+	}
+
+	taskLogger.Error("DLQ processor exhausted retries; task remains in DLQ",
+		tag.Attempt(int32(maxRetries+1)),
+		tag.Error(err),
+	)
 }
 
 func (r *dlqHandlerImpl) ReadMessages(
