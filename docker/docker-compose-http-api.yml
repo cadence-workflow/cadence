@@ -42,7 +42,7 @@ services:
       - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001"
       - "PROMETHEUS_ENDPOINT_2=0.0.0.0:8002"
       - "PROMETHEUS_ENDPOINT_3=0.0.0.0:8003"
-      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml"
+      - "DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/development.yaml"
       - "FRONTEND_HTTP_PORT=8800"
       - "FRONTEND_HTTP_PROCEDURES=uber.cadence.api.v1.WorkflowAPI::StartWorkflowExecution,uber.cadence.api.v1.WorkflowAPI::SignalWorkflowExecution,uber.cadence.api.v1.WorkflowAPI::QueryWorkflow,uber.cadence.api.v1.WorkflowAPI::DescribeWorkflowExecution,uber.cadence.api.v1.VisibilityAPI::ListWorkflowExecutions"
     depends_on:

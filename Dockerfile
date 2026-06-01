@@ -66,22 +66,36 @@ FROM alpine AS cadence-server
 ENV CADENCE_HOME=/etc/cadence
 RUN mkdir -p /etc/cadence
 
-COPY --from=dockerize /usr/local/bin/dockerize /usr/local/bin
-COPY --from=builder /cadence/cadence-cassandra-tool /usr/local/bin
-COPY --from=builder /cadence/cadence-sql-tool /usr/local/bin
-COPY --from=builder /cadence/cadence /usr/local/bin
-COPY --from=builder /cadence/cadence-server /usr/local/bin
-COPY --from=builder /cadence/schema /etc/cadence/schema
+# Create non-root user
+RUN addgroup -g 1000 cadence && \
+    adduser -u 1000 -G cadence -s /bin/sh -D cadence
 
-COPY docker/entrypoint.sh /docker-entrypoint.sh
-COPY config/dynamicconfig /etc/cadence/config/dynamicconfig
-COPY config/credentials /etc/cadence/config/credentials
-COPY docker/config_template.yaml /etc/cadence/config
-COPY docker/start-cadence.sh /start-cadence.sh
+COPY --from=dockerize --chown=cadence:cadence /usr/local/bin/dockerize /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/cadence-cassandra-tool /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/cadence-sql-tool /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/cadence /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/cadence-server /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/schema /etc/cadence/schema
+
+COPY --chown=cadence:cadence docker/entrypoint.sh /docker-entrypoint.sh
+COPY --chown=cadence:cadence docker/start-cadence.sh /start-cadence.sh
+
+# Separate read-only configs from writable runtime config directory
+COPY --chown=cadence:cadence config/dynamicconfig /etc/cadence/dynamicconfig
+COPY --chown=cadence:cadence config/credentials /etc/cadence/credentials
+COPY --chown=cadence:cadence docker/config_template.yaml /etc/cadence/config_template.yaml
+
+# Create writable config directory for runtime-generated files
+RUN mkdir -p /etc/cadence/config && \
+    chown cadence:cadence /etc/cadence/config && \
+    chmod 0700 /docker-entrypoint.sh /start-cadence.sh
 
 WORKDIR /etc/cadence
 
 ENV SERVICES="history,matching,frontend,worker"
+
+# Run as non-root user
+USER cadence
 
 EXPOSE 7933 7934 7935 7939
 ENTRYPOINT ["/docker-entrypoint.sh"]
@@ -91,35 +105,61 @@ CMD /start-cadence.sh
 # All-in-one Cadence server (~450mb)
 FROM cadence-server AS cadence-auto-setup
 
+USER root
+
 RUN apk add --update --no-cache ca-certificates py3-pip mysql-client
 RUN pip3 install setuptools wheel
 RUN pip3 install cassandra-driver==3.29.3 && pip3 install cqlsh==6.2.1 && cqlsh --version
 
-COPY docker/start.sh /start.sh
-COPY docker/domain /etc/cadence/domain
+COPY --chown=cadence:cadence docker/start.sh /start.sh
+COPY --chown=cadence:cadence docker/domain /etc/cadence/domain
+
+# Set execute permission for owner only (cadence user)
+RUN chmod 0700 /start.sh
+
+# Switch back to non-root user
+USER cadence
 
 CMD /start.sh
 
 # Cadence CLI
 FROM alpine AS cadence-cli
 
-COPY --from=builder /cadence/cadence /usr/local/bin
+# Create non-root user
+RUN addgroup -g 1000 cadence && \
+    adduser -u 1000 -G cadence -s /bin/sh -D cadence
+
+COPY --from=builder --chown=cadence:cadence /cadence/cadence /usr/local/bin
+
+USER cadence
 
 ENTRYPOINT ["cadence"]
 
 # Cadence Canary
 FROM alpine AS cadence-canary
 
-COPY --from=builder /cadence/cadence-canary /usr/local/bin
-COPY --from=builder /cadence/cadence /usr/local/bin
+# Create non-root user
+RUN addgroup -g 1000 cadence && \
+    adduser -u 1000 -G cadence -s /bin/sh -D cadence
+
+COPY --from=builder --chown=cadence:cadence /cadence/cadence-canary /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/cadence /usr/local/bin
+
+USER cadence
 
 CMD ["/usr/local/bin/cadence-canary", "--root", "/etc/cadence-canary", "start"]
 
 # Cadence Bench
 FROM alpine AS cadence-bench
 
-COPY --from=builder /cadence/cadence-bench /usr/local/bin
-COPY --from=builder /cadence/cadence /usr/local/bin
+# Create non-root user
+RUN addgroup -g 1000 cadence && \
+    adduser -u 1000 -G cadence -s /bin/sh -D cadence
+
+COPY --from=builder --chown=cadence:cadence /cadence/cadence-bench /usr/local/bin
+COPY --from=builder --chown=cadence:cadence /cadence/cadence /usr/local/bin
+
+USER cadence
 
 CMD ["/usr/local/bin/cadence-bench", "--root", "/etc/cadence-bench", "start"]
 
