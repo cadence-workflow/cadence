@@ -707,6 +707,85 @@ func TestHandleUpdate(t *testing.T) {
 		assert.False(t, changed)
 		assert.Len(t, state.PendingBackfills, 1)
 	})
+
+	t.Run("policies merge preserves BufferLimit when sig leaves it nil", func(t *testing.T) {
+		input := original
+		input.Policies = types.SchedulePolicies{
+			OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+			BufferLimit:   common.Int32Ptr(5),
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Policies: &types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+		}, &input, &SchedulerWorkflowState{})
+		assert.True(t, changed)
+		require.NotNil(t, input.Policies.BufferLimit, "nil incoming must preserve existing BufferLimit")
+		assert.Equal(t, int32(5), *input.Policies.BufferLimit)
+	})
+
+	t.Run("policies merge preserves ConcurrencyLimit when sig leaves it nil", func(t *testing.T) {
+		input := original
+		input.Policies = types.SchedulePolicies{
+			OverlapPolicy:    types.ScheduleOverlapPolicyConcurrent,
+			ConcurrencyLimit: common.Int32Ptr(7),
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Policies: &types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicyConcurrent},
+		}, &input, &SchedulerWorkflowState{})
+		assert.True(t, changed)
+		require.NotNil(t, input.Policies.ConcurrencyLimit, "nil incoming must preserve existing ConcurrencyLimit")
+		assert.Equal(t, int32(7), *input.Policies.ConcurrencyLimit)
+	})
+
+	t.Run("policies merge: explicit *int32(0) overwrites BufferLimit to unlimited", func(t *testing.T) {
+		input := original
+		input.Policies = types.SchedulePolicies{
+			OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+			BufferLimit:   common.Int32Ptr(5),
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+				BufferLimit:   common.Int32Ptr(0),
+			},
+		}, &input, &SchedulerWorkflowState{})
+		assert.True(t, changed)
+		require.NotNil(t, input.Policies.BufferLimit)
+		assert.Equal(t, int32(0), *input.Policies.BufferLimit, "*int32(0) must overwrite to explicit unlimited")
+	})
+
+	t.Run("policies merge: explicit *int32(0) overwrites ConcurrencyLimit to unlimited", func(t *testing.T) {
+		input := original
+		input.Policies = types.SchedulePolicies{
+			OverlapPolicy:    types.ScheduleOverlapPolicyConcurrent,
+			ConcurrencyLimit: common.Int32Ptr(7),
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Policies: &types.SchedulePolicies{
+				OverlapPolicy:    types.ScheduleOverlapPolicyConcurrent,
+				ConcurrencyLimit: common.Int32Ptr(0),
+			},
+		}, &input, &SchedulerWorkflowState{})
+		assert.True(t, changed)
+		require.NotNil(t, input.Policies.ConcurrencyLimit)
+		assert.Equal(t, int32(0), *input.Policies.ConcurrencyLimit, "*int32(0) must overwrite to explicit unlimited")
+	})
+
+	t.Run("policies merge: non-nil overwrites existing BufferLimit", func(t *testing.T) {
+		input := original
+		input.Policies = types.SchedulePolicies{
+			OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+			BufferLimit:   common.Int32Ptr(5),
+		}
+		changed := handleUpdate(testLogger, UpdateSignal{
+			Policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+				BufferLimit:   common.Int32Ptr(20),
+			},
+		}, &input, &SchedulerWorkflowState{})
+		assert.True(t, changed)
+		require.NotNil(t, input.Policies.BufferLimit)
+		assert.Equal(t, int32(20), *input.Policies.BufferLimit)
+	})
 }
 
 func TestHandleBackfill(t *testing.T) {
@@ -1616,13 +1695,13 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 			wantNil:           true,
 		},
 		{
-			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=nil) clears running workflows",
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=nil) preserves running workflows (nil means preserve)",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
 			fromLimit:         common.Int32Ptr(2),
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
 			toLimit:           nil,
 			initialRunningWFs: runningWFs,
-			wantNil:           true,
+			wantNil:           false,
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> BUFFER clears running workflows",

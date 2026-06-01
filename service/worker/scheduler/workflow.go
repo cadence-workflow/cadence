@@ -432,7 +432,19 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	}
 	if sig.Policies != nil {
 		previousOverlap := input.Policies.OverlapPolicy
-		input.Policies = *sig.Policies
+		// Field-level merge for the nullable *int32 limits: nil from the caller
+		// means "preserve existing", non-nil (including *int32(0) for explicit
+		// unlimited) means "overwrite". Without this, a partial Update that
+		// only sets OverlapPolicy would silently wipe a previously-set limit,
+		// because the rest of the struct is still full-replaced.
+		merged := *sig.Policies
+		if merged.BufferLimit == nil {
+			merged.BufferLimit = input.Policies.BufferLimit
+		}
+		if merged.ConcurrencyLimit == nil {
+			merged.ConcurrencyLimit = input.Policies.ConcurrencyLimit
+		}
+		input.Policies = merged
 		changed = true
 		// Drop buffered fires if the overlap policy is no longer BUFFER:
 		// draining a queue under non-BUFFER semantics is ill-defined.
