@@ -100,6 +100,24 @@ shardDistributor.migrationMode:
   - value: "distributed_pass"
     constraints:
       namespace: "test-external-assignment"
+# Enable ErrorInjectionRates during local development
+# Having a small sample size of failed requests pressure tests how we handle errors in the system
+# These rates are not set in stone and should be tuned to provide the best feedback during local development
+history.errorInjectionRate:
+- value: 0.01
+  constraints: {}
+system.persistenceErrorInjectionRate:
+- value: 0.01
+  constraints: {}
+admin.errorInjectionRate:
+- value: 0.01
+  constraints: {}
+frontend.errorInjectionRate:
+- value: 0.01
+  constraints: {}
+matching.errorInjectionRate:
+- value: 0.01
+  constraints: {}
 system.workflowDeletionJitterRange:
 - value: 1
   constraints: {}
