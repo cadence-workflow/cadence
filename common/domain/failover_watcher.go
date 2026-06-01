@@ -202,23 +202,23 @@ func CleanPendingActiveState(
 		return fmt.Errorf("getting metadata: %w", err)
 	}
 
-	getResponse, err := domainManager.GetDomain(context.Background(), &persistence.GetDomainRequest{ID: domainID})
+	domainResponse, err := domainManager.GetDomain(context.Background(), &persistence.GetDomainRequest{ID: domainID})
 	if err != nil {
 		return fmt.Errorf("getting domain: %w", err)
 	}
-	localFailoverVersion := getResponse.FailoverVersion
-	isGlobalDomain := getResponse.IsGlobalDomain
-	gracefulFailoverEndTime := getResponse.FailoverEndTime
+	localFailoverVersion := domainResponse.FailoverVersion
+	isGlobalDomain := domainResponse.IsGlobalDomain
+	gracefulFailoverEndTime := domainResponse.FailoverEndTime
 
+	// if the domain is still pending active and the failover versions are the same, clean the state
 	if isGlobalDomain && gracefulFailoverEndTime != nil && failoverVersion == localFailoverVersion {
-		// if the domain is still pending active and the failover versions are the same, clean the state
 		updateReq := &persistence.UpdateDomainRequest{
-			Info:                        getResponse.Info,
-			Config:                      getResponse.Config,
-			ReplicationConfig:           getResponse.ReplicationConfig,
-			ConfigVersion:               getResponse.ConfigVersion,
+			Info:                        domainResponse.Info,
+			Config:                      domainResponse.Config,
+			ReplicationConfig:           domainResponse.ReplicationConfig,
+			ConfigVersion:               domainResponse.ConfigVersion,
 			FailoverVersion:             localFailoverVersion,
-			FailoverNotificationVersion: getResponse.FailoverNotificationVersion,
+			FailoverNotificationVersion: domainResponse.FailoverNotificationVersion,
 			FailoverEndTime:             nil,
 			NotificationVersion:         metadata.NotificationVersion,
 		}
@@ -237,7 +237,7 @@ func CleanPendingActiveState(
 }
 
 func isUpdateDomainRetryable(
-	err error,
+	_ error,
 ) bool {
 	return true
 }
