@@ -3235,13 +3235,13 @@ const (
 	// Default value: time.Minute*5
 	// Allowed filters: DomainName
 	NormalDecisionScheduleToStartTimeout
-	// NotifyFailoverMarkerInterval is determines the frequency to notify failover marker
+	// NotifyFailoverMarkerInterval controls the cadence of failover-marker polling and per-host coordinator batch flushes.
 	// KeyName: history.NotifyFailoverMarkerInterval
 	// Value type: Duration
 	// Default value: 5s (5*time.Second)
 	// Allowed filters: N/A
 	NotifyFailoverMarkerInterval
-	// ActivityMaxScheduleToStartTimeoutForRetry is maximum value allowed when overwritting the schedule to start timeout for activities with retry policy
+	// ActivityMaxScheduleToStartTimeoutForRetry is maximum value allowed when overwriting the schedule to start timeout for activities with retry policy
 	// KeyName: history.activityMaxScheduleToStartTimeoutForRetry
 	// Value type: Duration
 	// Default value: 30m (30*time.Minute)

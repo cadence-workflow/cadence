@@ -1498,9 +1498,11 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	if err != nil {
 		return err
 	}
-	// domain is active, the marker is expired
+	// if the domain is active the marker is expired
 	isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
-	if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
+	domainStatus := domainEntry.GetInfo().Status
+
+	if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || domainStatus == persistence.DomainStatusDeprecated {
 		s.logger.Info("Skipped out-of-date failover marker", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
 		return nil
 	}
@@ -1518,7 +1520,7 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 	var pendingMarkers []*types.FailoverMarkerAttributes
 
 	s.RLock()
-	// Get a copy of pending markers while holding read lock
+	// get a copy of pending markers while holding read lock
 	pendingMarkers = make([]*types.FailoverMarkerAttributes, len(s.shardInfo.PendingFailoverMarkers))
 	copy(pendingMarkers, s.shardInfo.PendingFailoverMarkers)
 
