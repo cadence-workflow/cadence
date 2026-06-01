@@ -34,8 +34,10 @@ import (
 	"github.com/uber/cadence/common/authorization"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
+	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/admin"
+	"github.com/uber/cadence/service/frontend/api"
 )
 
 func TestIsAuthorized(t *testing.T) {
@@ -148,4 +150,214 @@ func TestDescribeCluster(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListDomainsFiltersUnauthorizedDomains(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("allowed-domain"),
+			listDomainsTestResponse("denied-domain"),
+		},
+		NextPageToken: []byte("next-page"),
+	}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("allowed-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("denied-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("next-page"), result.NextPageToken)
+	assert.Len(t, result.Domains, 1)
+	assert.Equal(t, "allowed-domain", result.Domains[0].GetDomainInfo().GetName())
+}
+
+func TestListDomainsReturnsEmptyWhenNoDomainsAreAuthorized(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("denied-domain"),
+		},
+	}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("denied-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Domains)
+}
+
+func TestListDomainsReturnsEmptyPageWithNextPageTokenWhenNoDomainsAreAuthorized(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("denied-domain"),
+		},
+		NextPageToken: []byte("next-page"),
+	}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("denied-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, []byte("next-page"), result.NextPageToken)
+	assert.Empty(t, result.Domains)
+}
+
+func TestListDomainsPropagatesHandlerError(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	listDomainsErr := errors.New("list domains failed")
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(nil, listDomainsErr)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, listDomainsErr)
+}
+
+func TestListDomainsPropagatesAuthorizerError(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("allowed-domain"),
+			listDomainsTestResponse("error-domain"),
+			listDomainsTestResponse("unchecked-domain"),
+		},
+	}
+	authorizerErr := errors.New("authorizer failed")
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	gomock.InOrder(
+		mockAuthorizer.EXPECT().
+			Authorize(gomock.Any(), listDomainsAuthAttr("allowed-domain")).
+			Return(authorization.Result{Decision: authorization.DecisionAllow}, nil),
+		mockAuthorizer.EXPECT().
+			Authorize(gomock.Any(), listDomainsAuthAttr("error-domain")).
+			Return(authorization.Result{}, authorizerErr),
+	)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, authorizerErr)
+}
+
+func TestListDomainsReturnsAllWhenAllAuthorized(t *testing.T) {
+	controller := gomock.NewController(t)
+
+	mockAuthorizer := authorization.NewMockAuthorizer(controller)
+	mockAPIHandler := api.NewMockHandler(controller)
+	mockResource := resource.NewMockResource(controller)
+	mockResource.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient()).AnyTimes()
+
+	request := &types.ListDomainsRequest{PageSize: 10}
+	response := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			listDomainsTestResponse("first-domain"),
+			listDomainsTestResponse("second-domain"),
+		},
+	}
+	mockAPIHandler.EXPECT().ListDomains(gomock.Any(), request).Return(response, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("first-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
+	mockAuthorizer.EXPECT().
+		Authorize(gomock.Any(), listDomainsAuthAttr("second-domain")).
+		Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
+
+	handler := &apiHandler{
+		handler:    mockAPIHandler,
+		authorizer: mockAuthorizer,
+		Resource:   mockResource,
+	}
+	result, err := handler.ListDomains(context.Background(), request)
+
+	assert.NoError(t, err)
+	assert.Len(t, result.Domains, 2)
+	assert.Equal(t, "first-domain", result.Domains[0].GetDomainInfo().GetName())
+	assert.Equal(t, "second-domain", result.Domains[1].GetDomainInfo().GetName())
+}
+
+func listDomainsTestResponse(name string) *types.DescribeDomainResponse {
+	return &types.DescribeDomainResponse{
+		DomainInfo: &types.DomainInfo{Name: name},
+	}
+}
+
+func listDomainsAuthAttr(domain string) gomock.Matcher {
+	return gomock.Cond(func(attr *authorization.Attributes) bool {
+		return attr.APIName == "ListDomains" &&
+			attr.Permission == authorization.PermissionRead &&
+			attr.DomainName == domain &&
+			attr.RequestBody != nil
+	})
 }

@@ -93,6 +93,9 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 	a.handler.{{$method.Call}}
 }
 {{- else}}
+	{{- if and (eq $interfaceType "api.Handler") (eq $method.Name "ListDomains")}}
+	return a.listAuthorizedDomains(ctx, {{(index $method.Params 1).Name}})
+	{{- else}}
 	{{- if or (eq $interfaceType "admin.Handler") (hasKey $permissionMap $method.Name) }}
 	{{- if and (eq $interfaceType "api.Handler") (ge (len $method.Params) 2)}}
 	{{- if has $method.Name $nonDomainAuthAPIs}}
@@ -149,6 +152,7 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 	}
 	{{- end}}
 	return a.handler.{{$method.Call}}
+	{{- end}}
 }
 {{- end}}
 {{end}}

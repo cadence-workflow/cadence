@@ -324,7 +324,7 @@ func (a *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 }
 
 func (a *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
-	return a.handler.ListDomains(ctx, lp1)
+	return a.listAuthorizedDomains(ctx, lp1)
 }
 
 func (a *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
