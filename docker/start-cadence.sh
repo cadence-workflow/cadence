@@ -10,7 +10,7 @@ if [ -n "$CADENCE_CONFIG_FILE" ]; then
     cp "$CADENCE_CONFIG_FILE" /etc/cadence/config/docker.yaml
 else
     echo "Generating config from template"
-    CONFIG_TEMPLATE_PATH="${CONFIG_TEMPLATE_PATH:-/etc/cadence/config/config_template.yaml}"
+    CONFIG_TEMPLATE_PATH="${CONFIG_TEMPLATE_PATH:-/etc/cadence/config_template.yaml}"
     dockerize -template "$CONFIG_TEMPLATE_PATH:/etc/cadence/config/docker.yaml"
 fi
 

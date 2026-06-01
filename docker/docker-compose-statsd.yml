@@ -29,7 +29,7 @@ services:
     environment:
       - "CASSANDRA_SEEDS=cassandra"
       - "STATSD_ENDPOINT=statsd:8125"
-      - "DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml"
+      - "DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/development.yaml"
     depends_on:
       cassandra:
         condition: service_healthy
