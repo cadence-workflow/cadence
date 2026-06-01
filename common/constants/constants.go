@@ -177,6 +177,9 @@ const (
 	DomainDataKeyForManagedFailover = "IsManagedByCadence"
 	// DomainDataKeyForPreferredCluster is the key of DomainData for domain rebalance
 	DomainDataKeyForPreferredCluster = "PreferredCluster"
+	// DomainDataKeyForClusterAttributePreferences is the key of DomainData for active-active domain attribute rebalance.
+	// The value is a JSON-encoded []ClusterAttributePreference.
+	DomainDataKeyForClusterAttributePreferences = "ClusterAttributePreferences"
 	// DomainDataKeyForFailoverHistory is the key of DomainData for failover history
 	DomainDataKeyForFailoverHistory = "FailoverHistory"
 	// DomainDataKeyForReadGroups stores which groups have read permission of the domain API

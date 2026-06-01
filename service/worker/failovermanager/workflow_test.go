@@ -1284,3 +1284,153 @@ func TestBuildActiveClusters(t *testing.T) {
 		})
 	}
 }
+
+// TestFailoverActivity_DomainPreferences tests the failover activity with per-domain preferences.
+func TestFailoverActivity_DomainPreferences(t *testing.T) {
+	pollerMap := map[string]*types.DescribeTaskListResponse{
+		"tl": {Pollers: []*types.PollerInfo{{Identity: "worker"}}},
+	}
+	pollerResp := &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: pollerMap,
+		ActivityTaskListMap: pollerMap,
+	}
+
+	tests := []struct {
+		name               string
+		params             *FailoverActivityParams
+		wantUpdateRequests []*types.UpdateDomainRequest
+		wantSuccess        []string
+		wantFailed         []string
+		// uniqueTargetClusters is the number of distinct target clusters across all domains.
+		// validateTaskListPollerInfo is called once per unique target cluster, so both the
+		// local and remote frontend clients receive this many GetTaskListsByDomain calls.
+		uniqueTargetClusters int
+	}{
+		{
+			// scenario 3: global domain, only PreferredCluster set
+			name: "when preferences contain only PreferredCluster it should set ActiveClusterName without ActiveClusters",
+			params: &FailoverActivityParams{
+				Domains: []string{"d1"},
+				DomainPreferences: map[string]*DomainFailoverPreferences{
+					"d1": {PreferredCluster: "c2"},
+				},
+			},
+			uniqueTargetClusters: 1,
+			wantUpdateRequests: []*types.UpdateDomainRequest{
+				{Name: "d1", ActiveClusterName: common.StringPtr("c2")},
+			},
+			wantSuccess: []string{"d1"},
+		},
+		{
+			// scenario 4: active-active, only cluster attributes wrong
+			name: "when preferences contain only ClusterAttributeUpdates it should set ActiveClusters without ActiveClusterName",
+			params: &FailoverActivityParams{
+				Domains: []string{"d1"},
+				DomainPreferences: map[string]*DomainFailoverPreferences{
+					"d1": {
+						ClusterAttributeUpdates: []ClusterAttributePreference{
+							{Scope: "cluster", Name: "c0", PreferredCluster: "cluster0"},
+						},
+					},
+				},
+			},
+			uniqueTargetClusters: 1,
+			wantUpdateRequests: []*types.UpdateDomainRequest{
+				{
+					Name: "d1",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"c0": {ActiveClusterName: "cluster0"},
+							}},
+						},
+					},
+				},
+			},
+			wantSuccess: []string{"d1"},
+		},
+		{
+			// scenario 5: both domain-level and attribute updates needed
+			// PreferredCluster=c2 and attribute c0→cluster0 are distinct clusters, so
+			// validateTaskListPollerInfo is called twice (once per unique target cluster).
+			name: "when preferences contain both PreferredCluster and ClusterAttributeUpdates it should set both ActiveClusterName and ActiveClusters",
+			params: &FailoverActivityParams{
+				Domains: []string{"d1"},
+				DomainPreferences: map[string]*DomainFailoverPreferences{
+					"d1": {
+						PreferredCluster: "c2",
+						ClusterAttributeUpdates: []ClusterAttributePreference{
+							{Scope: "cluster", Name: "c0", PreferredCluster: "cluster0"},
+						},
+					},
+				},
+			},
+			uniqueTargetClusters: 2,
+			wantUpdateRequests: []*types.UpdateDomainRequest{
+				{
+					Name:              "d1",
+					ActiveClusterName: common.StringPtr("c2"),
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"c0": {ActiveClusterName: "cluster0"},
+							}},
+						},
+					},
+				},
+			},
+			wantSuccess: []string{"d1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockRes := resource.NewTest(t, ctrl, metrics.Worker)
+
+			// Local and remote poller calls happen once per unique target cluster.
+			mockRes.FrontendClient.EXPECT().
+				GetTaskListsByDomain(gomock.Any(), gomock.Any()).
+				Return(pollerResp, nil).
+				Times(tc.uniqueTargetClusters)
+			mockRes.RemoteFrontendClient.EXPECT().
+				GetTaskListsByDomain(gomock.Any(), gomock.Any()).
+				Return(pollerResp, nil).
+				Times(tc.uniqueTargetClusters)
+
+			for _, req := range tc.wantUpdateRequests {
+				mockRes.FrontendClient.EXPECT().
+					UpdateDomain(gomock.Any(), req).
+					Return(nil, nil).Times(1)
+			}
+
+			ctx := context.WithValue(
+				context.Background(),
+				failoverManagerContextKey,
+				&FailoverManager{svcClient: mockRes.GetSDKClient(), clientBean: mockRes.ClientBean},
+			)
+
+			env := testsuite.WorkflowTestSuite{}
+			actEnv := env.NewTestActivityEnvironment()
+			actEnv.SetWorkerOptions(worker.Options{BackgroundActivityContext: ctx})
+			actEnv.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
+
+			fut, err := actEnv.ExecuteActivity(failoverActivityName, tc.params)
+			if err != nil {
+				t.Fatalf("activity returned error: %v", err)
+			}
+			var result FailoverActivityResult
+			if err := fut.Get(&result); err != nil {
+				t.Fatalf("get result error: %v", err)
+			}
+			if len(result.SuccessDomains) != len(tc.wantSuccess) {
+				t.Errorf("success domains: want %v, got %v", tc.wantSuccess, result.SuccessDomains)
+			}
+			if len(result.FailedDomains) != len(tc.wantFailed) {
+				t.Errorf("failed domains: want %v, got %v", tc.wantFailed, result.FailedDomains)
+			}
+
+			mockRes.Finish(t)
+		})
+	}
+}
