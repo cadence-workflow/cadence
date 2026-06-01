@@ -1540,7 +1540,7 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 	domainStatus := domainEntry.GetInfo().Status
 
-	if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || domainStatus == persistence.DomainStatusDeprecated {
+	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
 		s.logger.Info("Skipped pending failover marker",
 			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
 			tag.Reason(failoverMarkerSkipReason(isActive, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
@@ -1557,10 +1557,10 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 
 func failoverMarkerSkipReason(isActive bool, domainFailoverVersion, markerFailoverVersion int64, domainStatus int) string {
 	switch {
-	case isActive:
-		return "domain is active in current cluster"
 	case domainStatus == persistence.DomainStatusDeprecated:
 		return "domain is deprecated"
+	case isActive:
+		return "domain is active in current cluster"
 	case domainFailoverVersion > markerFailoverVersion:
 		return "domain failover version is newer than marker"
 	default:
@@ -1588,10 +1588,10 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
 
-		// Drop failover markers if domain is already active in the currentCluster
+		// Drop failover markers if domain is deprecated
+		// or domain is already active in the currentCluster
 		// or domain have been failed over
-		// or domain is deprecated
-		if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || domainStatus == persistence.DomainStatusDeprecated {
+		if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
 			s.logger.Info("Dropped pending failover marker",
 				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
 				tag.Reason(failoverMarkerSkipReason(isActive, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),

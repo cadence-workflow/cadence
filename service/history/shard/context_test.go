@@ -1864,15 +1864,15 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 		{
 			name:                  "active domain",
 			isActive:              true,
-			domainFailoverVersion: 200,
+			domainFailoverVersion: 100,
 			markerFailoverVersion: 100,
-			domainStatus:          persistence.DomainStatusDeprecated,
+			domainStatus:          persistence.DomainStatusRegistered,
 			want:                  "domain is active in current cluster",
 		},
 		{
 			name:                  "deprecated domain",
 			isActive:              false,
-			domainFailoverVersion: 200,
+			domainFailoverVersion: 100,
 			markerFailoverVersion: 100,
 			domainStatus:          persistence.DomainStatusDeprecated,
 			want:                  "domain is deprecated",
@@ -1884,6 +1884,14 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 			markerFailoverVersion: 100,
 			domainStatus:          persistence.DomainStatusRegistered,
 			want:                  "domain failover version is newer than marker",
+		},
+		{
+			name:                  "all skip conditions match",
+			isActive:              true,
+			domainFailoverVersion: 200,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusDeprecated,
+			want:                  "domain is deprecated",
 		},
 		{
 			name:                  "no skip condition matches",
