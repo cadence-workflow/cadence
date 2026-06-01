@@ -23,6 +23,7 @@ package execution
 import (
 	"errors"
 	"fmt"
+	reflect "reflect"
 	"testing"
 	"time"
 
@@ -671,6 +672,35 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionScheduleTasks() {
 
 	}
 }
+
+type ignoreVisibilityTime struct {
+	task *persistence.DecisionTimeoutTask
+}
+
+func (i ignoreVisibilityTime) Matches(x any) bool {
+	other, ok := x.(*persistence.DecisionTimeoutTask)
+	if !ok {
+		return false
+	}
+	if i.task == nil && other == nil {
+		return true
+	}
+	if (i.task == nil) != (other == nil) {
+		return false
+	}
+
+	// both present, erase time and compare
+	medup, otherdup := *i.task, *other
+	medup.TaskData.VisibilityTimestamp = time.Time{}
+	otherdup.TaskData.VisibilityTimestamp = time.Time{}
+	return reflect.DeepEqual(medup, otherdup)
+}
+
+func (i ignoreVisibilityTime) String() string {
+	return fmt.Sprintf("%#v", i.task)
+}
+
+var _ gomock.Matcher = ignoreVisibilityTime{}
 
 func (s *mutableStateTaskGeneratorSuite) TestGenerateDecisionStartTasks() {
 	decisionScheduleID := int64(123)
