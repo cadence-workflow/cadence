@@ -963,6 +963,9 @@ const (
 	// ActiveClusterManagerWorkflowCacheScope is the scope used by active cluster manager's workflow cache
 	ActiveClusterManagerWorkflowCacheScope
 
+	// HistoryTaskDLQWriteScope is the scope used by the persistence-side DLQ writer when emitting per-domain write outcome counters.
+	HistoryTaskDLQWriteScope
+
 	NumCommonScopes
 )
 
@@ -1459,6 +1462,8 @@ const (
 	HistoryTaskSchedulerMigrationScope
 	// WorkflowCorruptionRepairScope is the scope used for workflow corruption detection and repair operations
 	WorkflowCorruptionRepairScope
+	// HistoryTaskStandbyDLQScope is the scope used when writing standby tasks to the DLQ
+	HistoryTaskStandbyDLQScope
 
 	NumHistoryScopes
 )
@@ -1997,6 +2002,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
+
+		HistoryTaskDLQWriteScope: {operation: "HistoryTaskDLQWrite"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2244,6 +2251,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryFlushBufferedEventsScope:                                 {operation: "HistoryFlushBufferedEvents"},
 		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
+		HistoryTaskStandbyDLQScope:                                      {operation: "HistoryTaskStandbyDLQ"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -2639,6 +2647,9 @@ const (
 
 	WeightedChannelPoolSizeGauge
 
+	// TaskDLQWritePerDomain counts DLQ write attempts emitted by the persistence-side writer, tagged by outcome (success|failure).
+	TaskDLQWritePerDomain
+
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
 
@@ -2675,6 +2686,8 @@ const (
 	TaskWorkflowBusyPerDomain
 	TaskDiscardedPerDomain
 	TaskUnsupportedPerDomain
+	// TaskDLQDiscardPerDomain counts terminal standby-task discards from the post-action path, tagged by cause (disabled|shadow).
+	TaskDLQDiscardPerDomain
 	TaskAttemptTimerPerDomain
 	TaskAttemptPerDomainCountsHistogram
 	TaskStandbyRetryCounterPerDomain
@@ -3362,6 +3375,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceLatencyHistogram:                                  {metricName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
 		PersistenceLatencyManualHistogram:                            {metricName: "persistence_latency_histogram", metricType: Histogram, buckets: PersistenceLatencyBuckets},
 		PersistenceLatencyHistogramPerHost:                           {metricName: "persistence_latency_histogram_per_host", metricType: Histogram, buckets: PersistenceLatencyBuckets},
+		TaskDLQWritePerDomain:                                        {metricName: "history_dlq_task_write_per_domain", metricRollupName: "history_dlq_task_write", metricType: Counter},
 		PersistenceErrShardExistsCounter:                             {metricName: "persistence_errors_shard_exists", metricType: Counter},
 		PersistenceErrShardOwnershipLostCounter:                      {metricName: "persistence_errors_shard_ownership_lost", metricType: Counter},
 		PersistenceErrConditionFailedCounter:                         {metricName: "persistence_errors_condition_failed", metricType: Counter},
@@ -3691,6 +3705,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskWorkflowBusyPerDomain:                {metricName: "task_errors_workflow_busy_per_domain", metricRollupName: "task_errors_workflow_busy", metricType: Counter},
 		TaskDiscardedPerDomain:                   {metricName: "task_errors_discarded_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
 		TaskUnsupportedPerDomain:                 {metricName: "task_errors_unsupported_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
+		TaskDLQDiscardPerDomain:                  {metricName: "history_dlq_standby_task_discard_per_domain", metricRollupName: "history_dlq_standby_task_discard", metricType: Counter},
 		TaskStandbyRetryCounterPerDomain:         {metricName: "task_errors_standby_retry_counter_per_domain", metricRollupName: "task_errors_standby_retry_counter", metricType: Counter},
 		TaskListNotOwnedByHostCounterPerDomain:   {metricName: "task_errors_task_list_not_owned_by_host_counter_per_domain", metricRollupName: "task_errors_task_list_not_owned_by_host_counter", metricType: Counter},
 		TaskPendingActiveCounterPerDomain:        {metricName: "task_errors_pending_active_counter_per_domain", metricRollupName: "task_errors_pending_active_counter", metricType: Counter},
