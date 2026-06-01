@@ -3236,7 +3236,7 @@ const (
 	// Default value: time.Minute*5
 	// Allowed filters: DomainName
 	NormalDecisionScheduleToStartTimeout
-	// NotifyFailoverMarkerInterval controls the cadence of failover-marker polling and per-host coordinator batch flushes.
+	// NotifyFailoverMarkerInterval controls the cadence of failover-marker polling and per-host coordinator batch flushes
 	// KeyName: history.NotifyFailoverMarkerInterval
 	// Value type: Duration
 	// Default value: 5s (5*time.Second)
