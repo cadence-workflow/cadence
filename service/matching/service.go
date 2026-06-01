@@ -61,6 +61,11 @@ func NewService(
 			params.Logger,
 			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
 		),
+		dynamicconfig.NewCollection(
+			params.OperationalConfigStore,
+			params.Logger,
+			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+		),
 		params.HostName,
 		params.RPCConfig,
 		params.GetIsolationGroups,

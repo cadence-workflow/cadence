@@ -36,6 +36,7 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/constants"
@@ -246,7 +247,7 @@ func TestCreateSchedule(t *testing.T) {
 				},
 				Policies: &types.SchedulePolicies{
 					OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-					BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
+					BufferLimit:   common.Int32Ptr(int32(scheduler.MaxBufferedFiresSystemLimit * 2)),
 				},
 			},
 			mockFn: func(f *scheduleTestFixture) {
@@ -1373,6 +1374,49 @@ func TestValidateSchedulePolicies(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+// TestWarnIfBufferLimitExceedsSystemLimit_NilSafe verifies the helper does not
+// panic when policies or policies.BufferLimit is nil, and that it stays a no-op
+// when the overlap policy is not Buffer (BufferLimit has no effect there).
+func TestWarnIfBufferLimitExceedsSystemLimit_NilSafe(t *testing.T) {
+	f := newScheduleTestFixture(t)
+	defer f.finish()
+
+	cases := []struct {
+		name     string
+		policies *types.SchedulePolicies
+	}{
+		{name: "nil policies", policies: nil},
+		{
+			name: "Buffer policy with nil BufferLimit",
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+				BufferLimit:   nil,
+			},
+		},
+		{
+			name: "non-Buffer policy with BufferLimit set",
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+				BufferLimit:   common.Int32Ptr(int32(scheduler.MaxBufferedFiresSystemLimit * 2)),
+			},
+		},
+		{
+			name: "Buffer policy with BufferLimit under system limit",
+			policies: &types.SchedulePolicies{
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+				BufferLimit:   common.Int32Ptr(1),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				f.handler.warnIfBufferLimitExceedsSystemLimit("sched-1", "domain", tc.policies)
+			})
 		})
 	}
 }

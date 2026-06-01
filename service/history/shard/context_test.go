@@ -518,10 +518,11 @@ func (s *contextTestSuite) TestReplicateFailoverMarkers() {
 func (s *contextTestSuite) TestCreateWorkflowExecution() {
 	cases := []struct {
 		name            string
-		err             error
+		request         *persistence.CreateWorkflowExecutionRequest
 		domainLookupErr error
+		err             error
 		response        *persistence.CreateWorkflowExecutionResponse
-		setup           func()
+		setupMocks      func()
 		asserts         func(*persistence.CreateWorkflowExecutionResponse, error)
 	}{
 		{
@@ -551,7 +552,7 @@ func (s *contextTestSuite) TestCreateWorkflowExecution() {
 		{
 			name: "Other error - update shard succeed",
 			err:  assert.AnError,
-			setup: func() {
+			setupMocks: func() {
 				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 			},
 			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
@@ -562,7 +563,7 @@ func (s *contextTestSuite) TestCreateWorkflowExecution() {
 		{
 			name: "Other error - update shard failed",
 			err:  assert.AnError,
-			setup: func() {
+			setupMocks: func() {
 				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
 			},
 			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
@@ -577,6 +578,64 @@ func (s *contextTestSuite) TestCreateWorkflowExecution() {
 				s.ErrorIs(err, assert.AnError)
 			},
 		},
+		{
+			name: "Success with transfer tasks - notify called",
+			request: &persistence.CreateWorkflowExecutionRequest{
+				DomainName: testDomain,
+				NewWorkflowSnapshot: persistence.WorkflowSnapshot{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTransfer: {
+							&persistence.DecisionTask{
+								WorkflowIdentifier: persistence.WorkflowIdentifier{
+									DomainID:   testDomainID,
+									WorkflowID: testWorkflowID,
+								},
+							},
+						},
+					},
+				},
+			},
+			response: &persistence.CreateWorkflowExecutionResponse{},
+			setupMocks: func() {
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1)
+			},
+			asserts: func(response *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			name: "Definitive error - notify suppressed",
+			request: &persistence.CreateWorkflowExecutionRequest{
+				DomainName: testDomain,
+				NewWorkflowSnapshot: persistence.WorkflowSnapshot{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTransfer: {
+							&persistence.DecisionTask{},
+						},
+					},
+				},
+			},
+			err: &persistence.WorkflowExecutionAlreadyStartedError{},
+			setupMocks: func() {
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				// No EXPECT() for notify — if notify fires, gomock will fail the test
+			},
+			asserts: func(resp *persistence.CreateWorkflowExecutionResponse, err error) {
+				s.ErrorAs(err, new(*persistence.WorkflowExecutionAlreadyStartedError))
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -584,14 +643,17 @@ func (s *contextTestSuite) TestCreateWorkflowExecution() {
 			// Need setup the suite manually, since we are in a subtest
 			s.SetupTest()
 			ctx := context.Background()
-			request := &persistence.CreateWorkflowExecutionRequest{
-				DomainName: testDomain,
-				NewWorkflowSnapshot: persistence.WorkflowSnapshot{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:   testDomainID,
-						WorkflowID: testWorkflowID,
+			request := tc.request
+			if request == nil {
+				request = &persistence.CreateWorkflowExecutionRequest{
+					DomainName: testDomain,
+					NewWorkflowSnapshot: persistence.WorkflowSnapshot{
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:   testDomainID,
+							WorkflowID: testWorkflowID,
+						},
 					},
-				},
+				}
 			}
 
 			domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
@@ -600,8 +662,8 @@ func (s *contextTestSuite) TestCreateWorkflowExecution() {
 				testCluster,
 			)
 			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, tc.domainLookupErr)
-			if tc.setup != nil {
-				tc.setup()
+			if tc.setupMocks != nil {
+				tc.setupMocks()
 			}
 
 			s.mockResource.ExecutionMgr.On("CreateWorkflowExecution", ctx, mock.Anything).Once().Return(tc.response, tc.err)
@@ -615,10 +677,11 @@ func (s *contextTestSuite) TestCreateWorkflowExecution() {
 func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 	cases := []struct {
 		name            string
-		err             error
+		request         *persistence.UpdateWorkflowExecutionRequest
 		domainLookupErr error
+		err             error
 		response        *persistence.UpdateWorkflowExecutionResponse
-		setup           func()
+		setupMocks      func()
 		asserts         func(*persistence.UpdateWorkflowExecutionResponse, error)
 	}{
 		{
@@ -648,7 +711,7 @@ func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 		{
 			name: "Other error - update shard succeed",
 			err:  assert.AnError,
-			setup: func() {
+			setupMocks: func() {
 				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 			},
 			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
@@ -659,7 +722,7 @@ func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 		{
 			name: "Other error - update shard failed",
 			err:  assert.AnError,
-			setup: func() {
+			setupMocks: func() {
 				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
 			},
 			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
@@ -674,14 +737,9 @@ func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 				s.ErrorIs(err, assert.AnError)
 			},
 		},
-	}
-
-	for _, tc := range cases {
-		s.Run(tc.name, func() {
-			// Need setup the suite manually, since we are in a subtest
-			s.SetupTest()
-			ctx := context.Background()
-			request := &persistence.UpdateWorkflowExecutionRequest{
+		{
+			name: "Success with timer tasks - notify called",
+			request: &persistence.UpdateWorkflowExecutionRequest{
 				RangeID: 123,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.WorkflowMutation{
@@ -689,9 +747,114 @@ func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 						DomainID:   testDomainID,
 						WorkflowID: testWorkflowID,
 					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTimer: {
+							&persistence.DecisionTimeoutTask{
+								WorkflowIdentifier: persistence.WorkflowIdentifier{
+									DomainID:   testDomainID,
+									WorkflowID: testWorkflowID,
+								},
+							},
+						},
+					},
 				},
 				NewWorkflowSnapshot: &persistence.WorkflowSnapshot{},
 				DomainName:          testDomain,
+			},
+			response: &persistence.UpdateWorkflowExecutionResponse{},
+			setupMocks: func() {
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).Times(1)
+			},
+			asserts: func(response *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			name: "Ambiguous error with tasks - notify called with persistenceError=true",
+			request: &persistence.UpdateWorkflowExecutionRequest{
+				RangeID: 123,
+				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
+				UpdateWorkflowMutation: persistence.WorkflowMutation{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTransfer: {
+							&persistence.DecisionTask{},
+						},
+					},
+				},
+				NewWorkflowSnapshot: &persistence.WorkflowSnapshot{},
+				DomainName:          testDomain,
+			},
+			err: assert.AnError,
+			setupMocks: func() {
+				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1)
+			},
+			asserts: func(resp *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.Equal(assert.AnError, err)
+			},
+		},
+		{
+			// Covers the nil-snapshot guard in notifyTasksFromSnapshot: NewWorkflowSnapshot
+			// is a pointer that may legitimately be nil on an update.
+			name: "Success with timer task and nil new snapshot",
+			request: &persistence.UpdateWorkflowExecutionRequest{
+				RangeID: 123,
+				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
+				UpdateWorkflowMutation: persistence.WorkflowMutation{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTimer: {
+							&persistence.DecisionTimeoutTask{},
+						},
+					},
+				},
+				NewWorkflowSnapshot: nil,
+				DomainName:          testDomain,
+			},
+			response: &persistence.UpdateWorkflowExecutionResponse{},
+			setupMocks: func() {
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				mockEngine.EXPECT().NotifyNewTimerTasks(gomock.Any()).Times(1)
+			},
+			asserts: func(response *persistence.UpdateWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// Need setup the suite manually, since we are in a subtest
+			s.SetupTest()
+			ctx := context.Background()
+			request := tc.request
+			if request == nil {
+				request = &persistence.UpdateWorkflowExecutionRequest{
+					RangeID: 123,
+					Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
+					UpdateWorkflowMutation: persistence.WorkflowMutation{
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:   testDomainID,
+							WorkflowID: testWorkflowID,
+						},
+					},
+					NewWorkflowSnapshot: &persistence.WorkflowSnapshot{},
+					DomainName:          testDomain,
+				}
 			}
 
 			domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
@@ -700,8 +863,8 @@ func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 				testCluster,
 			)
 			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, tc.domainLookupErr)
-			if tc.setup != nil {
-				tc.setup()
+			if tc.setupMocks != nil {
+				tc.setupMocks()
 			}
 
 			s.mockResource.ExecutionMgr.On("UpdateWorkflowExecution", ctx, mock.Anything).Once().Return(tc.response, tc.err)
@@ -715,10 +878,11 @@ func (s *contextTestSuite) TestUpdateWorkflowExecution() {
 func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
 	cases := []struct {
 		name            string
-		err             error
+		request         *persistence.ConflictResolveWorkflowExecutionRequest
 		domainLookupErr error
+		err             error
 		response        *persistence.ConflictResolveWorkflowExecutionResponse
-		setup           func()
+		setupMocks      func()
 		asserts         func(*persistence.ConflictResolveWorkflowExecutionResponse, error)
 	}{
 		{
@@ -748,7 +912,7 @@ func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
 		{
 			name: "Other error - update shard succeed",
 			err:  assert.AnError,
-			setup: func() {
+			setupMocks: func() {
 				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 			},
 			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
@@ -759,7 +923,7 @@ func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
 		{
 			name: "Other error - update shard failed",
 			err:  assert.AnError,
-			setup: func() {
+			setupMocks: func() {
 				s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(assert.AnError)
 			},
 			asserts: func(resp *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
@@ -774,6 +938,71 @@ func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
 				s.ErrorIs(err, assert.AnError)
 			},
 		},
+		{
+			name: "Success with tasks in reset snapshot - notify called",
+			request: &persistence.ConflictResolveWorkflowExecutionRequest{
+				ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTransfer: {
+							&persistence.DecisionTask{
+								WorkflowIdentifier: persistence.WorkflowIdentifier{
+									DomainID:   testDomainID,
+									WorkflowID: testWorkflowID,
+								},
+							},
+						},
+					},
+				},
+				NewWorkflowSnapshot:     &persistence.WorkflowSnapshot{},
+				CurrentWorkflowMutation: &persistence.WorkflowMutation{},
+				DomainName:              testDomain,
+			},
+			response: &persistence.ConflictResolveWorkflowExecutionResponse{},
+			setupMocks: func() {
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1)
+			},
+			asserts: func(response *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
+		{
+			// Covers the nil-mutation guard in notifyTasksFromMutation: CurrentWorkflowMutation
+			// is a pointer that may legitimately be nil on a conflict-resolve.
+			name: "Success with transfer task in reset snapshot and nil current mutation",
+			request: &persistence.ConflictResolveWorkflowExecutionRequest{
+				ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						DomainID:   testDomainID,
+						WorkflowID: testWorkflowID,
+					},
+					TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+						persistence.HistoryTaskCategoryTransfer: {
+							&persistence.DecisionTask{},
+						},
+					},
+				},
+				NewWorkflowSnapshot:     &persistence.WorkflowSnapshot{},
+				CurrentWorkflowMutation: nil,
+				DomainName:              testDomain,
+			},
+			response: &persistence.ConflictResolveWorkflowExecutionResponse{},
+			setupMocks: func() {
+				mockEngine := engine.NewMockEngine(s.controller)
+				s.context.SetEngine(mockEngine)
+				mockEngine.EXPECT().NotifyNewTransferTasks(gomock.Any()).Times(1)
+			},
+			asserts: func(response *persistence.ConflictResolveWorkflowExecutionResponse, err error) {
+				s.NoError(err)
+				s.NotNil(response)
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -781,16 +1010,19 @@ func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
 			// Need setup the suite manually, since we are in a subtest
 			s.SetupTest()
 			ctx := context.Background()
-			request := &persistence.ConflictResolveWorkflowExecutionRequest{
-				ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:   testDomainID,
-						WorkflowID: testWorkflowID,
+			request := tc.request
+			if request == nil {
+				request = &persistence.ConflictResolveWorkflowExecutionRequest{
+					ResetWorkflowSnapshot: persistence.WorkflowSnapshot{
+						ExecutionInfo: &persistence.WorkflowExecutionInfo{
+							DomainID:   testDomainID,
+							WorkflowID: testWorkflowID,
+						},
 					},
-				},
-				NewWorkflowSnapshot:     &persistence.WorkflowSnapshot{},
-				CurrentWorkflowMutation: &persistence.WorkflowMutation{},
-				DomainName:              testDomain,
+					NewWorkflowSnapshot:     &persistence.WorkflowSnapshot{},
+					CurrentWorkflowMutation: &persistence.WorkflowMutation{},
+					DomainName:              testDomain,
+				}
 			}
 
 			domainCacheEntry := cache.NewLocalDomainCacheEntryForTest(
@@ -799,8 +1031,8 @@ func (s *contextTestSuite) TestConflictResolveWorkflowExecution() {
 				testCluster,
 			)
 			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntry, tc.domainLookupErr)
-			if tc.setup != nil {
-				tc.setup()
+			if tc.setupMocks != nil {
+				tc.setupMocks()
 			}
 
 			s.mockResource.ExecutionMgr.On("ConflictResolveWorkflowExecution", ctx, mock.Anything).Once().Return(tc.response, tc.err)
@@ -1669,4 +1901,99 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestPrefetchClusterTimesLocked(t *testing.T) {
+	// cluster.TestCurrentClusterInitialFailoverVersion = 0 → "active" (current cluster, skipped)
+	// cluster.TestAlternativeClusterInitialFailoverVersion = 1 → "standby" (remote cluster, included)
+
+	tests := map[string]struct {
+		tasks        []persistence.Task
+		remoteTime   map[string]time.Time
+		expectedKeys []string
+	}{
+		"no tasks - empty map returned": {
+			tasks:        []persistence.Task{},
+			expectedKeys: nil,
+		},
+		"active cluster task - skipped": {
+			tasks: []persistence.Task{
+				// Version 0 maps to current cluster → skipped
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestCurrentClusterInitialFailoverVersion}},
+			},
+			expectedKeys: nil,
+		},
+		"unknown failover version - skipped silently": {
+			tasks: []persistence.Task{
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: 9999}},
+			},
+			expectedKeys: nil,
+		},
+		"standby cluster task - included": {
+			tasks: []persistence.Task{
+				// Version 1 maps to standby cluster
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestAlternativeClusterInitialFailoverVersion}},
+			},
+			remoteTime: map[string]time.Time{
+				cluster.TestAlternativeClusterName: time.Now(),
+			},
+			expectedKeys: []string{cluster.TestAlternativeClusterName},
+		},
+		"duplicate standby cluster tasks - returned once": {
+			tasks: []persistence.Task{
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestAlternativeClusterInitialFailoverVersion}},
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestAlternativeClusterInitialFailoverVersion}},
+			},
+			remoteTime: map[string]time.Time{
+				cluster.TestAlternativeClusterName: time.Now(),
+			},
+			expectedKeys: []string{cluster.TestAlternativeClusterName},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := NewTestContext(
+				t,
+				ctrl,
+				&persistence.ShardInfo{ShardID: 1, RangeID: 1},
+				config.NewForTest(),
+			)
+			if tc.remoteTime != nil {
+				ctx.contextImpl.remoteClusterCurrentTime = tc.remoteTime
+			}
+
+			result := ctx.contextImpl.fetchClusterCurrentTimesLocked(tc.tasks)
+
+			if len(tc.expectedKeys) == 0 {
+				assert.Empty(t, result)
+			} else {
+				for _, key := range tc.expectedKeys {
+					assert.Contains(t, result, key)
+				}
+				assert.Len(t, result, len(tc.expectedKeys))
+			}
+		})
+	}
+}
+
+func TestGetCurrentTimeLocked(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: 1, RangeID: 1}, config.NewForTest())
+	currentCluster := ctx.GetClusterMetadata().GetCurrentClusterName()
+
+	// current cluster → returns timeSource.Now()
+	result := ctx.contextImpl.getCurrentTimeLocked(currentCluster)
+	assert.False(t, result.IsZero())
+
+	// remote cluster → returns remoteClusterCurrentTime entry
+	remoteTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx.contextImpl.remoteClusterCurrentTime["standby"] = remoteTime
+	result = ctx.contextImpl.getCurrentTimeLocked("standby")
+	assert.Equal(t, remoteTime, result)
 }
