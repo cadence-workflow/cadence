@@ -50,6 +50,7 @@ type (
 		execManager    ExecutionManager
 		historyManager HistoryManager
 		throttleRetry  *backoff.ThrottleRetry
+		shardID        ShardID
 	}
 )
 
@@ -59,9 +60,30 @@ func NewPersistenceRetryer(
 	historyManager HistoryManager,
 	policy backoff.RetryPolicy,
 ) Retryer {
+	return newPersistenceRetryer(execManager, historyManager, policy, nil)
+}
+
+// NewPersistenceRetryerWithShardID constructs a new Retryer that populates empty request shard IDs.
+func NewPersistenceRetryerWithShardID(
+	execManager ExecutionManager,
+	historyManager HistoryManager,
+	policy backoff.RetryPolicy,
+	shardID int,
+) Retryer {
+	requestShardID := shardID
+	return newPersistenceRetryer(execManager, historyManager, policy, &requestShardID)
+}
+
+func newPersistenceRetryer(
+	execManager ExecutionManager,
+	historyManager HistoryManager,
+	policy backoff.RetryPolicy,
+	shardID ShardID,
+) Retryer {
 	return &persistenceRetryer{
 		execManager:    execManager,
 		historyManager: historyManager,
+		shardID:        shardID,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(policy),
 			backoff.WithRetryableError(IsTransientError),
@@ -69,11 +91,22 @@ func NewPersistenceRetryer(
 	}
 }
 
+func (pr *persistenceRetryer) requestShardID() ShardID {
+	if pr.shardID == nil {
+		return nil
+	}
+	shardID := *pr.shardID
+	return &shardID
+}
+
 // ListConcreteExecutions retries ListConcreteExecutions
 func (pr *persistenceRetryer) ListConcreteExecutions(
 	ctx context.Context,
 	req *ListConcreteExecutionsRequest,
 ) (*ListConcreteExecutionsResponse, error) {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	var resp *ListConcreteExecutionsResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -92,6 +125,9 @@ func (pr *persistenceRetryer) GetWorkflowExecution(
 	ctx context.Context,
 	req *GetWorkflowExecutionRequest,
 ) (*GetWorkflowExecutionResponse, error) {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	var resp *GetWorkflowExecutionResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -110,6 +146,9 @@ func (pr *persistenceRetryer) GetCurrentExecution(
 	ctx context.Context,
 	req *GetCurrentExecutionRequest,
 ) (*GetCurrentExecutionResponse, error) {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	var resp *GetCurrentExecutionResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -128,6 +167,9 @@ func (pr *persistenceRetryer) ListCurrentExecutions(
 	ctx context.Context,
 	req *ListCurrentExecutionsRequest,
 ) (*ListCurrentExecutionsResponse, error) {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	var resp *ListCurrentExecutionsResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -146,6 +188,9 @@ func (pr *persistenceRetryer) IsWorkflowExecutionExists(
 	ctx context.Context,
 	req *IsWorkflowExecutionExistsRequest,
 ) (*IsWorkflowExecutionExistsResponse, error) {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	var resp *IsWorkflowExecutionExistsResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -182,6 +227,9 @@ func (pr *persistenceRetryer) DeleteWorkflowExecution(
 	ctx context.Context,
 	req *DeleteWorkflowExecutionRequest,
 ) error {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	op := func(ctx context.Context) error {
 		return pr.execManager.DeleteWorkflowExecution(ctx, req)
 	}
@@ -193,6 +241,9 @@ func (pr *persistenceRetryer) DeleteCurrentWorkflowExecution(
 	ctx context.Context,
 	req *DeleteCurrentWorkflowExecutionRequest,
 ) error {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	op := func(ctx context.Context) error {
 		return pr.execManager.DeleteCurrentWorkflowExecution(ctx, req)
 	}
@@ -201,6 +252,9 @@ func (pr *persistenceRetryer) DeleteCurrentWorkflowExecution(
 
 // GetShardID return shard id
 func (pr *persistenceRetryer) GetShardID() int {
+	if pr.shardID != nil {
+		return *pr.shardID
+	}
 	return pr.execManager.GetShardID()
 }
 
@@ -209,6 +263,9 @@ func (pr *persistenceRetryer) GetHistoryTasks(
 	ctx context.Context,
 	req *GetHistoryTasksRequest,
 ) (*GetHistoryTasksResponse, error) {
+	if req.ShardID == nil {
+		req.ShardID = pr.requestShardID()
+	}
 	var resp *GetHistoryTasksResponse
 	op := func(ctx context.Context) error {
 		var err error
@@ -228,6 +285,9 @@ func (pr *persistenceRetryer) CompleteHistoryTask(
 	ctx context.Context,
 	request *CompleteHistoryTaskRequest,
 ) error {
+	if request.ShardID == nil {
+		request.ShardID = pr.requestShardID()
+	}
 	op := func(ctx context.Context) error {
 		return pr.execManager.CompleteHistoryTask(ctx, request)
 	}
