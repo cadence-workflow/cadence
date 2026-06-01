@@ -1154,13 +1154,16 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers() {
 }
 
 func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain() {
-	// This test verifies that failover markers are dropped (not processed) when a domain is deprecated
+	// This test verifies that pending failover markers are dropped during validation
+	// when the domain is deprecated.
+	// At insert time the domain is not deprecated, so the markers are saved.
+	// Between insert and validation, the domain becomes deprecated, so they are dropped.
 	domainFailoverVersion := 100
 	domainCacheEntryInactiveCluster := cache.NewGlobalDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: testDomainID},
 		&persistence.DomainConfig{Retention: 7},
 		&persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.TestAlternativeClusterName, // active is TestCurrentClusterName
+			ActiveClusterName: cluster.TestAlternativeClusterName, // current cluster is NOT active
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: cluster.TestCurrentClusterName},
 				{ClusterName: cluster.TestAlternativeClusterName},
@@ -1168,11 +1171,11 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 		},
 		int64(domainFailoverVersion),
 	)
-	domainCacheEntryActiveCluster := cache.NewGlobalDomainCacheEntryForTest(
+	domainCacheEntryInactiveClusterDeprecated := cache.NewGlobalDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: testDomainID},
 		&persistence.DomainConfig{Retention: 7},
 		&persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.TestCurrentClusterName, // active cluster
+			ActiveClusterName: cluster.TestAlternativeClusterName, // still not active here
 			Clusters: []*persistence.ClusterReplicationConfig{
 				{ClusterName: cluster.TestCurrentClusterName},
 				{ClusterName: cluster.TestAlternativeClusterName},
@@ -1180,9 +1183,9 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 		},
 		int64(domainFailoverVersion),
 	)
-	domainCacheEntryInactiveCluster.GetInfo().Status = persistence.DomainStatusDeprecated
-	domainCacheEntryActiveCluster.GetInfo().Status = persistence.DomainStatusDeprecated
+	domainCacheEntryInactiveClusterDeprecated.GetInfo().Status = persistence.DomainStatusDeprecated
 
+	// Insertion: domain is inactive and not deprecated → markers get saved.
 	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryInactiveCluster, nil).Times(2)
 
 	failoverMarker := types.FailoverMarkerAttributes{
@@ -1192,16 +1195,13 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 
-	// adding failover marker
-	domainFailoverVersion++
 	s.NoError(s.context.AddingPendingFailoverMarker(&failoverMarker))
-	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1, "we should have one failover marker saved since the cluster is not active")
-
-	// adding more failover markers
-	domainFailoverVersion++
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1, "we should have one failover marker saved since the cluster is not active and not deprecated")
 	s.NoError(s.context.AddingPendingFailoverMarker(&failoverMarker))
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 2)
 
-	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryActiveCluster, nil).Times(2)
+	// Validation: domain is still inactive but now deprecated → markers are dropped.
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryInactiveClusterDeprecated, nil).Times(2)
 
 	pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
 	s.NoError(err)
