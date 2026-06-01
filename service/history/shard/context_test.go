@@ -2005,3 +2005,98 @@ func TestGetCurrentTimeLocked(t *testing.T) {
 	result = ctx.contextImpl.getCurrentTimeLocked("standby")
 	assert.Equal(t, remoteTime, result)
 }
+
+func TestPrefetchClusterTimesLocked(t *testing.T) {
+	// cluster.TestCurrentClusterInitialFailoverVersion = 0 → "active" (current cluster, skipped)
+	// cluster.TestAlternativeClusterInitialFailoverVersion = 1 → "standby" (remote cluster, included)
+
+	tests := map[string]struct {
+		tasks        []persistence.Task
+		remoteTime   map[string]time.Time
+		expectedKeys []string
+	}{
+		"no tasks - empty map returned": {
+			tasks:        []persistence.Task{},
+			expectedKeys: nil,
+		},
+		"active cluster task - skipped": {
+			tasks: []persistence.Task{
+				// Version 0 maps to current cluster → skipped
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestCurrentClusterInitialFailoverVersion}},
+			},
+			expectedKeys: nil,
+		},
+		"unknown failover version - skipped silently": {
+			tasks: []persistence.Task{
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: 9999}},
+			},
+			expectedKeys: nil,
+		},
+		"standby cluster task - included": {
+			tasks: []persistence.Task{
+				// Version 1 maps to standby cluster
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestAlternativeClusterInitialFailoverVersion}},
+			},
+			remoteTime: map[string]time.Time{
+				cluster.TestAlternativeClusterName: time.Now(),
+			},
+			expectedKeys: []string{cluster.TestAlternativeClusterName},
+		},
+		"duplicate standby cluster tasks - returned once": {
+			tasks: []persistence.Task{
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestAlternativeClusterInitialFailoverVersion}},
+				&persistence.DecisionTimeoutTask{TaskData: persistence.TaskData{Version: cluster.TestAlternativeClusterInitialFailoverVersion}},
+			},
+			remoteTime: map[string]time.Time{
+				cluster.TestAlternativeClusterName: time.Now(),
+			},
+			expectedKeys: []string{cluster.TestAlternativeClusterName},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			ctx := NewTestContext(
+				t,
+				ctrl,
+				&persistence.ShardInfo{ShardID: 1, RangeID: 1},
+				config.NewForTest(),
+			)
+			if tc.remoteTime != nil {
+				ctx.contextImpl.remoteClusterCurrentTime = tc.remoteTime
+			}
+
+			result := ctx.contextImpl.fetchClusterCurrentTimesLocked(tc.tasks)
+
+			if len(tc.expectedKeys) == 0 {
+				assert.Empty(t, result)
+			} else {
+				for _, key := range tc.expectedKeys {
+					assert.Contains(t, result, key)
+				}
+				assert.Len(t, result, len(tc.expectedKeys))
+			}
+		})
+	}
+}
+
+func TestGetCurrentTimeLocked(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := NewTestContext(t, ctrl, &persistence.ShardInfo{ShardID: 1, RangeID: 1}, config.NewForTest())
+	currentCluster := ctx.GetClusterMetadata().GetCurrentClusterName()
+
+	// current cluster → returns timeSource.Now()
+	result := ctx.contextImpl.getCurrentTimeLocked(currentCluster)
+	assert.False(t, result.IsZero())
+
+	// remote cluster → returns remoteClusterCurrentTime entry
+	remoteTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	ctx.contextImpl.remoteClusterCurrentTime["standby"] = remoteTime
+	result = ctx.contextImpl.getCurrentTimeLocked("standby")
+	assert.Equal(t, remoteTime, result)
+}
