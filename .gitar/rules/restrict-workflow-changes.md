@@ -52,10 +52,6 @@ The rule is automatically skipped when **ANY** of these is true:
 ### 2. No workflow files changed
 - Diff does not touch `.github/workflows/`
 
-## Bot PRs
-
-Bots are **not** exempt from this rule.
-
 ## Example Report
 
 > ⚠️ **Workflow changes require maintainer authorship**
