@@ -643,7 +643,6 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 
 	domainID := request.NewWorkflowSnapshot.ExecutionInfo.DomainID
-	workflowID := request.NewWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	// do not try to get domain cache within shard lock
 	domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
@@ -653,6 +652,18 @@ func (s *contextImpl) CreateWorkflowExecution(
 
 	s.Lock()
 	defer s.Unlock()
+
+	resp, err := s.createWorkflowExecutionLocked(ctx, request, domainEntry)
+	s.notifyTasksFromCreateWorkflowExecution(request, err)
+	return resp, err
+}
+
+func (s *contextImpl) createWorkflowExecutionLocked(
+	ctx context.Context,
+	request *persistence.CreateWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+) (*persistence.CreateWorkflowExecutionResponse, error) {
+	workflowID := request.NewWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	immediateTaskMaxReadLevel := int64(0)
 	if err := s.allocateTaskIDsLocked(
@@ -738,7 +749,6 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	}
 
 	domainID := request.UpdateWorkflowMutation.ExecutionInfo.DomainID
-	workflowID := request.UpdateWorkflowMutation.ExecutionInfo.WorkflowID
 
 	// do not try to get domain cache within shard lock
 	domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
@@ -749,6 +759,18 @@ func (s *contextImpl) UpdateWorkflowExecution(
 
 	s.Lock()
 	defer s.Unlock()
+
+	resp, err := s.updateWorkflowExecutionLocked(ctx, request, domainEntry)
+	s.notifyTasksFromUpdateWorkflowExecution(request, err)
+	return resp, err
+}
+
+func (s *contextImpl) updateWorkflowExecutionLocked(
+	ctx context.Context,
+	request *persistence.UpdateWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+) (*persistence.UpdateWorkflowExecutionResponse, error) {
+	workflowID := request.UpdateWorkflowMutation.ExecutionInfo.WorkflowID
 
 	immediateTaskMaxReadLevel := int64(0)
 	if err := s.allocateTaskIDsLocked(
@@ -839,7 +861,6 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	}
 
 	domainID := request.ResetWorkflowSnapshot.ExecutionInfo.DomainID
-	workflowID := request.ResetWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	// do not try to get domain cache within shard lock
 	domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
@@ -851,6 +872,18 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 
 	s.Lock()
 	defer s.Unlock()
+
+	resp, err := s.conflictResolveWorkflowExecutionLocked(ctx, request, domainEntry)
+	s.notifyTasksFromConflictResolveWorkflowExecution(request, err)
+	return resp, err
+}
+
+func (s *contextImpl) conflictResolveWorkflowExecutionLocked(
+	ctx context.Context,
+	request *persistence.ConflictResolveWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+) (*persistence.ConflictResolveWorkflowExecutionResponse, error) {
+	workflowID := request.ResetWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	immediateTaskMaxReadLevel := int64(0)
 	if request.CurrentWorkflowMutation != nil {
@@ -1422,6 +1455,11 @@ func (s *contextImpl) SetCurrentTime(cluster string, currentTime time.Time) {
 func (s *contextImpl) GetCurrentTime(cluster string) time.Time {
 	s.RLock()
 	defer s.RUnlock()
+	return s.getCurrentTimeLocked(cluster)
+}
+
+// getCurrentTimeLocked returns the current time for a cluster without acquiring the shard lock.
+func (s *contextImpl) getCurrentTimeLocked(cluster string) time.Time {
 	if cluster != s.GetClusterMetadata().GetCurrentClusterName() {
 		return s.remoteClusterCurrentTime[cluster]
 	}
@@ -1763,4 +1801,21 @@ func (s *contextImpl) logConflictResolveWorkflowExecutionEvents(request *persist
 	simulation.LogEvents(events...)
 	events = s.getEventsFromWorkflowSnapshot(request.NewWorkflowSnapshot)
 	simulation.LogEvents(events...)
+}
+
+// fetchClusterCurrentTimesLocked returns current times for all standby clusters referenced by timerTasks.
+// Caller must hold s.Lock() or s.RLock().
+func (s *contextImpl) fetchClusterCurrentTimesLocked(timerTasks []persistence.Task) map[string]time.Time {
+	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
+	clusterTimes := make(map[string]time.Time)
+	for _, task := range timerTasks {
+		clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
+		if err != nil || clusterName == currentCluster {
+			continue
+		}
+		if _, exists := clusterTimes[clusterName]; !exists {
+			clusterTimes[clusterName] = s.getCurrentTimeLocked(clusterName)
+		}
+	}
+	return clusterTimes
 }

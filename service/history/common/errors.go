@@ -1,7 +1,5 @@
-// The MIT License (MIT)
-
-// Copyright (c) 2017-2020 Uber Technologies Inc.
-
+// Copyright (c) 2020 Uber Technologies, Inc.
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -9,8 +7,8 @@
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
 //
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -23,25 +21,26 @@
 package common
 
 import (
-	"time"
-
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/service/history/events"
+	"github.com/uber/cadence/common/types"
 )
 
-type (
-	// NotifyTaskInfo defines the info of task notification
-	NotifyTaskInfo struct {
-		ExecutionInfo    *persistence.WorkflowExecutionInfo
-		Tasks            []persistence.Task
-		VersionHistories *persistence.VersionHistories
-		Activities       map[int64]*persistence.ActivityInfo
-		History          events.PersistedBlobs
-		PersistenceError bool
-
-		// TODO: remove this when queuev1 is replaced by queuev2
-		// ClusterCurrentTimes is not nil for timer tasks
-		// It contains current times per cluster of all tasks in this notification
-		ClusterCurrentTimes map[string]time.Time
+// IsOperationPossiblySuccessfulError returns true for errors where a persistence
+// write may have succeeded despite the error being returned (e.g. timeout, unknown
+// network error). Returns false for errors that definitively indicate the write
+// did not occur.
+func IsOperationPossiblySuccessfulError(err error) bool {
+	switch err.(type) {
+	case nil,
+		*types.WorkflowExecutionAlreadyStartedError,
+		*persistence.WorkflowExecutionAlreadyStartedError,
+		*persistence.CurrentWorkflowConditionFailedError,
+		*persistence.ConditionFailedError,
+		*types.ServiceBusyError,
+		*types.LimitExceededError,
+		*persistence.ShardOwnershipLostError:
+		return false
+	default:
+		return true
 	}
-)
+}

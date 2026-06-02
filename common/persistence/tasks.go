@@ -375,6 +375,8 @@ func (a HistoryTaskKey) Less(b HistoryTaskKey) bool { return a.Compare(b) < 0 }
 // Greater reports whether a sorts after b.
 func (a HistoryTaskKey) Greater(b HistoryTaskKey) bool { return a.Compare(b) > 0 }
 
+func (a HistoryTaskKey) GreaterOrEqual(b HistoryTaskKey) bool { return a.Compare(b) >= 0 }
+
 // Equal reports whether a and b are identical.
 func (a HistoryTaskKey) Equal(b HistoryTaskKey) bool { return a.Compare(b) == 0 }
 

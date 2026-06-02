@@ -218,18 +218,23 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 	now := time.Now()
 	lower := newTimeKey(now)
 	upper := newTimeKey(now.Add(time.Hour))
+	prefetchTarget := newTimeKey(now.Add(2 * time.Hour))
 	inside := newTask(1, now.Add(30*time.Minute))
 	before := newTask(2, now.Add(-time.Minute))
 	atUpper := newTask(3, upper.GetScheduledTime())
+	inBuffer := newTask(4, now.Add(90*time.Minute))  // in [upper, prefetchTarget)
+	beyondTarget := newTask(5, now.Add(3*time.Hour)) // beyond prefetchTarget
 	zeroID := newTask(0, now.Add(30*time.Minute))
 	trimKey := inside.GetTaskKey().Next()
 
 	tests := []struct {
-		name         string
-		tasks        []persistence.Task
-		optsOverride func(*cachedQueueReaderOptions)
-		setupMocks   func(queue *MockInMemQueue)
-		wantUpper    persistence.HistoryTaskKey
+		name               string
+		tasks              []persistence.Task
+		initPrefetchTarget persistence.HistoryTaskKey
+		optsOverride       func(*cachedQueueReaderOptions)
+		setupMocks         func(queue *MockInMemQueue)
+		wantUpper          persistence.HistoryTaskKey
+		wantBufferLen      int
 	}{
 		{
 			name:  "disabled skips all",
@@ -293,6 +298,30 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			},
 			wantUpper: trimKey,
 		},
+		{
+			name:               "task in [upper, prefetchTarget) buffered when prefetch in-flight",
+			tasks:              []persistence.Task{inBuffer},
+			initPrefetchTarget: prefetchTarget,
+			setupMocks:         func(*MockInMemQueue) {},
+			wantUpper:          upper,
+			wantBufferLen:      1,
+		},
+		{
+			name:               "task beyond prefetchTarget dropped even when prefetch in-flight",
+			tasks:              []persistence.Task{beyondTarget},
+			initPrefetchTarget: prefetchTarget,
+			setupMocks:         func(*MockInMemQueue) {},
+			wantUpper:          upper,
+			wantBufferLen:      0,
+		},
+		{
+			name:               "task with ID=0 not buffered even when prefetch in-flight",
+			tasks:              []persistence.Task{zeroID},
+			initPrefetchTarget: prefetchTarget,
+			setupMocks:         func(*MockInMemQueue) {},
+			wantUpper:          upper,
+			wantBufferLen:      0,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -300,14 +329,21 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, tc.optsOverride)
 			queue := deps.mockQueue
 			setBounds(r, lower, upper)
+			if !tc.initPrefetchTarget.Equal(persistence.MinimumHistoryTaskKey) {
+				r.mu.Lock()
+				r.prefetchTargetUpper = tc.initPrefetchTarget
+				r.mu.Unlock()
+			}
 			tc.setupMocks(queue)
 
 			r.Inject(tc.tasks)
 
 			r.mu.RLock()
-			got := r.exclusiveUpperBound
+			gotUpper := r.exclusiveUpperBound
+			gotBufferLen := len(r.pendingInjectBuffer)
 			r.mu.RUnlock()
-			assert.True(t, got.Equal(tc.wantUpper), "upper: got %v want %v", got, tc.wantUpper)
+			assert.True(t, gotUpper.Equal(tc.wantUpper), "upper: got %v want %v", gotUpper, tc.wantUpper)
+			assert.Equal(t, tc.wantBufferLen, gotBufferLen, "buffer length")
 		})
 	}
 }
@@ -318,6 +354,10 @@ func TestCachedQueueReader_Clear(t *testing.T) {
 	r, deps := setupMocksForCachedQueueReader(t, ctrl)
 	queue := deps.mockQueue
 	setBounds(r, newTimeKey(now), newTimeKey(now.Add(time.Hour)))
+	r.mu.Lock()
+	r.prefetchTargetUpper = newTimeKey(now.Add(2 * time.Hour))
+	r.pendingInjectBuffer = []persistence.Task{newTask(1, now.Add(90*time.Minute))}
+	r.mu.Unlock()
 
 	queue.EXPECT().Len().Return(0).AnyTimes()
 	queue.EXPECT().Clear()
@@ -331,6 +371,75 @@ func TestCachedQueueReader_Clear(t *testing.T) {
 		"upper: got %v want Minimum", r.exclusiveUpperBound)
 	assert.True(t, r.inclusiveLowerBound.Equal(persistence.MinimumHistoryTaskKey),
 		"lower: got %v want Minimum", r.inclusiveLowerBound)
+	assert.True(t, r.prefetchTargetUpper.Equal(persistence.MinimumHistoryTaskKey),
+		"prefetchTargetUpper: got %v want Minimum", r.prefetchTargetUpper)
+	assert.Empty(t, r.pendingInjectBuffer, "pendingInjectBuffer should be empty after Clear")
+}
+
+func TestCachedQueueReader_InsertBufferedTasks(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+
+	tIn := newTask(1, now.Add(30*time.Minute))  // within [lower, upper)
+	tOut := newTask(2, now.Add(90*time.Minute)) // beyond upper
+
+	tests := []struct {
+		name       string
+		initBuffer []persistence.Task
+		setupMocks func(queue *MockInMemQueue)
+	}{
+		{
+			name:       "empty buffer: no-op",
+			initBuffer: nil,
+			setupMocks: func(*MockInMemQueue) {},
+		},
+		{
+			name:       "covered task drained into cache",
+			initBuffer: []persistence.Task{tIn},
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().PutTasks([]persistence.Task{tIn})
+				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
+			},
+		},
+		{
+			name:       "uncovered task dropped, buffer cleared",
+			initBuffer: []persistence.Task{tOut},
+			setupMocks: func(*MockInMemQueue) {},
+		},
+		{
+			name:       "mixed: covered drained, uncovered dropped",
+			initBuffer: []persistence.Task{tIn, tOut},
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().PutTasks([]persistence.Task{tIn})
+				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			r, deps := setupMocksForCachedQueueReader(t, ctrl)
+			queue := deps.mockQueue
+			setBounds(r, lower, upper)
+
+			r.mu.Lock()
+			r.pendingInjectBuffer = append(r.pendingInjectBuffer, tc.initBuffer...)
+			r.mu.Unlock()
+
+			tc.setupMocks(queue)
+
+			r.mu.Lock()
+			r.insertBufferedTasks()
+			gotBuffer := r.pendingInjectBuffer
+			r.mu.Unlock()
+
+			assert.Empty(t, gotBuffer, "pendingInjectBuffer after drain")
+		})
+	}
 }
 
 func TestCachedQueueReader_GetTask(t *testing.T) {
@@ -763,6 +872,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		optsOverride func(*cachedQueueReaderOptions)
 		initLower    persistence.HistoryTaskKey
 		initUpper    persistence.HistoryTaskKey
+		initBuffer   []persistence.Task
 		setupMocks   func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader)
 		wantErr      bool
 		wantLower    persistence.HistoryTaskKey
@@ -906,6 +1016,31 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			wantLower: someLower,
 			wantUpper: differentUpper,
 		},
+		{
+			// A task buffered in pendingInjectBuffer (arrived while prefetch was in-flight)
+			// must be drained into the cache once the prefetch completes and the upper
+			// bound advances to cover it.
+			name:      "buffered task drained into cache after prefetch completes",
+			initLower: someLower,
+			initUpper: someUpper,
+			initBuffer: []persistence.Task{
+				// scheduled at someUpper+1min; will fall within [someUpper, maxKey) after prefetch
+				newTask(99, someUpper.GetScheduledTime().Add(time.Minute)),
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+				tBuf := newTask(99, someUpper.GetScheduledTime().Add(time.Minute))
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks:    nil,
+					Progress: &GetTaskProgress{NextTaskKey: maxKey},
+				}, nil)
+				// insertBufferedTasks drains tBuf after upper advances to maxKey.
+				queue.EXPECT().PutTasks([]persistence.Task{tBuf})
+				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
+			},
+			wantLower: someLower,
+			wantUpper: maxKey,
+		},
 	}
 
 	for _, tc := range tests {
@@ -920,6 +1055,11 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			clk.Advance(now.Sub(clk.Now())) // sync mock clock to the fixed reference time
 
 			setBounds(r, tc.initLower, tc.initUpper)
+			if len(tc.initBuffer) > 0 {
+				r.mu.Lock()
+				r.pendingInjectBuffer = append(r.pendingInjectBuffer, tc.initBuffer...)
+				r.mu.Unlock()
+			}
 			tc.setupMocks(base, queue, r)
 
 			err := r.prefetch()
@@ -1052,6 +1192,116 @@ func TestCachedQueueReader_IsRangeCovered(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.wantCovered, r.isRangeCovered(tc.inclusiveMin, tc.exclusiveMax),
 				"test %q: covered", tc.name)
+		})
+	}
+}
+
+func TestCachedQueueReader_IsTaskCovered(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+
+	tests := []struct {
+		name string
+		key  persistence.HistoryTaskKey
+		want bool
+	}{
+		{
+			name: "key before lower bound",
+			key:  newTimeKey(now.Add(-time.Minute)),
+			want: false,
+		},
+		{
+			name: "key at lower bound (inclusive)",
+			key:  lower,
+			want: true,
+		},
+		{
+			name: "key inside window",
+			key:  newTimeKey(now.Add(30 * time.Minute)),
+			want: true,
+		},
+		{
+			name: "key at upper bound (exclusive)",
+			key:  upper,
+			want: false,
+		},
+		{
+			name: "key beyond upper bound",
+			key:  newTimeKey(now.Add(2 * time.Hour)),
+			want: false,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	r, _ := setupMocksForCachedQueueReader(t, ctrl)
+	setBounds(r, lower, upper)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, r.isTaskCovered(tc.key))
+		})
+	}
+}
+
+func TestCachedQueueReader_IsToBufferTask(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+	prefetchTarget := newTimeKey(now.Add(2 * time.Hour))
+
+	tests := []struct {
+		name                string
+		prefetchTargetUpper persistence.HistoryTaskKey
+		key                 persistence.HistoryTaskKey
+		want                bool
+	}{
+		{
+			name:                "no prefetch in-flight (prefetchTargetUpper is minimum)",
+			prefetchTargetUpper: persistence.MinimumHistoryTaskKey,
+			key:                 newTimeKey(now.Add(90 * time.Minute)),
+			want:                false,
+		},
+		{
+			name:                "key inside covered window (below upper bound)",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 newTimeKey(now.Add(30 * time.Minute)),
+			want:                false,
+		},
+		{
+			name:                "key at upper bound (start of buffer window, inclusive)",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 upper,
+			want:                true,
+		},
+		{
+			name:                "key inside buffer window",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 newTimeKey(now.Add(90 * time.Minute)),
+			want:                true,
+		},
+		{
+			name:                "key at prefetch target (exclusive)",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 prefetchTarget,
+			want:                false,
+		},
+		{
+			name:                "key beyond prefetch target",
+			prefetchTargetUpper: prefetchTarget,
+			key:                 newTimeKey(now.Add(3 * time.Hour)),
+			want:                false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			r, _ := setupMocksForCachedQueueReader(t, ctrl)
+			setBounds(r, lower, upper)
+			r.prefetchTargetUpper = tc.prefetchTargetUpper
+
+			assert.Equal(t, tc.want, r.isToBufferTask(tc.key))
 		})
 	}
 }

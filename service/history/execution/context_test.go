@@ -264,32 +264,6 @@ func TestNotifyTasksFromWorkflowSnapshot(t *testing.T) {
 			},
 			persistenceError: true,
 			mockSetup: func(mockEngine *engine.MockEngine) {
-				mockEngine.EXPECT().NotifyNewTransferTasks(&hcommon.NotifyTaskInfo{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:   "test-domain-id",
-						WorkflowID: "test-workflow-id",
-						RunID:      "test-run-id",
-					},
-					Tasks: []persistence.Task{
-						&persistence.ActivityTask{
-							TaskList: "test-tl",
-						},
-					},
-					PersistenceError: true,
-				})
-				mockEngine.EXPECT().NotifyNewTimerTasks(&hcommon.NotifyTaskInfo{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:   "test-domain-id",
-						WorkflowID: "test-workflow-id",
-						RunID:      "test-run-id",
-					},
-					Tasks: []persistence.Task{
-						&persistence.ActivityTimeoutTask{
-							Attempt: 10,
-						},
-					},
-					PersistenceError: true,
-				})
 				mockEngine.EXPECT().NotifyNewReplicationTasks(&hcommon.NotifyTaskInfo{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
 						DomainID:   "test-domain-id",
@@ -394,32 +368,6 @@ func TestNotifyTasksFromWorkflowMutation(t *testing.T) {
 			},
 			persistenceError: true,
 			mockSetup: func(mockEngine *engine.MockEngine) {
-				mockEngine.EXPECT().NotifyNewTransferTasks(&hcommon.NotifyTaskInfo{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:   "test-domain-id",
-						WorkflowID: "test-workflow-id",
-						RunID:      "test-run-id",
-					},
-					Tasks: []persistence.Task{
-						&persistence.ActivityTask{
-							TaskList: "test-tl",
-						},
-					},
-					PersistenceError: true,
-				})
-				mockEngine.EXPECT().NotifyNewTimerTasks(&hcommon.NotifyTaskInfo{
-					ExecutionInfo: &persistence.WorkflowExecutionInfo{
-						DomainID:   "test-domain-id",
-						WorkflowID: "test-workflow-id",
-						RunID:      "test-run-id",
-					},
-					Tasks: []persistence.Task{
-						&persistence.ActivityTimeoutTask{
-							Attempt: 10,
-						},
-					},
-					PersistenceError: true,
-				})
 				mockEngine.EXPECT().NotifyNewReplicationTasks(&hcommon.NotifyTaskInfo{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
 						DomainID:   "test-domain-id",

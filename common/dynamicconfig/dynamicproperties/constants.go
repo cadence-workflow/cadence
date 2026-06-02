@@ -2391,6 +2391,7 @@ const (
 
 	// MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists)
 	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
+	// Read from the primary database-backed operational dynamic config store.
 	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
 	// Value type: Bool
 	// Default value: true
