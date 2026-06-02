@@ -75,6 +75,16 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
+func validateScheduleSpec(spec *types.ScheduleSpec) error {
+	if spec == nil {
+		return nil
+	}
+	if !spec.StartTime.IsZero() && !spec.EndTime.IsZero() && !spec.EndTime.After(spec.StartTime) {
+		return &types.BadRequestError{Message: "Spec.EndTime must be after Spec.StartTime."}
+	}
+	return nil
+}
+
 // warnIfBufferLimitExceedsSystemLimit logs a warning when buffer_limit exceeds
 // MaxBufferedFiresSystemLimit. The value is accepted (the policy still queues
 // up to the system limit), but drops at that cap will be tagged
@@ -145,6 +155,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
+		return nil, err
+	}
+	if err := validateScheduleSpec(request.GetSpec()); err != nil {
 		return nil, err
 	}
 	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
@@ -339,6 +352,9 @@ func (wh *WorkflowHandler) UpdateSchedule(
 		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {
 			return nil, err
 		}
+	}
+	if err := validateScheduleSpec(request.GetSpec()); err != nil {
+		return nil, err
 	}
 	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err

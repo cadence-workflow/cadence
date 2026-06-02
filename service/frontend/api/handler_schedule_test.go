@@ -191,6 +191,44 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"spec end time before start time": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec: &types.ScheduleSpec{
+					CronExpression: "* * * * *",
+					StartTime:      time.Date(2025, 6, 2, 0, 0, 0, 0, time.UTC),
+					EndTime:        time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+				},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"spec end time equal to start time": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec: &types.ScheduleSpec{
+					CronExpression: "* * * * *",
+					StartTime:      time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:        time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+				},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"domain not found": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -809,6 +847,32 @@ func TestUpdateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"spec end time before start time": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec: &types.ScheduleSpec{
+					CronExpression: "* * * * *",
+					StartTime:      time.Date(2025, 6, 2, 0, 0, 0, 0, time.UTC),
+					EndTime:        time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"spec end time equal to start time": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec: &types.ScheduleSpec{
+					CronExpression: "* * * * *",
+					StartTime:      time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:        time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"reserved SA key rejected": {
 			request: &types.UpdateScheduleRequest{
 				Domain:     testDomain,
@@ -1369,6 +1433,50 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateSchedulePolicies(tt.policies)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateScheduleSpec(t *testing.T) {
+	t0 := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	t1 := time.Date(2025, 6, 2, 0, 0, 0, 0, time.UTC)
+	tests := map[string]struct {
+		spec    *types.ScheduleSpec
+		wantErr bool
+	}{
+		"nil spec": {
+			spec:    nil,
+			wantErr: false,
+		},
+		"only start time set": {
+			spec:    &types.ScheduleSpec{StartTime: t0},
+			wantErr: false,
+		},
+		"only end time set": {
+			spec:    &types.ScheduleSpec{EndTime: t1},
+			wantErr: false,
+		},
+		"valid range": {
+			spec:    &types.ScheduleSpec{StartTime: t0, EndTime: t1},
+			wantErr: false,
+		},
+		"end time equal to start time": {
+			spec:    &types.ScheduleSpec{StartTime: t0, EndTime: t0},
+			wantErr: true,
+		},
+		"end time before start time": {
+			spec:    &types.ScheduleSpec{StartTime: t1, EndTime: t0},
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateScheduleSpec(tt.spec)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
