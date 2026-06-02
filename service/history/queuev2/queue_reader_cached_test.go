@@ -1096,42 +1096,54 @@ func TestCachedQueueReader_StartStop(t *testing.T) {
 
 func TestCachedQueueReader_NextPrefetchDelay(t *testing.T) {
 	ctrl := gomock.NewController(t)
+	// 50% jitter: un-capped range would be [0.5*base, 1.5*base].
+	// The cap (min(delay, jittered)) keeps the result in [0.5*base, base],
+	// and the MinPrefetchInterval floor ensures the result is never below 1s.
 	r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
 		o.PrefetchTriggerWindow = dynamicproperties.GetDurationPropertyFn(10 * time.Minute)
 		o.MinPrefetchInterval = dynamicproperties.GetDurationPropertyFn(time.Second)
-		o.PrefetchJitterCoefficient = dynamicproperties.GetFloatPropertyFn(0)
+		o.PrefetchJitterCoefficient = dynamicproperties.GetFloatPropertyFn(0.5)
 	})
 	now := deps.clock.Now()
 
 	tests := []struct {
 		name                string
 		exclusiveUpperBound persistence.HistoryTaskKey
-		wantDelay           time.Duration
+		wantMinDelay        time.Duration
+		wantMaxDelay        time.Duration
 	}{
 		{
 			name:                "no upper bound -> clamped to MinPrefetchInterval",
 			exclusiveUpperBound: persistence.MinimumHistoryTaskKey,
-			wantDelay:           time.Second,
+			wantMinDelay:        time.Second,
+			wantMaxDelay:        time.Second,
 		},
 		{
 			name:                "upper in the past -> clamped to MinPrefetchInterval",
 			exclusiveUpperBound: newTimeKey(now.Add(-5 * time.Minute)), // triggerTime = now-15m -> d<0 -> min
-			wantDelay:           time.Second,
+			wantMinDelay:        time.Second,
+			wantMaxDelay:        time.Second,
 		},
 		{
 			name:                "upper within trigger window -> clamped to MinPrefetchInterval",
 			exclusiveUpperBound: newTimeKey(now.Add(5 * time.Minute)), // triggerTime = now-5m -> d<=0 -> min
-			wantDelay:           time.Second,
+			wantMinDelay:        time.Second,
+			wantMaxDelay:        time.Second,
 		},
 		{
 			name:                "upper exactly at trigger boundary -> clamped to MinPrefetchInterval",
 			exclusiveUpperBound: newTimeKey(now.Add(10 * time.Minute)), // triggerTime = now -> d=0 -> min
-			wantDelay:           time.Second,
+			wantMinDelay:        time.Second,
+			wantMaxDelay:        time.Second,
 		},
 		{
-			name:                "upper beyond trigger window -> trigger-window delay",
-			exclusiveUpperBound: newTimeKey(now.Add(20 * time.Minute)), // triggerTime = now+10m -> d=10m
-			wantDelay:           10 * time.Minute,
+			// base delay = 10m; jitter range = [5m, 15m]; cap keeps it in [5m, 10m].
+			// Without the cap, positive jitter could return up to 15m, causing the prefetch
+			// to fire 5m after the upper bound and producing cache misses.
+			name:                "upper beyond trigger window -> jitter capped at base delay",
+			exclusiveUpperBound: newTimeKey(now.Add(20 * time.Minute)), // triggerTime = now+10m -> base=10m
+			wantMinDelay:        5 * time.Minute,                       // 0.5 * base (negative jitter floor)
+			wantMaxDelay:        10 * time.Minute,                      // base delay — the cap that prevents late prefetch
 		},
 	}
 	for _, tc := range tests {
@@ -1139,7 +1151,9 @@ func TestCachedQueueReader_NextPrefetchDelay(t *testing.T) {
 			r.mu.Lock()
 			r.exclusiveUpperBound = tc.exclusiveUpperBound
 			r.mu.Unlock()
-			assert.Equal(t, tc.wantDelay, r.nextPrefetchDelay(), "test %q: delay", tc.name)
+			d := r.nextPrefetchDelay()
+			assert.GreaterOrEqual(t, d, tc.wantMinDelay)
+			assert.LessOrEqual(t, d, tc.wantMaxDelay)
 		})
 	}
 }

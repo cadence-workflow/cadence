@@ -254,8 +254,14 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 
 	triggerTime := q.exclusiveUpperBound.GetScheduledTime().Add(-q.options.PrefetchTriggerWindow())
 	delay := max(q.options.MinPrefetchInterval(), triggerTime.Sub(q.clock.Now()))
+	jittered := backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
 
-	return backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
+	// Cap the jittered delay to the original delay: positive jitter must not push the
+	// prefetch past triggerTime, which would cause it to fire after the upper bound and
+	// produce cache misses. MinPrefetchInterval is re-applied as the floor because
+	// negative jitter on a delay already clamped to MinPrefetchInterval can otherwise
+	// return a value below it.
+	return max(q.options.MinPrefetchInterval(), min(delay, jittered))
 }
 
 // isEnabled returns true if the cache is fully enabled
