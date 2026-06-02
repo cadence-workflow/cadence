@@ -1148,9 +1148,7 @@ func TestCachedQueueReader_NextPrefetchDelay(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r.mu.Lock()
 			r.exclusiveUpperBound = tc.exclusiveUpperBound
-			r.mu.Unlock()
 			d := r.nextPrefetchDelay()
 			assert.GreaterOrEqual(t, d, tc.wantMinDelay)
 			assert.LessOrEqual(t, d, tc.wantMaxDelay)
