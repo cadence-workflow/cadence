@@ -4010,7 +4010,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowRepairFailure:                                         {metricName: "workflow_repair_failure", metricType: Counter},
 		WorkflowRepairTimeout:                                         {metricName: "workflow_repair_timeout", metricType: Counter},
 		WorkflowRepairDuration:                                        {metricName: "workflow_repair_duration_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		FailoverMarkerCount:                                           {metricName: "failover_marker_count", metricType: Counter},
+		FailoverMarkerCount:                                           {metricName: "failover_marker_count", metricType: Gauge},
 		FailoverMarkerInsertFailure:                                   {metricName: "failover_marker_insert_failures", metricType: Counter},
 		FailoverMarkerNotificationFailure:                             {metricName: "failover_marker_notification_failures", metricType: Counter},
 		FailoverMarkerUpdateShardFailure:                              {metricName: "failover_marker_update_shard_failures", metricType: Counter},
