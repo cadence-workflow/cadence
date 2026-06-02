@@ -196,9 +196,6 @@ func (h *namespaceHandler) campaigning(ctx context.Context) stateFn {
 			return h.idle
 		case isLeader, ok = <-leaderCh:
 			if !ok {
-				if ctx.Err() != nil {
-					return nil
-				}
 				h.logger.Error("Election channel closed unexpectedly")
 				return h.campaigning
 			}
