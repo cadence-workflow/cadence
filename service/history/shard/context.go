@@ -1536,10 +1536,15 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	if err != nil {
 		return err
 	}
-	// domain is active, the marker is expired
+	// if the domain is active the marker is expired
 	isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
-	if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
-		s.logger.Info("Skipped out-of-date failover marker", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
+	domainStatus := domainEntry.GetInfo().Status
+
+	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
+		s.logger.Info("Skipped pending failover marker",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.Reason(failoverMarkerSkipReason(isActive, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
+		)
 		return nil
 	}
 
@@ -1550,13 +1555,26 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	return s.forceUpdateShardInfoLocked()
 }
 
+func failoverMarkerSkipReason(isActive bool, domainFailoverVersion, markerFailoverVersion int64, domainStatus int) string {
+	switch {
+	case domainStatus == persistence.DomainStatusDeprecated:
+		return "domain is deprecated"
+	case isActive:
+		return "domain is active in current cluster"
+	case domainFailoverVersion > markerFailoverVersion:
+		return "domain failover version is newer than marker"
+	default:
+		return "unknown"
+	}
+}
+
 func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error) {
 
 	completedFailoverMarkers := make(map[*types.FailoverMarkerAttributes]struct{})
 	var pendingMarkers []*types.FailoverMarkerAttributes
 
 	s.RLock()
-	// Get a copy of pending markers while holding read lock
+	// get a copy of pending markers while holding read lock
 	pendingMarkers = make([]*types.FailoverMarkerAttributes, len(s.shardInfo.PendingFailoverMarkers))
 	copy(pendingMarkers, s.shardInfo.PendingFailoverMarkers)
 
@@ -1570,10 +1588,14 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
 
-		// Drop failover markers if domain is already active in the currentCluster
+		// Drop failover markers if domain is deprecated
+		// or domain is already active in the currentCluster
 		// or domain have been failed over
-		// or domain is deprecated
-		if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || domainStatus == persistence.DomainStatusDeprecated {
+		if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
+			s.logger.Info("Dropped pending failover marker",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.Reason(failoverMarkerSkipReason(isActive, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
+			)
 			completedFailoverMarkers[marker] = struct{}{}
 		}
 	}

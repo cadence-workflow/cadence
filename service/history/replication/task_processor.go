@@ -63,6 +63,8 @@ const (
 var (
 	// ErrUnknownReplicationTask is the error to indicate unknown replication task type
 	ErrUnknownReplicationTask = &types.BadRequestError{Message: "unknown replication task"}
+	// ErrEmptyFailoverMarkerAttributes is the error returned when a failover marker replication task has nil attributes
+	ErrEmptyFailoverMarkerAttributes = &types.BadRequestError{Message: "empty failover marker attributes"}
 )
 
 type (
