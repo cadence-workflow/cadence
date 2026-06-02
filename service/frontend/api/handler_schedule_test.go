@@ -172,6 +172,27 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"retry policy with no bounds rejected at create": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumIntervalInSeconds: 60,
+							BackoffCoefficient:       2,
+							// MaximumAttempts and ExpirationIntervalInSeconds both zero
+						},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"invalid SKIP_NEW + CATCH_UP_ALL": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
@@ -879,6 +900,26 @@ func TestUpdateSchedule(t *testing.T) {
 				ScheduleID: "s1",
 				SearchAttributes: &types.SearchAttributes{
 					IndexedFields: map[string][]byte{"CadenceScheduleState": []byte(`"active"`)},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"retry policy with no bounds rejected at update": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumIntervalInSeconds: 60,
+							BackoffCoefficient:       2,
+							// MaximumAttempts and ExpirationIntervalInSeconds both zero
+						},
+					},
 				},
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
