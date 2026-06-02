@@ -1800,6 +1800,7 @@ type (
 	CreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
+		DomainName            string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		Task                  Task

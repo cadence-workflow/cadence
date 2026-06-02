@@ -35,7 +35,6 @@ const (
 
 	instance                  = "instance"
 	domain                    = "domain"
-	domainID                  = "domain_id"
 	domainType                = "domain_type"
 	clusterGroup              = "cluster_group"
 	sourceCluster             = "source_cluster"
@@ -137,14 +136,6 @@ func ShardIDTag(shardIDVal int) Tag {
 // this converts that to an unknown domain.
 func DomainTag(value string) Tag {
 	return metricWithUnknown(domain, value)
-}
-
-// DomainIDTag returns a new domain_id tag. If a blank ID is provided then this
-// converts it to an unknown domain. Prefer this when emitting metrics from
-// layers (like persistence) that already have the domain ID but would need to
-// resolve the name through the domain cache.
-func DomainIDTag(value string) Tag {
-	return metricWithUnknown(domainID, value)
 }
 
 // DomainTypeTag returns a tag for domain type.

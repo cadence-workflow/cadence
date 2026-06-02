@@ -76,7 +76,7 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 			outcome = metrics.HistoryTaskDLQOutcomeFailure
 		}
 		m.metricsClient.
-			Scope(metrics.HistoryTaskDLQWriteScope, metrics.DomainIDTag(request.DomainID)).
+			Scope(metrics.HistoryTaskDLQWriteScope, metrics.DomainTag(request.DomainName)).
 			Tagged(metrics.HistoryTaskDLQOutcomeTag(outcome)).
 			IncCounter(metrics.TaskDLQWritePerDomain)
 	}()
