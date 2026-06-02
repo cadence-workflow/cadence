@@ -2006,6 +2006,65 @@ func TestGetCurrentTimeLocked(t *testing.T) {
 	assert.Equal(t, remoteTime, result)
 }
 
+func TestFailoverMarkerSkipReason(t *testing.T) {
+	tests := []struct {
+		name                  string
+		isActive              bool
+		domainFailoverVersion int64
+		markerFailoverVersion int64
+		domainStatus          int
+		want                  string
+	}{
+		{
+			name:                  "active domain",
+			isActive:              true,
+			domainFailoverVersion: 100,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusRegistered,
+			want:                  "domain is active in current cluster",
+		},
+		{
+			name:                  "deprecated domain",
+			isActive:              false,
+			domainFailoverVersion: 100,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusDeprecated,
+			want:                  "domain is deprecated",
+		},
+		{
+			name:                  "newer domain failover version",
+			isActive:              false,
+			domainFailoverVersion: 200,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusRegistered,
+			want:                  "domain failover version is newer than marker",
+		},
+		{
+			name:                  "all skip conditions match",
+			isActive:              true,
+			domainFailoverVersion: 200,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusDeprecated,
+			want:                  "domain is deprecated",
+		},
+		{
+			name:                  "no skip condition matches",
+			isActive:              false,
+			domainFailoverVersion: 100,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusRegistered,
+			want:                  "unknown",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := failoverMarkerSkipReason(tc.isActive, tc.domainFailoverVersion, tc.markerFailoverVersion, tc.domainStatus)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestPrefetchClusterTimesLocked(t *testing.T) {
 	// cluster.TestCurrentClusterInitialFailoverVersion = 0 → "active" (current cluster, skipped)
 	// cluster.TestAlternativeClusterInitialFailoverVersion = 1 → "standby" (remote cluster, included)
