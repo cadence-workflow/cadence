@@ -171,6 +171,10 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	task *persistence.ActivityTask,
 ) (retError error) {
 
+	if !t.allowTask(task) {
+		return errWorkflowRateLimited
+	}
+
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
 		task.DomainID,
 		getWorkflowExecution(task),
@@ -183,11 +187,6 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 		return err
 	}
 	defer func() { release(retError) }()
-
-	if !t.allowTask(task) {
-		release(nil)
-		return errWorkflowRateLimited
-	}
 
 	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TransferQueueProcessorScope), t.logger, task.ScheduleID)
 	if err != nil {
