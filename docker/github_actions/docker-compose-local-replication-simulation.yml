@@ -64,7 +64,7 @@ services:
       - "7002:7002" # history prometheus
       - "7003:7003" # worker prometheus
     environment:
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation_${SCENARIO}.yml
+      - DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/replication_simulation_${SCENARIO}.yml
       - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
       - "BIND_ON_IP=0.0.0.0"
       - "PRIMARY_FRONTEND_SERVICE=cadence-cluster0"
@@ -110,7 +110,7 @@ services:
       - "8002:8002" # history prometheus
       - "8003:8003" # worker prometheus
     environment:
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/replication_simulation_${SCENARIO}.yml
+      - DYNAMIC_CONFIG_FILE_PATH=dynamicconfig/replication_simulation_${SCENARIO}.yml
       - "CLUSTER_REDIRECT_POLICY=selected-apis-forwarding"
       - "BIND_ON_IP=0.0.0.0"
       - "PRIMARY_FRONTEND_SERVICE=cadence-cluster0"
