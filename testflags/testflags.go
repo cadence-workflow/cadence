@@ -38,7 +38,6 @@ var (
 	mongodb   = "MONGODB"
 	mysql     = "MYSQL"
 	postgres  = "POSTGRES"
-	etcd      = "ETCD"
 )
 
 // NOTE: We are using environment variables instead of go testflags or go build directives, because we:
@@ -61,10 +60,6 @@ func RequireMongoDB(t *testing.T) {
 
 func RequireCassandra(t *testing.T) {
 	require(t, cassandra)
-}
-
-func RequireEtcd(t *testing.T) {
-	require(t, etcd)
 }
 
 func require(t *testing.T, name string) {
