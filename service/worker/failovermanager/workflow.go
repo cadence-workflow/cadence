@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"go.uber.org/cadence"
@@ -52,10 +51,12 @@ type (
 		PreferredCluster string `json:"preferredCluster"`
 	}
 
-	// DomainFailoverPreferences carries all per-domain failover instructions for FailoverActivity.
-	// It is extensible: future fields (e.g. GracefulFailoverSeconds) can be added without
-	// changing the activity registration.
+	// DomainFailoverPreferences carries the failover instruction for a single domain. It is
+	// the unit of work that both FailoverActivity and RebalanceActivity consume — workflows
+	// build a slice of these, the batch helper slices the slice, and the activity iterates.
 	DomainFailoverPreferences struct {
+		// DomainName identifies the domain this instruction applies to.
+		DomainName string
 		// PreferredCluster, when non-empty, sets the domain-level ActiveClusterName.
 		PreferredCluster string
 		// ClusterAttributeUpdates lists attribute-level mismatches that need correction.
@@ -78,6 +79,7 @@ const (
 	RebalanceWorkflowID             = "cadence-rebalance-workflow"
 	DrillWorkflowID                 = FailoverWorkflowID + "-drill"
 	failoverActivityName            = "cadence-sys-failover-activity"
+	rebalanceActivityName           = "cadence-sys-rebalance-activity"
 	getDomainsActivityName          = "cadence-sys-getDomains-activity"
 	getRebalanceDomainsActivityName = "cadence-sys-getRebalanceDomains-activity"
 
@@ -110,13 +112,10 @@ const (
 	WorkflowAborted = "aborted"
 
 	unknownOperator = "unknown"
-
-	versionActiveActiveClusterAttributeFailover = "active-active-cluster-attribute-failover"
-	versionActiveActiveRebalanceFromDomainData  = "active-active-rebalance-from-domain-data"
 )
 
 type (
-	// FailoverParams is the arg for failoverWorkflow
+	// FailoverParams is the arg for FailoverWorkflow
 	FailoverParams struct {
 		// TargetCluster is the destination of failover
 		TargetCluster string
@@ -131,13 +130,12 @@ type (
 		// DrillWaitTime defines the wait time of a failover drill
 		DrillWaitTime time.Duration
 		// GracefulFailoverTimeoutInSeconds
+		// TODO: Remove graceful and use the Domains Failover Preferences instead once that is supported
 		GracefulFailoverTimeoutInSeconds *int32
-		// DomainPreferences carries per-domain failover instructions for the rebalance path.
-		// When set, FailoverActivity uses per-domain preferences instead of the batch-level TargetCluster.
-		DomainPreferences map[string]*DomainFailoverPreferences `json:",omitempty"`
 		// ClusterAttributes, when non-empty, triggers failover for active-active domains.
-		// each listed scope+name pair is moved to TargetCluster via UpdateDomain.ActiveClusters instead of ActiveClusterName.
-		// GetDomainsActivity also switches to active-active mode when this is set.
+		// Each listed scope+name pair is moved to TargetCluster via UpdateDomain.ActiveClusters
+		// instead of ActiveClusterName. GetDomainsActivity also switches to active-active mode
+		// when this is set.
 		ClusterAttributes []types.ClusterAttribute `json:",omitempty"`
 	}
 
@@ -153,28 +151,24 @@ type (
 	GetDomainsActivityParams struct {
 		TargetCluster string
 		SourceCluster string
-		Domains       []string
-		// ClusterAttributes specifies which cluster attributes to match for active-active failover.
-		// All active-active domains that have matching attributes (e.g scope:name) will be returned.
-		// Optional.
-		ClusterAttributes []types.ClusterAttribute
+		// Domains can be passed to filter to a specific subset of domains in the cadence environment.
+		Domains []string
+		// ClusterAttributes, when non-empty, triggers failover for active-active domains.
+		// Each listed scope+name pair is moved to TargetCluster via UpdateDomain.ActiveClusters
+		// instead of ActiveClusterName. GetDomainsActivity also switches to active-active mode
+		// when this is set.
+		ClusterAttributes []types.ClusterAttribute `json:",omitempty"`
 	}
 
-	// FailoverActivityParams params for activity
+	// FailoverActivityParams params for FailoverActivity. The activity iterates over
+	// DomainPreferences and applies each entry.
 	FailoverActivityParams struct {
-		Domains                          []string
-		TargetCluster                    string
+		DomainPreferences []DomainFailoverPreferences
+		// TODO: Remove graceful and use the Domains Failover Preferences instead once that is supported
 		GracefulFailoverTimeoutInSeconds *int32
-		// DomainPreferences carries per-domain failover instructions for the rebalance path.
-		// When set for a domain, FailoverActivity uses per-domain preferences instead of TargetCluster.
-		DomainPreferences map[string]*DomainFailoverPreferences `json:",omitempty"`
-		// ClusterAttributes specifies which attributes to fail over to the TargetCluster across the environment.
-		// All active-active domains that have matching attributes (e.g scope:name) will be failed over.
-		// Optional.
-		ClusterAttributes []types.ClusterAttribute
 	}
 
-	// FailoverActivityResult result for failover activity
+	// FailoverActivityResult result for failover (and rebalance) activities.
 	FailoverActivityResult struct {
 		SuccessDomains []string
 		FailedDomains  []string
@@ -194,153 +188,216 @@ type (
 		FailedResetDomains  []string // FailedResetDomains contains false positive in drill mode
 		Operator            string
 	}
+
+	// failoverState is the mutable in-workflow state used by both the workflow body and
+	// the query handler closure.
+	failoverState struct {
+		totalDomains        int
+		successDomains      []string
+		failedDomains       []string
+		successResetDomains []string
+		failedResetDomains  []string
+		wfState             string
+		targetCluster       string
+		sourceCluster       string
+		operator            string
+	}
 )
 
-// FailoverWorkflow is the workflow that managed failover all domains with IsManagedByCadence=true
+// FailoverWorkflow manages failover for all domains with IsManagedByCadence=true. The workflow:
+//  1. Sets up a query handler so callers can poll progress.
+//  2. Asks GetDomainsActivity to filter the candidate domain list down to those eligible for failover.
+//  3. Builds a per-domain DomainFailoverPreferences map from TargetCluster + ClusterAttributes.
+//  4. Runs FailoverActivity in batches with pause/resume support.
+//  5. If DrillWaitTime > 0, sleeps and then runs again with PreferredCluster reversed to SourceCluster.
 func FailoverWorkflow(ctx workflow.Context, params *FailoverParams) (*FailoverResult, error) {
-	err := validateParams(params)
-	if err != nil {
+	if err := validateParams(params); err != nil {
 		return nil, err
 	}
 
-	// define query properties
-	var failedDomains []string
-	var successDomains []string
-	var successResetDomains []string
-	var failedResetDomains []string
-	var totalNumOfDomains int
-	wfState := WorkflowInitialized
-	operator := getOperator(ctx)
-	err = workflow.SetQueryHandler(ctx, QueryType, func(input []byte) (*QueryResult, error) {
-		return &QueryResult{
-			TotalDomains:        totalNumOfDomains,
-			Success:             len(successDomains),
-			Failed:              len(failedDomains),
-			State:               wfState,
-			TargetCluster:       params.TargetCluster,
-			SourceCluster:       params.SourceCluster,
-			SuccessDomains:      successDomains,
-			FailedDomains:       failedDomains,
-			SuccessResetDomains: successResetDomains,
-			FailedResetDomains:  failedResetDomains,
-			Operator:            operator,
-		}, nil
-	})
-	if err != nil {
+	state := &failoverState{
+		wfState:       WorkflowInitialized,
+		targetCluster: params.TargetCluster,
+		sourceCluster: params.SourceCluster,
+		operator:      getOperator(ctx),
+	}
+	if err := setupFailoverQueryHandler(ctx, state); err != nil {
 		return nil, err
 	}
 
-	// get target domains
-	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
-	getDomainsParams := &GetDomainsActivityParams{
-		TargetCluster: params.TargetCluster,
-		SourceCluster: params.SourceCluster,
-		Domains:       params.Domains,
-	}
-	wfVersion := workflow.GetVersion(ctx, versionActiveActiveClusterAttributeFailover, workflow.DefaultVersion, 1)
-	if wfVersion >= 1 {
-		getDomainsParams.ClusterAttributes = params.ClusterAttributes
-	}
-	var domains []string
-	err = workflow.ExecuteActivity(ao, GetDomainsActivity, getDomainsParams).Get(ctx, &domains)
+	domains, err := executeGetDomainsActivity(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	totalNumOfDomains = len(domains)
+	state.totalDomains = len(domains)
 
-	pauseCh := workflow.GetSignalChannel(ctx, PauseSignal)
-	resumeCh := workflow.GetSignalChannel(ctx, ResumeSignal)
-	var shouldPause bool
-	checkPauseSignal := func() {
-		shouldPause = pauseCh.ReceiveAsync(nil)
-		if shouldPause {
-			wfState = WorkflowPaused
-			resumeCh.Receive(ctx, nil)
-			// clean up all pending pause signal
-			cleanupChannel(pauseCh)
-		}
-		wfState = WorkflowRunning
-	}
+	checkPauseSignal := newPauseHandler(ctx, state)
 
-	// failover in batch
-	successDomains, failedDomains = failoverDomainsByBatch(ctx, domains, params, checkPauseSignal, false)
+	waitBetween := time.Duration(params.BatchFailoverWaitTimeInSeconds) * time.Second
+	forwardPrefs := buildFailoverPrefsFromParams(domains, params.TargetCluster, params.ClusterAttributes)
+	state.successDomains, state.failedDomains = processDomainsInBatches(
+		ctx,
+		forwardPrefs,
+		params.BatchFailoverSize,
+		waitBetween,
+		checkPauseSignal,
+		executeFailoverBatch(params.GracefulFailoverTimeoutInSeconds),
+	)
 
 	if params.DrillWaitTime == 0 {
-		// This is a normal failover
-		wfState = WorkflowCompleted
+		state.wfState = WorkflowCompleted
 		return &FailoverResult{
-			SuccessDomains: successDomains,
-			FailedDomains:  failedDomains,
+			SuccessDomains: state.successDomains,
+			FailedDomains:  state.failedDomains,
 		}, nil
 	}
 
 	workflow.Sleep(ctx, params.DrillWaitTime)
-	// Reset domains to original cluster
-	successResetDomains, failedResetDomains = failoverDomainsByBatch(ctx, domains, params, checkPauseSignal, true)
-	wfState = WorkflowCompleted
+
+	reversedPrefs := buildFailoverPrefsFromParams(domains, params.SourceCluster, params.ClusterAttributes)
+	state.successResetDomains, state.failedResetDomains = processDomainsInBatches(
+		ctx,
+		reversedPrefs,
+		params.BatchFailoverSize,
+		waitBetween,
+		checkPauseSignal,
+		executeFailoverBatch(params.GracefulFailoverTimeoutInSeconds),
+	)
+	state.wfState = WorkflowCompleted
 
 	return &FailoverResult{
-		SuccessDomains:      successDomains,
-		FailedDomains:       failedDomains,
-		SuccessResetDomains: successResetDomains,
-		FailedResetDomains:  failedResetDomains,
+		SuccessDomains:      state.successDomains,
+		FailedDomains:       state.failedDomains,
+		SuccessResetDomains: state.successResetDomains,
+		FailedResetDomains:  state.failedResetDomains,
 	}, nil
 }
 
-func failoverDomainsByBatch(
-	ctx workflow.Context,
-	domains []string,
-	params *FailoverParams,
-	pauseSignalHandler func(),
-	reverseFailover bool,
-) (successDomains []string, failedDomains []string) {
-
-	totalNumOfDomains := len(domains)
-	batchSize := params.BatchFailoverSize
-	times := totalNumOfDomains/batchSize + 1
-	ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
-	targetCluster := params.TargetCluster
-	if reverseFailover {
-		targetCluster = params.SourceCluster
+// GetDomainsActivity fetches all domains that should be failed over.
+func GetDomainsActivity(ctx context.Context, params *GetDomainsActivityParams) ([]string, error) {
+	err := validateGetDomainsActivityParams(params)
+	if err != nil {
+		return nil, err
 	}
-	for i := 0; i < times; i++ {
-		pauseSignalHandler()
+	domains, err := getAllDomains(ctx, params.Domains)
+	if err != nil {
+		return nil, err
+	}
+	var res []string
+	for _, domain := range domains {
+		if shouldFailover(domain, params.SourceCluster, params.ClusterAttributes) {
+			res = append(res, domain.GetDomainInfo().GetName())
+		}
+	}
+	return res, nil
+}
 
-		v := workflow.GetVersion(ctx, versionActiveActiveClusterAttributeFailover, workflow.DefaultVersion, 1)
-		failoverActivityParams := &FailoverActivityParams{
-			Domains:                          domains[i*batchSize : min((i+1)*batchSize, totalNumOfDomains)],
-			TargetCluster:                    targetCluster,
-			GracefulFailoverTimeoutInSeconds: params.GracefulFailoverTimeoutInSeconds,
+// FailoverActivity applies the supplied per-domain DomainFailoverPreferences. It is used by
+// FailoverWorkflow; GracefulFailoverTimeoutInSeconds is applied to every UpdateDomain call when
+// set.
+func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*FailoverActivityResult, error) {
+	return applyDomainPreferences(ctx, params.DomainPreferences, params.GracefulFailoverTimeoutInSeconds)
+}
+
+// setupFailoverQueryHandler registers the QueryType handler. The handler closes over state so
+// QueryWorkflow callers see the latest values as the workflow advances.
+func setupFailoverQueryHandler(ctx workflow.Context, state *failoverState) error {
+	return workflow.SetQueryHandler(ctx, QueryType, func(input []byte) (*QueryResult, error) {
+		return &QueryResult{
+			TotalDomains:        state.totalDomains,
+			Success:             len(state.successDomains),
+			Failed:              len(state.failedDomains),
+			State:               state.wfState,
+			TargetCluster:       state.targetCluster,
+			SourceCluster:       state.sourceCluster,
+			SuccessDomains:      state.successDomains,
+			FailedDomains:       state.failedDomains,
+			SuccessResetDomains: state.successResetDomains,
+			FailedResetDomains:  state.failedResetDomains,
+			Operator:            state.operator,
+		}, nil
+	})
+}
+
+// newPauseHandler returns a hook that processDomainsInBatches calls at the start of each batch.
+// A PauseSignal blocks until ResumeSignal arrives and toggles state.wfState accordingly so the
+// query handler reflects the pause.
+func newPauseHandler(ctx workflow.Context, state *failoverState) func() {
+	pauseCh := workflow.GetSignalChannel(ctx, PauseSignal)
+	resumeCh := workflow.GetSignalChannel(ctx, ResumeSignal)
+	return func() {
+		if pauseCh.ReceiveAsync(nil) {
+			state.wfState = WorkflowPaused
+			resumeCh.Receive(ctx, nil)
+			cleanupChannel(pauseCh)
 		}
-		if v >= 1 {
-			failoverActivityParams.ClusterAttributes = params.ClusterAttributes
-		}
-		vRebalance := workflow.GetVersion(ctx, versionActiveActiveRebalanceFromDomainData, workflow.DefaultVersion, 1)
-		if vRebalance >= 1 && len(params.DomainPreferences) > 0 {
-			batchPrefs := make(map[string]*DomainFailoverPreferences)
-			for _, d := range failoverActivityParams.Domains {
-				if p, ok := params.DomainPreferences[d]; ok {
-					batchPrefs[d] = p
-				}
-			}
-			failoverActivityParams.DomainPreferences = batchPrefs
+		state.wfState = WorkflowRunning
+	}
+}
+
+// executeGetDomainsActivity invokes GetDomainsActivity with the workflow's filter inputs and
+// returns the eligible domain list.
+func executeGetDomainsActivity(ctx workflow.Context, params *FailoverParams) ([]string, error) {
+	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
+	getDomainsParams := &GetDomainsActivityParams{
+		TargetCluster:     params.TargetCluster,
+		SourceCluster:     params.SourceCluster,
+		Domains:           params.Domains,
+		ClusterAttributes: params.ClusterAttributes,
+	}
+	var domains []string
+	if err := workflow.ExecuteActivity(ao, GetDomainsActivity, getDomainsParams).Get(ctx, &domains); err != nil {
+		return nil, err
+	}
+	return domains, nil
+}
+
+// executeFailoverBatch returns a batchExecutor that invokes FailoverActivity for the given batch.
+// On activity error every domain in the batch is reported as failed (false-positive semantics
+// match the original behaviour).
+// TODO: Remove graceful and use the Domains Failover Preferences instead once that is supported
+func executeFailoverBatch(graceful *int32) batchExecutor {
+	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string) {
+		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
+		actParams := &FailoverActivityParams{
+			DomainPreferences:                batch,
+			GracefulFailoverTimeoutInSeconds: graceful,
 		}
 		var actResult FailoverActivityResult
-		err := workflow.ExecuteActivity(ao, FailoverActivity, failoverActivityParams).Get(ctx, &actResult)
-		if err != nil {
-			// Domains in failed activity can be either failovered or not, but we treated them as failed.
-			// This makes the query result for FailedDomains contains false positive results.
-			failedDomains = append(failedDomains, failoverActivityParams.Domains...)
-		} else {
-			successDomains = append(successDomains, actResult.SuccessDomains...)
-			failedDomains = append(failedDomains, actResult.FailedDomains...)
+		if err := workflow.ExecuteActivity(ao, FailoverActivity, actParams).Get(ctx, &actResult); err != nil {
+			return nil, domainNames(batch)
 		}
+		return actResult.SuccessDomains, actResult.FailedDomains
+	}
+}
 
-		if i != times-1 {
-			workflow.Sleep(ctx, time.Duration(params.BatchFailoverWaitTimeInSeconds)*time.Second)
+// buildFailoverPrefsFromParams converts a CLI-shaped failover request (TargetCluster +
+// optional ClusterAttributes) into a per-domain DomainFailoverPreferences slice the activity
+// consumes.
+func buildFailoverPrefsFromParams(domains []string, targetCluster string, attrs []types.ClusterAttribute) []DomainFailoverPreferences {
+	if len(domains) == 0 {
+		return nil
+	}
+	var updates []ClusterAttributePreference
+	if len(attrs) > 0 {
+		updates = make([]ClusterAttributePreference, 0, len(attrs))
+		for _, a := range attrs {
+			updates = append(updates, ClusterAttributePreference{
+				Scope:            a.GetScope(),
+				Name:             a.GetName(),
+				PreferredCluster: targetCluster,
+			})
 		}
 	}
-	return
+	out := make([]DomainFailoverPreferences, 0, len(domains))
+	for _, d := range domains {
+		out = append(out, DomainFailoverPreferences{
+			DomainName:              d,
+			PreferredCluster:        targetCluster,
+			ClusterAttributeUpdates: updates,
+		})
+	}
+	return out
 }
 
 func getOperator(ctx workflow.Context) string {
@@ -398,25 +455,6 @@ func validateParams(params *FailoverParams) error {
 	return validateTargetAndSourceCluster(params.TargetCluster, params.SourceCluster)
 }
 
-// GetDomainsActivity activity def
-func GetDomainsActivity(ctx context.Context, params *GetDomainsActivityParams) ([]string, error) {
-	err := validateGetDomainsActivityParams(params)
-	if err != nil {
-		return nil, err
-	}
-	domains, err := getAllDomains(ctx, params.Domains)
-	if err != nil {
-		return nil, err
-	}
-	var res []string
-	for _, domain := range domains {
-		if shouldFailover(domain, params.SourceCluster, params.ClusterAttributes) {
-			res = append(res, domain.GetDomainInfo().GetName())
-		}
-	}
-	return res, nil
-}
-
 func validateGetDomainsActivityParams(params *GetDomainsActivityParams) error {
 	if params == nil {
 		return errors.New(errMsgParamsIsNil)
@@ -447,18 +485,14 @@ func validateTargetAndSourceCluster(targetCluster, sourceCluster string) error {
 // Both conditions are checked regardless of whether the domain has active-active configuration,
 // so plain global domains and active-active domains are treated uniformly.
 func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string, clusterAttributeFilter []types.ClusterAttribute) bool {
-	if !domain.GetIsGlobalDomain() || !isDomainFailoverManagedByCadence(domain) {
+	if !isDomainEligibleForFailover(domain) {
 		return false
 	}
-	if domain.DomainInfo != nil && domain.DomainInfo.Status != nil {
-		status := *domain.DomainInfo.Status
-		if status == types.DomainStatusDeprecated || status == types.DomainStatusDeleted {
-			return false
-		}
-	}
+
 	if domain.ReplicationConfiguration.GetActiveClusterName() == sourceCluster {
 		return true
 	}
+
 	ac := domain.ReplicationConfiguration.GetActiveClusters()
 	if ac != nil {
 		for _, attr := range clusterAttributeFilter {
@@ -470,11 +504,6 @@ func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string, 
 		}
 	}
 	return false
-}
-
-func isDomainFailoverManagedByCadence(domain *types.DescribeDomainResponse) bool {
-	domainData := domain.DomainInfo.GetData()
-	return strings.ToLower(strings.TrimSpace(domainData[constants.DomainDataKeyForManagedFailover])) == "true"
 }
 
 func getClient(ctx context.Context) frontend.Client {
@@ -528,29 +557,25 @@ func getAllDomains(ctx context.Context, targetDomains []string) ([]*types.Descri
 	return res, nil
 }
 
-// FailoverActivity activity def
-func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*FailoverActivityResult, error) {
+// applyDomainPreferences is the shared per-domain loop used by both FailoverActivity and
+// RebalanceActivity. For each prefs entry it validates pollers against every distinct target
+// cluster referenced by that entry, then issues a single UpdateDomain call carrying the preferred
+// ActiveClusterName and any per-attribute ActiveClusters overrides. A nil gracefulTimeout means
+// "do not set FailoverTimeoutInSeconds on the request".
+func applyDomainPreferences(
+	ctx context.Context,
+	prefs []DomainFailoverPreferences,
+	gracefulTimeout *int32,
+) (*FailoverActivityResult, error) {
 	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
-	domains := params.Domains
-	var successDomains []string
-	var failedDomains []string
-	for _, domain := range domains {
-		// Determine target clusters for poller validation.
-		// For per-domain preferences, validate against every distinct target cluster.
-		// For the old path, validate against the single TargetCluster.
-		var targetClusters []string
-		if prefs, ok := params.DomainPreferences[domain]; ok && prefs != nil {
-			targetClusters = collectTargetClusters(prefs)
-		} else if params.TargetCluster != "" {
-			targetClusters = []string{params.TargetCluster}
-		}
-
+	var successDomains, failedDomains []string
+	for _, p := range prefs {
 		failed := false
-		for _, cluster := range targetClusters {
-			if err := validateTaskListPollerInfo(ctx, cluster, domain); err != nil {
+		for _, cluster := range collectTargetClusters(p) {
+			if err := validateTaskListPollerInfo(ctx, cluster, p.DomainName); err != nil {
 				logger.Error("Failed to validate task list poller info", zap.Error(err))
-				failedDomains = append(failedDomains, domain)
+				failedDomains = append(failedDomains, p.DomainName)
 				failed = true
 				break
 			}
@@ -559,59 +584,27 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 			continue
 		}
 
-		updateRequest := &types.UpdateDomainRequest{Name: domain}
-		if prefs, ok := params.DomainPreferences[domain]; ok && prefs != nil {
-			// Per-domain rebalance path: use stored preferences.
-			if prefs.PreferredCluster != "" {
-				updateRequest.ActiveClusterName = common.StringPtr(prefs.PreferredCluster)
-			}
-			if len(prefs.ClusterAttributeUpdates) > 0 {
-				updateRequest.ActiveClusters = buildActiveClustersFromUpdates(prefs.ClusterAttributeUpdates)
-			}
-		} else {
-			// Failover/Legacy path: used by CLI-driven failover.
-			updateRequest.ActiveClusterName = common.StringPtr(params.TargetCluster)
-			if len(params.ClusterAttributes) > 0 {
-				updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
-			}
+		updateRequest := &types.UpdateDomainRequest{Name: p.DomainName}
+		if p.PreferredCluster != "" {
+			updateRequest.ActiveClusterName = common.StringPtr(p.PreferredCluster)
 		}
-		if params.GracefulFailoverTimeoutInSeconds != nil {
-			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
+		if len(p.ClusterAttributeUpdates) > 0 {
+			updateRequest.ActiveClusters = buildActiveClustersFromUpdates(p.ClusterAttributeUpdates)
+		}
+		if gracefulTimeout != nil {
+			updateRequest.FailoverTimeoutInSeconds = gracefulTimeout
 		}
 
-		_, err := frontendClient.UpdateDomain(ctx, updateRequest)
-		if err != nil {
-			failedDomains = append(failedDomains, domain)
+		if _, err := frontendClient.UpdateDomain(ctx, updateRequest); err != nil {
+			failedDomains = append(failedDomains, p.DomainName)
 		} else {
-			successDomains = append(successDomains, domain)
+			successDomains = append(successDomains, p.DomainName)
 		}
 	}
 	return &FailoverActivityResult{
 		SuccessDomains: successDomains,
 		FailedDomains:  failedDomains,
 	}, nil
-}
-
-// buildActiveClusters constructs an ActiveClusters payload for UpdateDomainRequest,
-// setting each listed attribute's ActiveClusterName to targetCluster. The server merges
-// this into the domain's existing ActiveClusters config (see domain/handler.go mergeActiveActiveScopes).
-func buildActiveClusters(targetCluster string, attrs []types.ClusterAttribute) *types.ActiveClusters {
-	result := &types.ActiveClusters{
-		AttributeScopes: make(map[string]types.ClusterAttributeScope),
-	}
-	for _, attr := range attrs {
-		scope, ok := result.AttributeScopes[attr.GetScope()]
-		if !ok {
-			scope = types.ClusterAttributeScope{
-				ClusterAttributes: make(map[string]types.ActiveClusterInfo),
-			}
-		}
-		scope.ClusterAttributes[attr.GetName()] = types.ActiveClusterInfo{
-			ActiveClusterName: targetCluster,
-		}
-		result.AttributeScopes[attr.GetScope()] = scope
-	}
-	return result
 }
 
 // buildActiveClustersFromUpdates constructs an ActiveClusters payload from per-domain
@@ -638,7 +631,7 @@ func buildActiveClustersFromUpdates(updates []ClusterAttributePreference) *types
 // collectTargetClusters returns the unique set of target clusters referenced by a domain's preferences.
 // This is used to run poller validation against every cluster the domain's attributes or
 // ActiveClusterName will move to.
-func collectTargetClusters(prefs *DomainFailoverPreferences) []string {
+func collectTargetClusters(prefs DomainFailoverPreferences) []string {
 	seen := make(map[string]struct{})
 	if prefs.PreferredCluster != "" {
 		seen[prefs.PreferredCluster] = struct{}{}

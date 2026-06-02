@@ -100,6 +100,7 @@ func (s *FailoverManager) Start() error {
 	failoverWorker.RegisterWorkflowWithOptions(FailoverWorkflow, workflow.RegisterOptions{Name: FailoverWorkflowTypeName})
 	failoverWorker.RegisterWorkflowWithOptions(RebalanceWorkflow, workflow.RegisterOptions{Name: RebalanceWorkflowTypeName})
 	failoverWorker.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
+	failoverWorker.RegisterActivityWithOptions(RebalanceActivity, activity.RegisterOptions{Name: rebalanceActivityName})
 	failoverWorker.RegisterActivityWithOptions(GetDomainsActivity, activity.RegisterOptions{Name: getDomainsActivityName})
 	failoverWorker.RegisterActivityWithOptions(GetDomainsForRebalanceActivity, activity.RegisterOptions{Name: getRebalanceDomainsActivityName})
 	s.worker = failoverWorker

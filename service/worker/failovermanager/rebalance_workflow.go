@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
@@ -48,107 +49,124 @@ type (
 		FailedDomains  []string
 	}
 
-	// DomainRebalanceData contains the result from getRebalanceDomains activity
-	DomainRebalanceData struct {
-		DomainName string
-		// PreferredCluster is non-empty when the domain-level ActiveClusterName differs from the preference specified in DomainDataa.
-		PreferredCluster string
-		// ClusterAttributeUpdates lists every cluster attribute that has a different active cluster name than the preference specified in DomainData.
-		ClusterAttributeUpdates []ClusterAttributePreference
+	// RebalanceActivityParams params for RebalanceActivity. The activity iterates over
+	// DomainPreferences and applies each entry.
+	RebalanceActivityParams struct {
+		DomainPreferences []DomainFailoverPreferences
 	}
 )
 
-// RebalanceWorkflow is to rebalance domains across clusters based on rebalance policy.
+// RebalanceWorkflow rebalances domains across clusters based on per-domain preferences stored
+// in domain data. GetDomainsForRebalanceActivity discovers the mismatched domains and per-domain
+// preferences, then the workflow drives RebalanceActivity through the shared batch helper.
 func RebalanceWorkflow(ctx workflow.Context, params *RebalanceParams) (*RebalanceResult, error) {
 	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
-	var domainData []*DomainRebalanceData
-	err := workflow.ExecuteActivity(ao, getRebalanceDomainsActivityName).Get(ctx, &domainData)
-	if err != nil {
+	var prefs []DomainFailoverPreferences
+	if err := workflow.ExecuteActivity(ao, getRebalanceDomainsActivityName).Get(ctx, &prefs); err != nil {
 		return nil, err
 	}
 
-	// Build a unified per-domain preferences map. All domains go through the same
-	// batch/activity path — per-domain DomainFailoverPreferences drives the specific rebalance.
-	domainPrefs := make(map[string]*DomainFailoverPreferences, len(domainData))
-	domainNames := make([]string, 0, len(domainData))
-	for _, d := range domainData {
-		domainPrefs[d.DomainName] = &DomainFailoverPreferences{
-			PreferredCluster:        d.PreferredCluster,
-			ClusterAttributeUpdates: d.ClusterAttributeUpdates,
-		}
-		domainNames = append(domainNames, d.DomainName)
-	}
-
-	failoverParams := &FailoverParams{
-		BatchFailoverSize:              params.BatchFailoverSize,
-		BatchFailoverWaitTimeInSeconds: params.BatchFailoverWaitTimeInSeconds,
-		DomainPreferences:              domainPrefs,
-	}
-	successDomains, failedDomains := failoverDomainsByBatch(ctx, domainNames, failoverParams, func() {}, false)
+	waitBetween := time.Duration(params.BatchFailoverWaitTimeInSeconds) * time.Second
+	success, failed := processDomainsInBatches(
+		ctx,
+		prefs,
+		params.BatchFailoverSize,
+		waitBetween,
+		nil,
+		executeRebalanceBatch(),
+	)
 
 	return &RebalanceResult{
-		SuccessDomains: successDomains,
-		FailedDomains:  failedDomains,
+		SuccessDomains: success,
+		FailedDomains:  failed,
 	}, nil
 }
 
-// GetDomainsForRebalanceActivity fetches domains that need rebalancing.
-// A domain is included when either its domain-level active cluster differs from PreferredCluster
-// or one or more of its cluster attributes differs from ClusterAttributePreferences stored in domain data.
-func GetDomainsForRebalanceActivity(ctx context.Context) ([]*DomainRebalanceData, error) {
+// executeRebalanceBatch returns a batchExecutor that invokes RebalanceActivity for the given
+// batch. On activity error every domain in the batch is reported as failed.
+func executeRebalanceBatch() batchExecutor {
+	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string) {
+		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
+		actParams := &RebalanceActivityParams{DomainPreferences: batch}
+		var actResult FailoverActivityResult
+		if err := workflow.ExecuteActivity(ao, RebalanceActivity, actParams).Get(ctx, &actResult); err != nil {
+			return nil, domainNames(batch)
+		}
+		return actResult.SuccessDomains, actResult.FailedDomains
+	}
+}
+
+// RebalanceActivity applies the supplied per-domain DomainFailoverPreferences. It is used by
+// RebalanceWorkflow and never sets FailoverTimeoutInSeconds on the resulting UpdateDomain calls.
+func RebalanceActivity(ctx context.Context, params *RebalanceActivityParams) (*FailoverActivityResult, error) {
+	return applyDomainPreferences(ctx, params.DomainPreferences, nil)
+}
+
+// GetDomainsForRebalanceActivity fetches domains that need rebalancing. A domain is included
+// when either its domain-level active cluster differs from PreferredCluster, or one or more of
+// its cluster attributes differs from the ClusterAttributePreferences stored in domain data.
+// Returns a per-domain DomainFailoverPreferences slice ready to feed straight into the batch
+// helper and RebalanceActivity.
+func GetDomainsForRebalanceActivity(ctx context.Context) ([]DomainFailoverPreferences, error) {
 	logger := activity.GetLogger(ctx)
 	domains, err := getAllDomains(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	var res []*DomainRebalanceData
+	var res []DomainFailoverPreferences
 	for _, domain := range domains {
-		if !isDomainFailoverManagedByCadence(domain) ||
-			!domain.IsGlobalDomain ||
-			domain.GetDomainInfo().GetStatus() != types.DomainStatusRegistered {
-			continue
-		}
-
-		domainName := domain.GetDomainInfo().GetName()
-
-		// Domain-level: preferred cluster differs from active
-		var preferredCluster string
-		if shouldAllowRebalance(domain) {
-			preferredCluster = getPreferredClusterName(domain)
-		}
-
-		// Attribute-level: cluster attributes differ from stored preferences
-		attrPrefs, err := getClusterAttributePreferences(domain)
+		domainPreferences, err := getPreferencesForDomain(ctx, domain)
 		if err != nil {
-			logger.Error("skipping domain: malformed ClusterAttributePreferences",
-				zap.String("domain", domainName), zap.Error(err))
+			logger.Error("skipping domain: no rebalance required", zap.String("domain", domain.GetDomainInfo().GetName()), zap.Error(err))
 			continue
 		}
-		attrUpdates := clusterAttributeUpdatesNeeded(domain, attrPrefs)
-
-		if preferredCluster == "" && len(attrUpdates) == 0 {
-			continue
-		}
-
-		entry := &DomainRebalanceData{DomainName: domainName}
-		if preferredCluster != "" {
-			entry.PreferredCluster = preferredCluster
-		}
-		entry.ClusterAttributeUpdates = attrUpdates
-		res = append(res, entry)
+		res = append(res, domainPreferences)
 	}
 	return res, nil
 }
 
-func shouldAllowRebalance(domain *types.DescribeDomainResponse) bool {
-	preferredCluster := getPreferredClusterName(domain)
-	return isDomainFailoverManagedByCadence(domain) &&
-		domain.IsGlobalDomain &&
-		domain.GetDomainInfo().GetStatus() == types.DomainStatusRegistered &&
-		len(preferredCluster) != 0 &&
-		preferredCluster != domain.ReplicationConfiguration.GetActiveClusterName() &&
-		isPreferredClusterInClusterListForDomain(preferredCluster, domain)
+func getPreferencesForDomain(ctx context.Context, domain *types.DescribeDomainResponse) (DomainFailoverPreferences, error) {
+	logger := activity.GetLogger(ctx)
+	var prefs DomainFailoverPreferences
+
+	if !isDomainEligibleForFailover(domain) {
+		return prefs, errors.New("domain is not eligible for failover")
+	}
+
+	domainName := domain.GetDomainInfo().GetName()
+	prefs.DomainName = domainName
+
+	// Domain-level: preferred cluster differs from active
+	domainPreferredCluster := getPreferredClusterName(domain)
+	rebalanceRequired := len(domainPreferredCluster) != 0 &&
+		domainPreferredCluster != domain.ReplicationConfiguration.GetActiveClusterName() &&
+		isPreferredClusterInClusterListForDomain(domainPreferredCluster, domain)
+
+	if rebalanceRequired {
+		prefs.PreferredCluster = domainPreferredCluster
+	}
+
+	// Attribute-level: cluster attributes differ from stored preferences
+	attrPrefs, err := getClusterAttributePreferences(domain)
+	if err != nil {
+		logger.Error("skipping domain cluster attribute preferences: malformed ClusterAttributePreferences",
+			zap.String("domain", domainName), zap.Error(err))
+
+	}
+	attrUpdates := clusterAttributeUpdatesNeeded(domain, attrPrefs)
+
+	if len(attrUpdates) > 0 {
+		prefs.ClusterAttributeUpdates = attrUpdates
+	}
+
+	if len(prefs.PreferredCluster) == 0 && len(prefs.ClusterAttributeUpdates) == 0 {
+		return DomainFailoverPreferences{}, ErrNoRebalanceRequired
+	}
+
+	return prefs, nil
 }
+
+var ErrNoRebalanceRequired = errors.New("no rebalance required")
 
 func getPreferredClusterName(domain *types.DescribeDomainResponse) string {
 	return domain.GetDomainInfo().GetData()[constants.DomainDataKeyForPreferredCluster]
