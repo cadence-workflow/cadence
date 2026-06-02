@@ -1378,6 +1378,44 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
+// TestValidateUserSearchAttributes verifies that user-supplied search attribute
+// keys colliding with the scheduler-reserved "CadenceSchedule" prefix are
+// rejected, while other keys (including a lowercase near-miss) are allowed. The
+// prefix check is case-sensitive.
+func TestValidateUserSearchAttributes(t *testing.T) {
+	sa := func(keys ...string) *types.SearchAttributes {
+		fields := make(map[string][]byte, len(keys))
+		for _, k := range keys {
+			fields[k] = []byte(`"v"`)
+		}
+		return &types.SearchAttributes{IndexedFields: fields}
+	}
+
+	tests := map[string]struct {
+		sa      *types.SearchAttributes
+		wantErr bool
+	}{
+		"nil search attributes":       {sa: nil, wantErr: false},
+		"empty indexed fields":        {sa: &types.SearchAttributes{}, wantErr: false},
+		"reserved exact prefix":       {sa: sa("CadenceSchedule"), wantErr: true},
+		"reserved CadenceScheduleID":  {sa: sa("CadenceScheduleID"), wantErr: true},
+		"reserved CadenceScheduleFoo": {sa: sa("CadenceScheduleFoo"), wantErr: true},
+		"lowercase not reserved":      {sa: sa("cadenceschedule"), wantErr: false},
+		"unrelated key allowed":       {sa: sa("MyKey"), wantErr: false},
+		"mixed reserved + allowed":    {sa: sa("MyKey", "CadenceScheduleX"), wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateUserSearchAttributes(tt.sa)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestWarnIfBufferLimitExceedsSystemLimit_NilSafe verifies the helper does not
 // panic when policies or policies.BufferLimit is nil, and that it stays a no-op
 // when the overlap policy is not Buffer (BufferLimit has no effect there).
