@@ -144,6 +144,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
+	if err := common.ValidateRetryPolicy(request.GetAction().GetStartWorkflow().GetRetryPolicy()); err != nil {
+		return nil, err
+	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
@@ -337,6 +340,11 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
 	if spec := request.GetSpec(); spec != nil && spec.GetCronExpression() != "" {
 		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {
+			return nil, err
+		}
+	}
+	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
+		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
 			return nil, err
 		}
 	}
