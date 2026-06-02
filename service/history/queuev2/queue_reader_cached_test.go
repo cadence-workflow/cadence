@@ -133,6 +133,7 @@ func TestCachedQueueReader_Modes(t *testing.T) {
 	}{
 		{"enabled", true, false},
 		{"disabled", false, true},
+		{"off", false, true},
 		{"unknown", false, true},
 	}
 	for _, tc := range tests {
@@ -752,10 +753,9 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// shadow no longer gets special treatment in LookAHead; with an uninitialized
-			// window both bounds are Minimum so isTaskCovered returns false → miss → base.
-			name:      "shadow: uninitialized window falls back to DB",
-			mode:      "shadow",
+			// unknown mode is treated as disabled by isDisabled(); LookAHead falls back to base.
+			name:      "unknown mode falls back to DB",
+			mode:      "some-unknown-mode",
 			initLower: persistence.MinimumHistoryTaskKey,
 			initUpper: persistence.MinimumHistoryTaskKey,
 			minKey:    lower,

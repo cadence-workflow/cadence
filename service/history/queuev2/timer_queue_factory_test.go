@@ -75,7 +75,7 @@ func TestTimerQueueFactory_CreateQueueV2_Cached(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	cfg := config.NewForTest()
-	cfg.TimerProcessorEnableCachedScheduledQueue = dynamicproperties.GetBoolPropertyFn(true)
+	cfg.TimerProcessorCachedQueueReaderMode = dynamicproperties.GetStringPropertyFn("enabled")
 
 	mockShard := shard.NewTestContext(
 		t, ctrl, &persistence.ShardInfo{
@@ -93,7 +93,7 @@ func TestTimerQueueFactory_CreateQueueV2_Cached(t *testing.T) {
 
 	assert.NotNil(t, processor)
 	_, ok := processor.(*cachedScheduledQueue)
-	assert.True(t, ok, "expected *cachedScheduledQueue when TimerProcessorEnableCachedScheduledQueue=true")
+	assert.True(t, ok, "expected *cachedScheduledQueue when TimerProcessorCachedQueueReaderMode=enabled")
 }
 
 func TestTimerQueueFactory_CreateQueuev2_DisabledByDefault(t *testing.T) {
@@ -116,5 +116,5 @@ func TestTimerQueueFactory_CreateQueuev2_DisabledByDefault(t *testing.T) {
 
 	assert.NotNil(t, processor)
 	_, ok := processor.(*scheduledQueue)
-	assert.True(t, ok, "expected plain *scheduledQueue when TimerProcessorEnableCachedScheduledQueue=false (default)")
+	assert.True(t, ok, "expected plain *scheduledQueue when TimerProcessorCachedQueueReaderMode=off (default)")
 }

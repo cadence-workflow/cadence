@@ -2368,13 +2368,6 @@ const (
 	// Default value: false
 	// Allowed filters: ShardID
 	EnableTimerQueueV2PendingTaskCountAlert
-	// TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks
-	// KeyName: history.timerProcessorEnableCachedScheduledQueue
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	TimerProcessorEnableCachedScheduledQueue
-
 	// EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain
 	// KeyName: frontend.enableActiveClusterSelectionPolicyInStartWorkflow
 	// Value type: Bool
@@ -2511,7 +2504,7 @@ const (
 	// Value type: Float64
 	// Default value: 0.15
 	// Allowed filters: N/A
-	// Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.
+	// Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is disabled or enabled.
 	TimerProcessorMaxPollIntervalJitterCoefficient
 	// TimerProcessorSplitQueueIntervalJitterCoefficient is the split processing queue interval jitter coefficient
 	// KeyName: history.timerProcessorSplitQueueIntervalJitterCoefficient
@@ -2836,10 +2829,13 @@ const (
 	// Allowed filters: domainName
 	HistoryTaskDLQMode
 
-	// TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled
+	// TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
+	// "off" (default): no cached reader, plain scheduledQueue is used.
+	// "disabled": cached reader is created but bypasses cache internally.
+	// "enabled": cached reader fully active.
 	// KeyName: history.timerProcessorCachedQueueReaderMode
-	// Value type: string enum: "disabled", "shadow", "enabled"
-	// Default value: "disabled"
+	// Value type: string enum: "off", "disabled", "enabled"
+	// Default value: "off"
 	// Allowed filters: ShardID
 	TimerProcessorCachedQueueReaderMode
 
@@ -3115,7 +3111,7 @@ const (
 	// Value type: Duration
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
-	// Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.
+	// Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is disabled or enabled.
 	TimerProcessorMaxPollInterval
 	// TimerProcessorSplitQueueInterval is the split processing queue interval for timer processor
 	// KeyName: history.timerProcessorSplitQueueInterval
@@ -5327,11 +5323,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
-	TimerProcessorEnableCachedScheduledQueue: {
-		KeyName:      "history.timerProcessorEnableCachedScheduledQueue",
-		Description:  "TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks",
-		DefaultValue: false,
-	},
 	EnableActiveClusterSelectionPolicyInStartWorkflow: {
 		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
@@ -5431,7 +5422,7 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	},
 	TimerProcessorMaxPollIntervalJitterCoefficient: {
 		KeyName:      "history.timerProcessorMaxPollIntervalJitterCoefficient",
-		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient. Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
+		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient. Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is disabled or enabled.",
 		DefaultValue: 0.15,
 	},
 	TimerProcessorSplitQueueIntervalJitterCoefficient: {
@@ -5685,8 +5676,8 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	TimerProcessorCachedQueueReaderMode: {
 		KeyName:      "history.timerProcessorCachedQueueReaderMode",
-		Description:  "TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled",
-		DefaultValue: "disabled",
+		Description:  "TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: off/disabled/enabled",
+		DefaultValue: "off",
 		Filters:      []Filter{ShardID},
 	},
 }
@@ -5941,7 +5932,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	TimerProcessorMaxPollInterval: {
 		KeyName:      "history.timerProcessorMaxPollInterval",
-		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor. Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
+		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor. Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is disabled or enabled.",
 		DefaultValue: time.Minute * 5,
 	},
 	TimerProcessorSplitQueueInterval: {

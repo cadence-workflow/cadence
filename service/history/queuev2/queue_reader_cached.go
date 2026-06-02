@@ -261,13 +261,15 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 // isEnabled returns true if the cache is fully enabled
 func (q *cachedQueueReader) isEnabled() bool { return q.options.Mode() == "enabled" }
 
-// isDisabled returns true for the "disabled" mode and for any unrecognised value
+// isDisabled returns true for the "disabled" and "off" modes and for any unrecognised value.
+// Note: "off" should never reach here because the factory skips cachedQueueReader creation
+// when mode is "off"; this case is a safety net.
 func (q *cachedQueueReader) isDisabled() bool {
 	switch q.options.Mode() {
-	case "disabled":
-		return true
 	case "enabled":
 		return false
+	case "off", "disabled":
+		return true
 	default:
 		// Default to disabled for unrecognized modes to
 		// avoid unintended consequences of a bad config value.

@@ -36,9 +36,6 @@ history.transferProcessorMaxPollRPS:
   constraints: {}
 
 # Cached scheduled queue settings
-history.timerProcessorEnableCachedScheduledQueue:
-- value: true
-  constraints: {}
 history.timerProcessorCachedQueueReaderMode:
 - value: "enabled"
   constraints: {}

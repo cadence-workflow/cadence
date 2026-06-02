@@ -90,9 +90,6 @@ history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 history.enableTimerQueueV2:
 - value: true
   constraints: {}
-history.timerProcessorEnableCachedScheduledQueue:
-- value: true
-  constraints: {}
 history.timerProcessorCachedQueueReaderMode:
 - value: "enabled"
   constraints: {}
