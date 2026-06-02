@@ -94,6 +94,7 @@ func TestNewConfig(t *testing.T) {
 		"StandbyClusterDelay":                                  {dynamicproperties.StandbyClusterDelay, time.Second},
 		"StandbyTaskMissingEventsResendDelay":                  {dynamicproperties.StandbyTaskMissingEventsResendDelay, time.Second},
 		"StandbyTaskMissingEventsDiscardDelay":                 {dynamicproperties.StandbyTaskMissingEventsDiscardDelay, time.Second},
+		"EnableWorkflowTimerTaskCleanup":                       {dynamicproperties.EnableWorkflowTimerTaskCleanup, true},
 		"TaskProcessRPS":                                       {dynamicproperties.TaskProcessRPS, 30},
 		"TaskSchedulerType":                                    {dynamicproperties.TaskSchedulerType, 31},
 		"TaskSchedulerWorkerCount":                             {dynamicproperties.TaskSchedulerWorkerCount, 32},
@@ -139,6 +140,12 @@ func TestNewConfig(t *testing.T) {
 		"TimerProcessorMaxTimeShift":                           {dynamicproperties.TimerProcessorMaxTimeShift, time.Second},
 		"TimerProcessorHistoryArchivalSizeLimit":               {dynamicproperties.TimerProcessorHistoryArchivalSizeLimit, 46},
 		"TimerProcessorArchivalTimeLimit":                      {dynamicproperties.TimerProcessorArchivalTimeLimit, time.Second},
+		"TimerProcessorEnableCachedScheduledQueue":             {dynamicproperties.TimerProcessorEnableCachedScheduledQueue, true},
+		"TimerProcessorCachedQueueReaderMode":                  {dynamicproperties.TimerProcessorCachedQueueReaderMode, "shadow"},
+		"TimerProcessorCacheMaxSize":                           {dynamicproperties.TimerProcessorCacheMaxSize, 102},
+		"TimerProcessorCachePrefetchTriggerWindow":             {dynamicproperties.TimerProcessorCachePrefetchTriggerWindow, time.Second},
+		"TimerProcessorCacheTimeEvictionWindow":                {dynamicproperties.TimerProcessorCacheTimeEvictionWindow, time.Second},
+		"TimerProcessorCacheMinPrefetchInterval":               {dynamicproperties.TimerProcessorCacheMinPrefetchInterval, time.Second},
 		"TransferTaskBatchSize":                                {dynamicproperties.TransferTaskBatchSize, 47},
 		"TransferTaskDeleteBatchSize":                          {dynamicproperties.TransferTaskDeleteBatchSize, 48},
 		"TransferProcessorCompleteTransferFailureRetryCount":   {dynamicproperties.TransferProcessorCompleteTransferFailureRetryCount, 49},
@@ -279,6 +286,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableCleanupOrphanedHistoryBranchOnWorkflowCreation": {dynamicproperties.EnableCleanupOrphanedHistoryBranchOnWorkflowCreation, true},
 		"EnableHierarchicalWeightedRoundRobinTaskScheduler":    {dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler, true},
 		"EnableTaskListAwareTaskSchedulerByDomain":             {dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain, true},
+		"TaskListNiceValue":                                    {dynamicproperties.HistoryTaskListNiceValue, 5},
 		"EnableCorruptionAutoRepair":                           {dynamicproperties.EnableCorruptionAutoRepair, true},
 		"CorruptionRepairTimeout":                              {dynamicproperties.CorruptionRepairTimeout, time.Duration(1)},
 		"RequireChecksumMatchAfterRebuildRepair":               {dynamicproperties.RequireChecksumMatchAfterRebuildRepair, true},
@@ -338,6 +346,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain")
 		case dynamicproperties.IntPropertyFnWithTaskListInfoFilters:
 			return fn("domain", "tasklist", int(types.TaskListTypeDecision))
+		case dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter:
+			return fn("domain", "tasklist")
 		case dynamicproperties.BoolPropertyFn:
 			return fn()
 		case dynamicproperties.BoolPropertyFnWithDomainFilter:

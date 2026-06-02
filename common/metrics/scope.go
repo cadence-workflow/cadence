@@ -152,21 +152,32 @@ func (m *metricsScope) ExponentialHistogram(id MetricIdx, value time.Duration) {
 	if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
 		m.scope.Tagged(def.exponentialBuckets.tags()).Histogram(def.metricName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
 	}
-	if !def.metricRollupName.Empty() {
+	switch {
+	case !def.metricRollupName.Empty():
 		if m.migrationConfig.Histogram.EmitHistogram(def.metricRollupName.String()) {
 			m.rootScope.Tagged(def.exponentialBuckets.tags()).Histogram(def.metricRollupName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
+		}
+	case m.isDomainTagged:
+		if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
+			m.scope.Tagged(def.exponentialBuckets.tags()).Tagged(map[string]string{domain: allValue}).Histogram(def.metricName.String(), def.exponentialBuckets.buckets()).RecordDuration(value)
 		}
 	}
 }
 
 func (m *metricsScope) IntExponentialHistogram(id MetricIdx, value int) {
 	def := m.defs[id]
+	floatValue := float64(value)
 	if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
-		m.scope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
+		m.scope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricName.String(), def.intValueBuckets).RecordValue(floatValue)
 	}
-	if !def.metricRollupName.Empty() {
+	switch {
+	case !def.metricRollupName.Empty():
 		if m.migrationConfig.Histogram.EmitHistogram(def.metricRollupName.String()) {
-			m.rootScope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricRollupName.String(), def.intExponentialBuckets.buckets()).RecordDuration(time.Duration(value))
+			m.rootScope.Tagged(def.intExponentialBuckets.tags()).Histogram(def.metricRollupName.String(), def.intValueBuckets).RecordValue(floatValue)
+		}
+	case m.isDomainTagged:
+		if m.migrationConfig.Histogram.EmitHistogram(def.metricName.String()) {
+			m.scope.Tagged(def.intExponentialBuckets.tags()).Tagged(map[string]string{domain: allValue}).Histogram(def.metricName.String(), def.intValueBuckets).RecordValue(floatValue)
 		}
 	}
 }

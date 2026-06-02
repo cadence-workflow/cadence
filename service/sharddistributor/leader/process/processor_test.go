@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/sharddistributor/config/configtest"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
@@ -659,6 +661,122 @@ func TestRebalanceShards_WithUnassignedShards(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRebalanceShards_AppliesNaiveLoadBalancingPlan(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	now := mocks.timeSource.Now()
+	// exec-2 is overloaded, so naive should move one shard to exec-1.
+	heartbeats := map[string]store.HeartbeatState{
+		"exec-1": {
+			Status:        types.ExecutorStatusACTIVE,
+			LastHeartbeat: now,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard-1": {ShardLoad: 5.0},
+			},
+		},
+		"exec-2": {
+			Status:        types.ExecutorStatusACTIVE,
+			LastHeartbeat: now,
+			ReportedShards: map[string]*types.ShardStatusReport{
+				"shard-2": {ShardLoad: 30.0},
+				"shard-3": {ShardLoad: 20.0},
+			},
+		},
+	}
+	assignments := map[string]store.AssignedState{
+		"exec-1": {AssignedShards: map[string]*types.ShardAssignment{"shard-1": {Status: types.AssignmentStatusREADY}}},
+		"exec-2": {AssignedShards: map[string]*types.ShardAssignment{"shard-2": {Status: types.AssignmentStatusREADY}, "shard-3": {Status: types.AssignmentStatusREADY}}},
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		ShardAssignments: assignments,
+	}, nil)
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "shard-1").Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil).AnyTimes()
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "shard-2").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil).AnyTimes()
+	mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, "shard-3").Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil).AnyTimes()
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			assert.Len(t, request.NewState.ShardAssignments["exec-1"].AssignedShards, 2)
+			assert.Len(t, request.NewState.ShardAssignments["exec-2"].AssignedShards, 1)
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
+func TestRebalanceShards_AppliesGreedyLoadBalancingPlan(t *testing.T) {
+	mocks := setupProcessorTest(t, config.NamespaceTypeEphemeral)
+	defer mocks.ctrl.Finish()
+	mocks.sdConfig.LoadBalancingMode = func(namespace string) string {
+		return config.LoadBalancingModeGREEDY
+	}
+	mocks.sdConfig.LoadBalancingGreedy = config.LoadBalancingGreedyConfig{
+		PerShardCooldown: func(namespace string) time.Duration {
+			return time.Minute
+		},
+		MoveBudgetProportion: func(namespace string) float64 {
+			return 0.01
+		},
+		HysteresisUpperBand: func(namespace string) float64 {
+			return 1.15
+		},
+		HysteresisLowerBand: func(namespace string) float64 {
+			return 0.90
+		},
+		SevereImbalanceRatio: func(namespace string) float64 {
+			return 1.3
+		},
+	}
+	processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
+
+	now := mocks.timeSource.Now()
+	// exec-1 has higher smoothed load, so greedy should move one shard to exec-2.
+	heartbeats := map[string]store.HeartbeatState{
+		"exec-1": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+		"exec-2": {Status: types.ExecutorStatusACTIVE, LastHeartbeat: now},
+	}
+	assignments := map[string]store.AssignedState{
+		"exec-1": {AssignedShards: make(map[string]*types.ShardAssignment)},
+		"exec-2": {AssignedShards: make(map[string]*types.ShardAssignment)},
+	}
+	shardStats := make(map[string]store.ShardStatistics)
+	for i := range 50 {
+		shardID := "a-" + strconv.Itoa(i)
+		assignments["exec-1"].AssignedShards[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[shardID] = store.ShardStatistics{SmoothedLoad: 3.0, LastUpdateTime: now}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, shardID).Return(&store.ShardOwner{ExecutorID: "exec-1"}, nil).AnyTimes()
+	}
+	for i := range 50 {
+		shardID := "b-" + strconv.Itoa(i)
+		assignments["exec-2"].AssignedShards[shardID] = &types.ShardAssignment{Status: types.AssignmentStatusREADY}
+		shardStats[shardID] = store.ShardStatistics{SmoothedLoad: 1.0, LastUpdateTime: now}
+		mocks.store.EXPECT().GetShardOwner(gomock.Any(), mocks.cfg.Name, shardID).Return(&store.ShardOwner{ExecutorID: "exec-2"}, nil).AnyTimes()
+	}
+
+	mocks.store.EXPECT().GetState(gomock.Any(), mocks.cfg.Name).Return(&store.NamespaceState{
+		Executors:        heartbeats,
+		ShardAssignments: assignments,
+		ShardStats:       shardStats,
+	}, nil)
+	mocks.election.EXPECT().Guard().Return(store.NopGuard())
+	mocks.store.EXPECT().AssignShards(gomock.Any(), mocks.cfg.Name, gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, request store.AssignShardsRequest, _ store.GuardFunc) error {
+			assert.Len(t, request.NewState.ShardAssignments["exec-1"].AssignedShards, 49)
+			assert.Len(t, request.NewState.ShardAssignments["exec-2"].AssignedShards, 51)
+			return nil
+		},
+	)
+
+	err := processor.rebalanceShards(context.Background())
+	require.NoError(t, err)
+}
+
 func TestGetShards_Utility(t *testing.T) {
 	t.Run("Fixed type", func(t *testing.T) {
 		cfg := config.Namespace{Type: config.NamespaceTypeFixed, ShardNum: 5}
@@ -797,6 +915,81 @@ func TestAssignShardsToEmptyExecutors(t *testing.T) {
 
 			assert.Equal(t, c.expectedAssignments, c.inputAssignments)
 			assert.Equal(t, c.expectedDistributonChanged, actualDistributionChanged)
+		})
+	}
+}
+
+func TestApplyMoves(t *testing.T) {
+	cases := []struct {
+		name           string
+		assignments    map[string][]string
+		moves          []plan.Move
+		expected       map[string][]string
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "single move",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1", "shard-2"},
+				"exec-b": {"shard-3"},
+			},
+			moves: []plan.Move{{ShardID: "shard-1", From: "exec-a", To: "exec-b"}},
+			expected: map[string][]string{
+				"exec-a": {"shard-2"},
+				"exec-b": {"shard-3", "shard-1"},
+			},
+		},
+		{
+			name: "multiple moves",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1", "shard-2"},
+				"exec-b": {"shard-3", "shard-4"},
+			},
+			moves: []plan.Move{
+				{ShardID: "shard-1", From: "exec-a", To: "exec-b"},
+				{ShardID: "shard-3", From: "exec-b", To: "exec-a"},
+			},
+			// moveShard swaps with the last element, so order may change.
+			expected: map[string][]string{
+				"exec-a": {"shard-2", "shard-3"},
+				"exec-b": {"shard-1", "shard-4"},
+			},
+		},
+		{
+			name: "empty moves is a no-op",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1"},
+				"exec-b": {"shard-2"},
+			},
+			moves: []plan.Move{},
+			expected: map[string][]string{
+				"exec-a": {"shard-1"},
+				"exec-b": {"shard-2"},
+			},
+		},
+		{
+			name: "shard not found in source returns error",
+			assignments: map[string][]string{
+				"exec-a": {"shard-1"},
+				"exec-b": {"shard-2"},
+			},
+			moves:          []plan.Move{{ShardID: "shard-missing", From: "exec-a", To: "exec-b"}},
+			expectError:    true,
+			expectedErrMsg: "shard shard-missing not found in source executor exec-a",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := applyMoves(c.assignments, c.moves)
+			if c.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), c.expectedErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, c.expected, c.assignments)
 		})
 	}
 }
@@ -1005,253 +1198,6 @@ func TestAddHandoverStatsToExecutorAssignedState(t *testing.T) {
 			}
 			stats := processor.addHandoverStatsToExecutorAssignedState(namespaceState, executorID, shardIDs)
 			assert.Equal(t, tc.expected, stats)
-		})
-	}
-}
-
-func TestRebalanceByShardLoad(t *testing.T) {
-	cases := []struct {
-		name                       string
-		shardLoad                  map[string]float64
-		currentAssignments         map[string][]string
-		maxDeviation               float64
-		expectedDistributionChange bool
-		expectedAssignments        map[string][]string
-	}{
-		{
-			name:                       "single executor - no rebalance",
-			shardLoad:                  map[string]float64{"shard-1": 10.0},
-			currentAssignments:         map[string][]string{"exec-1": {"shard-1"}},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments:        map[string][]string{"exec-1": {"shard-1"}},
-		},
-		{
-			name: "balanced load - no rebalance needed",
-			shardLoad: map[string]float64{
-				"shard-1": 10.0,
-				"shard-2": 10.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 10.0
-				"exec-2": {"shard-2"}, // 10.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 10.0
-				"exec-2": {"shard-2"}, // 10.0
-			},
-		},
-		{
-			name: "deviation below threshold - no rebalance",
-			shardLoad: map[string]float64{
-				"shard-1": 10.0,
-				"shard-2": 15.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 10.0
-				"exec-2": {"shard-2"}, // 15.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 10.0
-				"exec-2": {"shard-2"}, // 15.0
-			},
-		},
-		{
-			name: "multiple shards - hottest moved",
-			shardLoad: map[string]float64{
-				"shard-1": 5.0,
-				"shard-2": 30.0,
-				"shard-3": 20.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"},            // 5.0
-				"exec-2": {"shard-2", "shard-3"}, // 50.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: true,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2"}, // 35.0
-				"exec-2": {"shard-3"},            // 20.0
-			},
-		},
-		{
-			name: "coldest would become hottest - no rebalance",
-			shardLoad: map[string]float64{
-				"shard-1": 10.0,
-				"shard-2": 100.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 10.0
-				"exec-2": {"shard-2"}, // 100.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-			},
-		},
-		{
-			name: "multiple shards per executor",
-			shardLoad: map[string]float64{
-				"shard-1": 5.0, "shard-2": 5.0,
-				"shard-3": 40.0, "shard-4": 30.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2"}, // 10.0
-				"exec-2": {"shard-3", "shard-4"}, // 70.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: true,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2", "shard-3"}, // 50.0
-				"exec-2": {"shard-4"},                       // 30.0
-			},
-		},
-		{
-			name: "zero load shards - no rebalance",
-			shardLoad: map[string]float64{
-				"shard-1": 0.0,
-				"shard-2": 50.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 0.0
-				"exec-2": {"shard-2"}, // 50.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-			},
-		},
-		{
-			name: "new shard load - equal shards - no rebalance",
-			shardLoad: map[string]float64{
-				"shard-2": 0.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"}, // 0.0
-				"exec-2": {"shard-2"}, // 50.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-			},
-		},
-		{
-			name: "four executors - balanced load",
-			shardLoad: map[string]float64{
-				"shard-1": 10.0,
-				"shard-2": 10.0,
-				"shard-3": 10.0,
-				"shard-4": 10.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-				"exec-3": {"shard-3"},
-				"exec-4": {"shard-4"},
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-				"exec-3": {"shard-3"},
-				"exec-4": {"shard-4"},
-			},
-		}, {
-			name: "four executors - one overloaded - no rebalance",
-			shardLoad: map[string]float64{
-				"shard-1": 10.0,
-				"shard-2": 10.0,
-				"shard-3": 10.0,
-				"shard-4": 50.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-				"exec-3": {"shard-3"},
-				"exec-4": {"shard-4"},
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: false,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1"},
-				"exec-2": {"shard-2"},
-				"exec-3": {"shard-3"},
-				"exec-4": {"shard-4"},
-			},
-		}, {
-			name: "four executors - uneven distribution - stale executor",
-			shardLoad: map[string]float64{
-				"shard-1": 15.0,
-				"shard-2": 15.0,
-				"shard-3": 15.0,
-				"shard-4": 15.0,
-				"shard-5": 40.0,
-				"shard-6": 40.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2", "shard-5"}, // 70.0
-				"exec-2": {"shard-3", "shard-4"},            // 30.0
-				"exec-3": {},                                // 0.0
-				"exec-4": {"shard-6"},                       // 40.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: true,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2"}, // 30.0
-				"exec-2": {"shard-3", "shard-4"}, // 30.0
-				"exec-3": {"shard-5"},            // 40.0
-				"exec-4": {"shard-6"},            // 40.0
-			},
-		}, {
-			name: "four executors - mixed load with multiple shards",
-			shardLoad: map[string]float64{
-				"shard-1": 5.0, "shard-2": 5.0,
-				"shard-3": 5.0, "shard-4": 2.0,
-				"shard-5": 25.0, "shard-6": 25.0,
-				"shard-7": 15.0, "shard-8": 15.0,
-			},
-			currentAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2"}, // 10.0
-				"exec-2": {"shard-3", "shard-4"}, // 7.0
-				"exec-3": {"shard-5", "shard-6"}, // 50.0
-				"exec-4": {"shard-7", "shard-8"}, // 30.0
-			},
-			maxDeviation:               2.0,
-			expectedDistributionChange: true,
-			expectedAssignments: map[string][]string{
-				"exec-1": {"shard-1", "shard-2"},            // 10.0
-				"exec-2": {"shard-3", "shard-4", "shard-6"}, // 32.0
-				"exec-3": {"shard-5"},                       // 25.0
-				"exec-4": {"shard-7", "shard-8"},            // 30.0
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			mocks := setupProcessorTest(t, config.NamespaceTypeFixed)
-			mocks.cfg.Name = tc.name
-			mocks.sdConfig.LoadBalancingNaive.MaxDeviation = func(namespace string) float64 {
-				return tc.maxDeviation
-			}
-			defer mocks.ctrl.Finish()
-			processor := mocks.factory.CreateProcessor(mocks.cfg, mocks.store, mocks.election).(*namespaceProcessor)
-
-			distributionChanged := processor.rebalanceByShardLoad(tc.shardLoad, tc.currentAssignments, metrics.NoopScope)
-
-			assert.Equal(t, tc.expectedDistributionChange, distributionChanged, "distribution change mismatch")
-			assert.Equal(t, tc.expectedAssignments, tc.currentAssignments, "final assignments mismatch")
 		})
 	}
 }

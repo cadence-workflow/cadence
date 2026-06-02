@@ -144,10 +144,10 @@ func (p *base) call(scope metrics.ScopeIdx, op func() error, tags ...metrics.Tag
 	duration := time.Since(before)
 	if len(tags) > 0 {
 		metricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
+		metricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerDomainHistogram, duration)
 	} else {
 		metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
-		metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+		metricsScope.ExponentialHistogram(metrics.PersistenceLatencyHistogram, duration)
 	}
 	p.recordLatencyHistogram(scope, duration)
 
@@ -169,7 +169,7 @@ func (p *base) callWithoutDomainTag(scope metrics.ScopeIdx, op func() error, tag
 	err := op()
 	duration := time.Since(before)
 	metricsScope.RecordTimer(metrics.PersistenceLatency, duration)
-	metricsScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	metricsScope.ExponentialHistogram(metrics.PersistenceLatencyHistogram, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {
@@ -193,13 +193,13 @@ func (p *base) callWithDomainAndShardScope(scope metrics.ScopeIdx, op func() err
 	duration := time.Since(before)
 
 	domainMetricsScope.RecordTimer(metrics.PersistenceLatencyPerDomain, duration)
-	domainMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerDomainHistogram, duration)
-	overallScope.RecordHistogramDuration(metrics.PersistenceLatencyHistogram, duration)
+	domainMetricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerDomainHistogram, duration)
+	overallScope.ExponentialHistogram(metrics.PersistenceLatencyHistogram, duration)
 	shardOperationsMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
-	shardOperationsMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
+	shardOperationsMetricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerShardHistogram, duration)
 
 	shardOverallMetricsScope.RecordTimer(metrics.PersistenceLatencyPerShard, duration)
-	shardOverallMetricsScope.RecordHistogramDuration(metrics.PersistenceLatencyPerShardHistogram, duration)
+	shardOverallMetricsScope.ExponentialHistogram(metrics.PersistenceLatencyPerShardHistogram, duration)
 	p.recordLatencyHistogram(scope, duration)
 
 	if err != nil {

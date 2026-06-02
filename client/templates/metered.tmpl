@@ -49,7 +49,7 @@ func (c *{{$decorator}}) {{$method.Declaration}} {
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	{{$method.ResultsNames}} = c.client.{{$method.Call}}
 	sw.Stop()
-	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)

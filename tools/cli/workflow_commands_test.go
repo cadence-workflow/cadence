@@ -2068,31 +2068,116 @@ func Test_GetResetEventIDByType_BadBinary(t *testing.T) {
 }
 
 func Test_GetResetEventIDByType_DecisionCompletedTime(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	serverFrontendClient := frontend.NewMockClient(mockCtrl)
-	app := NewCliApp(&clientFactoryMock{
-		serverFrontendClient: serverFrontendClient,
-	})
-	set := flag.NewFlagSet("test", 0)
-	c := getMockContext(t, set, app)
-	serverFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(&types.GetWorkflowExecutionHistoryResponse{
+	newContextWithFlags := func(app *cli.App, set func(fs *flag.FlagSet)) *cli.Context {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		fs.String(FlagDomain, "", "domain")
+		fs.String(FlagWorkflowID, "", "workflow_id")
+		fs.String(FlagRunID, "", "run_id")
+		fs.String(FlagReason, "", "reason")
+		fs.String(FlagResetType, "", "reset_type")
+		fs.String(FlagEarliestTime, "", "earliest_time")
+		fs.String(FlagLatestTime, "", "latest_time")
+		set(fs)
+		return cli.NewContext(app, fs, nil)
+	}
+
+	history := &types.GetWorkflowExecutionHistoryResponse{
 		History: &types.History{
 			Events: []*types.HistoryEvent{
-				{
-					ID: 15,
-				},
+				{ID: 1, EventType: types.EventTypeDecisionTaskCompleted.Ptr(), Timestamp: common.Int64Ptr(10)},
+				{ID: 3, EventType: types.EventTypeDecisionTaskCompleted.Ptr(), Timestamp: common.Int64Ptr(20)},
+				{ID: 5, EventType: types.EventTypeDecisionTaskCompleted.Ptr(), Timestamp: common.Int64Ptr(30)},
 			},
 		},
-	}, nil).Times(1)
-	_, decisionID, err := getResetEventIDByType(context.Background(), c, resetTypeDecisionCompletedTime, -1, "test-domain",
-		"test-workflow-id", "test-run-id", serverFrontendClient)
-	assert.Equal(t, int64(0), decisionID)
-	assert.ErrorContains(t, err, "no DecisionFinishID")
+	}
 
-	set.String(FlagEarliestTime, "20201025Test", "earliest_time")
-	_, _, err = getResetEventIDByType(context.Background(), c, resetTypeDecisionCompletedTime, -1, "test-domain",
-		"test-workflow-id", "test-run-id", serverFrontendClient)
-	assert.ErrorContains(t, err, "use UTC format")
+	tests := []struct {
+		name        string
+		setFlags    func(fs *flag.FlagSet)
+		mockHistory bool
+		wantErr     bool
+		errContains string
+		wantID      int64
+	}{
+		{
+			name: "latest_time picks last decision <= T",
+			setFlags: func(fs *flag.FlagSet) {
+				fs.Set(FlagResetType, resetTypeDecisionCompletedTime)
+				fs.Set(FlagLatestTime, "25")
+			},
+			mockHistory: true,
+			wantID:      3,
+		},
+		{
+			name: "invalid time value fails with a format error",
+			setFlags: func(fs *flag.FlagSet) {
+				fs.Set(FlagResetType, resetTypeDecisionCompletedTime)
+				fs.Set(FlagEarliestTime, "20201025Test")
+			},
+			wantErr:     true,
+			errContains: "use UTC format",
+		},
+		{
+			name: "earliest_time still picks first decision >= T",
+			setFlags: func(fs *flag.FlagSet) {
+				fs.Set(FlagResetType, resetTypeDecisionCompletedTime)
+				fs.Set(FlagEarliestTime, "15")
+			},
+			mockHistory: true,
+			wantID:      3,
+		},
+		{
+			name: "neither flag set is an error",
+			setFlags: func(fs *flag.FlagSet) {
+				fs.Set(FlagResetType, resetTypeDecisionCompletedTime)
+			},
+			wantErr: true,
+		},
+		{
+			name: "both flags set is an error",
+			setFlags: func(fs *flag.FlagSet) {
+				fs.Set(FlagResetType, resetTypeDecisionCompletedTime)
+				fs.Set(FlagEarliestTime, "15")
+				fs.Set(FlagLatestTime, "25")
+			},
+			wantErr: true,
+		},
+		{
+			name: "latest_time with no decision <= T is an error",
+			setFlags: func(fs *flag.FlagSet) {
+				fs.Set(FlagResetType, resetTypeDecisionCompletedTime)
+				fs.Set(FlagLatestTime, "5")
+			},
+			mockHistory: true,
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			serverFrontendClient := frontend.NewMockClient(mockCtrl)
+			app := NewCliApp(&clientFactoryMock{serverFrontendClient: serverFrontendClient})
+			if tt.mockHistory {
+				serverFrontendClient.EXPECT().GetWorkflowExecutionHistory(gomock.Any(), gomock.Any()).Return(history, nil).Times(1)
+			}
+			c := newContextWithFlags(app, tt.setFlags)
+
+			_, decisionFinishID, err := getResetEventIDByType(
+				context.Background(), c, resetTypeDecisionCompletedTime, 0,
+				"test-domain", "test-workflow-id", "test-run-id", serverFrontendClient)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.ErrorContains(t, err, tt.errContains)
+				}
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantID, decisionFinishID)
+		})
+	}
 }
 
 func Test_GetResetEventIDByType_FirstDecisionScheduled_LastDecisionScheduled(t *testing.T) {

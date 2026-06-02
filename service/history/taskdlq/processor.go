@@ -24,10 +24,10 @@ package taskdlq
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/multierr"
 
@@ -63,10 +63,10 @@ type (
 
 	ProcessorImpl struct {
 		shardID    int
-		store      HistoryTaskDLQStore
+		mgr        persistence.HistoryTaskDLQManager
 		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
 		pageSize   int
-		interval   dynamicproperties.DurationPropertyFn
+		interval   dynamicproperties.DurationPropertyFnWithShardIDFilter
 		domainMode dynamicproperties.StringPropertyFnWithDomainFilter
 		enabled    dynamicproperties.BoolPropertyFn
 		timeSource clock.TimeSource
@@ -90,10 +90,10 @@ var _ Processor = (*ProcessorImpl)(nil)
 // interval controls how often the background loop calls ProcessShard.
 func NewProcessor(
 	shardID int,
-	store HistoryTaskDLQStore,
+	mgr persistence.HistoryTaskDLQManager,
 	executors map[int]TaskExecutor,
 	pageSize int,
-	interval dynamicproperties.DurationPropertyFn,
+	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
 	timeSource clock.TimeSource,
@@ -101,7 +101,7 @@ func NewProcessor(
 ) *ProcessorImpl {
 	return &ProcessorImpl{
 		shardID:    shardID,
-		store:      store,
+		mgr:        mgr,
 		executors:  executors,
 		pageSize:   pageSize,
 		interval:   interval,
@@ -144,7 +144,7 @@ func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
 
-	timer := p.timeSource.NewTimer(p.interval())
+	timer := p.timeSource.NewTimer(p.interval(p.shardID))
 	defer timer.Stop()
 
 	for {
@@ -160,7 +160,7 @@ func (p *ProcessorImpl) processLoop() {
 					)
 				}
 			}
-			timer.Reset(p.interval())
+			timer.Reset(p.interval(p.shardID))
 		}
 	}
 }
@@ -171,7 +171,9 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.store.GetAckLevels(ctx, p.shardID)
+	ackLevels, err := p.mgr.GetAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID: p.shardID,
+	})
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
@@ -190,7 +192,12 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.store.GetAckLevelsForPartition(ctx, p.shardID, domainID, clusterAttributeScope, clusterAttributeName)
+	ackLevels, err := p.mgr.GetAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID:               p.shardID,
+		DomainID:              domainID,
+		ClusterAttributeScope: clusterAttributeScope,
+		ClusterAttributeName:  clusterAttributeName,
+	})
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for partition (shard=%d domain=%s scope=%s name=%s): %w",
 			p.shardID, domainID, clusterAttributeScope, clusterAttributeName, err)
@@ -200,7 +207,7 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 
 // processAckLevels attempts to process every ack level entry. All partitions are
 // attempted regardless of individual failures; all errors are combined and returned.
-func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLevel) error {
+func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {
 	var errs error
 	for _, al := range ackLevels {
 		if err := p.processAckLevel(ctx, al); err != nil {
@@ -208,7 +215,7 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 				tag.WorkflowDomainID(al.DomainID),
 				tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
 				tag.Dynamic("cluster-attribute-name", al.ClusterAttributeName),
-				tag.Dynamic("task-type", al.TaskType),
+				tag.TaskType(al.TaskCategory.ID()),
 				tag.Error(err),
 			)
 			errs = multierr.Append(errs, err)
@@ -220,15 +227,15 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 // processAckLevel pages through the tasks for one (partition, taskType) and executes
 // each one. It stops at the first execution failure, then advances the ack level to
 // the last successfully executed task key.
-func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error {
+func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel) error {
 	if p.domainMode(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
 		return nil
 	}
 
-	executor, ok := p.executors[al.TaskType]
+	executor, ok := p.executors[al.TaskCategory.ID()]
 	if !ok {
-		return fmt.Errorf("no executor registered for task type %d", al.TaskType)
+		return fmt.Errorf("no executor registered for task type %d", al.TaskCategory.ID())
 	}
 
 	var (
@@ -237,25 +244,17 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 		firstErr    error
 	)
 	// Start just past the current ack position.
-	minKey := nextKey(al)
-	maxKey := al.ExclusiveMaxTaskKey
-	if maxKey.IsZero() {
-		p.logger.Warn("ExclusiveMaxTaskKey provided is zero, this prevents the scanner from scanning the DLQ",
-			tag.WorkflowDomainID(al.DomainID),
-			tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
-			tag.Dynamic("cluster-attribute-name", al.ClusterAttributeName),
-			tag.TaskType(al.TaskType))
-
-		return ErrInvalidExclusiveMaxTaskKey
-	}
+	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
+	// TODO(c-warren): Pass in max read level from the shard context
+	maxKey := persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), 0)
 
 	for {
-		resp, err := p.store.GetTasks(ctx, GetTasksRequest{
+		resp, err := p.mgr.GetTasks(ctx, persistence.HistoryDLQGetTasksRequest{
 			ShardID:               al.ShardID,
 			DomainID:              al.DomainID,
 			ClusterAttributeScope: al.ClusterAttributeScope,
 			ClusterAttributeName:  al.ClusterAttributeName,
-			TaskType:              al.TaskType,
+			TaskCategory:          al.TaskCategory,
 			InclusiveMinTaskKey:   minKey,
 			ExclusiveMaxTaskKey:   maxKey,
 			PageSize:              p.pageSize,
@@ -299,24 +298,23 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 // advanceAckLevel updates the persistent ack level and then removes the acknowledged
 // tasks. UpdateAckLevel runs first so that a crash between the two steps only leaves
 // orphaned rows (which DeleteTasks can clean up on the next run).
-func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey persistence.HistoryTaskKey) error {
-	if err := p.store.UpdateAckLevel(ctx, UpdateAckLevelRequest{
-		ShardID:               al.ShardID,
-		DomainID:              al.DomainID,
-		ClusterAttributeScope: al.ClusterAttributeScope,
-		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
-		AckLevelVisibilityTS:  newKey.GetScheduledTime(),
-		AckLevelTaskID:        newKey.GetTaskID(),
+func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel, newKey persistence.HistoryTaskKey) error {
+	if err := p.mgr.UpdateAckLevel(ctx, persistence.HistoryDLQUpdateAckLevelRequest{
+		ShardID:                   al.ShardID,
+		DomainID:                  al.DomainID,
+		ClusterAttributeScope:     al.ClusterAttributeScope,
+		ClusterAttributeName:      al.ClusterAttributeName,
+		TaskCategory:              al.TaskCategory,
+		UpdatedInclusiveReadLevel: newKey,
 	}); err != nil {
 		return fmt.Errorf("update DLQ ack level: %w", err)
 	}
-	if err := p.store.DeleteTasks(ctx, DeleteTasksRequest{
+	if err := p.mgr.DeleteTasks(ctx, persistence.HistoryDLQDeleteTasksRequest{
 		ShardID:               al.ShardID,
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		ExclusiveMaxTaskKey:   newKey.Next(),
 	}); err != nil {
 		p.logger.Error("failed to delete acknowledged DLQ tasks",
@@ -326,11 +324,3 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 	}
 	return nil
 }
-
-// nextKey returns the smallest HistoryTaskKey that is strictly greater than the
-// current ack position, used as InclusiveMinTaskKey for the next fetch.
-func nextKey(al AckLevel) persistence.HistoryTaskKey {
-	return persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-}
-
-var ErrInvalidExclusiveMaxTaskKey = errors.New("ExclusiveMaxTaskKey provided is invalid")

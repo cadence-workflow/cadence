@@ -170,16 +170,22 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 			if task.ResponseC != nil {
 				// if there is a response channel, block until resp is received
 				// and return error if the response contains error
-				err := <-task.ResponseC
-				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
-				if err == nil {
+				select {
+				case err := <-task.ResponseC:
+					tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+					if err != nil {
+						return false, err
+					}
 					e.EventName = "Offer task due to local wait"
 					e.Payload = map[string]any{
 						"TaskIsForwarded": task.IsForwarded(),
 					}
 					event.Log(e)
+					return true, nil
+				// If the context expires while waiting for the poller's response
+				case <-ctx.Done():
+					return false, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
 				}
-				return true, err
 			}
 			return false, nil
 		case <-childCtx.Done():
@@ -191,9 +197,17 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 		if task.ResponseC != nil {
 			// if there is a response channel, block until resp is received
 			// and return error if the response contains error
-			err := <-task.ResponseC
-			tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
-			return true, err
+			select {
+			case err := <-task.ResponseC:
+				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+				if err != nil {
+					return false, err
+				}
+				return true, nil
+			// If the context expires while waiting for the poller's response
+			case <-ctx.Done():
+				return false, fmt.Errorf("waiting for sync match response: %w", ctx.Err())
+			}
 		}
 		return false, nil
 	default:
@@ -251,7 +265,7 @@ func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time,
 				return false, nil
 			}
 		}
-		return task.ActivityTaskDispatchInfo != nil, nil
+		return false, nil
 	case <-ctx.Done():
 		return false, nil
 	}
@@ -441,7 +455,7 @@ func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*In
 	// try local match first without blocking until context timeout
 	if task, err = tm.pollNonBlocking(ctxWithCancelPropagation, isolatedTaskC, tm.taskC, tm.queryTaskC); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		return task, nil
 	}
 	// there is no local poller available to pickup this task. Now block waiting
@@ -470,7 +484,7 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 	// try local match first without blocking until context timeout
 	if task, err := tm.pollNonBlocking(ctx, nil, nil, tm.queryTaskC); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		return task, nil
 	}
 
@@ -503,7 +517,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -524,7 +538,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -566,7 +580,7 @@ func (tm *taskMatcherImpl) pollOrForward(
 		if task, err := tm.fwdr.ForwardPoll(ctx); err == nil {
 			token.release()
 			tm.scope.RecordTimer(metrics.PollForwardMatchLatencyPerTaskList, time.Since(startT))
-			tm.scope.RecordHistogramDuration(metrics.PollForwardMatchLatencyPerTaskListHistogram, time.Since(startT))
+			tm.scope.ExponentialHistogram(metrics.PollForwardMatchLatencyPerTaskListHistogram, time.Since(startT))
 			event.Log(event.E{
 				TaskListName: tm.tasklist.GetName(),
 				TaskListType: tm.tasklist.GetType(),
@@ -593,7 +607,7 @@ func (tm *taskMatcherImpl) poll(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),
@@ -614,7 +628,7 @@ func (tm *taskMatcherImpl) poll(
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
 		tm.scope.RecordTimer(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskList, time.Since(startT))
-		tm.scope.RecordHistogramDuration(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.PollLocalMatchAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 		tm.scope.IncCounter(metrics.PollSuccessPerTaskListCounter)
 		event.Log(event.E{
 			TaskListName: tm.tasklist.GetName(),

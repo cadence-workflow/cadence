@@ -88,18 +88,18 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
 	scope.IncCounter(metrics.CadenceRequestsPerTaskListWithoutRollup)
 	swPerTLStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceLatencyPerTaskList)
-	defer func() { sw.Stop(); scope.RecordHistogramDuration(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swPerTLStart)) }()
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyPerTaskListHistogram, time.Since(swPerTLStart)) }()
 	scopePerDomain := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
 	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
-	defer func() { swPerDomain.Stop(); scopePerDomain.RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart)) }()
+	defer func() { swPerDomain.Stop(); scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart)) }()
 	{{- else}}
 	scope := h.metricsClient.Scope({{$scope}}).Tagged(append(metrics.GetContextTags(ctx), {{$domainMetricTag}})...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
 	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
 	{{- end}}
 	logger := h.logger.WithTags(tags...)
 

@@ -129,7 +129,7 @@ func (w *weightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) error {
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer func() {
 		sw.Stop()
-		w.metricsScope.RecordHistogramDuration(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+		w.metricsScope.ExponentialHistogram(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
 	}()
 
 	if w.isStopped() {

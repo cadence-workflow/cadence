@@ -2,6 +2,7 @@ package queuev2
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/shard"
 )
@@ -206,7 +208,7 @@ func TestQueueReader_GetTask(t *testing.T) {
 			mockPredicate := NewMockPredicate(controller)
 			tt.mockSetup(mockShard, mockExec, mockPredicate)
 
-			reader := NewQueueReader(mockShard, persistence.HistoryTaskCategoryTimer)
+			reader := NewQueueReader(mockShard, persistence.HistoryTaskCategoryTimer, nil, nil)
 			tt.request.Predicate = mockPredicate
 			resp, err := reader.GetTask(context.Background(), tt.request)
 
@@ -220,6 +222,98 @@ func TestQueueReader_GetTask(t *testing.T) {
 			assert.Equal(t, tt.expectedTasks, resp.Tasks)
 			assert.Equal(t, tt.expectedToken, resp.Progress.NextPageToken)
 			assert.Equal(t, tt.expectedNextKey, resp.Progress.NextTaskKey)
+		})
+	}
+}
+
+func TestSimpleQueueReader_LookAHead(t *testing.T) {
+	baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	minTaskKey := persistence.NewHistoryTaskKey(baseTime, 1)
+	maxPollInterval := 10 * time.Minute
+	jitterCoeff := 0.0 // zero jitter for deterministic tests
+	expectedMaxTime := baseTime.Add(maxPollInterval)
+
+	foundTask := &persistence.DecisionTimeoutTask{
+		WorkflowIdentifier: persistence.WorkflowIdentifier{
+			DomainID:   "test-domain",
+			WorkflowID: "test-workflow",
+			RunID:      "test-run",
+		},
+		TaskData: persistence.TaskData{
+			Version:             1,
+			TaskID:              1,
+			VisibilityTimestamp: baseTime.Add(5 * time.Minute),
+		},
+	}
+
+	tests := []struct {
+		name         string
+		mockSetup    func(*shard.MockContext, *persistence.MockExecutionManager)
+		expectedTask persistence.Task
+		expectedErr  error
+	}{
+		{
+			name: "task found",
+			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager) {
+				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
+				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
+					TaskCategory:        persistence.HistoryTaskCategoryTimer,
+					InclusiveMinTaskKey: minTaskKey,
+					ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(expectedMaxTime, 0),
+					PageSize:            1,
+				}).Return(&persistence.GetHistoryTasksResponse{
+					Tasks: []persistence.Task{foundTask},
+				}, nil)
+			},
+			expectedTask: foundTask,
+		},
+		{
+			name: "no task found",
+			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager) {
+				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
+				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{
+					Tasks: nil,
+				}, nil)
+			},
+			expectedTask: nil,
+		},
+		{
+			name: "DB error",
+			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager) {
+				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
+				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("db error"))
+			},
+			expectedErr: fmt.Errorf("db error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			mockShard := shard.NewMockContext(controller)
+			mockExec := persistence.NewMockExecutionManager(controller)
+			tt.mockSetup(mockShard, mockExec)
+
+			reader := NewQueueReader(
+				mockShard,
+				persistence.HistoryTaskCategoryTimer,
+				dynamicproperties.GetDurationPropertyFn(maxPollInterval),
+				dynamicproperties.GetFloatPropertyFn(jitterCoeff),
+			)
+			resp, err := reader.LookAHead(context.Background(), &LookAHeadRequest{
+				InclusiveMinTaskKey: minTaskKey,
+			})
+
+			if tt.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedErr, err)
+				assert.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedTask, resp.Task)
+			assert.Equal(t, expectedMaxTime, resp.LookAheadMaxTime)
 		})
 	}
 }

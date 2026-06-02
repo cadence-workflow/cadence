@@ -108,6 +108,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) (*admin.GetGlobalIsolationGroupsResponse, error)
 
+	GetOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.GetOperationalDynamicConfigRequest,
+		opts ...yarpc.CallOption,
+	) (*admin.GetOperationalDynamicConfigResponse, error)
+
 	GetReplicationMessages(
 		ctx context.Context,
 		Request *replicator.GetReplicationMessagesRequest,
@@ -125,6 +131,12 @@ type Interface interface {
 		Request *admin.ListDynamicConfigRequest,
 		opts ...yarpc.CallOption,
 	) (*admin.ListDynamicConfigResponse, error)
+
+	ListOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.ListOperationalDynamicConfigRequest,
+		opts ...yarpc.CallOption,
+	) (*admin.ListOperationalDynamicConfigResponse, error)
 
 	MaintainCorruptWorkflow(
 		ctx context.Context,
@@ -192,6 +204,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) error
 
+	RestoreOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.RestoreOperationalDynamicConfigRequest,
+		opts ...yarpc.CallOption,
+	) error
+
 	UpdateDomainAsyncWorkflowConfiguraton(
 		ctx context.Context,
 		Request *admin.UpdateDomainAsyncWorkflowConfiguratonRequest,
@@ -215,6 +233,12 @@ type Interface interface {
 		Request *admin.UpdateGlobalIsolationGroupsRequest,
 		opts ...yarpc.CallOption,
 	) (*admin.UpdateGlobalIsolationGroupsResponse, error)
+
+	UpdateOperationalDynamicConfig(
+		ctx context.Context,
+		Request *admin.UpdateOperationalDynamicConfigRequest,
+		opts ...yarpc.CallOption,
+	) error
 }
 
 // New builds a new client for the AdminService service.
@@ -665,6 +689,34 @@ func (c client) GetGlobalIsolationGroups(
 	return
 }
 
+func (c client) GetOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.GetOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (success *admin.GetOperationalDynamicConfigResponse, err error) {
+
+	var result admin.AdminService_GetOperationalDynamicConfig_Result
+	args := admin.AdminService_GetOperationalDynamicConfig_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = admin.AdminService_GetOperationalDynamicConfig_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) GetReplicationMessages(
 	ctx context.Context,
 	_Request *replicator.GetReplicationMessagesRequest,
@@ -746,6 +798,34 @@ func (c client) ListDynamicConfig(
 	}
 
 	success, err = admin.AdminService_ListDynamicConfig_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) ListOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.ListOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (success *admin.ListOperationalDynamicConfigResponse, err error) {
+
+	var result admin.AdminService_ListOperationalDynamicConfig_Result
+	args := admin.AdminService_ListOperationalDynamicConfig_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = admin.AdminService_ListOperationalDynamicConfig_Helper.UnwrapResponse(&result)
 	return
 }
 
@@ -1057,6 +1137,34 @@ func (c client) RestoreDynamicConfig(
 	return
 }
 
+func (c client) RestoreOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.RestoreOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (err error) {
+
+	var result admin.AdminService_RestoreOperationalDynamicConfig_Result
+	args := admin.AdminService_RestoreOperationalDynamicConfig_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	err = admin.AdminService_RestoreOperationalDynamicConfig_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) UpdateDomainAsyncWorkflowConfiguraton(
 	ctx context.Context,
 	_Request *admin.UpdateDomainAsyncWorkflowConfiguratonRequest,
@@ -1166,5 +1274,33 @@ func (c client) UpdateGlobalIsolationGroups(
 	}
 
 	success, err = admin.AdminService_UpdateGlobalIsolationGroups_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) UpdateOperationalDynamicConfig(
+	ctx context.Context,
+	_Request *admin.UpdateOperationalDynamicConfigRequest,
+	opts ...yarpc.CallOption,
+) (err error) {
+
+	var result admin.AdminService_UpdateOperationalDynamicConfig_Result
+	args := admin.AdminService_UpdateOperationalDynamicConfig_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	err = admin.AdminService_UpdateOperationalDynamicConfig_Helper.UnwrapResponse(&result)
 	return
 }

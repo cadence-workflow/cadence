@@ -13,17 +13,19 @@ import (
 
 func TestCalculateSmoothedLoad(t *testing.T) {
 	tests := []struct {
-		name      string
-		prev      float64
-		current   float64
-		setupTime func(ts clock.MockedTimeSource) (lastUpdate, now time.Time)
-		want      float64
-		wantErr   bool
+		name                  string
+		prev                  float64
+		current               float64
+		smoothingTimeConstant time.Duration
+		setupTime             func(ts clock.MockedTimeSource) (lastUpdate, now time.Time)
+		want                  float64
+		wantErr               bool
 	}{
 		{
-			name:    "first update returns current",
-			prev:    0,
-			current: 10.0,
+			name:                  "first update returns current",
+			prev:                  0,
+			current:               10.0,
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				return time.Time{}, ts.Now()
 			},
@@ -31,9 +33,10 @@ func TestCalculateSmoothedLoad(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "now before lastUpdate returns current",
-			prev:    100.0,
-			current: 10.0,
+			name:                  "now before lastUpdate returns current",
+			prev:                  100.0,
+			current:               10.0,
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				now := ts.Now()
 				return now, now.Add(-1 * time.Second)
@@ -42,9 +45,10 @@ func TestCalculateSmoothedLoad(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "normal smoothing - 1 tau elapsed",
-			prev:    10.0,
-			current: 20.0,
+			name:                  "normal smoothing - 1 tau elapsed",
+			prev:                  10.0,
+			current:               20.0,
+			smoothingTimeConstant: 30 * time.Second,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				lastUpdate := ts.Now()
 				ts.Advance(30 * time.Second)
@@ -57,9 +61,10 @@ func TestCalculateSmoothedLoad(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "very small dt returns close to prev",
-			prev:    10.0,
-			current: 20.0,
+			name:                  "very small dt returns close to prev",
+			prev:                  10.0,
+			current:               20.0,
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				lastUpdate := ts.Now()
 				ts.Advance(100 * time.Millisecond)
@@ -68,9 +73,10 @@ func TestCalculateSmoothedLoad(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "very large dt returns close to current",
-			prev:    10.0,
-			current: 20.0,
+			name:                  "very large dt returns close to current",
+			prev:                  10.0,
+			current:               20.0,
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				lastUpdate := ts.Now()
 				ts.Advance(1 * time.Hour)
@@ -80,27 +86,30 @@ func TestCalculateSmoothedLoad(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "current is NaN returns error",
-			prev:    10.0,
-			current: math.NaN(),
+			name:                  "current is NaN returns error",
+			prev:                  10.0,
+			current:               math.NaN(),
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				return ts.Now().Add(-10 * time.Second), ts.Now()
 			},
 			wantErr: true,
 		},
 		{
-			name:    "prev is NaN returns error",
-			prev:    math.NaN(),
-			current: 10.0,
+			name:                  "prev is NaN returns error",
+			prev:                  math.NaN(),
+			current:               10.0,
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				return ts.Now().Add(-10 * time.Second), ts.Now()
 			},
 			wantErr: true,
 		},
 		{
-			name:    "current is Inf returns error",
-			prev:    10.0,
-			current: math.Inf(1),
+			name:                  "current is Inf returns error",
+			prev:                  10.0,
+			current:               math.Inf(1),
+			smoothingTimeConstant: DefaultLoadSmoothingTimeConstant,
 			setupTime: func(ts clock.MockedTimeSource) (time.Time, time.Time) {
 				return ts.Now().Add(-10 * time.Second), ts.Now()
 			},
@@ -114,7 +123,7 @@ func TestCalculateSmoothedLoad(t *testing.T) {
 			ts := clock.NewMockedTimeSourceAt(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 			lastUpdate, now := tt.setupTime(ts)
 
-			got, err := CalculateSmoothedLoad(tt.prev, tt.current, lastUpdate, now)
+			got, err := CalculateSmoothedLoad(tt.prev, tt.current, lastUpdate, now, tt.smoothingTimeConstant)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

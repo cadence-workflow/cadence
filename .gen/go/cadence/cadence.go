@@ -22,14 +22,1246 @@ var ThriftModule = &thriftreflect.ThriftModule{
 	Name:     "cadence",
 	Package:  "github.com/uber/cadence/.gen/go/cadence",
 	FilePath: "cadence.thrift",
-	SHA1:     "8c644a4a8acae7e865a84d625bc845ffae7ff693",
+	SHA1:     "37329e41e18e9853c2a91c29b07e33c5cf85eea8",
 	Includes: []*thriftreflect.ThriftModule{
 		shared.ThriftModule,
 	},
 	Raw: rawIDL,
 }
 
-const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\ninclude \"shared.thrift\"\n\nnamespace java com.uber.cadence\n\n/**\n* WorkflowService API is exposed to provide support for long running applications.  Application is expected to call\n* StartWorkflowExecution to create an instance for each instance of long running workflow.  Such applications are expected\n* to have a worker which regularly polls for DecisionTask and ActivityTask from the WorkflowService.  For each\n* DecisionTask, application is expected to process the history of events for that session and respond back with next\n* decisions.  For each ActivityTask, application is expected to execute the actual logic for that task and respond back\n* with completion or failure.  Worker is expected to regularly heartbeat while activity task is running.\n**/\nservice WorkflowService {\n  /**\n  * RegisterDomain creates a new domain which can be used as a container for all resources.  Domain is a top level\n  * entity within Cadence, used as a container for all resources like workflow executions, tasklists, etc.  Domain\n  * acts as a sandbox and provides isolation for all resources within the domain.  All resources belongs to exactly one\n  * domain.\n  **/\n  void RegisterDomain(1: shared.RegisterDomainRequest registerRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.DomainAlreadyExistsError domainExistsError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DescribeDomain returns the information and configuration for a registered domain.\n  **/\n  shared.DescribeDomainResponse DescribeDomain(1: shared.DescribeDomainRequest describeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n    * ListDomains returns the information and configuration for all domains.\n    **/\n    shared.ListDomainsResponse ListDomains(1: shared.ListDomainsRequest listRequest)\n      throws (\n        1: shared.BadRequestError badRequestError,\n        3: shared.EntityNotExistsError entityNotExistError,\n        4: shared.ServiceBusyError serviceBusyError,\n        5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n        6: shared.AccessDeniedError accessDeniedError,\n      )\n\n  /**\n  * UpdateDomain is used to update the information and configuration for a registered domain.\n  **/\n  shared.UpdateDomainResponse UpdateDomain(1: shared.UpdateDomainRequest updateRequest)\n      throws (\n        1: shared.BadRequestError badRequestError,\n        3: shared.EntityNotExistsError entityNotExistError,\n        4: shared.ServiceBusyError serviceBusyError,\n        5: shared.DomainNotActiveError domainNotActiveError,\n        6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n        7: shared.AccessDeniedError accessDeniedError,\n      )\n\n  /**\n  * FailoverDomain is used to failover a registered domain to different cluster.\n  **/\n  shared.FailoverDomainResponse FailoverDomain(1: shared.FailoverDomainRequest failoverRequest)\n      throws (\n        1: shared.BadRequestError badRequestError,\n        3: shared.EntityNotExistsError entityNotExistError,\n        4: shared.ServiceBusyError serviceBusyError,\n        5: shared.DomainNotActiveError domainNotActiveError,\n        6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n        7: shared.AccessDeniedError accessDeniedError,\n      )\n\n  /**\n  * DeprecateDomain us used to update status of a registered domain to DEPRECATED.  Once the domain is deprecated\n  * it cannot be used to start new workflow executions.  Existing workflow executions will continue to run on\n  * deprecated domains.\n  **/\n  void DeprecateDomain(1: shared.DeprecateDomainRequest deprecateRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DeleteDomain permanently removes a domain record. This operation:\n  * - Requires domain to be in DEPRECATED status\n  * - Cannot be performed on domains with running workflows\n  * - Is irreversible and removes all domain data\n  * - Requires proper permissions and security token\n  **/\n  void DeleteDomain(1: shared.DeleteDomainRequest deleteRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListFailoverHistory returns the history of failover events for a domain.\n  **/\n  shared.ListFailoverHistoryResponse ListFailoverHistory(1: shared.ListFailoverHistoryRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RestartWorkflowExecution restarts a previous workflow\n  * If the workflow is currently running it will terminate and restart\n  **/\n  shared.RestartWorkflowExecutionResponse RestartWorkflowExecution(1: shared.RestartWorkflowExecutionRequest restartRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.DomainNotActiveError domainNotActiveError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.EntityNotExistsError entityNotExistError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DiagnoseWorkflowExecution diagnoses a previous workflow execution\n  **/\n  shared.DiagnoseWorkflowExecutionResponse DiagnoseWorkflowExecution(1: shared.DiagnoseWorkflowExecutionRequest diagnoseRequest)\n    throws (\n      1: shared.DomainNotActiveError domainNotActiveError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      5: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * StartWorkflowExecution starts a new long running workflow instance.  It will create the instance with\n  * 'WorkflowExecutionStarted' event in history and also schedule the first DecisionTask for the worker to make the\n  * first decision for this instance.  It will return 'WorkflowExecutionAlreadyStartedError', if an instance already\n  * exists with same workflowId.\n  **/\n  shared.StartWorkflowExecutionResponse StartWorkflowExecution(1: shared.StartWorkflowExecutionRequest startRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.WorkflowExecutionAlreadyStartedError sessionAlreadyExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.EntityNotExistsError entityNotExistError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n  /**\n  * StartWorkflowExecutionAsync starts a new long running workflow instance asynchronously. It will push a StartWorkflowExecutionRequest to a queue\n  * and immediately return a response. The request will be processed by a separate consumer eventually.\n  **/\n  shared.StartWorkflowExecutionAsyncResponse StartWorkflowExecutionAsync(1: shared.StartWorkflowExecutionAsyncRequest startRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.WorkflowExecutionAlreadyStartedError sessionAlreadyExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.EntityNotExistsError entityNotExistError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n  /**\n  * Returns the history of specified workflow execution.  It fails with 'EntityNotExistError' if speficied workflow\n  * execution in unknown to the service.\n  **/\n  shared.GetWorkflowExecutionHistoryResponse GetWorkflowExecutionHistory(1: shared.GetWorkflowExecutionHistoryRequest getRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * PollForDecisionTask is called by application worker to process DecisionTask from a specific taskList.  A\n  * DecisionTask is dispatched to callers for active workflow executions, with pending decisions.\n  * Application is then expected to call 'RespondDecisionTaskCompleted' API when it is done processing the DecisionTask.\n  * It will also create a 'DecisionTaskStarted' event in the history for that session before handing off DecisionTask to\n  * application worker.\n  **/\n  shared.PollForDecisionTaskResponse PollForDecisionTask(1: shared.PollForDecisionTaskRequest pollRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.EntityNotExistsError entityNotExistError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondDecisionTaskCompleted is called by application worker to complete a DecisionTask handed as a result of\n  * 'PollForDecisionTask' API call.  Completing a DecisionTask will result in new events for the workflow execution and\n  * potentially new ActivityTask being created for corresponding decisions.  It will also create a DecisionTaskCompleted\n  * event in the history for that session.  Use the 'taskToken' provided as response of PollForDecisionTask API call\n  * for completing the DecisionTask.\n  * The response could contain a new decision task if there is one or if the request asking for one.\n  **/\n  shared.RespondDecisionTaskCompletedResponse RespondDecisionTaskCompleted(1: shared.RespondDecisionTaskCompletedRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondDecisionTaskFailed is called by application worker to indicate failure.  This results in\n  * DecisionTaskFailedEvent written to the history and a new DecisionTask created.  This API can be used by client to\n  * either clear sticky tasklist or report any panics during DecisionTask processing.  Cadence will only append first\n  * DecisionTaskFailed event to the history of workflow execution for consecutive failures.\n  **/\n  void RespondDecisionTaskFailed(1: shared.RespondDecisionTaskFailedRequest failedRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * PollForActivityTask is called by application worker to process ActivityTask from a specific taskList.  ActivityTask\n  * is dispatched to callers whenever a ScheduleTask decision is made for a workflow execution.\n  * Application is expected to call 'RespondActivityTaskCompleted' or 'RespondActivityTaskFailed' once it is done\n  * processing the task.\n  * Application also needs to call 'RecordActivityTaskHeartbeat' API within 'heartbeatTimeoutSeconds' interval to\n  * prevent the task from getting timed out.  An event 'ActivityTaskStarted' event is also written to workflow execution\n  * history before the ActivityTask is dispatched to application worker.\n  **/\n  shared.PollForActivityTaskResponse PollForActivityTask(1: shared.PollForActivityTaskRequest pollRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.EntityNotExistsError entityNotExistError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RecordActivityTaskHeartbeat is called by application worker while it is processing an ActivityTask.  If worker fails\n  * to heartbeat within 'heartbeatTimeoutSeconds' interval for the ActivityTask, then it will be marked as timedout and\n  * 'ActivityTaskTimedOut' event will be written to the workflow history.  Calling 'RecordActivityTaskHeartbeat' will\n  * fail with 'EntityNotExistsError' in such situations.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for heartbeating.\n  **/\n  shared.RecordActivityTaskHeartbeatResponse RecordActivityTaskHeartbeat(1: shared.RecordActivityTaskHeartbeatRequest heartbeatRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RecordActivityTaskHeartbeatByID is called by application worker while it is processing an ActivityTask.  If worker fails\n  * to heartbeat within 'heartbeatTimeoutSeconds' interval for the ActivityTask, then it will be marked as timedout and\n  * 'ActivityTaskTimedOut' event will be written to the workflow history.  Calling 'RecordActivityTaskHeartbeatByID' will\n  * fail with 'EntityNotExistsError' in such situations.  Instead of using 'taskToken' like in RecordActivityTaskHeartbeat,\n  * use Domain, WorkflowID and ActivityID\n  **/\n  shared.RecordActivityTaskHeartbeatResponse RecordActivityTaskHeartbeatByID(1: shared.RecordActivityTaskHeartbeatByIDRequest heartbeatRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCompleted is called by application worker when it is done processing an ActivityTask.  It will\n  * result in a new 'ActivityTaskCompleted' event being written to the workflow history and a new DecisionTask\n  * created for the workflow so new decisions could be made.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for completion. It fails with 'EntityNotExistsError' if the taskToken is not valid\n  * anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskCompleted(1: shared.RespondActivityTaskCompletedRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCompletedByID is called by application worker when it is done processing an ActivityTask.\n  * It will result in a new 'ActivityTaskCompleted' event being written to the workflow history and a new DecisionTask\n  * created for the workflow so new decisions could be made.  Similar to RespondActivityTaskCompleted but use Domain,\n  * WorkflowID and ActivityID instead of 'taskToken' for completion. It fails with 'EntityNotExistsError'\n  * if the these IDs are not valid anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskCompletedByID(1: shared.RespondActivityTaskCompletedByIDRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskFailed is called by application worker when it is done processing an ActivityTask.  It will\n  * result in a new 'ActivityTaskFailed' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for completion. It fails with 'EntityNotExistsError' if the taskToken is not valid\n  * anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskFailed(1: shared.RespondActivityTaskFailedRequest failRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskFailedByID is called by application worker when it is done processing an ActivityTask.\n  * It will result in a new 'ActivityTaskFailed' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Similar to RespondActivityTaskFailed but use\n  * Domain, WorkflowID and ActivityID instead of 'taskToken' for completion. It fails with 'EntityNotExistsError'\n  * if the these IDs are not valid anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskFailedByID(1: shared.RespondActivityTaskFailedByIDRequest failRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCanceled is called by application worker when it is successfully canceled an ActivityTask.  It will\n  * result in a new 'ActivityTaskCanceled' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for completion. It fails with 'EntityNotExistsError' if the taskToken is not valid\n  * anymore due to activity timeout.\n  **/\n  void RespondActivityTaskCanceled(1: shared.RespondActivityTaskCanceledRequest canceledRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCanceledByID is called by application worker when it is successfully canceled an ActivityTask.\n  * It will result in a new 'ActivityTaskCanceled' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Similar to RespondActivityTaskCanceled but use\n  * Domain, WorkflowID and ActivityID instead of 'taskToken' for completion. It fails with 'EntityNotExistsError'\n  * if the these IDs are not valid anymore due to activity timeout.\n  **/\n  void RespondActivityTaskCanceledByID(1: shared.RespondActivityTaskCanceledByIDRequest canceledRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RequestCancelWorkflowExecution is called by application worker when it wants to request cancellation of a workflow instance.\n  * It will result in a new 'WorkflowExecutionCancelRequested' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made. It fails with 'EntityNotExistsError' if the workflow is not valid\n  * anymore due to completion or doesn't exist.\n  **/\n  void RequestCancelWorkflowExecution(1: shared.RequestCancelWorkflowExecutionRequest cancelRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.CancellationAlreadyRequestedError cancellationAlreadyRequestedError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.LimitExceededError limitExceededError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      10: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * SignalWorkflowExecution is used to send a signal event to running workflow execution.  This results in\n  * WorkflowExecutionSignaled event recorded in the history and a decision task being created for the execution.\n  **/\n  void SignalWorkflowExecution(1: shared.SignalWorkflowExecutionRequest signalRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * SignalWithStartWorkflowExecution is used to ensure sending signal to a workflow.\n  * If the workflow is running, this results in WorkflowExecutionSignaled event being recorded in the history\n  * and a decision task being created for the execution.\n  * If the workflow is not running or not found, this results in WorkflowExecutionStarted and WorkflowExecutionSignaled\n  * events being recorded in history, and a decision task being created for the execution\n  **/\n  shared.StartWorkflowExecutionResponse SignalWithStartWorkflowExecution(1: shared.SignalWithStartWorkflowExecutionRequest signalWithStartRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.WorkflowExecutionAlreadyStartedError workflowAlreadyStartedError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * SignalWithStartWorkflowExecutionAsync is used to ensure sending signal to a workflow asynchronously.  It will push a SignalWithStartWorkflowExecutionRequest to a queue\n  * and immediately return a response. The request will be processed by a separate consumer eventually.\n  **/\n  shared.SignalWithStartWorkflowExecutionAsyncResponse SignalWithStartWorkflowExecutionAsync(1: shared.SignalWithStartWorkflowExecutionAsyncRequest signalWithStartRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.WorkflowExecutionAlreadyStartedError sessionAlreadyExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.EntityNotExistsError entityNotExistError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n  /**\n    * ResetWorkflowExecution reset an existing workflow execution to DecisionTaskCompleted event(exclusive).\n    * And it will immediately terminating the current execution instance.\n    **/\n  shared.ResetWorkflowExecutionResponse ResetWorkflowExecution(1: shared.ResetWorkflowExecutionRequest resetRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * TerminateWorkflowExecution terminates an existing workflow execution by recording WorkflowExecutionTerminated event\n  * in the history and immediately terminating the execution instance.\n  **/\n  void TerminateWorkflowExecution(1: shared.TerminateWorkflowExecutionRequest terminateRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListOpenWorkflowExecutions is a visibility API to list the open executions in a specific domain.\n  **/\n  shared.ListOpenWorkflowExecutionsResponse ListOpenWorkflowExecutions(1: shared.ListOpenWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListClosedWorkflowExecutions is a visibility API to list the closed executions in a specific domain.\n  **/\n  shared.ListClosedWorkflowExecutionsResponse ListClosedWorkflowExecutions(1: shared.ListClosedWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListWorkflowExecutions is a visibility API to list workflow executions in a specific domain.\n  **/\n  shared.ListWorkflowExecutionsResponse ListWorkflowExecutions(1: shared.ListWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListArchivedWorkflowExecutions is a visibility API to list archived workflow executions in a specific domain.\n  **/\n  shared.ListArchivedWorkflowExecutionsResponse ListArchivedWorkflowExecutions(1: shared.ListArchivedWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ScanWorkflowExecutions is a visibility API to list large amount of workflow executions in a specific domain without order.\n  **/\n  shared.ListWorkflowExecutionsResponse ScanWorkflowExecutions(1: shared.ListWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * CountWorkflowExecutions is a visibility API to count of workflow executions in a specific domain.\n  **/\n  shared.CountWorkflowExecutionsResponse CountWorkflowExecutions(1: shared.CountWorkflowExecutionsRequest countRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * GetSearchAttributes is a visibility API to get all legal keys that could be used in list APIs\n  **/\n  shared.GetSearchAttributesResponse GetSearchAttributes()\n    throws (\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondQueryTaskCompleted is called by application worker to complete a QueryTask (which is a DecisionTask for query)\n  * as a result of 'PollForDecisionTask' API call. Completing a QueryTask will unblock the client call to 'QueryWorkflow'\n  * API and return the query result to client as a response to 'QueryWorkflow' API call.\n  **/\n  void RespondQueryTaskCompleted(1: shared.RespondQueryTaskCompletedRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * Reset the sticky tasklist related information in mutable state of a given workflow.\n  * Things cleared are:\n  * 1. StickyTaskList\n  * 2. StickyScheduleToStartTimeout\n  * 3. ClientLibraryVersion\n  * 4. ClientFeatureVersion\n  * 5. ClientImpl\n  **/\n  shared.ResetStickyTaskListResponse ResetStickyTaskList(1: shared.ResetStickyTaskListRequest resetRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * QueryWorkflow returns query result for a specified workflow execution\n  **/\n  shared.QueryWorkflowResponse QueryWorkflow(1: shared.QueryWorkflowRequest queryRequest)\n\tthrows (\n\t  1: shared.BadRequestError badRequestError,\n\t  3: shared.EntityNotExistsError entityNotExistError,\n\t  4: shared.QueryFailedError queryFailedError,\n\t  5: shared.LimitExceededError limitExceededError,\n\t  6: shared.ServiceBusyError serviceBusyError,\n\t  7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n    8: shared.AccessDeniedError accessDeniedError,\n\t)\n\n  /**\n  * DescribeWorkflowExecution returns information about the specified workflow execution.\n  **/\n  shared.DescribeWorkflowExecutionResponse DescribeWorkflowExecution(1: shared.DescribeWorkflowExecutionRequest describeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DescribeTaskList returns information about the target tasklist, right now this API returns the\n  * pollers which polled this tasklist in last few minutes.\n  **/\n  shared.DescribeTaskListResponse DescribeTaskList(1: shared.DescribeTaskListRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * GetClusterInfo returns information about cadence cluster\n  **/\n  shared.ClusterInfo GetClusterInfo()\n    throws (\n      1: shared.InternalServiceError internalServiceError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * GetTaskListsByDomain returns the list of all the task lists for a domainName.\n  **/\n  shared.GetTaskListsByDomainResponse GetTaskListsByDomain(1: shared.GetTaskListsByDomainRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.LimitExceededError limitExceededError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n   /**\n   * ReapplyEvents applies stale events to the current workflow and current run\n   **/\n  shared.ListTaskListPartitionsResponse ListTaskListPartitions(1: shared.ListTaskListPartitionsRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RefreshWorkflowTasks refreshes all tasks of a workflow\n  **/\n  void RefreshWorkflowTasks(1: shared.RefreshWorkflowTasksRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.DomainNotActiveError domainNotActiveError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.EntityNotExistsError entityNotExistError,\n      5: shared.AccessDeniedError accessDeniedError,\n    )\n}\n"
+const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\ninclude \"shared.thrift\"\n\nnamespace java com.uber.cadence\n\n/**\n* WorkflowService API is exposed to provide support for long running applications.  Application is expected to call\n* StartWorkflowExecution to create an instance for each instance of long running workflow.  Such applications are expected\n* to have a worker which regularly polls for DecisionTask and ActivityTask from the WorkflowService.  For each\n* DecisionTask, application is expected to process the history of events for that session and respond back with next\n* decisions.  For each ActivityTask, application is expected to execute the actual logic for that task and respond back\n* with completion or failure.  Worker is expected to regularly heartbeat while activity task is running.\n**/\nservice WorkflowService {\n  /**\n  * RegisterDomain creates a new domain which can be used as a container for all resources.  Domain is a top level\n  * entity within Cadence, used as a container for all resources like workflow executions, tasklists, etc.  Domain\n  * acts as a sandbox and provides isolation for all resources within the domain.  All resources belongs to exactly one\n  * domain.\n  **/\n  void RegisterDomain(1: shared.RegisterDomainRequest registerRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.DomainAlreadyExistsError domainExistsError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DescribeDomain returns the information and configuration for a registered domain.\n  **/\n  shared.DescribeDomainResponse DescribeDomain(1: shared.DescribeDomainRequest describeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n    * ListDomains returns the information and configuration for all domains.\n    **/\n    shared.ListDomainsResponse ListDomains(1: shared.ListDomainsRequest listRequest)\n      throws (\n        1: shared.BadRequestError badRequestError,\n        3: shared.EntityNotExistsError entityNotExistError,\n        4: shared.ServiceBusyError serviceBusyError,\n        5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n        6: shared.AccessDeniedError accessDeniedError,\n      )\n\n  /**\n  * UpdateDomain is used to update the information and configuration for a registered domain.\n  **/\n  shared.UpdateDomainResponse UpdateDomain(1: shared.UpdateDomainRequest updateRequest)\n      throws (\n        1: shared.BadRequestError badRequestError,\n        3: shared.EntityNotExistsError entityNotExistError,\n        4: shared.ServiceBusyError serviceBusyError,\n        5: shared.DomainNotActiveError domainNotActiveError,\n        6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n        7: shared.AccessDeniedError accessDeniedError,\n      )\n\n  /**\n  * FailoverDomain is used to failover a registered domain to different cluster.\n  **/\n  shared.FailoverDomainResponse FailoverDomain(1: shared.FailoverDomainRequest failoverRequest)\n      throws (\n        1: shared.BadRequestError badRequestError,\n        3: shared.EntityNotExistsError entityNotExistError,\n        4: shared.ServiceBusyError serviceBusyError,\n        5: shared.DomainNotActiveError domainNotActiveError,\n        6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n        7: shared.AccessDeniedError accessDeniedError,\n      )\n\n  /**\n  * DeprecateDomain us used to update status of a registered domain to DEPRECATED.  Once the domain is deprecated\n  * it cannot be used to start new workflow executions.  Existing workflow executions will continue to run on\n  * deprecated domains.\n  **/\n  void DeprecateDomain(1: shared.DeprecateDomainRequest deprecateRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DeleteDomain permanently removes a domain record. This operation:\n  * - Requires domain to be in DEPRECATED status\n  * - Cannot be performed on domains with running workflows\n  * - Is irreversible and removes all domain data\n  * - Requires proper permissions and security token\n  **/\n  void DeleteDomain(1: shared.DeleteDomainRequest deleteRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListFailoverHistory returns the history of failover events for a domain.\n  **/\n  shared.ListFailoverHistoryResponse ListFailoverHistory(1: shared.ListFailoverHistoryRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RestartWorkflowExecution restarts a previous workflow\n  * If the workflow is currently running it will terminate and restart\n  **/\n  shared.RestartWorkflowExecutionResponse RestartWorkflowExecution(1: shared.RestartWorkflowExecutionRequest restartRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.DomainNotActiveError domainNotActiveError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.EntityNotExistsError entityNotExistError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DiagnoseWorkflowExecution diagnoses a previous workflow execution\n  **/\n  shared.DiagnoseWorkflowExecutionResponse DiagnoseWorkflowExecution(1: shared.DiagnoseWorkflowExecutionRequest diagnoseRequest)\n    throws (\n      1: shared.DomainNotActiveError domainNotActiveError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      5: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * StartWorkflowExecution starts a new long running workflow instance.  It will create the instance with\n  * 'WorkflowExecutionStarted' event in history and also schedule the first DecisionTask for the worker to make the\n  * first decision for this instance.  It will return 'WorkflowExecutionAlreadyStartedError', if an instance already\n  * exists with same workflowId.\n  **/\n  shared.StartWorkflowExecutionResponse StartWorkflowExecution(1: shared.StartWorkflowExecutionRequest startRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.WorkflowExecutionAlreadyStartedError sessionAlreadyExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.EntityNotExistsError entityNotExistError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n  /**\n  * StartWorkflowExecutionAsync starts a new long running workflow instance asynchronously. It will push a StartWorkflowExecutionRequest to a queue\n  * and immediately return a response. The request will be processed by a separate consumer eventually.\n  **/\n  shared.StartWorkflowExecutionAsyncResponse StartWorkflowExecutionAsync(1: shared.StartWorkflowExecutionAsyncRequest startRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.WorkflowExecutionAlreadyStartedError sessionAlreadyExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.EntityNotExistsError entityNotExistError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n  /**\n  * Returns the history of specified workflow execution.  It fails with 'EntityNotExistError' if speficied workflow\n  * execution in unknown to the service.\n  **/\n  shared.GetWorkflowExecutionHistoryResponse GetWorkflowExecutionHistory(1: shared.GetWorkflowExecutionHistoryRequest getRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * PollForDecisionTask is called by application worker to process DecisionTask from a specific taskList.  A\n  * DecisionTask is dispatched to callers for active workflow executions, with pending decisions.\n  * Application is then expected to call 'RespondDecisionTaskCompleted' API when it is done processing the DecisionTask.\n  * It will also create a 'DecisionTaskStarted' event in the history for that session before handing off DecisionTask to\n  * application worker.\n  **/\n  shared.PollForDecisionTaskResponse PollForDecisionTask(1: shared.PollForDecisionTaskRequest pollRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.EntityNotExistsError entityNotExistError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondDecisionTaskCompleted is called by application worker to complete a DecisionTask handed as a result of\n  * 'PollForDecisionTask' API call.  Completing a DecisionTask will result in new events for the workflow execution and\n  * potentially new ActivityTask being created for corresponding decisions.  It will also create a DecisionTaskCompleted\n  * event in the history for that session.  Use the 'taskToken' provided as response of PollForDecisionTask API call\n  * for completing the DecisionTask.\n  * The response could contain a new decision task if there is one or if the request asking for one.\n  **/\n  shared.RespondDecisionTaskCompletedResponse RespondDecisionTaskCompleted(1: shared.RespondDecisionTaskCompletedRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondDecisionTaskFailed is called by application worker to indicate failure.  This results in\n  * DecisionTaskFailedEvent written to the history and a new DecisionTask created.  This API can be used by client to\n  * either clear sticky tasklist or report any panics during DecisionTask processing.  Cadence will only append first\n  * DecisionTaskFailed event to the history of workflow execution for consecutive failures.\n  **/\n  void RespondDecisionTaskFailed(1: shared.RespondDecisionTaskFailedRequest failedRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * PollForActivityTask is called by application worker to process ActivityTask from a specific taskList.  ActivityTask\n  * is dispatched to callers whenever a ScheduleTask decision is made for a workflow execution.\n  * Application is expected to call 'RespondActivityTaskCompleted' or 'RespondActivityTaskFailed' once it is done\n  * processing the task.\n  * Application also needs to call 'RecordActivityTaskHeartbeat' API within 'heartbeatTimeoutSeconds' interval to\n  * prevent the task from getting timed out.  An event 'ActivityTaskStarted' event is also written to workflow execution\n  * history before the ActivityTask is dispatched to application worker.\n  **/\n  shared.PollForActivityTaskResponse PollForActivityTask(1: shared.PollForActivityTaskRequest pollRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.EntityNotExistsError entityNotExistError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RecordActivityTaskHeartbeat is called by application worker while it is processing an ActivityTask.  If worker fails\n  * to heartbeat within 'heartbeatTimeoutSeconds' interval for the ActivityTask, then it will be marked as timedout and\n  * 'ActivityTaskTimedOut' event will be written to the workflow history.  Calling 'RecordActivityTaskHeartbeat' will\n  * fail with 'EntityNotExistsError' in such situations.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for heartbeating.\n  **/\n  shared.RecordActivityTaskHeartbeatResponse RecordActivityTaskHeartbeat(1: shared.RecordActivityTaskHeartbeatRequest heartbeatRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RecordActivityTaskHeartbeatByID is called by application worker while it is processing an ActivityTask.  If worker fails\n  * to heartbeat within 'heartbeatTimeoutSeconds' interval for the ActivityTask, then it will be marked as timedout and\n  * 'ActivityTaskTimedOut' event will be written to the workflow history.  Calling 'RecordActivityTaskHeartbeatByID' will\n  * fail with 'EntityNotExistsError' in such situations.  Instead of using 'taskToken' like in RecordActivityTaskHeartbeat,\n  * use Domain, WorkflowID and ActivityID\n  **/\n  shared.RecordActivityTaskHeartbeatResponse RecordActivityTaskHeartbeatByID(1: shared.RecordActivityTaskHeartbeatByIDRequest heartbeatRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCompleted is called by application worker when it is done processing an ActivityTask.  It will\n  * result in a new 'ActivityTaskCompleted' event being written to the workflow history and a new DecisionTask\n  * created for the workflow so new decisions could be made.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for completion. It fails with 'EntityNotExistsError' if the taskToken is not valid\n  * anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskCompleted(1: shared.RespondActivityTaskCompletedRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCompletedByID is called by application worker when it is done processing an ActivityTask.\n  * It will result in a new 'ActivityTaskCompleted' event being written to the workflow history and a new DecisionTask\n  * created for the workflow so new decisions could be made.  Similar to RespondActivityTaskCompleted but use Domain,\n  * WorkflowID and ActivityID instead of 'taskToken' for completion. It fails with 'EntityNotExistsError'\n  * if the these IDs are not valid anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskCompletedByID(1: shared.RespondActivityTaskCompletedByIDRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskFailed is called by application worker when it is done processing an ActivityTask.  It will\n  * result in a new 'ActivityTaskFailed' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for completion. It fails with 'EntityNotExistsError' if the taskToken is not valid\n  * anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskFailed(1: shared.RespondActivityTaskFailedRequest failRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskFailedByID is called by application worker when it is done processing an ActivityTask.\n  * It will result in a new 'ActivityTaskFailed' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Similar to RespondActivityTaskFailed but use\n  * Domain, WorkflowID and ActivityID instead of 'taskToken' for completion. It fails with 'EntityNotExistsError'\n  * if the these IDs are not valid anymore due to activity timeout.\n  **/\n  void  RespondActivityTaskFailedByID(1: shared.RespondActivityTaskFailedByIDRequest failRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCanceled is called by application worker when it is successfully canceled an ActivityTask.  It will\n  * result in a new 'ActivityTaskCanceled' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Use the 'taskToken' provided as response of\n  * PollForActivityTask API call for completion. It fails with 'EntityNotExistsError' if the taskToken is not valid\n  * anymore due to activity timeout.\n  **/\n  void RespondActivityTaskCanceled(1: shared.RespondActivityTaskCanceledRequest canceledRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondActivityTaskCanceledByID is called by application worker when it is successfully canceled an ActivityTask.\n  * It will result in a new 'ActivityTaskCanceled' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made.  Similar to RespondActivityTaskCanceled but use\n  * Domain, WorkflowID and ActivityID instead of 'taskToken' for completion. It fails with 'EntityNotExistsError'\n  * if the these IDs are not valid anymore due to activity timeout.\n  **/\n  void RespondActivityTaskCanceledByID(1: shared.RespondActivityTaskCanceledByIDRequest canceledRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ServiceBusyError serviceBusyError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RequestCancelWorkflowExecution is called by application worker when it wants to request cancellation of a workflow instance.\n  * It will result in a new 'WorkflowExecutionCancelRequested' event being written to the workflow history and a new DecisionTask\n  * created for the workflow instance so new decisions could be made. It fails with 'EntityNotExistsError' if the workflow is not valid\n  * anymore due to completion or doesn't exist.\n  **/\n  void RequestCancelWorkflowExecution(1: shared.RequestCancelWorkflowExecutionRequest cancelRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.CancellationAlreadyRequestedError cancellationAlreadyRequestedError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.LimitExceededError limitExceededError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      10: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * SignalWorkflowExecution is used to send a signal event to running workflow execution.  This results in\n  * WorkflowExecutionSignaled event recorded in the history and a decision task being created for the execution.\n  **/\n  void SignalWorkflowExecution(1: shared.SignalWorkflowExecutionRequest signalRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * SignalWithStartWorkflowExecution is used to ensure sending signal to a workflow.\n  * If the workflow is running, this results in WorkflowExecutionSignaled event being recorded in the history\n  * and a decision task being created for the execution.\n  * If the workflow is not running or not found, this results in WorkflowExecutionStarted and WorkflowExecutionSignaled\n  * events being recorded in history, and a decision task being created for the execution\n  **/\n  shared.StartWorkflowExecutionResponse SignalWithStartWorkflowExecution(1: shared.SignalWithStartWorkflowExecutionRequest signalWithStartRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.WorkflowExecutionAlreadyStartedError workflowAlreadyStartedError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * SignalWithStartWorkflowExecutionAsync is used to ensure sending signal to a workflow asynchronously.  It will push a SignalWithStartWorkflowExecutionRequest to a queue\n  * and immediately return a response. The request will be processed by a separate consumer eventually.\n  **/\n  shared.SignalWithStartWorkflowExecutionAsyncResponse SignalWithStartWorkflowExecutionAsync(1: shared.SignalWithStartWorkflowExecutionAsyncRequest signalWithStartRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.WorkflowExecutionAlreadyStartedError sessionAlreadyExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.EntityNotExistsError entityNotExistError,\n      8: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n  /**\n    * ResetWorkflowExecution reset an existing workflow execution to DecisionTaskCompleted event(exclusive).\n    * And it will immediately terminating the current execution instance.\n    **/\n  shared.ResetWorkflowExecutionResponse ResetWorkflowExecution(1: shared.ResetWorkflowExecutionRequest resetRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * TerminateWorkflowExecution terminates an existing workflow execution by recording WorkflowExecutionTerminated event\n  * in the history and immediately terminating the execution instance.\n  **/\n  void TerminateWorkflowExecution(1: shared.TerminateWorkflowExecutionRequest terminateRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.DomainNotActiveError domainNotActiveError,\n      6: shared.LimitExceededError limitExceededError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListOpenWorkflowExecutions is a visibility API to list the open executions in a specific domain.\n  **/\n  shared.ListOpenWorkflowExecutionsResponse ListOpenWorkflowExecutions(1: shared.ListOpenWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListClosedWorkflowExecutions is a visibility API to list the closed executions in a specific domain.\n  **/\n  shared.ListClosedWorkflowExecutionsResponse ListClosedWorkflowExecutions(1: shared.ListClosedWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListWorkflowExecutions is a visibility API to list workflow executions in a specific domain.\n  **/\n  shared.ListWorkflowExecutionsResponse ListWorkflowExecutions(1: shared.ListWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListArchivedWorkflowExecutions is a visibility API to list archived workflow executions in a specific domain.\n  **/\n  shared.ListArchivedWorkflowExecutionsResponse ListArchivedWorkflowExecutions(1: shared.ListArchivedWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ScanWorkflowExecutions is a visibility API to list large amount of workflow executions in a specific domain without order.\n  **/\n  shared.ListWorkflowExecutionsResponse ScanWorkflowExecutions(1: shared.ListWorkflowExecutionsRequest listRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * CountWorkflowExecutions is a visibility API to count of workflow executions in a specific domain.\n  **/\n  shared.CountWorkflowExecutionsResponse CountWorkflowExecutions(1: shared.CountWorkflowExecutionsRequest countRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * GetSearchAttributes is a visibility API to get all legal keys that could be used in list APIs\n  **/\n  shared.GetSearchAttributesResponse GetSearchAttributes()\n    throws (\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RespondQueryTaskCompleted is called by application worker to complete a QueryTask (which is a DecisionTask for query)\n  * as a result of 'PollForDecisionTask' API call. Completing a QueryTask will unblock the client call to 'QueryWorkflow'\n  * API and return the query result to client as a response to 'QueryWorkflow' API call.\n  **/\n  void RespondQueryTaskCompleted(1: shared.RespondQueryTaskCompletedRequest completeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * Reset the sticky tasklist related information in mutable state of a given workflow.\n  * Things cleared are:\n  * 1. StickyTaskList\n  * 2. StickyScheduleToStartTimeout\n  * 3. ClientLibraryVersion\n  * 4. ClientFeatureVersion\n  * 5. ClientImpl\n  **/\n  shared.ResetStickyTaskListResponse ResetStickyTaskList(1: shared.ResetStickyTaskListRequest resetRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.DomainNotActiveError domainNotActiveError,\n      7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      8: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      9: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * QueryWorkflow returns query result for a specified workflow execution\n  **/\n  shared.QueryWorkflowResponse QueryWorkflow(1: shared.QueryWorkflowRequest queryRequest)\n\tthrows (\n\t  1: shared.BadRequestError badRequestError,\n\t  3: shared.EntityNotExistsError entityNotExistError,\n\t  4: shared.QueryFailedError queryFailedError,\n\t  5: shared.LimitExceededError limitExceededError,\n\t  6: shared.ServiceBusyError serviceBusyError,\n\t  7: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n    8: shared.AccessDeniedError accessDeniedError,\n\t)\n\n  /**\n  * DescribeWorkflowExecution returns information about the specified workflow execution.\n  **/\n  shared.DescribeWorkflowExecutionResponse DescribeWorkflowExecution(1: shared.DescribeWorkflowExecutionRequest describeRequest)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DescribeTaskList returns information about the target tasklist, right now this API returns the\n  * pollers which polled this tasklist in last few minutes.\n  **/\n  shared.DescribeTaskListResponse DescribeTaskList(1: shared.DescribeTaskListRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * GetClusterInfo returns information about cadence cluster\n  **/\n  shared.ClusterInfo GetClusterInfo()\n    throws (\n      1: shared.InternalServiceError internalServiceError,\n      2: shared.ServiceBusyError serviceBusyError,\n      3: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * GetTaskListsByDomain returns the list of all the task lists for a domainName.\n  **/\n  shared.GetTaskListsByDomainResponse GetTaskListsByDomain(1: shared.GetTaskListsByDomainRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.LimitExceededError limitExceededError,\n      4: shared.ServiceBusyError serviceBusyError,\n      5: shared.ClientVersionNotSupportedError clientVersionNotSupportedError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n   /**\n   * ReapplyEvents applies stale events to the current workflow and current run\n   **/\n  shared.ListTaskListPartitionsResponse ListTaskListPartitions(1: shared.ListTaskListPartitionsRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      3: shared.EntityNotExistsError entityNotExistError,\n      4: shared.LimitExceededError limitExceededError,\n      5: shared.ServiceBusyError serviceBusyError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * RefreshWorkflowTasks refreshes all tasks of a workflow\n  **/\n  void RefreshWorkflowTasks(1: shared.RefreshWorkflowTasksRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.DomainNotActiveError domainNotActiveError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.EntityNotExistsError entityNotExistError,\n      5: shared.AccessDeniedError accessDeniedError,\n    )\n\n  // ── Schedule API ────────────────────────────────────────────────────────────\n\n  /**\n  * CreateSchedule creates a new schedule that triggers workflow executions on a cron spec.\n  **/\n  shared.CreateScheduleResponse CreateSchedule(1: shared.CreateScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DescribeSchedule returns the current configuration and runtime state of a schedule.\n  **/\n  shared.DescribeScheduleResponse DescribeSchedule(1: shared.DescribeScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.QueryFailedError queryFailedError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * UpdateSchedule replaces the spec, action, and/or policies of an existing schedule.\n  **/\n  shared.UpdateScheduleResponse UpdateSchedule(1: shared.UpdateScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * DeleteSchedule deletes a schedule. In-flight workflow runs are not affected.\n  **/\n  shared.DeleteScheduleResponse DeleteSchedule(1: shared.DeleteScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * PauseSchedule pauses a running schedule. The reason is recorded in the schedule's pause info.\n  **/\n  shared.PauseScheduleResponse PauseSchedule(1: shared.PauseScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * UnpauseSchedule resumes a paused schedule. The reason is recorded in the schedule's pause info.\n  **/\n  shared.UnpauseScheduleResponse UnpauseSchedule(1: shared.UnpauseScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * BackfillSchedule triggers workflow runs for a historical time range as if the schedule\n  * had been active during that period.\n  **/\n  shared.BackfillScheduleResponse BackfillSchedule(1: shared.BackfillScheduleRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.DomainNotActiveError domainNotActiveError,\n      5: shared.LimitExceededError limitExceededError,\n      6: shared.WorkflowExecutionAlreadyCompletedError workflowExecutionAlreadyCompletedError,\n      7: shared.AccessDeniedError accessDeniedError,\n    )\n\n  /**\n  * ListSchedules returns all schedules in the given domain with optional pagination.\n  **/\n  shared.ListSchedulesResponse ListSchedules(1: shared.ListSchedulesRequest request)\n    throws (\n      1: shared.BadRequestError badRequestError,\n      2: shared.EntityNotExistsError entityNotExistError,\n      3: shared.ServiceBusyError serviceBusyError,\n      4: shared.AccessDeniedError accessDeniedError,\n    )\n}\n"
+
+// WorkflowService_BackfillSchedule_Args represents the arguments for the WorkflowService.BackfillSchedule function.
+//
+// The arguments for BackfillSchedule are sent and received over the wire as this struct.
+type WorkflowService_BackfillSchedule_Args struct {
+	Request *shared.BackfillScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_BackfillSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_BackfillSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _BackfillScheduleRequest_Read(w wire.Value) (*shared.BackfillScheduleRequest, error) {
+	var v shared.BackfillScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_BackfillSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_BackfillSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_BackfillSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_BackfillSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _BackfillScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_BackfillSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_BackfillSchedule_Args struct could not be encoded.
+func (v *WorkflowService_BackfillSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _BackfillScheduleRequest_Decode(sr stream.Reader) (*shared.BackfillScheduleRequest, error) {
+	var v shared.BackfillScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_BackfillSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_BackfillSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_BackfillSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _BackfillScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_BackfillSchedule_Args
+// struct.
+func (v *WorkflowService_BackfillSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_BackfillSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_BackfillSchedule_Args match the
+// provided WorkflowService_BackfillSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_BackfillSchedule_Args) Equals(rhs *WorkflowService_BackfillSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_BackfillSchedule_Args.
+func (v *WorkflowService_BackfillSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Args) GetRequest() (o *shared.BackfillScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_BackfillSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "BackfillSchedule" for this struct.
+func (v *WorkflowService_BackfillSchedule_Args) MethodName() string {
+	return "BackfillSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_BackfillSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_BackfillSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.BackfillSchedule
+// function.
+var WorkflowService_BackfillSchedule_Helper = struct {
+	// Args accepts the parameters of BackfillSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.BackfillScheduleRequest,
+	) *WorkflowService_BackfillSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by BackfillSchedule.
+	//
+	// An error can be thrown by BackfillSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for BackfillSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// BackfillSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by BackfillSchedule
+	//
+	//   value, err := BackfillSchedule(args)
+	//   result, err := WorkflowService_BackfillSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from BackfillSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.BackfillScheduleResponse, error) (*WorkflowService_BackfillSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for BackfillSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if BackfillSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_BackfillSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_BackfillSchedule_Result) (*shared.BackfillScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_BackfillSchedule_Helper.Args = func(
+		request *shared.BackfillScheduleRequest,
+	) *WorkflowService_BackfillSchedule_Args {
+		return &WorkflowService_BackfillSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_BackfillSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.DomainNotActiveError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_BackfillSchedule_Helper.WrapResponse = func(success *shared.BackfillScheduleResponse, err error) (*WorkflowService_BackfillSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_BackfillSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.DomainNotActiveError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.DomainNotActiveError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{DomainNotActiveError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{LimitExceededError: e}, nil
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.WorkflowExecutionAlreadyCompletedError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{WorkflowExecutionAlreadyCompletedError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_BackfillSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_BackfillSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_BackfillSchedule_Helper.UnwrapResponse = func(result *WorkflowService_BackfillSchedule_Result) (success *shared.BackfillScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.DomainNotActiveError != nil {
+			err = result.DomainNotActiveError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.WorkflowExecutionAlreadyCompletedError != nil {
+			err = result.WorkflowExecutionAlreadyCompletedError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_BackfillSchedule_Result represents the result of a WorkflowService.BackfillSchedule function call.
+//
+// The result of a BackfillSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_BackfillSchedule_Result struct {
+	// Value returned by BackfillSchedule after a successful execution.
+	Success                                *shared.BackfillScheduleResponse               `json:"success,omitempty"`
+	BadRequestError                        *shared.BadRequestError                        `json:"badRequestError,omitempty"`
+	EntityNotExistError                    *shared.EntityNotExistsError                   `json:"entityNotExistError,omitempty"`
+	ServiceBusyError                       *shared.ServiceBusyError                       `json:"serviceBusyError,omitempty"`
+	DomainNotActiveError                   *shared.DomainNotActiveError                   `json:"domainNotActiveError,omitempty"`
+	LimitExceededError                     *shared.LimitExceededError                     `json:"limitExceededError,omitempty"`
+	WorkflowExecutionAlreadyCompletedError *shared.WorkflowExecutionAlreadyCompletedError `json:"workflowExecutionAlreadyCompletedError,omitempty"`
+	AccessDeniedError                      *shared.AccessDeniedError                      `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_BackfillSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_BackfillSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [8]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		w, err = v.DomainNotActiveError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		w, err = v.WorkflowExecutionAlreadyCompletedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 7, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_BackfillSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _BackfillScheduleResponse_Read(w wire.Value) (*shared.BackfillScheduleResponse, error) {
+	var v shared.BackfillScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _BadRequestError_Read(w wire.Value) (*shared.BadRequestError, error) {
+	var v shared.BadRequestError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _EntityNotExistsError_Read(w wire.Value) (*shared.EntityNotExistsError, error) {
+	var v shared.EntityNotExistsError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _ServiceBusyError_Read(w wire.Value) (*shared.ServiceBusyError, error) {
+	var v shared.ServiceBusyError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _DomainNotActiveError_Read(w wire.Value) (*shared.DomainNotActiveError, error) {
+	var v shared.DomainNotActiveError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _LimitExceededError_Read(w wire.Value) (*shared.LimitExceededError, error) {
+	var v shared.LimitExceededError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _WorkflowExecutionAlreadyCompletedError_Read(w wire.Value) (*shared.WorkflowExecutionAlreadyCompletedError, error) {
+	var v shared.WorkflowExecutionAlreadyCompletedError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _AccessDeniedError_Read(w wire.Value) (*shared.AccessDeniedError, error) {
+	var v shared.AccessDeniedError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_BackfillSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_BackfillSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_BackfillSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_BackfillSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _BackfillScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainNotActiveError, err = _DomainNotActiveError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 7:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_BackfillSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_BackfillSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_BackfillSchedule_Result struct could not be encoded.
+func (v *WorkflowService_BackfillSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainNotActiveError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainNotActiveError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowExecutionAlreadyCompletedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 7, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_BackfillSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _BackfillScheduleResponse_Decode(sr stream.Reader) (*shared.BackfillScheduleResponse, error) {
+	var v shared.BackfillScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _BadRequestError_Decode(sr stream.Reader) (*shared.BadRequestError, error) {
+	var v shared.BadRequestError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _EntityNotExistsError_Decode(sr stream.Reader) (*shared.EntityNotExistsError, error) {
+	var v shared.EntityNotExistsError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _ServiceBusyError_Decode(sr stream.Reader) (*shared.ServiceBusyError, error) {
+	var v shared.ServiceBusyError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _DomainNotActiveError_Decode(sr stream.Reader) (*shared.DomainNotActiveError, error) {
+	var v shared.DomainNotActiveError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _LimitExceededError_Decode(sr stream.Reader) (*shared.LimitExceededError, error) {
+	var v shared.LimitExceededError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _WorkflowExecutionAlreadyCompletedError_Decode(sr stream.Reader) (*shared.WorkflowExecutionAlreadyCompletedError, error) {
+	var v shared.WorkflowExecutionAlreadyCompletedError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _AccessDeniedError_Decode(sr stream.Reader) (*shared.AccessDeniedError, error) {
+	var v shared.AccessDeniedError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_BackfillSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_BackfillSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_BackfillSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _BackfillScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.DomainNotActiveError, err = _DomainNotActiveError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 7 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_BackfillSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_BackfillSchedule_Result
+// struct.
+func (v *WorkflowService_BackfillSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [8]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		fields[i] = fmt.Sprintf("DomainNotActiveError: %v", v.DomainNotActiveError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		fields[i] = fmt.Sprintf("WorkflowExecutionAlreadyCompletedError: %v", v.WorkflowExecutionAlreadyCompletedError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_BackfillSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_BackfillSchedule_Result match the
+// provided WorkflowService_BackfillSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_BackfillSchedule_Result) Equals(rhs *WorkflowService_BackfillSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.DomainNotActiveError == nil && rhs.DomainNotActiveError == nil) || (v.DomainNotActiveError != nil && rhs.DomainNotActiveError != nil && v.DomainNotActiveError.Equals(rhs.DomainNotActiveError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.WorkflowExecutionAlreadyCompletedError == nil && rhs.WorkflowExecutionAlreadyCompletedError == nil) || (v.WorkflowExecutionAlreadyCompletedError != nil && rhs.WorkflowExecutionAlreadyCompletedError != nil && v.WorkflowExecutionAlreadyCompletedError.Equals(rhs.WorkflowExecutionAlreadyCompletedError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_BackfillSchedule_Result.
+func (v *WorkflowService_BackfillSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.DomainNotActiveError != nil {
+		err = multierr.Append(err, enc.AddObject("domainNotActiveError", v.DomainNotActiveError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		err = multierr.Append(err, enc.AddObject("workflowExecutionAlreadyCompletedError", v.WorkflowExecutionAlreadyCompletedError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetSuccess() (o *shared.BackfillScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetDomainNotActiveError returns the value of DomainNotActiveError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetDomainNotActiveError() (o *shared.DomainNotActiveError) {
+	if v != nil && v.DomainNotActiveError != nil {
+		return v.DomainNotActiveError
+	}
+
+	return
+}
+
+// IsSetDomainNotActiveError returns true if DomainNotActiveError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetDomainNotActiveError() bool {
+	return v != nil && v.DomainNotActiveError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetWorkflowExecutionAlreadyCompletedError returns the value of WorkflowExecutionAlreadyCompletedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetWorkflowExecutionAlreadyCompletedError() (o *shared.WorkflowExecutionAlreadyCompletedError) {
+	if v != nil && v.WorkflowExecutionAlreadyCompletedError != nil {
+		return v.WorkflowExecutionAlreadyCompletedError
+	}
+
+	return
+}
+
+// IsSetWorkflowExecutionAlreadyCompletedError returns true if WorkflowExecutionAlreadyCompletedError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetWorkflowExecutionAlreadyCompletedError() bool {
+	return v != nil && v.WorkflowExecutionAlreadyCompletedError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_BackfillSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_BackfillSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "BackfillSchedule" for this struct.
+func (v *WorkflowService_BackfillSchedule_Result) MethodName() string {
+	return "BackfillSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_BackfillSchedule_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
 
 // WorkflowService_CountWorkflowExecutions_Args represents the arguments for the WorkflowService.CountWorkflowExecutions function.
 //
@@ -506,32 +1738,8 @@ func _CountWorkflowExecutionsResponse_Read(w wire.Value) (*shared.CountWorkflowE
 	return &v, err
 }
 
-func _BadRequestError_Read(w wire.Value) (*shared.BadRequestError, error) {
-	var v shared.BadRequestError
-	err := v.FromWire(w)
-	return &v, err
-}
-
-func _EntityNotExistsError_Read(w wire.Value) (*shared.EntityNotExistsError, error) {
-	var v shared.EntityNotExistsError
-	err := v.FromWire(w)
-	return &v, err
-}
-
-func _ServiceBusyError_Read(w wire.Value) (*shared.ServiceBusyError, error) {
-	var v shared.ServiceBusyError
-	err := v.FromWire(w)
-	return &v, err
-}
-
 func _ClientVersionNotSupportedError_Read(w wire.Value) (*shared.ClientVersionNotSupportedError, error) {
 	var v shared.ClientVersionNotSupportedError
-	err := v.FromWire(w)
-	return &v, err
-}
-
-func _AccessDeniedError_Read(w wire.Value) (*shared.AccessDeniedError, error) {
-	var v shared.AccessDeniedError
 	err := v.FromWire(w)
 	return &v, err
 }
@@ -749,32 +1957,8 @@ func _CountWorkflowExecutionsResponse_Decode(sr stream.Reader) (*shared.CountWor
 	return &v, err
 }
 
-func _BadRequestError_Decode(sr stream.Reader) (*shared.BadRequestError, error) {
-	var v shared.BadRequestError
-	err := v.Decode(sr)
-	return &v, err
-}
-
-func _EntityNotExistsError_Decode(sr stream.Reader) (*shared.EntityNotExistsError, error) {
-	var v shared.EntityNotExistsError
-	err := v.Decode(sr)
-	return &v, err
-}
-
-func _ServiceBusyError_Decode(sr stream.Reader) (*shared.ServiceBusyError, error) {
-	var v shared.ServiceBusyError
-	err := v.Decode(sr)
-	return &v, err
-}
-
 func _ClientVersionNotSupportedError_Decode(sr stream.Reader) (*shared.ClientVersionNotSupportedError, error) {
 	var v shared.ClientVersionNotSupportedError
-	err := v.Decode(sr)
-	return &v, err
-}
-
-func _AccessDeniedError_Decode(sr stream.Reader) (*shared.AccessDeniedError, error) {
-	var v shared.AccessDeniedError
 	err := v.Decode(sr)
 	return &v, err
 }
@@ -1076,6 +2260,1074 @@ func (v *WorkflowService_CountWorkflowExecutions_Result) MethodName() string {
 //
 // This will always be Reply for this struct.
 func (v *WorkflowService_CountWorkflowExecutions_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
+// WorkflowService_CreateSchedule_Args represents the arguments for the WorkflowService.CreateSchedule function.
+//
+// The arguments for CreateSchedule are sent and received over the wire as this struct.
+type WorkflowService_CreateSchedule_Args struct {
+	Request *shared.CreateScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_CreateSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_CreateSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _CreateScheduleRequest_Read(w wire.Value) (*shared.CreateScheduleRequest, error) {
+	var v shared.CreateScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_CreateSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_CreateSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_CreateSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_CreateSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _CreateScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_CreateSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_CreateSchedule_Args struct could not be encoded.
+func (v *WorkflowService_CreateSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _CreateScheduleRequest_Decode(sr stream.Reader) (*shared.CreateScheduleRequest, error) {
+	var v shared.CreateScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_CreateSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_CreateSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_CreateSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _CreateScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_CreateSchedule_Args
+// struct.
+func (v *WorkflowService_CreateSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_CreateSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_CreateSchedule_Args match the
+// provided WorkflowService_CreateSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_CreateSchedule_Args) Equals(rhs *WorkflowService_CreateSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_CreateSchedule_Args.
+func (v *WorkflowService_CreateSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Args) GetRequest() (o *shared.CreateScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_CreateSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "CreateSchedule" for this struct.
+func (v *WorkflowService_CreateSchedule_Args) MethodName() string {
+	return "CreateSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_CreateSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_CreateSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.CreateSchedule
+// function.
+var WorkflowService_CreateSchedule_Helper = struct {
+	// Args accepts the parameters of CreateSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.CreateScheduleRequest,
+	) *WorkflowService_CreateSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by CreateSchedule.
+	//
+	// An error can be thrown by CreateSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for CreateSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// CreateSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by CreateSchedule
+	//
+	//   value, err := CreateSchedule(args)
+	//   result, err := WorkflowService_CreateSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from CreateSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.CreateScheduleResponse, error) (*WorkflowService_CreateSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for CreateSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if CreateSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_CreateSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_CreateSchedule_Result) (*shared.CreateScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_CreateSchedule_Helper.Args = func(
+		request *shared.CreateScheduleRequest,
+	) *WorkflowService_CreateSchedule_Args {
+		return &WorkflowService_CreateSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_CreateSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.DomainNotActiveError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_CreateSchedule_Helper.WrapResponse = func(success *shared.CreateScheduleResponse, err error) (*WorkflowService_CreateSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_CreateSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_CreateSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_CreateSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_CreateSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_CreateSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_CreateSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_CreateSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.DomainNotActiveError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_CreateSchedule_Result.DomainNotActiveError")
+			}
+			return &WorkflowService_CreateSchedule_Result{DomainNotActiveError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_CreateSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_CreateSchedule_Result{LimitExceededError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_CreateSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_CreateSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_CreateSchedule_Helper.UnwrapResponse = func(result *WorkflowService_CreateSchedule_Result) (success *shared.CreateScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.DomainNotActiveError != nil {
+			err = result.DomainNotActiveError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_CreateSchedule_Result represents the result of a WorkflowService.CreateSchedule function call.
+//
+// The result of a CreateSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_CreateSchedule_Result struct {
+	// Value returned by CreateSchedule after a successful execution.
+	Success              *shared.CreateScheduleResponse `json:"success,omitempty"`
+	BadRequestError      *shared.BadRequestError        `json:"badRequestError,omitempty"`
+	EntityNotExistError  *shared.EntityNotExistsError   `json:"entityNotExistError,omitempty"`
+	ServiceBusyError     *shared.ServiceBusyError       `json:"serviceBusyError,omitempty"`
+	DomainNotActiveError *shared.DomainNotActiveError   `json:"domainNotActiveError,omitempty"`
+	LimitExceededError   *shared.LimitExceededError     `json:"limitExceededError,omitempty"`
+	AccessDeniedError    *shared.AccessDeniedError      `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_CreateSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_CreateSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [7]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		w, err = v.DomainNotActiveError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_CreateSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _CreateScheduleResponse_Read(w wire.Value) (*shared.CreateScheduleResponse, error) {
+	var v shared.CreateScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_CreateSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_CreateSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_CreateSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_CreateSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _CreateScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainNotActiveError, err = _DomainNotActiveError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_CreateSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_CreateSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_CreateSchedule_Result struct could not be encoded.
+func (v *WorkflowService_CreateSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainNotActiveError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainNotActiveError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_CreateSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _CreateScheduleResponse_Decode(sr stream.Reader) (*shared.CreateScheduleResponse, error) {
+	var v shared.CreateScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_CreateSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_CreateSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_CreateSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _CreateScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.DomainNotActiveError, err = _DomainNotActiveError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_CreateSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_CreateSchedule_Result
+// struct.
+func (v *WorkflowService_CreateSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [7]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		fields[i] = fmt.Sprintf("DomainNotActiveError: %v", v.DomainNotActiveError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_CreateSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_CreateSchedule_Result match the
+// provided WorkflowService_CreateSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_CreateSchedule_Result) Equals(rhs *WorkflowService_CreateSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.DomainNotActiveError == nil && rhs.DomainNotActiveError == nil) || (v.DomainNotActiveError != nil && rhs.DomainNotActiveError != nil && v.DomainNotActiveError.Equals(rhs.DomainNotActiveError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_CreateSchedule_Result.
+func (v *WorkflowService_CreateSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.DomainNotActiveError != nil {
+		err = multierr.Append(err, enc.AddObject("domainNotActiveError", v.DomainNotActiveError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetSuccess() (o *shared.CreateScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetDomainNotActiveError returns the value of DomainNotActiveError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetDomainNotActiveError() (o *shared.DomainNotActiveError) {
+	if v != nil && v.DomainNotActiveError != nil {
+		return v.DomainNotActiveError
+	}
+
+	return
+}
+
+// IsSetDomainNotActiveError returns true if DomainNotActiveError is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetDomainNotActiveError() bool {
+	return v != nil && v.DomainNotActiveError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_CreateSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_CreateSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "CreateSchedule" for this struct.
+func (v *WorkflowService_CreateSchedule_Result) MethodName() string {
+	return "CreateSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_CreateSchedule_Result) EnvelopeType() wire.EnvelopeType {
 	return wire.Reply
 }
 
@@ -1897,6 +4149,1154 @@ func (v *WorkflowService_DeleteDomain_Result) EnvelopeType() wire.EnvelopeType {
 	return wire.Reply
 }
 
+// WorkflowService_DeleteSchedule_Args represents the arguments for the WorkflowService.DeleteSchedule function.
+//
+// The arguments for DeleteSchedule are sent and received over the wire as this struct.
+type WorkflowService_DeleteSchedule_Args struct {
+	Request *shared.DeleteScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_DeleteSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_DeleteSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _DeleteScheduleRequest_Read(w wire.Value) (*shared.DeleteScheduleRequest, error) {
+	var v shared.DeleteScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_DeleteSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_DeleteSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_DeleteSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_DeleteSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _DeleteScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_DeleteSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_DeleteSchedule_Args struct could not be encoded.
+func (v *WorkflowService_DeleteSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _DeleteScheduleRequest_Decode(sr stream.Reader) (*shared.DeleteScheduleRequest, error) {
+	var v shared.DeleteScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_DeleteSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_DeleteSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_DeleteSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _DeleteScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_DeleteSchedule_Args
+// struct.
+func (v *WorkflowService_DeleteSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_DeleteSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_DeleteSchedule_Args match the
+// provided WorkflowService_DeleteSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_DeleteSchedule_Args) Equals(rhs *WorkflowService_DeleteSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_DeleteSchedule_Args.
+func (v *WorkflowService_DeleteSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Args) GetRequest() (o *shared.DeleteScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_DeleteSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "DeleteSchedule" for this struct.
+func (v *WorkflowService_DeleteSchedule_Args) MethodName() string {
+	return "DeleteSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_DeleteSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_DeleteSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.DeleteSchedule
+// function.
+var WorkflowService_DeleteSchedule_Helper = struct {
+	// Args accepts the parameters of DeleteSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.DeleteScheduleRequest,
+	) *WorkflowService_DeleteSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by DeleteSchedule.
+	//
+	// An error can be thrown by DeleteSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for DeleteSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// DeleteSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by DeleteSchedule
+	//
+	//   value, err := DeleteSchedule(args)
+	//   result, err := WorkflowService_DeleteSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from DeleteSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.DeleteScheduleResponse, error) (*WorkflowService_DeleteSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for DeleteSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if DeleteSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_DeleteSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_DeleteSchedule_Result) (*shared.DeleteScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_DeleteSchedule_Helper.Args = func(
+		request *shared.DeleteScheduleRequest,
+	) *WorkflowService_DeleteSchedule_Args {
+		return &WorkflowService_DeleteSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_DeleteSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.DomainNotActiveError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_DeleteSchedule_Helper.WrapResponse = func(success *shared.DeleteScheduleResponse, err error) (*WorkflowService_DeleteSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_DeleteSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.DomainNotActiveError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.DomainNotActiveError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{DomainNotActiveError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{LimitExceededError: e}, nil
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.WorkflowExecutionAlreadyCompletedError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{WorkflowExecutionAlreadyCompletedError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DeleteSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_DeleteSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_DeleteSchedule_Helper.UnwrapResponse = func(result *WorkflowService_DeleteSchedule_Result) (success *shared.DeleteScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.DomainNotActiveError != nil {
+			err = result.DomainNotActiveError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.WorkflowExecutionAlreadyCompletedError != nil {
+			err = result.WorkflowExecutionAlreadyCompletedError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_DeleteSchedule_Result represents the result of a WorkflowService.DeleteSchedule function call.
+//
+// The result of a DeleteSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_DeleteSchedule_Result struct {
+	// Value returned by DeleteSchedule after a successful execution.
+	Success                                *shared.DeleteScheduleResponse                 `json:"success,omitempty"`
+	BadRequestError                        *shared.BadRequestError                        `json:"badRequestError,omitempty"`
+	EntityNotExistError                    *shared.EntityNotExistsError                   `json:"entityNotExistError,omitempty"`
+	ServiceBusyError                       *shared.ServiceBusyError                       `json:"serviceBusyError,omitempty"`
+	DomainNotActiveError                   *shared.DomainNotActiveError                   `json:"domainNotActiveError,omitempty"`
+	LimitExceededError                     *shared.LimitExceededError                     `json:"limitExceededError,omitempty"`
+	WorkflowExecutionAlreadyCompletedError *shared.WorkflowExecutionAlreadyCompletedError `json:"workflowExecutionAlreadyCompletedError,omitempty"`
+	AccessDeniedError                      *shared.AccessDeniedError                      `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_DeleteSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_DeleteSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [8]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		w, err = v.DomainNotActiveError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		w, err = v.WorkflowExecutionAlreadyCompletedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 7, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_DeleteSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _DeleteScheduleResponse_Read(w wire.Value) (*shared.DeleteScheduleResponse, error) {
+	var v shared.DeleteScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_DeleteSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_DeleteSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_DeleteSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_DeleteSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _DeleteScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainNotActiveError, err = _DomainNotActiveError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 7:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_DeleteSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_DeleteSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_DeleteSchedule_Result struct could not be encoded.
+func (v *WorkflowService_DeleteSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainNotActiveError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainNotActiveError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowExecutionAlreadyCompletedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 7, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_DeleteSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _DeleteScheduleResponse_Decode(sr stream.Reader) (*shared.DeleteScheduleResponse, error) {
+	var v shared.DeleteScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_DeleteSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_DeleteSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_DeleteSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _DeleteScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.DomainNotActiveError, err = _DomainNotActiveError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 7 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_DeleteSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_DeleteSchedule_Result
+// struct.
+func (v *WorkflowService_DeleteSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [8]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		fields[i] = fmt.Sprintf("DomainNotActiveError: %v", v.DomainNotActiveError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		fields[i] = fmt.Sprintf("WorkflowExecutionAlreadyCompletedError: %v", v.WorkflowExecutionAlreadyCompletedError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_DeleteSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_DeleteSchedule_Result match the
+// provided WorkflowService_DeleteSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_DeleteSchedule_Result) Equals(rhs *WorkflowService_DeleteSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.DomainNotActiveError == nil && rhs.DomainNotActiveError == nil) || (v.DomainNotActiveError != nil && rhs.DomainNotActiveError != nil && v.DomainNotActiveError.Equals(rhs.DomainNotActiveError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.WorkflowExecutionAlreadyCompletedError == nil && rhs.WorkflowExecutionAlreadyCompletedError == nil) || (v.WorkflowExecutionAlreadyCompletedError != nil && rhs.WorkflowExecutionAlreadyCompletedError != nil && v.WorkflowExecutionAlreadyCompletedError.Equals(rhs.WorkflowExecutionAlreadyCompletedError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_DeleteSchedule_Result.
+func (v *WorkflowService_DeleteSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.DomainNotActiveError != nil {
+		err = multierr.Append(err, enc.AddObject("domainNotActiveError", v.DomainNotActiveError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		err = multierr.Append(err, enc.AddObject("workflowExecutionAlreadyCompletedError", v.WorkflowExecutionAlreadyCompletedError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetSuccess() (o *shared.DeleteScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetDomainNotActiveError returns the value of DomainNotActiveError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetDomainNotActiveError() (o *shared.DomainNotActiveError) {
+	if v != nil && v.DomainNotActiveError != nil {
+		return v.DomainNotActiveError
+	}
+
+	return
+}
+
+// IsSetDomainNotActiveError returns true if DomainNotActiveError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetDomainNotActiveError() bool {
+	return v != nil && v.DomainNotActiveError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetWorkflowExecutionAlreadyCompletedError returns the value of WorkflowExecutionAlreadyCompletedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetWorkflowExecutionAlreadyCompletedError() (o *shared.WorkflowExecutionAlreadyCompletedError) {
+	if v != nil && v.WorkflowExecutionAlreadyCompletedError != nil {
+		return v.WorkflowExecutionAlreadyCompletedError
+	}
+
+	return
+}
+
+// IsSetWorkflowExecutionAlreadyCompletedError returns true if WorkflowExecutionAlreadyCompletedError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetWorkflowExecutionAlreadyCompletedError() bool {
+	return v != nil && v.WorkflowExecutionAlreadyCompletedError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DeleteSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_DeleteSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "DeleteSchedule" for this struct.
+func (v *WorkflowService_DeleteSchedule_Result) MethodName() string {
+	return "DeleteSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_DeleteSchedule_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
 // WorkflowService_DeprecateDomain_Args represents the arguments for the WorkflowService.DeprecateDomain function.
 //
 // The arguments for DeprecateDomain are sent and received over the wire as this struct.
@@ -2368,12 +5768,6 @@ func (v *WorkflowService_DeprecateDomain_Result) ToWire() (wire.Value, error) {
 	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
 }
 
-func _DomainNotActiveError_Read(w wire.Value) (*shared.DomainNotActiveError, error) {
-	var v shared.DomainNotActiveError
-	err := v.FromWire(w)
-	return &v, err
-}
-
 // FromWire deserializes a WorkflowService_DeprecateDomain_Result struct from its Thrift-level
 // representation. The Thrift-level representation may be obtained
 // from a ThriftRW protocol implementation.
@@ -2579,12 +5973,6 @@ func (v *WorkflowService_DeprecateDomain_Result) Encode(sw stream.Writer) error 
 	}
 
 	return sw.WriteStructEnd()
-}
-
-func _DomainNotActiveError_Decode(sr stream.Reader) (*shared.DomainNotActiveError, error) {
-	var v shared.DomainNotActiveError
-	err := v.Decode(sr)
-	return &v, err
 }
 
 // Decode deserializes a WorkflowService_DeprecateDomain_Result struct directly from its Thrift-level
@@ -3875,6 +7263,1086 @@ func (v *WorkflowService_DescribeDomain_Result) EnvelopeType() wire.EnvelopeType
 	return wire.Reply
 }
 
+// WorkflowService_DescribeSchedule_Args represents the arguments for the WorkflowService.DescribeSchedule function.
+//
+// The arguments for DescribeSchedule are sent and received over the wire as this struct.
+type WorkflowService_DescribeSchedule_Args struct {
+	Request *shared.DescribeScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_DescribeSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_DescribeSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _DescribeScheduleRequest_Read(w wire.Value) (*shared.DescribeScheduleRequest, error) {
+	var v shared.DescribeScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_DescribeSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_DescribeSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_DescribeSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_DescribeSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _DescribeScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_DescribeSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_DescribeSchedule_Args struct could not be encoded.
+func (v *WorkflowService_DescribeSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _DescribeScheduleRequest_Decode(sr stream.Reader) (*shared.DescribeScheduleRequest, error) {
+	var v shared.DescribeScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_DescribeSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_DescribeSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_DescribeSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _DescribeScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_DescribeSchedule_Args
+// struct.
+func (v *WorkflowService_DescribeSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_DescribeSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_DescribeSchedule_Args match the
+// provided WorkflowService_DescribeSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_DescribeSchedule_Args) Equals(rhs *WorkflowService_DescribeSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_DescribeSchedule_Args.
+func (v *WorkflowService_DescribeSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Args) GetRequest() (o *shared.DescribeScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_DescribeSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "DescribeSchedule" for this struct.
+func (v *WorkflowService_DescribeSchedule_Args) MethodName() string {
+	return "DescribeSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_DescribeSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_DescribeSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.DescribeSchedule
+// function.
+var WorkflowService_DescribeSchedule_Helper = struct {
+	// Args accepts the parameters of DescribeSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.DescribeScheduleRequest,
+	) *WorkflowService_DescribeSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by DescribeSchedule.
+	//
+	// An error can be thrown by DescribeSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for DescribeSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// DescribeSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by DescribeSchedule
+	//
+	//   value, err := DescribeSchedule(args)
+	//   result, err := WorkflowService_DescribeSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from DescribeSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.DescribeScheduleResponse, error) (*WorkflowService_DescribeSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for DescribeSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if DescribeSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_DescribeSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_DescribeSchedule_Result) (*shared.DescribeScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_DescribeSchedule_Helper.Args = func(
+		request *shared.DescribeScheduleRequest,
+	) *WorkflowService_DescribeSchedule_Args {
+		return &WorkflowService_DescribeSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_DescribeSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.QueryFailedError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_DescribeSchedule_Helper.WrapResponse = func(success *shared.DescribeScheduleResponse, err error) (*WorkflowService_DescribeSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_DescribeSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DescribeSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_DescribeSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DescribeSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_DescribeSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DescribeSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_DescribeSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.QueryFailedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DescribeSchedule_Result.QueryFailedError")
+			}
+			return &WorkflowService_DescribeSchedule_Result{QueryFailedError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DescribeSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_DescribeSchedule_Result{LimitExceededError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_DescribeSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_DescribeSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_DescribeSchedule_Helper.UnwrapResponse = func(result *WorkflowService_DescribeSchedule_Result) (success *shared.DescribeScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.QueryFailedError != nil {
+			err = result.QueryFailedError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_DescribeSchedule_Result represents the result of a WorkflowService.DescribeSchedule function call.
+//
+// The result of a DescribeSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_DescribeSchedule_Result struct {
+	// Value returned by DescribeSchedule after a successful execution.
+	Success             *shared.DescribeScheduleResponse `json:"success,omitempty"`
+	BadRequestError     *shared.BadRequestError          `json:"badRequestError,omitempty"`
+	EntityNotExistError *shared.EntityNotExistsError     `json:"entityNotExistError,omitempty"`
+	ServiceBusyError    *shared.ServiceBusyError         `json:"serviceBusyError,omitempty"`
+	QueryFailedError    *shared.QueryFailedError         `json:"queryFailedError,omitempty"`
+	LimitExceededError  *shared.LimitExceededError       `json:"limitExceededError,omitempty"`
+	AccessDeniedError   *shared.AccessDeniedError        `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_DescribeSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_DescribeSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [7]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.QueryFailedError != nil {
+		w, err = v.QueryFailedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_DescribeSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _DescribeScheduleResponse_Read(w wire.Value) (*shared.DescribeScheduleResponse, error) {
+	var v shared.DescribeScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _QueryFailedError_Read(w wire.Value) (*shared.QueryFailedError, error) {
+	var v shared.QueryFailedError
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_DescribeSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_DescribeSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_DescribeSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_DescribeSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _DescribeScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.QueryFailedError, err = _QueryFailedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.QueryFailedError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_DescribeSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_DescribeSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_DescribeSchedule_Result struct could not be encoded.
+func (v *WorkflowService_DescribeSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.QueryFailedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.QueryFailedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.QueryFailedError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_DescribeSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _DescribeScheduleResponse_Decode(sr stream.Reader) (*shared.DescribeScheduleResponse, error) {
+	var v shared.DescribeScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _QueryFailedError_Decode(sr stream.Reader) (*shared.QueryFailedError, error) {
+	var v shared.QueryFailedError
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_DescribeSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_DescribeSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_DescribeSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _DescribeScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.QueryFailedError, err = _QueryFailedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.QueryFailedError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_DescribeSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_DescribeSchedule_Result
+// struct.
+func (v *WorkflowService_DescribeSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [7]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.QueryFailedError != nil {
+		fields[i] = fmt.Sprintf("QueryFailedError: %v", v.QueryFailedError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_DescribeSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_DescribeSchedule_Result match the
+// provided WorkflowService_DescribeSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_DescribeSchedule_Result) Equals(rhs *WorkflowService_DescribeSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.QueryFailedError == nil && rhs.QueryFailedError == nil) || (v.QueryFailedError != nil && rhs.QueryFailedError != nil && v.QueryFailedError.Equals(rhs.QueryFailedError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_DescribeSchedule_Result.
+func (v *WorkflowService_DescribeSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.QueryFailedError != nil {
+		err = multierr.Append(err, enc.AddObject("queryFailedError", v.QueryFailedError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetSuccess() (o *shared.DescribeScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetQueryFailedError returns the value of QueryFailedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetQueryFailedError() (o *shared.QueryFailedError) {
+	if v != nil && v.QueryFailedError != nil {
+		return v.QueryFailedError
+	}
+
+	return
+}
+
+// IsSetQueryFailedError returns true if QueryFailedError is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetQueryFailedError() bool {
+	return v != nil && v.QueryFailedError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_DescribeSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_DescribeSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "DescribeSchedule" for this struct.
+func (v *WorkflowService_DescribeSchedule_Result) MethodName() string {
+	return "DescribeSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_DescribeSchedule_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
 // WorkflowService_DescribeTaskList_Args represents the arguments for the WorkflowService.DescribeTaskList function.
 //
 // The arguments for DescribeTaskList are sent and received over the wire as this struct.
@@ -4370,12 +8838,6 @@ func _DescribeTaskListResponse_Read(w wire.Value) (*shared.DescribeTaskListRespo
 	return &v, err
 }
 
-func _LimitExceededError_Read(w wire.Value) (*shared.LimitExceededError, error) {
-	var v shared.LimitExceededError
-	err := v.FromWire(w)
-	return &v, err
-}
-
 // FromWire deserializes a WorkflowService_DescribeTaskList_Result struct from its Thrift-level
 // representation. The Thrift-level representation may be obtained
 // from a ThriftRW protocol implementation.
@@ -4611,12 +9073,6 @@ func (v *WorkflowService_DescribeTaskList_Result) Encode(sw stream.Writer) error
 
 func _DescribeTaskListResponse_Decode(sr stream.Reader) (*shared.DescribeTaskListResponse, error) {
 	var v shared.DescribeTaskListResponse
-	err := v.Decode(sr)
-	return &v, err
-}
-
-func _LimitExceededError_Decode(sr stream.Reader) (*shared.LimitExceededError, error) {
-	var v shared.LimitExceededError
 	err := v.Decode(sr)
 	return &v, err
 }
@@ -16579,6 +21035,914 @@ func (v *WorkflowService_ListOpenWorkflowExecutions_Result) EnvelopeType() wire.
 	return wire.Reply
 }
 
+// WorkflowService_ListSchedules_Args represents the arguments for the WorkflowService.ListSchedules function.
+//
+// The arguments for ListSchedules are sent and received over the wire as this struct.
+type WorkflowService_ListSchedules_Args struct {
+	Request *shared.ListSchedulesRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_ListSchedules_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_ListSchedules_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ListSchedulesRequest_Read(w wire.Value) (*shared.ListSchedulesRequest, error) {
+	var v shared.ListSchedulesRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_ListSchedules_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_ListSchedules_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_ListSchedules_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_ListSchedules_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _ListSchedulesRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_ListSchedules_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_ListSchedules_Args struct could not be encoded.
+func (v *WorkflowService_ListSchedules_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ListSchedulesRequest_Decode(sr stream.Reader) (*shared.ListSchedulesRequest, error) {
+	var v shared.ListSchedulesRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_ListSchedules_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_ListSchedules_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_ListSchedules_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _ListSchedulesRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_ListSchedules_Args
+// struct.
+func (v *WorkflowService_ListSchedules_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_ListSchedules_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_ListSchedules_Args match the
+// provided WorkflowService_ListSchedules_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_ListSchedules_Args) Equals(rhs *WorkflowService_ListSchedules_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_ListSchedules_Args.
+func (v *WorkflowService_ListSchedules_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_ListSchedules_Args) GetRequest() (o *shared.ListSchedulesRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_ListSchedules_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "ListSchedules" for this struct.
+func (v *WorkflowService_ListSchedules_Args) MethodName() string {
+	return "ListSchedules"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_ListSchedules_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_ListSchedules_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.ListSchedules
+// function.
+var WorkflowService_ListSchedules_Helper = struct {
+	// Args accepts the parameters of ListSchedules in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.ListSchedulesRequest,
+	) *WorkflowService_ListSchedules_Args
+
+	// IsException returns true if the given error can be thrown
+	// by ListSchedules.
+	//
+	// An error can be thrown by ListSchedules only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for ListSchedules
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// ListSchedules into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by ListSchedules
+	//
+	//   value, err := ListSchedules(args)
+	//   result, err := WorkflowService_ListSchedules_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from ListSchedules: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.ListSchedulesResponse, error) (*WorkflowService_ListSchedules_Result, error)
+
+	// UnwrapResponse takes the result struct for ListSchedules
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if ListSchedules threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_ListSchedules_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_ListSchedules_Result) (*shared.ListSchedulesResponse, error)
+}{}
+
+func init() {
+	WorkflowService_ListSchedules_Helper.Args = func(
+		request *shared.ListSchedulesRequest,
+	) *WorkflowService_ListSchedules_Args {
+		return &WorkflowService_ListSchedules_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_ListSchedules_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_ListSchedules_Helper.WrapResponse = func(success *shared.ListSchedulesResponse, err error) (*WorkflowService_ListSchedules_Result, error) {
+		if err == nil {
+			return &WorkflowService_ListSchedules_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_ListSchedules_Result.BadRequestError")
+			}
+			return &WorkflowService_ListSchedules_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_ListSchedules_Result.EntityNotExistError")
+			}
+			return &WorkflowService_ListSchedules_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_ListSchedules_Result.ServiceBusyError")
+			}
+			return &WorkflowService_ListSchedules_Result{ServiceBusyError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_ListSchedules_Result.AccessDeniedError")
+			}
+			return &WorkflowService_ListSchedules_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_ListSchedules_Helper.UnwrapResponse = func(result *WorkflowService_ListSchedules_Result) (success *shared.ListSchedulesResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_ListSchedules_Result represents the result of a WorkflowService.ListSchedules function call.
+//
+// The result of a ListSchedules execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_ListSchedules_Result struct {
+	// Value returned by ListSchedules after a successful execution.
+	Success             *shared.ListSchedulesResponse `json:"success,omitempty"`
+	BadRequestError     *shared.BadRequestError       `json:"badRequestError,omitempty"`
+	EntityNotExistError *shared.EntityNotExistsError  `json:"entityNotExistError,omitempty"`
+	ServiceBusyError    *shared.ServiceBusyError      `json:"serviceBusyError,omitempty"`
+	AccessDeniedError   *shared.AccessDeniedError     `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_ListSchedules_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_ListSchedules_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [5]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_ListSchedules_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _ListSchedulesResponse_Read(w wire.Value) (*shared.ListSchedulesResponse, error) {
+	var v shared.ListSchedulesResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_ListSchedules_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_ListSchedules_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_ListSchedules_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_ListSchedules_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _ListSchedulesResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_ListSchedules_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_ListSchedules_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_ListSchedules_Result struct could not be encoded.
+func (v *WorkflowService_ListSchedules_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_ListSchedules_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _ListSchedulesResponse_Decode(sr stream.Reader) (*shared.ListSchedulesResponse, error) {
+	var v shared.ListSchedulesResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_ListSchedules_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_ListSchedules_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_ListSchedules_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _ListSchedulesResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_ListSchedules_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_ListSchedules_Result
+// struct.
+func (v *WorkflowService_ListSchedules_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [5]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_ListSchedules_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_ListSchedules_Result match the
+// provided WorkflowService_ListSchedules_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_ListSchedules_Result) Equals(rhs *WorkflowService_ListSchedules_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_ListSchedules_Result.
+func (v *WorkflowService_ListSchedules_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_ListSchedules_Result) GetSuccess() (o *shared.ListSchedulesResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_ListSchedules_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_ListSchedules_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_ListSchedules_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_ListSchedules_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_ListSchedules_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_ListSchedules_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_ListSchedules_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_ListSchedules_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_ListSchedules_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "ListSchedules" for this struct.
+func (v *WorkflowService_ListSchedules_Result) MethodName() string {
+	return "ListSchedules"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_ListSchedules_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
 // WorkflowService_ListTaskListPartitions_Args represents the arguments for the WorkflowService.ListTaskListPartitions function.
 //
 // The arguments for ListTaskListPartitions are sent and received over the wire as this struct.
@@ -18552,6 +23916,1154 @@ func (v *WorkflowService_ListWorkflowExecutions_Result) MethodName() string {
 //
 // This will always be Reply for this struct.
 func (v *WorkflowService_ListWorkflowExecutions_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
+// WorkflowService_PauseSchedule_Args represents the arguments for the WorkflowService.PauseSchedule function.
+//
+// The arguments for PauseSchedule are sent and received over the wire as this struct.
+type WorkflowService_PauseSchedule_Args struct {
+	Request *shared.PauseScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_PauseSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_PauseSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _PauseScheduleRequest_Read(w wire.Value) (*shared.PauseScheduleRequest, error) {
+	var v shared.PauseScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_PauseSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_PauseSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_PauseSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_PauseSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _PauseScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_PauseSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_PauseSchedule_Args struct could not be encoded.
+func (v *WorkflowService_PauseSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _PauseScheduleRequest_Decode(sr stream.Reader) (*shared.PauseScheduleRequest, error) {
+	var v shared.PauseScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_PauseSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_PauseSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_PauseSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _PauseScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_PauseSchedule_Args
+// struct.
+func (v *WorkflowService_PauseSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_PauseSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_PauseSchedule_Args match the
+// provided WorkflowService_PauseSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_PauseSchedule_Args) Equals(rhs *WorkflowService_PauseSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_PauseSchedule_Args.
+func (v *WorkflowService_PauseSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Args) GetRequest() (o *shared.PauseScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_PauseSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "PauseSchedule" for this struct.
+func (v *WorkflowService_PauseSchedule_Args) MethodName() string {
+	return "PauseSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_PauseSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_PauseSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.PauseSchedule
+// function.
+var WorkflowService_PauseSchedule_Helper = struct {
+	// Args accepts the parameters of PauseSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.PauseScheduleRequest,
+	) *WorkflowService_PauseSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by PauseSchedule.
+	//
+	// An error can be thrown by PauseSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for PauseSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// PauseSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by PauseSchedule
+	//
+	//   value, err := PauseSchedule(args)
+	//   result, err := WorkflowService_PauseSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from PauseSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.PauseScheduleResponse, error) (*WorkflowService_PauseSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for PauseSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if PauseSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_PauseSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_PauseSchedule_Result) (*shared.PauseScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_PauseSchedule_Helper.Args = func(
+		request *shared.PauseScheduleRequest,
+	) *WorkflowService_PauseSchedule_Args {
+		return &WorkflowService_PauseSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_PauseSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.DomainNotActiveError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_PauseSchedule_Helper.WrapResponse = func(success *shared.PauseScheduleResponse, err error) (*WorkflowService_PauseSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_PauseSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_PauseSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_PauseSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_PauseSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.DomainNotActiveError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.DomainNotActiveError")
+			}
+			return &WorkflowService_PauseSchedule_Result{DomainNotActiveError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_PauseSchedule_Result{LimitExceededError: e}, nil
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.WorkflowExecutionAlreadyCompletedError")
+			}
+			return &WorkflowService_PauseSchedule_Result{WorkflowExecutionAlreadyCompletedError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_PauseSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_PauseSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_PauseSchedule_Helper.UnwrapResponse = func(result *WorkflowService_PauseSchedule_Result) (success *shared.PauseScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.DomainNotActiveError != nil {
+			err = result.DomainNotActiveError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.WorkflowExecutionAlreadyCompletedError != nil {
+			err = result.WorkflowExecutionAlreadyCompletedError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_PauseSchedule_Result represents the result of a WorkflowService.PauseSchedule function call.
+//
+// The result of a PauseSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_PauseSchedule_Result struct {
+	// Value returned by PauseSchedule after a successful execution.
+	Success                                *shared.PauseScheduleResponse                  `json:"success,omitempty"`
+	BadRequestError                        *shared.BadRequestError                        `json:"badRequestError,omitempty"`
+	EntityNotExistError                    *shared.EntityNotExistsError                   `json:"entityNotExistError,omitempty"`
+	ServiceBusyError                       *shared.ServiceBusyError                       `json:"serviceBusyError,omitempty"`
+	DomainNotActiveError                   *shared.DomainNotActiveError                   `json:"domainNotActiveError,omitempty"`
+	LimitExceededError                     *shared.LimitExceededError                     `json:"limitExceededError,omitempty"`
+	WorkflowExecutionAlreadyCompletedError *shared.WorkflowExecutionAlreadyCompletedError `json:"workflowExecutionAlreadyCompletedError,omitempty"`
+	AccessDeniedError                      *shared.AccessDeniedError                      `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_PauseSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_PauseSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [8]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		w, err = v.DomainNotActiveError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		w, err = v.WorkflowExecutionAlreadyCompletedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 7, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_PauseSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _PauseScheduleResponse_Read(w wire.Value) (*shared.PauseScheduleResponse, error) {
+	var v shared.PauseScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_PauseSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_PauseSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_PauseSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_PauseSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _PauseScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainNotActiveError, err = _DomainNotActiveError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 7:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_PauseSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_PauseSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_PauseSchedule_Result struct could not be encoded.
+func (v *WorkflowService_PauseSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainNotActiveError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainNotActiveError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowExecutionAlreadyCompletedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 7, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_PauseSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _PauseScheduleResponse_Decode(sr stream.Reader) (*shared.PauseScheduleResponse, error) {
+	var v shared.PauseScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_PauseSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_PauseSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_PauseSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _PauseScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.DomainNotActiveError, err = _DomainNotActiveError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 7 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_PauseSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_PauseSchedule_Result
+// struct.
+func (v *WorkflowService_PauseSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [8]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		fields[i] = fmt.Sprintf("DomainNotActiveError: %v", v.DomainNotActiveError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		fields[i] = fmt.Sprintf("WorkflowExecutionAlreadyCompletedError: %v", v.WorkflowExecutionAlreadyCompletedError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_PauseSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_PauseSchedule_Result match the
+// provided WorkflowService_PauseSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_PauseSchedule_Result) Equals(rhs *WorkflowService_PauseSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.DomainNotActiveError == nil && rhs.DomainNotActiveError == nil) || (v.DomainNotActiveError != nil && rhs.DomainNotActiveError != nil && v.DomainNotActiveError.Equals(rhs.DomainNotActiveError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.WorkflowExecutionAlreadyCompletedError == nil && rhs.WorkflowExecutionAlreadyCompletedError == nil) || (v.WorkflowExecutionAlreadyCompletedError != nil && rhs.WorkflowExecutionAlreadyCompletedError != nil && v.WorkflowExecutionAlreadyCompletedError.Equals(rhs.WorkflowExecutionAlreadyCompletedError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_PauseSchedule_Result.
+func (v *WorkflowService_PauseSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.DomainNotActiveError != nil {
+		err = multierr.Append(err, enc.AddObject("domainNotActiveError", v.DomainNotActiveError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		err = multierr.Append(err, enc.AddObject("workflowExecutionAlreadyCompletedError", v.WorkflowExecutionAlreadyCompletedError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetSuccess() (o *shared.PauseScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetDomainNotActiveError returns the value of DomainNotActiveError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetDomainNotActiveError() (o *shared.DomainNotActiveError) {
+	if v != nil && v.DomainNotActiveError != nil {
+		return v.DomainNotActiveError
+	}
+
+	return
+}
+
+// IsSetDomainNotActiveError returns true if DomainNotActiveError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetDomainNotActiveError() bool {
+	return v != nil && v.DomainNotActiveError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetWorkflowExecutionAlreadyCompletedError returns the value of WorkflowExecutionAlreadyCompletedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetWorkflowExecutionAlreadyCompletedError() (o *shared.WorkflowExecutionAlreadyCompletedError) {
+	if v != nil && v.WorkflowExecutionAlreadyCompletedError != nil {
+		return v.WorkflowExecutionAlreadyCompletedError
+	}
+
+	return
+}
+
+// IsSetWorkflowExecutionAlreadyCompletedError returns true if WorkflowExecutionAlreadyCompletedError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetWorkflowExecutionAlreadyCompletedError() bool {
+	return v != nil && v.WorkflowExecutionAlreadyCompletedError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_PauseSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_PauseSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "PauseSchedule" for this struct.
+func (v *WorkflowService_PauseSchedule_Result) MethodName() string {
+	return "PauseSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_PauseSchedule_Result) EnvelopeType() wire.EnvelopeType {
 	return wire.Reply
 }
 
@@ -21366,12 +27878,6 @@ func _QueryWorkflowResponse_Read(w wire.Value) (*shared.QueryWorkflowResponse, e
 	return &v, err
 }
 
-func _QueryFailedError_Read(w wire.Value) (*shared.QueryFailedError, error) {
-	var v shared.QueryFailedError
-	err := v.FromWire(w)
-	return &v, err
-}
-
 // FromWire deserializes a WorkflowService_QueryWorkflow_Result struct from its Thrift-level
 // representation. The Thrift-level representation may be obtained
 // from a ThriftRW protocol implementation.
@@ -21633,12 +28139,6 @@ func (v *WorkflowService_QueryWorkflow_Result) Encode(sw stream.Writer) error {
 
 func _QueryWorkflowResponse_Decode(sr stream.Reader) (*shared.QueryWorkflowResponse, error) {
 	var v shared.QueryWorkflowResponse
-	err := v.Decode(sr)
-	return &v, err
-}
-
-func _QueryFailedError_Decode(sr stream.Reader) (*shared.QueryFailedError, error) {
-	var v shared.QueryFailedError
 	err := v.Decode(sr)
 	return &v, err
 }
@@ -22546,12 +29046,6 @@ func _RecordActivityTaskHeartbeatResponse_Read(w wire.Value) (*shared.RecordActi
 	return &v, err
 }
 
-func _WorkflowExecutionAlreadyCompletedError_Read(w wire.Value) (*shared.WorkflowExecutionAlreadyCompletedError, error) {
-	var v shared.WorkflowExecutionAlreadyCompletedError
-	err := v.FromWire(w)
-	return &v, err
-}
-
 // FromWire deserializes a WorkflowService_RecordActivityTaskHeartbeat_Result struct from its Thrift-level
 // representation. The Thrift-level representation may be obtained
 // from a ThriftRW protocol implementation.
@@ -22839,12 +29333,6 @@ func (v *WorkflowService_RecordActivityTaskHeartbeat_Result) Encode(sw stream.Wr
 
 func _RecordActivityTaskHeartbeatResponse_Decode(sr stream.Reader) (*shared.RecordActivityTaskHeartbeatResponse, error) {
 	var v shared.RecordActivityTaskHeartbeatResponse
-	err := v.Decode(sr)
-	return &v, err
-}
-
-func _WorkflowExecutionAlreadyCompletedError_Decode(sr stream.Reader) (*shared.WorkflowExecutionAlreadyCompletedError, error) {
-	var v shared.WorkflowExecutionAlreadyCompletedError
 	err := v.Decode(sr)
 	return &v, err
 }
@@ -49433,6 +55921,1154 @@ func (v *WorkflowService_TerminateWorkflowExecution_Result) EnvelopeType() wire.
 	return wire.Reply
 }
 
+// WorkflowService_UnpauseSchedule_Args represents the arguments for the WorkflowService.UnpauseSchedule function.
+//
+// The arguments for UnpauseSchedule are sent and received over the wire as this struct.
+type WorkflowService_UnpauseSchedule_Args struct {
+	Request *shared.UnpauseScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_UnpauseSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_UnpauseSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _UnpauseScheduleRequest_Read(w wire.Value) (*shared.UnpauseScheduleRequest, error) {
+	var v shared.UnpauseScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_UnpauseSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_UnpauseSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_UnpauseSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_UnpauseSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _UnpauseScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_UnpauseSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_UnpauseSchedule_Args struct could not be encoded.
+func (v *WorkflowService_UnpauseSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _UnpauseScheduleRequest_Decode(sr stream.Reader) (*shared.UnpauseScheduleRequest, error) {
+	var v shared.UnpauseScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_UnpauseSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_UnpauseSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_UnpauseSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _UnpauseScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_UnpauseSchedule_Args
+// struct.
+func (v *WorkflowService_UnpauseSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_UnpauseSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_UnpauseSchedule_Args match the
+// provided WorkflowService_UnpauseSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_UnpauseSchedule_Args) Equals(rhs *WorkflowService_UnpauseSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_UnpauseSchedule_Args.
+func (v *WorkflowService_UnpauseSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Args) GetRequest() (o *shared.UnpauseScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_UnpauseSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "UnpauseSchedule" for this struct.
+func (v *WorkflowService_UnpauseSchedule_Args) MethodName() string {
+	return "UnpauseSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_UnpauseSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_UnpauseSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.UnpauseSchedule
+// function.
+var WorkflowService_UnpauseSchedule_Helper = struct {
+	// Args accepts the parameters of UnpauseSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.UnpauseScheduleRequest,
+	) *WorkflowService_UnpauseSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by UnpauseSchedule.
+	//
+	// An error can be thrown by UnpauseSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for UnpauseSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// UnpauseSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by UnpauseSchedule
+	//
+	//   value, err := UnpauseSchedule(args)
+	//   result, err := WorkflowService_UnpauseSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from UnpauseSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.UnpauseScheduleResponse, error) (*WorkflowService_UnpauseSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for UnpauseSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if UnpauseSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_UnpauseSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_UnpauseSchedule_Result) (*shared.UnpauseScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_UnpauseSchedule_Helper.Args = func(
+		request *shared.UnpauseScheduleRequest,
+	) *WorkflowService_UnpauseSchedule_Args {
+		return &WorkflowService_UnpauseSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_UnpauseSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.DomainNotActiveError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_UnpauseSchedule_Helper.WrapResponse = func(success *shared.UnpauseScheduleResponse, err error) (*WorkflowService_UnpauseSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_UnpauseSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.DomainNotActiveError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.DomainNotActiveError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{DomainNotActiveError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{LimitExceededError: e}, nil
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.WorkflowExecutionAlreadyCompletedError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{WorkflowExecutionAlreadyCompletedError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UnpauseSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_UnpauseSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_UnpauseSchedule_Helper.UnwrapResponse = func(result *WorkflowService_UnpauseSchedule_Result) (success *shared.UnpauseScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.DomainNotActiveError != nil {
+			err = result.DomainNotActiveError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.WorkflowExecutionAlreadyCompletedError != nil {
+			err = result.WorkflowExecutionAlreadyCompletedError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_UnpauseSchedule_Result represents the result of a WorkflowService.UnpauseSchedule function call.
+//
+// The result of a UnpauseSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_UnpauseSchedule_Result struct {
+	// Value returned by UnpauseSchedule after a successful execution.
+	Success                                *shared.UnpauseScheduleResponse                `json:"success,omitempty"`
+	BadRequestError                        *shared.BadRequestError                        `json:"badRequestError,omitempty"`
+	EntityNotExistError                    *shared.EntityNotExistsError                   `json:"entityNotExistError,omitempty"`
+	ServiceBusyError                       *shared.ServiceBusyError                       `json:"serviceBusyError,omitempty"`
+	DomainNotActiveError                   *shared.DomainNotActiveError                   `json:"domainNotActiveError,omitempty"`
+	LimitExceededError                     *shared.LimitExceededError                     `json:"limitExceededError,omitempty"`
+	WorkflowExecutionAlreadyCompletedError *shared.WorkflowExecutionAlreadyCompletedError `json:"workflowExecutionAlreadyCompletedError,omitempty"`
+	AccessDeniedError                      *shared.AccessDeniedError                      `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_UnpauseSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_UnpauseSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [8]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		w, err = v.DomainNotActiveError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		w, err = v.WorkflowExecutionAlreadyCompletedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 7, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_UnpauseSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _UnpauseScheduleResponse_Read(w wire.Value) (*shared.UnpauseScheduleResponse, error) {
+	var v shared.UnpauseScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_UnpauseSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_UnpauseSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_UnpauseSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_UnpauseSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _UnpauseScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainNotActiveError, err = _DomainNotActiveError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 7:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_UnpauseSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_UnpauseSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_UnpauseSchedule_Result struct could not be encoded.
+func (v *WorkflowService_UnpauseSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainNotActiveError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainNotActiveError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowExecutionAlreadyCompletedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 7, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_UnpauseSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _UnpauseScheduleResponse_Decode(sr stream.Reader) (*shared.UnpauseScheduleResponse, error) {
+	var v shared.UnpauseScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_UnpauseSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_UnpauseSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_UnpauseSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _UnpauseScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.DomainNotActiveError, err = _DomainNotActiveError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 7 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_UnpauseSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_UnpauseSchedule_Result
+// struct.
+func (v *WorkflowService_UnpauseSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [8]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		fields[i] = fmt.Sprintf("DomainNotActiveError: %v", v.DomainNotActiveError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		fields[i] = fmt.Sprintf("WorkflowExecutionAlreadyCompletedError: %v", v.WorkflowExecutionAlreadyCompletedError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_UnpauseSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_UnpauseSchedule_Result match the
+// provided WorkflowService_UnpauseSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_UnpauseSchedule_Result) Equals(rhs *WorkflowService_UnpauseSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.DomainNotActiveError == nil && rhs.DomainNotActiveError == nil) || (v.DomainNotActiveError != nil && rhs.DomainNotActiveError != nil && v.DomainNotActiveError.Equals(rhs.DomainNotActiveError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.WorkflowExecutionAlreadyCompletedError == nil && rhs.WorkflowExecutionAlreadyCompletedError == nil) || (v.WorkflowExecutionAlreadyCompletedError != nil && rhs.WorkflowExecutionAlreadyCompletedError != nil && v.WorkflowExecutionAlreadyCompletedError.Equals(rhs.WorkflowExecutionAlreadyCompletedError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_UnpauseSchedule_Result.
+func (v *WorkflowService_UnpauseSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.DomainNotActiveError != nil {
+		err = multierr.Append(err, enc.AddObject("domainNotActiveError", v.DomainNotActiveError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		err = multierr.Append(err, enc.AddObject("workflowExecutionAlreadyCompletedError", v.WorkflowExecutionAlreadyCompletedError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetSuccess() (o *shared.UnpauseScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetDomainNotActiveError returns the value of DomainNotActiveError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetDomainNotActiveError() (o *shared.DomainNotActiveError) {
+	if v != nil && v.DomainNotActiveError != nil {
+		return v.DomainNotActiveError
+	}
+
+	return
+}
+
+// IsSetDomainNotActiveError returns true if DomainNotActiveError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetDomainNotActiveError() bool {
+	return v != nil && v.DomainNotActiveError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetWorkflowExecutionAlreadyCompletedError returns the value of WorkflowExecutionAlreadyCompletedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetWorkflowExecutionAlreadyCompletedError() (o *shared.WorkflowExecutionAlreadyCompletedError) {
+	if v != nil && v.WorkflowExecutionAlreadyCompletedError != nil {
+		return v.WorkflowExecutionAlreadyCompletedError
+	}
+
+	return
+}
+
+// IsSetWorkflowExecutionAlreadyCompletedError returns true if WorkflowExecutionAlreadyCompletedError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetWorkflowExecutionAlreadyCompletedError() bool {
+	return v != nil && v.WorkflowExecutionAlreadyCompletedError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UnpauseSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_UnpauseSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "UnpauseSchedule" for this struct.
+func (v *WorkflowService_UnpauseSchedule_Result) MethodName() string {
+	return "UnpauseSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_UnpauseSchedule_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
 // WorkflowService_UpdateDomain_Args represents the arguments for the WorkflowService.UpdateDomain function.
 //
 // The arguments for UpdateDomain are sent and received over the wire as this struct.
@@ -50498,5 +58134,1153 @@ func (v *WorkflowService_UpdateDomain_Result) MethodName() string {
 //
 // This will always be Reply for this struct.
 func (v *WorkflowService_UpdateDomain_Result) EnvelopeType() wire.EnvelopeType {
+	return wire.Reply
+}
+
+// WorkflowService_UpdateSchedule_Args represents the arguments for the WorkflowService.UpdateSchedule function.
+//
+// The arguments for UpdateSchedule are sent and received over the wire as this struct.
+type WorkflowService_UpdateSchedule_Args struct {
+	Request *shared.UpdateScheduleRequest `json:"request,omitempty"`
+}
+
+// ToWire translates a WorkflowService_UpdateSchedule_Args struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_UpdateSchedule_Args) ToWire() (wire.Value, error) {
+	var (
+		fields [1]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Request != nil {
+		w, err = v.Request.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _UpdateScheduleRequest_Read(w wire.Value) (*shared.UpdateScheduleRequest, error) {
+	var v shared.UpdateScheduleRequest
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_UpdateSchedule_Args struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_UpdateSchedule_Args struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_UpdateSchedule_Args
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_UpdateSchedule_Args) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.Request, err = _UpdateScheduleRequest_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_UpdateSchedule_Args struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_UpdateSchedule_Args struct could not be encoded.
+func (v *WorkflowService_UpdateSchedule_Args) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Request != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Request.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _UpdateScheduleRequest_Decode(sr stream.Reader) (*shared.UpdateScheduleRequest, error) {
+	var v shared.UpdateScheduleRequest
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_UpdateSchedule_Args struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_UpdateSchedule_Args struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_UpdateSchedule_Args) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.Request, err = _UpdateScheduleRequest_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_UpdateSchedule_Args
+// struct.
+func (v *WorkflowService_UpdateSchedule_Args) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [1]string
+	i := 0
+	if v.Request != nil {
+		fields[i] = fmt.Sprintf("Request: %v", v.Request)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_UpdateSchedule_Args{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_UpdateSchedule_Args match the
+// provided WorkflowService_UpdateSchedule_Args.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_UpdateSchedule_Args) Equals(rhs *WorkflowService_UpdateSchedule_Args) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Request == nil && rhs.Request == nil) || (v.Request != nil && rhs.Request != nil && v.Request.Equals(rhs.Request))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_UpdateSchedule_Args.
+func (v *WorkflowService_UpdateSchedule_Args) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Request != nil {
+		err = multierr.Append(err, enc.AddObject("request", v.Request))
+	}
+	return err
+}
+
+// GetRequest returns the value of Request if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Args) GetRequest() (o *shared.UpdateScheduleRequest) {
+	if v != nil && v.Request != nil {
+		return v.Request
+	}
+
+	return
+}
+
+// IsSetRequest returns true if Request is not nil.
+func (v *WorkflowService_UpdateSchedule_Args) IsSetRequest() bool {
+	return v != nil && v.Request != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the arguments.
+//
+// This will always be "UpdateSchedule" for this struct.
+func (v *WorkflowService_UpdateSchedule_Args) MethodName() string {
+	return "UpdateSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Call for this struct.
+func (v *WorkflowService_UpdateSchedule_Args) EnvelopeType() wire.EnvelopeType {
+	return wire.Call
+}
+
+// WorkflowService_UpdateSchedule_Helper provides functions that aid in handling the
+// parameters and return values of the WorkflowService.UpdateSchedule
+// function.
+var WorkflowService_UpdateSchedule_Helper = struct {
+	// Args accepts the parameters of UpdateSchedule in-order and returns
+	// the arguments struct for the function.
+	Args func(
+		request *shared.UpdateScheduleRequest,
+	) *WorkflowService_UpdateSchedule_Args
+
+	// IsException returns true if the given error can be thrown
+	// by UpdateSchedule.
+	//
+	// An error can be thrown by UpdateSchedule only if the
+	// corresponding exception type was mentioned in the 'throws'
+	// section for it in the Thrift file.
+	IsException func(error) bool
+
+	// WrapResponse returns the result struct for UpdateSchedule
+	// given its return value and error.
+	//
+	// This allows mapping values and errors returned by
+	// UpdateSchedule into a serializable result struct.
+	// WrapResponse returns a non-nil error if the provided
+	// error cannot be thrown by UpdateSchedule
+	//
+	//   value, err := UpdateSchedule(args)
+	//   result, err := WorkflowService_UpdateSchedule_Helper.WrapResponse(value, err)
+	//   if err != nil {
+	//     return fmt.Errorf("unexpected error from UpdateSchedule: %v", err)
+	//   }
+	//   serialize(result)
+	WrapResponse func(*shared.UpdateScheduleResponse, error) (*WorkflowService_UpdateSchedule_Result, error)
+
+	// UnwrapResponse takes the result struct for UpdateSchedule
+	// and returns the value or error returned by it.
+	//
+	// The error is non-nil only if UpdateSchedule threw an
+	// exception.
+	//
+	//   result := deserialize(bytes)
+	//   value, err := WorkflowService_UpdateSchedule_Helper.UnwrapResponse(result)
+	UnwrapResponse func(*WorkflowService_UpdateSchedule_Result) (*shared.UpdateScheduleResponse, error)
+}{}
+
+func init() {
+	WorkflowService_UpdateSchedule_Helper.Args = func(
+		request *shared.UpdateScheduleRequest,
+	) *WorkflowService_UpdateSchedule_Args {
+		return &WorkflowService_UpdateSchedule_Args{
+			Request: request,
+		}
+	}
+
+	WorkflowService_UpdateSchedule_Helper.IsException = func(err error) bool {
+		switch err.(type) {
+		case *shared.BadRequestError:
+			return true
+		case *shared.EntityNotExistsError:
+			return true
+		case *shared.ServiceBusyError:
+			return true
+		case *shared.DomainNotActiveError:
+			return true
+		case *shared.LimitExceededError:
+			return true
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			return true
+		case *shared.AccessDeniedError:
+			return true
+		default:
+			return false
+		}
+	}
+
+	WorkflowService_UpdateSchedule_Helper.WrapResponse = func(success *shared.UpdateScheduleResponse, err error) (*WorkflowService_UpdateSchedule_Result, error) {
+		if err == nil {
+			return &WorkflowService_UpdateSchedule_Result{Success: success}, nil
+		}
+
+		switch e := err.(type) {
+		case *shared.BadRequestError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.BadRequestError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{BadRequestError: e}, nil
+		case *shared.EntityNotExistsError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.EntityNotExistError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{EntityNotExistError: e}, nil
+		case *shared.ServiceBusyError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.ServiceBusyError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{ServiceBusyError: e}, nil
+		case *shared.DomainNotActiveError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.DomainNotActiveError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{DomainNotActiveError: e}, nil
+		case *shared.LimitExceededError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.LimitExceededError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{LimitExceededError: e}, nil
+		case *shared.WorkflowExecutionAlreadyCompletedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.WorkflowExecutionAlreadyCompletedError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{WorkflowExecutionAlreadyCompletedError: e}, nil
+		case *shared.AccessDeniedError:
+			if e == nil {
+				return nil, errors.New("WrapResponse received non-nil error type with nil value for WorkflowService_UpdateSchedule_Result.AccessDeniedError")
+			}
+			return &WorkflowService_UpdateSchedule_Result{AccessDeniedError: e}, nil
+		}
+
+		return nil, err
+	}
+	WorkflowService_UpdateSchedule_Helper.UnwrapResponse = func(result *WorkflowService_UpdateSchedule_Result) (success *shared.UpdateScheduleResponse, err error) {
+		if result.BadRequestError != nil {
+			err = result.BadRequestError
+			return
+		}
+		if result.EntityNotExistError != nil {
+			err = result.EntityNotExistError
+			return
+		}
+		if result.ServiceBusyError != nil {
+			err = result.ServiceBusyError
+			return
+		}
+		if result.DomainNotActiveError != nil {
+			err = result.DomainNotActiveError
+			return
+		}
+		if result.LimitExceededError != nil {
+			err = result.LimitExceededError
+			return
+		}
+		if result.WorkflowExecutionAlreadyCompletedError != nil {
+			err = result.WorkflowExecutionAlreadyCompletedError
+			return
+		}
+		if result.AccessDeniedError != nil {
+			err = result.AccessDeniedError
+			return
+		}
+
+		if result.Success != nil {
+			success = result.Success
+			return
+		}
+
+		err = errors.New("expected a non-void result")
+		return
+	}
+
+}
+
+// WorkflowService_UpdateSchedule_Result represents the result of a WorkflowService.UpdateSchedule function call.
+//
+// The result of a UpdateSchedule execution is sent and received over the wire as this struct.
+//
+// Success is set only if the function did not throw an exception.
+type WorkflowService_UpdateSchedule_Result struct {
+	// Value returned by UpdateSchedule after a successful execution.
+	Success                                *shared.UpdateScheduleResponse                 `json:"success,omitempty"`
+	BadRequestError                        *shared.BadRequestError                        `json:"badRequestError,omitempty"`
+	EntityNotExistError                    *shared.EntityNotExistsError                   `json:"entityNotExistError,omitempty"`
+	ServiceBusyError                       *shared.ServiceBusyError                       `json:"serviceBusyError,omitempty"`
+	DomainNotActiveError                   *shared.DomainNotActiveError                   `json:"domainNotActiveError,omitempty"`
+	LimitExceededError                     *shared.LimitExceededError                     `json:"limitExceededError,omitempty"`
+	WorkflowExecutionAlreadyCompletedError *shared.WorkflowExecutionAlreadyCompletedError `json:"workflowExecutionAlreadyCompletedError,omitempty"`
+	AccessDeniedError                      *shared.AccessDeniedError                      `json:"accessDeniedError,omitempty"`
+}
+
+// ToWire translates a WorkflowService_UpdateSchedule_Result struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *WorkflowService_UpdateSchedule_Result) ToWire() (wire.Value, error) {
+	var (
+		fields [8]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.Success != nil {
+		w, err = v.Success.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 0, Value: w}
+		i++
+	}
+	if v.BadRequestError != nil {
+		w, err = v.BadRequestError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 1, Value: w}
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		w, err = v.EntityNotExistError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 2, Value: w}
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		w, err = v.ServiceBusyError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 3, Value: w}
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		w, err = v.DomainNotActiveError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 4, Value: w}
+		i++
+	}
+	if v.LimitExceededError != nil {
+		w, err = v.LimitExceededError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 5, Value: w}
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		w, err = v.WorkflowExecutionAlreadyCompletedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 6, Value: w}
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		w, err = v.AccessDeniedError.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 7, Value: w}
+		i++
+	}
+
+	if i != 1 {
+		return wire.Value{}, fmt.Errorf("WorkflowService_UpdateSchedule_Result should have exactly one field: got %v fields", i)
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+func _UpdateScheduleResponse_Read(w wire.Value) (*shared.UpdateScheduleResponse, error) {
+	var v shared.UpdateScheduleResponse
+	err := v.FromWire(w)
+	return &v, err
+}
+
+// FromWire deserializes a WorkflowService_UpdateSchedule_Result struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a WorkflowService_UpdateSchedule_Result struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v WorkflowService_UpdateSchedule_Result
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *WorkflowService_UpdateSchedule_Result) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 0:
+			if field.Value.Type() == wire.TStruct {
+				v.Success, err = _UpdateScheduleResponse_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 1:
+			if field.Value.Type() == wire.TStruct {
+				v.BadRequestError, err = _BadRequestError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 2:
+			if field.Value.Type() == wire.TStruct {
+				v.EntityNotExistError, err = _EntityNotExistsError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 3:
+			if field.Value.Type() == wire.TStruct {
+				v.ServiceBusyError, err = _ServiceBusyError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 4:
+			if field.Value.Type() == wire.TStruct {
+				v.DomainNotActiveError, err = _DomainNotActiveError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 5:
+			if field.Value.Type() == wire.TStruct {
+				v.LimitExceededError, err = _LimitExceededError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 6:
+			if field.Value.Type() == wire.TStruct {
+				v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 7:
+			if field.Value.Type() == wire.TStruct {
+				v.AccessDeniedError, err = _AccessDeniedError_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_UpdateSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// Encode serializes a WorkflowService_UpdateSchedule_Result struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a WorkflowService_UpdateSchedule_Result struct could not be encoded.
+func (v *WorkflowService_UpdateSchedule_Result) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.Success != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 0, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.Success.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.BadRequestError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 1, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.BadRequestError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.EntityNotExistError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 2, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.EntityNotExistError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.ServiceBusyError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 3, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.ServiceBusyError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.DomainNotActiveError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 4, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.DomainNotActiveError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.LimitExceededError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 5, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.LimitExceededError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 6, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.WorkflowExecutionAlreadyCompletedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.AccessDeniedError != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 7, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AccessDeniedError.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_UpdateSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return sw.WriteStructEnd()
+}
+
+func _UpdateScheduleResponse_Decode(sr stream.Reader) (*shared.UpdateScheduleResponse, error) {
+	var v shared.UpdateScheduleResponse
+	err := v.Decode(sr)
+	return &v, err
+}
+
+// Decode deserializes a WorkflowService_UpdateSchedule_Result struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a WorkflowService_UpdateSchedule_Result struct could not be generated from the wire
+// representation.
+func (v *WorkflowService_UpdateSchedule_Result) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 0 && fh.Type == wire.TStruct:
+			v.Success, err = _UpdateScheduleResponse_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 1 && fh.Type == wire.TStruct:
+			v.BadRequestError, err = _BadRequestError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 2 && fh.Type == wire.TStruct:
+			v.EntityNotExistError, err = _EntityNotExistsError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 3 && fh.Type == wire.TStruct:
+			v.ServiceBusyError, err = _ServiceBusyError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 4 && fh.Type == wire.TStruct:
+			v.DomainNotActiveError, err = _DomainNotActiveError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 5 && fh.Type == wire.TStruct:
+			v.LimitExceededError, err = _LimitExceededError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 6 && fh.Type == wire.TStruct:
+			v.WorkflowExecutionAlreadyCompletedError, err = _WorkflowExecutionAlreadyCompletedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 7 && fh.Type == wire.TStruct:
+			v.AccessDeniedError, err = _AccessDeniedError_Decode(sr)
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	count := 0
+	if v.Success != nil {
+		count++
+	}
+	if v.BadRequestError != nil {
+		count++
+	}
+	if v.EntityNotExistError != nil {
+		count++
+	}
+	if v.ServiceBusyError != nil {
+		count++
+	}
+	if v.DomainNotActiveError != nil {
+		count++
+	}
+	if v.LimitExceededError != nil {
+		count++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		count++
+	}
+	if v.AccessDeniedError != nil {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("WorkflowService_UpdateSchedule_Result should have exactly one field: got %v fields", count)
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a WorkflowService_UpdateSchedule_Result
+// struct.
+func (v *WorkflowService_UpdateSchedule_Result) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [8]string
+	i := 0
+	if v.Success != nil {
+		fields[i] = fmt.Sprintf("Success: %v", v.Success)
+		i++
+	}
+	if v.BadRequestError != nil {
+		fields[i] = fmt.Sprintf("BadRequestError: %v", v.BadRequestError)
+		i++
+	}
+	if v.EntityNotExistError != nil {
+		fields[i] = fmt.Sprintf("EntityNotExistError: %v", v.EntityNotExistError)
+		i++
+	}
+	if v.ServiceBusyError != nil {
+		fields[i] = fmt.Sprintf("ServiceBusyError: %v", v.ServiceBusyError)
+		i++
+	}
+	if v.DomainNotActiveError != nil {
+		fields[i] = fmt.Sprintf("DomainNotActiveError: %v", v.DomainNotActiveError)
+		i++
+	}
+	if v.LimitExceededError != nil {
+		fields[i] = fmt.Sprintf("LimitExceededError: %v", v.LimitExceededError)
+		i++
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		fields[i] = fmt.Sprintf("WorkflowExecutionAlreadyCompletedError: %v", v.WorkflowExecutionAlreadyCompletedError)
+		i++
+	}
+	if v.AccessDeniedError != nil {
+		fields[i] = fmt.Sprintf("AccessDeniedError: %v", v.AccessDeniedError)
+		i++
+	}
+
+	return fmt.Sprintf("WorkflowService_UpdateSchedule_Result{%v}", strings.Join(fields[:i], ", "))
+}
+
+// Equals returns true if all the fields of this WorkflowService_UpdateSchedule_Result match the
+// provided WorkflowService_UpdateSchedule_Result.
+//
+// This function performs a deep comparison.
+func (v *WorkflowService_UpdateSchedule_Result) Equals(rhs *WorkflowService_UpdateSchedule_Result) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !((v.Success == nil && rhs.Success == nil) || (v.Success != nil && rhs.Success != nil && v.Success.Equals(rhs.Success))) {
+		return false
+	}
+	if !((v.BadRequestError == nil && rhs.BadRequestError == nil) || (v.BadRequestError != nil && rhs.BadRequestError != nil && v.BadRequestError.Equals(rhs.BadRequestError))) {
+		return false
+	}
+	if !((v.EntityNotExistError == nil && rhs.EntityNotExistError == nil) || (v.EntityNotExistError != nil && rhs.EntityNotExistError != nil && v.EntityNotExistError.Equals(rhs.EntityNotExistError))) {
+		return false
+	}
+	if !((v.ServiceBusyError == nil && rhs.ServiceBusyError == nil) || (v.ServiceBusyError != nil && rhs.ServiceBusyError != nil && v.ServiceBusyError.Equals(rhs.ServiceBusyError))) {
+		return false
+	}
+	if !((v.DomainNotActiveError == nil && rhs.DomainNotActiveError == nil) || (v.DomainNotActiveError != nil && rhs.DomainNotActiveError != nil && v.DomainNotActiveError.Equals(rhs.DomainNotActiveError))) {
+		return false
+	}
+	if !((v.LimitExceededError == nil && rhs.LimitExceededError == nil) || (v.LimitExceededError != nil && rhs.LimitExceededError != nil && v.LimitExceededError.Equals(rhs.LimitExceededError))) {
+		return false
+	}
+	if !((v.WorkflowExecutionAlreadyCompletedError == nil && rhs.WorkflowExecutionAlreadyCompletedError == nil) || (v.WorkflowExecutionAlreadyCompletedError != nil && rhs.WorkflowExecutionAlreadyCompletedError != nil && v.WorkflowExecutionAlreadyCompletedError.Equals(rhs.WorkflowExecutionAlreadyCompletedError))) {
+		return false
+	}
+	if !((v.AccessDeniedError == nil && rhs.AccessDeniedError == nil) || (v.AccessDeniedError != nil && rhs.AccessDeniedError != nil && v.AccessDeniedError.Equals(rhs.AccessDeniedError))) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of WorkflowService_UpdateSchedule_Result.
+func (v *WorkflowService_UpdateSchedule_Result) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.Success != nil {
+		err = multierr.Append(err, enc.AddObject("success", v.Success))
+	}
+	if v.BadRequestError != nil {
+		err = multierr.Append(err, enc.AddObject("badRequestError", v.BadRequestError))
+	}
+	if v.EntityNotExistError != nil {
+		err = multierr.Append(err, enc.AddObject("entityNotExistError", v.EntityNotExistError))
+	}
+	if v.ServiceBusyError != nil {
+		err = multierr.Append(err, enc.AddObject("serviceBusyError", v.ServiceBusyError))
+	}
+	if v.DomainNotActiveError != nil {
+		err = multierr.Append(err, enc.AddObject("domainNotActiveError", v.DomainNotActiveError))
+	}
+	if v.LimitExceededError != nil {
+		err = multierr.Append(err, enc.AddObject("limitExceededError", v.LimitExceededError))
+	}
+	if v.WorkflowExecutionAlreadyCompletedError != nil {
+		err = multierr.Append(err, enc.AddObject("workflowExecutionAlreadyCompletedError", v.WorkflowExecutionAlreadyCompletedError))
+	}
+	if v.AccessDeniedError != nil {
+		err = multierr.Append(err, enc.AddObject("accessDeniedError", v.AccessDeniedError))
+	}
+	return err
+}
+
+// GetSuccess returns the value of Success if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetSuccess() (o *shared.UpdateScheduleResponse) {
+	if v != nil && v.Success != nil {
+		return v.Success
+	}
+
+	return
+}
+
+// IsSetSuccess returns true if Success is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetSuccess() bool {
+	return v != nil && v.Success != nil
+}
+
+// GetBadRequestError returns the value of BadRequestError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetBadRequestError() (o *shared.BadRequestError) {
+	if v != nil && v.BadRequestError != nil {
+		return v.BadRequestError
+	}
+
+	return
+}
+
+// IsSetBadRequestError returns true if BadRequestError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetBadRequestError() bool {
+	return v != nil && v.BadRequestError != nil
+}
+
+// GetEntityNotExistError returns the value of EntityNotExistError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetEntityNotExistError() (o *shared.EntityNotExistsError) {
+	if v != nil && v.EntityNotExistError != nil {
+		return v.EntityNotExistError
+	}
+
+	return
+}
+
+// IsSetEntityNotExistError returns true if EntityNotExistError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetEntityNotExistError() bool {
+	return v != nil && v.EntityNotExistError != nil
+}
+
+// GetServiceBusyError returns the value of ServiceBusyError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetServiceBusyError() (o *shared.ServiceBusyError) {
+	if v != nil && v.ServiceBusyError != nil {
+		return v.ServiceBusyError
+	}
+
+	return
+}
+
+// IsSetServiceBusyError returns true if ServiceBusyError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetServiceBusyError() bool {
+	return v != nil && v.ServiceBusyError != nil
+}
+
+// GetDomainNotActiveError returns the value of DomainNotActiveError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetDomainNotActiveError() (o *shared.DomainNotActiveError) {
+	if v != nil && v.DomainNotActiveError != nil {
+		return v.DomainNotActiveError
+	}
+
+	return
+}
+
+// IsSetDomainNotActiveError returns true if DomainNotActiveError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetDomainNotActiveError() bool {
+	return v != nil && v.DomainNotActiveError != nil
+}
+
+// GetLimitExceededError returns the value of LimitExceededError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetLimitExceededError() (o *shared.LimitExceededError) {
+	if v != nil && v.LimitExceededError != nil {
+		return v.LimitExceededError
+	}
+
+	return
+}
+
+// IsSetLimitExceededError returns true if LimitExceededError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetLimitExceededError() bool {
+	return v != nil && v.LimitExceededError != nil
+}
+
+// GetWorkflowExecutionAlreadyCompletedError returns the value of WorkflowExecutionAlreadyCompletedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetWorkflowExecutionAlreadyCompletedError() (o *shared.WorkflowExecutionAlreadyCompletedError) {
+	if v != nil && v.WorkflowExecutionAlreadyCompletedError != nil {
+		return v.WorkflowExecutionAlreadyCompletedError
+	}
+
+	return
+}
+
+// IsSetWorkflowExecutionAlreadyCompletedError returns true if WorkflowExecutionAlreadyCompletedError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetWorkflowExecutionAlreadyCompletedError() bool {
+	return v != nil && v.WorkflowExecutionAlreadyCompletedError != nil
+}
+
+// GetAccessDeniedError returns the value of AccessDeniedError if it is set or its
+// zero value if it is unset.
+func (v *WorkflowService_UpdateSchedule_Result) GetAccessDeniedError() (o *shared.AccessDeniedError) {
+	if v != nil && v.AccessDeniedError != nil {
+		return v.AccessDeniedError
+	}
+
+	return
+}
+
+// IsSetAccessDeniedError returns true if AccessDeniedError is not nil.
+func (v *WorkflowService_UpdateSchedule_Result) IsSetAccessDeniedError() bool {
+	return v != nil && v.AccessDeniedError != nil
+}
+
+// MethodName returns the name of the Thrift function as specified in
+// the IDL, for which this struct represent the result.
+//
+// This will always be "UpdateSchedule" for this struct.
+func (v *WorkflowService_UpdateSchedule_Result) MethodName() string {
+	return "UpdateSchedule"
+}
+
+// EnvelopeType returns the kind of value inside this struct.
+//
+// This will always be Reply for this struct.
+func (v *WorkflowService_UpdateSchedule_Result) EnvelopeType() wire.EnvelopeType {
 	return wire.Reply
 }

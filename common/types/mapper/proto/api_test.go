@@ -1425,8 +1425,6 @@ func TestActiveClusterSelectionPolicy(t *testing.T) {
 		nil,
 		{},
 		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
-		&testdata.ActiveClusterSelectionPolicyRegionSticky,
-		&testdata.ActiveClusterSelectionPolicyExternalEntity,
 	} {
 		assert.Equal(t, item, ToActiveClusterSelectionPolicy(FromActiveClusterSelectionPolicy(item)))
 	}
@@ -1597,10 +1595,6 @@ func WorkflowIDReusePolicyFuzzer(e *types.WorkflowIDReusePolicy, c fuzz.Continue
 	*e = types.WorkflowIDReusePolicy(c.Intn(4)) // 0-3: AllowDuplicateFailedOnly, AllowDuplicate, RejectDuplicate, TerminateIfRunning
 }
 
-func ActiveClusterSelectionStrategyFuzzer(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-	*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-}
-
 func CronOverlapPolicyFuzzer(e *types.CronOverlapPolicy, c fuzz.Continue) {
 	*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
 }
@@ -1623,6 +1617,19 @@ func TaskListKindFuzzer(e *types.TaskListKind, c fuzz.Continue) {
 
 func FailoverTypeFuzzer(e *types.FailoverType, c fuzz.Continue) {
 	*e = types.FailoverType(c.Intn(2) + 1) // 1-2: Force, Graceful (skip 0=Invalid which maps to nil)
+}
+
+// FailoverDomainRequestFuzzer fuzzes a FailoverDomainRequest and normalizes *string fields so
+// that ptr("") becomes nil. proto3 cannot distinguish an unset string from an empty one, so
+// without this normalization the round-trip ptr("") -> "" -> nil produces a spurious diff.
+func FailoverDomainRequestFuzzer(v *types.FailoverDomainRequest, c fuzz.Continue) {
+	c.Fuzz(v)
+	if v.DomainActiveClusterName != nil && *v.DomainActiveClusterName == "" {
+		v.DomainActiveClusterName = nil
+	}
+	if v.Reason != nil && *v.Reason == "" {
+		v.Reason = nil
+	}
 }
 
 func ArchivalStatusFuzzer(e *types.ArchivalStatus, c fuzz.Continue) {
@@ -1675,74 +1682,6 @@ func IndexedValueTypeFuzzer(e *types.IndexedValueType, c fuzz.Continue) {
 
 func CompletedTypeFuzzer(e *types.QueryTaskCompletedType, c fuzz.Continue) {
 	*e = types.QueryTaskCompletedType(c.Intn(2)) // 0-1: Completed, Failed
-}
-
-func ActiveClusterSelectionPolicyFuzzerClearAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-	// ActiveClusterSelectionPolicy requires string fields to match strategy
-	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-	// When strategy is set, only the relevant string fields should be set
-	c.Fuzz(&p.ActiveClusterSelectionStrategy)
-	if p.ActiveClusterSelectionStrategy == nil {
-		p.StickyRegion = ""
-		p.ExternalEntityType = ""
-		p.ExternalEntityKey = ""
-	} else {
-		switch *p.ActiveClusterSelectionStrategy {
-		case types.ActiveClusterSelectionStrategyRegionSticky:
-			c.Fuzz(&p.StickyRegion)
-			p.ExternalEntityType = ""
-			p.ExternalEntityKey = ""
-		case types.ActiveClusterSelectionStrategyExternalEntity:
-			c.Fuzz(&p.ExternalEntityType)
-			c.Fuzz(&p.ExternalEntityKey)
-			p.StickyRegion = ""
-		}
-	}
-	// ClusterAttribute is always cleared (mapper uses strategy+strings)
-	p.ClusterAttribute = nil
-}
-
-func ActiveClusterSelectionPolicyFuzzerWithAttribute(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-	// ActiveClusterSelectionPolicy requires string fields to match strategy
-	// When strategy is nil, all string fields must be empty (mapper uses ClusterAttribute)
-	// When strategy is set, only the relevant string fields should be set
-	c.Fuzz(&p.ActiveClusterSelectionStrategy)
-	if p.ActiveClusterSelectionStrategy == nil {
-		p.StickyRegion = ""
-		p.ExternalEntityType = ""
-		p.ExternalEntityKey = ""
-	} else {
-		switch *p.ActiveClusterSelectionStrategy {
-		case types.ActiveClusterSelectionStrategyRegionSticky:
-			c.Fuzz(&p.StickyRegion)
-			p.ExternalEntityType = ""
-			p.ExternalEntityKey = ""
-		case types.ActiveClusterSelectionStrategyExternalEntity:
-			p.StickyRegion = ""
-			c.Fuzz(&p.ExternalEntityType)
-			c.Fuzz(&p.ExternalEntityKey)
-		}
-	}
-	c.Fuzz(&p.ClusterAttribute)
-}
-
-func ActiveClusterSelectionPolicyFuzzerNoCustom(p *types.ActiveClusterSelectionPolicy, c fuzz.Continue) {
-	// Fuzz all fields first without custom fuzzers
-	c.FuzzNoCustom(p)
-	// Then clear mutually exclusive fields based on strategy
-	if p.ActiveClusterSelectionStrategy != nil {
-		switch *p.ActiveClusterSelectionStrategy {
-		case types.ActiveClusterSelectionStrategyRegionSticky:
-			p.ExternalEntityType = ""
-			p.ExternalEntityKey = ""
-		case types.ActiveClusterSelectionStrategyExternalEntity:
-			p.StickyRegion = ""
-		}
-	} else {
-		p.StickyRegion = ""
-		p.ExternalEntityType = ""
-		p.ExternalEntityKey = ""
-	}
 }
 
 func TestDataBlobArrayFuzz(t *testing.T) {
@@ -1844,13 +1783,10 @@ func TestDescribeTaskListResponseFuzz(t *testing.T) {
 }
 
 func TestStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy: string fields must match strategy
 	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionAsyncRequest, ToStartWorkflowExecutionAsyncRequest,
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 		),
 	)
 }
@@ -2004,8 +1940,6 @@ func TestStartChildWorkflowExecutionInitiatedEventAttributesFuzz(t *testing.T) {
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2076,8 +2010,6 @@ func TestHistoryEventFuzz(t *testing.T) {
 			ContinueAsNewInitiatorFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 			func(h *types.HistoryEvent, c fuzz.Continue) {
 				// Fuzz all fields first
 				c.Fuzz(h)
@@ -2145,8 +2077,6 @@ func TestDecisionFuzz(t *testing.T) {
 			DecisionTypeFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2156,13 +2086,11 @@ func TestDeprecateDomainRequestFuzz(t *testing.T) {
 }
 
 func TestFailoverDomainRequestFuzz(t *testing.T) {
-	// [BUG] Non-symmetric mapping: An empty string DomainActiveClusterName becomes nil, but the return trip translates it back to nil
-	// [Missing] Reason is not yet implemented in the mapper
 	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest,
 		testutils.WithCustomFuncs(
 			FailoverTypeFuzzer,
+			FailoverDomainRequestFuzzer,
 		),
-		testutils.WithExcludedFields("DomainActiveClusterName", "Reason"),
 	)
 }
 
@@ -2198,8 +2126,6 @@ func TestPollForDecisionTaskResponseFuzz(t *testing.T) {
 			ContinueAsNewInitiatorFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerClearAttribute,
 			SignalExternalWorkflowExecutionFailedCauseFuzzer,
 			CancelExternalWorkflowExecutionFailedCauseFuzzer,
 			ChildWorkflowExecutionFailedCauseFuzzer,
@@ -2224,8 +2150,6 @@ func TestDecisionArrayFuzz(t *testing.T) {
 			DecisionTypeFuzzer,
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2378,8 +2302,6 @@ func TestSignalWithStartWorkflowExecutionRequestFuzz(t *testing.T) {
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
 			CronOverlapPolicyFuzzer,
-			ActiveClusterSelectionStrategyFuzzer,
-			ActiveClusterSelectionPolicyFuzzerWithAttribute,
 		),
 	)
 }
@@ -2586,10 +2508,8 @@ func TestActivityLocalDispatchInfoFuzz(t *testing.T) {
 }
 
 func TestStartWorkflowExecutionRequestFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields
 	testutils.RunMapperFuzzTest(t, FromStartWorkflowExecutionRequest, ToStartWorkflowExecutionRequest,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
 	)
@@ -2673,12 +2593,7 @@ func TestActiveClusterInfoFuzz(t *testing.T) {
 }
 
 func TestActiveClusterSelectionPolicyFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
-	testutils.RunMapperFuzzTest(t, FromActiveClusterSelectionPolicy, ToActiveClusterSelectionPolicy,
-		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
-		),
-	)
+	testutils.RunMapperFuzzTest(t, FromActiveClusterSelectionPolicy, ToActiveClusterSelectionPolicy)
 }
 
 func TestRespondActivityTaskCanceledRequestFuzz(t *testing.T) {
@@ -2734,9 +2649,6 @@ func TestWorkflowExecutionInfoFuzz(t *testing.T) {
 	// [Intended] ParentInitiatedID: converted to 0 instead of nil when ParentExecutionInfo exists but field is 0
 	// [BUG] CronSchedule is not round trip safe with an empty string
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionInfo, ToWorkflowExecutionInfo,
-		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom, // ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
-		),
 		testutils.WithExcludedFields("UpdateTime", "ParentDomainID", "ParentDomain", "ParentInitiatedID", "CronSchedule"),
 	)
 }
@@ -2750,10 +2662,8 @@ func TestSignalExternalWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
 }
 
 func TestSignalWithStartWorkflowExecutionAsyncRequestFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
 	testutils.RunMapperFuzzTest(t, FromSignalWithStartWorkflowExecutionAsyncRequest, ToSignalWithStartWorkflowExecutionAsyncRequest,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
 	)
@@ -2799,7 +2709,6 @@ func TestSignalWithStartWorkflowExecutionAsyncResponseFuzz(t *testing.T) {
 func TestDescribeDomainResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponse, ToDescribeDomainResponse,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
@@ -2855,12 +2764,10 @@ func TestStartTimeFilterFuzz(t *testing.T) {
 }
 
 func TestWorkflowExecutionContinuedAsNewEventAttributesFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields
 	// JitterStartSeconds don't roundtrip correctly
 	// [BUG] FailureDetails requires FailureReason to be set
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionContinuedAsNewEventAttributes, ToWorkflowExecutionContinuedAsNewEventAttributes,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			ContinueAsNewInitiatorFuzzer,
 		),
 		testutils.WithExcludedFields("JitterStartSeconds", "FailureDetails"),
@@ -2920,12 +2827,10 @@ func TestDiagnoseWorkflowExecutionRequestFuzz(t *testing.T) {
 
 func TestWorkflowExecutionStartedEventAttributesFuzz(t *testing.T) {
 	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
-	// ActiveClusterSelectionPolicy has mutually exclusive fields
 	// JitterStartSeconds don't roundtrip
 	// Empty string fields become nil
 	testutils.RunMapperFuzzTest(t, FromWorkflowExecutionStartedEventAttributes, ToWorkflowExecutionStartedEventAttributes,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			func(e *types.WorkflowExecutionStartedEventAttributes, c fuzz.Continue) {
 				c.Fuzz(e)
 				// Empty strings become nil after proto roundtrip
@@ -2959,12 +2864,10 @@ func TestClusterFailoverFuzz(t *testing.T) {
 }
 
 func TestDescribeDomainResponseDomainFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
 	// WorkflowExecutionRetentionPeriodInDays: nil→0 conversion
 	// [BUG] DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromDescribeDomainResponseDomain, ToDescribeDomainResponseDomain,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 			func(r *types.DescribeDomainResponse, c fuzz.Continue) {
@@ -3032,12 +2935,10 @@ func TestWorkflowExecutionCancelRequestedEventAttributesFuzz(t *testing.T) {
 }
 
 func TestUpdateDomainResponseFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields based on Strategy
 	// WorkflowExecutionRetentionPeriodInDays: nil→0 conversion
 	// DomainInfo, Configuration, ReplicationConfiguration must be non-nil
 	testutils.RunMapperFuzzTest(t, FromUpdateDomainResponse, ToUpdateDomainResponse,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			testutils.DomainStatusFuzzer,
 			ArchivalStatusFuzzer,
 			func(r *types.UpdateDomainResponse, c fuzz.Continue) {
@@ -3083,10 +2984,8 @@ func TestSignalWithStartWorkflowExecutionResponseFuzz(t *testing.T) {
 }
 
 func TestStartChildWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
-	// ActiveClusterSelectionPolicy has mutually exclusive fields, WorkflowIDReusePolicy enum
 	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionDecisionAttributes, ToStartChildWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			WorkflowIDReusePolicyFuzzer,
 		),
 	)
@@ -3121,11 +3020,9 @@ func TestFailoverEventFuzz(t *testing.T) {
 
 func TestContinueAsNewWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
 	// [BUG] FromFailure only creates a Failure object if reason is non-nil, so details without reason are dropped
-	// ActiveClusterSelectionPolicy has mutually exclusive fields
 	// JitterStartSeconds doesn't roundtrip correctly
 	testutils.RunMapperFuzzTest(t, FromContinueAsNewWorkflowExecutionDecisionAttributes, ToContinueAsNewWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
-			ActiveClusterSelectionPolicyFuzzerNoCustom,
 			ContinueAsNewInitiatorFuzzer,
 		),
 		testutils.WithExcludedFields("JitterStartSeconds", "FailureDetails"),

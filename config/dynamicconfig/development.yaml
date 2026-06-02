@@ -37,6 +37,7 @@ frontend.validSearchAttributes:
     CadenceScheduleState: 1
     CadenceScheduleCron: 1
     CadenceScheduleWorkflowType: 1
+    CadenceScheduleBackfillID: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
@@ -99,3 +100,8 @@ shardDistributor.migrationMode:
   - value: "distributed_pass"
     constraints:
       namespace: "test-external-assignment"
+system.workflowDeletionJitterRange:
+- value: 1
+  constraints: {}
+system.enableWorkflowTimerTaskCleanup:
+- value: true

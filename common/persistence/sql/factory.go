@@ -119,9 +119,9 @@ func (f *Factory) NewDomainAuditStore() (p.DomainAuditStore, error) {
 	return newSQLDomainAuditStore(conn, f.logger, f.parser)
 }
 
-// NewHistoryDLQTaskStore returns a history DLQ task store. Not yet implemented for SQL.
+// NewHistoryDLQTaskStore returns a history DLQ task store.
 func (f *Factory) NewHistoryDLQTaskStore() (p.HistoryDLQTaskStore, error) {
-	return nil, nil
+	return &sqlHistoryDLQTaskStore{}, nil
 }
 
 // NewExecutionStore returns an ExecutionStore for a given shardID

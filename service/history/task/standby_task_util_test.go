@@ -130,11 +130,11 @@ func TestGetRemoteClusterName(t *testing.T) {
 
 // mockDLQWriter is a simple in-process test double for TaskDLQWriter.
 type mockDLQWriter struct {
-	calls []taskdlq.AddTaskRequest
+	calls []persistence.CreateHistoryDLQTaskRequest
 	err   error
 }
 
-func (m *mockDLQWriter) AddTask(_ context.Context, req taskdlq.AddTaskRequest) error {
+func (m *mockDLQWriter) CreateHistoryDLQTask(_ context.Context, req persistence.CreateHistoryDLQTaskRequest) error {
 	m.calls = append(m.calls, req)
 	return m.err
 }
@@ -234,29 +234,6 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
 
 	assert.ErrorIs(t, err, sentinel)
-}
-
-func TestStandbyTaskPostActionWriteToDLQ_NilWriter_FallsBackToDiscard(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTask := persistence.NewMockTask(ctrl)
-	mockTask.EXPECT().GetDomainID().Return("d").AnyTimes()
-	mockTask.EXPECT().GetWorkflowID().Return("w").AnyTimes()
-	mockTask.EXPECT().GetRunID().Return("r").AnyTimes()
-	mockTask.EXPECT().GetTaskID().Return(int64(1)).AnyTimes()
-	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
-	mockTask.EXPECT().GetVersion().Return(int64(1)).AnyTimes()
-	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
-
-	// nil writer returns standbyTaskPostActionTaskDiscarded before GetShardID is called
-	mockShard := shard.NewMockContext(ctrl)
-	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
-
-	fn := standbyTaskPostActionWriteToDLQ(nil, mockShard, enabled)
-	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
-
-	assert.ErrorIs(t, err, ErrTaskDiscarded)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *testing.T) {

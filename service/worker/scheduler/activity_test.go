@@ -33,6 +33,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/frontend"
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -185,6 +186,63 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			wantResult: &ProcessFireResult{
 				TotalDelta:      1,
 				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-abc"},
+			},
+		},
+		{
+			name: "backfill start stamps CadenceScheduleBackfillID on StartWorkflow",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.TriggerSource = TriggerSourceBackfill
+				r.BackfillID = "bf-coverage"
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, swReq *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.NotNil(t, swReq.SearchAttributes)
+						require.Contains(t, swReq.SearchAttributes.IndexedFields, SearchAttrBackfillID)
+						var got string
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrBackfillID], &got))
+						assert.Equal(t, "bf-coverage", got)
+						var isBF bool
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrIsBackfill], &isBF))
+						assert.True(t, isBF)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-bf"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-bf"},
+			},
+		},
+		{
+			name: "BUFFER backfill start when previous closed stamps CadenceScheduleBackfillID",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyBuffer
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				r.TriggerSource = TriggerSourceBackfill
+				r.BackfillID = "bf-buf-start"
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				status := types.WorkflowExecutionCloseStatusCompleted
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &status},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, swReq *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.Contains(t, swReq.SearchAttributes.IndexedFields, SearchAttrBackfillID)
+						var got string
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrBackfillID], &got))
+						assert.Equal(t, "bf-buf-start", got)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-buf"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-buf"},
 			},
 		},
 		{
@@ -388,7 +446,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -414,7 +472,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 3
+				r.ConcurrencyLimit = common.Int32Ptr(3)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -444,7 +502,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -481,7 +539,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 1
+				r.ConcurrencyLimit = common.Int32Ptr(1)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 				}
@@ -509,7 +567,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 				}
@@ -526,7 +584,7 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 3
+				r.ConcurrencyLimit = common.Int32Ptr(3)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 				}
@@ -647,6 +705,8 @@ func TestBuildSearchAttributes(t *testing.T) {
 		assert.False(t, isBackfill)
 
 		assert.Contains(t, sa.IndexedFields, SearchAttrScheduleTime)
+		_, hasBackfillID := sa.IndexedFields[SearchAttrBackfillID]
+		assert.False(t, hasBackfillID, "non-backfill runs should not set backfill id SA")
 	})
 
 	t.Run("backfill trigger sets isBackfill true", func(t *testing.T) {
@@ -660,6 +720,21 @@ func TestBuildSearchAttributes(t *testing.T) {
 		var isBackfill bool
 		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrIsBackfill], &isBackfill))
 		assert.True(t, isBackfill)
+		_, hasBackfillID := sa.IndexedFields[SearchAttrBackfillID]
+		assert.False(t, hasBackfillID, "empty backfill id should omit SA")
+	})
+
+	t.Run("backfill trigger with id sets backfill id SA", func(t *testing.T) {
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceBackfill,
+			BackfillID:    "bf-123",
+		}
+		sa := buildSearchAttributes(req)
+		var got string
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrBackfillID], &got))
+		assert.Equal(t, "bf-123", got)
 	})
 
 	t.Run("preserves user search attributes", func(t *testing.T) {
@@ -822,7 +897,7 @@ func TestProcessScheduleFireActivityMetrics(t *testing.T) {
 			req: func() ProcessFireRequest {
 				r := baseReq
 				r.OverlapPolicy = types.ScheduleOverlapPolicyConcurrent
-				r.ConcurrencyLimit = 2
+				r.ConcurrencyLimit = common.Int32Ptr(2)
 				r.RunningWorkflows = []RunningWorkflowInfo{
 					{WorkflowID: "wf-1", RunID: "run-1"},
 					{WorkflowID: "wf-2", RunID: "run-2"},
@@ -1018,14 +1093,16 @@ func TestProcessScheduleFireActivityLatency(t *testing.T) {
 func TestEffectiveConcurrencyLimit(t *testing.T) {
 	tests := []struct {
 		name      string
-		userLimit int32
+		userLimit *int32
 		want      int32
 	}{
-		{"below system limit returned as-is", 1, 1},
-		{"typical value returned as-is", 10, 10},
-		{"at system limit returned as-is", MaxConcurrencyLimitSystemLimit, MaxConcurrencyLimitSystemLimit},
-		{"one above system limit clamped", MaxConcurrencyLimitSystemLimit + 1, MaxConcurrencyLimitSystemLimit},
-		{"large value clamped to system limit", 10000, MaxConcurrencyLimitSystemLimit},
+		{"nil returns zero", nil, 0},
+		{"explicit zero returns zero", common.Int32Ptr(0), 0},
+		{"below system limit returned as-is", common.Int32Ptr(1), 1},
+		{"typical value returned as-is", common.Int32Ptr(10), 10},
+		{"at system limit returned as-is", common.Int32Ptr(MaxConcurrencyLimitSystemLimit), MaxConcurrencyLimitSystemLimit},
+		{"one above system limit clamped", common.Int32Ptr(MaxConcurrencyLimitSystemLimit + 1), MaxConcurrencyLimitSystemLimit},
+		{"large value clamped to system limit", common.Int32Ptr(10000), MaxConcurrencyLimitSystemLimit},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

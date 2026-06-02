@@ -43,6 +43,12 @@ type (
 		buckets               tally.Buckets // buckets if we are emitting histograms
 		exponentialBuckets    histogrammy[SubsettableHistogram]
 		intExponentialBuckets histogrammy[IntSubsettableHistogram]
+		// intValueBuckets is populated at startup from intExponentialBuckets.buckets()
+		// converted to tally.ValueBuckets. This ensures bucket labels emitted to metrics
+		// backends render as plain integers ("1024") rather than duration strings
+		// ("1.024µs"), which Grafana cannot parse as numeric bucket boundaries.
+		// See IntExponentialHistogram for usage.
+		intValueBuckets tally.ValueBuckets
 	}
 
 	// scopeDefinition holds the tag definitions for a scope
@@ -325,11 +331,15 @@ const (
 	PersistenceGetActiveClusterSelectionPolicyScope
 	// PersistenceDeleteActiveClusterSelectionPolicyScope tracks DeleteActiveClusterSelectionPolicy calls made by service to persistence layer
 	PersistenceDeleteActiveClusterSelectionPolicyScope
+	// PersistenceFetchWorkflowTimerTasksForCleanupScope tracks FetchWorkflowTimerTasksForCleanup calls
+	PersistenceFetchWorkflowTimerTasksForCleanupScope
 
 	// ResolverHostNotFoundScope is a simple low level error indicating a lookup failed in the membership resolver
 	ResolverHostNotFoundScope
 	// HashringScope is a metrics scope for emitting events for the service hashrhing
 	HashringScope
+	// ShardManagerOnboardingScope is a metrics scope for the matching → shard-manager onboarding percentage gauge.
+	ShardManagerOnboardingScope
 	// HistoryClientStartWorkflowExecutionScope tracks RPC calls to history service
 	HistoryClientStartWorkflowExecutionScope
 	// HistoryClientDescribeHistoryHostScope tracks RPC calls to history service
@@ -617,6 +627,14 @@ const (
 	AdminClientRestoreDynamicConfigScope
 	// AdminClientListDynamicConfigScope tracks RPC calls to admin service
 	AdminClientListDynamicConfigScope
+	// AdminClientGetOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientGetOperationalDynamicConfigScope
+	// AdminClientUpdateOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientUpdateOperationalDynamicConfigScope
+	// AdminClientRestoreOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientRestoreOperationalDynamicConfigScope
+	// AdminClientListOperationalDynamicConfigScope tracks RPC calls to admin service
+	AdminClientListOperationalDynamicConfigScope
 	// AdminClientGetGlobalIsolationGroupsScope is a request to get all the global isolation-groups
 	AdminClientGetGlobalIsolationGroupsScope
 	// AdminClientUpdateGlobalIsolationGroupsScope is a request to update the global isolation-groups
@@ -1004,6 +1022,14 @@ const (
 	AdminRestoreDynamicConfigScope
 	// AdminListDynamicConfigScope is the metric scope for admin.ListDynamicConfig
 	AdminListDynamicConfigScope
+	// AdminGetOperationalDynamicConfigScope is the metric scope for admin.GetOperationalDynamicConfig
+	AdminGetOperationalDynamicConfigScope
+	// AdminUpdateOperationalDynamicConfigScope is the metric scope for admin.UpdateOperationalDynamicConfig
+	AdminUpdateOperationalDynamicConfigScope
+	// AdminRestoreOperationalDynamicConfigScope is the metric scope for admin.RestoreOperationalDynamicConfig
+	AdminRestoreOperationalDynamicConfigScope
+	// AdminListOperationalDynamicConfigScope is the metric scope for admin.ListOperationalDynamicConfig
+	AdminListOperationalDynamicConfigScope
 	// AdminDeleteWorkflowScope is the metric scope for admin.DeleteWorkflow
 	AdminDeleteWorkflowScope
 	// GetGlobalIsolationGroups is the scope for getting global isolation groups
@@ -1659,6 +1685,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistencePerHostScope:                                  {operation: "persistence_operations"},
 		PersistenceGetActiveClusterSelectionPolicyScope:          {operation: "GetActiveClusterSelectionPolicy"},
 		PersistenceDeleteActiveClusterSelectionPolicyScope:       {operation: "DeleteActiveClusterSelectionPolicy"},
+		PersistenceFetchWorkflowTimerTasksForCleanupScope:        {operation: "FetchWorkflowTimerTasksForCleanup"},
 		ResolverHostNotFoundScope:                                {operation: "ResolverHostNotFound"},
 
 		ClusterMetadataArchivalConfigScope: {operation: "ArchivalConfig"},
@@ -1809,6 +1836,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		AdminClientUpdateDynamicConfigScope:                   {operation: "AdminClientUpdateDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientRestoreDynamicConfigScope:                  {operation: "AdminClientRestoreDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientListDynamicConfigScope:                     {operation: "AdminClientListDynamicConfigScope", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientGetOperationalDynamicConfigScope:           {operation: "AdminClientGetOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientUpdateOperationalDynamicConfigScope:        {operation: "AdminClientUpdateOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientRestoreOperationalDynamicConfigScope:       {operation: "AdminClientRestoreOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientListOperationalDynamicConfigScope:          {operation: "AdminClientListOperationalDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientGetGlobalIsolationGroupsScope:              {operation: "AdminClientGetGlobalIsolationGroups", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientUpdateGlobalIsolationGroupsScope:           {operation: "AdminClientUpdateGlobalIsolationGroups", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientGetDomainIsolationGroupsScope:              {operation: "AdminClientGetDomainIsolationGroups", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -1949,6 +1980,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DomainReplicationQueueScope: {operation: "DomainReplicationQueue"},
 		ClusterMetadataScope:        {operation: "ClusterMetadata"},
 		HashringScope:               {operation: "Hashring"},
+		ShardManagerOnboardingScope: {operation: "ShardManagerOnboarding"},
 
 		// currently used by both frontend and history, but may grow to other limiting-host-services.
 		GlobalRatelimiter:           {operation: "GlobalRatelimiter"},
@@ -1996,6 +2028,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		AdminUpdateDynamicConfigScope:               {operation: "AdminUpdateDynamicConfig"},
 		AdminRestoreDynamicConfigScope:              {operation: "AdminRestoreDynamicConfig"},
 		AdminListDynamicConfigScope:                 {operation: "AdminListDynamicConfig"},
+		AdminGetOperationalDynamicConfigScope:       {operation: "AdminGetOperationalDynamicConfig"},
+		AdminUpdateOperationalDynamicConfigScope:    {operation: "AdminUpdateOperationalDynamicConfig"},
+		AdminRestoreOperationalDynamicConfigScope:   {operation: "AdminRestoreOperationalDynamicConfig"},
+		AdminListOperationalDynamicConfigScope:      {operation: "AdminListOperationalDynamicConfig"},
 		AdminDeleteWorkflowScope:                    {operation: "AdminDeleteWorkflow"},
 		GetGlobalIsolationGroups:                    {operation: "GetGlobalIsolationGroups"},
 		UpdateGlobalIsolationGroups:                 {operation: "UpdateGlobalIsolationGroups"},
@@ -2460,6 +2496,8 @@ const (
 	GracefulFailoverLatency
 	GracefulFailoverLatencyHistogram
 	GracefulFailoverFailure
+	GracefulFailoverInitiationSuccess
+	GracefulFailoverInitiationFailure
 
 	HistoryArchiverArchiveNonRetryableErrorCount
 	HistoryArchiverArchiveTransientErrorCount
@@ -2561,6 +2599,9 @@ const (
 	TaskListPartitionConfigVersionGauge
 	TaskListPartitionConfigNumReadGauge
 	TaskListPartitionConfigNumWriteGauge
+
+	// operational dynamic config migration metric
+	PercentageOnboardedToShardManagerGauge
 
 	// base cache metrics
 	BaseCacheByteSize
@@ -2851,6 +2892,7 @@ const (
 	WorkflowCleanupArchiveCount
 	WorkflowCleanupNopCount
 	WorkflowCleanupDeleteHistoryInlineCount
+	WorkflowCleanupTimerTasksSentForDeletionCount
 	WorkflowSuccessCount
 	WorkflowCancelCount
 	WorkflowFailedCount
@@ -2983,6 +3025,9 @@ const (
 	VirtualQueueCountGauge
 	VirtualQueuePausedGauge
 	VirtualQueueRunningGauge
+	CachedQueueHitsCounter
+	CachedQueueMissesCounter
+	CachedQueueSizeHistogram
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
@@ -3256,6 +3301,16 @@ const (
 	// ShardDistributorAssignLoopMovedShardLoad tracks the load of a shard that was moved due to load rebalancing
 	ShardDistributorAssignLoopMovedShardLoad
 
+	// ShardDistributorAssignmentLoadMaxOverMean measures max/mean across executor reported loads
+	ShardDistributorAssignmentLoadMaxOverMean
+	// ShardDistributorAssignmentLoadCV measures coefficient of variation across executor reported loads
+	ShardDistributorAssignmentLoadCV
+	// ShardDistributorAssignmentSmoothedLoadMaxOverMean measures max/mean across executor smoothed loads
+	ShardDistributorAssignmentSmoothedLoadMaxOverMean
+	// ShardDistributorAssignmentSmoothedLoadCV measures coefficient of variation across executor smoothed loads
+	ShardDistributorAssignmentSmoothedLoadCV
+	// ShardDistributorAssignmentSmoothedLoadMissingRatio measures the fraction of assigned shards with no smoothed load
+	ShardDistributorAssignmentSmoothedLoadMissingRatio
 	// ShardDistributorIsLeader reports whether this instance is currently the leader (1) or not (0) for a namespace
 	ShardDistributorIsLeader
 
@@ -3424,6 +3479,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		GracefulFailoverLatency:                                      {metricName: "graceful_failover_latency", metricType: Timer},
 		GracefulFailoverLatencyHistogram:                             {metricName: "graceful_failover_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		GracefulFailoverFailure:                                      {metricName: "graceful_failover_failures", metricType: Counter},
+		GracefulFailoverInitiationSuccess:                            {metricName: "graceful_failover_initiation_success", metricType: Counter},
+		GracefulFailoverInitiationFailure:                            {metricName: "graceful_failover_initiation_failures", metricType: Counter},
 
 		HistoryArchiverArchiveNonRetryableErrorCount:              {metricName: "history_archiver_archive_non_retryable_error", metricType: Counter},
 		HistoryArchiverArchiveTransientErrorCount:                 {metricName: "history_archiver_archive_transient_error", metricType: Counter},
@@ -3560,12 +3617,13 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		GlobalRatelimiterRemovedLimits:     {metricName: "global_ratelimiter_removed_limits", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 		GlobalRatelimiterRemovedHostLimits: {metricName: "global_ratelimiter_removed_host_limits", metricType: Histogram, buckets: GlobalRatelimiterUsageHistogram},
 
-		P2PPeersCount:                        {metricName: "peers_count", metricType: Gauge},
-		P2PPeerAdded:                         {metricName: "peer_added", metricType: Counter},
-		P2PPeerRemoved:                       {metricName: "peer_removed", metricType: Counter},
-		TaskListPartitionConfigVersionGauge:  {metricName: "task_list_partition_config_version", metricType: Gauge},
-		TaskListPartitionConfigNumReadGauge:  {metricName: "task_list_partition_config_num_read", metricType: Gauge},
-		TaskListPartitionConfigNumWriteGauge: {metricName: "task_list_partition_config_num_write", metricType: Gauge},
+		P2PPeersCount:                          {metricName: "peers_count", metricType: Gauge},
+		P2PPeerAdded:                           {metricName: "peer_added", metricType: Counter},
+		P2PPeerRemoved:                         {metricName: "peer_removed", metricType: Counter},
+		TaskListPartitionConfigVersionGauge:    {metricName: "task_list_partition_config_version", metricType: Gauge},
+		TaskListPartitionConfigNumReadGauge:    {metricName: "task_list_partition_config_num_read", metricType: Gauge},
+		TaskListPartitionConfigNumWriteGauge:   {metricName: "task_list_partition_config_num_write", metricType: Gauge},
+		PercentageOnboardedToShardManagerGauge: {metricName: "percentage_onboarded_to_shard_manager", metricType: Gauge},
 
 		BaseCacheByteSize:           {metricName: "cache_byte_size", metricType: Gauge},
 		BaseCacheByteSizeLimitGauge: {metricName: "cache_byte_size_limit", metricType: Gauge},
@@ -3846,6 +3904,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowCleanupArchiveCount:                                   {metricName: "workflow_cleanup_archive", metricType: Counter},
 		WorkflowCleanupNopCount:                                       {metricName: "workflow_cleanup_nop", metricType: Counter},
 		WorkflowCleanupDeleteHistoryInlineCount:                       {metricName: "workflow_cleanup_delete_history_inline", metricType: Counter},
+		WorkflowCleanupTimerTasksSentForDeletionCount:                 {metricName: "workflow_cleanup_timer_tasks_sent_for_deletion", metricType: Counter},
 		WorkflowSuccessCount:                                          {metricName: "workflow_success", metricType: Counter},
 		WorkflowCancelCount:                                           {metricName: "workflow_cancel", metricType: Counter},
 		WorkflowFailedCount:                                           {metricName: "workflow_failed", metricType: Counter},
@@ -3980,6 +4039,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		VirtualQueueCountGauge:                                        {metricName: "virtual_queue_count", metricType: Gauge},
 		VirtualQueuePausedGauge:                                       {metricName: "virtual_queue_paused", metricType: Gauge},
 		VirtualQueueRunningGauge:                                      {metricName: "virtual_queue_running", metricType: Gauge},
+		CachedQueueHitsCounter:                                        {metricName: "cached_queue_hits", metricType: Counter},
+		CachedQueueMissesCounter:                                      {metricName: "cached_queue_misses", metricType: Counter},
+		CachedQueueSizeHistogram:                                      {metricName: "cached_queue_size", metricType: Histogram, buckets: TaskCountBuckets},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},
@@ -4206,6 +4268,14 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ShardDistributorAssignLoopDeletedShards:  {metricName: "shard_distributor_shard_assign_deleted_shards", metricType: Gauge},
 		ShardDistributorAssignLoopMovedShardLoad: {metricName: "shard_distributor_shard_assign_moved_shard_load", metricType: Gauge},
 
+		ShardDistributorAssignmentLoadMaxOverMean:         {metricName: "shard_distributor_assignment_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentLoadCV:                  {metricName: "shard_distributor_assignment_load_cv", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadMaxOverMean: {metricName: "shard_distributor_assignment_smoothed_load_max_over_mean", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadCV:          {metricName: "shard_distributor_assignment_smoothed_load_cv", metricType: Gauge},
+		ShardDistributorAssignmentSmoothedLoadMissingRatio: {
+			metricName: "shard_distributor_assignment_smoothed_load_missing_ratio",
+			metricType: Gauge,
+		},
 		ShardDistributorIsLeader: {metricName: "shard_distributor_is_leader", metricType: Gauge},
 	},
 }

@@ -45,7 +45,7 @@ func (c *sharddistributorexecutorClient) Heartbeat(ctx context.Context, ep1 *typ
 	sw := scope.StartTimer(metrics.CadenceClientLatency)
 	ep2, err = c.client.Heartbeat(ctx, ep1, p1...)
 	sw.Stop()
-	scope.RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
 
 	if err != nil {
 		scope.IncCounter(metrics.CadenceClientFailures)

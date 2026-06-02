@@ -219,7 +219,13 @@ func (s *executorStoreImpl) updateShardStatistic(namespace, executorID, shardID 
 
 	prevSmoothed := prevStats.SmoothedLoad
 	prevUpdate := prevStats.LastUpdateTime.ToTime()
-	newSmoothed, err := statistics.CalculateSmoothedLoad(prevSmoothed, shardLoad, prevUpdate, now)
+	newSmoothed, err := statistics.CalculateSmoothedLoad(
+		prevSmoothed,
+		shardLoad,
+		prevUpdate,
+		now,
+		s.loadSmoothingTimeConstant(namespace),
+	)
 	if err != nil {
 		s.logger.Error("failed to calculate smoothed load",
 			tag.ShardNamespace(namespace),
@@ -233,6 +239,13 @@ func (s *executorStoreImpl) updateShardStatistic(namespace, executorID, shardID 
 	stats.LastUpdateTime = etcdtypes.Time(now)
 
 	return stats
+}
+
+func (s *executorStoreImpl) loadSmoothingTimeConstant(namespace string) time.Duration {
+	if s.cfg == nil || s.cfg.LoadBalancingGreedy.LoadSmoothingTimeConstant == nil {
+		return statistics.DefaultLoadSmoothingTimeConstant
+	}
+	return s.cfg.LoadBalancingGreedy.LoadSmoothingTimeConstant(namespace)
 }
 
 // GetHeartbeat retrieves the last known heartbeat state for a single executor.

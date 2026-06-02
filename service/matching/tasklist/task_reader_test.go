@@ -384,7 +384,7 @@ func TestTaskPump(t *testing.T) {
 }
 
 func defaultConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string {
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string {
 		return defaultIsolationGroups
 	})
 	config.EnableTasklistIsolation = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)

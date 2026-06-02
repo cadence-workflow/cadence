@@ -559,3 +559,168 @@ func TestListFailoverHistory(t *testing.T) {
 		})
 	}
 }
+
+func TestFailoverDomain(t *testing.T) {
+	domainName := "domain-name"
+	activeClusterName := "active"
+	activeClusterNamePtr := &activeClusterName
+	gracefulTimeout := int32(30)
+
+	testCases := []struct {
+		name          string
+		req           *types.FailoverDomainRequest
+		setupMocks    func(*mockDeps)
+		expectError   bool
+		expectedError string
+		verifyResp    func(t *testing.T, resp *types.FailoverDomainResponse)
+	}{
+		{
+			name: "success - force failover",
+			req: &types.FailoverDomainRequest{
+				DomainName:              domainName,
+				DomainActiveClusterName: activeClusterNamePtr,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockDomainHandler.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(&types.FailoverDomainResponse{
+					ReplicationConfiguration: &types.DomainReplicationConfiguration{
+						ActiveClusterName: activeClusterName,
+					},
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.FailoverDomainResponse) {
+				assert.NotNil(t, resp)
+				assert.Equal(t, activeClusterName, resp.ReplicationConfiguration.ActiveClusterName)
+			},
+		},
+		{
+			name: "success - graceful failover",
+			req: &types.FailoverDomainRequest{
+				DomainName:               domainName,
+				DomainActiveClusterName:  activeClusterNamePtr,
+				FailoverTimeoutInSeconds: &gracefulTimeout,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeDomainResponse{FailoverVersion: 7}, nil).AnyTimes()
+				deps.mockDomainHandler.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(&types.FailoverDomainResponse{
+					ReplicationConfiguration: &types.DomainReplicationConfiguration{
+						ActiveClusterName: activeClusterName,
+					},
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.FailoverDomainResponse) {
+				assert.NotNil(t, resp)
+				assert.Equal(t, activeClusterName, resp.ReplicationConfiguration.ActiveClusterName)
+			},
+		},
+		{
+			name: "validation error - force",
+			req: &types.FailoverDomainRequest{
+				DomainName:              domainName,
+				DomainActiveClusterName: activeClusterNamePtr,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(errors.New("validation error"))
+			},
+			expectError:   true,
+			expectedError: "validation error",
+		},
+		{
+			name: "validation error - graceful",
+			req: &types.FailoverDomainRequest{
+				DomainName:               domainName,
+				DomainActiveClusterName:  activeClusterNamePtr,
+				FailoverTimeoutInSeconds: &gracefulTimeout,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(errors.New("validation error"))
+			},
+			expectError:   true,
+			expectedError: "validation error",
+		},
+		{
+			name: "ongoing failover detected - graceful",
+			req: &types.FailoverDomainRequest{
+				DomainName:               domainName,
+				DomainActiveClusterName:  activeClusterNamePtr,
+				FailoverTimeoutInSeconds: &gracefulTimeout,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+				gomock.InOrder(
+					deps.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
+						Return(&types.DescribeDomainResponse{FailoverVersion: 7}, nil),
+					deps.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
+						Return(&types.DescribeDomainResponse{FailoverVersion: 8}, nil),
+				)
+			},
+			expectError:   true,
+			expectedError: "Concurrent failover is not allowed",
+		},
+		{
+			name: "remote describe returns nil - graceful",
+			req: &types.FailoverDomainRequest{
+				DomainName:               domainName,
+				DomainActiveClusterName:  activeClusterNamePtr,
+				FailoverTimeoutInSeconds: &gracefulTimeout,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("remote unreachable")).AnyTimes()
+			},
+			expectError:   true,
+			expectedError: "Failed to verify failover version from all clusters",
+		},
+		{
+			name: "domain handler error - force",
+			req: &types.FailoverDomainRequest{
+				DomainName:              domainName,
+				DomainActiveClusterName: activeClusterNamePtr,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockDomainHandler.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("handler error"))
+			},
+			expectError:   true,
+			expectedError: "handler error",
+		},
+		{
+			name: "domain handler error - graceful",
+			req: &types.FailoverDomainRequest{
+				DomainName:               domainName,
+				DomainActiveClusterName:  activeClusterNamePtr,
+				FailoverTimeoutInSeconds: &gracefulTimeout,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockRequestValidator.EXPECT().ValidateFailoverDomainRequest(gomock.Any(), gomock.Any()).Return(nil)
+				deps.mockResource.RemoteFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeDomainResponse{FailoverVersion: 7}, nil).AnyTimes()
+				deps.mockDomainHandler.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("handler error"))
+			},
+			expectError:   true,
+			expectedError: "handler error",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			wh, deps := setupMocksForWorkflowHandler(t)
+			tc.setupMocks(deps)
+
+			resp, err := wh.FailoverDomain(context.Background(), tc.req)
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedError)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				tc.verifyResp(t, resp)
+			}
+		})
+	}
+}

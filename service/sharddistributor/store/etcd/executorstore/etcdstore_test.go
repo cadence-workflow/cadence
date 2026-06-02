@@ -160,6 +160,7 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	tc := testhelper.SetupStoreTestCluster(t)
 	executorStore := createStore(t, tc)
 	setLoadBalancingMode(executorStore, config.LoadBalancingModeGREEDY)
+	setLoadSmoothingTimeConstant(executorStore, 90*time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -202,7 +203,7 @@ func TestRecordHeartbeatUpdatesShardStatistics(t *testing.T) {
 	updated, ok := nsState.ShardStats[shardID]
 	require.True(t, ok)
 	assert.True(t, updated.LastUpdateTime.After(beforeStats.LastUpdateTime))
-	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, beforeStats.LastUpdateTime, updated.LastUpdateTime)
+	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[shardID].ShardLoad, beforeStats.LastUpdateTime, updated.LastUpdateTime, 90*time.Second)
 	require.NoError(t, err)
 	assert.InDelta(t, expectedLoad, updated.SmoothedLoad, 1e-9)
 	assert.Equal(t, beforeStats.LastMoveTime, updated.LastMoveTime)
@@ -255,7 +256,7 @@ func TestRecordHeartbeatSkipsShardStatisticsWithNilReport(t *testing.T) {
 
 	validStats, ok := nsState.ShardStats[validShardID]
 	require.True(t, ok)
-	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[validShardID].ShardLoad, beforeStats.LastUpdateTime, validStats.LastUpdateTime)
+	expectedLoad, err := statistics.CalculateSmoothedLoad(beforeStats.SmoothedLoad, req.ReportedShards[validShardID].ShardLoad, beforeStats.LastUpdateTime, validStats.LastUpdateTime, statistics.DefaultLoadSmoothingTimeConstant)
 	require.NoError(t, err)
 	assert.InDelta(t, expectedLoad, validStats.SmoothedLoad, 1e-9)
 	assert.False(t, validStats.LastUpdateTime.IsZero())
@@ -901,6 +902,14 @@ func setLoadBalancingMode(executorStore store.Store, mode string) {
 	impl.cfg.LoadBalancingMode = func(string) string { return mode }
 }
 
+func setLoadSmoothingTimeConstant(executorStore store.Store, value time.Duration) {
+	impl := executorStore.(*executorStoreImpl)
+	if impl.cfg == nil {
+		impl.cfg = &config.Config{}
+	}
+	impl.cfg.LoadBalancingGreedy.LoadSmoothingTimeConstant = func(string) time.Duration { return value }
+}
+
 // trackingTxn implements clientv3.Txn to record operations per batch for testing.
 type trackingTxn struct {
 	opsCount int
@@ -1114,6 +1123,9 @@ func createStore(t *testing.T, tc *testhelper.StoreTestCluster) store.Store {
 		Config: &config.Config{
 			LoadBalancingMode: func(namespace string) string { return config.LoadBalancingModeNAIVE },
 			MaxEtcdTxnOps:     dynamicproperties.GetIntPropertyFn(128),
+			LoadBalancingGreedy: config.LoadBalancingGreedyConfig{
+				LoadSmoothingTimeConstant: func(string) time.Duration { return statistics.DefaultLoadSmoothingTimeConstant },
+			},
 		},
 	})
 	require.NoError(t, err)

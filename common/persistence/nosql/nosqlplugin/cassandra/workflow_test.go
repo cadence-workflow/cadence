@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/config"
@@ -1211,31 +1212,33 @@ func TestSelectTransferTasksOrderByTaskID(t *testing.T) {
 
 func TestDeleteTransferTask(t *testing.T) {
 	tests := []struct {
-		name        string
-		shardID     int
-		taskID      int64
-		queryMockFn func(query *gocql.MockQuery)
-		wantErr     bool
+		name            string
+		shardID         int
+		keys            []persistence.HistoryTaskKey
+		executeBatchErr error
+		wantErr         bool
 	}{
 		{
 			name:    "success",
 			shardID: 1,
-			taskID:  123,
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(nil).Times(1)
+			keys:    []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(123)},
+			wantErr: false,
+		},
+		{
+			name:    "success - multi-key batch",
+			shardID: 1,
+			keys: []persistence.HistoryTaskKey{
+				persistence.NewImmediateTaskKey(123),
+				persistence.NewImmediateTaskKey(124),
 			},
 			wantErr: false,
 		},
 		{
-			name:    "query exec fails",
-			shardID: 1,
-			taskID:  123,
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(errors.New("failed to exec")).Times(1)
-			},
-			wantErr: true,
+			name:            "execute batch fails",
+			shardID:         1,
+			keys:            []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(123)},
+			executeBatchErr: errors.New("failed to exec"),
+			wantErr:         true,
 		},
 	}
 
@@ -1243,16 +1246,13 @@ func TestDeleteTransferTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
-			query := gocql.NewMockQuery(ctrl)
-			tc.queryMockFn(query)
-
 			session := &fakeSession{
-				query: query,
+				executeBatchErr: tc.executeBatchErr,
 			}
 			logger := testlogger.New(t)
 			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
-			err := db.DeleteTransferTask(context.Background(), tc.shardID, tc.taskID)
+			err := db.DeleteTransferTask(context.Background(), tc.shardID, tc.keys)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("DeleteTransferTask() error: %v, wantErr: %v", err, tc.wantErr)
@@ -1455,34 +1455,33 @@ func TestSelectTimerTasksOrderByVisibilityTime(t *testing.T) {
 func TestDeleteTimerTask(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
-		name                string
-		shardID             int
-		taskID              int64
-		visibilityTimestamp time.Time
-		queryMockFn         func(query *gocql.MockQuery)
-		wantErr             bool
+		name            string
+		shardID         int
+		keys            []persistence.HistoryTaskKey
+		executeBatchErr error
+		wantErr         bool
 	}{
 		{
-			name:                "success",
-			shardID:             1,
-			taskID:              123,
-			visibilityTimestamp: now,
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(nil).Times(1)
+			name:    "success",
+			shardID: 1,
+			keys:    []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(now, 123)},
+			wantErr: false,
+		},
+		{
+			name:    "success - multi-key batch",
+			shardID: 1,
+			keys: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(now, 123),
+				persistence.NewHistoryTaskKey(now.Add(time.Second), 124),
 			},
 			wantErr: false,
 		},
 		{
-			name:                "query exec fails",
-			shardID:             1,
-			taskID:              123,
-			visibilityTimestamp: now,
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(errors.New("failed to exec")).Times(1)
-			},
-			wantErr: true,
+			name:            "execute batch fails",
+			shardID:         1,
+			keys:            []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(now, 123)},
+			executeBatchErr: errors.New("failed to exec"),
+			wantErr:         true,
 		},
 	}
 
@@ -1490,16 +1489,13 @@ func TestDeleteTimerTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
-			query := gocql.NewMockQuery(ctrl)
-			tc.queryMockFn(query)
-
 			session := &fakeSession{
-				query: query,
+				executeBatchErr: tc.executeBatchErr,
 			}
 			logger := testlogger.New(t)
 			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
-			err := db.DeleteTimerTask(context.Background(), tc.shardID, tc.taskID, tc.visibilityTimestamp)
+			err := db.DeleteTimerTask(context.Background(), tc.shardID, tc.keys)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("DeleteTimerTask() error: %v, wantErr: %v", err, tc.wantErr)
@@ -1688,31 +1684,33 @@ func TestSelectReplicationTasksOrderByTaskID(t *testing.T) {
 
 func TestDeleteReplicationTask(t *testing.T) {
 	tests := []struct {
-		name        string
-		shardID     int
-		taskID      int64
-		queryMockFn func(query *gocql.MockQuery)
-		wantErr     bool
+		name            string
+		shardID         int
+		keys            []persistence.HistoryTaskKey
+		executeBatchErr error
+		wantErr         bool
 	}{
 		{
 			name:    "success",
 			shardID: 1,
-			taskID:  123,
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(nil).Times(1)
+			keys:    []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(123)},
+			wantErr: false,
+		},
+		{
+			name:    "success - multi-key batch",
+			shardID: 1,
+			keys: []persistence.HistoryTaskKey{
+				persistence.NewImmediateTaskKey(123),
+				persistence.NewImmediateTaskKey(124),
 			},
 			wantErr: false,
 		},
 		{
-			name:    "query exec fails",
-			shardID: 1,
-			taskID:  123,
-			queryMockFn: func(query *gocql.MockQuery) {
-				query.EXPECT().WithContext(gomock.Any()).Return(query).Times(1)
-				query.EXPECT().Exec().Return(errors.New("failed to exec")).Times(1)
-			},
-			wantErr: true,
+			name:            "execute batch fails",
+			shardID:         1,
+			keys:            []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(123)},
+			executeBatchErr: errors.New("failed to exec"),
+			wantErr:         true,
 		},
 	}
 
@@ -1720,16 +1718,13 @@ func TestDeleteReplicationTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 
-			query := gocql.NewMockQuery(ctrl)
-			tc.queryMockFn(query)
-
 			session := &fakeSession{
-				query: query,
+				executeBatchErr: tc.executeBatchErr,
 			}
 			logger := testlogger.New(t)
 			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(gocql.NewMockClient(ctrl)))
 
-			err := db.DeleteReplicationTask(context.Background(), tc.shardID, tc.taskID)
+			err := db.DeleteReplicationTask(context.Background(), tc.shardID, tc.keys)
 
 			if (err != nil) != tc.wantErr {
 				t.Errorf("DeleteReplicationTask() error: %v, wantErr: %v", err, tc.wantErr)
@@ -2598,6 +2593,83 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 
 			if diff := cmp.Diff(tc.wantQuery, tc.session.queries[0]); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSelectWorkflowTimerTasks(t *testing.T) {
+	ts := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name       string
+		scanValues []interface{}
+		scanErr    error
+		isNotFound bool
+		wantResult []persistence.HistoryTaskKey
+		wantErr    bool
+	}{
+		{
+			name: "success - returns keys",
+			scanValues: []interface{}{
+				[]workflowTimerTaskTuple{
+					{VisibilityTimestamp: ts, TaskID: 100},
+					{VisibilityTimestamp: ts.Add(time.Hour), TaskID: 200},
+				},
+			},
+			wantResult: []persistence.HistoryTaskKey{
+				persistence.NewHistoryTaskKey(ts, 100),
+				persistence.NewHistoryTaskKey(ts.Add(time.Hour), 200),
+			},
+		},
+		{
+			name:       "success - column absent returns nil",
+			scanValues: []interface{}{[]workflowTimerTaskTuple{}},
+			wantResult: nil,
+		},
+		{
+			name:       "not found returns nil",
+			scanValues: nil,
+			scanErr:    errors.New("not found"),
+			isNotFound: true,
+			wantResult: nil,
+		},
+		{
+			name:       "query error",
+			scanValues: nil,
+			scanErr:    errors.New("cassandra unavailable"),
+			isNotFound: false,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			logger := testlogger.New(t)
+			cl := gocql.NewMockClient(ctrl)
+			if tc.scanErr != nil {
+				cl.EXPECT().IsNotFoundError(tc.scanErr).Return(tc.isNotFound).Times(1)
+			}
+			session := &fakeSession{
+				query: &fakeQuery{
+					scanValues: tc.scanValues,
+					err:        tc.scanErr,
+				},
+			}
+			db := NewCassandraDBFromSession(nil, session, logger, nil, DbWithClient(cl))
+			got, err := db.SelectWorkflowTimerTasks(context.Background(), 1, "domain1", "wf1", "run1")
+
+			if tc.wantErr {
+				if err == nil {
+					t.Error("SelectWorkflowTimerTasks() expected error, got nil")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("SelectWorkflowTimerTasks() unexpected error: %v", err)
+				}
+			}
+			if diff := cmp.Diff(tc.wantResult, got, cmpopts.EquateComparable(persistence.HistoryTaskKey{})); diff != "" {
+				t.Fatalf("Result mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

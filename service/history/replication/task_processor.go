@@ -587,6 +587,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				TaskType:    persistence.ReplicationTaskTypeSyncActivity,
 				ScheduledID: taskAttributes.GetScheduledID(),
 			},
+			Task:       replicationTask,
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
@@ -620,6 +621,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				NextEventID:  events[len(events)-1].ID + 1,
 				Version:      events[0].Version,
 			},
+			Task:       replicationTask,
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil

@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -593,7 +595,7 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Multiple_CanU
 		input.UpdateWorkflowMutation.ExecutionInfo.LastEventTaskID = 0
 		mutableState.GetExecutionInfo().LastEventTaskID = 0
 		mutableState.GetExecutionInfo().DecisionOriginalScheduledTimestamp = input.UpdateWorkflowMutation.ExecutionInfo.DecisionOriginalScheduledTimestamp
-		s.Equal(&persistence.UpdateWorkflowExecutionRequest{
+		expected := &persistence.UpdateWorkflowExecutionRequest{
 			ShardID: common.Ptr(0),
 			UpdateWorkflowMutation: persistence.WorkflowMutation{
 				ExecutionInfo:             mutableState.GetExecutionInfo(),
@@ -621,7 +623,10 @@ func (s *timerStandbyTaskExecutorSuite) TestProcessActivityTimeout_Multiple_CanU
 			WorkflowRequestMode: persistence.CreateWorkflowRequestModeReplicated,
 			Encoding:            commonconstants.EncodingType(s.mockShard.GetConfig().EventEncodingType(s.domainID)),
 			DomainName:          constants.TestDomainName,
-		}, input)
+		}
+		if diff := cmp.Diff(expected, input, cmpopts.EquateEmpty()); diff != "" {
+			s.Failf("UpdateWorkflowExecution input mismatch", "(-want +got):\n%s", diff)
+		}
 		return true
 	})).Return(&persistence.UpdateWorkflowExecutionResponse{MutableStateUpdateSessionStats: &persistence.MutableStateUpdateSessionStats{}}, nil).Once()
 

@@ -1862,10 +1862,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, int64(1), time.Unix(10, 10)).Return(nil)
+				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)}).Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -1873,10 +1873,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.NewImmediateTaskKey(2),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, int64(2)).Return(nil)
+				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)}).Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -1884,10 +1884,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.NewImmediateTaskKey(3),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, int64(3)).Return(nil)
+				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)}).Return(nil)
 			},
 			expectedError: nil,
 		},
@@ -1903,10 +1903,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
-				TaskKey:      persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, int64(1), time.Unix(10, 10)).Return(errors.New("db error"))
+				mockDB.EXPECT().DeleteTimerTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)}).Return(errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
@@ -1915,10 +1915,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
-				TaskKey:      persistence.NewImmediateTaskKey(2),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, int64(2)).Return(errors.New("db error"))
+				mockDB.EXPECT().DeleteTransferTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)}).Return(errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),
@@ -1927,10 +1927,10 @@ func TestCompleteHistoryTask(t *testing.T) {
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
-				TaskKey:      persistence.NewImmediateTaskKey(3),
+				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
 			setupMock: func(mockDB *nosqlplugin.MockDB) {
-				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, int64(3)).Return(errors.New("db error"))
+				mockDB.EXPECT().DeleteReplicationTask(ctx, shardID, []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)}).Return(errors.New("db error"))
 				mockDB.EXPECT().IsNotFoundError(gomock.Any()).Return(true)
 			},
 			expectedError: errors.New("db error"),

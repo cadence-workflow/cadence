@@ -975,3 +975,34 @@ func TestToAdminUpdateDomainAsyncWorkflowConfiguratonResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminGetOperationalDynamicConfigRequest(t *testing.T) {
+	for _, item := range []*types.GetOperationalDynamicConfigRequest{nil, {}, &testdata.AdminGetOperationalDynamicConfigRequest} {
+		assert.Equal(t, item, ToAdminGetOperationalDynamicConfigRequest(FromAdminGetOperationalDynamicConfigRequest(item)))
+	}
+}
+func TestAdminGetOperationalDynamicConfigResponse(t *testing.T) {
+	for _, item := range []*types.GetOperationalDynamicConfigResponse{nil, {}, &testdata.AdminGetOperationalDynamicConfigResponse} {
+		assert.Equal(t, item, ToAdminGetOperationalDynamicConfigResponse(FromAdminGetOperationalDynamicConfigResponse(item)))
+	}
+}
+func TestAdminUpdateOperationalDynamicConfigRequest(t *testing.T) {
+	for _, item := range []*types.UpdateOperationalDynamicConfigRequest{nil, {}, &testdata.AdminUpdateOperationalDynamicConfigRequest} {
+		assert.Equal(t, item, ToAdminUpdateOperationalDynamicConfigRequest(FromAdminUpdateOperationalDynamicConfigRequest(item)))
+	}
+}
+func TestAdminRestoreOperationalDynamicConfigRequest(t *testing.T) {
+	for _, item := range []*types.RestoreOperationalDynamicConfigRequest{nil, {}, &testdata.AdminRestoreOperationalDynamicConfigRequest} {
+		assert.Equal(t, item, ToAdminRestoreOperationalDynamicConfigRequest(FromAdminRestoreOperationalDynamicConfigRequest(item)))
+	}
+}
+func TestAdminListOperationalDynamicConfigRequest(t *testing.T) {
+	for _, item := range []*types.ListOperationalDynamicConfigRequest{nil, {}, &testdata.AdminListOperationalDynamicConfigRequest} {
+		assert.Equal(t, item, ToAdminListOperationalDynamicConfigRequest(FromAdminListOperationalDynamicConfigRequest(item)))
+	}
+}
+func TestAdminListOperationalDynamicConfigResponse(t *testing.T) {
+	for _, item := range []*types.ListOperationalDynamicConfigResponse{nil, {}, &testdata.AdminListOperationalDynamicConfigResponse} {
+		assert.Equal(t, item, ToAdminListOperationalDynamicConfigResponse(FromAdminListOperationalDynamicConfigResponse(item)))
+	}
+}

@@ -293,6 +293,22 @@ func (a *adminHandler) GetGlobalIsolationGroups(ctx context.Context, request *ty
 	return a.handler.GetGlobalIsolationGroups(ctx, request)
 }
 
+func (a *adminHandler) GetOperationalDynamicConfig(ctx context.Context, gp1 *types.GetOperationalDynamicConfigRequest) (gp2 *types.GetOperationalDynamicConfigResponse, err error) {
+	attr := &authorization.Attributes{
+		APIName:     "GetOperationalDynamicConfig",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(gp1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.GetOperationalDynamicConfig(ctx, gp1)
+}
+
 func (a *adminHandler) GetReplicationMessages(ctx context.Context, gp1 *types.GetReplicationMessagesRequest) (gp2 *types.GetReplicationMessagesResponse, err error) {
 	attr := &authorization.Attributes{
 		APIName:     "GetReplicationMessages",
@@ -339,6 +355,22 @@ func (a *adminHandler) ListDynamicConfig(ctx context.Context, lp1 *types.ListDyn
 		return nil, errUnauthorized
 	}
 	return a.handler.ListDynamicConfig(ctx, lp1)
+}
+
+func (a *adminHandler) ListOperationalDynamicConfig(ctx context.Context, lp1 *types.ListOperationalDynamicConfigRequest) (lp2 *types.ListOperationalDynamicConfigResponse, err error) {
+	attr := &authorization.Attributes{
+		APIName:     "ListOperationalDynamicConfig",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(lp1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.ListOperationalDynamicConfig(ctx, lp1)
 }
 
 func (a *adminHandler) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.AdminMaintainWorkflowRequest) (ap2 *types.AdminMaintainWorkflowResponse, err error) {
@@ -517,6 +549,22 @@ func (a *adminHandler) RestoreDynamicConfig(ctx context.Context, rp1 *types.Rest
 	return a.handler.RestoreDynamicConfig(ctx, rp1)
 }
 
+func (a *adminHandler) RestoreOperationalDynamicConfig(ctx context.Context, rp1 *types.RestoreOperationalDynamicConfigRequest) (err error) {
+	attr := &authorization.Attributes{
+		APIName:     "RestoreOperationalDynamicConfig",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return err
+	}
+	if !isAuthorized {
+		return errUnauthorized
+	}
+	return a.handler.RestoreOperationalDynamicConfig(ctx, rp1)
+}
+
 func (a *adminHandler) Start() {
 	a.handler.Start()
 }
@@ -587,6 +635,22 @@ func (a *adminHandler) UpdateGlobalIsolationGroups(ctx context.Context, request 
 		return nil, errUnauthorized
 	}
 	return a.handler.UpdateGlobalIsolationGroups(ctx, request)
+}
+
+func (a *adminHandler) UpdateOperationalDynamicConfig(ctx context.Context, up1 *types.UpdateOperationalDynamicConfigRequest) (err error) {
+	attr := &authorization.Attributes{
+		APIName:     "UpdateOperationalDynamicConfig",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(up1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return err
+	}
+	if !isAuthorized {
+		return errUnauthorized
+	}
+	return a.handler.UpdateOperationalDynamicConfig(ctx, up1)
 }
 
 func (a *adminHandler) UpdateTaskListPartitionConfig(ctx context.Context, up1 *types.UpdateTaskListPartitionConfigRequest) (up2 *types.UpdateTaskListPartitionConfigResponse, err error) {

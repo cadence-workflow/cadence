@@ -343,6 +343,7 @@ const (
 	TestGetIntPropertyFilteredByWorkflowTypeKey
 	TestGetIntPropertyFilteredByTaskListInfoKey
 	TestGetIntPropertyFilteredByShardIDKey
+	TestGetIntPropertyFilteredByDomainAndTaskListKey
 
 	// key for common & admin
 
@@ -775,6 +776,12 @@ const (
 	// Default value: 5
 	// Allowed filters: DomainName
 	FrontendFailoverHistoryMaxSize
+	// FrontendMaxFailoverTimeoutInSeconds is the maximum allowed graceful-failover timeout (seconds) accepted on a FailoverDomain request
+	// KeyName: frontend.maxFailoverTimeoutInSeconds
+	// Value type: Int
+	// Default value: 300 (5 minutes)
+	// Allowed filters: DomainName
+	FrontendMaxFailoverTimeoutInSeconds
 
 	// key for matching
 
@@ -1114,6 +1121,12 @@ const (
 	// Default value: 500*1024
 	// Allowed filters: N/A
 	TimerProcessorHistoryArchivalSizeLimit
+	// TimerProcessorCacheMaxSize is the hard cap on cached task count
+	// KeyName: history.timerProcessorCacheMaxSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: N/A
+	TimerProcessorCacheMaxSize
 
 	// TransferTaskBatchSize is batch size for transferQueueProcessor
 	// KeyName: history.transferTaskBatchSize
@@ -1633,6 +1646,20 @@ const (
 	// Allowed filters: N/A
 	ShardDistributorMaxEtcdTxnOps
 
+	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
+	// KeyName: history.taskListNiceValue
+	// Value type: Int
+	// Default value: 0
+	// Allowed filters: DomainName, TaskListName
+	HistoryTaskListNiceValue
+
+	// OperationalConfigStoreUpdateRetryAttempts is the number of attempts
+	// to push a value to the operational dynamic config store on conflict.
+	// KeyName: system.operationalConfigStoreUpdateRetryAttempts
+	// Value type: Int
+	// Default value: 1
+	OperationalConfigStoreUpdateRetryAttempts
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -1724,6 +1751,15 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	EnableGRPCOutbound
+	// EnableWorkflowTimerTaskCleanup enables deletion of tracked workflow timer tasks when
+	// the workflow execution record is cleaned up at the end of the retention period. This
+	// prevents orphaned timer task rows from accumulating in Cassandra. Feature flag,
+	// intended to be defaulted to true once validated.
+	// KeyName: system.enableWorkflowTimerTaskCleanup
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	EnableWorkflowTimerTaskCleanup
 	// EnableSQLAsyncTransaction is the key for enabling async transaction
 	// KeyName: system.enableSQLAsyncTransaction
 	// Value type: Bool
@@ -1784,14 +1820,6 @@ const (
 	// Default value: false
 	// Allowed filters: DomainID
 	MatchingEnableTaskInfoLogByDomainID
-	// MatchingEnableTasklistGuardAgainstOwnershipShardLoss
-	// enables guards to prevent tasklists from processing if there is any detection that the host
-	// no longer is active or owns the shard
-	// KeyName: matching.enableTasklistGuardAgainstOwnershipLoss
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss
 	// MatchingEnableStandbyTaskCompletion is to enable completion of tasks in the domain's passive side
 	// KeyName: matching.enableStandbyTaskCompletion
 	// Value type: Bool
@@ -2340,6 +2368,12 @@ const (
 	// Default value: false
 	// Allowed filters: ShardID
 	EnableTimerQueueV2PendingTaskCountAlert
+	// TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks
+	// KeyName: history.timerProcessorEnableCachedScheduledQueue
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	TimerProcessorEnableCachedScheduledQueue
 
 	// EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain
 	// KeyName: frontend.enableActiveClusterSelectionPolicyInStartWorkflow
@@ -2357,11 +2391,29 @@ const (
 
 	// MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists)
 	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
+	// Read from the primary database-backed operational dynamic config store.
 	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
 	// Value type: Bool
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
+	// MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager.
+	// When true, all task lists fall back to the hash ring, ignoring MatchingPercentageOnboardedToShardManager.
+	// KeyName: matching.emergencyOffboardingFromShardManager
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingEmergencyOffboardingFromShardManager
+	// MatchingPercentageOnboardedReadFromOperationalStore selects the source of
+	// MatchingPercentageOnboardedToShardManager during the migration to the cassandra-backed
+	// operational dynamic config store.
+	// When false (default), cadence reads the value from the generic dynamic config.
+	// When true, cadence reads the value from the operational dynamic config store.
+	// KeyName: matching.percentageOnboardedReadFromOperationalStore
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	MatchingPercentageOnboardedReadFromOperationalStore
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -2459,6 +2511,7 @@ const (
 	// Value type: Float64
 	// Default value: 0.15
 	// Allowed filters: N/A
+	// Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.
 	TimerProcessorMaxPollIntervalJitterCoefficient
 	// TimerProcessorSplitQueueIntervalJitterCoefficient is the split processing queue interval jitter coefficient
 	// KeyName: history.timerProcessorSplitQueueIntervalJitterCoefficient
@@ -2597,6 +2650,42 @@ const (
 	// Default value: 2.0
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingNaiveMaxDeviation
+
+	// ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards
+	// that may be moved per greedy load-balance pass.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.moveBudgetProportion
+	// Value type: Float64
+	// Default value: 0.01
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyMoveBudgetProportion
+
+	// ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load
+	// that qualifies an executor as a greedy rebalance source.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisUpperBand
+	// Value type: Float64
+	// Default value: 1.15
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyHysteresisUpperBand
+
+	// ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load
+	// that qualifies an executor as a greedy rebalance destination.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisLowerBand
+	// Value type: Float64
+	// Default value: 0.90
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyHysteresisLowerBand
+
+	// ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination
+	// selection when maxLoad/meanLoad reaches this value.
+	//
+	// KeyName: shardDistributor.loadBalancingGreedy.severeImbalanceRatio
+	// Value type: Float64
+	// Default value: 1.3
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedySevereImbalanceRatio
 
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
@@ -2746,6 +2835,13 @@ const (
 	// Default value: "disabled"
 	// Allowed filters: domainName
 	HistoryTaskDLQMode
+
+	// TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled
+	// KeyName: history.timerProcessorCachedQueueReaderMode
+	// Value type: string enum: "disabled", "shadow", "enabled"
+	// Default value: "disabled"
+	// Allowed filters: ShardID
+	TimerProcessorCachedQueueReaderMode
 
 	// LastStringKey must be the last one in this const group
 	LastStringKey
@@ -2930,6 +3026,14 @@ const (
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
 	StandbyClusterDelay
+	// WorkflowTimerTaskCleanupMinTTL is the minimum remaining time before a timer task is
+	// worth explicitly deleting at workflow execution cleanup. Timers scheduled to fire within
+	// this window are skipped — they will fire and clean up naturally.
+	// KeyName: history.workflowTimerTaskCleanupMinTTL
+	// Value type: Duration
+	// Default value: 240h (10 days)
+	// Allowed filters: N/A
+	WorkflowTimerTaskCleanupMinTTL
 	// StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events
 	// KeyName: history.standbyTaskMissingEventsResendDelay
 	// Value type: Duration
@@ -3011,6 +3115,7 @@ const (
 	// Value type: Duration
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
+	// Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.
 	TimerProcessorMaxPollInterval
 	// TimerProcessorSplitQueueInterval is the split processing queue interval for timer processor
 	// KeyName: history.timerProcessorSplitQueueInterval
@@ -3030,6 +3135,26 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	TimerProcessorMaxTimeShift
+	// TimerProcessorCachePrefetchTriggerWindow triggers prefetch when this close to upperBound
+	// KeyName: history.timerProcessorCachePrefetchTriggerWindow
+	// Value type: Duration
+	// Default value: 30s (30*time.Second)
+	// Allowed filters: N/A
+	TimerProcessorCachePrefetchTriggerWindow
+	// TimerProcessorCacheTimeEvictionWindow is the time-based eviction window
+	// KeyName: history.timerProcessorCacheTimeEvictionWindow
+	// Value type: Duration
+	// Default value: 10s (10*time.Second)
+	// Allowed filters: N/A
+	TimerProcessorCacheTimeEvictionWindow
+	// TimerProcessorCacheMinPrefetchInterval is the minimum time between consecutive
+	// prefetch attempts. It prevents the prefetch loop from hammering the database
+	// on pathological cases (e.g. cache resets or persistent gap detection).
+	// KeyName: history.timerProcessorCacheMinPrefetchInterval
+	// Value type: Duration
+	// Default value: 1s (1*time.Second)
+	// Allowed filters: N/A
+	TimerProcessorCacheMinPrefetchInterval
 	// TransferProcessorFailoverMaxStartJitterInterval is the max jitter interval for starting transfer
 	// failover queue processing. The actual jitter interval used will be a random duration between
 	// 0 and the max interval so that timer failover queue across different shards won't start at
@@ -3307,6 +3432,54 @@ const (
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
 
+	// ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between
+	// moving the same shard in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.perShardCooldown
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyPerShardCooldown
+
+	// ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant
+	// for exponential smoothing of shard load in greedy load balancing mode.
+	// KeyName: shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant
+	// Value type: Duration
+	// Default value: 1 minute
+	// Allowed filters: namespace
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant
+
+	// OperationalConfigStorePollInterval controls how often the operational
+	// dynamic config store re-reads its snapshot from the primary database.
+	// KeyName: system.operationalConfigStorePollInterval
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStorePollInterval
+
+	// OperationalConfigStoreFetchTimeout is the per-call timeout used when
+	// fetching the operational dynamic config snapshot from the primary database.
+	// KeyName: system.operationalConfigStoreFetchTimeout
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStoreFetchTimeout
+
+	// OperationalConfigStoreUpdateTimeout is the per-call timeout used when
+	// writing an operational dynamic config snapshot to the primary database.
+	// KeyName: system.operationalConfigStoreUpdateTimeout
+	// Value type: Duration
+	// Default value: 2 seconds
+	OperationalConfigStoreUpdateTimeout
+
+	// MatchingRecordTaskStartedTimeout is the request timeout for RecordActivityTaskStarted and RecordDecisionTaskStarted
+	// Any time we spend attempting to start an individual task is blocking that poller from starting a different task.
+	// If a task is taking too long we'd rather try other tasks to maintain higher throughput.
+	// At the same time, workflows with incredibly high contention will take longer to update. To avoid noise from
+	// expected failures we can adjust the value per domain.
+	// KeyName: matching.recordTaskStartedTimeout
+	// Value type: Duration
+	// Default value: 1s
+	// Allowed filters: Domain
+	MatchingRecordTaskStartedTimeout
+
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
 )
@@ -3443,6 +3616,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "",
 		DefaultValue: 0,
 		Filters:      nil,
+	},
+	TestGetIntPropertyFilteredByDomainAndTaskListKey: {
+		KeyName:      "testGetIntPropertyFilteredByDomainAndTaskListKey",
+		Description:  "",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
 	},
 	TransactionSizeLimit: {
 		KeyName:      "system.transactionSizeLimit",
@@ -3771,6 +3950,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "FrontendFailoverHistoryMaxSize is the maximum size for the number of failover event records in a domain failover history",
 		DefaultValue: 5,
 	},
+	FrontendMaxFailoverTimeoutInSeconds: {
+		KeyName:      "frontend.maxFailoverTimeoutInSeconds",
+		Filters:      []Filter{DomainName},
+		Description:  "FrontendMaxFailoverTimeoutInSeconds is the maximum allowed graceful-failover timeout (in seconds) accepted on a FailoverDomain request",
+		DefaultValue: 300,
+	},
 	MatchingUserRPS: {
 		KeyName:      "matching.rps",
 		Description:  "MatchingUserRPS is request rate per second for each matching host",
@@ -4063,6 +4248,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "history.timerProcessorHistoryArchivalSizeLimit",
 		Description:  "TimerProcessorHistoryArchivalSizeLimit is the max history size for inline archival",
 		DefaultValue: 500 * 1024,
+	},
+	TimerProcessorCacheMaxSize: {
+		KeyName:      "history.timerProcessorCacheMaxSize",
+		Description:  "TimerProcessorCacheMaxSize is the hard cap on cached task count",
+		DefaultValue: 1000,
 	},
 	TransferTaskBatchSize: {
 		KeyName:      "history.transferTaskBatchSize",
@@ -4498,6 +4688,17 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
 		DefaultValue: 128,
 	},
+	HistoryTaskListNiceValue: {
+		KeyName:      "history.taskListNiceValue",
+		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
+		DefaultValue: 0,
+		Filters:      []Filter{DomainName, TaskListName},
+	},
+	OperationalConfigStoreUpdateRetryAttempts: {
+		KeyName:      "system.operationalConfigStoreUpdateRetryAttempts",
+		Description:  "Number of attempts to push a value to the operational dynamic config store on conflict",
+		DefaultValue: 1,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -4614,6 +4815,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "EnableGRPCOutbound is the key for enabling outbound GRPC traffic",
 		DefaultValue: true,
 	},
+	EnableWorkflowTimerTaskCleanup: {
+		KeyName:      "system.enableWorkflowTimerTaskCleanup",
+		Description:  "Enables deletion of tracked workflow timer tasks when the execution record is cleaned up at the end of the retention period. Prevents orphaned timer rows from accumulating in Cassandra. Feature flag, intended to be defaulted to true once validated.",
+		DefaultValue: false,
+	},
 	EnableSQLAsyncTransaction: {
 		KeyName:      "system.enableSQLAsyncTransaction",
 		Description:  "EnableSQLAsyncTransaction is the key for enabling async transaction",
@@ -4656,11 +4862,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.enableTaskInfoLogByDomainID",
 		Filters:      []Filter{DomainID},
 		Description:  "MatchingEnableTaskInfoLogByDomainID is enables info level logs for decision/activity task based on the request domainID",
-		DefaultValue: false,
-	},
-	MatchingEnableTasklistGuardAgainstOwnershipShardLoss: {
-		KeyName:      "matching.enableTasklistGuardAgainstOwnershipLoss",
-		Description:  "allows guards to ensure that tasklists don't continue processing if there's signal that they've lost ownership",
 		DefaultValue: false,
 	},
 	MatchingEnableGetNumberOfPartitionsFromCache: {
@@ -5126,6 +5327,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
+	TimerProcessorEnableCachedScheduledQueue: {
+		KeyName:      "history.timerProcessorEnableCachedScheduledQueue",
+		Description:  "TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks",
+		DefaultValue: false,
+	},
 	EnableActiveClusterSelectionPolicyInStartWorkflow: {
 		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
@@ -5142,6 +5348,16 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
+	},
+	MatchingEmergencyOffboardingFromShardManager: {
+		KeyName:      "matching.emergencyOffboardingFromShardManager",
+		Description:  "MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager, ignoring the onboarding percentage",
+		DefaultValue: false,
+	},
+	MatchingPercentageOnboardedReadFromOperationalStore: {
+		KeyName:      "matching.percentageOnboardedReadFromOperationalStore",
+		Description:  "MatchingPercentageOnboardedReadFromOperationalStore selects the source of MatchingPercentageOnboardedToShardManager: false (default) reads from the generic dynamic config, true reads from the cassandra-backed operational dynamic config store",
+		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
@@ -5215,7 +5431,7 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	},
 	TimerProcessorMaxPollIntervalJitterCoefficient: {
 		KeyName:      "history.timerProcessorMaxPollIntervalJitterCoefficient",
-		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient",
+		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient. Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
 		DefaultValue: 0.15,
 	},
 	TimerProcessorSplitQueueIntervalJitterCoefficient: {
@@ -5334,6 +5550,30 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		DefaultValue: 2.0,
 		Filters:      []Filter{Namespace},
 	},
+	ShardDistributorLoadBalancingGreedyMoveBudgetProportion: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.moveBudgetProportion",
+		Description:  "ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards that may be moved per greedy load-balance pass",
+		DefaultValue: 0.01,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyHysteresisUpperBand: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisUpperBand",
+		Description:  "ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load that qualifies an executor as a greedy rebalance source",
+		DefaultValue: 1.15,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedyHysteresisLowerBand: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisLowerBand",
+		Description:  "ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load that qualifies an executor as a greedy rebalance destination",
+		DefaultValue: 0.90,
+		Filters:      []Filter{Namespace},
+	},
+	ShardDistributorLoadBalancingGreedySevereImbalanceRatio: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.severeImbalanceRatio",
+		Description:  "ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination selection when maxLoad/meanLoad reaches this value",
+		DefaultValue: 1.3,
+		Filters:      []Filter{Namespace},
+	},
 }
 
 var StringKeys = map[StringKey]DynamicString{
@@ -5442,6 +5682,12 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
 		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
 		Filters:      []Filter{DomainName},
+	},
+	TimerProcessorCachedQueueReaderMode: {
+		KeyName:      "history.timerProcessorCachedQueueReaderMode",
+		Description:  "TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled",
+		DefaultValue: "disabled",
+		Filters:      []Filter{ShardID},
 	},
 }
 
@@ -5625,6 +5871,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "StandbyClusterDelay is the artificial delay added to standby cluster's view of active cluster's time",
 		DefaultValue: time.Minute * 5,
 	},
+	WorkflowTimerTaskCleanupMinTTL: {
+		KeyName:      "history.workflowTimerTaskCleanupMinTTL",
+		Description:  "Minimum remaining time before a timer task is worth explicitly deleting at workflow execution cleanup. Timers firing within this window are skipped and will clean up naturally.",
+		DefaultValue: time.Hour * 24 * 10,
+	},
 	StandbyTaskMissingEventsResendDelay: {
 		KeyName:      "history.standbyTaskMissingEventsResendDelay",
 		Description:  "StandbyTaskMissingEventsResendDelay is the amount of time standby cluster's will wait (if events are missing)before calling remote for missing events",
@@ -5690,7 +5941,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	TimerProcessorMaxPollInterval: {
 		KeyName:      "history.timerProcessorMaxPollInterval",
-		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor",
+		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor. Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
 		DefaultValue: time.Minute * 5,
 	},
 	TimerProcessorSplitQueueInterval: {
@@ -5706,6 +5957,21 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	TimerProcessorMaxTimeShift: {
 		KeyName:      "history.timerProcessorMaxTimeShift",
 		Description:  "TimerProcessorMaxTimeShift is the max shift timer processor can have",
+		DefaultValue: time.Second,
+	},
+	TimerProcessorCachePrefetchTriggerWindow: {
+		KeyName:      "history.timerProcessorCachePrefetchTriggerWindow",
+		Description:  "TimerProcessorCachePrefetchTriggerWindow triggers prefetch when this close to upperBound",
+		DefaultValue: time.Second * 30,
+	},
+	TimerProcessorCacheTimeEvictionWindow: {
+		KeyName:      "history.timerProcessorCacheTimeEvictionWindow",
+		Description:  "TimerProcessorCacheTimeEvictionWindow is the time-based eviction window",
+		DefaultValue: time.Second * 10,
+	},
+	TimerProcessorCacheMinPrefetchInterval: {
+		KeyName:      "history.timerProcessorCacheMinPrefetchInterval",
+		Description:  "TimerProcessorCacheMinPrefetchInterval is the minimum time between consecutive prefetch attempts",
 		DefaultValue: time.Second,
 	},
 	TransferProcessorFailoverMaxStartJitterInterval: {
@@ -5957,6 +6223,39 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
+	},
+	ShardDistributorLoadBalancingGreedyPerShardCooldown: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.perShardCooldown",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between moving the same shard in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant: {
+		KeyName:      "shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant",
+		Filters:      []Filter{Namespace},
+		Description:  "ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant for exponential smoothing of shard load in greedy load balancing mode",
+		DefaultValue: time.Minute,
+	},
+	OperationalConfigStorePollInterval: {
+		KeyName:      "system.operationalConfigStorePollInterval",
+		Description:  "How often the operational dynamic config store re-reads its snapshot from the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	OperationalConfigStoreFetchTimeout: {
+		KeyName:      "system.operationalConfigStoreFetchTimeout",
+		Description:  "Per-call timeout for fetching the operational dynamic config snapshot from the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	OperationalConfigStoreUpdateTimeout: {
+		KeyName:      "system.operationalConfigStoreUpdateTimeout",
+		Description:  "Per-call timeout for writing an operational dynamic config snapshot to the primary database",
+		DefaultValue: time.Second * 2,
+	},
+	MatchingRecordTaskStartedTimeout: {
+		KeyName:      "matching.recordTaskStartedTimeout",
+		Filters:      []Filter{DomainName},
+		Description:  "MatchingRecordTaskStartedTimeout is the request timeout for RecordActivityTaskStarted and RecordDecisionTaskStarted",
+		DefaultValue: time.Second,
 	},
 }
 

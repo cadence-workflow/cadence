@@ -70,18 +70,19 @@ func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter(), cfg.DatabaseName)
+	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter(), buildDSN(cfg))
 }
 
 // createSingleDBConn creates a single database connection for sqlite
 // Plugin respects the following arguments MaxConns, MaxIdleConns, MaxConnLifetime
 // Other arguments are used and described in buildDSN function
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {
-	if cfg.DatabaseName == "" {
-		return p.createDBConn(cfg)
-	}
-
-	return createSharedDBConn(cfg.DatabaseName, func() (*sqlx.DB, error) {
+	// Always use the shared pool, keyed by the full DSN.
+	// This ensures that multiple services running in the same process (e.g. single-binary mode)
+	// share one *sqlx.DB, which is required for both file-based SQLite (to avoid "database is
+	// locked" errors) and in-memory SQLite (so all services operate on the same database).
+	dsn := buildDSN(cfg)
+	return createSharedDBConn(dsn, func() (*sqlx.DB, error) {
 		return p.createDBConn(cfg)
 	})
 }
@@ -94,12 +95,22 @@ func (p *plugin) createDBConn(cfg *config.SQL) (*sqlx.DB, error) {
 
 	if cfg.MaxConns > 0 {
 		db.SetMaxOpenConns(cfg.MaxConns)
+	} else {
+		db.SetMaxOpenConns(1)
 	}
 	if cfg.MaxIdleConns > 0 {
 		db.SetMaxIdleConns(cfg.MaxIdleConns)
+	} else {
+		db.SetMaxIdleConns(1)
 	}
 	if cfg.MaxConnLifetime > 0 {
 		db.SetConnMaxLifetime(cfg.MaxConnLifetime)
+	}
+	// For in-memory databases, the database is deleted when the last connection
+	// closes. Set ConnMaxIdleTime to 0 (infinite) to prevent idle connections
+	// from being reaped, which would destroy the database.
+	if cfg.DatabaseName == "" {
+		db.SetConnMaxIdleTime(0)
 	}
 
 	// Maps struct names in CamelCase to snake without need for DB struct tags.

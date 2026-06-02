@@ -122,7 +122,7 @@ func (f *timerQueueFactory) createQueuev2(
 		shard.GetMetricsClient(),
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
-		nil, // TODO(c-warren): wire DLQ writer once persistence layer is written
+		shard.GetService().GetHistoryTaskDLQManager(),
 	)
 	executorWrapper := task.NewExecutorWrapper(
 		shard.GetClusterMetadata().GetCurrentClusterName(),
@@ -132,31 +132,53 @@ func (f *timerQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
-	return NewScheduledQueue(
+	metricsScope := shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	options := &Options{
+		PageSize:                             config.TimerTaskBatchSize,
+		DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
+		MaxPollRPS:                           config.TimerProcessorMaxPollRPS,
+		MaxPollInterval:                      config.TimerProcessorMaxPollInterval,
+		MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
+		UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
+		UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
+		MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
+		PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
+		PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+		VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
+		MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
+		RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
+		CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
+		EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
+		MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
+	}
+
+	var cachedReader CachedQueueReader
+	reader := NewQueueReader(
+		shard,
+		persistence.HistoryTaskCategoryTimer,
+		options.MaxPollInterval,
+		options.MaxPollIntervalJitterCoefficient,
+	)
+	if config.TimerProcessorEnableCachedScheduledQueue() {
+		cachedReader = newCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
+		reader = cachedReader
+	}
+
+	base := newScheduledQueue(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
 		f.taskProcessor,
 		executorWrapper,
 		logger,
 		shard.GetMetricsClient(),
-		shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())),
-		&Options{
-			PageSize:                             config.TimerTaskBatchSize,
-			DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
-			MaxPollRPS:                           config.TimerProcessorMaxPollRPS,
-			MaxPollInterval:                      config.TimerProcessorMaxPollInterval,
-			MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
-			UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
-			UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
-			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
-			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
-			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
-			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
-			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
-			RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
-			CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
-			EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
-			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
-		},
+		metricsScope,
+		reader,
+		options,
 	)
+
+	if cachedReader != nil {
+		return newCachedScheduledQueue(base, cachedReader)
+	}
+
+	return base
 }

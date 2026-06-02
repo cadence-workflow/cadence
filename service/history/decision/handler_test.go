@@ -295,8 +295,6 @@ func TestHandleDecisionTaskFailed(t *testing.T) {
 				engine := engine.NewMockEngine(ctrl)
 				h.shard.(*shard.MockContext).EXPECT().GetEngine().Times(3).Return(engine)
 				engine.EXPECT().NotifyNewHistoryEvent(gomock.Any())
-				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
-				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
 			},
 			expectErr: false,
@@ -482,8 +480,6 @@ func TestHandleDecisionTaskStarted(t *testing.T) {
 				engine := engine.NewMockEngine(ctrl)
 				h.shard.(*shard.MockContext).EXPECT().GetEngine().Times(3).Return(engine)
 				engine.EXPECT().NotifyNewHistoryEvent(gomock.Any())
-				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
-				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
 			},
 			expectErr: nil,
@@ -628,8 +624,6 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(3)
 				engine.EXPECT().NotifyNewHistoryEvent(events.NewNotification(constants.TestDomainID, &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
 					0, 5, 0, 1, 0, nil))
-				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
-				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
 
 				decisionHandler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomain(constants.TestDomainName).Times(1).Return(constants.TestLocalDomainEntry, nil)
@@ -756,8 +750,6 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(3)
 				engine.EXPECT().NotifyNewHistoryEvent(events.NewNotification(constants.TestDomainID, &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
 					0, 1, 0, 1, 0, nil))
-				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
-				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
 			},
 			mutableState: &persistence.WorkflowMutableState{
@@ -956,8 +948,6 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().UpdateWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, errors.New("some error updating workflow execution"))
 				engine := engine.NewMockEngine(ctrl)
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(2)
-				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
-				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
 
 			},
@@ -1136,8 +1126,6 @@ func TestHandleDecisionTaskCompleted(t *testing.T) {
 				decisionHandler.shard.(*shard.MockContext).EXPECT().GetEngine().Return(engine).Times(3)
 				engine.EXPECT().NotifyNewHistoryEvent(events.NewNotification(constants.TestDomainID, &types.WorkflowExecution{WorkflowID: constants.TestWorkflowID, RunID: constants.TestRunID},
 					0, 3, 0, 1, 0, nil))
-				engine.EXPECT().NotifyNewTransferTasks(gomock.Any())
-				engine.EXPECT().NotifyNewTimerTasks(gomock.Any())
 				engine.EXPECT().NotifyNewReplicationTasks(gomock.Any())
 			},
 			assertResponseBody: func(t *testing.T, resp *types.HistoryRespondDecisionTaskCompletedResponse) {

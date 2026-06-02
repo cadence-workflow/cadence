@@ -22,6 +22,7 @@ package history
 
 import (
 	"errors"
+	"maps"
 	"slices"
 	"testing"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/ringpop-go/hashring"
 	gomock "go.uber.org/mock/gomock"
-	"golang.org/x/exp/maps"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/membership"
@@ -295,7 +295,7 @@ func TestPeerResolver(t *testing.T) {
 
 			// small sanity check: sharded response should return all inputs
 			assertAllKeysPresent := func(t *testing.T, sharded map[Peer][]string, limits []string) {
-				responded := maps.Values(sharded)
+				responded := slices.Collect(maps.Values(sharded))
 				assert.ElementsMatchf(t,
 					limits,
 					slices.Concat(responded...), // flatten the [][]string

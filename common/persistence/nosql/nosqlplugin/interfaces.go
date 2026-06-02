@@ -465,28 +465,30 @@ type (
 		IsWorkflowExecutionExists(ctx context.Context, shardID int, domainID, workflowID, runID string) (bool, error)
 		// Delete the workflow execution row
 		DeleteWorkflowExecution(ctx context.Context, shardID int, domainID, workflowID, runID string) error
+		// Read the workflow_timer_tasks set from the execution row
+		SelectWorkflowTimerTasks(ctx context.Context, shardID int, domainID, workflowID, runID string) ([]persistence.HistoryTaskKey, error)
 
 		// transfer_task table
 		// within a shard, paging through transfer tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)
 		SelectTransferTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error)
-		// delete a single transfer task
-		DeleteTransferTask(ctx context.Context, shardID int, taskID int64) error
+		// delete one or more transfer tasks; multi-task calls are batched into a single LoggedBatch
+		DeleteTransferTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error
 		// delete a range of transfer tasks
 		RangeDeleteTransferTasks(ctx context.Context, shardID int, inclusiveBeginTaskID, exclusiveEndTaskID int64) error
 
 		// timer_task table
 		// within a shard, paging through timer tasks order by taskID(ASC), filtered by visibilityTimestamp
 		SelectTimerTasksOrderByVisibilityTime(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTime, exclusiveMaxTime time.Time) ([]*HistoryMigrationTask, []byte, error)
-		// delete a single timer task
-		DeleteTimerTask(ctx context.Context, shardID int, taskID int64, visibilityTimestamp time.Time) error
+		// delete one or more timer tasks; multi-task calls are batched into a single LoggedBatch
+		DeleteTimerTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error
 		// delete a range of timer tasks
 		RangeDeleteTimerTasks(ctx context.Context, shardID int, inclusiveMinTime, exclusiveMaxTime time.Time) error
 
 		// replication_task table
 		// within a shard, paging through replication tasks order by taskID(ASC), filtered by minTaskID(inclusive) and maxTaskID(exclusive)
 		SelectReplicationTasksOrderByTaskID(ctx context.Context, shardID, pageSize int, pageToken []byte, inclusiveMinTaskID, exclusiveMaxTaskID int64) ([]*HistoryMigrationTask, []byte, error)
-		// delete a single replication task
-		DeleteReplicationTask(ctx context.Context, shardID int, taskID int64) error
+		// delete one or more replication tasks; multi-task calls are batched into a single LoggedBatch
+		DeleteReplicationTask(ctx context.Context, shardID int, keys []persistence.HistoryTaskKey) error
 		// delete a range of replication tasks
 		RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error
 		// insert replication task with shard condition check
@@ -559,5 +561,15 @@ type (
 	HistoryDLQTaskCRUD interface {
 		// InsertHistoryDLQTaskRow writes a task to the history DLQ.
 		InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error
+		// SelectHistoryDLQTaskRows reads paginated tasks from the history DLQ within the given bounds.
+		// Returns the rows and a next-page token (nil when no more pages remain).
+		SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error)
+		// RangeDeleteHistoryDLQTaskRows deletes all tasks up to and including the given ack-level bounds.
+		RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error
+		// SelectHistoryDLQAckLevelRows reads ack-level rows for a shard.
+		// Optional filter fields (DomainID, ClusterAttributeScope, ClusterAttributeName) narrow the result when non-empty.
+		SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error)
+		// InsertOrUpdateHistoryDLQAckLevelRow upserts a single ack-level row.
+		InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error
 	}
 )

@@ -135,7 +135,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.SyncActivityTaskScope, metrics.CadenceLatency)
 	defer func() {
 		replicationStopWatch.Stop()
-		e.metricsClient.Scope(metrics.SyncActivityTaskScope).RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(replicationLatencyStart))
+		e.metricsClient.Scope(metrics.SyncActivityTaskScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(replicationLatencyStart))
 	}()
 	request := &types.SyncActivityRequest{
 		DomainID:           attr.DomainID,
@@ -180,7 +180,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	stopwatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByActivityReplicationScope, metrics.CadenceClientLatency)
 	defer func() {
 		stopwatch.Stop()
-		e.metricsClient.Scope(metrics.HistoryRereplicationByActivityReplicationScope).RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(activityResendLatencyStart))
+		e.metricsClient.Scope(metrics.HistoryRereplicationByActivityReplicationScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(activityResendLatencyStart))
 	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
@@ -247,7 +247,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.HistoryReplicationV2TaskScope, metrics.CadenceLatency)
 	defer func() {
 		replicationStopWatch.Stop()
-		e.metricsClient.Scope(metrics.HistoryReplicationV2TaskScope).RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(replicationV2LatencyStart))
+		e.metricsClient.Scope(metrics.HistoryReplicationV2TaskScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(replicationV2LatencyStart))
 	}()
 	request := &types.ReplicateEventsV2Request{
 		DomainUUID: attr.DomainID,
@@ -285,7 +285,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	resendStopWatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByHistoryReplicationScope, metrics.CadenceClientLatency)
 	defer func() {
 		resendStopWatch.Stop()
-		e.metricsClient.Scope(metrics.HistoryRereplicationByHistoryReplicationScope).RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(historyResendLatencyStart))
+		e.metricsClient.Scope(metrics.HistoryRereplicationByHistoryReplicationScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(historyResendLatencyStart))
 	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(

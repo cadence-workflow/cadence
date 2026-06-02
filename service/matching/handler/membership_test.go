@@ -58,42 +58,30 @@ import (
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
 
 	testCases := []struct {
-		name                 string
-		lookUpResult         string
-		lookUpErr            error
-		whoAmIResult         string
-		whoAmIErr            error
-		tasklistGuardEnabled bool
+		name         string
+		lookUpResult string
+		lookUpErr    error
+		whoAmIResult string
+		whoAmIErr    error
 
 		expectedError error
 	}{
 		{
-			name:                 "Not owned by current host",
-			lookUpResult:         "A",
-			whoAmIResult:         "B",
-			tasklistGuardEnabled: true,
+			name:         "Not owned by current host",
+			lookUpResult: "A",
+			whoAmIResult: "B",
 
 			expectedError: new(cadence_errors.TaskListNotOwnedByHostError),
 		},
 		{
-			name:                 "LookupError",
-			lookUpErr:            assert.AnError,
-			tasklistGuardEnabled: true,
-			expectedError:        assert.AnError,
+			name:          "LookupError",
+			lookUpErr:     assert.AnError,
+			expectedError: assert.AnError,
 		},
 		{
-			name:                 "WhoAmIError",
-			whoAmIErr:            assert.AnError,
-			tasklistGuardEnabled: true,
-			expectedError:        assert.AnError,
-		},
-		{
-			name:                 "when feature is not enabled, expect previous behaviour to continue",
-			lookUpResult:         "A",
-			whoAmIResult:         "B",
-			tasklistGuardEnabled: false,
-
-			expectedError: nil,
+			name:          "WhoAmIError",
+			whoAmIErr:     assert.AnError,
+			expectedError: assert.AnError,
 		},
 	}
 
@@ -119,17 +107,14 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(matchingTestDomainName, nil).AnyTimes()
 
 			config := defaultTestConfig()
-			taskListEnabled := tc.tasklistGuardEnabled
-			config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool {
-				return taskListEnabled
-			}
 			// Exclude all task lists from the ShardDistributor so that errIfShardOwnershipLost
 			// exercises the ringpop (hash-ring) ownership path that these test cases are actually
-			// testing. With PercentageOnboardedToShardManager=0, no task list name is below the
-			// percentage threshold, so every name is considered excluded regardless of whether it
-			// contains a UUID.
+			// testing. With the onboarding percentage at 0 (set when constructing the engine
+			// below), no task list name is below the percentage threshold, so every name is
+			// considered excluded regardless of whether it contains a UUID.
 			config.ExcludeShortLivedTaskListsFromShardManager = func(opts ...dynamicproperties.FilterOption) bool { return true }
-			config.PercentageOnboardedToShardManager = func(opts ...dynamicproperties.FilterOption) int { return 0 }
+			pct := membership.NewMockPercentageOnboarded(ctrl)
+			pct.EXPECT().Value().Return(0).AnyTimes()
 
 			matchingEngine := NewEngine(
 				taskManager,
@@ -147,6 +132,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockShardDistributorExecutorClient,
 				defaultSDExecutorConfig(),
 				nil,
+				pct,
 			).(*matchingEngineImpl)
 
 			// All task lists are excluded from the ShardDistributor, so GetShardProcess is
@@ -187,11 +173,9 @@ func TestMembershipSubscriptionRecoversAfterPanic(t *testing.T) {
 
 		engine := matchingEngineImpl{
 			membershipResolver: r.MembershipResolver,
-			config: &config.Config{
-				EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-			},
-			logger:   log.NewNoop(),
-			shutdown: make(chan struct{}),
+			config:             &config.Config{},
+			logger:             log.NewNoop(),
+			shutdown:           make(chan struct{}),
 		}
 
 		engine.runMembershipChangeLoop()
@@ -213,7 +197,7 @@ func TestSubscriptionAndShutdown(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
+		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             log.NewNoop(),
 		domainCache:        mockDomainCache,
@@ -248,7 +232,7 @@ func TestSubscriptionAndErrorReturned(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
+		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             log.NewNoop(),
 		domainCache:        mockDomainCache,
@@ -302,7 +286,7 @@ func TestSubscribeToMembershipChangesQuitsIfSubscribeFails(t *testing.T) {
 		shutdownCompletion: &shutdownWG,
 		membershipResolver: mockResolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		config:             &config.Config{EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true }},
+		config:             &config.Config{},
 		shutdown:           make(chan struct{}),
 		logger:             logger,
 		domainCache:        mockDomainCache,
@@ -344,15 +328,17 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 
 	shutdownWG := sync.WaitGroup{}
 	shutdownWG.Add(0)
+	pct := membership.NewMockPercentageOnboarded(ctrl)
+	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	engine := matchingEngineImpl{
-		shutdownCompletion: &shutdownWG,
-		membershipResolver: mockResolver,
-		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		shutdownCompletion:  &shutdownWG,
+		membershipResolver:  mockResolver,
+		taskListRegistry:    tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
+		metricsClient:       metrics.NewNoopMetricsClient(),
+		percentageOnboarded: pct,
 		config: &config.Config{
-			EnableTasklistOwnershipGuard:               func(opts ...dynamicproperties.FilterOption) bool { return true },
 			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
-			PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 		},
 		shutdown:    make(chan struct{}),
 		logger:      log.NewNoop(),

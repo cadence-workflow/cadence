@@ -376,7 +376,7 @@ func (km *kafkaMessageWithMetrics) Ack() {
 	km.message.Ack() // nolint:errcheck
 	if km.swFromAddToAck != nil {
 		km.swFromAddToAck.Stop()
-		km.scope.RecordHistogramDuration(metrics.ESProcessorProcessMsgLatencyHistogram, time.Since(km.processStart))
+		km.scope.ExponentialHistogram(metrics.ESProcessorProcessMsgLatencyHistogram, time.Since(km.processStart))
 	}
 }
 
@@ -384,6 +384,6 @@ func (km *kafkaMessageWithMetrics) Nack() {
 	km.message.Nack() //nolint:errcheck
 	if km.swFromAddToAck != nil {
 		km.swFromAddToAck.Stop()
-		km.scope.RecordHistogramDuration(metrics.ESProcessorProcessMsgLatencyHistogram, time.Since(km.processStart))
+		km.scope.ExponentialHistogram(metrics.ESProcessorProcessMsgLatencyHistogram, time.Since(km.processStart))
 	}
 }

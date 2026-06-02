@@ -307,14 +307,6 @@ func WorkflowResetNextEventID(resetNextEventID int64) Tag {
 	return newInt64("wf-reset-next-event-id", resetNextEventID)
 }
 
-func WorkflowExternalEntityType(externalEntityType string) Tag {
-	return newStringTag("wf-external-entity-type", externalEntityType)
-}
-
-func WorkflowExternalEntityKey(externalEntityKey string) Tag {
-	return newStringTag("wf-external-entity-key", externalEntityKey)
-}
-
 // history tree
 
 // WorkflowTreeID returns tag for WorkflowTreeID

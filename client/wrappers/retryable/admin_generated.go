@@ -188,6 +188,17 @@ func (c *adminClient) GetGlobalIsolationGroups(ctx context.Context, request *typ
 	return resp, err
 }
 
+func (c *adminClient) GetOperationalDynamicConfig(ctx context.Context, gp1 *types.GetOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (gp2 *types.GetOperationalDynamicConfigResponse, err error) {
+	var resp *types.GetOperationalDynamicConfigResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.GetOperationalDynamicConfig(ctx, gp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *adminClient) GetReplicationMessages(ctx context.Context, gp1 *types.GetReplicationMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetReplicationMessagesResponse, err error) {
 	var resp *types.GetReplicationMessagesResponse
 	op := func(ctx context.Context) error {
@@ -215,6 +226,17 @@ func (c *adminClient) ListDynamicConfig(ctx context.Context, lp1 *types.ListDyna
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.ListDynamicConfig(ctx, lp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *adminClient) ListOperationalDynamicConfig(ctx context.Context, lp1 *types.ListOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOperationalDynamicConfigResponse, err error) {
+	var resp *types.ListOperationalDynamicConfigResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ListOperationalDynamicConfig(ctx, lp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)
@@ -303,6 +325,13 @@ func (c *adminClient) RestoreDynamicConfig(ctx context.Context, rp1 *types.Resto
 	return c.throttleRetry.Do(ctx, op)
 }
 
+func (c *adminClient) RestoreOperationalDynamicConfig(ctx context.Context, rp1 *types.RestoreOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	op := func(ctx context.Context) error {
+		return c.client.RestoreOperationalDynamicConfig(ctx, rp1, p1...)
+	}
+	return c.throttleRetry.Do(ctx, op)
+}
+
 func (c *adminClient) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, request *types.UpdateDomainAsyncWorkflowConfiguratonRequest, opts ...yarpc.CallOption) (up1 *types.UpdateDomainAsyncWorkflowConfiguratonResponse, err error) {
 	var resp *types.UpdateDomainAsyncWorkflowConfiguratonResponse
 	op := func(ctx context.Context) error {
@@ -341,6 +370,13 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	}
 	err = c.throttleRetry.Do(ctx, op)
 	return resp, err
+}
+
+func (c *adminClient) UpdateOperationalDynamicConfig(ctx context.Context, up1 *types.UpdateOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	op := func(ctx context.Context) error {
+		return c.client.UpdateOperationalDynamicConfig(ctx, up1, p1...)
+	}
+	return c.throttleRetry.Do(ctx, op)
 }
 
 func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {

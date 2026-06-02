@@ -199,7 +199,7 @@ func (s *esProcessorSuite) TestBulkAfterActionX() {
 	mapVal := newKafkaMessageWithMetrics(mockKafkaMsg, &testStopWatch, time.Now(), s.esProcessor.scope)
 	s.esProcessor.mapToKafkaMsg.Put(testKey, mapVal)
 	mockKafkaMsg.On("Ack").Return(nil).Once()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	s.esProcessor.bulkAfterAction(0, requests, response, nil)
 	mockKafkaMsg.AssertExpectations(s.T())
 }
@@ -237,7 +237,7 @@ func (s *esProcessorSuite) TestBulkAfterAction_Nack() {
 	s.esProcessor.mapToKafkaMsg.Put(testKey, mapVal)
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	// s.mockBulkProcessor.On("RetrieveKafkaKey", request, mock.Anything, mock.Anything).Return(testKey)
 	s.esProcessor.bulkAfterAction(0, requests, response, nil)
 	mockKafkaMsg.AssertExpectations(s.T())
@@ -277,7 +277,7 @@ func (s *esProcessorSuite) TestBulkAfterAction_Error() {
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", metrics.ESProcessorFailures).Once()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	s.esProcessor.bulkAfterAction(0, requests, response, &bulk.GenericError{Details: fmt.Errorf("some error")})
 }
 
@@ -316,7 +316,7 @@ func (s *esProcessorSuite) TestBulkAfterAction_Error_Nack() {
 	mockKafkaMsg.On("Ack").Return(nil).Once() // Expect Ack to be called
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", metrics.ESProcessorFailures).Once()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	s.esProcessor.bulkAfterAction(0, requests, response, &bulk.GenericError{Status: 404, Details: fmt.Errorf("some error")})
 }
 
@@ -333,7 +333,7 @@ func (s *esProcessorSuite) TestAckKafkaMsg() {
 	s.Equal(1, s.esProcessor.mapToKafkaMsg.Len())
 
 	mockKafkaMsg.On("Ack").Return(nil).Once()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	s.esProcessor.ackKafkaMsg(key)
 	mockKafkaMsg.AssertExpectations(s.T())
 	s.Equal(0, s.esProcessor.mapToKafkaMsg.Len())
@@ -352,7 +352,7 @@ func (s *esProcessorSuite) TestNackKafkaMsg() {
 	s.Equal(1, s.esProcessor.mapToKafkaMsg.Len())
 
 	mockKafkaMsg.On("Nack").Return(nil).Once()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	s.esProcessor.nackKafkaMsg(key)
 	mockKafkaMsg.AssertExpectations(s.T())
 	s.Equal(0, s.esProcessor.mapToKafkaMsg.Len())
@@ -536,7 +536,7 @@ func (s *esProcessorSuite) TestBulkAfterAction_Nack_Shadow_WithError() {
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", mock.AnythingOfType("metrics.MetricIdx")).Return()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, mockErr)
 }
@@ -577,7 +577,7 @@ func (s *esProcessorSuite) TestBulkAfterAction_Shadow_Fail_WithoutError() {
 	mockKafkaMsg.On("Nack").Return(nil).Once()
 	mockKafkaMsg.On("Value").Return(payload).Once()
 	s.mockScope.On("IncCounter", mock.AnythingOfType("int")).Return()
-	s.mockScope.On("RecordHistogramDuration", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
+	s.mockScope.On("ExponentialHistogram", metrics.ESProcessorProcessMsgLatencyHistogram, mock.AnythingOfType("time.Duration")).Once()
 	// Execute bulkAfterAction for primary processor with error
 	s.esProcessor.bulkAfterAction(0, requests, response, nil)
 }
