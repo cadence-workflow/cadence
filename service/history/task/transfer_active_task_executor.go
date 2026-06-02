@@ -184,6 +184,11 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	}
 	defer func() { release(retError) }()
 
+	if !t.allowTask(task) {
+		release(nil)
+		return errWorkflowRateLimited
+	}
+
 	mutableState, err := loadMutableState(ctx, wfContext, task, t.metricsClient.Scope(metrics.TransferQueueProcessorScope), t.logger, task.ScheduleID)
 	if err != nil {
 		return err
@@ -215,11 +220,6 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
 	release(nil)
-
-	// Rate limiting task processing requests
-	if !t.allowTask(task) {
-		return errWorkflowRateLimited
-	}
 
 	pushActivityInfo := &pushActivityToMatchingInfo{
 		activityScheduleToStartTimeout: timeout,
