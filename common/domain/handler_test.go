@@ -2289,7 +2289,7 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 		},
 		{
-			name: "Error case - handleGracefulFailover error in the case of a global domain - it should return an error to the user",
+			name: "Error case - validateGracefulFailover error in the case of a global domain - it should return an error to the user",
 			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, _ clock.MockedTimeSource, _ *MockReplicator) {
 				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
 				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
@@ -3310,19 +3310,15 @@ func TestUpdateReplicationConfig(t *testing.T) {
 	}
 }
 
-func TestHandleGracefulFailover(t *testing.T) {
-	failoverTimeoutInSeconds := int32(1)
-	failoverVersion := int64(3)
-
+func TestValidateGracefulFailover(t *testing.T) {
 	testCases := []struct {
-		name                           string
-		replicationConfig              *persistence.DomainReplicationConfig
-		currentActiveCluster           string
-		gracefulFailoverEndTime        *int64
-		activeClusterChange            bool
-		isGlobalDomain                 bool
-		updatedGracefulFailoverEndTime func(now time.Time) *int64
-		err                            error
+		name                    string
+		replicationConfig       *persistence.DomainReplicationConfig
+		currentActiveCluster    string
+		gracefulFailoverEndTime *int64
+		activeClusterChange     bool
+		isGlobalDomain          bool
+		err                     error
 	}{
 		{
 			name: "Success case",
@@ -3333,9 +3329,6 @@ func TestHandleGracefulFailover(t *testing.T) {
 			currentActiveCluster: cluster.TestAlternativeClusterName,
 			activeClusterChange:  true,
 			isGlobalDomain:       true,
-			updatedGracefulFailoverEndTime: func(now time.Time) *int64 {
-				return common.Ptr(now.Add(time.Duration(failoverTimeoutInSeconds) * time.Second).UnixNano())
-			},
 		},
 		{
 			name:                "Error case - activeClusterChange is false",
@@ -3391,21 +3384,12 @@ func TestHandleGracefulFailover(t *testing.T) {
 			mockDomainMgr := persistence.NewMockDomainManager(controller)
 			mockReplicator := NewMockReplicator(controller)
 
-			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator)
+			handler := newTestHandler(t, controller, mockDomainMgr, true, mockReplicator).(*handlerImpl)
 
-			now := handler.(*handlerImpl).timeSource.Now()
-
-			request := &types.UpdateDomainRequest{
-				FailoverTimeoutInSeconds: common.Int32Ptr(failoverTimeoutInSeconds),
-			}
-
-			gracefulFailoverEndTime, previousFailoverVersion, err := (*handlerImpl).handleGracefulFailover(
-				handler.(*handlerImpl),
-				request,
+			err := handler.validateGracefulFailover(
 				tc.replicationConfig,
 				tc.currentActiveCluster,
 				tc.gracefulFailoverEndTime,
-				failoverVersion,
 				tc.activeClusterChange,
 				tc.isGlobalDomain,
 			)
@@ -3415,8 +3399,6 @@ func TestHandleGracefulFailover(t *testing.T) {
 				assert.Equal(t, tc.err, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.updatedGracefulFailoverEndTime(now), gracefulFailoverEndTime)
-				assert.Equal(t, failoverVersion, previousFailoverVersion)
 			}
 		})
 	}
@@ -3769,6 +3751,229 @@ func TestHandler_FailoverDomain(t *testing.T) {
 				DomainActiveClusterName: common.Ptr(cluster.TestCurrentClusterName),
 			},
 			err: errDomainUpdateTooFrequent,
+		},
+		{
+			name: "Error case - active-passive domain cannot be promoted to active-active via FailoverDomain",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.FailoverDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
+				domainResponse := &persistence.GetDomainResponse{
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: clusterA,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: clusterA}, {ClusterName: clusterB}},
+						// ActiveClusters is nil — this is an active-passive domain
+					},
+					Config: &persistence.DomainConfig{
+						Retention:                1,
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+						VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+						BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:          types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					Info: &persistence.DomainInfo{
+						Name:   constants.TestDomainName,
+						ID:     constants.TestDomainID,
+						Status: persistence.DomainStatusRegistered,
+					},
+					IsGlobalDomain:  true,
+					LastUpdatedTime: timeSource.Now().UnixNano(),
+					FailoverVersion: clusterAInitialFailoverVersion,
+				}
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{NotificationVersion: 15}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetDomainName()}).
+					Return(domainResponse, nil).Times(1)
+				// UpdateDomain must NOT be called — guard should reject before reaching persistence
+			},
+			request: &types.FailoverDomainRequest{
+				DomainName: constants.TestDomainName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east": {ActiveClusterName: clusterB},
+							},
+						},
+					},
+				},
+			},
+			err: errCannotPromoteToActiveActiveViaFailover,
+		},
+		{
+			name: "Error case - nil ReplicationConfig in domain response with ActiveClusters in request should be rejected",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.FailoverDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
+				domainResponse := &persistence.GetDomainResponse{
+					ReplicationConfig: nil, // malformed persistence response
+					Config: &persistence.DomainConfig{
+						Retention:                1,
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+						VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+						BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:          types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					Info: &persistence.DomainInfo{
+						Name:   constants.TestDomainName,
+						ID:     constants.TestDomainID,
+						Status: persistence.DomainStatusRegistered,
+					},
+					IsGlobalDomain:  true,
+					LastUpdatedTime: timeSource.Now().UnixNano(),
+					FailoverVersion: clusterAInitialFailoverVersion,
+				}
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{NotificationVersion: 15}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetDomainName()}).
+					Return(domainResponse, nil).Times(1)
+			},
+			request: &types.FailoverDomainRequest{
+				DomainName: constants.TestDomainName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east": {ActiveClusterName: clusterB},
+							},
+						},
+					},
+				},
+			},
+			err: errLocalDomainsCannotFailover,
+		},
+		{
+			name: "Success case - active-active domain with ActiveClusters in request should succeed",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.FailoverDomainRequest, archivalMetadata *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, domainReplicator *MockReplicator) {
+				domainResponse := &persistence.GetDomainResponse{
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: clusterA,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: clusterA}, {ClusterName: clusterB}},
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"us-east": {ActiveClusterName: clusterA, FailoverVersion: clusterAInitialFailoverVersion},
+										"us-west": {ActiveClusterName: clusterB, FailoverVersion: clusterBInitialFailoverVersion},
+									},
+								},
+							},
+						},
+					},
+					Config: &persistence.DomainConfig{
+						Retention:                1,
+						EmitMetric:               true,
+						HistoryArchivalStatus:    types.ArchivalStatusDisabled,
+						VisibilityArchivalStatus: types.ArchivalStatusDisabled,
+						BadBinaries:              types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:          types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:      types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					Info: &persistence.DomainInfo{
+						Name:   constants.TestDomainName,
+						ID:     constants.TestDomainID,
+						Status: persistence.DomainStatusRegistered,
+					},
+					IsGlobalDomain:  true,
+					LastUpdatedTime: timeSource.Now().UnixNano(),
+					FailoverVersion: clusterAInitialFailoverVersion,
+				}
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{NotificationVersion: 15}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetDomainName()}).
+					Return(domainResponse, nil).Times(1)
+				timeSource.Advance(time.Hour)
+
+				expectedUpdateRequest := &persistence.UpdateDomainRequest{
+					Info: &persistence.DomainInfo{
+						Name:   constants.TestDomainName,
+						ID:     constants.TestDomainID,
+						Status: persistence.DomainStatusRegistered,
+					},
+					Config: domainResponse.Config,
+					ReplicationConfig: &persistence.DomainReplicationConfig{
+						ActiveClusterName: clusterA,
+						Clusters: []*persistence.ClusterReplicationConfig{
+							{ClusterName: clusterA}, {ClusterName: clusterB}},
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										// us-east failed over from clusterA to clusterB
+										"us-east": {ActiveClusterName: clusterB, FailoverVersion: clusterBInitialFailoverVersion},
+										"us-west": {ActiveClusterName: clusterB, FailoverVersion: clusterBInitialFailoverVersion},
+									},
+								},
+							},
+						},
+					},
+					PreviousFailoverVersion:     commonconstants.InitialPreviousFailoverVersion,
+					ConfigVersion:               1,                                    // incremented from 0
+					FailoverVersion:             clusterAInitialFailoverVersion + 100, // GetNextFailoverVersion("cluster-a", 2) = 101
+					LastUpdatedTime:             timeSource.Now().UnixNano(),
+					FailoverNotificationVersion: 15,
+					NotificationVersion:         15,
+				}
+				domainManager.EXPECT().UpdateDomain(ctx, expectedUpdateRequest).Return(nil).Times(1)
+				domainReplicator.EXPECT().
+					HandleTransmissionTask(
+						ctx,
+						types.DomainOperationUpdate,
+						expectedUpdateRequest.Info,
+						domainResponse.Config,
+						expectedUpdateRequest.ReplicationConfig,
+						int64(1), // ConfigVersion
+						clusterAInitialFailoverVersion+100,
+						commonconstants.InitialPreviousFailoverVersion,
+						true,
+					).Return(nil).Times(1)
+			},
+			request: &types.FailoverDomainRequest{
+				DomainName: constants.TestDomainName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east": {ActiveClusterName: clusterB},
+							},
+						},
+					},
+				},
+			},
+			response: func(timeSource clock.MockedTimeSource) *types.FailoverDomainResponse {
+				return &types.FailoverDomainResponse{
+					IsGlobalDomain:  true,
+					FailoverVersion: clusterAInitialFailoverVersion + 100,
+					DomainInfo: &types.DomainInfo{
+						Name:   constants.TestDomainName,
+						UUID:   constants.TestDomainID,
+						Status: common.Ptr(types.DomainStatusRegistered),
+					},
+					Configuration: &types.DomainConfiguration{
+						WorkflowExecutionRetentionPeriodInDays: 1,
+						EmitMetric:                             true,
+						HistoryArchivalStatus:                  common.Ptr(types.ArchivalStatusDisabled),
+						VisibilityArchivalStatus:               common.Ptr(types.ArchivalStatusDisabled),
+						BadBinaries:                            &types.BadBinaries{Binaries: map[string]*types.BadBinaryInfo{}},
+						IsolationGroups:                        &types.IsolationGroupConfiguration{},
+						AsyncWorkflowConfig:                    &types.AsyncWorkflowConfiguration{Enabled: true},
+					},
+					ReplicationConfiguration: &types.DomainReplicationConfiguration{
+						ActiveClusterName: clusterA,
+						Clusters: []*types.ClusterReplicationConfiguration{
+							{ClusterName: clusterA}, {ClusterName: clusterB},
+						},
+						ActiveClusters: &types.ActiveClusters{
+							AttributeScopes: map[string]types.ClusterAttributeScope{
+								"region": {
+									ClusterAttributes: map[string]types.ActiveClusterInfo{
+										"us-east": {ActiveClusterName: clusterB, FailoverVersion: clusterBInitialFailoverVersion},
+										"us-west": {ActiveClusterName: clusterB, FailoverVersion: clusterBInitialFailoverVersion},
+									},
+								},
+							},
+						},
+					},
+				}
+			},
 		},
 	}
 

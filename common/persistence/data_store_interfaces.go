@@ -107,6 +107,10 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error
+		GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (InternalGetHistoryDLQTasksResponse, error)
+		RangeDeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
+		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer
@@ -127,7 +131,7 @@ type (
 
 		// Replication task related methods
 		PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error
-		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*GetHistoryTasksResponse, error)
+		GetReplicationTasksFromDLQ(ctx context.Context, request *GetReplicationTasksFromDLQRequest) (*InternalGetReplicationDLQTasksResponse, error)
 		GetReplicationDLQSize(ctx context.Context, request *GetReplicationDLQSizeRequest) (*GetReplicationDLQSizeResponse, error)
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
@@ -335,6 +339,19 @@ type (
 		ShardID           ShardID
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
+		Task              *DataBlob
+	}
+
+	// InternalReplicationDLQTask is the store-layer ReplicationDLQTask: payload is a raw blob.
+	InternalReplicationDLQTask struct {
+		Info *ReplicationTaskInfo
+		Task *DataBlob
+	}
+
+	// InternalGetReplicationDLQTasksResponse is the store-layer GetReplicationDLQTasksResponse.
+	InternalGetReplicationDLQTasksResponse struct {
+		Tasks         []*InternalReplicationDLQTask
+		NextPageToken []byte
 	}
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events
@@ -992,7 +1009,7 @@ type (
 		TTLSeconds      int64 // TTL for the audit log entry in seconds
 	}
 
-	// InternalCreateHistoryDLQTaskRequest is the store-level (pre-serialization) request for writing a history DLQ task.
+	// InternalCreateHistoryDLQTaskRequest is the store-level request for writing a history DLQ task.
 	InternalCreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
@@ -1000,9 +1017,55 @@ type (
 		ClusterAttributeName  string
 		TaskType              int
 		TaskID                int64
+		WorkflowID            string
+		RunID                 string
+		Version               int64
 		VisibilityTimestamp   time.Time
 		CreatedAt             time.Time
 		TaskBlob              *DataBlob
+	}
+
+	// InternalHistoryDLQTask is a single row from the history_task_dlq table.
+	InternalHistoryDLQTask struct {
+		DomainID              string
+		WorkflowID            string
+		RunID                 string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          int
+		VisibilityTimestamp   time.Time
+		TaskID                int64
+		TaskPayload           *DataBlob
+		Version               int64
+		CreatedAt             time.Time
+	}
+
+	// InternalHistoryDLQAckLevel is a single row from the history_task_dlq_ack_level table.
+	InternalHistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// InternalGetHistoryDLQTasksResponse is the response for GetHistoryDLQTasks.
+	InternalGetHistoryDLQTasksResponse struct {
+		Tasks         []*InternalHistoryDLQTask
+		NextPageToken []byte
+	}
+
+	// InternalGetHistoryDLQAckLevelsResponse is the response for GetHistoryDLQAckLevels.
+	InternalGetHistoryDLQAckLevelsResponse struct {
+		AckLevels []*InternalHistoryDLQAckLevel
+	}
+
+	// InternalUpdateHistoryDLQAckLevelRequest upserts a single ack level row.
+	InternalUpdateHistoryDLQAckLevelRequest struct {
+		Row InternalHistoryDLQAckLevel
 	}
 
 	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs

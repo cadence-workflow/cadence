@@ -123,7 +123,7 @@ func (p *parallelTaskProcessorImpl) Submit(task Task) error {
 	sw := p.metricsScope.StartTimer(metrics.ParallelTaskSubmitLatency)
 	defer func() {
 		sw.Stop()
-		p.metricsScope.RecordHistogramDuration(metrics.ParallelTaskSubmitLatencyHistogram, time.Since(submitStart))
+		p.metricsScope.ExponentialHistogram(metrics.ParallelTaskSubmitLatencyHistogram, time.Since(submitStart))
 	}()
 
 	if p.isStopped() {
@@ -159,7 +159,7 @@ func (p *parallelTaskProcessorImpl) executeTask(task Task, shutdownCh chan struc
 	sw := p.metricsScope.StartTimer(metrics.ParallelTaskTaskProcessingLatency)
 	defer func() {
 		sw.Stop()
-		p.metricsScope.RecordHistogramDuration(metrics.ParallelTaskTaskProcessingLatencyHistogram, time.Since(processStart))
+		p.metricsScope.ExponentialHistogram(metrics.ParallelTaskTaskProcessingLatencyHistogram, time.Since(processStart))
 	}()
 
 	defer func() {

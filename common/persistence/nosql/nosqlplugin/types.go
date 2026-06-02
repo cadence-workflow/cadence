@@ -289,10 +289,62 @@ type (
 		ClusterAttributeName  string
 		TaskType              int
 		TaskID                int64
+		WorkflowID            string
+		RunID                 string
+		Version               int64
 		VisibilityTimestamp   time.Time
 		Data                  []byte
 		DataEncoding          string
 		CreatedAt             time.Time
+	}
+
+	// HistoryDLQTaskFilter is the filter for selecting history DLQ task rows.
+	// Bounds follow [inclusive min, exclusive max) semantics.
+	HistoryDLQTaskFilter struct {
+		ShardID                  int
+		DomainID                 string
+		ClusterAttributeScope    string
+		ClusterAttributeName     string
+		TaskType                 int
+		InclusiveMinVisibilityTS time.Time
+		InclusiveMinTaskID       int64
+		ExclusiveMaxVisibilityTS time.Time
+		ExclusiveMaxTaskID       int64
+		PageSize                 int
+		NextPageToken            []byte
+	}
+
+	// HistoryDLQTaskRangeDeleteFilter is the filter for range-deleting history DLQ task rows.
+	HistoryDLQTaskRangeDeleteFilter struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		// ExclusiveMaxVisibilityTS and ExclusiveMaxTaskID form the exclusive upper bound for deletion.
+		ExclusiveMaxVisibilityTS time.Time
+		ExclusiveMaxTaskID       int64
+	}
+
+	// HistoryDLQAckLevelRow defines the row struct for history DLQ ack level entries.
+	HistoryDLQAckLevelRow struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// HistoryDLQAckLevelFilter is the filter for selecting history DLQ ack level rows.
+	// DomainID, ClusterAttributeScope, and ClusterAttributeName are optional; leave empty to return all for the shard.
+	HistoryDLQAckLevelFilter struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween

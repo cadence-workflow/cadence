@@ -1501,8 +1501,7 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 				Memo:                        testMemo,
 				PartitionConfig:             testPartitionConfig,
 				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-					StickyRegion:                   "region1",
+					ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
 				},
 			},
 			ExecutionStats: &p.ExecutionStats{
@@ -1586,8 +1585,7 @@ func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
 	workflowID := "get-active-cluster-selection-policy-test"
 	runID := uuid.New()
 	policy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "region1",
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
 	}
 
 	decisionScheduleID := int64(rand.Int31())
@@ -1655,8 +1653,7 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	workflowID := "delete-active-cluster-selection-policy-test"
 	runID := uuid.New()
 	policy := &types.ActiveClusterSelectionPolicy{
-		ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-		StickyRegion:                   "region1",
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
 	}
 
 	decisionScheduleID := int64(rand.Int31())

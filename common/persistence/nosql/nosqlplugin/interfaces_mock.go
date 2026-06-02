@@ -487,6 +487,20 @@ func (mr *MockDBMockRecorder) InsertIntoQueue(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoQueue", reflect.TypeOf((*MockDB)(nil).InsertIntoQueue), ctx, row)
 }
 
+// InsertOrUpdateHistoryDLQAckLevelRow mocks base method.
+func (m *MockDB) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrUpdateHistoryDLQAckLevelRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow indicates an expected call of InsertOrUpdateHistoryDLQAckLevelRow.
+func (mr *MockDBMockRecorder) InsertOrUpdateHistoryDLQAckLevelRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdateHistoryDLQAckLevelRow", reflect.TypeOf((*MockDB)(nil).InsertOrUpdateHistoryDLQAckLevelRow), ctx, row)
+}
+
 // InsertQueueMetadata mocks base method.
 func (m *MockDB) InsertQueueMetadata(ctx context.Context, row QueueMetadataRow) error {
 	m.ctrl.T.Helper()
@@ -697,6 +711,20 @@ func (m *MockDB) PluginName() string {
 func (mr *MockDBMockRecorder) PluginName() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PluginName", reflect.TypeOf((*MockDB)(nil).PluginName))
+}
+
+// RangeDeleteHistoryDLQTaskRows mocks base method.
+func (m *MockDB) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryDLQTaskRows indicates an expected call of RangeDeleteHistoryDLQTaskRows.
+func (mr *MockDBMockRecorder) RangeDeleteHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryDLQTaskRows", reflect.TypeOf((*MockDB)(nil).RangeDeleteHistoryDLQTaskRows), ctx, filter)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
@@ -939,6 +967,37 @@ func (m *MockDB) SelectFromHistoryTree(ctx context.Context, filter *HistoryTreeF
 func (mr *MockDBMockRecorder) SelectFromHistoryTree(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromHistoryTree", reflect.TypeOf((*MockDB)(nil).SelectFromHistoryTree), ctx, filter)
+}
+
+// SelectHistoryDLQAckLevelRows mocks base method.
+func (m *MockDB) SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQAckLevelRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQAckLevelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectHistoryDLQAckLevelRows indicates an expected call of SelectHistoryDLQAckLevelRows.
+func (mr *MockDBMockRecorder) SelectHistoryDLQAckLevelRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQAckLevelRows", reflect.TypeOf((*MockDB)(nil).SelectHistoryDLQAckLevelRows), ctx, filter)
+}
+
+// SelectHistoryDLQTaskRows mocks base method.
+func (m *MockDB) SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQTaskRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectHistoryDLQTaskRows indicates an expected call of SelectHistoryDLQTaskRows.
+func (mr *MockDBMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MockDB)(nil).SelectHistoryDLQTaskRows), ctx, filter)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
@@ -1661,6 +1720,20 @@ func (mr *MocktableCRUDMockRecorder) InsertIntoQueue(ctx, row any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntoQueue", reflect.TypeOf((*MocktableCRUD)(nil).InsertIntoQueue), ctx, row)
 }
 
+// InsertOrUpdateHistoryDLQAckLevelRow mocks base method.
+func (m *MocktableCRUD) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrUpdateHistoryDLQAckLevelRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow indicates an expected call of InsertOrUpdateHistoryDLQAckLevelRow.
+func (mr *MocktableCRUDMockRecorder) InsertOrUpdateHistoryDLQAckLevelRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdateHistoryDLQAckLevelRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertOrUpdateHistoryDLQAckLevelRow), ctx, row)
+}
+
 // InsertQueueMetadata mocks base method.
 func (m *MocktableCRUD) InsertQueueMetadata(ctx context.Context, row QueueMetadataRow) error {
 	m.ctrl.T.Helper()
@@ -1801,6 +1874,20 @@ func (m *MocktableCRUD) ListTaskList(ctx context.Context, pageSize int, nextPage
 func (mr *MocktableCRUDMockRecorder) ListTaskList(ctx, pageSize, nextPageToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTaskList", reflect.TypeOf((*MocktableCRUD)(nil).ListTaskList), ctx, pageSize, nextPageToken)
+}
+
+// RangeDeleteHistoryDLQTaskRows mocks base method.
+func (m *MocktableCRUD) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryDLQTaskRows indicates an expected call of RangeDeleteHistoryDLQTaskRows.
+func (mr *MocktableCRUDMockRecorder) RangeDeleteHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryDLQTaskRows", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteHistoryDLQTaskRows), ctx, filter)
 }
 
 // RangeDeleteReplicationDLQTasks mocks base method.
@@ -2043,6 +2130,37 @@ func (m *MocktableCRUD) SelectFromHistoryTree(ctx context.Context, filter *Histo
 func (mr *MocktableCRUDMockRecorder) SelectFromHistoryTree(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectFromHistoryTree", reflect.TypeOf((*MocktableCRUD)(nil).SelectFromHistoryTree), ctx, filter)
+}
+
+// SelectHistoryDLQAckLevelRows mocks base method.
+func (m *MocktableCRUD) SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQAckLevelRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQAckLevelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectHistoryDLQAckLevelRows indicates an expected call of SelectHistoryDLQAckLevelRows.
+func (mr *MocktableCRUDMockRecorder) SelectHistoryDLQAckLevelRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQAckLevelRows", reflect.TypeOf((*MocktableCRUD)(nil).SelectHistoryDLQAckLevelRows), ctx, filter)
+}
+
+// SelectHistoryDLQTaskRows mocks base method.
+func (m *MocktableCRUD) SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQTaskRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectHistoryDLQTaskRows indicates an expected call of SelectHistoryDLQTaskRows.
+func (mr *MocktableCRUDMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MocktableCRUD)(nil).SelectHistoryDLQTaskRows), ctx, filter)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
@@ -3815,4 +3933,63 @@ func (m *MockHistoryDLQTaskCRUD) InsertHistoryDLQTaskRow(ctx context.Context, ta
 func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertHistoryDLQTaskRow), ctx, task)
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow mocks base method.
+func (m *MockHistoryDLQTaskCRUD) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertOrUpdateHistoryDLQAckLevelRow", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertOrUpdateHistoryDLQAckLevelRow indicates an expected call of InsertOrUpdateHistoryDLQAckLevelRow.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertOrUpdateHistoryDLQAckLevelRow(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdateHistoryDLQAckLevelRow", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertOrUpdateHistoryDLQAckLevelRow), ctx, row)
+}
+
+// RangeDeleteHistoryDLQTaskRows mocks base method.
+func (m *MockHistoryDLQTaskCRUD) RangeDeleteHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskRangeDeleteFilter) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryDLQTaskRows indicates an expected call of RangeDeleteHistoryDLQTaskRows.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) RangeDeleteHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryDLQTaskRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).RangeDeleteHistoryDLQTaskRows), ctx, filter)
+}
+
+// SelectHistoryDLQAckLevelRows mocks base method.
+func (m *MockHistoryDLQTaskCRUD) SelectHistoryDLQAckLevelRows(ctx context.Context, filter HistoryDLQAckLevelFilter) ([]*HistoryDLQAckLevelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQAckLevelRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQAckLevelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SelectHistoryDLQAckLevelRows indicates an expected call of SelectHistoryDLQAckLevelRows.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) SelectHistoryDLQAckLevelRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQAckLevelRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).SelectHistoryDLQAckLevelRows), ctx, filter)
+}
+
+// SelectHistoryDLQTaskRows mocks base method.
+func (m *MockHistoryDLQTaskCRUD) SelectHistoryDLQTaskRows(ctx context.Context, filter HistoryDLQTaskFilter) ([]*HistoryDLQTaskRow, []byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SelectHistoryDLQTaskRows", ctx, filter)
+	ret0, _ := ret[0].([]*HistoryDLQTaskRow)
+	ret1, _ := ret[1].([]byte)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// SelectHistoryDLQTaskRows indicates an expected call of SelectHistoryDLQTaskRows.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectHistoryDLQTaskRows", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).SelectHistoryDLQTaskRows), ctx, filter)
 }

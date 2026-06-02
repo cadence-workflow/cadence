@@ -49,6 +49,8 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	csc "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -58,6 +60,7 @@ import (
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
+	"github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -154,6 +157,20 @@ func (s *server) startService() common.Daemon {
 	params.MetricScope = s.scope
 	params.MetricsClient = s.metricsClient
 
+	params.OperationalConfigStore = resolveOperationalConfigStore(&params, dc)
+	operationalDC := dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		params.Logger,
+		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
+	)
+	params.PercentageOnboarded = membership.NewPercentageOnboarded(
+		params.MetricsClient,
+		dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+		operationalDC.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+		operationalDC.GetBoolProperty(dynamicproperties.MatchingPercentageOnboardedReadFromOperationalStore),
+		dc.GetBoolProperty(dynamicproperties.MatchingEmergencyOffboardingFromShardManager),
+	)
+
 	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {
 		s.logger.Fatal("error creating rpc factory params", tag.Error(err))
@@ -186,8 +203,7 @@ func (s *server) startService() common.Daemon {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
-		matchingPercentageOnboarded := dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)
-		matchingEmergencyOffboarding := dc.GetBoolProperty(dynamicproperties.MatchingEmergencyOffboardingFromShardManager)
+		matchingPercentageOnboarded := params.PercentageOnboarded
 
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
@@ -196,7 +212,7 @@ func (s *server) startService() common.Daemon {
 			Config:       s.cfg.ShardDistributorMatchingConfig,
 			TimeSource:   clock.NewRealTimeSource(),
 			Enabled: func() bool {
-				return !matchingEmergencyOffboarding() && matchingPercentageOnboarded() > 0
+				return matchingPercentageOnboarded.Value() > 0
 			},
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
@@ -221,7 +237,7 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, dc, params.Logger)
+	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, operationalDC, params.PercentageOnboarded, params.Logger)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -328,15 +344,15 @@ func (s *server) startService() common.Daemon {
 func (*server) wrapHashRingsWithShardDistributor(
 	hashRings map[string]membership.SingleProvider,
 	spectator spectatorclient.Spectator,
-	dc *dynamicconfig.Collection,
+	operationalDC *dynamicconfig.Collection,
+	percentageOnboarded membership.PercentageOnboarded,
 	logger log.Logger,
 ) map[string]membership.SingleProvider {
 	if _, ok := hashRings[service.Matching]; ok {
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
 			spectator,
-			dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
-			dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
-			dc.GetBoolProperty(dynamicproperties.MatchingEmergencyOffboardingFromShardManager),
+			operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+			percentageOnboarded,
 			hashRings[service.Matching],
 			logger,
 		)
@@ -488,4 +504,23 @@ func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) 
 		}
 		return res
 	}
+}
+
+// resolveOperationalConfigStore returns the primary persistence-backed configstore.Client, or a no-op when persistence doesn't support one.
+func resolveOperationalConfigStore(params *resource.Params, dc *dynamicconfig.Collection) configstore.Client {
+	cscConfig := &csc.ClientConfig{
+		PollInterval:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStorePollInterval)(),
+		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.OperationalConfigStoreUpdateRetryAttempts)(),
+		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreFetchTimeout)(),
+		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreUpdateTimeout)(),
+	}
+	client, err := configstore.NewConfigStoreClient(
+		cscConfig, &params.PersistenceConfig, params.Logger, params.MetricsClient,
+		persistence.OperationalDynamicConfig,
+	)
+	if err != nil {
+		params.Logger.Warn("not instantiating operational dynamic config store, this feature will not be enabled", tag.Error(err))
+		return configstore.NewNopClient()
+	}
+	return client
 }

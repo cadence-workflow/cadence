@@ -37,8 +37,7 @@ import (
 
 type shardDistributorResolver struct {
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn
-	emergencyOffboarding       dynamicproperties.BoolPropertyFn
-	percentageOnboarded        dynamicproperties.IntPropertyFn
+	percentageOnboarded        PercentageOnboarded
 	spectator                  spectatorclient.Spectator
 	ring                       SingleProvider
 	logger                     log.Logger
@@ -51,8 +50,7 @@ func (s shardDistributorResolver) AddressToHost(owner string) (HostInfo, error) 
 func NewShardDistributorResolver(
 	spectator spectatorclient.Spectator,
 	excludeShortLivedTaskLists dynamicproperties.BoolPropertyFn,
-	percentageOnboarded dynamicproperties.IntPropertyFn,
-	emergencyOffboarding dynamicproperties.BoolPropertyFn,
+	percentageOnboarded PercentageOnboarded,
 	ring SingleProvider,
 	logger log.Logger,
 ) SingleProvider {
@@ -60,7 +58,6 @@ func NewShardDistributorResolver(
 		spectator:                  spectator,
 		excludeShortLivedTaskLists: excludeShortLivedTaskLists,
 		percentageOnboarded:        percentageOnboarded,
-		emergencyOffboarding:       emergencyOffboarding,
 		ring:                       ring,
 		logger:                     logger,
 	}
@@ -77,10 +74,7 @@ func (s shardDistributorResolver) Stop() {
 }
 
 func (s shardDistributorResolver) Lookup(key string) (HostInfo, error) {
-	if s.emergencyOffboarding() {
-		return s.ring.Lookup(key)
-	}
-	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded()), s.excludeShortLivedTaskLists())
+	excludeTaskList := TaskListExcludedFromShardDistributor(key, uint64(s.percentageOnboarded.Value()), s.excludeShortLivedTaskLists())
 	if excludeTaskList {
 		return s.ring.Lookup(key)
 	}

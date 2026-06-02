@@ -1,4 +1,4 @@
-package loadbalance
+package naive
 
 import (
 	"errors"
@@ -8,10 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/types"
+	"github.com/uber/cadence/service/sharddistributor/loadbalancer/plan"
 	"github.com/uber/cadence/service/sharddistributor/store"
 )
 
-func TestNaive(t *testing.T) {
+func TestPlanInitialPlacement(t *testing.T) {
 	t.Run("picks fewest shards and increments after each pick", func(t *testing.T) {
 		state := &store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{
@@ -25,26 +26,23 @@ func TestNaive(t *testing.T) {
 				"c": {AssignedShards: map[string]*types.ShardAssignment{"s4": {}}},
 			},
 		}
-		n := newNaive(state)
 
-		// b has fewer shards, picked first; after increment a and b are tied at 2.
-		first, err := n.Pick()
+		placements, err := PlanInitialPlacement(state, []string{"new-1", "new-2", "new-3"})
 		require.NoError(t, err)
-		assert.Equal(t, "b", first)
 
-		// Draining executor must never be returned.
-		for i := 0; i < 5; i++ {
-			pick, err := n.Pick()
-			require.NoError(t, err)
-			assert.NotEqual(t, "c", pick)
-		}
+		// b has fewer shards, so the first new shard goes there.
+		// Draining executor c must never receive planned placements.
+		assert.Equal(t, []plan.Placement{
+			{ShardID: "new-1", ExecutorID: "b"},
+			{ShardID: "new-2", ExecutorID: "a"},
+			{ShardID: "new-3", ExecutorID: "b"},
+		}, placements)
 	})
 
-	t.Run("empty active executors returns sentinel", func(t *testing.T) {
-		n := newNaive(&store.NamespaceState{
+	t.Run("empty active executors returns error", func(t *testing.T) {
+		_, err := PlanInitialPlacement(&store.NamespaceState{
 			Executors: map[string]store.HeartbeatState{"a": {Status: types.ExecutorStatusDRAINING}},
-		})
-		_, err := n.Pick()
-		assert.True(t, errors.Is(err, ErrNoActiveExecutors))
+		}, []string{"new-1"})
+		assert.True(t, errors.Is(err, plan.ErrNoActiveExecutors))
 	})
 }

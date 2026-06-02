@@ -128,7 +128,7 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
-		nil, // TODO(c-warren): wire DLQ writer once persistence layer is written
+		shard.GetService().GetHistoryTaskDLQManager(),
 	)
 
 	executorWrapper := task.NewExecutorWrapper(
@@ -139,6 +139,12 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
+	queueReader := NewQueueReader(
+		shard,
+		persistence.HistoryTaskCategoryTransfer,
+		config.TransferProcessorMaxPollInterval,
+		config.TransferProcessorMaxPollIntervalJitterCoefficient,
+	)
 	return NewImmediateQueue(
 		shard,
 		persistence.HistoryTaskCategoryTransfer,
@@ -147,6 +153,7 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 		shard.GetMetricsClient(),
 		shard.GetMetricsClient().Scope(metrics.TransferQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())),
+		queueReader,
 		&Options{
 			PageSize:                             config.TransferTaskBatchSize,
 			DeleteBatchSize:                      config.TransferTaskDeleteBatchSize,

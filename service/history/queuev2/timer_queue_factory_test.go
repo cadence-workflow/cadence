@@ -7,6 +7,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/service/history/config"
@@ -67,4 +68,53 @@ func TestTimerQueueFactory_IsQueueV2Enabled(t *testing.T) {
 	// by default, queue v2 is disabled
 	enabled := factory.isQueueV2Enabled(mockShard)
 	assert.False(t, enabled)
+}
+
+func TestTimerQueueFactory_CreateQueueV2_Cached(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+
+	cfg := config.NewForTest()
+	cfg.TimerProcessorEnableCachedScheduledQueue = dynamicproperties.GetBoolPropertyFn(true)
+
+	mockShard := shard.NewTestContext(
+		t, ctrl, &persistence.ShardInfo{
+			ShardID:          10,
+			RangeID:          1,
+			TransferAckLevel: 0,
+		}, cfg)
+
+	factory := &timerQueueFactory{
+		taskProcessor:  task.NewMockProcessor(ctrl),
+		archivalClient: archiver.NewMockClient(ctrl),
+	}
+
+	processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
+
+	assert.NotNil(t, processor)
+	_, ok := processor.(*cachedScheduledQueue)
+	assert.True(t, ok, "expected *cachedScheduledQueue when TimerProcessorEnableCachedScheduledQueue=true")
+}
+
+func TestTimerQueueFactory_CreateQueuev2_DisabledByDefault(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+
+	mockShard := shard.NewTestContext(
+		t, ctrl, &persistence.ShardInfo{
+			ShardID:          10,
+			RangeID:          1,
+			TransferAckLevel: 0,
+		}, config.NewForTest())
+
+	factory := &timerQueueFactory{
+		taskProcessor:  task.NewMockProcessor(ctrl),
+		archivalClient: archiver.NewMockClient(ctrl),
+	}
+
+	processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
+
+	assert.NotNil(t, processor)
+	_, ok := processor.(*scheduledQueue)
+	assert.True(t, ok, "expected plain *scheduledQueue when TimerProcessorEnableCachedScheduledQueue=false (default)")
 }

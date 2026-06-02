@@ -201,7 +201,7 @@ func (notifier *notifierImpl) dispatchHistoryEventNotification(event *Notificati
 	timer := notifier.metrics.StartTimer(metrics.HistoryEventNotificationScope, metrics.HistoryEventNotificationFanoutLatency)
 	defer func() {
 		timer.Stop()
-		notifier.metrics.Scope(metrics.HistoryEventNotificationScope).RecordHistogramDuration(metrics.HistoryEventNotificationFanoutLatencyHistogram, time.Since(fanoutStart))
+		notifier.metrics.Scope(metrics.HistoryEventNotificationScope).ExponentialHistogram(metrics.HistoryEventNotificationFanoutLatencyHistogram, time.Since(fanoutStart))
 	}()
 	notifier.eventsPubsubs.GetAndDo(identifier, func(key interface{}, value interface{}) error { //nolint:errcheck
 		subscribers := value.(map[string]chan *Notification)
@@ -242,7 +242,7 @@ func (notifier *notifierImpl) dequeueHistoryEventNotifications() {
 			timeelapsed := time.Since(event.Timestamp)
 			notifier.metrics.RecordTimer(metrics.HistoryEventNotificationScope,
 				metrics.HistoryEventNotificationQueueingLatency, timeelapsed)
-			notifier.metrics.Scope(metrics.HistoryEventNotificationScope).RecordHistogramDuration(metrics.HistoryEventNotificationQueueingLatencyHistogram, timeelapsed)
+			notifier.metrics.Scope(metrics.HistoryEventNotificationScope).ExponentialHistogram(metrics.HistoryEventNotificationQueueingLatencyHistogram, timeelapsed)
 
 			notifier.dispatchHistoryEventNotification(event)
 		case <-notifier.closeChan:

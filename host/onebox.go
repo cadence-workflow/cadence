@@ -53,6 +53,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -666,8 +667,14 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 	return c.matchingClients
 }
 
+func setOperationalDefaults(params *resource.Params) {
+	params.OperationalConfigStore = configstore.NewNopClient()
+	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
+}
+
 func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, startWG *sync.WaitGroup) {
 	params := new(resource.Params)
+	setOperationalDefaults(params)
 	params.ClusterRedirectionPolicy = &config.ClusterRedirectionPolicy{}
 	params.Name = service.Frontend
 	params.Logger = c.logger
@@ -752,6 +759,7 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 	historyHosts := c.HistoryHosts()
 	for i, hostport := range historyHosts {
 		params := new(resource.Params)
+		setOperationalDefaults(params)
 		params.Name = service.History
 		params.Logger = c.logger
 		params.ThrottledLogger = c.logger
@@ -834,6 +842,7 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		hostport.Identity()
 		matchingHost := fmt.Sprintf("matching-host-%d:%s", i, hostport.Identity())
 		params := new(resource.Params)
+		setOperationalDefaults(params)
 		params.Name = service.Matching
 		params.Logger = c.logger.WithTags(tag.Dynamic("matching-host", matchingHost))
 		params.ThrottledLogger = c.logger
@@ -912,6 +921,7 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	defer c.shutdownWG.Done()
 
 	params := new(resource.Params)
+	setOperationalDefaults(params)
 	params.Name = service.Worker
 	params.Logger = c.logger
 	params.ThrottledLogger = c.logger

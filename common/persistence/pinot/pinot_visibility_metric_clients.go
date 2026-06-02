@@ -64,7 +64,7 @@ func (p *pinotVisibilityMetricsClient) RecordWorkflowExecutionStarted(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	err := p.persistence.RecordWorkflowExecutionStarted(ctx, request)
 
@@ -87,7 +87,7 @@ func (p *pinotVisibilityMetricsClient) RecordWorkflowExecutionClosed(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	err := p.persistence.RecordWorkflowExecutionClosed(ctx, request)
 
@@ -110,7 +110,7 @@ func (p *pinotVisibilityMetricsClient) RecordWorkflowExecutionUninitialized(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	err := p.persistence.RecordWorkflowExecutionUninitialized(ctx, request)
 
@@ -133,7 +133,7 @@ func (p *pinotVisibilityMetricsClient) UpsertWorkflowExecution(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	err := p.persistence.UpsertWorkflowExecution(ctx, request)
 
@@ -156,7 +156,7 @@ func (p *pinotVisibilityMetricsClient) ListOpenWorkflowExecutions(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListOpenWorkflowExecutions(ctx, request)
 
@@ -179,7 +179,7 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutions(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListClosedWorkflowExecutions(ctx, request)
 
@@ -202,7 +202,7 @@ func (p *pinotVisibilityMetricsClient) ListOpenWorkflowExecutionsByType(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListOpenWorkflowExecutionsByType(ctx, request)
 
@@ -224,7 +224,7 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutionsByType(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByType(ctx, request)
 
@@ -246,7 +246,7 @@ func (p *pinotVisibilityMetricsClient) ListOpenWorkflowExecutionsByWorkflowID(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListOpenWorkflowExecutionsByWorkflowID(ctx, request)
 
@@ -268,7 +268,7 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutionsByWorkflowID(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByWorkflowID(ctx, request)
 
@@ -290,7 +290,7 @@ func (p *pinotVisibilityMetricsClient) ListClosedWorkflowExecutionsByStatus(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListClosedWorkflowExecutionsByStatus(ctx, request)
 
@@ -312,7 +312,7 @@ func (p *pinotVisibilityMetricsClient) GetClosedWorkflowExecution(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.GetClosedWorkflowExecution(ctx, request)
 
@@ -334,7 +334,7 @@ func (p *pinotVisibilityMetricsClient) ListWorkflowExecutions(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ListWorkflowExecutions(ctx, request)
 
@@ -356,7 +356,7 @@ func (p *pinotVisibilityMetricsClient) ScanWorkflowExecutions(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.ScanWorkflowExecutions(ctx, request)
 
@@ -378,7 +378,7 @@ func (p *pinotVisibilityMetricsClient) CountWorkflowExecutions(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	response, err := p.persistence.CountWorkflowExecutions(ctx, request)
 
@@ -400,7 +400,7 @@ func (p *pinotVisibilityMetricsClient) DeleteWorkflowExecution(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	err := p.persistence.DeleteWorkflowExecution(ctx, request)
 
@@ -422,7 +422,7 @@ func (p *pinotVisibilityMetricsClient) DeleteUninitializedWorkflowExecution(
 	sw := scopeWithDomainTag.StartTimer(metrics.PinotLatencyPerDomain)
 	defer func() {
 		sw.Stop()
-		scopeWithDomainTag.RecordHistogramDuration(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
+		scopeWithDomainTag.ExponentialHistogram(metrics.PinotLatencyPerDomainHistogram, time.Since(pinotStart))
 	}()
 	err := p.persistence.DeleteWorkflowExecution(ctx, request)
 

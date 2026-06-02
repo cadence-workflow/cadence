@@ -60,6 +60,7 @@ func TestAdminFailoverStart(t *testing.T) {
 		failoverDomains         []string
 		failoverDrillWaitTime   int
 		failoverCron            string
+		clusterAttributesJSON   string
 		runID                   string
 		mockFn                  func(*testing.T, *frontend.MockClient)
 		wantErr                 bool
@@ -146,7 +147,44 @@ func TestAdminFailoverStart(t *testing.T) {
 			},
 		},
 		{
-			desc:                    "when cron schedule specified it should start the drill workflow",
+			desc:          "cron without drill wait time",
+			wantErr:       true,
+			sourceCluster: "cluster1",
+			targetCluster: "cluster2",
+			failoverCron:  "0 0 * * *",
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				// no frontend calls: error before any RPC
+			},
+		},
+		{
+			desc:          "drill pause EntityNotExistsError, failover continues",
+			sourceCluster: "cluster1",
+			targetCluster: "cluster2",
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.EntityNotExistsError{}).Times(1)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
+			},
+		},
+		{
+			desc:          "drill pause AlreadyCompleted, failover continues",
+			sourceCluster: "cluster1",
+			targetCluster: "cluster2",
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.WorkflowExecutionAlreadyCompletedError{}).Times(1)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.StartWorkflowExecutionResponse{}, nil).Times(1)
+			},
+		},
+		{
+			desc:          "drill pause fails with unexpected error",
+			wantErr:       true,
+			sourceCluster: "cluster1",
+			targetCluster: "cluster2",
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(fmt.Errorf("unexpected signal error")).Times(1)
+			},
+		},
+		{
+			desc:                    "success with cron",
 			sourceCluster:           "cluster1",
 			targetCluster:           "cluster2",
 			failoverBatchSize:       10,
@@ -183,6 +221,49 @@ func TestAdminFailoverStart(t *testing.T) {
 					}).Times(1)
 			},
 		},
+		{
+			desc:                    "success with cluster_attributes_json",
+			sourceCluster:           "cluster1",
+			targetCluster:           "cluster2",
+			failoverBatchSize:       10,
+			failoverWaitTime:        120,
+			gracefulFailoverTimeout: 300,
+			failoverWFTimeout:       600,
+			failoverDomains:         []string{"domain1", "domain2"},
+			clusterAttributesJSON:   `[{"scope":"region","name":"us-west"}]`,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().SignalWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+				wantReq := &types.StartWorkflowExecutionRequest{
+					Domain:                              constants.SystemLocalDomainName,
+					RequestID:                           "test-uuid",
+					WorkflowID:                          failovermanager.FailoverWorkflowID,
+					WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+					TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
+					Input:                               []byte(`{"TargetCluster":"cluster2","SourceCluster":"cluster1","BatchFailoverSize":10,"BatchFailoverWaitTimeInSeconds":120,"Domains":["domain1","domain2"],"DrillWaitTime":0,"GracefulFailoverTimeoutInSeconds":300,"ClusterAttributes":[{"scope":"region","name":"us-west"}]}`),
+					ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600),
+					TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
+					Memo: mustGetWorkflowMemo(t, map[string]interface{}{
+						constants.MemoKeyForOperator: "test-user",
+					}),
+					WorkflowType: &types.WorkflowType{Name: failovermanager.FailoverWorkflowTypeName},
+				}
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, gotReq *types.StartWorkflowExecutionRequest, opts ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
+						if diff := cmp.Diff(wantReq, gotReq); diff != "" {
+							t.Fatalf("Request mismatch (-want +got):\n%s", diff)
+						}
+						return &types.StartWorkflowExecutionResponse{}, nil
+					}).Times(1)
+			},
+		},
+		{
+			desc:                  "invalid cluster_attributes_json",
+			sourceCluster:         "cluster1",
+			targetCluster:         "cluster2",
+			clusterAttributesJSON: `not-valid-json`,
+			mockFn:                func(t *testing.T, m *frontend.MockClient) {},
+			wantErr:               true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -209,6 +290,9 @@ func TestAdminFailoverStart(t *testing.T) {
 				"--domains", strings.Join(tc.failoverDomains, ","),
 				"--failover_drill_wait_second", strconv.Itoa(tc.failoverDrillWaitTime),
 				"--cron", tc.failoverCron,
+			}
+			if tc.clusterAttributesJSON != "" {
+				args = append(args, "--cluster_attributes_json", tc.clusterAttributesJSON)
 			}
 			err := app.Run(args)
 
@@ -514,6 +598,13 @@ func TestAdminFailoverAbort(t *testing.T) {
 						}
 						return nil
 					}).Times(1)
+			},
+		},
+		{
+			desc:    "terminate fails",
+			wantErr: true,
+			mockFn: func(t *testing.T, m *frontend.MockClient) {
+				m.EXPECT().TerminateWorkflowExecution(gomock.Any(), gomock.Any()).Return(fmt.Errorf("terminate failed")).Times(1)
 			},
 		},
 	}

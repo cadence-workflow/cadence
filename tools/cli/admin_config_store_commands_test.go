@@ -389,3 +389,208 @@ func TestAdminListConfigKeys(t *testing.T) {
 		assert.NoError(t, clitest.RunCommandLine(t, td.app, "cadence admin config listall"))
 	})
 }
+
+func TestAdminGetOperationalDynamicConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cmdline     string
+		setupMock   func(td *cliTestData)
+		errContains string
+	}{
+		{
+			name:        "missing required name flag",
+			cmdline:     `cadence admin config operational-get --name ""`,
+			setupMock:   func(td *cliTestData) {},
+			errContains: "Required flag not found",
+		},
+		{
+			name:    "server error",
+			cmdline: `cadence admin config operational-get --name test.key`,
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().GetOperationalDynamicConfig(gomock.Any(), gomock.Any()).
+					Return(nil, assert.AnError)
+			},
+			errContains: "Failed to get operational dynamic config value",
+		},
+		{
+			name:    "happy path with filters",
+			cmdline: `cadence admin config operational-get --name test.key --filter '{"domainName":"d"}'`,
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().GetOperationalDynamicConfig(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.GetOperationalDynamicConfigRequest, _ ...yarpc.CallOption) (*types.GetOperationalDynamicConfigResponse, error) {
+						assert.Equal(t, "test.key", req.ConfigName)
+						assert.Len(t, req.Filters, 1)
+						assert.Equal(t, "domainName", req.Filters[0].Name)
+						return &types.GetOperationalDynamicConfigResponse{
+							Value: &types.DataBlob{
+								EncodingType: types.EncodingTypeJSON.Ptr(),
+								Data:         []byte(`"v"`),
+							},
+						}, nil
+					})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newCLITestData(t)
+			tt.setupMock(td)
+			err := clitest.RunCommandLine(t, td.app, tt.cmdline)
+			if tt.errContains == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.errContains)
+			}
+		})
+	}
+}
+
+func TestAdminUpdateOperationalDynamicConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cmdline     string
+		setupMock   func(td *cliTestData)
+		errContains string
+	}{
+		{
+			name:        "missing required name flag",
+			cmdline:     `cadence admin config operational-update --name "" --value "{}"`,
+			setupMock:   func(td *cliTestData) {},
+			errContains: "Required flag not found",
+		},
+		{
+			name:    "server error",
+			cmdline: `cadence admin config operational-update --name test.key --value "{}"`,
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().UpdateOperationalDynamicConfig(gomock.Any(), gomock.Any()).Return(assert.AnError)
+			},
+			errContains: "Failed to update operational dynamic config value",
+		},
+		{
+			name:    "happy path forwards parsed value",
+			cmdline: `cadence admin config operational-update --name test.key --value ` + `'{"Value":42,"Filters":[]}'`,
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().UpdateOperationalDynamicConfig(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.UpdateOperationalDynamicConfigRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, "test.key", req.ConfigName)
+						assert.Len(t, req.ConfigValues, 1)
+						var v interface{}
+						assert.NoError(t, json.Unmarshal(req.ConfigValues[0].Value.Data, &v))
+						assert.Equal(t, float64(42), v)
+						return nil
+					})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newCLITestData(t)
+			tt.setupMock(td)
+			err := clitest.RunCommandLine(t, td.app, tt.cmdline)
+			if tt.errContains == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.errContains)
+			}
+		})
+	}
+}
+
+func TestAdminRestoreOperationalDynamicConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		cmdline     string
+		setupMock   func(td *cliTestData)
+		errContains string
+	}{
+		{
+			name:        "missing required name flag",
+			cmdline:     `cadence admin config operational-restore --name ""`,
+			setupMock:   func(td *cliTestData) {},
+			errContains: "Required flag not found",
+		},
+		{
+			name:    "server error",
+			cmdline: `cadence admin config operational-restore --name test.key`,
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().RestoreOperationalDynamicConfig(gomock.Any(), gomock.Any()).Return(assert.AnError)
+			},
+			errContains: "Failed to restore operational dynamic config value",
+		},
+		{
+			name:    "happy path",
+			cmdline: `cadence admin config operational-restore --name test.key --filter '{"domainName":"d"}'`,
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().RestoreOperationalDynamicConfig(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.RestoreOperationalDynamicConfigRequest, _ ...yarpc.CallOption) error {
+						assert.Equal(t, "test.key", req.ConfigName)
+						assert.Len(t, req.Filters, 1)
+						return nil
+					})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newCLITestData(t)
+			tt.setupMock(td)
+			err := clitest.RunCommandLine(t, td.app, tt.cmdline)
+			if tt.errContains == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.errContains)
+			}
+		})
+	}
+}
+
+func TestAdminListOperationalDynamicConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupMock   func(td *cliTestData)
+		errContains string
+	}{
+		{
+			name: "server error",
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().ListOperationalDynamicConfig(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			},
+			errContains: "Failed to list operational dynamic config value(s)",
+		},
+		{
+			name: "empty list",
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().ListOperationalDynamicConfig(gomock.Any(), gomock.Any()).Return(nil, nil)
+			},
+		},
+		{
+			name: "happy path",
+			setupMock: func(td *cliTestData) {
+				td.mockAdminClient.EXPECT().ListOperationalDynamicConfig(gomock.Any(), gomock.Any()).
+					Return(&types.ListOperationalDynamicConfigResponse{
+						Entries: []*types.DynamicConfigEntry{{
+							Name: "test.key",
+							Values: []*types.DynamicConfigValue{{
+								Value: &types.DataBlob{
+									EncodingType: types.EncodingTypeJSON.Ptr(),
+									Data:         []byte(`"v"`),
+								},
+							}},
+						}},
+					}, nil)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newCLITestData(t)
+			tt.setupMock(td)
+			err := clitest.RunCommandLine(t, td.app, "cadence admin config operational-list")
+			if tt.errContains == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tt.errContains)
+			}
+		})
+	}
+}

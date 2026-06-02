@@ -238,6 +238,7 @@ const (
 	FlagCronOverlapPolicy              = "cron_overlap_policy"
 	FlagClusterAttributeScope          = "cluster_attribute_scope"
 	FlagClusterAttributeName           = "cluster_attribute_name"
+	FlagClusterAttributesJSON          = "cluster_attributes_json"
 	FlagBatchV2                        = "v2"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"

@@ -46,9 +46,6 @@ func WithCommonEnumFuzzers() FuzzOption {
 		func(e *types.WorkflowExecutionStatus, c fuzz.Continue) {
 			*e = types.WorkflowExecutionStatus(c.Intn(8)) // 0-7: Pending, Started, Completed, Failed, Canceled, Terminated, ContinuedAsNew, TimedOut
 		},
-		func(e *types.ActiveClusterSelectionStrategy, c fuzz.Continue) {
-			*e = types.ActiveClusterSelectionStrategy(c.Intn(2)) // 0-1: RegionSticky, ExternalEntity
-		},
 	)
 }
 

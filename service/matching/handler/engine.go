@@ -67,10 +67,6 @@ const (
 	// _defaultSDReportTTL is the default TTL for shard status reports from matching executor to shard distributor.
 	// This controls how frequently the executor reports its shard load/status to the distributor.
 	_defaultSDReportTTL = 1 * time.Minute
-	// _recordTaskStartedTimeout is the maximum time allowed for RecordDecisionTaskStarted or RecordActivityTaskStarted
-	// Any time we spend attempting to start an individual task is blocking that poller from starting a different task.
-	// If a task is taking too long we'd rather try other tasks to maintain higher throughput.
-	_recordTaskStartedTimeout = time.Second
 )
 
 // Implements matching.Engine
@@ -116,6 +112,7 @@ type (
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
+		percentageOnboarded            membership.PercentageOnboarded
 	}
 )
 
@@ -146,6 +143,7 @@ func NewEngine(
 	shardDistributorClient executorclient.Client,
 	ShardDistributorMatchingConfig clientcommon.Config,
 	drainObserver clientcommon.DrainSignalObserver,
+	percentageOnboarded membership.PercentageOnboarded,
 ) Engine {
 	e := &matchingEngineImpl{
 		taskListRegistry:               tasklist.NewTaskListRegistry(metricsClient),
@@ -168,6 +166,7 @@ func NewEngine(
 		timeSource:                     timeSource,
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
+		percentageOnboarded:            percentageOnboarded,
 	}
 
 	e.setupExecutor(shardDistributorClient)
@@ -452,7 +451,7 @@ func (e *matchingEngineImpl) AddDecisionTask(
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
-		hCtx.scope.RecordHistogramDuration(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddDecisionTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -528,7 +527,7 @@ func (e *matchingEngineImpl) AddActivityTask(
 	}
 	if syncMatched {
 		hCtx.scope.RecordTimer(metrics.SyncMatchLatencyPerTaskList, time.Since(startT))
-		hCtx.scope.RecordHistogramDuration(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
+		hCtx.scope.ExponentialHistogram(metrics.SyncMatchLatencyPerTaskListHistogram, time.Since(startT))
 	}
 	return &types.AddActivityTaskResponse{
 		PartitionConfig: tlMgr.TaskListPartitionConfig(),
@@ -1249,7 +1248,7 @@ func (e *matchingEngineImpl) createPollForDecisionTaskResponse(
 		token, _ = e.tokenSerializer.Serialize(taskToken)
 		if task.ResponseC == nil {
 			scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
-			scope.RecordHistogramDuration(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
+			scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 		}
 	}
 
@@ -1283,7 +1282,7 @@ func (e *matchingEngineImpl) createPollForActivityTaskResponse(
 	}
 	if task.ResponseC == nil {
 		scope.RecordTimer(metrics.AsyncMatchLatencyPerTaskList, time.Since(task.Event.CreatedTime))
-		scope.RecordHistogramDuration(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
+		scope.ExponentialHistogram(metrics.AsyncMatchLatencyPerTaskListHistogram, time.Since(task.Event.CreatedTime))
 	}
 
 	response := &types.MatchingPollForActivityTaskResponse{}
@@ -1340,10 +1339,11 @@ func (e *matchingEngineImpl) recordDecisionTaskStarted(
 		resp, err = e.historyService.RecordDecisionTaskStarted(ctx, request)
 		return err
 	}
+	requestTimeout := e.config.RecordTaskStartedTimeout(pollReq.Domain)
 	throttleRetry := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
-		backoff.WithOperationTimeout(_recordTaskStartedTimeout),
+		backoff.WithOperationTimeout(requestTimeout),
 		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
@@ -1369,10 +1369,11 @@ func (e *matchingEngineImpl) recordActivityTaskStarted(
 		resp, err = e.historyService.RecordActivityTaskStarted(ctx, request)
 		return err
 	}
+	requestTimeout := e.config.RecordTaskStartedTimeout(pollReq.Domain)
 	throttleRetry := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(recordTaskStartedRetryPolicy),
 		backoff.WithRetryableError(isMatchingRetryableError),
-		backoff.WithOperationTimeout(_recordTaskStartedTimeout),
+		backoff.WithOperationTimeout(requestTimeout),
 		backoff.WithContextExpiration(),
 	)
 	err := throttleRetry.Do(ctx, op)
@@ -1521,15 +1522,8 @@ func (e *matchingEngineImpl) isShuttingDown() bool {
 	}
 }
 
-// isExcludedFromShardDistributor returns true if the task list should bypass the
-// ShardDistributor and executor, and instead rely on local hash-ring assignment.
-// This applies to short-lived task lists (e.g. sticky or bits task lists whose names
-// contain a UUID) when the corresponding feature flag is enabled.
 func (e *matchingEngineImpl) isExcludedFromShardDistributor(taskListName string) bool {
-	if e.config.EmergencyOffboardingFromShardManager() {
-		return true
-	}
-	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.config.PercentageOnboardedToShardManager()), e.config.ExcludeShortLivedTaskListsFromShardManager())
+	return membership.TaskListExcludedFromShardDistributor(taskListName, uint64(e.percentageOnboarded.Value()), e.config.ExcludeShortLivedTaskListsFromShardManager())
 }
 
 func (e *matchingEngineImpl) domainChangeCallback(nextDomains []*cache.DomainCacheEntry) {

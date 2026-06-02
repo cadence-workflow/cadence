@@ -18,17 +18,35 @@ import (
 
 // Interface is a client for the WorkflowService service.
 type Interface interface {
+	BackfillSchedule(
+		ctx context.Context,
+		Request *shared.BackfillScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.BackfillScheduleResponse, error)
+
 	CountWorkflowExecutions(
 		ctx context.Context,
 		CountRequest *shared.CountWorkflowExecutionsRequest,
 		opts ...yarpc.CallOption,
 	) (*shared.CountWorkflowExecutionsResponse, error)
 
+	CreateSchedule(
+		ctx context.Context,
+		Request *shared.CreateScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.CreateScheduleResponse, error)
+
 	DeleteDomain(
 		ctx context.Context,
 		DeleteRequest *shared.DeleteDomainRequest,
 		opts ...yarpc.CallOption,
 	) error
+
+	DeleteSchedule(
+		ctx context.Context,
+		Request *shared.DeleteScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.DeleteScheduleResponse, error)
 
 	DeprecateDomain(
 		ctx context.Context,
@@ -41,6 +59,12 @@ type Interface interface {
 		DescribeRequest *shared.DescribeDomainRequest,
 		opts ...yarpc.CallOption,
 	) (*shared.DescribeDomainResponse, error)
+
+	DescribeSchedule(
+		ctx context.Context,
+		Request *shared.DescribeScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.DescribeScheduleResponse, error)
 
 	DescribeTaskList(
 		ctx context.Context,
@@ -118,6 +142,12 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) (*shared.ListOpenWorkflowExecutionsResponse, error)
 
+	ListSchedules(
+		ctx context.Context,
+		Request *shared.ListSchedulesRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.ListSchedulesResponse, error)
+
 	ListTaskListPartitions(
 		ctx context.Context,
 		Request *shared.ListTaskListPartitionsRequest,
@@ -129,6 +159,12 @@ type Interface interface {
 		ListRequest *shared.ListWorkflowExecutionsRequest,
 		opts ...yarpc.CallOption,
 	) (*shared.ListWorkflowExecutionsResponse, error)
+
+	PauseSchedule(
+		ctx context.Context,
+		Request *shared.PauseScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.PauseScheduleResponse, error)
 
 	PollForActivityTask(
 		ctx context.Context,
@@ -292,11 +328,23 @@ type Interface interface {
 		opts ...yarpc.CallOption,
 	) error
 
+	UnpauseSchedule(
+		ctx context.Context,
+		Request *shared.UnpauseScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.UnpauseScheduleResponse, error)
+
 	UpdateDomain(
 		ctx context.Context,
 		UpdateRequest *shared.UpdateDomainRequest,
 		opts ...yarpc.CallOption,
 	) (*shared.UpdateDomainResponse, error)
+
+	UpdateSchedule(
+		ctx context.Context,
+		Request *shared.UpdateScheduleRequest,
+		opts ...yarpc.CallOption,
+	) (*shared.UpdateScheduleResponse, error)
 }
 
 // New builds a new client for the WorkflowService service.
@@ -328,6 +376,34 @@ type client struct {
 	nwc thrift.NoWireClient
 }
 
+func (c client) BackfillSchedule(
+	ctx context.Context,
+	_Request *shared.BackfillScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.BackfillScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_BackfillSchedule_Result
+	args := cadence.WorkflowService_BackfillSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_BackfillSchedule_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) CountWorkflowExecutions(
 	ctx context.Context,
 	_CountRequest *shared.CountWorkflowExecutionsRequest,
@@ -356,6 +432,34 @@ func (c client) CountWorkflowExecutions(
 	return
 }
 
+func (c client) CreateSchedule(
+	ctx context.Context,
+	_Request *shared.CreateScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.CreateScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_CreateSchedule_Result
+	args := cadence.WorkflowService_CreateSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_CreateSchedule_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) DeleteDomain(
 	ctx context.Context,
 	_DeleteRequest *shared.DeleteDomainRequest,
@@ -381,6 +485,34 @@ func (c client) DeleteDomain(
 	}
 
 	err = cadence.WorkflowService_DeleteDomain_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) DeleteSchedule(
+	ctx context.Context,
+	_Request *shared.DeleteScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.DeleteScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_DeleteSchedule_Result
+	args := cadence.WorkflowService_DeleteSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_DeleteSchedule_Helper.UnwrapResponse(&result)
 	return
 }
 
@@ -437,6 +569,34 @@ func (c client) DescribeDomain(
 	}
 
 	success, err = cadence.WorkflowService_DescribeDomain_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) DescribeSchedule(
+	ctx context.Context,
+	_Request *shared.DescribeScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.DescribeScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_DescribeSchedule_Result
+	args := cadence.WorkflowService_DescribeSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_DescribeSchedule_Helper.UnwrapResponse(&result)
 	return
 }
 
@@ -802,6 +962,34 @@ func (c client) ListOpenWorkflowExecutions(
 	return
 }
 
+func (c client) ListSchedules(
+	ctx context.Context,
+	_Request *shared.ListSchedulesRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.ListSchedulesResponse, err error) {
+
+	var result cadence.WorkflowService_ListSchedules_Result
+	args := cadence.WorkflowService_ListSchedules_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_ListSchedules_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) ListTaskListPartitions(
 	ctx context.Context,
 	_Request *shared.ListTaskListPartitionsRequest,
@@ -855,6 +1043,34 @@ func (c client) ListWorkflowExecutions(
 	}
 
 	success, err = cadence.WorkflowService_ListWorkflowExecutions_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) PauseSchedule(
+	ctx context.Context,
+	_Request *shared.PauseScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.PauseScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_PauseSchedule_Result
+	args := cadence.WorkflowService_PauseSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_PauseSchedule_Helper.UnwrapResponse(&result)
 	return
 }
 
@@ -1614,6 +1830,34 @@ func (c client) TerminateWorkflowExecution(
 	return
 }
 
+func (c client) UnpauseSchedule(
+	ctx context.Context,
+	_Request *shared.UnpauseScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.UnpauseScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_UnpauseSchedule_Result
+	args := cadence.WorkflowService_UnpauseSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_UnpauseSchedule_Helper.UnwrapResponse(&result)
+	return
+}
+
 func (c client) UpdateDomain(
 	ctx context.Context,
 	_UpdateRequest *shared.UpdateDomainRequest,
@@ -1639,5 +1883,33 @@ func (c client) UpdateDomain(
 	}
 
 	success, err = cadence.WorkflowService_UpdateDomain_Helper.UnwrapResponse(&result)
+	return
+}
+
+func (c client) UpdateSchedule(
+	ctx context.Context,
+	_Request *shared.UpdateScheduleRequest,
+	opts ...yarpc.CallOption,
+) (success *shared.UpdateScheduleResponse, err error) {
+
+	var result cadence.WorkflowService_UpdateSchedule_Result
+	args := cadence.WorkflowService_UpdateSchedule_Helper.Args(_Request)
+
+	if c.nwc != nil && c.nwc.Enabled() {
+		if err = c.nwc.Call(ctx, args, &result, opts...); err != nil {
+			return
+		}
+	} else {
+		var body wire.Value
+		if body, err = c.c.Call(ctx, args, opts...); err != nil {
+			return
+		}
+
+		if err = result.FromWire(body); err != nil {
+			return
+		}
+	}
+
+	success, err = cadence.WorkflowService_UpdateSchedule_Helper.UnwrapResponse(&result)
 	return
 }

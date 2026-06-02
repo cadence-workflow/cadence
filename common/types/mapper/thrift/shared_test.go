@@ -3604,8 +3604,6 @@ func TestActiveClusterSelectionPolicyConversion(t *testing.T) {
 	testCases := []*types.ActiveClusterSelectionPolicy{
 		nil,
 		{},
-		&testdata.ActiveClusterSelectionPolicyExternalEntity,
-		&testdata.ActiveClusterSelectionPolicyRegionSticky,
 		&testdata.ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 
@@ -3717,4 +3715,19 @@ func TestListFailoverHistoryResponseConversion(t *testing.T) {
 		toResponse := ToListFailoverHistoryResponse(thriftResponse)
 		assert.Equal(t, &response, toResponse)
 	}
+}
+
+func TestFailoverDomainRequestConversion(t *testing.T) {
+	for _, item := range []*types.FailoverDomainRequest{
+		nil,
+		{},
+		&testdata.FailoverDomainRequest,
+		&testdata.FailoverDomainRequest_OnlyActiveClusters,
+	} {
+		assert.Equal(t, item, ToFailoverDomainRequest(FromFailoverDomainRequest(item)))
+	}
+}
+
+func TestFailoverDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
 }

@@ -4533,6 +4533,8 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 		DomainName:              t.DomainName,
 		DomainActiveClusterName: t.GetDomainActiveClusterName(),
 		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
+		Reason:                  t.GetReason(),
+		FailoverTimeout:         secondsToDuration(t.FailoverTimeoutInSeconds),
 	}
 }
 
@@ -4544,10 +4546,16 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	if t.DomainActiveClusterName != "" {
 		domainActiveClusterName = common.StringPtr(t.DomainActiveClusterName)
 	}
+	var reason *string
+	if t.Reason != "" {
+		reason = common.StringPtr(t.Reason)
+	}
 	return &types.FailoverDomainRequest{
-		DomainName:              t.DomainName,
-		DomainActiveClusterName: domainActiveClusterName,
-		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
+		DomainName:               t.DomainName,
+		DomainActiveClusterName:  domainActiveClusterName,
+		ActiveClusters:           ToActiveClusters(t.ActiveClusters),
+		Reason:                   reason,
+		FailoverTimeoutInSeconds: durationToSeconds(t.FailoverTimeout),
 	}
 }
 
@@ -6837,35 +6845,6 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 	if p == nil {
 		return nil
 	}
-	// TODO(active-active): Remove the switch statement once the strategy is removed
-	if p.ActiveClusterSelectionStrategy == nil {
-		return &apiv1.ActiveClusterSelectionPolicy{
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	}
-	switch *p.ActiveClusterSelectionStrategy {
-	case types.ActiveClusterSelectionStrategyRegionSticky:
-		return &apiv1.ActiveClusterSelectionPolicy{
-			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY,
-			StrategyConfig: &apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig{
-				ActiveClusterStickyRegionConfig: &apiv1.ActiveClusterStickyRegionConfig{
-					StickyRegion: p.StickyRegion,
-				},
-			},
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	case types.ActiveClusterSelectionStrategyExternalEntity:
-		return &apiv1.ActiveClusterSelectionPolicy{
-			Strategy: apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY,
-			StrategyConfig: &apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig{
-				ActiveClusterExternalEntityConfig: &apiv1.ActiveClusterExternalEntityConfig{
-					ExternalEntityType: p.ExternalEntityType,
-					ExternalEntityKey:  p.ExternalEntityKey,
-				},
-			},
-			ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
-		}
-	}
 	return &apiv1.ActiveClusterSelectionPolicy{
 		ClusterAttribute: FromClusterAttribute(p.ClusterAttribute),
 	}
@@ -6874,22 +6853,6 @@ func FromActiveClusterSelectionPolicy(p *types.ActiveClusterSelectionPolicy) *ap
 func ToActiveClusterSelectionPolicy(p *apiv1.ActiveClusterSelectionPolicy) *types.ActiveClusterSelectionPolicy {
 	if p == nil {
 		return nil
-	}
-	// TODO(active-active): Remove the switch statement once the strategy is removed
-	switch p.Strategy {
-	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_REGION_STICKY:
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyRegionSticky.Ptr(),
-			StickyRegion:                   p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterStickyRegionConfig).ActiveClusterStickyRegionConfig.StickyRegion,
-			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
-		}
-	case apiv1.ActiveClusterSelectionStrategy_ACTIVE_CLUSTER_SELECTION_STRATEGY_EXTERNAL_ENTITY:
-		return &types.ActiveClusterSelectionPolicy{
-			ActiveClusterSelectionStrategy: types.ActiveClusterSelectionStrategyExternalEntity.Ptr(),
-			ExternalEntityType:             p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityType,
-			ExternalEntityKey:              p.StrategyConfig.(*apiv1.ActiveClusterSelectionPolicy_ActiveClusterExternalEntityConfig).ActiveClusterExternalEntityConfig.ExternalEntityKey,
-			ClusterAttribute:               ToClusterAttribute(p.ClusterAttribute),
-		}
 	}
 	return &types.ActiveClusterSelectionPolicy{
 		ClusterAttribute: ToClusterAttribute(p.ClusterAttribute),

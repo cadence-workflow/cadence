@@ -120,7 +120,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) Submit(task T) e
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer func() {
 		sw.Stop()
-		w.metricsScope.RecordHistogramDuration(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+		w.metricsScope.ExponentialHistogram(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
 	}()
 
 	w.RLock()
@@ -145,7 +145,7 @@ func (w *hierarchicalWeightedRoundRobinTaskSchedulerImpl[K, T]) TrySubmit(
 	sw := w.metricsScope.StartTimer(metrics.PriorityTaskSubmitLatency)
 	defer func() {
 		sw.Stop()
-		w.metricsScope.RecordHistogramDuration(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
+		w.metricsScope.ExponentialHistogram(metrics.PriorityTaskSubmitLatencyHistogram, time.Since(submitStart))
 	}()
 
 	w.RLock()

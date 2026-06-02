@@ -126,6 +126,12 @@ func (c *adminClient) GetGlobalIsolationGroups(ctx context.Context, request *typ
 	return c.client.GetGlobalIsolationGroups(ctx, request, opts...)
 }
 
+func (c *adminClient) GetOperationalDynamicConfig(ctx context.Context, gp1 *types.GetOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (gp2 *types.GetOperationalDynamicConfigResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.GetOperationalDynamicConfig(ctx, gp1, p1...)
+}
+
 func (c *adminClient) GetReplicationMessages(ctx context.Context, gp1 *types.GetReplicationMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetReplicationMessagesResponse, err error) {
 	ctx, cancel := createContext(ctx, c.largeTimeout)
 	defer cancel()
@@ -142,6 +148,12 @@ func (c *adminClient) ListDynamicConfig(ctx context.Context, lp1 *types.ListDyna
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.ListDynamicConfig(ctx, lp1, p1...)
+}
+
+func (c *adminClient) ListOperationalDynamicConfig(ctx context.Context, lp1 *types.ListOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (lp2 *types.ListOperationalDynamicConfigResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ListOperationalDynamicConfig(ctx, lp1, p1...)
 }
 
 func (c *adminClient) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.AdminMaintainWorkflowRequest, p1 ...yarpc.CallOption) (ap2 *types.AdminMaintainWorkflowResponse, err error) {
@@ -204,6 +216,12 @@ func (c *adminClient) RestoreDynamicConfig(ctx context.Context, rp1 *types.Resto
 	return c.client.RestoreDynamicConfig(ctx, rp1, p1...)
 }
 
+func (c *adminClient) RestoreOperationalDynamicConfig(ctx context.Context, rp1 *types.RestoreOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.RestoreOperationalDynamicConfig(ctx, rp1, p1...)
+}
+
 func (c *adminClient) UpdateDomainAsyncWorkflowConfiguraton(ctx context.Context, request *types.UpdateDomainAsyncWorkflowConfiguratonRequest, opts ...yarpc.CallOption) (up1 *types.UpdateDomainAsyncWorkflowConfiguratonResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
@@ -226,6 +244,12 @@ func (c *adminClient) UpdateGlobalIsolationGroups(ctx context.Context, request *
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.UpdateGlobalIsolationGroups(ctx, request, opts...)
+}
+
+func (c *adminClient) UpdateOperationalDynamicConfig(ctx context.Context, up1 *types.UpdateOperationalDynamicConfigRequest, p1 ...yarpc.CallOption) (err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.UpdateOperationalDynamicConfig(ctx, up1, p1...)
 }
 
 func (c *adminClient) UpdateTaskListPartitionConfig(ctx context.Context, request *types.UpdateTaskListPartitionConfigRequest, opts ...yarpc.CallOption) (up1 *types.UpdateTaskListPartitionConfigResponse, err error) {

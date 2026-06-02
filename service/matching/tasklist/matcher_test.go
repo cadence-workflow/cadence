@@ -73,7 +73,7 @@ func TestMatcherSuite(t *testing.T) {
 func (t *MatcherTestSuite) SetupTest() {
 	t.controller = gomock.NewController(t.T())
 	t.client = matching.NewMockClient(t.controller)
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string { return nil })
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, func() []string { return nil })
 	cfg.TaskDispatchRPSTTL = 0
 	t.taskList = NewTestTaskListID(t.T(), uuid.New(), constants.ReservedTaskListPrefix+"tl0/1", persistence.TaskListTypeDecision)
 	tlCfg := newTaskListConfig(t.taskList, cfg, testDomainName)
@@ -506,6 +506,7 @@ func (t *MatcherTestSuite) TestMustOfferRemoteRateLimit() {
 	scope.On("IncCounter", metrics.AsyncMatchForwardTaskThrottleErrorPerTasklist)
 	scope.On("RecordTimer", mock.Anything, mock.Anything)
 	scope.On("IntExponentialHistogram", mock.Anything, mock.AnythingOfType("int")).Return().Maybe()
+	scope.On("ExponentialHistogram", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Maybe()
 	scope.On("RecordHistogramDuration", mock.Anything, mock.AnythingOfType("time.Duration")).Return().Maybe()
 	t.matcher.scope = &scope
 	completionFunc := func(*persistence.TaskInfo, error) {}

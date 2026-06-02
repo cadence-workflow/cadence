@@ -62,6 +62,10 @@ type Client interface {
 	UpdateDynamicConfig(context.Context, *types.UpdateDynamicConfigRequest, ...yarpc.CallOption) error
 	RestoreDynamicConfig(context.Context, *types.RestoreDynamicConfigRequest, ...yarpc.CallOption) error
 	ListDynamicConfig(context.Context, *types.ListDynamicConfigRequest, ...yarpc.CallOption) (*types.ListDynamicConfigResponse, error)
+	GetOperationalDynamicConfig(context.Context, *types.GetOperationalDynamicConfigRequest, ...yarpc.CallOption) (*types.GetOperationalDynamicConfigResponse, error)
+	UpdateOperationalDynamicConfig(context.Context, *types.UpdateOperationalDynamicConfigRequest, ...yarpc.CallOption) error
+	RestoreOperationalDynamicConfig(context.Context, *types.RestoreOperationalDynamicConfigRequest, ...yarpc.CallOption) error
+	ListOperationalDynamicConfig(context.Context, *types.ListOperationalDynamicConfigRequest, ...yarpc.CallOption) (*types.ListOperationalDynamicConfigResponse, error)
 	DeleteWorkflow(context.Context, *types.AdminDeleteWorkflowRequest, ...yarpc.CallOption) (*types.AdminDeleteWorkflowResponse, error)
 	MaintainCorruptWorkflow(context.Context, *types.AdminMaintainWorkflowRequest, ...yarpc.CallOption) (*types.AdminMaintainWorkflowResponse, error)
 	GetGlobalIsolationGroups(ctx context.Context, request *types.GetGlobalIsolationGroupsRequest, opts ...yarpc.CallOption) (*types.GetGlobalIsolationGroupsResponse, error)

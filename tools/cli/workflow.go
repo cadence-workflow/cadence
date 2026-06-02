@@ -233,11 +233,20 @@ func newWorkflowCommands() []*cli.Command {
 				&cli.StringFlag{
 					Name:    FlagEarliestTime,
 					Aliases: []string{"et"},
-					Usage: "EarliestTime of decision start time, required for resetType of DecisionCompletedTime." +
+					Usage: "EarliestTime of decision start time, one possible flag for resetType of DecisionCompletedTime. " +
 						"Supported formats are '2006-01-02T15:04:05+07:00', raw UnixNano and " +
 						"time range (N<duration>), where 0 < N < 1000000 and duration (full-notation/short-notation) can be second/s, " +
 						"minute/m, hour/h, day/d, week/w, month/M or year/y. For example, '15minute' or '15m' implies last 15 minutes, " +
-						"meaning that workflow will be reset to the first decision that completed in last 15 minutes.",
+						"meaning that workflow will be reset to the first decision that completed no earlier than 15 minutes ago.",
+				},
+				&cli.StringFlag{
+					Name:    FlagLatestTime,
+					Aliases: []string{"lt"},
+					Usage: "LatestTime of decision start time, one possible flag for resetType of DecisionCompletedTime. " +
+						"Supported formats are '2006-01-02T15:04:05+07:00', raw UnixNano and " +
+						"time range (N<duration>), where 0 < N < 1000000 and duration (full-notation/short-notation) can be second/s, " +
+						"minute/m, hour/h, day/d, week/w, month/M or year/y. For example, '15minute' or '15m' implies 15 minutes ago, " +
+						"meaning that workflow will be reset to the last decision that completed no later than 15 minutes ago.",
 				},
 				&cli.BoolFlag{
 					Name:  FlagSkipSignalReapply,
@@ -335,11 +344,20 @@ func newWorkflowCommands() []*cli.Command {
 				&cli.StringFlag{
 					Name:    FlagEarliestTime,
 					Aliases: []string{"et"},
-					Usage: "EarliestTime of decision start time, required for resetType of DecisionCompletedTime." +
+					Usage: "EarliestTime of decision start time, one possible flag for resetType of DecisionCompletedTime. " +
 						"Supported formats are '2006-01-02T15:04:05+07:00', raw UnixNano and " +
 						"time range (N<duration>), where 0 < N < 1000000 and duration (full-notation/short-notation) can be second/s, " +
 						"minute/m, hour/h, day/d, week/w, month/M or year/y. For example, '15minute' or '15m' implies last 15 minutes, " +
-						"meaning that workflow will be reset to the first decision that completed in last 15 minutes.",
+						"meaning that workflow will be reset to the first decision that completed no earlier than 15 minutes ago.",
+				},
+				&cli.StringFlag{
+					Name:    FlagLatestTime,
+					Aliases: []string{"lt"},
+					Usage: "LatestTime of decision start time, one possible flag for resetType of DecisionCompletedTime. " +
+						"Supported formats are '2006-01-02T15:04:05+07:00', raw UnixNano and " +
+						"time range (N<duration>), where 0 < N < 1000000 and duration (full-notation/short-notation) can be second/s, " +
+						"minute/m, hour/h, day/d, week/w, month/M or year/y. For example, '15minute' or '15m' implies 15 minutes ago, " +
+						"meaning that workflow will be reset to the last decision that completed no later than 15 minutes ago.",
 				},
 			},
 			Action: ResetInBatch,

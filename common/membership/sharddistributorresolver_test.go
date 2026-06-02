@@ -54,7 +54,9 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	// Set percentage to 0 so all task lists are excluded
-	resolver.percentageOnboarded = dynamicproperties.GetIntPropertyFn(0)
+	pct := NewMockPercentageOnboarded(gomock.NewController(t))
+	pct.EXPECT().Value().Return(0).AnyTimes()
+	resolver.percentageOnboarded = pct
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
 
@@ -67,28 +69,16 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	ctrl := gomock.NewController(t)
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
+	pct := NewMockPercentageOnboarded(ctrl)
+	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	resolver := NewShardDistributorResolver(
 		nil, // nil spectator
 		dynamicproperties.GetBoolPropertyFn(false),
-		dynamicproperties.GetIntPropertyFn(100),
-		dynamicproperties.GetBoolPropertyFn(false),
+		pct,
 		ring,
 		logger,
 	).(*shardDistributorResolver)
-
-	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
-
-	host, err := resolver.Lookup("test-key")
-	assert.NoError(t, err)
-	assert.Equal(t, "hash-ring-addr", host.addr)
-}
-
-func TestShardDistributorResolver_Lookup_EmergencyOffboardingFallsBackToHashRing(t *testing.T) {
-	resolver, ring, _ := newShardDistributorResolver(t)
-	// Emergency offboarding overrides the onboarding percentage
-	resolver.emergencyOffboarding = dynamicproperties.GetBoolPropertyFn(true)
-	resolver.percentageOnboarded = dynamicproperties.GetIntPropertyFn(100)
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "hash-ring-addr"}, nil)
 
@@ -178,12 +168,13 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 			spectator := spectatorclient.NewMockSpectator(ctrl)
 			ring := NewMockSingleProvider(ctrl)
 			logger := log.NewNoop()
+			pct := NewMockPercentageOnboarded(ctrl)
+			pct.EXPECT().Value().Return(100).AnyTimes()
 
 			resolver := NewShardDistributorResolver(
 				spectator,
 				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
-				dynamicproperties.GetIntPropertyFn(100),
-				dynamicproperties.GetBoolPropertyFn(false),
+				pct,
 				ring,
 				logger,
 			).(*shardDistributorResolver)
@@ -218,11 +209,12 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ctrl := gomock.NewController(t)
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
-	percentageOnboarded := dynamicproperties.GetIntPropertyFn(100)
+	percentageOnboarded := NewMockPercentageOnboarded(ctrl)
+	percentageOnboarded.EXPECT().Value().Return(100).AnyTimes()
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 
-	resolver := NewShardDistributorResolver(spectator, excludeShortLivedTaskLists, percentageOnboarded, dynamicproperties.GetBoolPropertyFn(false), ring, logger).(*shardDistributorResolver)
+	resolver := NewShardDistributorResolver(spectator, excludeShortLivedTaskLists, percentageOnboarded, ring, logger).(*shardDistributorResolver)
 
 	return resolver, ring, spectator
 }
