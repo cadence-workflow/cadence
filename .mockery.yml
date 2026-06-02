@@ -78,6 +78,14 @@ packages:
       TaskManager:
       VisibilityManager:
       ShardManager:
+      HistoryManager:
+        config:
+          filename: "HistoryV2Manager.go"
+          structname: "HistoryV2Manager"
+      DomainManager:
+        config:
+          filename: "MetadataManager.go"
+          structname: "MetadataManager"
   github.com/uber/cadence/service/worker/parentclosepolicy:
     config:
       structname: "ClientMock"
