@@ -166,6 +166,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
+	if err := common.ValidateRetryPolicy(request.GetAction().GetStartWorkflow().GetRetryPolicy()); err != nil {
+		return nil, err
+	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
@@ -364,6 +367,11 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	}
 	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
 		return nil, err
+	}
+	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
+		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err
