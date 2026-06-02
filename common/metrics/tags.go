@@ -90,7 +90,6 @@ const (
 	onboardingActive = "onboarding_active"
 
 	historyTaskDLQOutcome = "outcome"
-	historyTaskDLQCause   = "cause"
 
 	allValue     = "all"
 	unknownValue = "_unknown_"
@@ -452,11 +451,6 @@ func QueryConsistencyLevelTag(level string) Tag {
 // HistoryTaskDLQOutcomeTag returns a tag for the outcome of a DLQ write attempt (success|failure).
 func HistoryTaskDLQOutcomeTag(outcome string) Tag {
 	return simpleMetric{key: historyTaskDLQOutcome, value: outcome}
-}
-
-// HistoryTaskDLQDiscardCauseTag returns a tag for the cause of a terminal standby-task discard (disabled|shadow).
-func HistoryTaskDLQDiscardCauseTag(cause string) Tag {
-	return simpleMetric{key: historyTaskDLQCause, value: cause}
 }
 
 // BudgetManagerNameTag returns a new budget manager name tag.

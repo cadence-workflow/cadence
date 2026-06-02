@@ -31,7 +31,6 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/constants"
@@ -133,9 +132,6 @@ func standbyTaskPostActionWriteToDLQ(
 			}
 		}
 
-		domainName, _ := shard.GetDomainCache().GetDomainName(domainID)
-		metricsScope := shard.GetMetricsClient().Scope(metrics.HistoryTaskStandbyDLQScope, metrics.DomainTag(domainName))
-
 		taskTags := []tag.Tag{
 			tag.WorkflowID(task.GetWorkflowID()),
 			tag.WorkflowRunID(task.GetRunID()),
@@ -169,11 +165,9 @@ func standbyTaskPostActionWriteToDLQ(
 			if err != nil {
 				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.")
 			}
-			metricsScope.Tagged(metrics.HistoryTaskDLQDiscardCauseTag(constants.HistoryTaskDLQModeShadow)).IncCounter(metrics.TaskDLQDiscardPerDomain)
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		default:
 			logger.Warn("DLQ not enabled for domain; discarding standby task.", taskTags...)
-			metricsScope.Tagged(metrics.HistoryTaskDLQDiscardCauseTag(constants.HistoryTaskDLQModeDisabled)).IncCounter(metrics.TaskDLQDiscardPerDomain)
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		}
 	}

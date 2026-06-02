@@ -1456,9 +1456,6 @@ const (
 	HistoryTaskSchedulerMigrationScope
 	// WorkflowCorruptionRepairScope is the scope used for workflow corruption detection and repair operations
 	WorkflowCorruptionRepairScope
-	// HistoryTaskStandbyDLQScope is the scope used when writing standby tasks to the DLQ
-	HistoryTaskStandbyDLQScope
-
 	NumHistoryScopes
 )
 
@@ -2245,7 +2242,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryFlushBufferedEventsScope:                                 {operation: "HistoryFlushBufferedEvents"},
 		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
-		HistoryTaskStandbyDLQScope:                                      {operation: "HistoryTaskStandbyDLQ"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -2678,8 +2674,6 @@ const (
 	TaskWorkflowBusyPerDomain
 	TaskDiscardedPerDomain
 	TaskUnsupportedPerDomain
-	// TaskDLQDiscardPerDomain counts terminal standby-task discards from the post-action path, tagged by cause (disabled|shadow).
-	TaskDLQDiscardPerDomain
 	TaskAttemptTimerPerDomain
 	TaskAttemptPerDomainCountsHistogram
 	TaskStandbyRetryCounterPerDomain
@@ -3692,7 +3686,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskWorkflowBusyPerDomain:                {metricName: "task_errors_workflow_busy_per_domain", metricRollupName: "task_errors_workflow_busy", metricType: Counter},
 		TaskDiscardedPerDomain:                   {metricName: "task_errors_discarded_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
 		TaskUnsupportedPerDomain:                 {metricName: "task_errors_unsupported_per_domain", metricRollupName: "task_errors_discarded", metricType: Counter},
-		TaskDLQDiscardPerDomain:                  {metricName: "history_dlq_standby_task_discard_per_domain", metricRollupName: "history_dlq_standby_task_discard", metricType: Counter},
 		TaskStandbyRetryCounterPerDomain:         {metricName: "task_errors_standby_retry_counter_per_domain", metricRollupName: "task_errors_standby_retry_counter", metricType: Counter},
 		TaskListNotOwnedByHostCounterPerDomain:   {metricName: "task_errors_task_list_not_owned_by_host_counter_per_domain", metricRollupName: "task_errors_task_list_not_owned_by_host_counter", metricType: Counter},
 		TaskPendingActiveCounterPerDomain:        {metricName: "task_errors_pending_active_counter_per_domain", metricRollupName: "task_errors_pending_active_counter", metricType: Counter},
