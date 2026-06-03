@@ -264,7 +264,18 @@ func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
 	s.Equal(int32(60), sw.GetExecutionStartToCloseTimeoutSeconds())
 	s.Equal(int32(10), sw.GetTaskStartToCloseTimeoutSeconds())
 	s.Require().NotNil(sw.GetRetryPolicy())
-	s.Equal(int32(3), sw.GetRetryPolicy().MaximumAttempts)
+
+	// Retry policy
+	rp := sw.GetRetryPolicy()
+	s.Equal(int32(1), rp.InitialIntervalInSeconds)
+	s.InDelta(2.0, rp.BackoffCoefficient, 0.001)
+	s.Equal(int32(10), rp.MaximumIntervalInSeconds)
+	s.Equal(int32(3), rp.MaximumAttempts)
+	s.Equal(int32(100), rp.ExpirationIntervalInSeconds)
+	s.Require().NotNil(sw.GetMemo())
+	s.Equal([]byte(`"m"`), sw.GetMemo().Fields["actionMemo"])
+	s.Require().NotNil(sw.GetSearchAttributes())
+	s.Equal([]byte(`"sa"`), sw.GetSearchAttributes().IndexedFields["CustomKeywordField"])
 
 	// Policies round-trip, including the nullable limit fields.
 	pol := desc.GetPolicies()
@@ -277,6 +288,12 @@ func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
 	s.Equal(int32(5), *pol.GetBufferLimit())
 	s.Require().NotNil(pol.GetConcurrencyLimit())
 	s.Equal(int32(0), *pol.GetConcurrencyLimit())
+
+	// Schedule-level Memo and SearchAttributes round-trip.
+	s.Require().NotNil(desc.GetMemo())
+	s.Equal([]byte(`"sm"`), desc.GetMemo().Fields["schedMemo"])
+	s.Require().NotNil(desc.GetSearchAttributes())
+	s.Equal([]byte(`7`), desc.GetSearchAttributes().IndexedFields["CustomIntField"])
 
 	// Schedule starts active.
 	s.False(desc.GetState().GetPaused())
