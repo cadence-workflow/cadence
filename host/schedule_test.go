@@ -161,8 +161,7 @@ func (s *IntegrationSuite) TestScheduleSmokeTest() {
 // and asserts DescribeSchedule returns them unchanged. It exercises the full
 // CreateSchedule -> DescribeSchedule mapping path that the CLI cannot reach (the
 // CLI only exposes cron/workflowType/taskList/timeouts/input/overlap/catchup/
-// concurrencyLimit). Some assertions may surface gaps in the Describe response
-// mapping (e.g. schedule-level Memo/SearchAttributes, createTime/lastUpdateTime).
+// concurrencyLimit).
 func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
 	if s.TestClusterConfig.WorkerConfig == nil || !s.TestClusterConfig.WorkerConfig.EnableScheduler {
 		s.T().Skip("scheduler worker manager not enabled on this cluster")
@@ -176,7 +175,7 @@ func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
 		Domain:     s.DomainName,
 		ScheduleID: scheduleID,
 		Spec: &types.ScheduleSpec{
-			CronExpression: "@every 30s", // @every descriptor; faster than the 1-min standard-cron floor
+			CronExpression: "@every 30s",
 			StartTime:      start,
 			EndTime:        end,
 			Jitter:         15 * time.Second,
