@@ -134,7 +134,7 @@ func NewCache(shard shard.Context) Cache {
 func (c *cacheImpl) cacheMetricsScope(scope metrics.ScopeIdx) metrics.Scope {
 	return metrics.WithCacheScopeLabels(
 		c.metricsClient.Scope(scope),
-		c.shard.GetShardID(),
+		metrics.ShardIDTag(c.shard.GetShardID()),
 		metrics.SourceClusterNoneTagValue,
 		metrics.MutableStateCacheTypeTagValue,
 	)

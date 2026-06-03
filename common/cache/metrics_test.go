@@ -96,7 +96,7 @@ func emitLRUCacheMetrics(t *testing.T, metricScope metrics.Scope) {
 func emitMutableStateCacheMetrics(client metrics.Client) {
 	scope := metrics.WithCacheScopeLabels(
 		client.Scope(metrics.HistoryCacheGetOrCreateScope),
-		1,
+		metrics.ShardIDTag(1),
 		metrics.SourceClusterNoneTagValue,
 		metrics.MutableStateCacheTypeTagValue,
 	)
@@ -109,7 +109,7 @@ func emitMutableStateCacheMetrics(client metrics.Client) {
 func emitEventsCacheMetrics(client metrics.Client) {
 	scope := metrics.WithCacheScopeLabels(
 		client.Scope(metrics.EventsCacheGetEventScope),
-		1,
+		metrics.ShardIDTag(1),
 		metrics.SourceClusterNoneTagValue,
 		metrics.EventsCacheTypeTagValue,
 	)

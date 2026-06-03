@@ -134,11 +134,11 @@ func CacheTypeTag(value string) Tag {
 }
 
 // WithCacheScopeLabels returns a scope tagged with the cache metric labels required for consistent Prometheus registration.
-func WithCacheScopeLabels(scope Scope, shardIDVal int, sourceClusterVal string, cacheTypeVal string) Scope {
+func WithCacheScopeLabels(scope Scope, shardTag Tag, sourceClusterVal string, cacheTypeVal string) Scope {
 	return scope.Tagged(
 		CacheTypeTag(cacheTypeVal),
 		SourceClusterTag(sourceClusterVal),
-		ShardIDTag(shardIDVal),
+		shardTag,
 	)
 }
 

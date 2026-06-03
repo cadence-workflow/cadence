@@ -66,7 +66,7 @@ type (
 		disabled       bool
 		logger         log.Logger
 		metricsClient  metrics.Client
-		shardID        int
+		shardID        *int
 	}
 
 	eventKey struct {
@@ -152,11 +152,11 @@ func newCacheWithOption(
 	opts.TTL = ttl
 	opts.MaxCount = maxCount
 	opts.MetricsScope = metricsClient.Scope(metrics.EventsCacheGetEventScope)
-	cacheShardID := -1
 	if shardID != nil {
-		cacheShardID = *shardID
+		opts.MetricsScope = opts.MetricsScope.Tagged(metrics.ShardIDTag(*shardID))
+	} else {
+		opts.MetricsScope = opts.MetricsScope.Tagged(metrics.NonShardTag())
 	}
-	opts.MetricsScope = opts.MetricsScope.Tagged(metrics.ShardIDTag(cacheShardID))
 
 	opts.MaxSize = maxSize
 	opts.Logger = logger.WithTags(tag.ComponentEventsCache)
@@ -169,14 +169,19 @@ func newCacheWithOption(
 		disabled:       disabled,
 		logger:         logger.WithTags(tag.ComponentEventsCache),
 		metricsClient:  metricsClient,
-		shardID:        cacheShardID,
+		shardID:        shardID,
 	}
 }
 
 func (e *cacheImpl) cacheMetricsScope(scope metrics.ScopeIdx) metrics.Scope {
+	shardTag := metrics.NonShardTag()
+	if e.shardID != nil {
+		shardTag = metrics.ShardIDTag(*e.shardID)
+	}
+
 	return metrics.WithCacheScopeLabels(
 		e.metricsClient.Scope(scope),
-		e.shardID,
+		shardTag,
 		metrics.SourceClusterNoneTagValue,
 		metrics.EventsCacheTypeTagValue,
 	)

@@ -184,11 +184,12 @@ func New(opts *Options) Cache {
 
 	if cache.metricsScope == nil {
 		cache.metricsScope = metrics.NoopScope
+	} else {
+		cache.metricsScope = cache.metricsScope.Tagged(
+			metrics.CacheTypeTag(metrics.LRUCacheTypeTagValue),
+			metrics.SourceClusterTag(metrics.SourceClusterNoneTagValue),
+		)
 	}
-	cache.metricsScope = cache.metricsScope.Tagged(
-		metrics.CacheTypeTag(metrics.LRUCacheTypeTagValue),
-		metrics.SourceClusterTag(metrics.SourceClusterNoneTagValue),
-	)
 
 	if opts.IsSizeBased == nil {
 		cache.isSizeBased = dynamicproperties.GetBoolPropertyFn(false)

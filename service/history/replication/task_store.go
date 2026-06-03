@@ -117,7 +117,7 @@ func NewTaskStore(
 func (m *TaskStore) cacheMetricsScope(cluster string) metrics.Scope {
 	return metrics.WithCacheScopeLabels(
 		m.scope,
-		m.shardID,
+		metrics.ShardIDTag(m.shardID),
 		cluster,
 		metrics.ReplicationCacheTypeTagValue,
 	)
