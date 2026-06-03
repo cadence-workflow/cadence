@@ -1438,6 +1438,44 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
+// TestValidateUserSearchAttributes verifies that user-supplied search attributeAdd a comment on  lines R1381 to R1401Add diff commentMarkdown input:  edit mode selected.WritePreviewHeadingBoldItalicQuoteCodeLinkUnordered listNumbered listTask listMentionReferenceMore Formatting tools items 0Saved repliesAdd FilesPaste, drop, or click to add filesCancelCommentStart a review
+// keys colliding with the scheduler-reserved "CadenceSchedule" prefix are
+// rejected, while other keys (including a lowercase near-miss) are allowed. The
+// prefix check is case-sensitive.
+func TestValidateUserSearchAttributes(t *testing.T) {
+	sa := func(keys ...string) *types.SearchAttributes {
+		fields := make(map[string][]byte, len(keys))
+		for _, k := range keys {
+			fields[k] = []byte(`"v"`)
+		}
+		return &types.SearchAttributes{IndexedFields: fields}
+	}
+
+	tests := map[string]struct {
+		sa      *types.SearchAttributes
+		wantErr bool
+	}{
+		"nil search attributes":       {sa: nil, wantErr: false},
+		"empty indexed fields":        {sa: &types.SearchAttributes{}, wantErr: false},
+		"reserved exact prefix":       {sa: sa("CadenceSchedule"), wantErr: true},
+		"reserved CadenceScheduleID":  {sa: sa("CadenceScheduleID"), wantErr: true},
+		"reserved CadenceScheduleFoo": {sa: sa("CadenceScheduleFoo"), wantErr: true},
+		"lowercase not reserved":      {sa: sa("cadenceschedule"), wantErr: false},
+		"unrelated key allowed":       {sa: sa("MyKey"), wantErr: false},
+		"mixed reserved + allowed":    {sa: sa("MyKey", "CadenceScheduleX"), wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateUserSearchAttributes(tt.sa)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestValidateScheduleSpecTimeRange verifies the spec StartTime/EndTime ordering
 // check: both must be set for the check to apply, and EndTime must be strictly
 // after StartTime.
