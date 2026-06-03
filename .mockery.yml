@@ -35,12 +35,6 @@ packages:
       ObjectIteratorWrapper:
       ReaderWrapper:
       WriterWrapper:
-  github.com/uber/cadence/common/archiver/provider:
-    interfaces:
-      ArchiverProvider:
-  github.com/uber/cadence/common/blobstore:
-    interfaces:
-      Client:
   github.com/uber/cadence/common/elasticsearch:
     config:
       dir: "common/elasticsearch/mocks"
@@ -86,8 +80,3 @@ packages:
         config:
           filename: "MetadataManager.go"
           structname: "MetadataManager"
-  github.com/uber/cadence/service/worker/parentclosepolicy:
-    config:
-      structname: "ClientMock"
-    interfaces:
-      Client:
