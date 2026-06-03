@@ -580,6 +580,44 @@ func TestDescribeSchedule(t *testing.T) {
 				assert.Contains(t, qfe.Message, "decision task")
 			},
 		},
+		// History's internal query wait times out before the scheduler workflow
+		// processes its first decision task. The frontend retries the same as for
+		// the QueryFailedError case; here it succeeds on the second attempt.
+		"history query timeout - retried until ready": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil)
+				gomock.InOrder(
+					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+						Return(nil, yarpcerrors.DeadlineExceededErrorf("query wait timed out")),
+					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+						Return(&types.HistoryQueryWorkflowResponse{
+							Response: &types.QueryWorkflowResponse{QueryResult: descBytes},
+						}, nil),
+				)
+			},
+			wantErr: false,
+		},
+		// If history keeps returning deadline exceeded past the retry budget, the
+		// last error is returned.
+		"history query timeout - retry budget exhausted": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil)
+				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(nil, yarpcerrors.DeadlineExceededErrorf("query wait timed out")).
+					Times(describeScheduleQueryRetryAttempts)
+			},
+			wantErr: true,
+		},
 		// If the scheduler closes between the DWE probe and the QueryWorkflow call,
 		// the reject condition on the query stops the history layer from replaying
 		// closed history and reporting stale ACTIVE state.
