@@ -368,10 +368,6 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
 		return nil, err
 	}
-<<<<<<< HEAD
-=======
-
->>>>>>> 53458a51a (fix)
 	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
 		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
 			return nil, err
