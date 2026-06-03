@@ -980,19 +980,21 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 // configuration and runtime state for the describe query handler.
 func buildScheduleDescription(input *SchedulerWorkflowInput, state *SchedulerWorkflowState) *ScheduleDescription {
 	return &ScheduleDescription{
-		ScheduleID:  input.ScheduleID,
-		Domain:      input.Domain,
-		Spec:        input.Spec,
-		Action:      input.Action,
-		Policies:    input.Policies,
-		Paused:      state.Paused,
-		PauseReason: state.PauseReason,
-		PausedBy:    state.PausedBy,
-		LastRunTime: state.LastRunTime,
-		NextRunTime: state.NextRunTime,
-		TotalRuns:   state.TotalRuns,
-		MissedRuns:  state.MissedRuns,
-		SkippedRuns: state.SkippedRuns,
+		ScheduleID:       input.ScheduleID,
+		Domain:           input.Domain,
+		Spec:             input.Spec,
+		Action:           input.Action,
+		Policies:         input.Policies,
+		Paused:           state.Paused,
+		PauseReason:      state.PauseReason,
+		PausedBy:         state.PausedBy,
+		LastRunTime:      state.LastRunTime,
+		NextRunTime:      state.NextRunTime,
+		TotalRuns:        state.TotalRuns,
+		MissedRuns:       state.MissedRuns,
+		SkippedRuns:      state.SkippedRuns,
+		Memo:             input.Memo,
+		SearchAttributes: input.SearchAttributes,
 	}
 }
 

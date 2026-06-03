@@ -349,6 +349,32 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		"memo forwarded into workflow input": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "my-schedule",
+				Spec:       &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+						TaskList:     &types.TaskList{Name: "my-tasklist"},
+					},
+				},
+				Memo: &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
+			},
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryStartWorkflowExecutionRequest, _ ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
+						var input scheduler.SchedulerWorkflowInput
+						require.NoError(t, json.Unmarshal(req.StartRequest.Input, &input))
+						require.NotNil(t, input.Memo)
+						assert.Equal(t, []byte(`"sm"`), input.Memo.Fields["schedMemo"])
+						return &types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil
+					})
+			},
+			wantErr: false,
+		},
 	}
 
 	for name, tt := range tests {
@@ -380,6 +406,10 @@ func TestDescribeSchedule(t *testing.T) {
 		PauseReason: "maintenance",
 		PausedBy:    "admin",
 		TotalRuns:   42,
+		Memo:        &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
+		SearchAttributes: &types.SearchAttributes{
+			IndexedFields: map[string][]byte{"CustomIntField": []byte(`7`)},
+		},
 	}
 	descBytes, _ := json.Marshal(descResult)
 
@@ -640,6 +670,10 @@ func TestDescribeSchedule(t *testing.T) {
 				assert.Equal(t, "maintenance", resp.State.PauseInfo.Reason)
 				assert.Equal(t, "admin", resp.State.PauseInfo.PausedBy)
 				assert.Equal(t, int64(42), resp.Info.TotalRuns)
+				require.NotNil(t, resp.Memo)
+				assert.Equal(t, []byte(`"sm"`), resp.Memo.Fields["schedMemo"])
+				require.NotNil(t, resp.SearchAttributes)
+				assert.Equal(t, []byte(`7`), resp.SearchAttributes.IndexedFields["CustomIntField"])
 			},
 		},
 	}
