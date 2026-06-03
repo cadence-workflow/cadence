@@ -389,6 +389,7 @@ func TestDescribeSchedule(t *testing.T) {
 	}
 
 	tests := map[string]struct {
+		ctx      context.Context
 		request  *types.DescribeScheduleRequest
 		mockFn   func(*scheduleTestFixture)
 		wantErr  bool
@@ -618,6 +619,45 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		// History returns the stdlib context.DeadlineExceeded (not yarpc's CodeDeadlineExceeded)
+		// while the caller's context is still live. The frontend treats this as a history-side
+		// timeout and retries; here it succeeds on the second attempt.
+		"history query timeout (stdlib context.DeadlineExceeded) - retried until ready": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil)
+				gomock.InOrder(
+					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+						Return(nil, context.DeadlineExceeded),
+					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+						Return(&types.HistoryQueryWorkflowResponse{
+							Response: &types.QueryWorkflowResponse{QueryResult: descBytes},
+						}, nil),
+				)
+			},
+			wantErr: false,
+		},
+		// When history returns DeadlineExceeded but the caller's own context is already expired,
+		// ctx.Err() != nil so the queryTimeout guard is false and the error is returned immediately
+		// without retrying.
+		"history query timeout - caller context expired - not retried": {
+			ctx:     func() context.Context { ctx, cancel := context.WithCancel(context.Background()); cancel(); return ctx }(),
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil)
+				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(nil, context.DeadlineExceeded)
+			},
+			wantErr: true,
+		},
 		// If the scheduler closes between the DWE probe and the QueryWorkflow call,
 		// the reject condition on the query stops the history layer from replaying
 		// closed history and reporting stale ACTIVE state.
@@ -688,7 +728,11 @@ func TestDescribeSchedule(t *testing.T) {
 			defer f.finish()
 			tt.mockFn(f)
 
-			resp, err := f.handler.DescribeSchedule(context.Background(), tt.request)
+			ctx := tt.ctx
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			resp, err := f.handler.DescribeSchedule(ctx, tt.request)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.checkErr != nil {
