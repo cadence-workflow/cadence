@@ -47,9 +47,6 @@ const (
 	errMsgV2SourceClusterEmpty = "sourceCluster is empty"
 	errMsgV2TargetClusterEmpty = "targetCluster is empty"
 	errMsgV2SameCluster        = "targetCluster is same as sourceCluster"
-
-	// pause/resume reuse master's PauseSignal/ResumeSignal; emergency stop uses the existing abort
-	// (terminate) path, so there is no cancel signal.
 )
 
 type (
@@ -147,15 +144,15 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 	totalDomains = len(collected.Preferences)
 	snapshots = collected.Snapshots
 
-	checkPause := newPauseHandlerV2(ctx, func(s string) { wfState = s })
+	checkPause := newPauseHandler(ctx, func(s string) { wfState = s })
 	waitBetween := time.Duration(params.WaitBetweenBatchSeconds) * time.Second
-	successDomains, failedDomains = processInBatchesV2(
+	successDomains, failedDomains = processInBatches(
 		ctx,
 		collected.Preferences,
 		params.BatchSize,
 		waitBetween,
 		checkPause,
-		executeFailoverV2Batch(),
+		executeFailoverBatch(),
 	)
 
 	wfState = WorkflowCompleted
@@ -181,20 +178,6 @@ func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Para
 	return &result, nil
 }
 
-// executeFailoverV2Batch returns a batchExecutorV2 that invokes the shared FailoverActivityV2. On
-// activity error every domain in the batch is reported failed (false-positive semantics).
-func executeFailoverV2Batch() batchExecutorV2 {
-	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string) {
-		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
-		actParams := &FailoverActivityV2Params{DomainPreferences: batch}
-		var actResult FailoverActivityV2Result
-		if err := workflow.ExecuteActivity(ao, FailoverActivityV2, actParams).Get(ctx, &actResult); err != nil {
-			return nil, domainNamesV2(batch)
-		}
-		return actResult.SuccessDomains, actResult.FailedDomains
-	}
-}
-
 // GetDomainsForFailoverV2Activity collects the domains to fail out of SourceCluster. For each managed
 // domain, any domain-level active cluster or cluster attribute currently on SourceCluster is marked to
 // move to TargetCluster; a snapshot of the prior values is recorded for restore. Domains not active in
@@ -206,7 +189,7 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 	}
 	result := &GetDomainsForFailoverV2Result{}
 	for _, domain := range domains {
-		if !eligibleForFailoverV2(domain) {
+		if !isEligibleForFailover(domain) {
 			continue
 		}
 		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceCluster, params.TargetCluster)

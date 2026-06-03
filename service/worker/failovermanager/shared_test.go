@@ -96,7 +96,7 @@ func TestEligibleForFailoverV2(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, eligibleForFailoverV2(tt.domain))
+			assert.Equal(t, tt.want, isEligibleForFailover(tt.domain))
 		})
 	}
 }
@@ -125,13 +125,13 @@ func TestBuildActiveClustersFromUpdates(t *testing.T) {
 	assert.Equal(t, "cluster2", ac.AttributeScopes["region"].ClusterAttributes["us-west"].ActiveClusterName)
 }
 
-func TestDomainNamesV2(t *testing.T) {
-	assert.Nil(t, domainNamesV2(nil))
-	got := domainNamesV2([]DomainFailoverPreferences{{DomainName: "a"}, {DomainName: "b"}})
+func TestDomainNames(t *testing.T) {
+	assert.Nil(t, domainNames(nil))
+	got := domainNames([]DomainFailoverPreferences{{DomainName: "a"}, {DomainName: "b"}})
 	assert.Equal(t, []string{"a", "b"}, got)
 }
 
-func TestProcessInBatchesV2(t *testing.T) {
+func TestProcessInBatches(t *testing.T) {
 	prefs := []DomainFailoverPreferences{
 		{DomainName: "a"}, {DomainName: "b"}, {DomainName: "c"}, {DomainName: "d"}, {DomainName: "e"},
 	}
@@ -140,10 +140,10 @@ func TestProcessInBatchesV2(t *testing.T) {
 
 	var batchSizes []int
 	wf := func(ctx workflow.Context) ([]string, error) {
-		success, _ := processInBatchesV2(ctx, prefs, 2, 0, nil,
+		success, _ := processInBatches(ctx, prefs, 2, 0, nil,
 			func(ctx workflow.Context, batch []DomainFailoverPreferences) (s, f []string) {
 				batchSizes = append(batchSizes, len(batch))
-				return domainNamesV2(batch), nil
+				return domainNames(batch), nil
 			})
 		return success, nil
 	}

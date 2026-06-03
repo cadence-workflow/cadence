@@ -56,7 +56,7 @@ type (
 
 	// DomainFailoverPreferences carries the failover instruction for a single domain. It is the
 	// unit of work the shared FailoverActivityV2 consumes — each workflow builds a slice of these,
-	// processInBatchesV2 slices the slice, and the activity iterates.
+	// processInBatches slices the slice, and the activity iterates.
 	DomainFailoverPreferences struct {
 		// DomainName identifies the domain this instruction applies to.
 		DomainName string
@@ -84,13 +84,27 @@ type (
 // FailoverActivityV2 is the single apply activity shared by FailoverWorkflowV2 and
 // RebalanceWorkflowV2. It applies each DomainFailoverPreferences entry via UpdateDomain.
 func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (*FailoverActivityV2Result, error) {
-	return applyPreferencesV2(ctx, params.DomainPreferences)
+	return failoverDomain(ctx, params.DomainPreferences)
 }
 
-// applyPreferencesV2 is the shared per-domain loop. For each entry it validates pollers against every
+// executeFailoverBatch returns a batchExecutor that invokes the shared FailoverActivityV2. On
+// activity error every domain in the batch is reported failed (false-positive semantics).
+func executeFailoverBatch() batchExecutor {
+	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string) {
+		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
+		actParams := &FailoverActivityV2Params{DomainPreferences: batch}
+		var actResult FailoverActivityV2Result
+		if err := workflow.ExecuteActivity(ao, FailoverActivityV2, actParams).Get(ctx, &actResult); err != nil {
+			return nil, domainNames(batch)
+		}
+		return actResult.SuccessDomains, actResult.FailedDomains
+	}
+}
+
+// failoverDomain is the shared per-domain loop. For each entry it validates pollers against every
 // distinct target cluster the entry references, then issues a single UpdateDomain carrying the
 // preferred ActiveClusterName and any per-attribute ActiveClusters overrides.
-func applyPreferencesV2(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
+func failoverDomain(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
 	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
 	var successDomains, failedDomains []string
@@ -167,15 +181,13 @@ func collectTargetClusters(prefs DomainFailoverPreferences) []string {
 	return clusters
 }
 
-// eligibleForFailoverV2 is the shared gating check for both V2 workflows. It excludes domains that:
-//   - are nil or have no DomainInfo
-//   - have an explicit Deprecated/Deleted status
-//   - are not global (failover is a multi-cluster operation)
-//   - are not opted in via the managed-failover domain-data key
-//
-// A nil Status is treated as the zero value (Registered): frontends do not always populate Status,
-// and dropping those domains would silently break failover.
-func eligibleForFailoverV2(domain *types.DescribeDomainResponse) bool {
+// isEligibleForFailover checks if a domain meets the eligibility criteria for failover by a central team.
+// Returns true if the domain:
+//   - is nil or has no DomainInfo
+//   - has an explicit Deprecated/Deleted status
+//   - is not global
+//   - is not opted in via the managed-failover domain-data key
+func isEligibleForFailover(domain *types.DescribeDomainResponse) bool {
 	if domain == nil || domain.DomainInfo == nil {
 		return false
 	}
@@ -189,20 +201,20 @@ func eligibleForFailoverV2(domain *types.DescribeDomainResponse) bool {
 	return isDomainFailoverManagedByCadence(domain)
 }
 
-// batchExecutorV2 runs an activity over a batch of preferences and returns the success/failed subsets.
-// It abstracts the activity from processInBatchesV2 so both workflows reuse the same batch loop.
-type batchExecutorV2 func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string)
+// batchExecutor runs an activity over a batch of preferences and returns the success/failed subsets.
+// It abstracts the activity from processInBatches so both workflows reuse the same batch loop.
+type batchExecutor func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string)
 
-// processInBatchesV2 splits prefs into batches of batchSize, calls executeBatch for each, sleeps
+// processInBatches splits prefs into batches of batchSize, calls executeBatch for each, sleeps
 // waitBetween between successive batches, and aggregates results. onBatchStart is invoked once before
 // each batch (used to honour pause/resume); it may be nil.
-func processInBatchesV2(
+func processInBatches(
 	ctx workflow.Context,
 	prefs []DomainFailoverPreferences,
 	batchSize int,
 	waitBetween time.Duration,
 	onBatchStart func(),
-	executeBatch batchExecutorV2,
+	executeBatch batchExecutor,
 ) (success, failed []string) {
 	if len(prefs) == 0 {
 		return nil, nil
@@ -236,10 +248,10 @@ func processInBatchesV2(
 	return success, failed
 }
 
-// newPauseHandlerV2 returns a hook that processInBatchesV2 calls at the start of each batch. A
+// newPauseHandler returns a hook that processInBatches calls at the start of each batch. A
 // PauseSignal blocks until ResumeSignal arrives; setState toggles the reported workflow state so the
 // query handler reflects the pause. setState may be nil.
-func newPauseHandlerV2(ctx workflow.Context, setState func(string)) func() {
+func newPauseHandler(ctx workflow.Context, setState func(string)) func() {
 	pauseCh := workflow.GetSignalChannel(ctx, PauseSignal)
 	resumeCh := workflow.GetSignalChannel(ctx, ResumeSignal)
 	return func() {
@@ -256,9 +268,9 @@ func newPauseHandlerV2(ctx workflow.Context, setState func(string)) func() {
 	}
 }
 
-// domainNamesV2 extracts DomainName from each entry, used by batch executors to report an all-failed
+// domainNames extracts DomainName from each entry, used by batch executors to report an all-failed
 // list when the underlying activity errors out.
-func domainNamesV2(prefs []DomainFailoverPreferences) []string {
+func domainNames(prefs []DomainFailoverPreferences) []string {
 	if len(prefs) == 0 {
 		return nil
 	}

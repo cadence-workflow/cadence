@@ -112,23 +112,23 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 	}
 }
 
-func TestGetClusterAttributePreferencesV2(t *testing.T) {
+func TestgetClusterAttributePreferences(t *testing.T) {
 	t.Run("absent", func(t *testing.T) {
-		prefs, err := getClusterAttributePreferencesV2(domainV2("d", "cluster0", true, true, nil, nil))
+		prefs, err := getClusterAttributePreferences(domainV2("d", "cluster0", true, true, nil, nil))
 		require.NoError(t, err)
 		assert.Nil(t, prefs)
 	})
 	t.Run("valid", func(t *testing.T) {
 		d := domainV2("d", "cluster0", true, true,
 			map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON}, nil)
-		prefs, err := getClusterAttributePreferencesV2(d)
+		prefs, err := getClusterAttributePreferences(d)
 		require.NoError(t, err)
 		assert.Len(t, prefs, 3)
 	})
 	t.Run("malformed", func(t *testing.T) {
 		d := domainV2("d", "cluster0", true, true,
 			map[string]string{constants.DomainDataKeyForClusterAttributePreferences: "{not-json"}, nil)
-		_, err := getClusterAttributePreferencesV2(d)
+		_, err := getClusterAttributePreferences(d)
 		assert.ErrorIs(t, err, errUnmarshalClusterAttributePreferencesV2)
 	})
 }
