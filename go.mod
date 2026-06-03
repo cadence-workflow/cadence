@@ -73,7 +73,7 @@ require (
 	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568
 	github.com/google/gofuzz v1.0.0
 	github.com/mark3labs/mcp-go v0.18.0
-	github.com/ncruces/go-sqlite3 v0.22.0
+	github.com/ncruces/go-sqlite3 v0.24.1
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	go.etcd.io/etcd/api/v3 v3.5.5
@@ -87,7 +87,7 @@ require (
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/tetratelabs/wazero v1.8.2 // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
