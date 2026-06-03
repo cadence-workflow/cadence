@@ -182,11 +182,51 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"spec endTime not after startTime": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec: &types.ScheduleSpec{
+					CronExpression: "* * * * *",
+					StartTime:      time.Unix(2000, 0),
+					EndTime:        time.Unix(1000, 0), // before start
+				},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"nil action": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
 				ScheduleID: "s1",
 				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"retry policy with no bounds rejected at create": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "* * * * *"},
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumIntervalInSeconds: 60,
+							BackoffCoefficient:       2,
+							// MaximumAttempts and ExpirationIntervalInSeconds both zero
+						},
+					},
+				},
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
@@ -880,6 +920,26 @@ func TestUpdateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"retry policy with no bounds rejected at update": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Action: &types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "wf"},
+						TaskList:     &types.TaskList{Name: "tl"},
+						RetryPolicy: &types.RetryPolicy{
+							InitialIntervalInSeconds: 1,
+							MaximumIntervalInSeconds: 60,
+							BackoffCoefficient:       2,
+							// MaximumAttempts and ExpirationIntervalInSeconds both zero
+						},
+					},
+				},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"search attributes only update succeeds": {
 			request: &types.UpdateScheduleRequest{
 				Domain:     testDomain,
@@ -1467,6 +1527,36 @@ func TestValidateUserSearchAttributes(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := validateUserSearchAttributes(tt.sa)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateScheduleSpecTimeRange verifies the spec StartTime/EndTime ordering
+// check: both must be set for the check to apply, and EndTime must be strictly
+// after StartTime.
+func TestValidateScheduleSpecTimeRange(t *testing.T) {
+	t1 := time.Unix(1000, 0)
+	t2 := time.Unix(2000, 0)
+	tests := map[string]struct {
+		spec    *types.ScheduleSpec
+		wantErr bool
+	}{
+		"nil spec":                 {spec: nil, wantErr: false},
+		"both unset":               {spec: &types.ScheduleSpec{CronExpression: "* * * * *"}, wantErr: false},
+		"only start set":           {spec: &types.ScheduleSpec{StartTime: t1}, wantErr: false},
+		"only end set":             {spec: &types.ScheduleSpec{EndTime: t2}, wantErr: false},
+		"valid start before end":   {spec: &types.ScheduleSpec{StartTime: t1, EndTime: t2}, wantErr: false},
+		"invalid end before start": {spec: &types.ScheduleSpec{StartTime: t2, EndTime: t1}, wantErr: true},
+		"invalid end equals start": {spec: &types.ScheduleSpec{StartTime: t1, EndTime: t1}, wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateScheduleSpecTimeRange(tt.spec)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
