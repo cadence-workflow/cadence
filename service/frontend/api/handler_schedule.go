@@ -75,6 +75,25 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
+// validateScheduleSpecTimeRange rejects a spec whose EndTime is not after its
+// StartTime when both are set. A zero StartTime or EndTime means "unbounded" and
+// is left unchecked. Mirrors the range validation BackfillSchedule performs, and
+// prevents creating a schedule that can never fire.
+func validateScheduleSpecTimeRange(spec *types.ScheduleSpec) error {
+	if spec == nil {
+		return nil
+	}
+	start := spec.GetStartTime()
+	end := spec.GetEndTime()
+	if start.IsZero() || end.IsZero() {
+		return nil
+	}
+	if !end.After(start) {
+		return &types.BadRequestError{Message: "Spec.EndTime must be after Spec.StartTime."}
+	}
+	return nil
+}
+
 // warnIfBufferLimitExceedsSystemLimit logs a warning when buffer_limit exceeds
 // MaxBufferedFiresSystemLimit. The value is accepted (the policy still queues
 // up to the system limit), but drops at that cap will be tagged
@@ -139,6 +158,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 		return nil, &types.BadRequestError{Message: "CronExpression is not set on request."}
 	}
 	if _, err := backoff.ValidateSchedule(request.GetSpec().GetCronExpression()); err != nil {
+		return nil, err
+	}
+	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
 		return nil, err
 	}
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
@@ -342,6 +364,9 @@ func (wh *WorkflowHandler) UpdateSchedule(
 		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {
 			return nil, err
 		}
+	}
+	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
+		return nil, err
 	}
 	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
 		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
