@@ -1273,6 +1273,70 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_FailoverComplete
 	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared too")
 }
 
+func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerExists() {
+	domainFailoverVersion := 100
+	pendingActiveEndTime := common.Int64Ptr(1)
+	deletedDomainID := "deleted-domain-id"
+
+	domainCacheEntryPendingActive := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		int64(domainFailoverVersion),
+		pendingActiveEndTime,
+		0, 0, 0,
+	)
+	domainCacheEntryFailoverDone := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		int64(domainFailoverVersion),
+		nil,
+		0, 0, 0,
+	)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryPendingActive, nil)
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+
+	validMarker := types.FailoverMarkerAttributes{
+		DomainID:        testDomainID,
+		FailoverVersion: int64(domainFailoverVersion),
+	}
+	s.NoError(s.context.AddingPendingFailoverMarker(&validMarker))
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
+
+	// inject an orphan marker directly into shardInfo — simulates a marker whose
+	// domain has since been deleted from the metadata store
+	orphanMarker := &types.FailoverMarkerAttributes{
+		DomainID:        deletedDomainID,
+		FailoverVersion: int64(domainFailoverVersion),
+	}
+	s.context.shardInfo.PendingFailoverMarkers = append(s.context.shardInfo.PendingFailoverMarkers, orphanMarker)
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 2)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryFailoverDone, nil)
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(deletedDomainID).Return(nil, &types.EntityNotExistsError{Message: "domain not found"})
+
+	pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
+	s.NoError(err, "orphan-domain marker must not poison the cleanup loop")
+	s.Empty(pendingFailoverMarkers, "both the orphan and the otherwise-droppable marker should be cleaned")
+	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared of both markers")
+}
+
 func (s *contextTestSuite) TestGetAndUpdateProcessingQueueStates() {
 	clusterName := cluster.TestCurrentClusterName
 	var initialQueueStates [][]*types.ProcessingQueueState

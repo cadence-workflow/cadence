@@ -1586,6 +1586,19 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 	for _, marker := range s.shardInfo.PendingFailoverMarkers {
 		domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 		if err != nil {
+			// if the domain no longer exists, drop the marker so it does not
+			// stay stuck in PendingFailoverMarkers forever — otherwise this
+			// one orphan marker would also bail the loop and prevent cleanup
+			// of every other marker in the slice
+			var notExists *types.EntityNotExistsError
+			if errors.As(err, &notExists) {
+				s.logger.Info("Dropped pending failover marker",
+					tag.WorkflowDomainID(marker.GetDomainID()),
+					tag.Reason("domain no longer exists"),
+				)
+				completedFailoverMarkers[marker] = struct{}{}
+				continue
+			}
 			s.RUnlock()
 			return nil, err
 		}
