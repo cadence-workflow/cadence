@@ -35,13 +35,13 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-// aaPrefsJSON mirrors the ClusterAttributePreferences stored by scripts/test_rebalance.sh: each
-// attribute prefers the cluster of the same name.
+// aaPrefsJSON provides a three cluster setup of ClusterAttributes
 const aaPrefsJSON = `[{"scope":"cluster","name":"cluster0","preferredCluster":"cluster0"},` +
 	`{"scope":"cluster","name":"cluster1","preferredCluster":"cluster1"},` +
 	`{"scope":"cluster","name":"cluster2","preferredCluster":"cluster2"}]`
 
-// TestRebalancePreferencesForDomain maps 1:1 to the seven scenarios in scripts/test_rebalance.sh.
+// TestRebalancePreferencesForDomain tests the different combinations of live replication config and
+// domain preferences that can be used to trigger a rebalance.
 func TestRebalancePreferencesForDomain(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -50,50 +50,113 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 		wantPrefs DomainFailoverPreferences
 	}{
 		{
-			name:    "1. rb-global-unmanaged: not managed -> skipped",
-			domain:  domainV2("d", "cluster1", false, true, nil, nil),
+			name:    "when domain is not managed it is skipped",
+			domain:  createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster1", isManaged: false, isGlobal: true}),
 			wantErr: true,
 		},
 		{
-			name:    "2. rb-global-same: preferred == active -> no change",
-			domain:  domainV2("d", "cluster0", true, true, map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster0"}, nil),
+			name:    "when preferred equals active it makes no change",
+			domain:  createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster0"}}),
 			wantErr: true,
 		},
 		{
-			name:      "3. rb-global-diff: preferred != active -> move to preferred",
-			domain:    domainV2("d", "cluster0", true, true, map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}, nil),
+			name:      "when preferred differs from active it moves to preferred",
+			domain:    createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}}),
 			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: "cluster1"},
 		},
 		{
-			name: "4. rb-aa-attr-only: only one attribute wrong",
-			domain: domainV2("d", "cluster0", true, true,
-				map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster0", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
-				map[string]map[string]string{"cluster": {"cluster0": "cluster1", "cluster1": "cluster1", "cluster2": "cluster2"}}),
+			name: "when one attribute is wrong it moves only that attribute",
+			domain: createDomainResponse(createDomainResponseParams{
+				name:              "d",
+				activeClusterName: "cluster0",
+				isManaged:         true,
+				isGlobal:          true,
+				data:              map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster0", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+				activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"cluster0": {ActiveClusterName: "cluster1"},
+						"cluster1": {ActiveClusterName: "cluster1"},
+						"cluster2": {ActiveClusterName: "cluster2"},
+					}},
+				}},
+			}),
 			wantPrefs: DomainFailoverPreferences{DomainName: "d", ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster0"},
 			}},
 		},
 		{
-			name: "5. rb-aa-both-diff: domain-level and two attributes wrong",
-			domain: domainV2("d", "cluster0", true, true,
-				map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
-				map[string]map[string]string{"cluster": {"cluster0": "cluster1", "cluster1": "cluster0", "cluster2": "cluster2"}}),
+			name: "when domain-level and two attributes are wrong it moves all of them",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "d",
+					activeClusterName: "cluster0",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"cluster": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"cluster0": {ActiveClusterName: "cluster1"},
+									"cluster1": {ActiveClusterName: "cluster0"},
+									"cluster2": {ActiveClusterName: "cluster2"},
+								},
+							},
+						},
+					},
+				},
+			),
 			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: "cluster1", ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster0"},
 				{Scope: "cluster", Name: "cluster1", PreferredCluster: "cluster1"},
 			}},
 		},
 		{
-			name: "6. rb-aa-no-attr-diff: only domain-level wrong",
-			domain: domainV2("d", "cluster0", true, true,
-				map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
-				map[string]map[string]string{"cluster": {"cluster0": "cluster0", "cluster1": "cluster1", "cluster2": "cluster2"}}),
+			name: "when only domain-level is wrong it moves only domain-level",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "d",
+					activeClusterName: "cluster0",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"cluster": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"cluster0": {ActiveClusterName: "cluster0"},
+									"cluster1": {ActiveClusterName: "cluster1"},
+									"cluster2": {ActiveClusterName: "cluster2"},
+								},
+							},
+						},
+					},
+				},
+			),
 			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: "cluster1"},
 		},
 		{
-			name: "7. rb-aa-unmanaged: not managed -> skipped",
-			domain: domainV2("d", "cluster0", false, true, nil,
-				map[string]map[string]string{"cluster": {"cluster0": "cluster1", "cluster1": "cluster1", "cluster2": "cluster2"}}),
+			name: "when domain is not managed it is skipped",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "d",
+					activeClusterName: "cluster0",
+					isManaged:         false,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1", constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"cluster": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"cluster0": {ActiveClusterName: "cluster1"},
+									"cluster1": {ActiveClusterName: "cluster1"},
+									"cluster2": {ActiveClusterName: "cluster2"},
+								},
+							},
+						},
+					},
+				},
+			),
 			wantErr: true,
 		},
 	}
@@ -112,35 +175,33 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 	}
 }
 
-func TestgetClusterAttributePreferences(t *testing.T) {
-	t.Run("absent", func(t *testing.T) {
-		prefs, err := getClusterAttributePreferences(domainV2("d", "cluster0", true, true, nil, nil))
+func TestGetClusterAttributePreferences(t *testing.T) {
+	t.Run("when preferences are absent it returns nil", func(t *testing.T) {
+		prefs, err := getClusterAttributePreferences(createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true}))
 		require.NoError(t, err)
 		assert.Nil(t, prefs)
 	})
-	t.Run("valid", func(t *testing.T) {
-		d := domainV2("d", "cluster0", true, true,
-			map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON}, nil)
+	t.Run("when JSON is valid it returns parsed preferences", func(t *testing.T) {
+		d := createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON}})
 		prefs, err := getClusterAttributePreferences(d)
 		require.NoError(t, err)
 		assert.Len(t, prefs, 3)
 	})
-	t.Run("malformed", func(t *testing.T) {
-		d := domainV2("d", "cluster0", true, true,
-			map[string]string{constants.DomainDataKeyForClusterAttributePreferences: "{not-json"}, nil)
+	t.Run("when JSON is malformed it returns an unmarshal error", func(t *testing.T) {
+		d := createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForClusterAttributePreferences: "{not-json"}})
 		_, err := getClusterAttributePreferences(d)
 		assert.ErrorIs(t, err, errUnmarshalClusterAttributePreferencesV2)
 	})
 }
 
-func TestGetDomainsForRebalanceV2Activity(t *testing.T) {
+func TestGetDomainsForRebalanceV2Activity_WhenListingDomainsItReturnsOnlyManagedDomainsNeedingAMove(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
 
 	domains := &types.ListDomainsResponse{
 		Domains: []*types.DescribeDomainResponse{
-			domainV2("needs-move", "cluster0", true, true, map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}, nil),
-			domainV2("already-balanced", "cluster0", true, true, map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster0"}, nil),
-			domainV2("unmanaged", "cluster0", false, true, map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}, nil),
+			createDomainResponse(createDomainResponseParams{name: "needs-move", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}}),
+			createDomainResponse(createDomainResponseParams{name: "already-balanced", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster0"}}),
+			createDomainResponse(createDomainResponseParams{name: "unmanaged", activeClusterName: "cluster0", isManaged: false, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}}),
 		},
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
@@ -154,7 +215,7 @@ func TestGetDomainsForRebalanceV2Activity(t *testing.T) {
 	assert.Equal(t, "cluster1", prefs[0].PreferredCluster)
 }
 
-func TestRebalanceWorkflowV2_Success(t *testing.T) {
+func TestRebalanceWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomains(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflowWithOptions(RebalanceWorkflowV2, workflow.RegisterOptions{Name: RebalanceWorkflowV2TypeName})

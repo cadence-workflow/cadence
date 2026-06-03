@@ -254,7 +254,7 @@ func TestAdminRebalanceStart(t *testing.T) {
 	}
 }
 
-func TestAdminRebalanceStartV2(t *testing.T) {
+func TestAdminRebalanceStartV2_WhenV2FlagIsSetItStartsTheV2RebalanceWorkflow(t *testing.T) {
 	td := newCLITestData(t)
 	td.mockFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ interface{}, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {

@@ -33,10 +33,11 @@ import (
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
-func TestValidateFailoverV2Params(t *testing.T) {
+func TestValidateFailoverV2Params_WhenParamsAreInvalidItErrorsAndOtherwiseAppliesDefaults(t *testing.T) {
 	assert.Error(t, validateFailoverV2Params(nil))
 	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{TargetCluster: "t"}))                     // no source
 	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{SourceCluster: "s"}))                     // no target
@@ -48,8 +49,8 @@ func TestValidateFailoverV2Params(t *testing.T) {
 	assert.Equal(t, defaultWaitBetweenBatchSecondsV2, p.WaitBetweenBatchSeconds)
 }
 
-// TestFailoverPreferencesForDomain covers the failover-equivalent of the rebalance scenarios in
-// scripts/test_rebalance.sh, plus N-region correctness. Source is always cluster0, target cluster1.
+// TestFailoverPreferencesForDomain tests the logic for creating a diff between the current and desired cluster state
+// for a failover.
 func TestFailoverPreferencesForDomain(t *testing.T) {
 	const src, tgt = "cluster0", "cluster1"
 	tests := []struct {
@@ -60,22 +61,33 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 		wantSnapshot DomainSnapshot
 	}{
 		{
-			name:         "domain-level active on source moves to target",
-			domain:       domainV2("d", src, true, true, nil, nil),
+			name:         "when domain-level active is on source it moves to target",
+			domain:       createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: src, isManaged: true, isGlobal: true}),
 			wantOK:       true,
 			wantPrefs:    DomainFailoverPreferences{DomainName: "d", PreferredCluster: tgt},
 			wantSnapshot: DomainSnapshot{DomainName: "d", PreviousActiveCluster: src},
 		},
 		{
-			name:   "domain-level active on a third cluster is untouched",
-			domain: domainV2("d", "cluster2", true, true, nil, nil),
+			name:   "when domain-level active is on a third cluster it is untouched",
+			domain: createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster2", isManaged: true, isGlobal: true}),
 			wantOK: false,
 		},
 		{
-			name: "active-active attribute on source moves to target",
-			domain: domainV2("d", "cluster1", true, true, nil, map[string]map[string]string{
-				"cluster": {"cluster0": src, "cluster1": "cluster1"},
-			}),
+			name: "when an active-active attribute is on source it moves to target",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "d",
+					activeClusterName: "cluster1",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+						"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"cluster0": {ActiveClusterName: src},
+							"cluster1": {ActiveClusterName: "cluster1"},
+						}},
+					}},
+				}),
 			wantOK: true,
 			wantPrefs: DomainFailoverPreferences{DomainName: "d", ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: tgt},
@@ -85,22 +97,41 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 			}},
 		},
 		{
-			name: "active-active attribute not on source is untouched",
-			domain: domainV2("d", "cluster1", true, true, nil, map[string]map[string]string{
-				"cluster": {"cluster1": "cluster1", "cluster2": "cluster2"},
-			}),
+			name: "when no active-active attribute is on source it is untouched",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "untouched-cluster-attributes",
+					activeClusterName: "cluster1",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+						"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"cluster1": {ActiveClusterName: "cluster1"},
+							"cluster2": {ActiveClusterName: "cluster2"},
+						}},
+					}},
+				}),
 			wantOK: false,
 		},
 		{
-			name: "both domain-level and attribute on source are both moved",
-			domain: domainV2("d", src, true, true, nil, map[string]map[string]string{
-				"cluster": {"cluster0": src, "cluster1": "cluster1"},
-			}),
+			name: "when both domain-level and an attribute are on source both move to target",
+			domain: createDomainResponse(createDomainResponseParams{name: "both-different",
+				activeClusterName: src,
+				isManaged:         true,
+				isGlobal:          true,
+				data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+				activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"cluster0": {ActiveClusterName: src},
+						"cluster1": {ActiveClusterName: "cluster1"},
+					}},
+				}}}),
 			wantOK: true,
-			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: tgt, ClusterAttributeUpdates: []ClusterAttributePreference{
+			wantPrefs: DomainFailoverPreferences{DomainName: "both-different", PreferredCluster: tgt, ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: tgt},
 			}},
-			wantSnapshot: DomainSnapshot{DomainName: "d", PreviousActiveCluster: src, PreviousClusterAttributes: []ClusterAttributePreference{
+			wantSnapshot: DomainSnapshot{DomainName: "both-different", PreviousActiveCluster: src, PreviousClusterAttributes: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: src},
 			}},
 		},
@@ -118,14 +149,14 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 	}
 }
 
-func TestGetDomainsForFailoverV2Activity(t *testing.T) {
+func TestGetDomainsForFailoverV2Activity_WhenListingDomainsItReturnsOnlyManagedDomainsActiveOnSource(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
 
 	domains := &types.ListDomainsResponse{
 		Domains: []*types.DescribeDomainResponse{
-			domainV2("managed-on-source", "cluster0", true, true, nil, nil),
-			domainV2("managed-on-third", "cluster2", true, true, nil, nil),
-			domainV2("unmanaged", "cluster0", false, true, nil, nil),
+			createDomainResponse(createDomainResponseParams{name: "managed-on-source", activeClusterName: "cluster0", isManaged: true, isGlobal: true}),
+			createDomainResponse(createDomainResponseParams{name: "managed-on-third", activeClusterName: "cluster2", isManaged: true, isGlobal: true}),
+			createDomainResponse(createDomainResponseParams{name: "unmanaged", activeClusterName: "cluster0", isManaged: false, isGlobal: true}),
 		},
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
@@ -145,7 +176,7 @@ func TestGetDomainsForFailoverV2Activity(t *testing.T) {
 	assert.Equal(t, "cluster0", result.Snapshots[0].PreviousActiveCluster)
 }
 
-func TestFailoverWorkflowV2_InvalidParams(t *testing.T) {
+func TestFailoverWorkflowV2_WhenParamsAreInvalidItFailsTheWorkflow(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
@@ -154,7 +185,7 @@ func TestFailoverWorkflowV2_InvalidParams(t *testing.T) {
 	assert.Error(t, env.GetWorkflowError())
 }
 
-func TestFailoverWorkflowV2_Success(t *testing.T) {
+func TestFailoverWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomainsAndSnapshots(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
@@ -180,7 +211,7 @@ func TestFailoverWorkflowV2_Success(t *testing.T) {
 	assert.Equal(t, collected.Snapshots, result.Snapshots)
 }
 
-func TestFailoverWorkflowV2_GetDomainsError(t *testing.T) {
+func TestFailoverWorkflowV2_WhenGetDomainsActivityErrorsItFailsTheWorkflow(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
@@ -192,7 +223,7 @@ func TestFailoverWorkflowV2_GetDomainsError(t *testing.T) {
 	assert.Error(t, env.GetWorkflowError())
 }
 
-func TestFailoverWorkflowV2_PauseResume(t *testing.T) {
+func TestFailoverWorkflowV2_WhenPausedItBlocksUntilResumedThenCompletes(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
 	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})

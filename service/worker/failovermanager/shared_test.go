@@ -39,60 +39,58 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-// domainV2 builds a DescribeDomainResponse for the V2 tests. attrs maps scope -> name -> activeCluster.
-func domainV2(name, active string, managed, global bool, data map[string]string, attrs map[string]map[string]string) *types.DescribeDomainResponse {
+type createDomainResponseParams struct {
+	name              string
+	activeClusterName string
+	isManaged         bool
+	isGlobal          bool
+	data              map[string]string
+	activeClusters    *types.ActiveClusters
+}
+
+// createDomainResponse builds a DescribeDomainResponse for the V2 tests. attrs maps scope -> name -> activeCluster.
+func createDomainResponse(params createDomainResponseParams) *types.DescribeDomainResponse {
 	d := map[string]string{}
-	for k, v := range data {
+	for k, v := range params.data {
 		d[k] = v
 	}
-	if managed {
+	if params.isManaged {
 		d[constants.DomainDataKeyForManagedFailover] = "true"
 	}
 	repl := &types.DomainReplicationConfiguration{
-		ActiveClusterName: active,
+		ActiveClusterName: params.activeClusterName,
 		Clusters: []*types.ClusterReplicationConfiguration{
 			{ClusterName: "cluster0"}, {ClusterName: "cluster1"}, {ClusterName: "cluster2"},
 		},
 	}
-	if attrs != nil {
-		scopes := map[string]types.ClusterAttributeScope{}
-		for scope, names := range attrs {
-			ca := map[string]types.ActiveClusterInfo{}
-			for n, c := range names {
-				ca[n] = types.ActiveClusterInfo{ActiveClusterName: c}
-			}
-			scopes[scope] = types.ClusterAttributeScope{ClusterAttributes: ca}
-		}
-		repl.ActiveClusters = &types.ActiveClusters{AttributeScopes: scopes}
+	if params.activeClusters != nil {
+		repl.ActiveClusters = params.activeClusters
 	}
 	return &types.DescribeDomainResponse{
-		IsGlobalDomain:           global,
-		DomainInfo:               &types.DomainInfo{Name: name, Data: d},
+		IsGlobalDomain:           params.isGlobal,
+		DomainInfo:               &types.DomainInfo{Name: params.name, Data: d},
 		ReplicationConfiguration: repl,
 	}
 }
 
-func TestEligibleForFailoverV2(t *testing.T) {
+func TestIsEligibleForFailover(t *testing.T) {
 	tests := []struct {
 		name   string
 		domain *types.DescribeDomainResponse
 		want   bool
 	}{
-		{"nil", nil, false},
-		{"nil domain info", &types.DescribeDomainResponse{}, false},
-		{"managed global", domainV2("d", "cluster0", true, true, nil, nil), true},
-		{"unmanaged", domainV2("d", "cluster0", false, true, nil, nil), false},
-		{"not global", domainV2("d", "cluster0", true, false, nil, nil), false},
+		{"when domain is nil it is not eligible", nil, false},
+		{"when DomainInfo is nil it is not eligible", &types.DescribeDomainResponse{}, false},
+		{"when domain is managed and global it is eligible", createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true}), true},
+		{"when domain is not managed it is not eligible", createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: false, isGlobal: true}), false},
+		{"when domain is not global it is not eligible", createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: false}), false},
 		{
-			"deprecated",
+			"when domain is deprecated it is not eligible",
 			func() *types.DescribeDomainResponse {
-				d := domainV2("d", "cluster0", true, true, nil, nil)
-				dep := types.DomainStatusDeprecated
-				d.DomainInfo.Status = &dep
+				d := createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true})
+				d.DomainInfo.Status = types.DomainStatusDeprecated.Ptr()
 				return d
-			}(),
-			false,
-		},
+			}(), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,7 +99,7 @@ func TestEligibleForFailoverV2(t *testing.T) {
 	}
 }
 
-func TestCollectTargetClusters(t *testing.T) {
+func TestCollectTargetClusters_WhenGivenPreferencesItReturnsUniqueTargetClusters(t *testing.T) {
 	got := collectTargetClusters(DomainFailoverPreferences{
 		PreferredCluster: "cluster1",
 		ClusterAttributeUpdates: []ClusterAttributePreference{
@@ -113,7 +111,7 @@ func TestCollectTargetClusters(t *testing.T) {
 	assert.Equal(t, []string{"cluster1", "cluster2"}, got)
 }
 
-func TestBuildActiveClustersFromUpdates(t *testing.T) {
+func TestBuildActiveClustersFromUpdates_WhenGivenUpdatesItGroupsThemByScopeAndName(t *testing.T) {
 	ac := buildActiveClustersFromUpdates([]ClusterAttributePreference{
 		{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
 		{Scope: "cluster", Name: "cluster1", PreferredCluster: "cluster1"},
@@ -125,13 +123,13 @@ func TestBuildActiveClustersFromUpdates(t *testing.T) {
 	assert.Equal(t, "cluster2", ac.AttributeScopes["region"].ClusterAttributes["us-west"].ActiveClusterName)
 }
 
-func TestDomainNames(t *testing.T) {
+func TestDomainNames_WhenGivenPreferencesItReturnsNamesAndNilForNilInput(t *testing.T) {
 	assert.Nil(t, domainNames(nil))
 	got := domainNames([]DomainFailoverPreferences{{DomainName: "a"}, {DomainName: "b"}})
 	assert.Equal(t, []string{"a", "b"}, got)
 }
 
-func TestProcessInBatches(t *testing.T) {
+func TestProcessInBatches_WhenItemsExceedBatchSizeItSplitsIntoSizedBatches(t *testing.T) {
 	prefs := []DomainFailoverPreferences{
 		{DomainName: "a"}, {DomainName: "b"}, {DomainName: "c"}, {DomainName: "d"}, {DomainName: "e"},
 	}
@@ -178,7 +176,7 @@ func newFailoverV2ActivityEnv(t *testing.T) (*testsuite.TestActivityEnvironment,
 	return env, mockResource
 }
 
-func TestFailoverActivityV2_Apply(t *testing.T) {
+func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDomains(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
 
 	withPollers := &types.GetTaskListsByDomainResponse{
@@ -186,7 +184,7 @@ func TestFailoverActivityV2_Apply(t *testing.T) {
 	}
 	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(withPollers, nil).AnyTimes()
 	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(withPollers, nil).AnyTimes()
-	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 
 	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
 		DomainPreferences: []DomainFailoverPreferences{

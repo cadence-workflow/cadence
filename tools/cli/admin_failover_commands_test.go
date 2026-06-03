@@ -303,7 +303,7 @@ func TestAdminFailoverStart(t *testing.T) {
 	}
 }
 
-func TestAdminFailoverStartV2(t *testing.T) {
+func TestAdminFailoverStartV2_WhenV2FlagIsSetItStartsTheV2WorkflowWithoutDrillSignal(t *testing.T) {
 	oldUUIDFn := uuidFn
 	uuidFn = func() string { return "test-uuid" }
 	oldGetOperatorFn := getOperatorFn

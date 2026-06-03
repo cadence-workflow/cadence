@@ -74,7 +74,7 @@ type (
 
 	// FailoverActivityV2Result is the result of the shared FailoverActivityV2. FailedDomains may
 	// contain false positives: a domain whose activity errored is reported failed even if the
-	// UpdateDomain partially applied.
+	// Failover partially applied.
 	FailoverActivityV2Result struct {
 		SuccessDomains []string
 		FailedDomains  []string
@@ -84,7 +84,7 @@ type (
 // FailoverActivityV2 is the single apply activity shared by FailoverWorkflowV2 and
 // RebalanceWorkflowV2. It applies each DomainFailoverPreferences entry via UpdateDomain.
 func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (*FailoverActivityV2Result, error) {
-	return failoverDomain(ctx, params.DomainPreferences)
+	return failoverDomains(ctx, params.DomainPreferences)
 }
 
 // executeFailoverBatch returns a batchExecutor that invokes the shared FailoverActivityV2. On
@@ -101,10 +101,11 @@ func executeFailoverBatch() batchExecutor {
 	}
 }
 
-// failoverDomain is the shared per-domain loop. For each entry it validates pollers against every
+// failoverDomains is the shared per-domain loop. For each entry it validates pollers against every
 // distinct target cluster the entry references, then issues a single UpdateDomain carrying the
 // preferred ActiveClusterName and any per-attribute ActiveClusters overrides.
-func failoverDomain(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
+// Returns
+func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
 	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
 	var successDomains, failedDomains []string
@@ -122,15 +123,15 @@ func failoverDomain(ctx context.Context, prefs []DomainFailoverPreferences) (*Fa
 			continue
 		}
 
-		updateRequest := &types.UpdateDomainRequest{Name: p.DomainName}
+		failoverRequest := &types.FailoverDomainRequest{DomainName: p.DomainName}
 		if p.PreferredCluster != "" {
-			updateRequest.ActiveClusterName = common.StringPtr(p.PreferredCluster)
+			failoverRequest.DomainActiveClusterName = common.StringPtr(p.PreferredCluster)
 		}
 		if len(p.ClusterAttributeUpdates) > 0 {
-			updateRequest.ActiveClusters = buildActiveClustersFromUpdates(p.ClusterAttributeUpdates)
+			failoverRequest.ActiveClusters = buildActiveClustersFromUpdates(p.ClusterAttributeUpdates)
 		}
 
-		if _, err := frontendClient.UpdateDomain(ctx, updateRequest); err != nil {
+		if _, err := frontendClient.FailoverDomain(ctx, failoverRequest); err != nil {
 			failedDomains = append(failedDomains, p.DomainName)
 		} else {
 			successDomains = append(successDomains, p.DomainName)
