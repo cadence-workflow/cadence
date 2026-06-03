@@ -1252,7 +1252,7 @@ func TestEmitExecutorMetric(t *testing.T) {
 
 			for status, count := range tt.expectedCounts {
 				taggedScope := &metricmocks.Scope{}
-				metricsScope.On("Tagged", metrics.ExecutorStatusTag(status.String())).Return(taggedScope).Once()
+				metricsScope.On("Tagged", []metrics.Tag{metrics.ExecutorStatusTag(status.String())}).Return(taggedScope).Once()
 				taggedScope.On("UpdateGauge", metrics.ShardDistributorTotalExecutors, float64(count)).Once()
 			}
 
