@@ -1438,7 +1438,7 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
-// TestValidateUserSearchAttributes verifies that user-supplied search attributeAdd a comment on  lines R1381 to R1401Add diff commentMarkdown input:  edit mode selected.WritePreviewHeadingBoldItalicQuoteCodeLinkUnordered listNumbered listTask listMentionReferenceMore Formatting tools items 0Saved repliesAdd FilesPaste, drop, or click to add filesCancelCommentStart a review
+// TestValidateUserSearchAttributes verifies that user-supplied search attribute
 // keys colliding with the scheduler-reserved "CadenceSchedule" prefix are
 // rejected, while other keys (including a lowercase near-miss) are allowed. The
 // prefix check is case-sensitive.
