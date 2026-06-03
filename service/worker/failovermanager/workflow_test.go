@@ -157,18 +157,15 @@ func (s *failoverWorkflowTestSuite) TestWorkflow_Success() {
 func (s *failoverWorkflowTestSuite) TestWorkflow_Success_Batches() {
 	domains := []string{"d1", "d2", "d3"}
 	expectFailoverActivityParams1 := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: "t"},
-			{DomainName: "d2", PreferredCluster: "t"},
-		},
+		Domains:       []string{"d1", "d2"},
+		TargetCluster: "t",
 	}
 	mockFailoverActivityResult1 := &FailoverActivityResult{
 		SuccessDomains: []string{"d1", "d2"},
 	}
 	expectFailoverActivityParams2 := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d3", PreferredCluster: "t"},
-		},
+		Domains:       []string{"d3"},
+		TargetCluster: "t",
 	}
 	mockFailoverActivityResult2 := &FailoverActivityResult{
 		FailedDomains: []string{"d3"},
@@ -625,10 +622,8 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ForceFailover_Success()
 	}, nil).Times(len(domains))
 
 	params := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: "c2"},
-			{DomainName: "d2", PreferredCluster: "c2"},
-		},
+		Domains:       domains,
+		TargetCluster: "c2",
 	}
 
 	actResult, err := env.ExecuteActivity(failoverActivityName, params)
@@ -651,10 +646,8 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_GracefulFailover_Succes
 		"tl": describeTaskListResp,
 	}
 	params := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: "c2"},
-			{DomainName: "d2", PreferredCluster: "c2"},
-		},
+		Domains:                          domains,
+		TargetCluster:                    "c2",
 		GracefulFailoverTimeoutInSeconds: common.Int32Ptr(int32(10)),
 	}
 
@@ -720,10 +713,8 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_Error() {
 	}, nil).Times(len(domains))
 
 	params := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: targetCluster},
-			{DomainName: "d2", PreferredCluster: targetCluster},
-		},
+		Domains:       domains,
+		TargetCluster: targetCluster,
 	}
 
 	actResult, err := env.ExecuteActivity(failoverActivityName, params)
@@ -763,10 +754,8 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_NoPoller_Error() {
 	}, nil).Times(len(domains))
 
 	params := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: targetCluster},
-			{DomainName: "d2", PreferredCluster: targetCluster},
-		},
+		Domains:       domains,
+		TargetCluster: targetCluster,
 	}
 
 	actResult, err := env.ExecuteActivity(failoverActivityName, params)
@@ -784,8 +773,7 @@ func (s *failoverWorkflowTestSuite) TestGetOperator() {
 	})
 
 	s.workflowEnv.OnActivity(getDomainsActivityName, mock.Anything, mock.Anything).Return(nil, nil)
-	// FailoverActivity is not expected to fire: an empty domain list short-circuits
-	// processDomainsInBatches, so the activity is never invoked.
+	s.workflowEnv.OnActivity(failoverActivityName, mock.Anything, mock.Anything).Return(nil, nil)
 	params := &FailoverParams{
 		TargetCluster: "t",
 		SourceCluster: "s",
@@ -1145,6 +1133,10 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_Success() 
 	env, mockResource := s.prepareTestActivityEnv()
 
 	domains := []string{"aa-domain"}
+	attrs := []types.ClusterAttribute{
+		{Scope: "region", Name: "us-west"},
+		{Scope: "region", Name: "us-east"},
+	}
 	describeTaskListResp := &types.DescribeTaskListResponse{Pollers: []*types.PollerInfo{{Identity: "test"}}}
 	taskListMap := map[string]*types.DescribeTaskListResponse{"tl": describeTaskListResp}
 	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(&types.GetTaskListsByDomainResponse{
@@ -1173,16 +1165,9 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_Success() 
 	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), updateRequest).Return(nil, nil).Times(1)
 
 	params := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{
-				DomainName:       "aa-domain",
-				PreferredCluster: "c2",
-				ClusterAttributeUpdates: []ClusterAttributePreference{
-					{Scope: "region", Name: "us-west", PreferredCluster: "c2"},
-					{Scope: "region", Name: "us-east", PreferredCluster: "c2"},
-				},
-			},
-		},
+		Domains:           domains,
+		TargetCluster:     "c2",
+		ClusterAttributes: attrs,
 	}
 	actResult, err := env.ExecuteActivity(failoverActivityName, params)
 	s.NoError(err)
@@ -1195,6 +1180,7 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_Success() 
 func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_UpdateDomainError() {
 	env, mockResource := s.prepareTestActivityEnv()
 
+	attrs := []types.ClusterAttribute{{Scope: "region", Name: "us-west"}}
 	describeTaskListResp := &types.DescribeTaskListResponse{Pollers: []*types.PollerInfo{{Identity: "test"}}}
 	taskListMap := map[string]*types.DescribeTaskListResponse{"tl": describeTaskListResp}
 	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(&types.GetTaskListsByDomainResponse{
@@ -1208,15 +1194,9 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_UpdateDoma
 	mockResource.FrontendClient.EXPECT().UpdateDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("update failed")).Times(1)
 
 	params := &FailoverActivityParams{
-		DomainPreferences: []DomainFailoverPreferences{
-			{
-				DomainName:       "aa-domain",
-				PreferredCluster: "c2",
-				ClusterAttributeUpdates: []ClusterAttributePreference{
-					{Scope: "region", Name: "us-west", PreferredCluster: "c2"},
-				},
-			},
-		},
+		Domains:           []string{"aa-domain"},
+		TargetCluster:     "c2",
+		ClusterAttributes: attrs,
 	}
 	actResult, err := env.ExecuteActivity(failoverActivityName, params)
 	s.NoError(err)
@@ -1225,151 +1205,82 @@ func (s *failoverWorkflowTestSuite) TestFailoverActivity_ActiveActive_UpdateDoma
 	s.Empty(result.SuccessDomains)
 	s.Equal([]string{"aa-domain"}, result.FailedDomains)
 }
-// TestFailoverActivity_DomainPreferences tests the failover activity with per-domain preferences.
-func TestFailoverActivity_DomainPreferences(t *testing.T) {
-	pollerMap := map[string]*types.DescribeTaskListResponse{
-		"tl": {Pollers: []*types.PollerInfo{{Identity: "worker"}}},
-	}
-	pollerResp := &types.GetTaskListsByDomainResponse{
-		DecisionTaskListMap: pollerMap,
-		ActivityTaskListMap: pollerMap,
-	}
-
+func TestBuildActiveClusters(t *testing.T) {
 	tests := []struct {
-		name               string
-		params             *FailoverActivityParams
-		wantUpdateRequests []*types.UpdateDomainRequest
-		wantSuccess        []string
-		wantFailed         []string
-		// uniqueTargetClusters is the number of distinct target clusters across all domains.
-		// validateTaskListPollerInfo is called once per unique target cluster, so both the
-		// local and remote frontend clients receive this many GetTaskListsByDomain calls.
-		uniqueTargetClusters int
+		name          string
+		targetCluster string
+		attrs         []types.ClusterAttribute
+		expected      *types.ActiveClusters
 	}{
 		{
-			// scenario 3: global domain, only PreferredCluster set
-			name: "when preferences contain only PreferredCluster it should set ActiveClusterName without ActiveClusters",
-			params: &FailoverActivityParams{
-				DomainPreferences: []DomainFailoverPreferences{
-					{DomainName: "d1", PreferredCluster: "c2"},
+			name:          "single scope single attribute",
+			targetCluster: "cluster-west",
+			attrs:         []types.ClusterAttribute{{Scope: "region", Name: "us-west"}},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west": {ActiveClusterName: "cluster-west"},
+					}},
 				},
 			},
-			uniqueTargetClusters: 1,
-			wantUpdateRequests: []*types.UpdateDomainRequest{
-				{Name: "d1", ActiveClusterName: common.StringPtr("c2")},
-			},
-			wantSuccess: []string{"d1"},
 		},
 		{
-			// scenario 4: active-active, only cluster attributes wrong
-			name: "when preferences contain only ClusterAttributeUpdates it should set ActiveClusters without ActiveClusterName",
-			params: &FailoverActivityParams{
-				DomainPreferences: []DomainFailoverPreferences{
-					{
-						DomainName: "d1",
-						ClusterAttributeUpdates: []ClusterAttributePreference{
-							{Scope: "cluster", Name: "c0", PreferredCluster: "cluster0"},
-						},
-					},
+			name:          "single scope multiple attributes",
+			targetCluster: "cluster-west",
+			attrs: []types.ClusterAttribute{
+				{Scope: "region", Name: "us-west"},
+				{Scope: "region", Name: "us-east"},
+			},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west": {ActiveClusterName: "cluster-west"},
+						"us-east": {ActiveClusterName: "cluster-west"},
+					}},
 				},
 			},
-			uniqueTargetClusters: 1,
-			wantUpdateRequests: []*types.UpdateDomainRequest{
-				{
-					Name: "d1",
-					ActiveClusters: &types.ActiveClusters{
-						AttributeScopes: map[string]types.ClusterAttributeScope{
-							"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"c0": {ActiveClusterName: "cluster0"},
-							}},
-						},
-					},
-				},
-			},
-			wantSuccess: []string{"d1"},
 		},
 		{
-			// scenario 5: both domain-level and attribute updates needed
-			// PreferredCluster=c2 and attribute c0→cluster0 are distinct clusters, so
-			// validateTaskListPollerInfo is called twice (once per unique target cluster).
-			name: "when preferences contain both PreferredCluster and ClusterAttributeUpdates it should set both ActiveClusterName and ActiveClusters",
-			params: &FailoverActivityParams{
-				DomainPreferences: []DomainFailoverPreferences{
-					{
-						DomainName:       "d1",
-						PreferredCluster: "c2",
-						ClusterAttributeUpdates: []ClusterAttributePreference{
-							{Scope: "cluster", Name: "c0", PreferredCluster: "cluster0"},
-						},
-					},
+			name:          "multiple scopes",
+			targetCluster: "cluster-a",
+			attrs: []types.ClusterAttribute{
+				{Scope: "region", Name: "us-west"},
+				{Scope: "datacenter", Name: "dc1"},
+			},
+			expected: &types.ActiveClusters{
+				AttributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"us-west": {ActiveClusterName: "cluster-a"},
+					}},
+					"datacenter": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"dc1": {ActiveClusterName: "cluster-a"},
+					}},
 				},
 			},
-			uniqueTargetClusters: 2,
-			wantUpdateRequests: []*types.UpdateDomainRequest{
-				{
-					Name:              "d1",
-					ActiveClusterName: common.StringPtr("c2"),
-					ActiveClusters: &types.ActiveClusters{
-						AttributeScopes: map[string]types.ClusterAttributeScope{
-							"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
-								"c0": {ActiveClusterName: "cluster0"},
-							}},
-						},
-					},
-				},
-			},
-			wantSuccess: []string{"d1"},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockRes := resource.NewTest(t, ctrl, metrics.Worker)
-
-			// Local and remote poller calls happen once per unique target cluster.
-			mockRes.FrontendClient.EXPECT().
-				GetTaskListsByDomain(gomock.Any(), gomock.Any()).
-				Return(pollerResp, nil).
-				Times(tc.uniqueTargetClusters)
-			mockRes.RemoteFrontendClient.EXPECT().
-				GetTaskListsByDomain(gomock.Any(), gomock.Any()).
-				Return(pollerResp, nil).
-				Times(tc.uniqueTargetClusters)
-
-			for _, req := range tc.wantUpdateRequests {
-				mockRes.FrontendClient.EXPECT().
-					UpdateDomain(gomock.Any(), req).
-					Return(nil, nil).Times(1)
+			got := buildActiveClusters(tc.targetCluster, tc.attrs)
+			if len(got.AttributeScopes) != len(tc.expected.AttributeScopes) {
+				t.Fatalf("scope count mismatch: got %d, want %d", len(got.AttributeScopes), len(tc.expected.AttributeScopes))
 			}
-
-			ctx := context.WithValue(
-				context.Background(),
-				failoverManagerContextKey,
-				&FailoverManager{svcClient: mockRes.GetSDKClient(), clientBean: mockRes.ClientBean},
-			)
-
-			env := testsuite.WorkflowTestSuite{}
-			actEnv := env.NewTestActivityEnvironment()
-			actEnv.SetWorkerOptions(worker.Options{BackgroundActivityContext: ctx})
-			actEnv.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
-
-			fut, err := actEnv.ExecuteActivity(failoverActivityName, tc.params)
-			if err != nil {
-				t.Fatalf("activity returned error: %v", err)
+			for scope, expectedScope := range tc.expected.AttributeScopes {
+				gotScope, ok := got.AttributeScopes[scope]
+				if !ok {
+					t.Fatalf("missing scope %q", scope)
+				}
+				for name, expectedInfo := range expectedScope.ClusterAttributes {
+					gotInfo, ok := gotScope.ClusterAttributes[name]
+					if !ok {
+						t.Fatalf("missing attribute %q in scope %q", name, scope)
+					}
+					if gotInfo.ActiveClusterName != expectedInfo.ActiveClusterName {
+						t.Errorf("scope %q attr %q: got cluster %q, want %q", scope, name, gotInfo.ActiveClusterName, expectedInfo.ActiveClusterName)
+					}
+				}
 			}
-			var result FailoverActivityResult
-			if err := fut.Get(&result); err != nil {
-				t.Fatalf("get result error: %v", err)
-			}
-			if len(result.SuccessDomains) != len(tc.wantSuccess) {
-				t.Errorf("success domains: want %v, got %v", tc.wantSuccess, result.SuccessDomains)
-			}
-			if len(result.FailedDomains) != len(tc.wantFailed) {
-				t.Errorf("failed domains: want %v, got %v", tc.wantFailed, result.FailedDomains)
-			}
-
-			mockRes.Finish(t)
 		})
 	}
 }

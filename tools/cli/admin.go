@@ -1114,6 +1114,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional cluster attributes to restrict active-active failover scope, in JSON format. " +
 						`Example: [{"scope":"region","name":"us-west"},{"scope":"region","name":"us-east"}]`,
 				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Use the V2 failover workflow, which fails all managed domains out of --source_cluster onto --target_cluster (N-region safe, records a restore snapshot)",
+				},
 			},
 			Action: AdminFailoverStart,
 		},
@@ -1132,6 +1136,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Aliases: []string{"fd"},
 					Usage: "Optional to pause failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
 				},
 			},
 
@@ -1153,6 +1161,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional to resume failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
 				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
+				},
 			},
 			Action: AdminFailoverResume,
 		},
@@ -1171,6 +1183,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Name:    FlagRunID,
 					Aliases: []string{"rid", "r"},
 					Usage:   "Optional Failover workflow runID, default is latest runID",
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
 				},
 			},
 			Action: AdminFailoverQuery,
@@ -1195,6 +1211,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Aliases: []string{"fd"},
 					Usage: "Optional to abort failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow (use this to stop a running V2 failover)",
 				},
 			},
 			Action: AdminFailoverAbort,
@@ -1262,6 +1282,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional to query failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
 				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
+				},
 			},
 			Action: AdminFailoverList,
 		},
@@ -1274,8 +1298,13 @@ func newAdminRebalanceCommands() []*cli.Command {
 			Name:    "start",
 			Aliases: []string{"s"},
 			Usage:   "start rebalance workflow",
-			Flags:   []cli.Flag{},
-			Action:  AdminRebalanceStart,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Use the V2 rebalance workflow, which corrects domain-level and cluster-attribute drift from stored preferences",
+				},
+			},
+			Action: AdminRebalanceStart,
 		},
 		{
 			Name:    "list",
