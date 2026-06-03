@@ -504,3 +504,14 @@ jobs:
           timeout_minutes: 30
           command: |
             docker compose -f docker/github_actions/docker-compose.yml run integration-test-async-wf bash -c "make .just-build && go test -timeout 60s -run ^TestAsyncWFIntegrationSuite -tags asyncwfintegration -count 1 -v github.com/uber/cadence/host"
+
+  # The etcd-based shard distributor server was removed from this repo.
+  # This stub preserves the required status check name so GitHub branch
+  # protection does not block merges waiting for a job that no longer exists.
+  golang-integration-test-with-etcd:
+    if: github.event_name == 'pull_request'
+    name: Golang integration test with etcd
+    runs-on: ubuntu-latest
+    steps:
+      - name: Etcd integration tests removed
+        run: echo "Etcd-based shard distributor server has been removed; no tests to run."
