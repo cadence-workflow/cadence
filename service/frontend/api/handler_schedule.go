@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -817,9 +818,7 @@ func (wh *WorkflowHandler) describeSchedulerExecution(
 }
 
 // querySchedulerWorkflow issues a QueryWorkflow call for the scheduler's
-// describe query, retrying briefly if the workflow has not yet processed its
-// first decision task. That transient state occurs right after CreateSchedule
-// or immediately after a ContinueAsNew run starts.
+// describe query, retrying on transient errors until the workflow is queryable.
 func (wh *WorkflowHandler) querySchedulerWorkflow(
 	ctx context.Context,
 	domainName, scheduleID string,
@@ -839,7 +838,11 @@ func (wh *WorkflowHandler) querySchedulerWorkflow(
 			return resp, nil
 		}
 		var qfe *types.QueryFailedError
-		if !errors.As(err, &qfe) || !strings.Contains(qfe.Message, "decision task") {
+		decisionTaskPending := errors.As(err, &qfe) && strings.Contains(qfe.Message, "decision task")
+		queryTimeout := (errors.Is(err, context.DeadlineExceeded) ||
+			yarpcerrors.IsStatus(err) && yarpcerrors.FromError(err).Code() == yarpcerrors.CodeDeadlineExceeded) &&
+			ctx.Err() == nil
+		if !decisionTaskPending && !queryTimeout {
 			return nil, normalizeScheduleError(err, scheduleID, domainName)
 		}
 		lastErr = err
