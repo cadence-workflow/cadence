@@ -183,6 +183,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 		Spec:             *request.GetSpec(),
 		Action:           *request.GetAction(),
 		SearchAttributes: request.GetSearchAttributes(),
+		Memo:             request.GetMemo(),
 	}
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
@@ -331,6 +332,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			NextRunTime: desc.NextRunTime,
 			TotalRuns:   desc.TotalRuns,
 		},
+		Memo:             desc.Memo,
+		SearchAttributes: desc.SearchAttributes,
 	}, nil
 }
 
