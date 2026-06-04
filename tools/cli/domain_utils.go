@@ -88,11 +88,14 @@ var (
 			Usage:   "Flag to indicate whether domain is a global domain (active-passive domain). Default to true. Local domain is now legacy.",
 			Value:   "true",
 		},
-		&cli.GenericFlag{
+		&flag.FreshStringMapFlag{
 			Name:    FlagDomainData,
 			Aliases: []string{"dmd"},
 			Usage:   "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
-			Value:   &flag.StringMap{},
+		},
+		&flag.NoSepStringSliceFlag{
+			Name:  FlagDomainDataEntry,
+			Usage: "A single domain-data key=value entry whose value may contain commas (e.g. JSON). Repeatable. Use instead of --domain_data when a value contains commas.",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -157,10 +160,13 @@ var (
 			Aliases: []string{"cl"},
 			Usage:   FlagClustersUsage,
 		},
-		&cli.GenericFlag{
+		&flag.FreshStringMapFlag{
 			Name:  FlagDomainData,
 			Usage: "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
-			Value: &flag.StringMap{},
+		},
+		&flag.NoSepStringSliceFlag{
+			Name:  FlagDomainDataEntry,
+			Usage: "A single domain-data key=value entry whose value may contain commas (e.g. JSON). Repeatable. Use instead of --domain_data when a value contains commas.",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
