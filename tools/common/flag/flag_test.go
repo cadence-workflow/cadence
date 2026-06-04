@@ -128,3 +128,46 @@ func TestStringMap_WhenSetReceivesMalformedInput_ItShouldReturnError(t *testing.
 	err := m.Set("noequals")
 	assert.ErrorContains(t, err, "key1=value1")
 }
+
+func TestStringSlice_Set_AppendsWithoutSplittingOnCommas(t *testing.T) {
+	s := StringSlice{}
+	require.NoError(t, s.Set("a,b,c"))
+	require.NoError(t, s.Set("d"))
+	assert.Equal(t, []string{"a,b,c", "d"}, s.Value())
+}
+
+func TestRepeatedStringFlag_MultipleInvocations_CollectsAllValues(t *testing.T) {
+	var got []string
+	app := &cli.App{
+		Flags: []cli.Flag{
+			&RepeatedStringFlag{Name: "entry", Usage: "test"},
+		},
+		Action: func(ctx *cli.Context) error {
+			got = ctx.Generic("entry").(*StringSlice).Value()
+			return nil
+		},
+	}
+	require.NoError(t, app.Run([]string{"run", "--entry", "k1=v1,v2", "--entry", "k2=v3"}))
+	assert.Equal(t, []string{"k1=v1,v2", "k2=v3"}, got)
+}
+
+func TestRepeatedStringFlag_FreshSlicePerRun_NoCrossRunAccumulation(t *testing.T) {
+	f := &RepeatedStringFlag{Name: "entry", Usage: "test"}
+	app := &cli.App{
+		Flags:  []cli.Flag{f},
+		Action: func(*cli.Context) error { return nil },
+	}
+
+	require.NoError(t, app.Run([]string{"run", "--entry", "first=run"}))
+	// Second run must not see the value from the first.
+	var got []string
+	app2 := &cli.App{
+		Flags: []cli.Flag{f},
+		Action: func(ctx *cli.Context) error {
+			got = ctx.Generic("entry").(*StringSlice).Value()
+			return nil
+		},
+	}
+	require.NoError(t, app2.Run([]string{"run", "--entry", "second=run"}))
+	assert.Equal(t, []string{"second=run"}, got, "cross-run accumulation must not occur")
+}

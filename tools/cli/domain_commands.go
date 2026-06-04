@@ -99,8 +99,7 @@ func getDomainDataFromFlags(c *cli.Context) (map[string]string, error) {
 			data[k] = v
 		}
 	}
-	if c.IsSet(FlagDomainDataEntry) {
-		entry := c.String(FlagDomainDataEntry)
+	for _, entry := range c.Generic(FlagDomainDataEntry).(*flag.StringSlice).Value() {
 		kv := strings.SplitN(entry, "=", 2)
 		if len(kv) != 2 {
 			return nil, fmt.Errorf("%s value %q must be in key=value format", FlagDomainDataEntry, entry)

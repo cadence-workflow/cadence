@@ -21,13 +21,15 @@
 package flag
 
 import (
+	goflag "flag"
 	"fmt"
 	"sort"
 	"strings"
 )
 
 type (
-	StringMap map[string]string
+	StringMap   map[string]string
+	StringSlice []string
 )
 
 // Set resets the map before parsing. This is intentional: StringMap is used as
@@ -74,4 +76,52 @@ func (m *StringMap) Value() map[string]string {
 		return nil
 	}
 	return *m
+}
+
+func (s *StringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
+}
+
+func (s *StringSlice) String() string {
+	if s == nil {
+		return ""
+	}
+	return strings.Join(*s, "\n")
+}
+
+func (s *StringSlice) Value() []string {
+	if s == nil {
+		return nil
+	}
+	return []string(*s)
+}
+
+// RepeatedStringFlag is a cli.Flag for repeatable string values that does NOT
+// split on commas. Each Apply creates a fresh StringSlice to prevent cross-run
+// accumulation when the flag is defined as a package-level var.
+type RepeatedStringFlag struct {
+	Name  string
+	Usage string
+}
+
+func (f *RepeatedStringFlag) String() string {
+	return fmt.Sprintf("--%s value\t%s", f.Name, f.Usage)
+}
+
+func (f *RepeatedStringFlag) Names() []string {
+	return []string{f.Name}
+}
+
+// IsSet always returns false; c.IsSet() uses fs.Visit which is the
+// authoritative check for whether the flag appeared on the command line.
+func (f *RepeatedStringFlag) IsSet() bool {
+	return false
+}
+
+// Apply registers a fresh StringSlice with the flag set on every call,
+// preventing cross-run accumulation when the flag is a package-level var.
+func (f *RepeatedStringFlag) Apply(set *goflag.FlagSet) error {
+	set.Var(&StringSlice{}, f.Name, f.Usage)
+	return nil
 }

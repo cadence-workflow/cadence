@@ -94,9 +94,9 @@ var (
 			Usage:   "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value:   &flag.StringMap{},
 		},
-		&cli.StringFlag{
+		&flag.RepeatedStringFlag{
 			Name:  FlagDomainDataEntry,
-			Usage: "A single domain-data key=value entry whose value may contain commas (e.g. JSON). Use instead of --domain_data when a value contains commas.",
+			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g --cluster=dca ",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -166,9 +166,9 @@ var (
 			Usage: "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value: &flag.StringMap{},
 		},
-		&cli.StringFlag{
+		&flag.RepeatedStringFlag{
 			Name:  FlagDomainDataEntry,
-			Usage: "A single domain-data key=value entry whose value may contain commas (e.g. JSON). Use instead of --domain_data when a value contains commas.",
+			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Repeatable. Use instead of --domain_data when a value contains commas.",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
