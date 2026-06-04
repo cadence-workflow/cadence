@@ -1109,9 +1109,11 @@ func (s *contextTestSuite) TestAppendHistoryV2Events() {
 func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers() {
 	// This test verifies that failover markers are processed when a domain becomes active
 	domainFailoverVersion := 100
-	domainCacheEntryInactiveCluster := cache.NewGlobalDomainCacheEntryForTest(
+	pendingActiveEndTime := common.Int64Ptr(1)
+	domainCacheEntryInactivePendingActive := cache.NewDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: testDomainID},
 		&persistence.DomainConfig{Retention: 7},
+		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: cluster.TestAlternativeClusterName, // active is TestCurrentClusterName
 			Clusters: []*persistence.ClusterReplicationConfig{
@@ -1120,6 +1122,8 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers() {
 			},
 		},
 		int64(domainFailoverVersion),
+		pendingActiveEndTime,
+		0, 0, 0,
 	)
 	domainCacheEntryActiveCluster := cache.NewGlobalDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: testDomainID},
@@ -1133,7 +1137,7 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers() {
 		},
 		int64(domainFailoverVersion),
 	)
-	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryInactiveCluster, nil)
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryInactivePendingActive, nil)
 
 	failoverMarker := types.FailoverMarkerAttributes{
 		DomainID:        testDomainID,
@@ -1159,9 +1163,11 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 	// At insert time the domain is not deprecated, so the markers are saved.
 	// Between insert and validation, the domain becomes deprecated, so they are dropped.
 	domainFailoverVersion := 100
-	domainCacheEntryInactiveCluster := cache.NewGlobalDomainCacheEntryForTest(
+	pendingActiveEndTime := common.Int64Ptr(1)
+	domainCacheEntryInactivePendingActive := cache.NewDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: testDomainID},
 		&persistence.DomainConfig{Retention: 7},
+		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: cluster.TestAlternativeClusterName, // current cluster is NOT active
 			Clusters: []*persistence.ClusterReplicationConfig{
@@ -1170,10 +1176,13 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 			},
 		},
 		int64(domainFailoverVersion),
+		pendingActiveEndTime,
+		0, 0, 0,
 	)
-	domainCacheEntryInactiveClusterDeprecated := cache.NewGlobalDomainCacheEntryForTest(
+	domainCacheEntryInactiveClusterDeprecated := cache.NewDomainCacheEntryForTest(
 		&persistence.DomainInfo{ID: testDomainID},
 		&persistence.DomainConfig{Retention: 7},
+		true,
 		&persistence.DomainReplicationConfig{
 			ActiveClusterName: cluster.TestAlternativeClusterName, // still not active here
 			Clusters: []*persistence.ClusterReplicationConfig{
@@ -1182,11 +1191,13 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 			},
 		},
 		int64(domainFailoverVersion),
+		pendingActiveEndTime,
+		0, 0, 0,
 	)
 	domainCacheEntryInactiveClusterDeprecated.GetInfo().Status = persistence.DomainStatusDeprecated
 
-	// Insertion: domain is inactive and not deprecated → markers get saved.
-	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryInactiveCluster, nil).Times(2)
+	// Insertion: domain is inactive, pending-active, and not deprecated → markers get saved.
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryInactivePendingActive, nil).Times(2)
 
 	failoverMarker := types.FailoverMarkerAttributes{
 		DomainID:        testDomainID,
@@ -1207,6 +1218,123 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DeprecatedDomain
 	s.NoError(err)
 	s.Empty(pendingFailoverMarkers, "pending failover markers should be dropped when the domain is deprecated")
 	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "pending failover markers should be dropped from shard info when domain is deprecated")
+}
+
+func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_FailoverCompleted() {
+	domainFailoverVersion := 100
+	pendingActiveEndTime := common.Int64Ptr(1)
+	domainCacheEntryPendingActive := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		int64(domainFailoverVersion),
+		pendingActiveEndTime,
+		0, 0, 0,
+	)
+	domainCacheEntryFailoverDone := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName, // still not active here (third standby)
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		int64(domainFailoverVersion),
+		nil, // FailoverEndTime cleared → failover completed
+		0, 0, 0,
+	)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryPendingActive, nil)
+
+	failoverMarker := types.FailoverMarkerAttributes{
+		DomainID:        testDomainID,
+		FailoverVersion: int64(domainFailoverVersion),
+	}
+
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+	s.NoError(s.context.AddingPendingFailoverMarker(&failoverMarker))
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryFailoverDone, nil)
+
+	pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
+	s.NoError(err)
+	s.Empty(pendingFailoverMarkers, "stale marker should be dropped once the failover is no longer pending")
+	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared too")
+}
+
+func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerExists() {
+	domainFailoverVersion := 100
+	pendingActiveEndTime := common.Int64Ptr(1)
+	deletedDomainID := "deleted-domain-id"
+
+	domainCacheEntryPendingActive := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		int64(domainFailoverVersion),
+		pendingActiveEndTime,
+		0, 0, 0,
+	)
+	domainCacheEntryFailoverDone := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		int64(domainFailoverVersion),
+		nil,
+		0, 0, 0,
+	)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryPendingActive, nil)
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+
+	validMarker := types.FailoverMarkerAttributes{
+		DomainID:        testDomainID,
+		FailoverVersion: int64(domainFailoverVersion),
+	}
+	s.NoError(s.context.AddingPendingFailoverMarker(&validMarker))
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
+
+	// inject an orphan marker directly into shardInfo — simulates a marker whose
+	// domain has since been deleted from the metadata store
+	orphanMarker := &types.FailoverMarkerAttributes{
+		DomainID:        deletedDomainID,
+		FailoverVersion: int64(domainFailoverVersion),
+	}
+	s.context.shardInfo.PendingFailoverMarkers = append(s.context.shardInfo.PendingFailoverMarkers, orphanMarker)
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 2)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainCacheEntryFailoverDone, nil)
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(deletedDomainID).Return(nil, &types.EntityNotExistsError{Message: "domain not found"})
+
+	pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
+	s.NoError(err, "orphan-domain marker must not poison the cleanup loop")
+	s.Empty(pendingFailoverMarkers, "both the orphan and the otherwise-droppable marker should be cleaned")
+	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared of both markers")
 }
 
 func (s *contextTestSuite) TestGetAndUpdateProcessingQueueStates() {
@@ -1856,6 +1984,7 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 	tests := []struct {
 		name                  string
 		isActive              bool
+		failoverCompleted     bool
 		domainFailoverVersion int64
 		markerFailoverVersion int64
 		domainStatus          int
@@ -1886,8 +2015,18 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 			want:                  "domain failover version is newer than marker",
 		},
 		{
+			name:                  "failover already completed",
+			isActive:              false,
+			failoverCompleted:     true,
+			domainFailoverVersion: 100,
+			markerFailoverVersion: 100,
+			domainStatus:          persistence.DomainStatusRegistered,
+			want:                  "domain failover already completed",
+		},
+		{
 			name:                  "all skip conditions match",
 			isActive:              true,
+			failoverCompleted:     true,
 			domainFailoverVersion: 200,
 			markerFailoverVersion: 100,
 			domainStatus:          persistence.DomainStatusDeprecated,
@@ -1896,6 +2035,7 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 		{
 			name:                  "no skip condition matches",
 			isActive:              false,
+			failoverCompleted:     false,
 			domainFailoverVersion: 100,
 			markerFailoverVersion: 100,
 			domainStatus:          persistence.DomainStatusRegistered,
@@ -1905,7 +2045,7 @@ func TestFailoverMarkerSkipReason(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := failoverMarkerSkipReason(tc.isActive, tc.domainFailoverVersion, tc.markerFailoverVersion, tc.domainStatus)
+			got := failoverMarkerSkipReason(tc.isActive, tc.failoverCompleted, tc.domainFailoverVersion, tc.markerFailoverVersion, tc.domainStatus)
 			assert.Equal(t, tc.want, got)
 		})
 	}

@@ -447,6 +447,26 @@ func TestBuildScheduleDescription(t *testing.T) {
 			state: SchedulerWorkflowState{},
 			want:  &ScheduleDescription{ScheduleID: "sched-new", Domain: "dev"},
 		},
+		{
+			name: "schedule with memo and search attributes",
+			input: SchedulerWorkflowInput{
+				ScheduleID: "sched-sa",
+				Domain:     "test-domain",
+				Memo:       &types.Memo{Fields: map[string][]byte{"k": []byte(`"v"`)}},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"CustomStringField": []byte(`"val"`)},
+				},
+			},
+			state: SchedulerWorkflowState{},
+			want: &ScheduleDescription{
+				ScheduleID: "sched-sa",
+				Domain:     "test-domain",
+				Memo:       &types.Memo{Fields: map[string][]byte{"k": []byte(`"v"`)}},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"CustomStringField": []byte(`"val"`)},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

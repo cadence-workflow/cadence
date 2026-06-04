@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -71,6 +72,25 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 			Message: "SKIP_NEW overlap policy with CATCH_UP_ALL catch-up policy is invalid: " +
 				"caught-up fires would be immediately skipped due to overlap with the previous run.",
 		}
+	}
+	return nil
+}
+
+// validateScheduleSpecTimeRange rejects a spec whose EndTime is not after its
+// StartTime when both are set. A zero StartTime or EndTime means "unbounded" and
+// is left unchecked. Mirrors the range validation BackfillSchedule performs, and
+// prevents creating a schedule that can never fire.
+func validateScheduleSpecTimeRange(spec *types.ScheduleSpec) error {
+	if spec == nil {
+		return nil
+	}
+	start := spec.GetStartTime()
+	end := spec.GetEndTime()
+	if start.IsZero() || end.IsZero() {
+		return nil
+	}
+	if !end.After(start) {
+		return &types.BadRequestError{Message: "Spec.EndTime must be after Spec.StartTime."}
 	}
 	return nil
 }
@@ -141,6 +161,9 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if _, err := backoff.ValidateSchedule(request.GetSpec().GetCronExpression()); err != nil {
 		return nil, err
 	}
+	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
+		return nil, err
+	}
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
 	}
@@ -161,6 +184,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 		Spec:             *request.GetSpec(),
 		Action:           *request.GetAction(),
 		SearchAttributes: request.GetSearchAttributes(),
+		Memo:             request.GetMemo(),
 	}
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
@@ -309,6 +333,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			NextRunTime: desc.NextRunTime,
 			TotalRuns:   desc.TotalRuns,
 		},
+		Memo:             desc.Memo,
+		SearchAttributes: desc.SearchAttributes,
 	}, nil
 }
 
@@ -342,6 +368,9 @@ func (wh *WorkflowHandler) UpdateSchedule(
 		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {
 			return nil, err
 		}
+	}
+	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
+		return nil, err
 	}
 	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
 		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
@@ -789,9 +818,7 @@ func (wh *WorkflowHandler) describeSchedulerExecution(
 }
 
 // querySchedulerWorkflow issues a QueryWorkflow call for the scheduler's
-// describe query, retrying briefly if the workflow has not yet processed its
-// first decision task. That transient state occurs right after CreateSchedule
-// or immediately after a ContinueAsNew run starts.
+// describe query, retrying on transient errors until the workflow is queryable.
 func (wh *WorkflowHandler) querySchedulerWorkflow(
 	ctx context.Context,
 	domainName, scheduleID string,
@@ -811,7 +838,11 @@ func (wh *WorkflowHandler) querySchedulerWorkflow(
 			return resp, nil
 		}
 		var qfe *types.QueryFailedError
-		if !errors.As(err, &qfe) || !strings.Contains(qfe.Message, "decision task") {
+		decisionTaskPending := errors.As(err, &qfe) && strings.Contains(qfe.Message, "decision task")
+		queryTimeout := (errors.Is(err, context.DeadlineExceeded) ||
+			yarpcerrors.IsStatus(err) && yarpcerrors.FromError(err).Code() == yarpcerrors.CodeDeadlineExceeded) &&
+			ctx.Err() == nil
+		if !decisionTaskPending && !queryTimeout {
 			return nil, normalizeScheduleError(err, scheduleID, domainName)
 		}
 		lastErr = err
