@@ -96,7 +96,7 @@ var (
 		},
 		&flag.RepeatedStringFlag{
 			Name:  FlagDomainDataEntry,
-			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g --cluster=dca ",
+			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g --domain_data_entry 'cluster=dca' --domain_data_entry 'instance=cadence'",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -168,7 +168,7 @@ var (
 		},
 		&flag.RepeatedStringFlag{
 			Name:  FlagDomainDataEntry,
-			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Repeatable. Use instead of --domain_data when a value contains commas.",
+			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g --domain_data_entry 'cluster=dca' --domain_data_entry 'instance=cadence'",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
