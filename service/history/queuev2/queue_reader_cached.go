@@ -572,6 +572,16 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 			q.pendingInjectBuffer = append(q.pendingInjectBuffer, t)
 			continue
 		}
+		// this case should not happen under normal operation,
+		// as the processor should only be persisting tasks near the current upper bound
+		// but log just in case to help debug any unexpected ordering issues
+		if t.GetTaskKey().Less(q.inclusiveLowerBound) {
+			q.logger.Warn("task key is below the lower bound, dropping task",
+				tag.Dynamic("taskKey", t.GetTaskKey()),
+				tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
+				tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
+			)
+		}
 	}
 
 	q.putTasks(covered)
