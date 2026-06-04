@@ -181,7 +181,7 @@ type (
 )
 
 // NewConfig returns new service config with default values
-func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.RPC, getIsolationGroups func() []string) *Config {
+func NewConfig(dc *dynamicconfig.Collection, operationalDC *dynamicconfig.Collection, hostName string, rpcConfig config.RPC, getIsolationGroups func() []string) *Config {
 	return &Config{
 		PersistenceMaxQPS:                          dc.GetIntProperty(dynamicproperties.MatchingPersistenceMaxQPS),
 		PersistenceGlobalMaxQPS:                    dc.GetIntProperty(dynamicproperties.MatchingPersistenceGlobalMaxQPS),
@@ -244,7 +244,7 @@ func NewConfig(dc *dynamicconfig.Collection, hostName string, rpcConfig config.R
 		EnableStandbyTaskCompletion:                dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableStandbyTaskCompletion),
 		EnableClientAutoConfig:                     dc.GetBoolPropertyFilteredByTaskListInfo(dynamicproperties.MatchingEnableClientAutoConfig),
 		EnableReturnAllTaskListKinds:               dc.GetBoolProperty(dynamicproperties.MatchingEnableReturnAllTaskListKinds),
-		ExcludeShortLivedTaskListsFromShardManager: dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+		ExcludeShortLivedTaskListsFromShardManager: operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
 		RecordTaskStartedTimeout:                   dc.GetDurationPropertyFilteredByDomain(dynamicproperties.MatchingRecordTaskStartedTimeout),
 		MinTaskListWritePartitions:                 dc.GetIntPropertyFilteredByTaskListInfo(dynamicproperties.MatchingTaskListMinimumWritePartitions),
 	}

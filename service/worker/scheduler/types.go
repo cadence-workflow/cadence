@@ -140,12 +140,14 @@ const (
 // SchedulerWorkflowInput is the input to the scheduler workflow.
 // It carries the schedule definition and any prior state (for ContinueAsNew).
 type SchedulerWorkflowInput struct {
-	Domain     string                 `json:"domain"`
-	ScheduleID string                 `json:"scheduleId"`
-	Spec       types.ScheduleSpec     `json:"spec"`
-	Action     types.ScheduleAction   `json:"action"`
-	Policies   types.SchedulePolicies `json:"policies"`
-	State      SchedulerWorkflowState `json:"state"`
+	Domain           string                  `json:"domain"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	Memo             *types.Memo             `json:"memo,omitempty"`
+	State            SchedulerWorkflowState  `json:"state"`
 }
 
 // SchedulerWorkflowState is the mutable runtime state that survives ContinueAsNew.
@@ -220,9 +222,10 @@ type UnpauseSignal struct {
 
 // UpdateSignal is the payload sent with an update signal.
 type UpdateSignal struct {
-	Spec     *types.ScheduleSpec     `json:"spec,omitempty"`
-	Action   *types.ScheduleAction   `json:"action,omitempty"`
-	Policies *types.SchedulePolicies `json:"policies,omitempty"`
+	Spec             *types.ScheduleSpec     `json:"spec,omitempty"`
+	Action           *types.ScheduleAction   `json:"action,omitempty"`
+	Policies         *types.SchedulePolicies `json:"policies,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 // BackfillSignal is the payload sent with a backfill signal.
@@ -236,19 +239,21 @@ type BackfillSignal struct {
 // ScheduleDescription is the query result returned by the describe query handler.
 // It provides a snapshot of the schedule's current configuration and runtime state.
 type ScheduleDescription struct {
-	ScheduleID  string                 `json:"scheduleId"`
-	Domain      string                 `json:"domain"`
-	Spec        types.ScheduleSpec     `json:"spec"`
-	Action      types.ScheduleAction   `json:"action"`
-	Policies    types.SchedulePolicies `json:"policies"`
-	Paused      bool                   `json:"paused"`
-	PauseReason string                 `json:"pauseReason,omitempty"`
-	PausedBy    string                 `json:"pausedBy,omitempty"`
-	LastRunTime time.Time              `json:"lastRunTime,omitempty"`
-	NextRunTime time.Time              `json:"nextRunTime,omitempty"`
-	TotalRuns   int64                  `json:"totalRuns"`
-	MissedRuns  int64                  `json:"missedRuns"`
-	SkippedRuns int64                  `json:"skippedRuns"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Domain           string                  `json:"domain"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	Paused           bool                    `json:"paused"`
+	PauseReason      string                  `json:"pauseReason,omitempty"`
+	PausedBy         string                  `json:"pausedBy,omitempty"`
+	LastRunTime      time.Time               `json:"lastRunTime,omitempty"`
+	NextRunTime      time.Time               `json:"nextRunTime,omitempty"`
+	TotalRuns        int64                   `json:"totalRuns"`
+	MissedRuns       int64                   `json:"missedRuns"`
+	SkippedRuns      int64                   `json:"skippedRuns"`
+	Memo             *types.Memo             `json:"memo,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 // TriggerSource identifies what caused a schedule fire, used to differentiate
@@ -288,8 +293,11 @@ type ProcessFireRequest struct {
 	TriggerSource       TriggerSource               `json:"triggerSource"`
 	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
-	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit; 0 = unlimited.
-	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
+	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit:
+	//   nil      = unset (use server default; effectively unlimited)
+	//   *int32(0) = explicitly unlimited
+	//   *int32(N) = capped at N concurrent runs
+	ConcurrencyLimit *int32 `json:"concurrencyLimit,omitempty"`
 	// RunningWorkflows is the current in-flight set from workflow state; used
 	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`

@@ -22,6 +22,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -58,7 +59,7 @@ type (
 
 var _ TaskExecutor = (*taskExecutorImpl)(nil)
 
-// NewTaskExecutor creates an replication task executor
+// NewTaskExecutor creates a replication task executor
 // The executor uses by 1) DLQ replication task handler 2) history replication task processor
 func NewTaskExecutor(
 	sourceCluster string,
@@ -196,7 +197,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	switch {
 	case resendErr == nil:
 		break
-	case resendErr == ndc.ErrSkipTask:
+	case errors.Is(resendErr, ndc.ErrSkipTask):
 		e.logger.Error(
 			"skip replication sync activity task",
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
@@ -215,7 +216,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 		// should return the replication error, not the resending error
 		return err
 	}
-	// should try again after back fill the history
+	// should try again after backfill the history
 	return syncActivityAction()
 }
 
@@ -301,7 +302,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	switch {
 	case resendErr == nil:
 		break
-	case resendErr == ndc.ErrSkipTask:
+	case errors.Is(resendErr, ndc.ErrSkipTask):
 		e.logger.Error(
 			"skip replication history task",
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
@@ -332,6 +333,10 @@ func (e *taskExecutorImpl) handleFailoverReplicationTask(
 	task *types.ReplicationTask,
 ) error {
 	failoverAttributes := task.GetFailoverMarkerAttributes()
+	if failoverAttributes == nil {
+		e.logger.Error("FailoverMarker replication task with nil attributes")
+		return ErrEmptyFailoverMarkerAttributes
+	}
 	failoverAttributes.CreationTime = task.CreationTime
 	return e.shard.AddingPendingFailoverMarker(failoverAttributes)
 }
@@ -358,6 +363,7 @@ func (e *taskExecutorImpl) filterTask(
 }
 
 func toRetryTaskV2Error(err error) (*types.RetryTaskV2Error, bool) {
-	retError, ok := err.(*types.RetryTaskV2Error)
+	var retError *types.RetryTaskV2Error
+	ok := errors.As(err, &retError)
 	return retError, ok
 }

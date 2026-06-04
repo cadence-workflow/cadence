@@ -1,0 +1,88 @@
+# Example docker-compose configuration demonstrating how to use a custom config file
+# instead of the default config_template.yaml
+#
+# Usage:
+#   1. Create your custom config file based on config/server/custom-config.yaml (example provided)
+#   2. Mount it into the container at /etc/cadence/config/custom.yaml
+#   3. Set CADENCE_CONFIG_FILE environment variable to point to your custom config
+#
+# To run:
+#   docker-compose -f docker-compose-custom-config.yml up
+
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    ports:
+      - "9042:9042"
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '9090:9090'
+
+  node-exporter:
+    image: prom/node-exporter
+    ports:
+      - '9100:9100'
+
+  cadence:
+    image: ubercadence/server:master-auto-setup
+    ports:
+     - "8000:8000"
+     - "8001:8001"
+     - "8002:8002"
+     - "8003:8003"
+     - "7933:7933"
+     - "7934:7934"
+     - "7935:7935"
+     - "7939:7939"
+     - "7833:7833"
+     - "7936:7936"
+    environment:
+      # Set this to use a custom config file instead of config_template.yaml
+      # The config file supports environment variables
+      - "CADENCE_CONFIG_FILE=/etc/cadence/config/custom.yaml"
+      - "CASSANDRA_SEEDS=cassandra" # still needed by start.sh script
+    volumes:
+      # Mount your custom config file here
+      # Example uses the provided custom-config.yaml from config/server/
+      - ./config/server/custom-config.yaml:/etc/cadence/config/custom.yaml:ro
+      # Optionally mount custom dynamic config
+      # - ./dynamicconfig/development.yaml:/etc/cadence/dynamicconfig/development.yaml:ro
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
+  cadence-web:
+    image: ubercadence/web:latest
+    environment:
+      - "CADENCE_GRPC_PEERS=cadence:7833"
+      - "CADENCE_HISTORY_PAGE_V2_ENABLED=OPT_OUT"
+    ports:
+      - "8088:8088"
+    depends_on:
+      - cadence
+
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ./grafana:/etc/grafana
+    user: "1000"
+    depends_on:
+      - prometheus
+    ports:
+      - '3000:3000'

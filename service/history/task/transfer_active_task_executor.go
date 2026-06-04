@@ -171,6 +171,10 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	task *persistence.ActivityTask,
 ) (retError error) {
 
+	if !t.allowTask(task) {
+		return errWorkflowRateLimited
+	}
+
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
 		task.DomainID,
 		getWorkflowExecution(task),
@@ -215,11 +219,6 @@ func (t *transferActiveTaskExecutor) processActivityTask(
 	// release the context lock since we no longer need mutable state builder and
 	// the rest of logic is making RPC call, which takes time.
 	release(nil)
-
-	// Rate limiting task processing requests
-	if !t.allowTask(task) {
-		return errWorkflowRateLimited
-	}
 
 	pushActivityInfo := &pushActivityToMatchingInfo{
 		activityScheduleToStartTimeout: timeout,

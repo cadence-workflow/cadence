@@ -4533,6 +4533,8 @@ func FromFailoverDomainRequest(t *types.FailoverDomainRequest) *apiv1.FailoverDo
 		DomainName:              t.DomainName,
 		DomainActiveClusterName: t.GetDomainActiveClusterName(),
 		ActiveClusters:          FromActiveClusters(t.ActiveClusters),
+		Reason:                  t.GetReason(),
+		FailoverTimeout:         secondsToDuration(t.FailoverTimeoutInSeconds),
 	}
 }
 
@@ -4544,10 +4546,16 @@ func ToFailoverDomainRequest(t *apiv1.FailoverDomainRequest) *types.FailoverDoma
 	if t.DomainActiveClusterName != "" {
 		domainActiveClusterName = common.StringPtr(t.DomainActiveClusterName)
 	}
+	var reason *string
+	if t.Reason != "" {
+		reason = common.StringPtr(t.Reason)
+	}
 	return &types.FailoverDomainRequest{
-		DomainName:              t.DomainName,
-		DomainActiveClusterName: domainActiveClusterName,
-		ActiveClusters:          ToActiveClusters(t.ActiveClusters),
+		DomainName:               t.DomainName,
+		DomainActiveClusterName:  domainActiveClusterName,
+		ActiveClusters:           ToActiveClusters(t.ActiveClusters),
+		Reason:                   reason,
+		FailoverTimeoutInSeconds: durationToSeconds(t.FailoverTimeout),
 	}
 }
 

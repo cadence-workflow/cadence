@@ -1102,3 +1102,127 @@ func TestValidateRegisterDomainRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateFailoverDomainRequest(t *testing.T) {
+	testCases := []struct {
+		name          string
+		req           *types.FailoverDomainRequest
+		lockdown      bool
+		expectError   bool
+		expectedError string
+	}{
+		{
+			name: "success - active-passive failover",
+			req: &types.FailoverDomainRequest{
+				DomainName:              "domain",
+				DomainActiveClusterName: common.Ptr("cluster0"),
+			},
+			expectError: false,
+		},
+		{
+			name: "success - active-active failover",
+			req: &types.FailoverDomainRequest{
+				DomainName: "domain",
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"region0": {
+									ActiveClusterName: "cluster0",
+									FailoverVersion:   1,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "success - graceful failover within limit",
+			req: &types.FailoverDomainRequest{
+				DomainName:               "domain",
+				DomainActiveClusterName:  common.Ptr("cluster0"),
+				FailoverTimeoutInSeconds: common.Ptr(int32(120)),
+			},
+			expectError: false,
+		},
+		{
+			name:          "not set",
+			req:           nil,
+			expectError:   true,
+			expectedError: "Request is nil.",
+		},
+		{
+			name:          "domain not set",
+			req:           &types.FailoverDomainRequest{},
+			expectError:   true,
+			expectedError: "Domain not set on request.",
+		},
+		{
+			name: "neither active cluster nor active clusters set",
+			req: &types.FailoverDomainRequest{
+				DomainName: "domain",
+			},
+			expectError:   true,
+			expectedError: "DomainActiveClusterName or ActiveClusters must be provided to failover the domain",
+		},
+		{
+			name: "failover timeout zero",
+			req: &types.FailoverDomainRequest{
+				DomainName:               "domain",
+				DomainActiveClusterName:  common.Ptr("cluster0"),
+				FailoverTimeoutInSeconds: common.Ptr(int32(0)),
+			},
+			expectError:   true,
+			expectedError: "FailoverTimeoutInSeconds must be positive",
+		},
+		{
+			name: "failover timeout negative",
+			req: &types.FailoverDomainRequest{
+				DomainName:               "domain",
+				DomainActiveClusterName:  common.Ptr("cluster0"),
+				FailoverTimeoutInSeconds: common.Ptr(int32(-5)),
+			},
+			expectError:   true,
+			expectedError: "FailoverTimeoutInSeconds must be positive",
+		},
+		{
+			name: "failover timeout exceeds maximum",
+			req: &types.FailoverDomainRequest{
+				DomainName:               "domain",
+				DomainActiveClusterName:  common.Ptr("cluster0"),
+				FailoverTimeoutInSeconds: common.Ptr(int32(600)),
+			},
+			expectError:   true,
+			expectedError: "FailoverTimeoutInSeconds 600 exceeds the maximum allowed 300",
+		},
+		{
+			name: "lockdown rejects failover",
+			req: &types.FailoverDomainRequest{
+				DomainName:              "domain",
+				DomainActiveClusterName: common.Ptr("cluster0"),
+			},
+			lockdown:      true,
+			expectError:   true,
+			expectedError: "Domain is not accepting fail overs at this time due to lockdown.",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v, deps := setupMocksForRequestValidator(t)
+			require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.FrontendMaxFailoverTimeoutInSeconds, 300))
+			if tc.lockdown {
+				require.NoError(t, deps.dynamicClient.UpdateValue(dynamicproperties.Lockdown, true))
+			}
+
+			err := v.ValidateFailoverDomainRequest(context.Background(), tc.req)
+			if tc.expectError {
+				assert.ErrorContains(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

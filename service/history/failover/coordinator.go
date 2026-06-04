@@ -242,7 +242,7 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 		case <-c.shutdownChan:
 			return
 		case notificationReq := <-c.notificationChan:
-			// if there is a shard movement happen, it is fine to have duplicate shard ID in the request
+			// if a shard movement happens, it is fine to have duplicated shard IDs in the request
 			// The receiver side will de-dup the shard IDs. See: handleFailoverMarkers
 			aggregateNotificationRequests(notificationReq, requestByMarker)
 		case <-timer.C:
@@ -267,13 +267,13 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	marker := request.marker
 	domainID := marker.GetDomainID()
 	if record, ok := c.recorder[domainID]; ok {
-		// if the local failover version is smaller than the new received marker,
-		// it means there is another failover happened and the local one should be invalid.
+		// if the local failover version is less than the failover version in the marker,
+		// it means that another failover happened for this domain and the local one should be invalidated
 		if record.failoverVersion < marker.GetFailoverVersion() {
 			delete(c.recorder, domainID)
 		}
 
-		// if the local failover version is larger than the new received marker,
+		// if the local failover version is larger than the failover version in the marker,
 		// ignore the incoming marker
 		if record.failoverVersion > marker.GetFailoverVersion() {
 			return
@@ -296,7 +296,7 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 
 	domainName, err := c.domainCache.GetDomainName(domainID)
 	if err != nil {
-		c.logger.Error("Coordinator failed to get domain after receiving all failover markers",
+		c.logger.Error("Coordinator failed to get domain name while recording failover markers from request",
 			tag.WorkflowDomainID(domainID),
 			tag.Error(err),
 		)
@@ -306,13 +306,14 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	}
 
 	if len(record.shards) == c.config.NumberOfShards {
-		if err := domain.CleanPendingActiveState(
+		updated, err := domain.CleanPendingActiveState(
 			c.domainManager,
 			domainID,
 			record.failoverVersion,
 			c.retryPolicy,
-		); err != nil {
-			c.logger.Error("Coordinator failed to update domain after receiving all failover markers",
+		)
+		if err != nil {
+			c.logger.Error("Coordinator failed to update domain after receiving failover markers from all shards",
 				tag.WorkflowDomainID(domainID),
 				tag.Error(err),
 			)
@@ -320,29 +321,49 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 			return
 		}
 		delete(c.recorder, domainID)
+		// reset the gauge so it reflects the current (empty) pending state for this domain
+		// rather than the last partial-count value, which would otherwise linger forever
+		c.scope.Tagged(
+			metrics.DomainTag(domainName),
+		).UpdateGauge(
+			metrics.FailoverMarkerCount,
+			0,
+		)
+
+		if !updated {
+			// another path already cleared the pending-active state — avoid the
+			// misleading "Updated domain from pending-active to active" log and
+			// the bogus GracefulFailoverLatency (which would otherwise report
+			// now - marker.CreationTime on a long-stale marker)
+			return
+		}
+
 		now := c.timeSource.Now()
+		// use the last marker to calculate the failover duration
+		failoverDuration := now.Sub(time.Unix(0, marker.GetCreationTime()))
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
 		).RecordTimer(
 			metrics.GracefulFailoverLatency,
-			now.Sub(time.Unix(0, marker.GetCreationTime())),
+			failoverDuration,
 		)
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
 		).RecordHistogramDuration(
 			metrics.GracefulFailoverLatencyHistogram,
-			now.Sub(time.Unix(0, marker.GetCreationTime())),
+			failoverDuration,
 		)
 		c.logger.Info("Updated domain from pending-active to active",
 			tag.WorkflowDomainName(domainName),
 			tag.FailoverVersion(marker.FailoverVersion),
+			tag.Duration(failoverDuration),
 		)
 	} else {
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
-		).RecordTimer(
+		).UpdateGauge(
 			metrics.FailoverMarkerCount,
-			time.Duration(len(record.shards)),
+			float64(len(record.shards)),
 		)
 	}
 }

@@ -3161,7 +3161,7 @@ func (wh *WorkflowHandler) checkOngoingFailover(
 		}
 		if *failoverVersion != resp.GetFailoverVersion() {
 			return &types.BadRequestError{
-				Message: "Concurrent failover is not allow.",
+				Message: "Concurrent failover is not allowed",
 			}
 		}
 	}

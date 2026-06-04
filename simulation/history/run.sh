@@ -127,15 +127,28 @@ function check_test_failure()
 {
   faillog=$(grep 'FAIL: TestHistorySimulationSuite' -B 10 test.log 2>/dev/null || true)
   timeoutlog=$(grep 'test timed out' test.log 2>/dev/null || true)
-  if [ -z "$faillog" ] && [ -z "$timeoutlog" ]; then
-    echo "Passed"
-  else
+  if [ -n "$faillog" ] || [ -n "$timeoutlog" ]; then
     echo 'Test failed!!!'
     echo "Fail log: $faillog"
     echo "Timeout log: $timeoutlog"
     echo "Check test.log file for more details"
     exit 1
   fi
+
+  if [ -n "$missing" ] && [ -s "$eventLogsFile" ]; then
+    # scheduledTime in events is always UTC (Go serializes with .UTC()).
+    # EventTime is time.Now() from Docker, which is also UTC.
+    # RFC3339 UTC strings are lexicographically ordered, so string comparison is safe.
+    testEndTime=$(jq -r '.EventTime' "$eventLogsFile" | sort | tail -1)
+    missingDue=$(echo "$missing" | awk -F'|' -v end="$testEndTime" 'NF >= 5 && $5 != "" && $5 <= end')
+    if [ -n "$missingDue" ]; then
+      echo "FAIL: tasks due before test end ($testEndTime) were not executed:" | tee -a "$testSummaryFile"
+      echo "$missingDue" | tee -a "$testSummaryFile"
+      exit 1
+    fi
+  fi
+
+  echo "Passed"
 }
 
 trap check_test_failure EXIT
@@ -192,11 +205,10 @@ execute_tasks=$(jq -r '
     "\(.ShardID)|\(.Payload.task_category)|\(.Payload.task_type)|\(.Payload.task_key.taskID)|\(.Payload.task_key.scheduledTime)"' "$eventLogsFile"
 )
 
-missing=$(echo "$create_tasks" | while IFS= read -r line; do
-  if ! echo "$execute_tasks" | grep -Fxq "$line"; then
-    echo "$line"
-  fi
-done)
+missing=$(comm -23 \
+  <(echo "$create_tasks" | sort) \
+  <(echo "$execute_tasks" | sort)
+)
 
 echo "Tasks that were created but not executed:" | tee -a "$testSummaryFile"
 # Group and print nicely

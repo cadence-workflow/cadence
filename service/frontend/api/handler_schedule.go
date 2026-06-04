@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
@@ -45,12 +46,16 @@ const (
 	schedulerWorkflowDecisionTimeout  = 10 * time.Second
 	defaultListSchedulesPageSize      = 10
 
-	// describeScheduleCANRetryAttempts and describeScheduleCANRetryInterval bound
-	// the wait for the ContinueAsNew resolver race in DescribeSchedule. The
-	// invalidation window is typically sub-second; ~1s total stays well within
-	// any reasonable client deadline.
-	describeScheduleCANRetryAttempts = 5
-	describeScheduleCANRetryInterval = 200 * time.Millisecond
+	// describeScheduleCANRetryAttempts bounds the DWE probe in describeSchedulerExecution,
+	// which retries while CloseStatus=CONTINUED_AS_NEW to ride out the executionCache
+	// invalidation window. describeScheduleQueryRetryAttempts bounds the query retry in
+	// querySchedulerWorkflow, which retries until the new run's first decision task is done.
+	// Both states typically resolve within milliseconds but can take a few seconds in loaded
+	// environments. Separate counts keep the combined DescribeSchedule worst case (~8s) within
+	// the typical 10s service SLA.
+	describeScheduleCANRetryAttempts   = 5
+	describeScheduleQueryRetryAttempts = 5
+	describeScheduleCANRetryInterval   = 1 * time.Second
 )
 
 func scheduleWorkflowID(scheduleID string) string {
@@ -71,6 +76,25 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
+// validateScheduleSpecTimeRange rejects a spec whose EndTime is not after its
+// StartTime when both are set. A zero StartTime or EndTime means "unbounded" and
+// is left unchecked. Mirrors the range validation BackfillSchedule performs, and
+// prevents creating a schedule that can never fire.
+func validateScheduleSpecTimeRange(spec *types.ScheduleSpec) error {
+	if spec == nil {
+		return nil
+	}
+	start := spec.GetStartTime()
+	end := spec.GetEndTime()
+	if start.IsZero() || end.IsZero() {
+		return nil
+	}
+	if !end.After(start) {
+		return &types.BadRequestError{Message: "Spec.EndTime must be after Spec.StartTime."}
+	}
+	return nil
+}
+
 // warnIfBufferLimitExceedsSystemLimit logs a warning when buffer_limit exceeds
 // MaxBufferedFiresSystemLimit. The value is accepted (the policy still queues
 // up to the system limit), but drops at that cap will be tagged
@@ -78,14 +102,15 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 func (wh *WorkflowHandler) warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName string, policies *types.SchedulePolicies) {
 	if policies == nil ||
 		policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer ||
-		int(policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
+		policies.BufferLimit == nil ||
+		int(*policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
 		return
 	}
 	wh.GetLogger().Warn(
 		"buffer_limit exceeds scheduler system limit; drops will be attributed to system_limit",
 		tag.WorkflowDomainName(domainName),
 		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
-		tag.Dynamic("bufferLimit", int(policies.BufferLimit)),
+		tag.Dynamic("bufferLimit", int(*policies.BufferLimit)),
 		tag.Dynamic("systemLimit", scheduler.MaxBufferedFiresSystemLimit),
 	)
 }
@@ -136,8 +161,14 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if _, err := backoff.ValidateSchedule(request.GetSpec().GetCronExpression()); err != nil {
 		return nil, err
 	}
+	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
+		return nil, err
+	}
 	if request.GetAction() == nil || request.GetAction().GetStartWorkflow() == nil {
 		return nil, &types.BadRequestError{Message: "Action.StartWorkflow is not set on request."}
+	}
+	if err := common.ValidateRetryPolicy(request.GetAction().GetStartWorkflow().GetRetryPolicy()); err != nil {
+		return nil, err
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
@@ -148,10 +179,12 @@ func (wh *WorkflowHandler) CreateSchedule(
 	}
 
 	workflowInput := scheduler.SchedulerWorkflowInput{
-		Domain:     domainName,
-		ScheduleID: scheduleID,
-		Spec:       *request.GetSpec(),
-		Action:     *request.GetAction(),
+		Domain:           domainName,
+		ScheduleID:       scheduleID,
+		Spec:             *request.GetSpec(),
+		Action:           *request.GetAction(),
+		SearchAttributes: request.GetSearchAttributes(),
+		Memo:             request.GetMemo(),
 	}
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
@@ -248,15 +281,9 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		}
 	}
 
-	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
-	queryResp, err := wh.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
-		Domain:               domainName,
-		Execution:            execution,
-		Query:                &types.WorkflowQuery{QueryType: scheduler.QueryTypeDescribe},
-		QueryRejectCondition: &rejectCondition,
-	})
+	queryResp, err := wh.querySchedulerWorkflow(ctx, domainName, scheduleID, execution)
 	if err != nil {
-		return nil, normalizeScheduleError(err, scheduleID, domainName)
+		return nil, err
 	}
 
 	if queryResp == nil {
@@ -306,6 +333,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			NextRunTime: desc.NextRunTime,
 			TotalRuns:   desc.TotalRuns,
 		},
+		Memo:             desc.Memo,
+		SearchAttributes: desc.SearchAttributes,
 	}, nil
 }
 
@@ -328,8 +357,8 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if scheduleID == "" {
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
 	}
-	if request.GetSpec() == nil && request.GetAction() == nil && request.GetPolicies() == nil {
-		return nil, &types.BadRequestError{Message: "At least one of Spec, Action, or Policies must be set on request."}
+	if request.GetSpec() == nil && request.GetAction() == nil && request.GetPolicies() == nil && request.GetSearchAttributes() == nil {
+		return nil, &types.BadRequestError{Message: "At least one of Spec, Action, Policies, or SearchAttributes must be set on request."}
 	}
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
@@ -340,11 +369,23 @@ func (wh *WorkflowHandler) UpdateSchedule(
 			return nil, err
 		}
 	}
+	if err := validateScheduleSpecTimeRange(request.GetSpec()); err != nil {
+		return nil, err
+	}
+	if action := request.GetAction(); action != nil && action.GetStartWorkflow() != nil {
+		if err := common.ValidateRetryPolicy(action.GetStartWorkflow().GetRetryPolicy()); err != nil {
+			return nil, err
+		}
+	}
+	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
+		return nil, err
+	}
 
 	signal := scheduler.UpdateSignal{
-		Spec:     request.GetSpec(),
-		Action:   request.GetAction(),
-		Policies: request.GetPolicies(),
+		Spec:             request.GetSpec(),
+		Action:           request.GetAction(),
+		Policies:         request.GetPolicies(),
+		SearchAttributes: request.GetSearchAttributes(),
 	}
 
 	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameUpdate, signal); err != nil {
@@ -529,13 +570,20 @@ func (wh *WorkflowHandler) BackfillSchedule(
 		StartTime:     request.GetStartTime(),
 		EndTime:       request.GetEndTime(),
 		OverlapPolicy: request.GetOverlapPolicy(),
-		BackfillID:    request.GetBackfillID(),
+		BackfillID:    resolveBackfillID(request.GetBackfillID()),
 	}
 
 	if err := wh.signalScheduleWorkflow(ctx, domainName, scheduleID, scheduler.SignalNameBackfill, signal); err != nil {
 		return nil, err
 	}
 	return &types.BackfillScheduleResponse{}, nil
+}
+
+func resolveBackfillID(clientID string) string {
+	if id := strings.TrimSpace(clientID); id != "" {
+		return id
+	}
+	return uuid.New().String()
 }
 
 func (wh *WorkflowHandler) ListSchedules(
@@ -767,4 +815,44 @@ func (wh *WorkflowHandler) describeSchedulerExecution(
 		}
 	}
 	return lastInfo, nil
+}
+
+// querySchedulerWorkflow issues a QueryWorkflow call for the scheduler's
+// describe query, retrying on transient errors until the workflow is queryable.
+func (wh *WorkflowHandler) querySchedulerWorkflow(
+	ctx context.Context,
+	domainName, scheduleID string,
+	execution *types.WorkflowExecution,
+) (*types.QueryWorkflowResponse, error) {
+	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
+	req := &types.QueryWorkflowRequest{
+		Domain:               domainName,
+		Execution:            execution,
+		Query:                &types.WorkflowQuery{QueryType: scheduler.QueryTypeDescribe},
+		QueryRejectCondition: &rejectCondition,
+	}
+	var lastErr error
+	for attempt := 0; attempt < describeScheduleQueryRetryAttempts; attempt++ {
+		resp, err := wh.QueryWorkflow(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		var qfe *types.QueryFailedError
+		decisionTaskPending := errors.As(err, &qfe) && strings.Contains(qfe.Message, "decision task")
+		queryTimeout := (errors.Is(err, context.DeadlineExceeded) ||
+			yarpcerrors.IsStatus(err) && yarpcerrors.FromError(err).Code() == yarpcerrors.CodeDeadlineExceeded) &&
+			ctx.Err() == nil
+		if !decisionTaskPending && !queryTimeout {
+			return nil, normalizeScheduleError(err, scheduleID, domainName)
+		}
+		lastErr = err
+		if attempt < describeScheduleQueryRetryAttempts-1 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(describeScheduleCANRetryInterval):
+			}
+		}
+	}
+	return nil, normalizeScheduleError(lastErr, scheduleID, domainName)
 }

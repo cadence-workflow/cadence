@@ -132,40 +132,53 @@ func (f *timerQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
+	metricsScope := shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	options := &Options{
+		PageSize:                             config.TimerTaskBatchSize,
+		DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
+		MaxPollRPS:                           config.TimerProcessorMaxPollRPS,
+		MaxPollInterval:                      config.TimerProcessorMaxPollInterval,
+		MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
+		UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
+		UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
+		MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
+		PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
+		PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+		VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
+		MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
+		RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
+		CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
+		EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
+		MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
+	}
 
-	queueReader := NewQueueReader(
+	var cachedReader CachedQueueReader
+	reader := NewQueueReader(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
-		config.TimerProcessorMaxPollInterval,
-		config.TimerProcessorMaxPollIntervalJitterCoefficient,
+		options.MaxPollInterval,
+		options.MaxPollIntervalJitterCoefficient,
 	)
+	if config.TimerProcessorEnableCachedScheduledQueue() {
+		cachedReader = newCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
+		reader = cachedReader
+	}
 
-	return NewScheduledQueue(
+	base := newScheduledQueue(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
 		f.taskProcessor,
 		executorWrapper,
 		logger,
 		shard.GetMetricsClient(),
-		shard.GetMetricsClient().Scope(metrics.TimerQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())),
-		queueReader,
-		&Options{
-			PageSize:                             config.TimerTaskBatchSize,
-			DeleteBatchSize:                      config.TimerTaskDeleteBatchSize,
-			MaxPollRPS:                           config.TimerProcessorMaxPollRPS,
-			MaxPollInterval:                      config.TimerProcessorMaxPollInterval,
-			MaxPollIntervalJitterCoefficient:     config.TimerProcessorMaxPollIntervalJitterCoefficient,
-			UpdateAckInterval:                    config.TimerProcessorUpdateAckInterval,
-			UpdateAckIntervalJitterCoefficient:   config.TimerProcessorUpdateAckIntervalJitterCoefficient,
-			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
-			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
-			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
-			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
-			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
-			RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
-			CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
-			EnablePendingTaskCountAlert:          func() bool { return config.EnableTimerQueueV2PendingTaskCountAlert(shard.GetShardID()) },
-			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
-		},
+		metricsScope,
+		reader,
+		options,
 	)
+
+	if cachedReader != nil {
+		return newCachedScheduledQueue(base, cachedReader)
+	}
+
+	return base
 }
