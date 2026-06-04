@@ -88,16 +88,8 @@ const (
 	onboardingSource = "onboarding_source"
 	onboardingActive = "onboarding_active"
 
-	historyTaskDLQOutcome = "outcome"
-
 	allValue     = "all"
 	unknownValue = "_unknown_"
-)
-
-// String values for the HistoryTaskDLQ outcome tag.
-const (
-	HistoryTaskDLQOutcomeSuccess = "success"
-	HistoryTaskDLQOutcomeFailure = "failure"
 )
 
 var (
@@ -437,11 +429,6 @@ func OnboardingActiveTag(active bool) Tag {
 // QueryConsistencyLevelTag returns a new query consistency level tag.
 func QueryConsistencyLevelTag(level string) Tag {
 	return metricWithUnknown(queryConsistencyLevel, level)
-}
-
-// HistoryTaskDLQOutcomeTag returns a tag for the outcome of a DLQ write attempt (success|failure).
-func HistoryTaskDLQOutcomeTag(outcome string) Tag {
-	return simpleMetric{key: historyTaskDLQOutcome, value: outcome}
 }
 
 // BudgetManagerNameTag returns a new budget manager name tag.

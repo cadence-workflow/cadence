@@ -1501,33 +1501,48 @@ func (mr *MockHistoryTaskDLQManagerMockRecorder) CreateHistoryDLQTask(ctx, reque
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQTask", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).CreateHistoryDLQTask), ctx, request)
 }
 
-// DeleteTasks mocks base method.
-func (m *MockHistoryTaskDLQManager) DeleteTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error {
+// DeleteHistoryDLQTasks mocks base method.
+func (m *MockHistoryTaskDLQManager) DeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteTasks", ctx, request)
+	ret := m.ctrl.Call(m, "DeleteHistoryDLQTasks", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteTasks indicates an expected call of DeleteTasks.
-func (mr *MockHistoryTaskDLQManagerMockRecorder) DeleteTasks(ctx, request any) *gomock.Call {
+// DeleteHistoryDLQTasks indicates an expected call of DeleteHistoryDLQTasks.
+func (mr *MockHistoryTaskDLQManagerMockRecorder) DeleteHistoryDLQTasks(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTasks", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).DeleteTasks), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteHistoryDLQTasks", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).DeleteHistoryDLQTasks), ctx, request)
 }
 
-// GetAckLevels mocks base method.
-func (m *MockHistoryTaskDLQManager) GetAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error) {
+// GetHistoryDLQAckLevels mocks base method.
+func (m *MockHistoryTaskDLQManager) GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAckLevels", ctx, request)
+	ret := m.ctrl.Call(m, "GetHistoryDLQAckLevels", ctx, request)
 	ret0, _ := ret[0].([]HistoryDLQAckLevel)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAckLevels indicates an expected call of GetAckLevels.
-func (mr *MockHistoryTaskDLQManagerMockRecorder) GetAckLevels(ctx, request any) *gomock.Call {
+// GetHistoryDLQAckLevels indicates an expected call of GetHistoryDLQAckLevels.
+func (mr *MockHistoryTaskDLQManagerMockRecorder) GetHistoryDLQAckLevels(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAckLevels", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetAckLevels), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryDLQAckLevels", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetHistoryDLQAckLevels), ctx, request)
+}
+
+// GetHistoryDLQTasks mocks base method.
+func (m *MockHistoryTaskDLQManager) GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryDLQTasks", ctx, request)
+	ret0, _ := ret[0].(HistoryDLQGetTasksResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHistoryDLQTasks indicates an expected call of GetHistoryDLQTasks.
+func (mr *MockHistoryTaskDLQManagerMockRecorder) GetHistoryDLQTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryDLQTasks", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetHistoryDLQTasks), ctx, request)
 }
 
 // GetName mocks base method.
@@ -1544,33 +1559,18 @@ func (mr *MockHistoryTaskDLQManagerMockRecorder) GetName() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetName", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetName))
 }
 
-// GetTasks mocks base method.
-func (m *MockHistoryTaskDLQManager) GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error) {
+// UpdateHistoryDLQAckLevel mocks base method.
+func (m *MockHistoryTaskDLQManager) UpdateHistoryDLQAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTasks", ctx, request)
-	ret0, _ := ret[0].(HistoryDLQGetTasksResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTasks indicates an expected call of GetTasks.
-func (mr *MockHistoryTaskDLQManagerMockRecorder) GetTasks(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasks", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).GetTasks), ctx, request)
-}
-
-// UpdateAckLevel mocks base method.
-func (m *MockHistoryTaskDLQManager) UpdateAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAckLevel", ctx, request)
+	ret := m.ctrl.Call(m, "UpdateHistoryDLQAckLevel", ctx, request)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateAckLevel indicates an expected call of UpdateAckLevel.
-func (mr *MockHistoryTaskDLQManagerMockRecorder) UpdateAckLevel(ctx, request any) *gomock.Call {
+// UpdateHistoryDLQAckLevel indicates an expected call of UpdateHistoryDLQAckLevel.
+func (mr *MockHistoryTaskDLQManagerMockRecorder) UpdateHistoryDLQAckLevel(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAckLevel", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).UpdateAckLevel), ctx, request)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateHistoryDLQAckLevel", reflect.TypeOf((*MockHistoryTaskDLQManager)(nil).UpdateHistoryDLQAckLevel), ctx, request)
 }
 
 // MockQueueManager is a mock of QueueManager interface.

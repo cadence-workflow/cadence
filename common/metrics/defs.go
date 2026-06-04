@@ -957,8 +957,16 @@ const (
 	// ActiveClusterManagerWorkflowCacheScope is the scope used by active cluster manager's workflow cache
 	ActiveClusterManagerWorkflowCacheScope
 
-	// HistoryTaskDLQWriteScope is the scope used by the persistence-side DLQ writer when emitting per-domain write outcome counters.
-	HistoryTaskDLQWriteScope
+	// PersistenceCreateHistoryDLQTaskScope tracks CreateHistoryDLQTask calls to the persistence layer
+	PersistenceCreateHistoryDLQTaskScope
+	// PersistenceGetHistoryDLQAckLevelsScope tracks GetAckLevels calls to the persistence layer
+	PersistenceGetHistoryDLQAckLevelsScope
+	// PersistenceGetHistoryDLQTasksScope tracks GetTasks calls to the persistence layer
+	PersistenceGetHistoryDLQTasksScope
+	// PersistenceUpdateHistoryDLQAckLevelScope tracks UpdateAckLevel calls to the persistence layer
+	PersistenceUpdateHistoryDLQAckLevelScope
+	// PersistenceDeleteHistoryDLQTasksScope tracks DeleteTasks calls to the persistence layer
+	PersistenceDeleteHistoryDLQTasksScope
 
 	NumCommonScopes
 )
@@ -1994,7 +2002,11 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 
-		HistoryTaskDLQWriteScope: {operation: "HistoryTaskDLQWrite"},
+		PersistenceCreateHistoryDLQTaskScope:     {operation: "CreateHistoryDLQTask"},
+		PersistenceGetHistoryDLQAckLevelsScope:   {operation: "GetHistoryDLQAckLevels"},
+		PersistenceGetHistoryDLQTasksScope:       {operation: "GetHistoryDLQTasks"},
+		PersistenceUpdateHistoryDLQAckLevelScope: {operation: "UpdateHistoryDLQAckLevel"},
+		PersistenceDeleteHistoryDLQTasksScope:    {operation: "DeleteHistoryDLQTasks"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -2634,9 +2646,6 @@ const (
 	BudgetManagerSoftCapExceeded
 
 	WeightedChannelPoolSizeGauge
-
-	// TaskDLQWritePerDomain counts DLQ write attempts emitted by the persistence-side writer, tagged by outcome (success|failure).
-	TaskDLQWritePerDomain
 
 	NumCommonMetrics // Needs to be last on this list for iota numbering
 )
@@ -3358,7 +3367,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		PersistenceLatencyHistogram:                                  {metricName: "persistence_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
 		PersistenceLatencyManualHistogram:                            {metricName: "persistence_latency_histogram", metricType: Histogram, buckets: PersistenceLatencyBuckets},
 		PersistenceLatencyHistogramPerHost:                           {metricName: "persistence_latency_histogram_per_host", metricType: Histogram, buckets: PersistenceLatencyBuckets},
-		TaskDLQWritePerDomain:                                        {metricName: "history_dlq_task_write_per_domain", metricRollupName: "history_dlq_task_write", metricType: Counter},
 		PersistenceErrShardExistsCounter:                             {metricName: "persistence_errors_shard_exists", metricType: Counter},
 		PersistenceErrShardOwnershipLostCounter:                      {metricName: "persistence_errors_shard_ownership_lost", metricType: Counter},
 		PersistenceErrConditionFailedCounter:                         {metricName: "persistence_errors_condition_failed", metricType: Counter},
