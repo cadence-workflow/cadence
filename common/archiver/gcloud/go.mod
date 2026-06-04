@@ -50,7 +50,7 @@ require (
 require (
 	cloud.google.com/go/storage v1.43.0
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
-	go.uber.org/mock v0.5.0
+	go.uber.org/mock v0.6.0
 	golang.org/x/oauth2 v0.34.0
 	google.golang.org/api v0.200.0
 )

@@ -306,12 +306,13 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	}
 
 	if len(record.shards) == c.config.NumberOfShards {
-		if err := domain.CleanPendingActiveState(
+		updated, err := domain.CleanPendingActiveState(
 			c.domainManager,
 			domainID,
 			record.failoverVersion,
 			c.retryPolicy,
-		); err != nil {
+		)
+		if err != nil {
 			c.logger.Error("Coordinator failed to update domain after receiving failover markers from all shards",
 				tag.WorkflowDomainID(domainID),
 				tag.Error(err),
@@ -320,6 +321,22 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 			return
 		}
 		delete(c.recorder, domainID)
+		// reset the gauge so it reflects the current (empty) pending state for this domain
+		// rather than the last partial-count value, which would otherwise linger forever
+		c.scope.Tagged(
+			metrics.DomainTag(domainName),
+		).UpdateGauge(
+			metrics.FailoverMarkerCount,
+			0,
+		)
+
+		if !updated {
+			// another path already cleared the pending-active state — avoid the
+			// misleading "Updated domain from pending-active to active" log and
+			// the bogus GracefulFailoverLatency (which would otherwise report
+			// now - marker.CreationTime on a long-stale marker)
+			return
+		}
 
 		now := c.timeSource.Now()
 		// use the last marker to calculate the failover duration

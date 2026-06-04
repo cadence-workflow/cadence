@@ -279,6 +279,44 @@ func (s *cliAppSuite) TestDomainRegister() {
 				}).Return(nil)
 			},
 		},
+		{
+			"when domain_data_entry is repeated, all values should be captured",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=v1,v2' --domain_data_entry 'k2=v3'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k1": "v1,v2",
+						"k2": "v3",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated with JSON values it should capture all values",
+			`cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=[1,2,3]' --domain_data_entry 'k2={"a":"b"}'`,
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k1": "[1,2,3]",
+						"k2": `{"a":"b"}`,
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated with a duplicate key, it should return an error",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
+			"Invalid domain data",
+			nil,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -498,6 +536,41 @@ func (s *cliAppSuite) TestDomainUpdate() {
 		{
 			"when domain_data_entry key duplicates a domain_data key on update, it should return an error",
 			"cadence --do test-domain domain update --domain_data 'k1=v1' --domain_data_entry 'k1=v2'",
+			"Invalid domain data",
+			func() {
+				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
+					Name: common.StringPtr("test-domain"),
+				}).Return(describeResponse, nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated on update, all values should be captured",
+			"cadence --do test-domain domain update --domain_data_entry 'k1=v1,v2' --domain_data_entry 'k2=v3'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
+					Name: common.StringPtr("test-domain"),
+				}).Return(describeResponse, nil)
+				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
+					Name:        "test-domain",
+					Description: common.StringPtr("a test domain"),
+					OwnerEmail:  common.StringPtr("test@cadence.io"),
+					Data: map[string]string{
+						"k1": "v1,v2",
+						"k2": "v3",
+					},
+					WorkflowExecutionRetentionPeriodInDays: common.Int32Ptr(3),
+					EmitMetric:                             common.BoolPtr(false),
+					HistoryArchivalURI:                     common.StringPtr(""),
+					VisibilityArchivalURI:                  common.StringPtr(""),
+					ActiveClusterName:                      nil,
+					Clusters:                               nil,
+				}).Return(&types.UpdateDomainResponse{}, nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated on update with a duplicate key, it should return an error",
+			"cadence --do test-domain domain update --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
 			"Invalid domain data",
 			func() {
 				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
