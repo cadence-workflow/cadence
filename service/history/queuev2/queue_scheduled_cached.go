@@ -25,6 +25,7 @@ package queuev2
 import (
 	"context"
 
+	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
 )
 
@@ -39,7 +40,12 @@ func newCachedScheduledQueue(inner *scheduledQueue, reader CachedQueueReader) Qu
 	originalUpdateFn := inner.base.updateQueueStateFn
 	inner.base.updateQueueStateFn = func(ctx context.Context) {
 		originalUpdateFn(ctx)
-		reader.UpdateReadLevel(inner.base.virtualQueueManager.GetMinReadLevel())
+		// MaximumHistoryTaskKey means no slices — fall back to ack level.
+		readLevel := inner.base.virtualQueueManager.GetMinReadLevel()
+		if readLevel.Equal(persistence.MaximumHistoryTaskKey) {
+			readLevel = inner.base.exclusiveAckLevel
+		}
+		reader.UpdateReadLevel(readLevel)
 	}
 
 	return &cachedScheduledQueue{
