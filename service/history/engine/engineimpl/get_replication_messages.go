@@ -45,7 +45,7 @@ func (e *historyEngineImpl) GetReplicationMessages(
 	sw := e.metricsClient.StartTimer(scope, metrics.GetReplicationMessagesForShardLatency)
 	defer func() {
 		sw.Stop()
-		e.metricsClient.Scope(scope).RecordHistogramDuration(metrics.GetReplicationMessagesForShardLatencyHistogram, time.Since(replMsgStart))
+		e.metricsClient.Scope(scope).ExponentialHistogram(metrics.GetReplicationMessagesForShardLatencyHistogram, time.Since(replMsgStart))
 	}()
 
 	replicationMessages, err := e.replicationAckManager.GetTasks(
@@ -87,7 +87,7 @@ func (e *historyEngineImpl) GetDLQReplicationMessages(
 	sw := e.metricsClient.StartTimer(scope, metrics.GetDLQReplicationMessagesLatency)
 	defer func() {
 		sw.Stop()
-		e.metricsClient.Scope(scope).RecordHistogramDuration(metrics.GetDLQReplicationMessagesLatencyHistogram, time.Since(dlqStart))
+		e.metricsClient.Scope(scope).ExponentialHistogram(metrics.GetDLQReplicationMessagesLatencyHistogram, time.Since(dlqStart))
 	}()
 
 	tasks := make([]*types.ReplicationTask, 0, len(taskInfos))

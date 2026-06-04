@@ -29,7 +29,6 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/worker/scheduler"
 )
 
 var (
@@ -55,24 +54,13 @@ var (
 	}
 )
 
-// validSearchAttributesWithSchedules returns the default indexed-keys map
-// extended with the scheduler-managed search attributes that the schedule
-// pipeline upserts.
-//
-// TODO: drop this once the scheduler search attributes are part of the
-// default indexed-keys set in common/definition. At that point the
-// staticOverrides entry for ValidSearchAttributes can go away entirely.
+// validSearchAttributesWithSchedules returns a copy of the default indexed-keys
+// map (including scheduler-managed keys on target and list workflows).
 func validSearchAttributesWithSchedules() map[string]interface{} {
-	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys())+6)
+	out := make(map[string]interface{}, len(definition.GetDefaultIndexedKeys()))
 	for k, v := range definition.GetDefaultIndexedKeys() {
 		out[k] = v
 	}
-	out[scheduler.SearchAttrScheduleID] = types.IndexedValueTypeKeyword
-	out[scheduler.SearchAttrScheduleTime] = types.IndexedValueTypeDatetime
-	out[scheduler.SearchAttrIsBackfill] = types.IndexedValueTypeBool
-	out[scheduler.SearchAttrScheduleState] = types.IndexedValueTypeKeyword
-	out[scheduler.SearchAttrScheduleCron] = types.IndexedValueTypeKeyword
-	out[scheduler.SearchAttrScheduleWorkflowType] = types.IndexedValueTypeKeyword
 	return out
 }
 

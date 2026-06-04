@@ -100,7 +100,7 @@ func (t *sequentialTaskProcessorImpl) Submit(task Task) error {
 	metricsTimer := t.metricsScope.StartTimer(metrics.SequentialTaskSubmitLatency)
 	defer func() {
 		metricsTimer.Stop()
-		t.metricsScope.RecordHistogramDuration(metrics.SequentialTaskSubmitLatencyHistogram, time.Since(submitStart))
+		t.metricsScope.ExponentialHistogram(metrics.SequentialTaskSubmitLatencyHistogram, time.Since(submitStart))
 	}()
 
 	taskqueue := t.taskQueueFactory(task)
@@ -147,7 +147,7 @@ func (t *sequentialTaskProcessorImpl) pollAndProcessTaskQueue() {
 			metricsTimer := t.metricsScope.StartTimer(metrics.SequentialTaskQueueProcessingLatency)
 			t.processTaskQueue(taskqueue)
 			metricsTimer.Stop()
-			t.metricsScope.RecordHistogramDuration(metrics.SequentialTaskQueueProcessingLatencyHistogram, time.Since(queueProcessingStart))
+			t.metricsScope.ExponentialHistogram(metrics.SequentialTaskQueueProcessingLatencyHistogram, time.Since(queueProcessingStart))
 		}
 	}
 }
@@ -184,7 +184,7 @@ func (t *sequentialTaskProcessorImpl) processTaskOnce(taskqueue SequentialTaskQu
 	metricsTimer := t.metricsScope.StartTimer(metrics.SequentialTaskTaskProcessingLatency)
 	defer func() {
 		metricsTimer.Stop()
-		t.metricsScope.RecordHistogramDuration(metrics.SequentialTaskTaskProcessingLatencyHistogram, time.Since(taskProcessingStart))
+		t.metricsScope.ExponentialHistogram(metrics.SequentialTaskTaskProcessingLatencyHistogram, time.Since(taskProcessingStart))
 	}()
 
 	task := taskqueue.Remove()

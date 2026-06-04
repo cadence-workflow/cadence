@@ -105,6 +105,7 @@ const (
 	SearchAttrScheduleID   = definition.CadenceScheduleID
 	SearchAttrScheduleTime = definition.CadenceScheduleTime
 	SearchAttrIsBackfill   = definition.CadenceScheduleIsBackfill
+	SearchAttrBackfillID   = definition.CadenceScheduleBackfillID
 
 	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
 	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
@@ -139,12 +140,13 @@ const (
 // SchedulerWorkflowInput is the input to the scheduler workflow.
 // It carries the schedule definition and any prior state (for ContinueAsNew).
 type SchedulerWorkflowInput struct {
-	Domain     string                 `json:"domain"`
-	ScheduleID string                 `json:"scheduleId"`
-	Spec       types.ScheduleSpec     `json:"spec"`
-	Action     types.ScheduleAction   `json:"action"`
-	Policies   types.SchedulePolicies `json:"policies"`
-	State      SchedulerWorkflowState `json:"state"`
+	Domain           string                  `json:"domain"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	State            SchedulerWorkflowState  `json:"state"`
 }
 
 // SchedulerWorkflowState is the mutable runtime state that survives ContinueAsNew.
@@ -186,6 +188,8 @@ type BufferedFire struct {
 	ScheduledTime time.Time                   `json:"scheduledTime"`
 	TriggerSource TriggerSource               `json:"triggerSource"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
+	// BackfillID is set when TriggerSource is backfill so BUFFER drains stamp the same SA.
+	BackfillID string `json:"backfillId,omitempty"`
 }
 
 // RunningWorkflowInfo identifies a target workflow started by the scheduler,
@@ -217,9 +221,10 @@ type UnpauseSignal struct {
 
 // UpdateSignal is the payload sent with an update signal.
 type UpdateSignal struct {
-	Spec     *types.ScheduleSpec     `json:"spec,omitempty"`
-	Action   *types.ScheduleAction   `json:"action,omitempty"`
-	Policies *types.SchedulePolicies `json:"policies,omitempty"`
+	Spec             *types.ScheduleSpec     `json:"spec,omitempty"`
+	Action           *types.ScheduleAction   `json:"action,omitempty"`
+	Policies         *types.SchedulePolicies `json:"policies,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 // BackfillSignal is the payload sent with a backfill signal.
@@ -285,11 +290,16 @@ type ProcessFireRequest struct {
 	TriggerSource       TriggerSource               `json:"triggerSource"`
 	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
-	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit; 0 = unlimited.
-	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
+	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit:
+	//   nil      = unset (use server default; effectively unlimited)
+	//   *int32(0) = explicitly unlimited
+	//   *int32(N) = capped at N concurrent runs
+	ConcurrencyLimit *int32 `json:"concurrencyLimit,omitempty"`
 	// RunningWorkflows is the current in-flight set from workflow state; used
 	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
+	// BackfillID is non-empty only for fires driven by a schedule backfill (matches RPC BackfillID).
+	BackfillID string `json:"backfillId,omitempty"`
 }
 
 // ProcessFireResult is the output of processScheduleFireActivity. The workflow

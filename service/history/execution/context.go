@@ -295,7 +295,7 @@ func (c *contextImpl) Unlock() {
 	}
 	elapsed := time.Since(c.lockTime)
 	c.metricsClient.RecordTimer(metrics.WorkflowContextScope, metrics.WorkflowContextLockLatency, elapsed)
-	c.metricsClient.Scope(metrics.WorkflowContextScope).RecordHistogramDuration(metrics.WorkflowContextLockLatencyHistogram, elapsed)
+	c.metricsClient.Scope(metrics.WorkflowContextScope).ExponentialHistogram(metrics.WorkflowContextLockLatencyHistogram, elapsed)
 	if elapsed > c.maxLockDuration {
 		c.maxLockDuration = elapsed
 		c.logger.Info("workflow context lock is released. this is logged only when it's longer than maxLockDuration", tag.WorkflowContextLockLatency(elapsed))
@@ -989,16 +989,9 @@ func notifyTasks(
 	history events.PersistedBlobs,
 	persistenceError bool,
 ) {
-	transferTaskInfo := &hcommon.NotifyTaskInfo{
-		ExecutionInfo:    executionInfo,
-		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTransfer],
-		PersistenceError: persistenceError,
-	}
-	timerTaskInfo := &hcommon.NotifyTaskInfo{
-		ExecutionInfo:    executionInfo,
-		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryTimer],
-		PersistenceError: persistenceError,
-	}
+	// Transfer and timer tasks are notified inside the shard lock by the shard context.
+	// Only replication tasks remain here since they require persisted event blobs from
+	// the history layer, which are not available inside the shard context.
 	replicationTaskInfo := &hcommon.NotifyTaskInfo{
 		ExecutionInfo:    executionInfo,
 		Tasks:            tasksByCategory[persistence.HistoryTaskCategoryReplication],
@@ -1008,9 +1001,6 @@ func notifyTasks(
 		PersistenceError: persistenceError,
 	}
 
-	// TODO: unify these methods
-	engine.NotifyNewTransferTasks(transferTaskInfo)
-	engine.NotifyNewTimerTasks(timerTaskInfo)
 	engine.NotifyNewReplicationTasks(replicationTaskInfo)
 }
 
@@ -1489,22 +1479,10 @@ func (c *contextImpl) ByteSize() uint64 {
 }
 
 func isOperationPossiblySuccessfulError(err error) bool {
-	switch err.(type) {
-	case nil:
+	if IsConflictError(err) {
 		return false
-	case *types.WorkflowExecutionAlreadyStartedError,
-		*persistence.WorkflowExecutionAlreadyStartedError,
-		*persistence.CurrentWorkflowConditionFailedError,
-		*persistence.ConditionFailedError,
-		*types.ServiceBusyError,
-		*types.LimitExceededError,
-		*persistence.ShardOwnershipLostError:
-		return false
-	case *persistence.TimeoutError:
-		return true
-	default:
-		return !IsConflictError(err)
 	}
+	return hcommon.IsOperationPossiblySuccessfulError(err)
 }
 
 func validateWorkflowRequestsAndMode(requests []*persistence.WorkflowRequest, mode persistence.CreateWorkflowRequestMode) error {

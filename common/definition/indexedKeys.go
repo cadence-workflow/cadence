@@ -52,6 +52,10 @@ const (
 	CadenceScheduleID         = "CadenceScheduleID"
 	CadenceScheduleTime       = "CadenceScheduleTime"
 	CadenceScheduleIsBackfill = "CadenceScheduleIsBackfill"
+	// CadenceScheduleBackfillID is set on target workflows started by a schedule
+	// backfill, keyed by BackfillScheduleRequest.backfill_id (keyword). The frontend
+	// assigns a UUID when the client omits the id.
+	CadenceScheduleBackfillID = "CadenceScheduleBackfillID"
 
 	// Schedule search attributes set on the scheduler workflow itself (used by ListSchedules).
 	CadenceScheduleState        = "CadenceScheduleState"
@@ -99,6 +103,7 @@ func createDefaultIndexedKeys() map[string]interface{} {
 		CadenceScheduleState:        types.IndexedValueTypeKeyword,
 		CadenceScheduleCron:         types.IndexedValueTypeKeyword,
 		CadenceScheduleWorkflowType: types.IndexedValueTypeKeyword,
+		CadenceScheduleBackfillID:   types.IndexedValueTypeKeyword,
 	}
 	for k, v := range systemIndexedKeys {
 		defaultIndexedKeys[k] = v

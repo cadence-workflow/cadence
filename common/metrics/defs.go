@@ -43,6 +43,12 @@ type (
 		buckets               tally.Buckets // buckets if we are emitting histograms
 		exponentialBuckets    histogrammy[SubsettableHistogram]
 		intExponentialBuckets histogrammy[IntSubsettableHistogram]
+		// intValueBuckets is populated at startup from intExponentialBuckets.buckets()
+		// converted to tally.ValueBuckets. This ensures bucket labels emitted to metrics
+		// backends render as plain integers ("1024") rather than duration strings
+		// ("1.024µs"), which Grafana cannot parse as numeric bucket boundaries.
+		// See IntExponentialHistogram for usage.
+		intValueBuckets tally.ValueBuckets
 	}
 
 	// scopeDefinition holds the tag definitions for a scope
@@ -2490,6 +2496,8 @@ const (
 	GracefulFailoverLatency
 	GracefulFailoverLatencyHistogram
 	GracefulFailoverFailure
+	GracefulFailoverInitiationSuccess
+	GracefulFailoverInitiationFailure
 
 	HistoryArchiverArchiveNonRetryableErrorCount
 	HistoryArchiverArchiveTransientErrorCount
@@ -3017,6 +3025,9 @@ const (
 	VirtualQueueCountGauge
 	VirtualQueuePausedGauge
 	VirtualQueueRunningGauge
+	CachedQueueHitsCounter
+	CachedQueueMissesCounter
+	CachedQueueSizeHistogram
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
@@ -3468,6 +3479,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		GracefulFailoverLatency:                                      {metricName: "graceful_failover_latency", metricType: Timer},
 		GracefulFailoverLatencyHistogram:                             {metricName: "graceful_failover_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		GracefulFailoverFailure:                                      {metricName: "graceful_failover_failures", metricType: Counter},
+		GracefulFailoverInitiationSuccess:                            {metricName: "graceful_failover_initiation_success", metricType: Counter},
+		GracefulFailoverInitiationFailure:                            {metricName: "graceful_failover_initiation_failures", metricType: Counter},
 
 		HistoryArchiverArchiveNonRetryableErrorCount:              {metricName: "history_archiver_archive_non_retryable_error", metricType: Counter},
 		HistoryArchiverArchiveTransientErrorCount:                 {metricName: "history_archiver_archive_transient_error", metricType: Counter},
@@ -3997,7 +4010,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowRepairFailure:                                         {metricName: "workflow_repair_failure", metricType: Counter},
 		WorkflowRepairTimeout:                                         {metricName: "workflow_repair_timeout", metricType: Counter},
 		WorkflowRepairDuration:                                        {metricName: "workflow_repair_duration_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		FailoverMarkerCount:                                           {metricName: "failover_marker_count", metricType: Counter},
+		FailoverMarkerCount:                                           {metricName: "failover_marker_count", metricType: Gauge},
 		FailoverMarkerInsertFailure:                                   {metricName: "failover_marker_insert_failures", metricType: Counter},
 		FailoverMarkerNotificationFailure:                             {metricName: "failover_marker_notification_failures", metricType: Counter},
 		FailoverMarkerUpdateShardFailure:                              {metricName: "failover_marker_update_shard_failures", metricType: Counter},
@@ -4026,6 +4039,9 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		VirtualQueueCountGauge:                                        {metricName: "virtual_queue_count", metricType: Gauge},
 		VirtualQueuePausedGauge:                                       {metricName: "virtual_queue_paused", metricType: Gauge},
 		VirtualQueueRunningGauge:                                      {metricName: "virtual_queue_running", metricType: Gauge},
+		CachedQueueHitsCounter:                                        {metricName: "cached_queue_hits", metricType: Counter},
+		CachedQueueMissesCounter:                                      {metricName: "cached_queue_misses", metricType: Counter},
+		CachedQueueSizeHistogram:                                      {metricName: "cached_queue_size", metricType: Histogram, buckets: TaskCountBuckets},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},

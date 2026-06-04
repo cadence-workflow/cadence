@@ -51,7 +51,7 @@ func (a *apiHandler) isAuthorized(
 	sw := scope.StartTimer(metrics.CadenceAuthorizationLatency)
 	defer func() {
 		sw.Stop()
-		scope.RecordHistogramDuration(metrics.CadenceAuthorizationLatencyHistogram, time.Since(authStart))
+		scope.ExponentialHistogram(metrics.CadenceAuthorizationLatencyHistogram, time.Since(authStart))
 	}()
 
 	result, err := a.authorizer.Authorize(ctx, attr)

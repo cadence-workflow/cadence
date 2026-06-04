@@ -4943,21 +4943,6 @@ func TestConstructRestartWorkflowRequest(t *testing.T) {
 			description: "complete field validation ensures all fields are properly set",
 		},
 		{
-			name: "ActiveClusterSelectionPolicy with ExternalEntity strategy",
-			originalAttributes: &types.WorkflowExecutionStartedEventAttributes{
-				WorkflowType: &types.WorkflowType{Name: "testWorkflow"},
-				TaskList:     &types.TaskList{Name: "testTaskList"},
-				ActiveClusterSelectionPolicy: &types.ActiveClusterSelectionPolicy{
-					ClusterAttribute: &types.ClusterAttribute{Scope: "external", Name: "order-789"},
-				},
-			},
-			domain:      "test-domain",
-			identity:    "test-identity",
-			workflowID:  "test-workflow-id",
-			expectPanic: false,
-			description: "ExternalEntity policy should be completely preserved",
-		},
-		{
 			name: "nil ActiveClusterSelectionPolicy should remain nil",
 			originalAttributes: &types.WorkflowExecutionStartedEventAttributes{
 				WorkflowType:                 &types.WorkflowType{Name: "testWorkflow"},

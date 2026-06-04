@@ -3716,3 +3716,18 @@ func TestListFailoverHistoryResponseConversion(t *testing.T) {
 		assert.Equal(t, &response, toResponse)
 	}
 }
+
+func TestFailoverDomainRequestConversion(t *testing.T) {
+	for _, item := range []*types.FailoverDomainRequest{
+		nil,
+		{},
+		&testdata.FailoverDomainRequest,
+		&testdata.FailoverDomainRequest_OnlyActiveClusters,
+	} {
+		assert.Equal(t, item, ToFailoverDomainRequest(FromFailoverDomainRequest(item)))
+	}
+}
+
+func TestFailoverDomainRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromFailoverDomainRequest, ToFailoverDomainRequest)
+}

@@ -93,7 +93,7 @@ var resetTypesMap = map[string]string{
 	resetTypeLastDecisionCompleted:  "",
 	resetTypeLastContinuedAsNew:     "",
 	resetTypeBadBinary:              FlagResetBadBinaryChecksum,
-	resetTypeDecisionCompletedTime:  FlagEarliestTime,
+	resetTypeDecisionCompletedTime:  "",
 	resetTypeFirstDecisionScheduled: "",
 	resetTypeLastDecisionScheduled:  "",
 }

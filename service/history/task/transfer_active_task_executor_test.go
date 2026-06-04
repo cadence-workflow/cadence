@@ -318,35 +318,31 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Ratelimits() {
 		ScheduleID:     event.ID,
 	})
 
-	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
-	s.NoError(err)
-	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
-
-	// expected calls to the matching service if task processing is allowed
-	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTaskInRatelimitedDomain, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
-	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
-
-	// RPS still below allowed value so the task can be executed
-	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	_, err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain)
-	s.Nil(err)
-
-	// RPS more than allowed limit so the task cannot be executed
+	// Rate limited cases: rate check happens before mutable state is loaded, so no DB call needed.
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(false).Times(1)
 	_, err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain)
 	s.Error(err)
 	s.Equal("workflow is being rate limited for making too many requests", err.Error())
 
-	// RPS still below allowed value so the task can be executed
-	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
-	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
-	s.Nil(err)
-
-	// RPS more than allowed limit so the task cannot be executed
 	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(false).Times(1)
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Error(err)
 	s.Equal("workflow is being rate limited for making too many requests", err.Error())
+
+	// Allowed cases: mutable state is loaded and the task is pushed to matching.
+	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
+	s.NoError(err)
+	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTaskInRatelimitedDomain, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
+	s.mockMatchingClient.EXPECT().AddActivityTask(gomock.Any(), createAddActivityTaskRequest(transferTask, ai, mutableState.GetExecutionInfo().PartitionConfig)).Return(&types.AddActivityTaskResponse{}, nil).Times(1)
+
+	s.mockWFCache.EXPECT().AllowInternal(constants.TestRateLimitedDomainID, constants.TestWorkflowID).Return(true).Times(1)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTaskInRatelimitedDomain)
+	s.Nil(err)
+
+	s.mockWFCache.EXPECT().AllowInternal(constants.TestDomainID, constants.TestWorkflowID).Return(true).Times(1)
+	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
+	s.Nil(err)
 }
 
 func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Duplication() {
@@ -386,6 +382,7 @@ func (s *transferActiveTaskExecutorSuite) TestProcessActivityTask_Duplication() 
 	persistenceMutableState, err := test.CreatePersistenceMutableState(s.T(), mutableState, event.ID, event.Version)
 	s.NoError(err)
 	s.mockExecutionMgr.On("GetWorkflowExecution", mock.Anything, mock.Anything).Return(&persistence.GetWorkflowExecutionResponse{State: persistenceMutableState}, nil)
+	s.mockWFCache.EXPECT().AllowInternal(s.domainID, constants.TestWorkflowID).Return(true).Times(1)
 
 	_, err = s.transferActiveTaskExecutor.Execute(transferTask)
 	s.Nil(err)

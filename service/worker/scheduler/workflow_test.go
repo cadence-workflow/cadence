@@ -21,6 +21,7 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -633,6 +635,18 @@ func TestHandleUpdate(t *testing.T) {
 			wantPol:     types.ScheduleOverlapPolicyConcurrent,
 			wantChanged: true,
 		},
+		{
+			name: "update search attributes only",
+			sig: UpdateSignal{
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"MyField": []byte(`"hello"`)},
+				},
+			},
+			wantCron:    "0 * * * *",
+			wantWF:      "old-workflow",
+			wantPol:     types.ScheduleOverlapPolicySkipNew,
+			wantChanged: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -644,6 +658,9 @@ func TestHandleUpdate(t *testing.T) {
 			assert.Equal(t, tt.wantCron, input.Spec.CronExpression)
 			assert.Equal(t, tt.wantWF, input.Action.StartWorkflow.WorkflowType.Name)
 			assert.Equal(t, tt.wantPol, input.Policies.OverlapPolicy)
+			if tt.sig.SearchAttributes != nil {
+				assert.Equal(t, tt.sig.SearchAttributes, input.SearchAttributes)
+			}
 		})
 	}
 
@@ -1148,6 +1165,53 @@ func TestBuildScheduleSearchAttributes(t *testing.T) {
 				SearchAttrScheduleWorkflowType: "wf",
 			},
 		},
+		{
+			name: "user search attributes are included in result",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"MyField": []byte(`"hello"`),
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+				"MyField":                      json.RawMessage(`"hello"`),
+			},
+		},
+		{
+			name: "reserved CadenceSchedule keys in user SAs are silently skipped",
+			input: &SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 6 * * *"},
+				Action: types.ScheduleAction{
+					StartWorkflow: &types.StartWorkflowAction{
+						WorkflowType: &types.WorkflowType{Name: "my-workflow"},
+					},
+				},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{
+						"CadenceScheduleState": []byte(`"injected"`),
+						"MyField":              []byte(`"hello"`),
+					},
+				},
+			},
+			state: &SchedulerWorkflowState{Paused: false},
+			want: map[string]interface{}{
+				SearchAttrScheduleState:        ScheduleStateActive,
+				SearchAttrScheduleCron:         "0 6 * * *",
+				SearchAttrScheduleWorkflowType: "my-workflow",
+				"MyField":                      json.RawMessage(`"hello"`),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1162,18 +1226,19 @@ func TestEnqueueBufferedFire(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name               string
-		bufferLimit        int32
+		bufferLimit        *int32
 		initialFires       []BufferedFire
 		initialSkipped     int64
 		enqueueTime        time.Time
 		trigger            TriggerSource
+		enqueueBackfillID  string
 		wantFires          []BufferedFire
 		wantSkippedRuns    int64
 		wantOverflowReason string
 	}{
 		{
-			name:         "unlimited buffer accepts fire when bufferLimit=0",
-			bufferLimit:  0,
+			name:         "unlimited buffer accepts fire when bufferLimit=nil",
+			bufferLimit:  nil,
 			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer}},
 			enqueueTime:  t0.Add(time.Minute),
 			trigger:      TriggerSourceSchedule,
@@ -1184,7 +1249,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:        "enqueue below limit appends to tail",
-			bufferLimit: 3,
+			bufferLimit: common.Int32Ptr(3),
 			initialFires: []BufferedFire{
 				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
@@ -1199,7 +1264,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:        "enqueue at user limit drops fire and emits user_limit metric",
-			bufferLimit: 2,
+			bufferLimit: common.Int32Ptr(2),
 			initialFires: []BufferedFire{
 				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
@@ -1216,7 +1281,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:               "enqueue at system limit with unlimited buffer_limit attributes to system_limit",
-			bufferLimit:        0,
+			bufferLimit:        nil,
 			initialFires:       largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
 			initialSkipped:     0,
 			enqueueTime:        t0.Add(time.Hour),
@@ -1227,7 +1292,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:               "enqueue at system limit when user buffer_limit exceeds it attributes to system_limit",
-			bufferLimit:        int32(MaxBufferedFiresSystemLimit * 2),
+			bufferLimit:        common.Int32Ptr(int32(MaxBufferedFiresSystemLimit * 2)),
 			initialFires:       largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
 			enqueueTime:        t0.Add(time.Hour),
 			trigger:            TriggerSourceSchedule,
@@ -1237,12 +1302,23 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:         "backfill trigger source is preserved",
-			bufferLimit:  0,
+			bufferLimit:  nil,
 			initialFires: nil,
 			enqueueTime:  t0,
 			trigger:      TriggerSourceBackfill,
 			wantFires: []BufferedFire{
 				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+			},
+		},
+		{
+			name:              "backfill id is preserved on buffered fire",
+			bufferLimit:       nil,
+			initialFires:      nil,
+			enqueueTime:       t0,
+			trigger:           TriggerSourceBackfill,
+			enqueueBackfillID: "bf-abc",
+			wantFires: []BufferedFire{
+				{ScheduledTime: t0, TriggerSource: TriggerSourceBackfill, OverlapPolicy: types.ScheduleOverlapPolicyBuffer, BackfillID: "bf-abc"},
 			},
 		},
 	}
@@ -1257,7 +1333,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 				SkippedRuns:   tt.initialSkipped,
 			}
 			scope := tally.NewTestScope("", nil)
-			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger, types.ScheduleOverlapPolicyBuffer)
+			enqueueBufferedFire(testLogger, scope, input, state, tt.enqueueTime, tt.trigger, types.ScheduleOverlapPolicyBuffer, tt.enqueueBackfillID)
 			assert.Equal(t, tt.wantFires, state.BufferedFires)
 			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
 
@@ -1344,12 +1420,41 @@ func TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty(t *testing.T) {
 	// nil ctx is safe because the BUFFER+non-empty-queue branch returns before
 	// touching workflow.ExecuteLocalActivity. If the fast path were ever
 	// removed, this call would panic — which is the property we want to lock in.
-	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer)
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer, "")
 
 	require.Len(t, state.BufferedFires, 2, "live fire should be enqueued at the tail")
 	assert.Equal(t, t0, state.BufferedFires[0].ScheduledTime, "older queued fire stays at head")
 	assert.Equal(t, liveFire, state.BufferedFires[1].ScheduledTime, "live fire goes to tail")
 	assert.Equal(t, liveFire, state.LastRunTime, "LastRunTime should still advance even on the fast path")
+}
+
+// TestProcessScheduleFireBufferPreservesBackfillID verifies the BUFFER fast path
+// passes BackfillID into the queued BufferedFire for backfill-driven fires.
+func TestProcessScheduleFireBufferPreservesBackfillID(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		Action: types.ScheduleAction{
+			StartWorkflow: &types.StartWorkflowAction{
+				WorkflowType: &types.WorkflowType{Name: "wf"},
+				TaskList:     &types.TaskList{Name: "tl"},
+			},
+		},
+		Policies: types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: []BufferedFire{
+			{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	liveFire := t0.Add(2 * time.Minute)
+
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceBackfill, types.ScheduleOverlapPolicyBuffer, "bf-fast")
+
+	require.Len(t, state.BufferedFires, 2)
+	assert.Equal(t, "bf-fast", state.BufferedFires[1].BackfillID, "backfill id should be preserved on buffered fire")
+	assert.Equal(t, TriggerSourceBackfill, state.BufferedFires[1].TriggerSource)
 }
 
 // TestCatchUpWatermark verifies the catch-up watermark is the max of the
@@ -1427,37 +1532,43 @@ func TestDrainBufferedFiresRespectsCap(t *testing.T) {
 func TestEffectiveBufferLimit(t *testing.T) {
 	tests := []struct {
 		name       string
-		userLimit  int32
+		userLimit  *int32
 		wantLimit  int
 		wantReason string
 	}{
 		{
-			name:       "userLimit=0 (unlimited) yields system limit",
-			userLimit:  0,
+			name:       "nil userLimit yields system limit",
+			userLimit:  nil,
+			wantLimit:  MaxBufferedFiresSystemLimit,
+			wantReason: BufferOverflowReasonSystemLimit,
+		},
+		{
+			name:       "userLimit=0 (explicit unlimited) yields system limit",
+			userLimit:  common.Int32Ptr(0),
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
 		{
 			name:       "negative userLimit treated as unlimited yields system limit",
-			userLimit:  -1,
+			userLimit:  common.Int32Ptr(-1),
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
 		{
 			name:       "userLimit below system limit is honored",
-			userLimit:  100,
+			userLimit:  common.Int32Ptr(100),
 			wantLimit:  100,
 			wantReason: BufferOverflowReasonUserLimit,
 		},
 		{
 			name:       "userLimit equal to system limit is honored as user_limit",
-			userLimit:  int32(MaxBufferedFiresSystemLimit),
+			userLimit:  common.Int32Ptr(int32(MaxBufferedFiresSystemLimit)),
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonUserLimit,
 		},
 		{
 			name:       "userLimit above system limit is clamped to system limit",
-			userLimit:  int32(MaxBufferedFiresSystemLimit * 2),
+			userLimit:  common.Int32Ptr(int32(MaxBufferedFiresSystemLimit * 2)),
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
@@ -1480,45 +1591,54 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 	tests := []struct {
 		name              string
 		fromOverlap       types.ScheduleOverlapPolicy
-		fromLimit         int32
+		fromLimit         *int32
 		toOverlap         types.ScheduleOverlapPolicy
-		toLimit           int32
+		toLimit           *int32
 		initialRunningWFs []RunningWorkflowInfo
 		wantNil           bool
 	}{
 		{
 			name:              "CONCURRENT(limit=2) -> SKIP_NEW clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         2,
+			fromLimit:         common.Int32Ptr(2),
 			toOverlap:         types.ScheduleOverlapPolicySkipNew,
-			toLimit:           0,
+			toLimit:           common.Int32Ptr(0),
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=0) clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         2,
+			fromLimit:         common.Int32Ptr(2),
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
-			toLimit:           0,
+			toLimit:           common.Int32Ptr(0),
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=nil) clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         common.Int32Ptr(2),
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           nil,
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> BUFFER clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         2,
+			fromLimit:         common.Int32Ptr(2),
 			toOverlap:         types.ScheduleOverlapPolicyBuffer,
-			toLimit:           0,
+			toLimit:           common.Int32Ptr(0),
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=5) -> CONCURRENT(limit=2) preserves running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         5,
+			fromLimit:         common.Int32Ptr(5),
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
-			toLimit:           2,
+			toLimit:           common.Int32Ptr(2),
 			initialRunningWFs: runningWFs,
 			wantNil:           false,
 		},

@@ -160,7 +160,7 @@ func (c *DefaultConsumer) processMessage(msg messaging.Message) {
 	sw := c.scope.StartTimer(metrics.AsyncWorkflowProcessMsgLatency)
 	defer func() {
 		sw.Stop()
-		c.scope.RecordHistogramDuration(metrics.AsyncWorkflowProcessMsgLatencyHistogram, time.Since(asyncProcessStart))
+		c.scope.ExponentialHistogram(metrics.AsyncWorkflowProcessMsgLatencyHistogram, time.Since(asyncProcessStart))
 	}()
 
 	var request sqlblobs.AsyncRequestMessage

@@ -56,7 +56,7 @@ type (
 	}
 )
 
-func NewScheduledQueue(
+func newScheduledQueue(
 	shard shard.Context,
 	category persistence.HistoryTaskCategory,
 	taskProcessor task.Processor,
@@ -66,7 +66,7 @@ func NewScheduledQueue(
 	metricsScope metrics.Scope,
 	queueReader QueueReader,
 	options *Options,
-) Queue {
+) *scheduledQueue {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &scheduledQueue{
 		base: newQueueBase(
@@ -86,6 +86,21 @@ func NewScheduledQueue(
 		cancel:     cancel,
 		status:     common.DaemonStatusInitialized,
 	}
+}
+
+func NewScheduledQueue(
+	shard shard.Context,
+	category persistence.HistoryTaskCategory,
+	taskProcessor task.Processor,
+	taskExecutor task.Executor,
+	logger log.Logger,
+	metricsClient metrics.Client,
+	metricsScope metrics.Scope,
+	queueReader QueueReader,
+	options *Options,
+) Queue {
+	return newScheduledQueue(shard, category, taskProcessor, taskExecutor,
+		logger, metricsClient, metricsScope, queueReader, options)
 }
 
 func (q *scheduledQueue) Start() {
