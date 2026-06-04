@@ -1539,11 +1539,14 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	// if the domain is active the marker is expired
 	isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 	domainStatus := domainEntry.GetInfo().Status
+	// if the domain is no longer pending-active and the marker belongs to that completed failover,
+	// the marker is stale and should be dropped to avoid an infinite re-notify loop
+	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
-	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
+	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
 		s.logger.Info("Skipped pending failover marker",
 			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
-			tag.Reason(failoverMarkerSkipReason(isActive, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
+			tag.Reason(failoverMarkerSkipReason(isActive, failoverCompleted, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
 		)
 		return nil
 	}
@@ -1555,7 +1558,7 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	return s.forceUpdateShardInfoLocked()
 }
 
-func failoverMarkerSkipReason(isActive bool, domainFailoverVersion, markerFailoverVersion int64, domainStatus int) string {
+func failoverMarkerSkipReason(isActive, failoverCompleted bool, domainFailoverVersion, markerFailoverVersion int64, domainStatus int) string {
 	switch {
 	case domainStatus == persistence.DomainStatusDeprecated:
 		return "domain is deprecated"
@@ -1563,6 +1566,8 @@ func failoverMarkerSkipReason(isActive bool, domainFailoverVersion, markerFailov
 		return "domain is active in current cluster"
 	case domainFailoverVersion > markerFailoverVersion:
 		return "domain failover version is newer than marker"
+	case failoverCompleted:
+		return "domain failover already completed"
 	default:
 		return "unknown"
 	}
@@ -1581,20 +1586,35 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 	for _, marker := range s.shardInfo.PendingFailoverMarkers {
 		domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 		if err != nil {
+			// if the domain no longer exists, drop the marker so it does not
+			// stay stuck in PendingFailoverMarkers forever — otherwise this
+			// one orphan marker would also bail the loop and prevent cleanup
+			// of every other marker in the slice
+			var notExists *types.EntityNotExistsError
+			if errors.As(err, &notExists) {
+				s.logger.Info("Dropped pending failover marker",
+					tag.WorkflowDomainID(marker.GetDomainID()),
+					tag.Reason("domain no longer exists"),
+				)
+				completedFailoverMarkers[marker] = struct{}{}
+				continue
+			}
 			s.RUnlock()
 			return nil, err
 		}
 
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
+		failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
 		// Drop failover markers if domain is deprecated
 		// or domain is already active in the currentCluster
 		// or domain have been failed over
-		if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
+		// or the failover this marker belongs to has already completed (no longer pending-active)
+		if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
 			s.logger.Info("Dropped pending failover marker",
 				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
-				tag.Reason(failoverMarkerSkipReason(isActive, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
+				tag.Reason(failoverMarkerSkipReason(isActive, failoverCompleted, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
 			)
 			completedFailoverMarkers[marker] = struct{}{}
 		}
