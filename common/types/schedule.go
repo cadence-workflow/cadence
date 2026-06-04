@@ -247,10 +247,10 @@ type SchedulePolicies struct {
 	CatchUpPolicy  ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
 	CatchUpWindow  time.Duration         `json:"catchUpWindow,omitempty"`
 	PauseOnFailure bool                  `json:"pauseOnFailure,omitempty"`
-	// BufferLimit and ConcurrencyLimit use *int32 to distinguish three states:
-	//   nil           -> "preserve existing" on Update, or "use server default" on Create
-	//   *int32(0)     -> explicitly unlimited
-	//   *int32(N>0)   -> capped at N
+	// BufferLimit / ConcurrencyLimit treat nil the same as 0
+	// Effective semantics differ per field (see effectiveBufferLimit / effectiveConcurrencyLimit):
+	//   BufferLimit:      nil/0 -> system capped at MaxBufferedFiresSystemLimit (never unlimited)
+	//   ConcurrencyLimit: nil/0 -> unlimited (MaxConcurrencyLimitSystemLimit only clamps explicit values above it)
 	BufferLimit      *int32 `json:"bufferLimit,omitempty"`
 	ConcurrencyLimit *int32 `json:"concurrencyLimit,omitempty"`
 }
