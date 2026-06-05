@@ -56,6 +56,7 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 	tests := []struct {
 		name         string
 		domain       *types.DescribeDomainResponse
+		filter       []types.ClusterAttribute
 		wantOK       bool
 		wantPrefs    DomainFailoverPreferences
 		wantSnapshot DomainSnapshot
@@ -73,7 +74,7 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 			wantOK: false,
 		},
 		{
-			name: "when an active-active attribute is on source it moves to target",
+			name: "when an active-active attribute is on source and in the filter it moves to target",
 			domain: createDomainResponse(
 				createDomainResponseParams{
 					name:              "d",
@@ -88,11 +89,72 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 						}},
 					}},
 				}),
+			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
 			wantOK: true,
 			wantPrefs: DomainFailoverPreferences{DomainName: "d", ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: tgt},
 			}},
 			wantSnapshot: DomainSnapshot{DomainName: "d", PreviousClusterAttributes: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: src},
+			}},
+		},
+		{
+			name: "when an active-active attribute is on source but the filter is empty it is untouched",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "empty-filter",
+					activeClusterName: "cluster1",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+						"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"cluster0": {ActiveClusterName: src},
+						}},
+					}},
+				}),
+			wantOK: false,
+		},
+		{
+			name: "when an active-active attribute is on source but not in the filter it is untouched",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "unfiltered-attr",
+					activeClusterName: "cluster1",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+						"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"cluster0": {ActiveClusterName: src},
+						}},
+					}},
+				}),
+			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster1"}},
+			wantOK: false,
+		},
+		{
+			name: "when several attributes are on source only the filtered one moves",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "selective",
+					activeClusterName: "cluster1",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+						"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"cluster0": {ActiveClusterName: src},
+							"cluster2": {ActiveClusterName: src},
+						}},
+					}},
+				}),
+			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
+			wantOK: true,
+			wantPrefs: DomainFailoverPreferences{DomainName: "selective", ClusterAttributeUpdates: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: tgt},
+			}},
+			wantSnapshot: DomainSnapshot{DomainName: "selective", PreviousClusterAttributes: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: src},
 			}},
 		},
@@ -112,10 +174,29 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 						}},
 					}},
 				}),
+			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster1"}},
 			wantOK: false,
 		},
 		{
-			name: "when both domain-level and an attribute are on source both move to target",
+			name: "when a filtered attribute is not on source it is untouched",
+			domain: createDomainResponse(
+				createDomainResponseParams{
+					name:              "filtered-but-off-source",
+					activeClusterName: "cluster1",
+					isManaged:         true,
+					isGlobal:          true,
+					data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+					activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+						"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"cluster0": {ActiveClusterName: "cluster2"}, // in the filter, but active on cluster2, not source
+						}},
+					}},
+				}),
+			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
+			wantOK: false,
+		},
+		{
+			name: "when both domain-level and a filtered attribute are on source both move to target",
 			domain: createDomainResponse(createDomainResponseParams{name: "both-different",
 				activeClusterName: src,
 				isManaged:         true,
@@ -127,6 +208,7 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 						"cluster1": {ActiveClusterName: "cluster1"},
 					}},
 				}}}),
+			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
 			wantOK: true,
 			wantPrefs: DomainFailoverPreferences{DomainName: "both-different", PreferredCluster: tgt, ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: tgt},
@@ -135,10 +217,26 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: src},
 			}},
 		},
+		{
+			name: "when only domain-level is on source the empty filter leaves attributes untouched",
+			domain: createDomainResponse(createDomainResponseParams{name: "domain-only",
+				activeClusterName: src,
+				isManaged:         true,
+				isGlobal:          true,
+				data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+				activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"cluster0": {ActiveClusterName: src},
+					}},
+				}}}),
+			wantOK:       true,
+			wantPrefs:    DomainFailoverPreferences{DomainName: "domain-only", PreferredCluster: tgt},
+			wantSnapshot: DomainSnapshot{DomainName: "domain-only", PreviousActiveCluster: src},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prefs, snapshot, ok := failoverPreferencesForDomain(tt.domain, src, tgt)
+			prefs, snapshot, ok := failoverPreferencesForDomain(tt.domain, src, tgt, tt.filter)
 			assert.Equal(t, tt.wantOK, ok)
 			if !tt.wantOK {
 				return
@@ -176,6 +274,153 @@ func TestGetDomainsForFailoverV2Activity_WhenListingDomainsItReturnsOnlyManagedD
 	assert.Equal(t, "cluster0", result.Snapshots[0].PreviousActiveCluster)
 }
 
+func TestGetDomainsForFailoverV2Activity_WhenClusterAttributesAreSetItFailsOverMatchingAttributes(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			createDomainResponse(createDomainResponseParams{
+				name:              "aa-on-source",
+				activeClusterName: "cluster1", // domain-level not on source, only the attribute should move
+				isManaged:         true,
+				isGlobal:          true,
+				data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+				activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"cluster0": {ActiveClusterName: "cluster0"},
+					}},
+				}},
+			}),
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
+		SourceCluster:     "cluster0",
+		TargetCluster:     "cluster1",
+		ClusterAttributes: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
+	})
+	require.NoError(t, err)
+	var result GetDomainsForFailoverV2Result
+	require.NoError(t, val.Get(&result))
+
+	require.Len(t, result.Preferences, 1)
+	assert.Equal(t, "aa-on-source", result.Preferences[0].DomainName)
+	assert.Empty(t, result.Preferences[0].PreferredCluster)
+	assert.Equal(t, []ClusterAttributePreference{
+		{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+	}, result.Preferences[0].ClusterAttributeUpdates)
+}
+
+func TestGetDomainsForFailoverV2Activity_WhenClusterAttributesAreEmptyItSkipsAttributeOnlyDomains(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			createDomainResponse(createDomainResponseParams{
+				name:              "aa-on-source",
+				activeClusterName: "cluster1", // domain-level not on source; with no filter there is nothing to move
+				isManaged:         true,
+				isGlobal:          true,
+				data:              map[string]string{constants.DomainDataKeyForClusterAttributePreferences: aaPrefsJSON},
+				activeClusters: &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+					"cluster": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+						"cluster0": {ActiveClusterName: "cluster0"},
+					}},
+				}},
+			}),
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
+		SourceCluster: "cluster0",
+		TargetCluster: "cluster1",
+	})
+	require.NoError(t, err)
+	var result GetDomainsForFailoverV2Result
+	require.NoError(t, val.Get(&result))
+
+	assert.Empty(t, result.Preferences)
+}
+
+// TestGetDomainsForFailoverV2Activity_WhenGivenMixedDomainsItFailsOverOnlyScopedOnSource mirrors
+// the failover phase of scripts/test_failover_rebalance.sh: a single ListDomains containing one
+// domain per scenario, asserting that exactly the right domains and changes are collected.
+func TestGetDomainsForFailoverV2Activity_WhenGivenMixedDomainsItFailsOverOnlyScopedOnSource(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	attrs := func(scope, name, cluster string) *types.ActiveClusters {
+		return &types.ActiveClusters{AttributeScopes: map[string]types.ClusterAttributeScope{
+			scope: {ClusterAttributes: map[string]types.ActiveClusterInfo{
+				name: {ActiveClusterName: cluster},
+			}},
+		}}
+	}
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			// INCLUDED attribute on source -> only the attribute moves (domain-level off source).
+			createDomainResponse(createDomainResponseParams{
+				name: "aa-included", activeClusterName: "cluster1", isManaged: true, isGlobal: true,
+				activeClusters: attrs("cluster", "cluster0", "cluster0"),
+			}),
+			// EXCLUDED attribute on source -> skipped (not in the filter).
+			createDomainResponse(createDomainResponseParams{
+				name: "aa-excluded", activeClusterName: "cluster1", isManaged: true, isGlobal: true,
+				activeClusters: attrs("cluster", "cluster1", "cluster0"),
+			}),
+			// INCLUDED attribute but not on source -> skipped.
+			createDomainResponse(createDomainResponseParams{
+				name: "aa-included-offsrc", activeClusterName: "cluster1", isManaged: true, isGlobal: true,
+				activeClusters: attrs("cluster", "cluster2", "cluster1"),
+			}),
+			// Standard global domain active on source -> domain-level moves.
+			createDomainResponse(createDomainResponseParams{
+				name: "global-onsrc", activeClusterName: "cluster0", isManaged: true, isGlobal: true,
+			}),
+			// Unmanaged domain with an in-filter attribute on source -> skipped (not eligible).
+			createDomainResponse(createDomainResponseParams{
+				name: "aa-unmanaged", activeClusterName: "cluster0", isManaged: false, isGlobal: true,
+				activeClusters: attrs("cluster", "cluster0", "cluster0"),
+			}),
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+
+	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
+		SourceCluster:     "cluster0",
+		TargetCluster:     "cluster1",
+		ClusterAttributes: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}, {Scope: "cluster", Name: "cluster2"}},
+	})
+	require.NoError(t, err)
+	var result GetDomainsForFailoverV2Result
+	require.NoError(t, val.Get(&result))
+
+	byName := make(map[string]DomainFailoverPreferences, len(result.Preferences))
+	for _, p := range result.Preferences {
+		byName[p.DomainName] = p
+	}
+
+	// Only aa-included and global-onsrc are collected.
+	require.Len(t, result.Preferences, 2)
+	require.Contains(t, byName, "aa-included")
+	require.Contains(t, byName, "global-onsrc")
+	assert.NotContains(t, byName, "aa-excluded")
+	assert.NotContains(t, byName, "aa-included-offsrc")
+	assert.NotContains(t, byName, "aa-unmanaged")
+
+	// aa-included: only the in-filter, on-source attribute moves; domain-level untouched.
+	assert.Empty(t, byName["aa-included"].PreferredCluster)
+	assert.Equal(t, []ClusterAttributePreference{
+		{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+	}, byName["aa-included"].ClusterAttributeUpdates)
+
+	// global-onsrc: domain-level moves; no attribute updates.
+	assert.Equal(t, "cluster1", byName["global-onsrc"].PreferredCluster)
+	assert.Empty(t, byName["global-onsrc"].ClusterAttributeUpdates)
+}
+
 func TestFailoverWorkflowV2_WhenParamsAreInvalidItFailsTheWorkflow(t *testing.T) {
 	ts := &testsuite.WorkflowTestSuite{}
 	env := ts.NewTestWorkflowEnvironment()
@@ -209,6 +454,35 @@ func TestFailoverWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomainsAndSn
 	require.NoError(t, env.GetWorkflowResult(&result))
 	assert.Equal(t, []string{"d1"}, result.SuccessDomains)
 	assert.Equal(t, collected.Snapshots, result.Snapshots)
+}
+
+func TestFailoverWorkflowV2_WhenClusterAttributesAreSetItForwardsThemToGetDomainsActivity(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
+
+	clusterAttributes := []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}}
+	var gotParams GetDomainsForFailoverV2Params
+	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			gotParams = *args.Get(1).(*GetDomainsForFailoverV2Params)
+		}).
+		Return(&GetDomainsForFailoverV2Result{
+			Preferences: []DomainFailoverPreferences{{DomainName: "d1", ClusterAttributeUpdates: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+			}}},
+		}, nil)
+	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
+		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1"}}, nil)
+
+	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
+		SourceCluster: "cluster0", TargetCluster: "cluster1", ClusterAttributes: clusterAttributes,
+	})
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	assert.Equal(t, clusterAttributes, gotParams.ClusterAttributes)
 }
 
 func TestFailoverWorkflowV2_WhenGetDomainsActivityErrorsItFailsTheWorkflow(t *testing.T) {

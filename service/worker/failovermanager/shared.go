@@ -22,22 +22,13 @@ package failovermanager
 
 // This file holds the shared building blocks for the V2 failover and rebalance workflows
 // (FailoverWorkflowV2 / RebalanceWorkflowV2). The two workflows differ only in how they collect
-// the domains to act on; once a per-domain DomainFailoverPreferences slice exists, both apply it
-// the same way. That shared apply path — the single FailoverActivityV2 — and the batch/pause helpers
-// live here so neither workflow file owns the other's types.
-//
-// Symbols defined in the (master) workflow.go and rebalance_workflow.go are reused directly:
-// getAllDomains, getClient, validateTaskListPollerInfo, isDomainFailoverManagedByCadence,
-// getPreferredClusterName, isPreferredClusterInClusterListForDomain, cleanupChannel, the activity
-// option helpers, and the Workflow*/PauseSignal/ResumeSignal/QueryType constants.
+// the domains to act on, so this file includes the shared FailoverActivity as well.
 
 import (
 	"context"
 	"time"
 
-	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
-	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
@@ -54,16 +45,13 @@ type (
 		PreferredCluster string `json:"preferredCluster"`
 	}
 
-	// DomainFailoverPreferences carries the failover instruction for a single domain. It is the
-	// unit of work the shared FailoverActivityV2 consumes — each workflow builds a slice of these,
-	// processInBatches slices the slice, and the activity iterates.
+	// DomainFailoverPreferences carries the failover instruction for a single domain. It defines all the changes to be applied to the domain.
 	DomainFailoverPreferences struct {
 		// DomainName identifies the domain this instruction applies to.
 		DomainName string
 		// PreferredCluster, when non-empty, sets the domain-level ActiveClusterName.
 		PreferredCluster string
-		// ClusterAttributeUpdates lists attribute-level changes; each entry moves one scope:name
-		// attribute to its PreferredCluster.
+		// ClusterAttributeUpdates lists all ClusterAttribute level changes.
 		ClusterAttributeUpdates []ClusterAttributePreference
 	}
 
@@ -72,9 +60,7 @@ type (
 		DomainPreferences []DomainFailoverPreferences
 	}
 
-	// FailoverActivityV2Result is the result of the shared FailoverActivityV2. FailedDomains may
-	// contain false positives: a domain whose activity errored is reported failed even if the
-	// Failover partially applied.
+	// FailoverActivityV2Result is the result of the shared FailoverActivityV2.
 	FailoverActivityV2Result struct {
 		SuccessDomains []string
 		FailedDomains  []string
@@ -101,28 +87,13 @@ func executeFailoverBatch() batchExecutor {
 	}
 }
 
-// failoverDomains is the shared per-domain loop. For each entry it validates pollers against every
-// distinct target cluster the entry references, then issues a single UpdateDomain carrying the
+// failoverDomains is the shared per-domain loop. For each entry it issues a single FailoverDomain request carrying the
 // preferred ActiveClusterName and any per-attribute ActiveClusters overrides.
-// Returns
+// Returns lists of domains delineated by success or failure.
 func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
-	logger := activity.GetLogger(ctx)
 	frontendClient := getClient(ctx)
 	var successDomains, failedDomains []string
 	for _, p := range prefs {
-		failed := false
-		for _, cluster := range collectTargetClusters(p) {
-			if err := validateTaskListPollerInfo(ctx, cluster, p.DomainName); err != nil {
-				logger.Error("Failed to validate task list poller info", zap.Error(err))
-				failedDomains = append(failedDomains, p.DomainName)
-				failed = true
-				break
-			}
-		}
-		if failed {
-			continue
-		}
-
 		failoverRequest := &types.FailoverDomainRequest{DomainName: p.DomainName}
 		if p.PreferredCluster != "" {
 			failoverRequest.DomainActiveClusterName = common.StringPtr(p.PreferredCluster)
@@ -163,23 +134,6 @@ func buildActiveClustersFromUpdates(updates []ClusterAttributePreference) *types
 		result.AttributeScopes[u.Scope] = scope
 	}
 	return result
-}
-
-// collectTargetClusters returns the unique set of target clusters a domain's preferences move to,
-// so poller validation runs against every destination.
-func collectTargetClusters(prefs DomainFailoverPreferences) []string {
-	seen := make(map[string]struct{})
-	if prefs.PreferredCluster != "" {
-		seen[prefs.PreferredCluster] = struct{}{}
-	}
-	for _, u := range prefs.ClusterAttributeUpdates {
-		seen[u.PreferredCluster] = struct{}{}
-	}
-	clusters := make([]string, 0, len(seen))
-	for c := range seen {
-		clusters = append(clusters, c)
-	}
-	return clusters
 }
 
 // isEligibleForFailover checks if a domain meets the eligibility criteria for failover by a central team.

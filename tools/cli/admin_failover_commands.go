@@ -434,6 +434,13 @@ func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error 
 		WaitBetweenBatchSeconds: c.Int(FlagFailoverWaitTime),
 		Domains:                 c.StringSlice(FlagFailoverDomains),
 	}
+	if raw := c.String(FlagClusterAttributesJSON); raw != "" {
+		attrs, parseErr := parseClusterAttributesJSON(raw)
+		if parseErr != nil {
+			return commoncli.Problem("Invalid cluster_attributes_json", parseErr)
+		}
+		foParams.ClusterAttributes = attrs
+	}
 	input, err := json.Marshal(foParams)
 	if err != nil {
 		return commoncli.Problem("Failed to serialize Failover Params", err)

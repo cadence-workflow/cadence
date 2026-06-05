@@ -99,18 +99,6 @@ func TestIsEligibleForFailover(t *testing.T) {
 	}
 }
 
-func TestCollectTargetClusters_WhenGivenPreferencesItReturnsUniqueTargetClusters(t *testing.T) {
-	got := collectTargetClusters(DomainFailoverPreferences{
-		PreferredCluster: "cluster1",
-		ClusterAttributeUpdates: []ClusterAttributePreference{
-			{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
-			{Scope: "cluster", Name: "cluster2", PreferredCluster: "cluster2"},
-		},
-	})
-	sort.Strings(got)
-	assert.Equal(t, []string{"cluster1", "cluster2"}, got)
-}
-
 func TestBuildActiveClustersFromUpdates_WhenGivenUpdatesItGroupsThemByScopeAndName(t *testing.T) {
 	ac := buildActiveClustersFromUpdates([]ClusterAttributePreference{
 		{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
@@ -179,11 +167,6 @@ func newFailoverV2ActivityEnv(t *testing.T) (*testsuite.TestActivityEnvironment,
 func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDomains(t *testing.T) {
 	env, mockResource := newFailoverV2ActivityEnv(t)
 
-	withPollers := &types.GetTaskListsByDomainResponse{
-		DecisionTaskListMap: map[string]*types.DescribeTaskListResponse{},
-	}
-	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(withPollers, nil).AnyTimes()
-	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(withPollers, nil).AnyTimes()
 	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, nil).Times(2)
 
 	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{

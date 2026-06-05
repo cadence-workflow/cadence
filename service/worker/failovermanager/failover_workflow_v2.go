@@ -23,6 +23,7 @@ package failovermanager
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"go.uber.org/cadence/workflow"
@@ -62,6 +63,9 @@ type (
 		WaitBetweenBatchSeconds int
 		// Domains optionally restricts the run to a specific subset of domain names.
 		Domains []string
+		// ClusterAttributes specifies which cluster attributes should be included for failover.
+		// If empty, cluster attributes are not included.
+		ClusterAttributes []types.ClusterAttribute
 	}
 
 	// DomainSnapshot records a single domain's pre-failover state so a later restore can put it
@@ -87,11 +91,17 @@ type (
 		Snapshots []DomainSnapshot
 	}
 
-	// GetDomainsForFailoverV2Params is the arg for GetDomainsForFailoverV2Activity.
+	// GetDomainsForFailoverV2Params
 	GetDomainsForFailoverV2Params struct {
+		// SourceCluster is the cluster being evacuated; only domains active there are moved.
 		SourceCluster string
+		// TargetCluster will be used as the new cluster for all domains that are failed over.
 		TargetCluster string
-		Domains       []string
+		// Domains optionally restricts the run to a specific subset of domain names.
+		Domains []string
+		// ClusterAttributes specifies which cluster attributes should be included for failover.
+		// If empty, cluster attributes are not included.
+		ClusterAttributes []types.ClusterAttribute
 	}
 
 	// GetDomainsForFailoverV2Result is what GetDomainsForFailoverV2Activity returns: the per-domain
@@ -167,9 +177,10 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Params) (*GetDomainsForFailoverV2Result, error) {
 	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
 	actParams := &GetDomainsForFailoverV2Params{
-		SourceCluster: params.SourceCluster,
-		TargetCluster: params.TargetCluster,
-		Domains:       params.Domains,
+		SourceCluster:     params.SourceCluster,
+		TargetCluster:     params.TargetCluster,
+		Domains:           params.Domains,
+		ClusterAttributes: params.ClusterAttributes,
 	}
 	var result GetDomainsForFailoverV2Result
 	if err := workflow.ExecuteActivity(ao, GetDomainsForFailoverV2Activity, actParams).Get(ctx, &result); err != nil {
@@ -192,7 +203,7 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 		if !isEligibleForFailover(domain) {
 			continue
 		}
-		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceCluster, params.TargetCluster)
+		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceCluster, params.TargetCluster, params.ClusterAttributes)
 		if !ok {
 			continue
 		}
@@ -208,6 +219,7 @@ func failoverPreferencesForDomain(
 	domain *types.DescribeDomainResponse,
 	sourceCluster string,
 	targetCluster string,
+	clusterAttributeFilter []types.ClusterAttribute,
 ) (DomainFailoverPreferences, DomainSnapshot, bool) {
 	name := domain.GetDomainInfo().GetName()
 	prefs := DomainFailoverPreferences{DomainName: name}
@@ -219,23 +231,28 @@ func failoverPreferencesForDomain(
 		snapshot.PreviousActiveCluster = sourceCluster
 	}
 
-	// Attribute-level: move each attribute currently active on the source.
-	if ac := domain.ReplicationConfiguration.GetActiveClusters(); ac != nil {
-		for scope, attrScope := range ac.GetAttributeScopes() {
-			for attrName, info := range attrScope.ClusterAttributes {
-				if info.ActiveClusterName != sourceCluster {
-					continue
+	if len(clusterAttributeFilter) > 0 {
+		// Attribute-level: move each attribute currently active on the source.
+		if ac := domain.ReplicationConfiguration.GetActiveClusters(); ac != nil {
+			for scope, attrScope := range ac.GetAttributeScopes() {
+				for attrName, info := range attrScope.ClusterAttributes {
+					if !slices.Contains(clusterAttributeFilter, types.ClusterAttribute{Scope: scope, Name: attrName}) {
+						continue
+					}
+					if info.ActiveClusterName != sourceCluster {
+						continue
+					}
+					prefs.ClusterAttributeUpdates = append(prefs.ClusterAttributeUpdates, ClusterAttributePreference{
+						Scope:            scope,
+						Name:             attrName,
+						PreferredCluster: targetCluster,
+					})
+					snapshot.PreviousClusterAttributes = append(snapshot.PreviousClusterAttributes, ClusterAttributePreference{
+						Scope:            scope,
+						Name:             attrName,
+						PreferredCluster: sourceCluster,
+					})
 				}
-				prefs.ClusterAttributeUpdates = append(prefs.ClusterAttributeUpdates, ClusterAttributePreference{
-					Scope:            scope,
-					Name:             attrName,
-					PreferredCluster: targetCluster,
-				})
-				snapshot.PreviousClusterAttributes = append(snapshot.PreviousClusterAttributes, ClusterAttributePreference{
-					Scope:            scope,
-					Name:             attrName,
-					PreferredCluster: sourceCluster,
-				})
 			}
 		}
 	}
