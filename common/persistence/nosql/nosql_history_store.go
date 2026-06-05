@@ -46,7 +46,7 @@ func newNoSQLHistoryStore(
 	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.HistoryStore, error) {
-	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, true)
 	if err != nil {
 		return nil, err
 	}

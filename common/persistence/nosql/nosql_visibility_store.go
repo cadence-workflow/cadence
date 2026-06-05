@@ -52,7 +52,7 @@ func newNoSQLVisibilityStore(
 	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.VisibilityStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, false)
 	if err != nil {
 		return nil, err
 	}

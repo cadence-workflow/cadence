@@ -42,7 +42,7 @@ func newNoSQLDomainAuditStore(
 	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.DomainAuditStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, false)
 	if err != nil {
 		return nil, err
 	}
