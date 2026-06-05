@@ -70,7 +70,18 @@ var errUnmarshalClusterAttributePreferencesV2 = errors.New("failed to unmarshal 
 // — moving each back to its preferred cluster in batches, with pause/resume support.
 // Returns lists of successfully and unsuccessfully rebalanced domains.
 func RebalanceWorkflowV2(ctx workflow.Context, params *RebalanceV2Params) (*RebalanceV2Result, error) {
+	if params == nil {
+		params = &RebalanceV2Params{}
+	}
+	if params.BatchSize <= 0 {
+		params.BatchSize = defaultBatchSizeV2
+	}
+	if params.WaitBetweenBatchSeconds <= 0 {
+		params.WaitBetweenBatchSeconds = defaultWaitBetweenBatchSecondsV2
+	}
+
 	var (
+		totalDomains   int
 		successDomains []string
 		failedDomains  []string
 		wfState        = WorkflowInitialized
@@ -78,6 +89,7 @@ func RebalanceWorkflowV2(ctx workflow.Context, params *RebalanceV2Params) (*Reba
 	)
 	err := workflow.SetQueryHandler(ctx, QueryType, func(input []byte) (*QueryResult, error) {
 		return &QueryResult{
+			TotalDomains:   totalDomains,
 			Success:        len(successDomains),
 			Failed:         len(failedDomains),
 			State:          wfState,
@@ -95,6 +107,7 @@ func RebalanceWorkflowV2(ctx workflow.Context, params *RebalanceV2Params) (*Reba
 	if err := workflow.ExecuteActivity(ao, GetDomainsForRebalanceV2Activity).Get(ctx, &prefs); err != nil {
 		return nil, err
 	}
+	totalDomains = len(prefs)
 
 	checkPause := newPauseHandler(ctx, func(s string) { wfState = s })
 	waitBetween := time.Duration(params.WaitBetweenBatchSeconds) * time.Second

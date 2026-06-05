@@ -68,7 +68,7 @@ type (
 )
 
 // FailoverActivityV2 is the single apply activity shared by FailoverWorkflowV2 and
-// RebalanceWorkflowV2. It applies each DomainFailoverPreferences entry via UpdateDomain.
+// RebalanceWorkflowV2. It applies each DomainFailoverPreferences entry via FailoverDomain.
 func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (*FailoverActivityV2Result, error) {
 	return failoverDomains(ctx, params.DomainPreferences)
 }

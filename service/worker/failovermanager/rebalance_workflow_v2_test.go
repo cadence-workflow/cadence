@@ -234,3 +234,55 @@ func TestRebalanceWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomains(t *
 	require.NoError(t, env.GetWorkflowResult(&result))
 	assert.Equal(t, []string{"d1"}, result.SuccessDomains)
 }
+
+// TestRebalanceWorkflowV2_WhenStartedWithNilParamsItDoesNotPanic verifies the workflow guards against a
+// nil params payload (e.g. a manual start or cron trigger that omits input) by applying defaults instead
+// of panicking on a nil-pointer dereference, which would wedge the fixed-ID workflow.
+func TestRebalanceWorkflowV2_WhenStartedWithNilParamsItDoesNotPanic(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(RebalanceWorkflowV2, workflow.RegisterOptions{Name: RebalanceWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
+
+	prefs := []DomainFailoverPreferences{{DomainName: "d1", PreferredCluster: "cluster1"}}
+	env.OnActivity(getDomainsForRebalanceV2ActivityName, mock.Anything).Return(prefs, nil)
+	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
+		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1"}}, nil)
+
+	var params *RebalanceV2Params
+	env.ExecuteWorkflow(RebalanceWorkflowV2TypeName, params)
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+	var result RebalanceV2Result
+	require.NoError(t, env.GetWorkflowResult(&result))
+	assert.Equal(t, []string{"d1"}, result.SuccessDomains)
+}
+
+// TestRebalanceWorkflowV2_QueryReportsTotalDomains verifies the query handler reports a meaningful
+// TotalDomains denominator once domains have been collected.
+func TestRebalanceWorkflowV2_QueryReportsTotalDomains(t *testing.T) {
+	ts := &testsuite.WorkflowTestSuite{}
+	env := ts.NewTestWorkflowEnvironment()
+	env.RegisterWorkflowWithOptions(RebalanceWorkflowV2, workflow.RegisterOptions{Name: RebalanceWorkflowV2TypeName})
+	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
+
+	prefs := []DomainFailoverPreferences{
+		{DomainName: "d1", PreferredCluster: "cluster1"},
+		{DomainName: "d2", PreferredCluster: "cluster1"},
+	}
+	env.OnActivity(getDomainsForRebalanceV2ActivityName, mock.Anything).Return(prefs, nil)
+	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
+		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1", "d2"}}, nil)
+
+	env.ExecuteWorkflow(RebalanceWorkflowV2TypeName, &RebalanceV2Params{})
+	require.True(t, env.IsWorkflowCompleted())
+	require.NoError(t, env.GetWorkflowError())
+
+	val, err := env.QueryWorkflow(QueryType)
+	require.NoError(t, err)
+	var qr QueryResult
+	require.NoError(t, val.Get(&qr))
+	assert.Equal(t, len(prefs), qr.TotalDomains)
+}
