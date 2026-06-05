@@ -389,3 +389,7 @@ func (r RangeCompleteHistoryTaskRequest) MetricTags() []metrics.Tag {
 func (r CompleteHistoryTaskRequest) MetricTags() []metrics.Tag {
 	return []metrics.Tag{metrics.TaskCategoryTag(r.TaskCategory.Name())}
 }
+
+func (r CreateHistoryDLQTaskRequest) MetricTags() []metrics.Tag {
+	return []metrics.Tag{metrics.DomainTag(r.DomainName)}
+}

@@ -5362,7 +5362,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
 		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTaskListAwareTaskSchedulerByDomain: {
 		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",

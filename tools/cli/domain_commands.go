@@ -99,15 +99,17 @@ func getDomainDataFromFlags(c *cli.Context) (map[string]string, error) {
 			data[k] = v
 		}
 	}
-	for _, entry := range c.Generic(FlagDomainDataEntry).(*flag.StringSlice).Value() {
-		kv := strings.SplitN(entry, "=", 2)
-		if len(kv) != 2 {
-			return nil, fmt.Errorf("%s value %q must be in key=value format", FlagDomainDataEntry, entry)
+	if c.IsSet(FlagDomainDataEntry) {
+		for _, entry := range c.Generic(FlagDomainDataEntry).(*flag.StringSlice).Value() {
+			kv := strings.SplitN(entry, "=", 2)
+			if len(kv) != 2 {
+				return nil, fmt.Errorf("%s value %q must be in key=value format", FlagDomainDataEntry, entry)
+			}
+			if _, dup := data[kv[0]]; dup {
+				return nil, fmt.Errorf("domain data key %q specified more than once", kv[0])
+			}
+			data[kv[0]] = kv[1]
 		}
-		if _, dup := data[kv[0]]; dup {
-			return nil, fmt.Errorf("domain data key %q specified more than once", kv[0])
-		}
-		data[kv[0]] = kv[1]
 	}
 	if len(data) == 0 {
 		return nil, nil

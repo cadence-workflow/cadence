@@ -109,9 +109,6 @@ func standbyTaskPostActionWriteToDLQ(
 	shardID := shard.GetShardID()
 
 	return func(ctx context.Context, task persistence.Task, postActionInfo interface{}, logger log.Logger) error {
-		domainID := task.GetDomainID()
-		isDeadLetterQueueEnabled := enabled(domainID)
-
 		if postActionInfo == nil {
 			return nil
 		}
@@ -132,30 +129,43 @@ func standbyTaskPostActionWriteToDLQ(
 			}
 		}
 
-		logger.Warn("Attempting to write standby task to DLQ due to task being pending for too long.",
+		domainID := task.GetDomainID()
+		domainName, err := shard.GetDomainCache().GetDomainName(domainID)
+		if err != nil {
+			logger.Debug("Failed to get domain name from domain cache. Defaulting to domain ID.", tag.WorkflowDomainID(domainID), tag.Error(err))
+			domainName = domainID
+		}
+		isDeadLetterQueueEnabled := enabled(domainID)
+
+		taskTags := []tag.Tag{
 			tag.WorkflowID(task.GetWorkflowID()),
 			tag.WorkflowRunID(task.GetRunID()),
-			tag.WorkflowDomainID(task.GetDomainID()),
+			tag.WorkflowDomainID(domainID),
+			tag.WorkflowDomainName(domainName),
 			tag.TaskID(task.GetTaskID()),
 			tag.TaskType(task.GetTaskType()),
 			tag.FailoverVersion(task.GetVersion()),
 			tag.Timestamp(task.GetVisibilityTimestamp()),
-			tag.IsShadowModeEnabled(isDeadLetterQueueEnabled == constants.HistoryTaskDLQModeShadow))
+		}
 
 		// TODO(c-warren): Move this logic into the writer instead, and return a ErrHistoryDLQNotEnabled error to be handled here
 		switch isDeadLetterQueueEnabled {
 		case constants.HistoryTaskDLQModeEnabled:
+			logger.Warn("Writing standby task to DLQ due to task being pending for too long.", taskTags...)
 			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
-				DomainID:              task.GetDomainID(),
+				DomainID:              domainID,
+				DomainName:            domainName,
 				ClusterAttributeScope: clusterAttribute.Scope,
 				ClusterAttributeName:  clusterAttribute.Name,
 				Task:                  task,
 			})
 		case constants.HistoryTaskDLQModeShadow:
+			logger.Warn("Writing standby task to DLQ in shadow mode; task will be discarded.", taskTags...)
 			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
 				ShardID:               shardID,
-				DomainID:              task.GetDomainID(),
+				DomainID:              domainID,
+				DomainName:            domainName,
 				ClusterAttributeScope: clusterAttribute.Scope,
 				ClusterAttributeName:  clusterAttribute.Name,
 				Task:                  task,
@@ -165,6 +175,7 @@ func standbyTaskPostActionWriteToDLQ(
 			}
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		default:
+			logger.Warn("DLQ not enabled for domain; discarding standby task.", taskTags...)
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		}
 	}
