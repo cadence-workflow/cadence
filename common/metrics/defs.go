@@ -963,6 +963,17 @@ const (
 	// ActiveClusterManagerWorkflowCacheScope is the scope used by active cluster manager's workflow cache
 	ActiveClusterManagerWorkflowCacheScope
 
+	// PersistenceCreateHistoryDLQTaskScope tracks CreateHistoryDLQTask calls to the persistence layer
+	PersistenceCreateHistoryDLQTaskScope
+	// PersistenceGetHistoryDLQAckLevelsScope tracks GetAckLevels calls to the persistence layer
+	PersistenceGetHistoryDLQAckLevelsScope
+	// PersistenceGetHistoryDLQTasksScope tracks GetTasks calls to the persistence layer
+	PersistenceGetHistoryDLQTasksScope
+	// PersistenceUpdateHistoryDLQAckLevelScope tracks UpdateAckLevel calls to the persistence layer
+	PersistenceUpdateHistoryDLQAckLevelScope
+	// PersistenceDeleteHistoryDLQTasksScope tracks DeleteTasks calls to the persistence layer
+	PersistenceDeleteHistoryDLQTasksScope
+
 	NumCommonScopes
 )
 
@@ -1459,7 +1470,6 @@ const (
 	HistoryTaskSchedulerMigrationScope
 	// WorkflowCorruptionRepairScope is the scope used for workflow corruption detection and repair operations
 	WorkflowCorruptionRepairScope
-
 	NumHistoryScopes
 )
 
@@ -1997,6 +2007,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
+
+		PersistenceCreateHistoryDLQTaskScope:     {operation: "CreateHistoryDLQTask"},
+		PersistenceGetHistoryDLQAckLevelsScope:   {operation: "GetHistoryDLQAckLevels"},
+		PersistenceGetHistoryDLQTasksScope:       {operation: "GetHistoryDLQTasks"},
+		PersistenceUpdateHistoryDLQAckLevelScope: {operation: "UpdateHistoryDLQAckLevel"},
+		PersistenceDeleteHistoryDLQTasksScope:    {operation: "DeleteHistoryDLQTasks"},
 	},
 	// Frontend Scope Names
 	Frontend: {
@@ -4010,7 +4026,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		WorkflowRepairFailure:                                         {metricName: "workflow_repair_failure", metricType: Counter},
 		WorkflowRepairTimeout:                                         {metricName: "workflow_repair_timeout", metricType: Counter},
 		WorkflowRepairDuration:                                        {metricName: "workflow_repair_duration_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		FailoverMarkerCount:                                           {metricName: "failover_marker_count", metricType: Counter},
+		FailoverMarkerCount:                                           {metricName: "failover_marker_count", metricType: Gauge},
 		FailoverMarkerInsertFailure:                                   {metricName: "failover_marker_insert_failures", metricType: Counter},
 		FailoverMarkerNotificationFailure:                             {metricName: "failover_marker_notification_failures", metricType: Counter},
 		FailoverMarkerUpdateShardFailure:                              {metricName: "failover_marker_update_shard_failures", metricType: Counter},

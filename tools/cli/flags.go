@@ -140,6 +140,7 @@ const (
 	FlagFailoverReason                 = "reason"
 	FlagIsGlobalDomain                 = "global_domain" // active-passive domain
 	FlagDomainData                     = "domain_data"
+	FlagDomainDataEntry                = "domain_data_entry"
 	FlagEventID                        = "event_id"
 	FlagActivityID                     = "activity_id"
 	FlagMaxFieldLength                 = "max_field_length"

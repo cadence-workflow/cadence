@@ -421,6 +421,69 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_Err
 	s.Equal(1, len(s.coordinator.recorder))
 }
 
+func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_NoOp() {
+	domainID := uuid.New()
+	attributes1 := &types.FailoverMarkerAttributes{
+		DomainID:        domainID,
+		FailoverVersion: 2,
+		CreationTime:    common.Int64Ptr(1),
+	}
+	attributes2 := &types.FailoverMarkerAttributes{
+		DomainID:        domainID,
+		FailoverVersion: 2,
+		CreationTime:    common.Int64Ptr(1),
+	}
+	request1 := &receiveRequest{
+		shardIDs: []int32{1},
+		marker:   attributes1,
+	}
+	request2 := &receiveRequest{
+		shardIDs: []int32{2},
+		marker:   attributes2,
+	}
+	info := &persistence.DomainInfo{
+		ID:          domainID,
+		Name:        uuid.New(),
+		Status:      persistence.DomainStatusRegistered,
+		Description: "some random description",
+		OwnerEmail:  "some random email",
+		Data:        nil,
+	}
+	domainConfig := &persistence.DomainConfig{
+		Retention:  1,
+		EmitMetric: true,
+	}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: "active"},
+		},
+	}
+
+	s.mockMetadataManager.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{
+		NotificationVersion: 1,
+	}, nil)
+	// FailoverEndTime is nil → CleanPendingActiveState is a no-op, no UpdateDomain expected.
+	s.mockMetadataManager.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
+		ID: domainID,
+	}).Return(&persistence.GetDomainResponse{
+		Info:                        info,
+		Config:                      domainConfig,
+		ReplicationConfig:           replicationConfig,
+		IsGlobalDomain:              true,
+		ConfigVersion:               1,
+		FailoverVersion:             2,
+		FailoverNotificationVersion: 2,
+		FailoverEndTime:             nil,
+		NotificationVersion:         1,
+	}, nil).Times(1)
+
+	s.coordinator.handleFailoverMarkers(request1)
+	s.coordinator.handleFailoverMarkers(request2)
+	s.Equal(0, len(s.coordinator.recorder), "recorder entry should be cleared even when CleanPendingActiveState is a no-op")
+	s.mockMetadataManager.AssertNotCalled(s.T(), "UpdateDomain", mock.Anything, mock.Anything)
+}
+
 func (s *coordinatorSuite) TestGetFailoverInfo_Success() {
 	domainID := uuid.New()
 

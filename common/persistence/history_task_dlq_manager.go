@@ -85,9 +85,9 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	})
 }
 
-// GetAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.
+// GetHistoryDLQAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.
 // Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
-func (m *historyTaskDLQManagerImpl) GetAckLevels(
+func (m *historyTaskDLQManagerImpl) GetHistoryDLQAckLevels(
 	ctx context.Context,
 	request HistoryDLQGetAckLevelsRequest,
 ) ([]HistoryDLQAckLevel, error) {
@@ -123,8 +123,8 @@ func (m *historyTaskDLQManagerImpl) GetAckLevels(
 	return out, nil
 }
 
-// GetTasks returns deserialized tasks from a DLQ partition.
-func (m *historyTaskDLQManagerImpl) GetTasks(
+// GetHistoryDLQTasks returns deserialized tasks from a DLQ partition.
+func (m *historyTaskDLQManagerImpl) GetHistoryDLQTasks(
 	ctx context.Context,
 	request HistoryDLQGetTasksRequest,
 ) (HistoryDLQGetTasksResponse, error) {
@@ -144,8 +144,8 @@ func (m *historyTaskDLQManagerImpl) GetTasks(
 	return HistoryDLQGetTasksResponse{Tasks: tasks, NextPageToken: resp.NextPageToken}, nil
 }
 
-// UpdateAckLevel persists the new ack level for a partition.
-func (m *historyTaskDLQManagerImpl) UpdateAckLevel(
+// UpdateHistoryDLQAckLevel persists the new ack level for a partition.
+func (m *historyTaskDLQManagerImpl) UpdateHistoryDLQAckLevel(
 	ctx context.Context,
 	request HistoryDLQUpdateAckLevelRequest,
 ) error {
@@ -163,8 +163,8 @@ func (m *historyTaskDLQManagerImpl) UpdateAckLevel(
 	})
 }
 
-// DeleteTasks removes tasks with key < ExclusiveMaxTaskKey from a DLQ partition.
-func (m *historyTaskDLQManagerImpl) DeleteTasks(
+// DeleteHistoryDLQTasks removes tasks with key < ExclusiveMaxTaskKey from a DLQ partition.
+func (m *historyTaskDLQManagerImpl) DeleteHistoryDLQTasks(
 	ctx context.Context,
 	request HistoryDLQDeleteTasksRequest,
 ) error {

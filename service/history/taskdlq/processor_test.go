@@ -87,7 +87,7 @@ func TestProcessShard_WhenNoAckLevels_ReturnsNil(t *testing.T) {
 	defer ctrl.Finish()
 
 	proc, mgr, _ := setupProcessor(t, ctrl)
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return(nil, nil)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return(nil, nil)
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
@@ -97,7 +97,7 @@ func TestProcessShard_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	defer ctrl.Finish()
 
 	proc, mgr, _ := setupProcessor(t, ctrl)
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return(nil, errors.New("db error"))
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return(nil, errors.New("db error"))
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
@@ -114,12 +114,12 @@ func TestProcessShard_WhenAllTasksSucceed_AdvancesAckLevel(t *testing.T) {
 	task1 := newMockTask(ctrl, 1)
 	tasks := []persistence.Task{task0, task1}
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: tasks}, nil)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: tasks}, nil)
 	executor.EXPECT().Execute(gomock.Any(), tasks[0]).Return(nil)
 	executor.EXPECT().Execute(gomock.Any(), tasks[1]).Return(nil)
-	mgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
@@ -134,17 +134,17 @@ func TestProcessShard_WhenTasksSpanMultiplePages_ProcessesAll(t *testing.T) {
 	task0 := newMockTask(ctrl, 0)
 	task1 := newMockTask(ctrl, 1)
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
 		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}, NextPageToken: page1Token}, nil,
 	)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
 		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task1}}, nil,
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
 	executor.EXPECT().Execute(gomock.Any(), task1).Return(nil)
-	mgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
@@ -161,14 +161,14 @@ func TestProcessShard_WhenExecutionFailsMidPage_AdvancesAckLevelToLastSuccess(t 
 	task1 := persistence.NewMockTask(ctrl) // GetTaskKey never called: execution fails before it
 	execErr := errors.New("execute failed")
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
 		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
 	executor.EXPECT().Execute(gomock.Any(), task1).Return(execErr)
 	executor.EXPECT().HandleErr(execErr).Return(execErr)
-	mgr.EXPECT().UpdateAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
 		ShardID:                   al.ShardID,
 		DomainID:                  al.DomainID,
 		ClusterAttributeScope:     al.ClusterAttributeScope,
@@ -176,7 +176,7 @@ func TestProcessShard_WhenExecutionFailsMidPage_AdvancesAckLevelToLastSuccess(t 
 		TaskCategory:              al.TaskCategory,
 		UpdatedInclusiveReadLevel: key0,
 	}).Return(nil)
-	mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
@@ -192,8 +192,8 @@ func TestProcessShard_WhenFirstTaskFails_DoesNotAdvanceAckLevel(t *testing.T) {
 	task0 := persistence.NewMockTask(ctrl)
 	execErr := errors.New("execute failed")
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
 		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}}, nil,
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(execErr)
@@ -214,15 +214,15 @@ func TestProcessShard_WhenTaskIsAckable_SkipsAndAdvancesPastIt(t *testing.T) {
 	task1 := newMockTask(ctrl, 1) // succeeds
 	ackableErr := errors.New("entity not found")
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
 		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(ackableErr)
 	executor.EXPECT().HandleErr(ackableErr).Return(nil) // ackable: skip and continue
 	executor.EXPECT().Execute(gomock.Any(), task1).Return(nil)
-	mgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
@@ -244,9 +244,9 @@ func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPar
 	}
 	getTasksErr := errors.New("partition error")
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{ackLevel1, ackLevel2}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, getTasksErr)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{ackLevel1, ackLevel2}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, getTasksErr)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
@@ -260,7 +260,7 @@ func TestProcessPartition_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	proc, mgr, _ := setupProcessor(t, ctrl)
 	storeErr := errors.New("partition error")
 	mgr.EXPECT().
-		GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
 			ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
 		}).
 		Return(nil, storeErr)
@@ -304,12 +304,12 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 	}
 
 	mgr.EXPECT().
-		GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
 			ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
 		}).
 		Return([]persistence.HistoryDLQAckLevel{transferAL, timerAL}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
 
 	assert.NoError(t, proc.ProcessPartition(context.Background(), "d", "s", "n"))
 }
@@ -345,9 +345,9 @@ func TestAdvanceAckLevel(t *testing.T) {
 			al := baseAckLevel(1)
 			newKey := persistence.NewImmediateTaskKey(5)
 
-			mgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(tc.updateErr)
+			mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(tc.updateErr)
 			if tc.expectDeleteCalled {
-				mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(tc.deleteErr)
+				mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(tc.deleteErr)
 			}
 
 			err := proc.advanceAckLevel(context.Background(), al, newKey)
@@ -368,7 +368,7 @@ func TestProcessShard_WhenNoExecutorForTaskType_ReturnsError(t *testing.T) {
 	al := baseAckLevel(1)
 	al.TaskCategory = persistence.HistoryTaskCategoryTimer // no executor registered for timer
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
@@ -386,14 +386,14 @@ func TestProcessShard_WhenExecutionAndAdvanceAckLevelBothFail_ReturnsBothErrors(
 	execErr := errors.New("execute failed")
 	updateErr := errors.New("update ack level failed")
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
 		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
 	)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
 	executor.EXPECT().Execute(gomock.Any(), task1).Return(execErr)
 	executor.EXPECT().HandleErr(execErr).Return(execErr)
-	mgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(updateErr)
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(updateErr)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
@@ -422,12 +422,12 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 	shardBlocked := make(chan struct{})
 	partitionRan := make(chan struct{})
 
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		close(shardStarted)
 		<-shardBlocked
 		return nil, nil
 	})
-	mgr.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 			close(partitionRan)
 			return nil, nil
@@ -468,7 +468,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
 
 	inGetAckLevels := make(chan struct{}, 1)
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		select {
 		case inGetAckLevels <- struct{}{}:
 		default:
@@ -525,11 +525,11 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 	task0 := newMockTask(ctrl, 0)
 
 	// First run: task executes, ack level advances, DeleteTasks fails.
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}}, nil)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}}, nil)
 	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
-	mgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteTasks(gomock.Any(), gomock.Any()).Return(errors.New("delete failed"))
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(errors.New("delete failed"))
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 
@@ -543,8 +543,8 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 		AckLevelVisibilityTS:  task0Key.GetScheduledTime(),
 		AckLevelTaskID:        task0Key.GetTaskID(),
 	}
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{ackLevel2}, nil)
-	mgr.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{ackLevel2}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{}, nil)
 	// UpdateAckLevel and DeleteTasks must NOT be called.
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
@@ -580,7 +580,7 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 	ts := clock.NewMockedTimeSource()
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	processed := make(chan struct{}, 1)
-	mgr.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(_ context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(func(_ context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
 		select {
 		case processed <- struct{}{}:
 		default:
@@ -619,7 +619,7 @@ func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 
 	ts := clock.NewMockedTimeSource()
 	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	store.EXPECT().GetAckLevels(gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Times(0)
 	proc := NewProcessor(
 		1,
 		store,
@@ -665,8 +665,8 @@ func TestProcessShard_WhenDomainNotEnabled_SkipsProcessing(t *testing.T) {
 	)
 
 	al := baseAckLevel(1)
-	store.EXPECT().GetAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	store.EXPECT().GetTasks(gomock.Any(), gomock.Any()).Times(0)
+	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	store.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Times(0)
 	executor.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))

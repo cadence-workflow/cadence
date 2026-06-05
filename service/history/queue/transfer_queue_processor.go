@@ -92,7 +92,7 @@ func NewTransferQueueProcessor(
 ) Processor {
 	logger := shard.GetLogger().WithTags(tag.ComponentTransferQueue)
 	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
-	config := shard.GetConfig()
+	cfg := shard.GetConfig()
 	taskAllocator := NewTaskAllocator(shard)
 
 	activeLogger := logger.WithTags(tag.QueueTypeActive)
@@ -103,7 +103,7 @@ func NewTransferQueueProcessor(
 		executionCache,
 		workflowResetter,
 		activeLogger,
-		config,
+		cfg,
 		wfIDCache,
 	)
 
@@ -123,7 +123,7 @@ func NewTransferQueueProcessor(
 			func(ctx context.Context, request *types.ReplicateEventsV2Request) error {
 				return shard.GetEngine().ReplicateEventsV2(ctx, request)
 			},
-			config.StandbyTaskReReplicationContextTimeout,
+			cfg.StandbyTaskReReplicationContextTimeout,
 			executionCheck,
 			shard.GetLogger(),
 		)
@@ -135,7 +135,7 @@ func NewTransferQueueProcessor(
 			historyResender,
 			standByLogger,
 			clusterName,
-			config,
+			cfg,
 			shard.GetService().GetHistoryTaskDLQManager(),
 		)
 		standbyQueueProcessors[clusterName] = newTransferQueueStandbyProcessor(
@@ -151,7 +151,7 @@ func NewTransferQueueProcessor(
 	return &transferQueueProcessor{
 		shard:                  shard,
 		taskProcessor:          taskProcessor,
-		config:                 config,
+		config:                 cfg,
 		currentClusterName:     currentClusterName,
 		metricsClient:          shard.GetMetricsClient(),
 		logger:                 logger,
@@ -245,9 +245,9 @@ func (t *transferQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
 		return
 	}
 
-	// Failover queue is used to scan all inflight tasks, if queue processor is not
-	// started, there's no inflight task and we don't need to create a failover processor.
-	// Also the HandleAction will be blocked if queue processor processing loop is not running.
+	// Failover queue is used to scan all inflight tasks. If queue processor is not
+	// started, there's no inflight task, and we don't need to create a failover processor.
+	// Also, the HandleAction will be blocked if queue processor processing loop is not running.
 	if atomic.LoadInt32(&t.status) != common.DaemonStatusStarted {
 		return
 	}
@@ -266,7 +266,7 @@ func (t *transferQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
 	actionResult, err := t.HandleAction(context.Background(), t.currentClusterName, NewGetStateAction())
 	if err != nil {
 		t.logger.Error("Transfer Failover Failed", tag.WorkflowDomainIDs(domainIDs), tag.Error(err))
-		if err == errProcessorShutdown {
+		if errors.Is(err, errProcessorShutdown) {
 			// processor/shard already shutdown, we don't need to create failover queue processor
 			return
 		}
@@ -506,8 +506,8 @@ func newTransferQueueActiveProcessor(
 	taskExecutor task.Executor,
 	logger log.Logger,
 ) *transferQueueProcessorBase {
-	config := shard.GetConfig()
-	options := newTransferQueueProcessorOptions(config, true, false)
+	cfg := shard.GetConfig()
+	options := newTransferQueueProcessorOptions(cfg, true, false)
 
 	currentClusterName := shard.GetClusterMetadata().GetCurrentClusterName()
 	logger = logger.WithTags(tag.ClusterName(currentClusterName))
@@ -565,8 +565,8 @@ func newTransferQueueStandbyProcessor(
 	taskExecutor task.Executor,
 	logger log.Logger,
 ) *transferQueueProcessorBase {
-	config := shard.GetConfig()
-	options := newTransferQueueProcessorOptions(config, false, false)
+	cfg := shard.GetConfig()
+	options := newTransferQueueProcessorOptions(cfg, false, false)
 
 	logger = logger.WithTags(tag.ClusterName(clusterName))
 
@@ -587,7 +587,8 @@ func newTransferQueueStandbyProcessor(
 					return true, nil
 				}
 			} else {
-				if _, ok := err.(*types.EntityNotExistsError); !ok {
+				var entityNotExistsError *types.EntityNotExistsError
+				if !errors.As(err, &entityNotExistsError) {
 					// retry the task if failed to find the domain
 					logger.Warn("Cannot find domain", tag.WorkflowDomainID(task.GetDomainID()))
 					return false, err
@@ -643,8 +644,8 @@ func newTransferQueueFailoverProcessor(
 	domainIDs map[string]struct{},
 	standbyClusterName string,
 ) (updateClusterAckLevelFn, *transferQueueProcessorBase) {
-	config := shardContext.GetConfig()
-	options := newTransferQueueProcessorOptions(config, true, true)
+	cfg := shardContext.GetConfig()
+	options := newTransferQueueProcessorOptions(cfg, true, true)
 
 	currentClusterName := shardContext.GetService().GetClusterMetadata().GetCurrentClusterName()
 	failoverUUID := uuid.New()

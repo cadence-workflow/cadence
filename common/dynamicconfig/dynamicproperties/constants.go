@@ -2106,7 +2106,7 @@ const (
 	// Can be filtered by domain to enable/disable per domain.
 	// KeyName: worker.enableScheduler
 	// Value type: Bool
-	// Default value: true
+	// Default value: false
 	// Allowed filters: DomainName
 	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
@@ -3236,13 +3236,13 @@ const (
 	// Default value: time.Minute*5
 	// Allowed filters: DomainName
 	NormalDecisionScheduleToStartTimeout
-	// NotifyFailoverMarkerInterval is determines the frequency to notify failover marker
+	// NotifyFailoverMarkerInterval controls the cadence of failover-marker polling and per-host coordinator batch flushes
 	// KeyName: history.NotifyFailoverMarkerInterval
 	// Value type: Duration
 	// Default value: 5s (5*time.Second)
 	// Allowed filters: N/A
 	NotifyFailoverMarkerInterval
-	// ActivityMaxScheduleToStartTimeoutForRetry is maximum value allowed when overwritting the schedule to start timeout for activities with retry policy
+	// ActivityMaxScheduleToStartTimeoutForRetry is maximum value allowed when overwriting the schedule to start timeout for activities with retry policy
 	// KeyName: history.activityMaxScheduleToStartTimeoutForRetry
 	// Value type: Duration
 	// Default value: 30m (30*time.Minute)
@@ -5105,7 +5105,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "worker.enableScheduler",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling. Can be filtered by domain to enable/disable per domain.",
-		DefaultValue: true,
+		DefaultValue: false,
 	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",
@@ -5362,7 +5362,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
 		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTaskListAwareTaskSchedulerByDomain: {
 		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",

@@ -171,7 +171,7 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.mgr.GetAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+	ackLevels, err := p.mgr.GetHistoryDLQAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
 		ShardID: p.shardID,
 	})
 	if err != nil {
@@ -192,7 +192,7 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	ackLevels, err := p.mgr.GetAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
+	ackLevels, err := p.mgr.GetHistoryDLQAckLevels(ctx, persistence.HistoryDLQGetAckLevelsRequest{
 		ShardID:               p.shardID,
 		DomainID:              domainID,
 		ClusterAttributeScope: clusterAttributeScope,
@@ -249,7 +249,7 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	maxKey := persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), 0)
 
 	for {
-		resp, err := p.mgr.GetTasks(ctx, persistence.HistoryDLQGetTasksRequest{
+		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{
 			ShardID:               al.ShardID,
 			DomainID:              al.DomainID,
 			ClusterAttributeScope: al.ClusterAttributeScope,
@@ -299,7 +299,7 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 // tasks. UpdateAckLevel runs first so that a crash between the two steps only leaves
 // orphaned rows (which DeleteTasks can clean up on the next run).
 func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel, newKey persistence.HistoryTaskKey) error {
-	if err := p.mgr.UpdateAckLevel(ctx, persistence.HistoryDLQUpdateAckLevelRequest{
+	if err := p.mgr.UpdateHistoryDLQAckLevel(ctx, persistence.HistoryDLQUpdateAckLevelRequest{
 		ShardID:                   al.ShardID,
 		DomainID:                  al.DomainID,
 		ClusterAttributeScope:     al.ClusterAttributeScope,
@@ -309,7 +309,7 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.Hist
 	}); err != nil {
 		return fmt.Errorf("update DLQ ack level: %w", err)
 	}
-	if err := p.mgr.DeleteTasks(ctx, persistence.HistoryDLQDeleteTasksRequest{
+	if err := p.mgr.DeleteHistoryDLQTasks(ctx, persistence.HistoryDLQDeleteTasksRequest{
 		ShardID:               al.ShardID,
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,

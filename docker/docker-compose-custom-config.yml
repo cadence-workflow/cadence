@@ -60,7 +60,7 @@ services:
       # Example uses the provided custom-config.yaml from config/server/
       - ./config/server/custom-config.yaml:/etc/cadence/config/custom.yaml:ro
       # Optionally mount custom dynamic config
-      # - ./config/dynamicconfig/development.yaml:/etc/cadence/config/dynamicconfig/development.yaml:ro
+      # - ./dynamicconfig/development.yaml:/etc/cadence/dynamicconfig/development.yaml:ro
     depends_on:
       cassandra:
         condition: service_healthy

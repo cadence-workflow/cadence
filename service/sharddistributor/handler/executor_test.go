@@ -666,13 +666,13 @@ func TestEmitShardAssignmentMetrics(t *testing.T) {
 
 			if tc.expectedDistributionLatency != nil {
 				metricsClient.On("Scope", metrics.ShardDistributorHeartbeatScope).Return(metricsScope).Once()
-				metricsScope.On("Tagged", metrics.NamespaceTag(namespace)).Return(metricsScope).Once()
+				metricsScope.On("Tagged", []metrics.Tag{metrics.NamespaceTag(namespace)}).Return(metricsScope).Once()
 				metricsScope.On("RecordHistogramDuration", metrics.ShardDistributorShardAssignmentDistributionLatency, *tc.expectedDistributionLatency).Once()
 			}
 
 			if tc.expectedHandoverLatencies != nil {
 				for _, expected := range tc.expectedHandoverLatencies {
-					metricsScope.On("Tagged", metrics.HandoverTypeTag(expected.HandoverType.String())).Return(metricsScope)
+					metricsScope.On("Tagged", []metrics.Tag{metrics.HandoverTypeTag(expected.HandoverType.String())}).Return(metricsScope)
 					metricsScope.On("RecordHistogramDuration", metrics.ShardDistributorShardHandoverLatency, expected.Latency).Once()
 				}
 			}

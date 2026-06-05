@@ -154,7 +154,7 @@ func TestHistoryTaskDLQManager_Close(t *testing.T) {
 	mgr.Close()
 }
 
-func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
+func TestHistoryTaskDLQManager_GetHistoryDLQAckLevels(t *testing.T) {
 	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	storeRows := []*InternalHistoryDLQAckLevel{
 		{
@@ -298,7 +298,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 			tc.mockSetup(mockStore)
 
 			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
-			got, err := mgr.GetAckLevels(context.Background(), tc.request)
+			got, err := mgr.GetHistoryDLQAckLevels(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
@@ -310,7 +310,7 @@ func TestHistoryTaskDLQManager_GetAckLevels(t *testing.T) {
 	}
 }
 
-func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
+func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 	minKey := NewImmediateTaskKey(10)
 	maxKey := NewImmediateTaskKey(20)
 	taskBlob := &DataBlob{Data: []byte("task-bytes"), Encoding: constants.EncodingTypeThriftRW}
@@ -398,7 +398,7 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 			tc.mockSetup(mockStore, mockSerializer)
 
 			mgr := NewHistoryTaskDLQManager(mockStore, mockSerializer, log.NewNoop())
-			resp, err := mgr.GetTasks(context.Background(), tc.request)
+			resp, err := mgr.GetHistoryDLQTasks(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
@@ -410,7 +410,7 @@ func TestHistoryTaskDLQManager_GetTasks(t *testing.T) {
 	}
 }
 
-func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
+func TestHistoryTaskDLQManager_UpdateHistoryDLQAckLevel(t *testing.T) {
 	now := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -467,7 +467,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 				logger:         log.NewNoop(),
 				timeSrc:        clock.NewMockedTimeSourceAt(now),
 			}
-			err := mgr.UpdateAckLevel(context.Background(), tc.request)
+			err := mgr.UpdateHistoryDLQAckLevel(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
@@ -478,7 +478,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 	}
 }
 
-func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
+func TestHistoryTaskDLQManager_DeleteHistoryDLQTasks(t *testing.T) {
 	maxKey := NewImmediateTaskKey(50)
 
 	tests := []struct {
@@ -529,7 +529,7 @@ func TestHistoryTaskDLQManager_DeleteTasks(t *testing.T) {
 			tc.mockSetup(mockStore)
 
 			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
-			err := mgr.DeleteTasks(context.Background(), tc.request)
+			err := mgr.DeleteHistoryDLQTasks(context.Background(), tc.request)
 
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
