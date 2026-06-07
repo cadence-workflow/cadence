@@ -22,6 +22,7 @@ package failovermanager
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"testing"
 
@@ -111,10 +112,20 @@ func TestBuildActiveClustersFromUpdates_WhenGivenUpdatesItGroupsThemByScopeAndNa
 	assert.Equal(t, "cluster2", ac.AttributeScopes["region"].ClusterAttributes["us-west"].ActiveClusterName)
 }
 
-func TestDomainNames_WhenGivenPreferencesItReturnsNamesAndNilForNilInput(t *testing.T) {
-	assert.Nil(t, domainNames(nil))
-	got := domainNames([]DomainFailoverPreferences{{DomainName: "a"}, {DomainName: "b"}})
-	assert.Equal(t, []string{"a", "b"}, got)
+func TestFailuresFromBatch_WhenGivenPreferencesItMarksAllFailedWithErrorAndNilForNilInput(t *testing.T) {
+	assert.Nil(t, failuresFromBatch(nil, errors.New("boom")))
+	got := failuresFromBatch([]DomainFailoverPreferences{{DomainName: "a"}, {DomainName: "b"}}, errors.New("boom"))
+	assert.Equal(t, []DomainFailoverFailure{
+		{DomainName: "a", Error: "boom"},
+		{DomainName: "b", Error: "boom"},
+	}, got)
+}
+
+func TestDomainNameExtractors_ReturnNamesAndNilForNilInput(t *testing.T) {
+	assert.Nil(t, successDomainNames(nil))
+	assert.Nil(t, failedDomainNames(nil))
+	assert.Equal(t, []string{"a", "b"}, successDomainNames([]DomainFailoverSuccess{{DomainName: "a"}, {DomainName: "b"}}))
+	assert.Equal(t, []string{"a", "b"}, failedDomainNames([]DomainFailoverFailure{{DomainName: "a"}, {DomainName: "b"}}))
 }
 
 func TestProcessInBatches_WhenItemsExceedBatchSizeItSplitsIntoSizedBatches(t *testing.T) {
@@ -127,11 +138,14 @@ func TestProcessInBatches_WhenItemsExceedBatchSizeItSplitsIntoSizedBatches(t *te
 	var batchSizes []int
 	wf := func(ctx workflow.Context) ([]string, error) {
 		success, _ := processInBatches(ctx, prefs, 2, 0, nil,
-			func(ctx workflow.Context, batch []DomainFailoverPreferences) (s, f []string) {
+			func(ctx workflow.Context, batch []DomainFailoverPreferences) (s []DomainFailoverSuccess, f []DomainFailoverFailure) {
 				batchSizes = append(batchSizes, len(batch))
-				return domainNames(batch), nil
+				for _, p := range batch {
+					s = append(s, DomainFailoverSuccess{DomainName: p.DomainName})
+				}
+				return s, nil
 			})
-		return success, nil
+		return successDomainNames(success), nil
 	}
 	env.RegisterWorkflow(wf)
 	env.ExecuteWorkflow(wf)
@@ -171,7 +185,7 @@ func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDo
 
 	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
 		DomainPreferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: "cluster1"},
+			{DomainName: "d1", TargetCluster: "cluster1"},
 			{DomainName: "d2", ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
 			}},
@@ -180,7 +194,27 @@ func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDo
 	require.NoError(t, err)
 	var result FailoverActivityV2Result
 	require.NoError(t, val.Get(&result))
-	sort.Strings(result.SuccessDomains)
-	assert.Equal(t, []string{"d1", "d2"}, result.SuccessDomains)
+	got := successDomainNames(result.SuccessDomains)
+	sort.Strings(got)
+	assert.Equal(t, []string{"d1", "d2"}, got)
 	assert.Empty(t, result.FailedDomains)
+}
+
+func TestFailoverActivityV2_WhenADomainFailsItIsReportedFailedWithTheError(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom"))
+
+	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{
+			{DomainName: "d1", TargetCluster: "cluster1"},
+		},
+	})
+	require.NoError(t, err)
+	var result FailoverActivityV2Result
+	require.NoError(t, val.Get(&result))
+	assert.Empty(t, result.SuccessDomains)
+	require.Len(t, result.FailedDomains, 1)
+	assert.Equal(t, "d1", result.FailedDomains[0].DomainName)
+	assert.Contains(t, result.FailedDomains[0].Error, "boom")
 }

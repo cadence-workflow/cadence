@@ -428,7 +428,7 @@ func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error 
 	}
 
 	foParams := failovermanager.FailoverV2Params{
-		SourceCluster:           sourceCluster,
+		SourceClusters:          []string{sourceCluster},
 		TargetCluster:           targetCluster,
 		BatchSize:               c.Int(FlagFailoverBatchSize),
 		WaitBetweenBatchSeconds: c.Int(FlagFailoverWaitTime),

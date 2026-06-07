@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"go.uber.org/cadence/workflow"
@@ -45,16 +46,16 @@ const (
 	defaultWaitBetweenBatchSecondsV2 = 30
 
 	errMsgV2ParamsNil          = "params is nil"
-	errMsgV2SourceClusterEmpty = "sourceCluster is empty"
+	errMsgV2SourceClusterEmpty = "sourceClusters is empty"
 	errMsgV2TargetClusterEmpty = "targetCluster is empty"
-	errMsgV2SameCluster        = "targetCluster is same as sourceCluster"
+	errMsgV2SameCluster        = "targetCluster is also listed as a sourceCluster"
 )
 
 type (
 	// FailoverV2Params is the arg for FailoverWorkflowV2.
 	FailoverV2Params struct {
-		// SourceCluster is the cluster being evacuated; only domains active there are moved.
-		SourceCluster string
+		// SourceClusters are the clusters being evacuated; only domains active in one of these are moved.
+		SourceClusters []string
 		// TargetCluster is where evacuated domains and attributes are moved to.
 		TargetCluster string
 		// BatchSize is the number of domains failed over per batch.
@@ -83,8 +84,8 @@ type (
 
 	// FailoverV2Result is the result of FailoverWorkflowV2.
 	FailoverV2Result struct {
-		SuccessDomains []string
-		FailedDomains  []string
+		SuccessDomains []DomainFailoverSuccess
+		FailedDomains  []DomainFailoverFailure
 		// Snapshots holds the pre-failover state of every moved domain. It is queryable while the
 		// workflow runs and readable from history afterwards, and is the input a future restore
 		// workflow would replay.
@@ -93,8 +94,8 @@ type (
 
 	// GetDomainsForFailoverV2Params
 	GetDomainsForFailoverV2Params struct {
-		// SourceCluster is the cluster being evacuated; only domains active there are moved.
-		SourceCluster string
+		// SourceClusters are the clusters being evacuated; only domains active in one of these are moved.
+		SourceClusters []string
 		// TargetCluster will be used as the new cluster for all domains that are failed over.
 		TargetCluster string
 		// Domains optionally restricts the run to a specific subset of domain names.
@@ -112,9 +113,9 @@ type (
 	}
 )
 
-// FailoverWorkflowV2 fails all managed domains out of SourceCluster and onto TargetCluster, in
-// batches, with pause/resume support. It is N-region safe: domains not currently active in
-// SourceCluster are left untouched. It records a per-domain snapshot of everything it changes so the
+// FailoverWorkflowV2 fails all managed domains out of SourceClusters and onto TargetCluster, in
+// batches, with pause/resume support. It is N-region safe: domains not currently active in one of
+// SourceClusters are left untouched. It records a per-domain snapshot of everything it changes so the
 // failover can be reversed later.
 func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*FailoverV2Result, error) {
 	if err := validateFailoverV2Params(params); err != nil {
@@ -124,8 +125,8 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 	// Query state, exposed via the shared QueryType handler.
 	var (
 		totalDomains   int
-		successDomains []string
-		failedDomains  []string
+		successDomains []DomainFailoverSuccess
+		failedDomains  []DomainFailoverFailure
 		snapshots      []DomainSnapshot
 		wfState        = WorkflowInitialized
 		operator       = getOperator(ctx)
@@ -137,9 +138,9 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 			Failed:         len(failedDomains),
 			State:          wfState,
 			TargetCluster:  params.TargetCluster,
-			SourceCluster:  params.SourceCluster,
-			SuccessDomains: successDomains,
-			FailedDomains:  failedDomains,
+			SourceCluster:  strings.Join(params.SourceClusters, ","),
+			SuccessDomains: successDomainNames(successDomains),
+			FailedDomains:  failedDomainNames(failedDomains),
 			Operator:       operator,
 		}, nil
 	})
@@ -177,7 +178,7 @@ func FailoverWorkflowV2(ctx workflow.Context, params *FailoverV2Params) (*Failov
 func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Params) (*GetDomainsForFailoverV2Result, error) {
 	ao := workflow.WithActivityOptions(ctx, getGetDomainsActivityOptions())
 	actParams := &GetDomainsForFailoverV2Params{
-		SourceCluster:     params.SourceCluster,
+		SourceClusters:    params.SourceClusters,
 		TargetCluster:     params.TargetCluster,
 		Domains:           params.Domains,
 		ClusterAttributes: params.ClusterAttributes,
@@ -189,10 +190,10 @@ func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Para
 	return &result, nil
 }
 
-// GetDomainsForFailoverV2Activity collects the domains to fail out of SourceCluster. For each managed
-// domain, any domain-level active cluster or cluster attribute currently on SourceCluster is marked to
-// move to TargetCluster; a snapshot of the prior values is recorded for restore. Domains not active in
-// SourceCluster are skipped, keeping the operation N-region safe.
+// GetDomainsForFailoverV2Activity collects the domains to fail out of SourceClusters. For each managed
+// domain, any domain-level active cluster or cluster attribute currently on one of SourceClusters is
+// marked to move to TargetCluster; a snapshot of the prior values is recorded for restore. Domains not
+// active in any of SourceClusters are skipped, keeping the operation N-region safe.
 func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForFailoverV2Params) (*GetDomainsForFailoverV2Result, error) {
 	domains, err := getAllDomains(ctx, params.Domains)
 	if err != nil {
@@ -203,7 +204,7 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 		if !isEligibleForFailover(domain) {
 			continue
 		}
-		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceCluster, params.TargetCluster, params.ClusterAttributes)
+		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceClusters, params.TargetCluster, params.ClusterAttributes)
 		if !ok {
 			continue
 		}
@@ -214,10 +215,10 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 }
 
 // failoverPreferencesForDomain builds the preferences and snapshot for one domain. It returns ok=false
-// when the domain is not active in sourceCluster (nothing to move).
+// when the domain is not active in any of sourceClusters (nothing to move).
 func failoverPreferencesForDomain(
 	domain *types.DescribeDomainResponse,
-	sourceCluster string,
+	sourceClusters []string,
 	targetCluster string,
 	clusterAttributeFilter []types.ClusterAttribute,
 ) (DomainFailoverPreferences, DomainSnapshot, bool) {
@@ -225,21 +226,21 @@ func failoverPreferencesForDomain(
 	prefs := DomainFailoverPreferences{DomainName: name}
 	snapshot := DomainSnapshot{DomainName: name}
 
-	// Domain-level: move the active cluster only when it currently sits on the source.
-	if domain.ReplicationConfiguration.GetActiveClusterName() == sourceCluster {
-		prefs.PreferredCluster = targetCluster
-		snapshot.PreviousActiveCluster = sourceCluster
+	// Domain-level: move the active cluster only when it currently sits on one of the sources.
+	if activeCluster := domain.ReplicationConfiguration.GetActiveClusterName(); slices.Contains(sourceClusters, activeCluster) {
+		prefs.TargetCluster = targetCluster
+		snapshot.PreviousActiveCluster = activeCluster
 	}
 
 	if len(clusterAttributeFilter) > 0 {
-		// Attribute-level: move each attribute currently active on the source.
+		// Attribute-level: move each attribute currently active on one of the sources.
 		if ac := domain.ReplicationConfiguration.GetActiveClusters(); ac != nil {
 			for scope, attrScope := range ac.GetAttributeScopes() {
 				for attrName, info := range attrScope.ClusterAttributes {
 					if !slices.Contains(clusterAttributeFilter, types.ClusterAttribute{Scope: scope, Name: attrName}) {
 						continue
 					}
-					if info.ActiveClusterName != sourceCluster {
+					if !slices.Contains(sourceClusters, info.ActiveClusterName) {
 						continue
 					}
 					prefs.ClusterAttributeUpdates = append(prefs.ClusterAttributeUpdates, ClusterAttributePreference{
@@ -250,14 +251,14 @@ func failoverPreferencesForDomain(
 					snapshot.PreviousClusterAttributes = append(snapshot.PreviousClusterAttributes, ClusterAttributePreference{
 						Scope:            scope,
 						Name:             attrName,
-						PreferredCluster: sourceCluster,
+						PreferredCluster: info.ActiveClusterName,
 					})
 				}
 			}
 		}
 	}
 
-	if prefs.PreferredCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
+	if prefs.TargetCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
 		return DomainFailoverPreferences{}, DomainSnapshot{}, false
 	}
 	return prefs, snapshot, true
@@ -273,14 +274,19 @@ func validateFailoverV2Params(params *FailoverV2Params) error {
 	if params.WaitBetweenBatchSeconds <= 0 {
 		params.WaitBetweenBatchSeconds = defaultWaitBetweenBatchSecondsV2
 	}
-	if params.SourceCluster == "" {
+	if len(params.SourceClusters) == 0 {
 		return errors.New(errMsgV2SourceClusterEmpty)
 	}
 	if params.TargetCluster == "" {
 		return errors.New(errMsgV2TargetClusterEmpty)
 	}
-	if params.SourceCluster == params.TargetCluster {
-		return errors.New(errMsgV2SameCluster)
+	for _, sc := range params.SourceClusters {
+		if sc == "" {
+			return errors.New(errMsgV2SourceClusterEmpty)
+		}
+		if sc == params.TargetCluster {
+			return errors.New(errMsgV2SameCluster)
+		}
 	}
 	return nil
 }

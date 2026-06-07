@@ -49,8 +49,10 @@ type (
 	DomainFailoverPreferences struct {
 		// DomainName identifies the domain this instruction applies to.
 		DomainName string
-		// PreferredCluster, when non-empty, sets the domain-level ActiveClusterName.
-		PreferredCluster string
+		// TargetCluster, when non-empty, is the destination cluster set as the domain-level
+		// ActiveClusterName. During a failover it is the cluster being failed over to; during a
+		// rebalance it is the domain's stored preferred cluster.
+		TargetCluster string
 		// ClusterAttributeUpdates lists all ClusterAttribute level changes.
 		ClusterAttributeUpdates []ClusterAttributePreference
 	}
@@ -60,10 +62,23 @@ type (
 		DomainPreferences []DomainFailoverPreferences
 	}
 
+	// DomainFailoverSuccess records a domain that was successfully failed over.
+	DomainFailoverSuccess struct {
+		DomainName string
+	}
+
+	// DomainFailoverFailure records a domain that failed to fail over, along with the error that
+	// caused it. Error is a string (not error) so it survives JSON serialization across the activity
+	// boundary and through the workflow query/result.
+	DomainFailoverFailure struct {
+		DomainName string
+		Error      string
+	}
+
 	// FailoverActivityV2Result is the result of the shared FailoverActivityV2.
 	FailoverActivityV2Result struct {
-		SuccessDomains []string
-		FailedDomains  []string
+		SuccessDomains []DomainFailoverSuccess
+		FailedDomains  []DomainFailoverFailure
 	}
 )
 
@@ -74,14 +89,14 @@ func FailoverActivityV2(ctx context.Context, params *FailoverActivityV2Params) (
 }
 
 // executeFailoverBatch returns a batchExecutor that invokes the shared FailoverActivityV2. On
-// activity error every domain in the batch is reported failed (false-positive semantics).
+// activity error every domain in the batch is reported failed with that error (false-positive semantics).
 func executeFailoverBatch() batchExecutor {
-	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string) {
+	return func(ctx workflow.Context, batch []DomainFailoverPreferences) (success []DomainFailoverSuccess, failed []DomainFailoverFailure) {
 		ao := workflow.WithActivityOptions(ctx, getFailoverActivityOptions())
 		actParams := &FailoverActivityV2Params{DomainPreferences: batch}
 		var actResult FailoverActivityV2Result
 		if err := workflow.ExecuteActivity(ao, FailoverActivityV2, actParams).Get(ctx, &actResult); err != nil {
-			return nil, domainNames(batch)
+			return nil, failuresFromBatch(batch, err)
 		}
 		return actResult.SuccessDomains, actResult.FailedDomains
 	}
@@ -89,23 +104,24 @@ func executeFailoverBatch() batchExecutor {
 
 // failoverDomains is the shared per-domain loop. For each entry it issues a single FailoverDomain request carrying the
 // preferred ActiveClusterName and any per-attribute ActiveClusters overrides.
-// Returns lists of domains delineated by success or failure.
+// Returns lists of domains delineated by success or failure, failures carrying the error.
 func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences) (*FailoverActivityV2Result, error) {
 	frontendClient := getClient(ctx)
-	var successDomains, failedDomains []string
+	var successDomains []DomainFailoverSuccess
+	var failedDomains []DomainFailoverFailure
 	for _, p := range prefs {
 		failoverRequest := &types.FailoverDomainRequest{DomainName: p.DomainName}
-		if p.PreferredCluster != "" {
-			failoverRequest.DomainActiveClusterName = common.StringPtr(p.PreferredCluster)
+		if p.TargetCluster != "" {
+			failoverRequest.DomainActiveClusterName = common.StringPtr(p.TargetCluster)
 		}
 		if len(p.ClusterAttributeUpdates) > 0 {
 			failoverRequest.ActiveClusters = buildActiveClustersFromUpdates(p.ClusterAttributeUpdates)
 		}
 
 		if _, err := frontendClient.FailoverDomain(ctx, failoverRequest); err != nil {
-			failedDomains = append(failedDomains, p.DomainName)
+			failedDomains = append(failedDomains, DomainFailoverFailure{DomainName: p.DomainName, Error: err.Error()})
 		} else {
-			successDomains = append(successDomains, p.DomainName)
+			successDomains = append(successDomains, DomainFailoverSuccess{DomainName: p.DomainName})
 		}
 	}
 	return &FailoverActivityV2Result{
@@ -158,7 +174,7 @@ func isEligibleForFailover(domain *types.DescribeDomainResponse) bool {
 
 // batchExecutor runs an activity over a batch of preferences and returns the success/failed subsets.
 // It abstracts the activity from processInBatches so both workflows reuse the same batch loop.
-type batchExecutor func(ctx workflow.Context, batch []DomainFailoverPreferences) (success, failed []string)
+type batchExecutor func(ctx workflow.Context, batch []DomainFailoverPreferences) (success []DomainFailoverSuccess, failed []DomainFailoverFailure)
 
 // processInBatches splits prefs into batches of batchSize, calls executeBatch for each, sleeps
 // waitBetween between successive batches, and aggregates results. onBatchStart is invoked once before
@@ -170,7 +186,7 @@ func processInBatches(
 	waitBetween time.Duration,
 	onBatchStart func(),
 	executeBatch batchExecutor,
-) (success, failed []string) {
+) (success []DomainFailoverSuccess, failed []DomainFailoverFailure) {
 	if len(prefs) == 0 {
 		return nil, nil
 	}
@@ -223,15 +239,42 @@ func newPauseHandler(ctx workflow.Context, setState func(string)) func() {
 	}
 }
 
-// domainNames extracts DomainName from each entry, used by batch executors to report an all-failed
-// list when the underlying activity errors out.
-func domainNames(prefs []DomainFailoverPreferences) []string {
+// failuresFromBatch marks every domain in the batch as failed with the given error, used by batch
+// executors to report an all-failed list when the underlying activity errors out.
+func failuresFromBatch(prefs []DomainFailoverPreferences, err error) []DomainFailoverFailure {
 	if len(prefs) == 0 {
 		return nil
 	}
-	names := make([]string, len(prefs))
+	msg := err.Error()
+	failures := make([]DomainFailoverFailure, len(prefs))
 	for i, p := range prefs {
-		names[i] = p.DomainName
+		failures[i] = DomainFailoverFailure{DomainName: p.DomainName, Error: msg}
+	}
+	return failures
+}
+
+// successDomainNames extracts the domain names from a list of successes, for the workflow query
+// handler which reports plain name lists.
+func successDomainNames(successes []DomainFailoverSuccess) []string {
+	if len(successes) == 0 {
+		return nil
+	}
+	names := make([]string, len(successes))
+	for i, s := range successes {
+		names[i] = s.DomainName
+	}
+	return names
+}
+
+// failedDomainNames extracts the domain names from a list of failures, for the workflow query handler
+// which reports plain name lists.
+func failedDomainNames(failures []DomainFailoverFailure) []string {
+	if len(failures) == 0 {
+		return nil
+	}
+	names := make([]string, len(failures))
+	for i, f := range failures {
+		names[i] = f.DomainName
 	}
 	return names
 }

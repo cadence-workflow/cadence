@@ -62,7 +62,7 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 		{
 			name:      "when preferred differs from active it moves to preferred",
 			domain:    createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}}),
-			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: "cluster1"},
+			wantPrefs: DomainFailoverPreferences{DomainName: "d", TargetCluster: "cluster1"},
 		},
 		{
 			name: "when one attribute is wrong it moves only that attribute",
@@ -106,7 +106,7 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 					},
 				},
 			),
-			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: "cluster1", ClusterAttributeUpdates: []ClusterAttributePreference{
+			wantPrefs: DomainFailoverPreferences{DomainName: "d", TargetCluster: "cluster1", ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster0"},
 				{Scope: "cluster", Name: "cluster1", PreferredCluster: "cluster1"},
 			}},
@@ -133,7 +133,7 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 					},
 				},
 			),
-			wantPrefs: DomainFailoverPreferences{DomainName: "d", PreferredCluster: "cluster1"},
+			wantPrefs: DomainFailoverPreferences{DomainName: "d", TargetCluster: "cluster1"},
 		},
 		{
 			name: "when domain is not managed it is skipped",
@@ -169,7 +169,7 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantPrefs.DomainName, prefs.DomainName)
-			assert.Equal(t, tt.wantPrefs.PreferredCluster, prefs.PreferredCluster)
+			assert.Equal(t, tt.wantPrefs.TargetCluster, prefs.TargetCluster)
 			assert.ElementsMatch(t, tt.wantPrefs.ClusterAttributeUpdates, prefs.ClusterAttributeUpdates)
 		})
 	}
@@ -212,7 +212,7 @@ func TestGetDomainsForRebalanceV2Activity_WhenListingDomainsItReturnsOnlyManaged
 	require.NoError(t, val.Get(&prefs))
 	require.Len(t, prefs, 1)
 	assert.Equal(t, "needs-move", prefs[0].DomainName)
-	assert.Equal(t, "cluster1", prefs[0].PreferredCluster)
+	assert.Equal(t, "cluster1", prefs[0].TargetCluster)
 }
 
 func TestRebalanceWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomains(t *testing.T) {
@@ -222,17 +222,17 @@ func TestRebalanceWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomains(t *
 	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
 	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
 
-	prefs := []DomainFailoverPreferences{{DomainName: "d1", PreferredCluster: "cluster1"}}
+	prefs := []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}}
 	env.OnActivity(getDomainsForRebalanceV2ActivityName, mock.Anything).Return(prefs, nil)
 	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
-		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1"}}, nil)
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}}}, nil)
 
 	env.ExecuteWorkflow(RebalanceWorkflowV2TypeName, &RebalanceV2Params{})
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 	var result RebalanceV2Result
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []string{"d1"}, result.SuccessDomains)
+	assert.Equal(t, []string{"d1"}, successDomainNames(result.SuccessDomains))
 }
 
 // TestRebalanceWorkflowV2_WhenStartedWithNilParamsItDoesNotPanic verifies the workflow guards against a
@@ -245,10 +245,10 @@ func TestRebalanceWorkflowV2_WhenStartedWithNilParamsItDoesNotPanic(t *testing.T
 	env.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
 	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
 
-	prefs := []DomainFailoverPreferences{{DomainName: "d1", PreferredCluster: "cluster1"}}
+	prefs := []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}}
 	env.OnActivity(getDomainsForRebalanceV2ActivityName, mock.Anything).Return(prefs, nil)
 	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
-		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1"}}, nil)
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}}}, nil)
 
 	var params *RebalanceV2Params
 	env.ExecuteWorkflow(RebalanceWorkflowV2TypeName, params)
@@ -256,7 +256,7 @@ func TestRebalanceWorkflowV2_WhenStartedWithNilParamsItDoesNotPanic(t *testing.T
 	require.NoError(t, env.GetWorkflowError())
 	var result RebalanceV2Result
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []string{"d1"}, result.SuccessDomains)
+	assert.Equal(t, []string{"d1"}, successDomainNames(result.SuccessDomains))
 }
 
 // TestRebalanceWorkflowV2_QueryReportsTotalDomains verifies the query handler reports a meaningful
@@ -269,12 +269,12 @@ func TestRebalanceWorkflowV2_QueryReportsTotalDomains(t *testing.T) {
 	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
 
 	prefs := []DomainFailoverPreferences{
-		{DomainName: "d1", PreferredCluster: "cluster1"},
-		{DomainName: "d2", PreferredCluster: "cluster1"},
+		{DomainName: "d1", TargetCluster: "cluster1"},
+		{DomainName: "d2", TargetCluster: "cluster1"},
 	}
 	env.OnActivity(getDomainsForRebalanceV2ActivityName, mock.Anything).Return(prefs, nil)
 	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
-		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1", "d2"}}, nil)
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}, {DomainName: "d2"}}}, nil)
 
 	env.ExecuteWorkflow(RebalanceWorkflowV2TypeName, &RebalanceV2Params{})
 	require.True(t, env.IsWorkflowCompleted())

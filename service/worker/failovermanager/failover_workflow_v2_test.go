@@ -39,11 +39,11 @@ import (
 
 func TestValidateFailoverV2Params_WhenParamsAreInvalidItErrorsAndOtherwiseAppliesDefaults(t *testing.T) {
 	assert.Error(t, validateFailoverV2Params(nil))
-	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{TargetCluster: "t"}))                     // no source
-	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{SourceCluster: "s"}))                     // no target
-	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{SourceCluster: "x", TargetCluster: "x"})) // same
+	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{TargetCluster: "t"}))                                // no source
+	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{SourceClusters: []string{"s"}}))                     // no target
+	assert.Error(t, validateFailoverV2Params(&FailoverV2Params{SourceClusters: []string{"x"}, TargetCluster: "x"})) // same
 
-	p := &FailoverV2Params{SourceCluster: "cluster0", TargetCluster: "cluster1"}
+	p := &FailoverV2Params{SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1"}
 	require.NoError(t, validateFailoverV2Params(p))
 	assert.Equal(t, defaultBatchSizeV2, p.BatchSize)
 	assert.Equal(t, defaultWaitBetweenBatchSecondsV2, p.WaitBetweenBatchSeconds)
@@ -65,7 +65,7 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 			name:         "when domain-level active is on source it moves to target",
 			domain:       createDomainResponse(createDomainResponseParams{name: "d", activeClusterName: src, isManaged: true, isGlobal: true}),
 			wantOK:       true,
-			wantPrefs:    DomainFailoverPreferences{DomainName: "d", PreferredCluster: tgt},
+			wantPrefs:    DomainFailoverPreferences{DomainName: "d", TargetCluster: tgt},
 			wantSnapshot: DomainSnapshot{DomainName: "d", PreviousActiveCluster: src},
 		},
 		{
@@ -210,7 +210,7 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 				}}}),
 			filter: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
 			wantOK: true,
-			wantPrefs: DomainFailoverPreferences{DomainName: "both-different", PreferredCluster: tgt, ClusterAttributeUpdates: []ClusterAttributePreference{
+			wantPrefs: DomainFailoverPreferences{DomainName: "both-different", TargetCluster: tgt, ClusterAttributeUpdates: []ClusterAttributePreference{
 				{Scope: "cluster", Name: "cluster0", PreferredCluster: tgt},
 			}},
 			wantSnapshot: DomainSnapshot{DomainName: "both-different", PreviousActiveCluster: src, PreviousClusterAttributes: []ClusterAttributePreference{
@@ -230,13 +230,13 @@ func TestFailoverPreferencesForDomain(t *testing.T) {
 					}},
 				}}}),
 			wantOK:       true,
-			wantPrefs:    DomainFailoverPreferences{DomainName: "domain-only", PreferredCluster: tgt},
+			wantPrefs:    DomainFailoverPreferences{DomainName: "domain-only", TargetCluster: tgt},
 			wantSnapshot: DomainSnapshot{DomainName: "domain-only", PreviousActiveCluster: src},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prefs, snapshot, ok := failoverPreferencesForDomain(tt.domain, src, tgt, tt.filter)
+			prefs, snapshot, ok := failoverPreferencesForDomain(tt.domain, []string{src}, tgt, tt.filter)
 			assert.Equal(t, tt.wantOK, ok)
 			if !tt.wantOK {
 				return
@@ -260,8 +260,8 @@ func TestGetDomainsForFailoverV2Activity_WhenListingDomainsItReturnsOnlyManagedD
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
-		SourceCluster: "cluster0",
-		TargetCluster: "cluster1",
+		SourceClusters: []string{"cluster0"},
+		TargetCluster:  "cluster1",
 	})
 	require.NoError(t, err)
 	var result GetDomainsForFailoverV2Result
@@ -269,7 +269,7 @@ func TestGetDomainsForFailoverV2Activity_WhenListingDomainsItReturnsOnlyManagedD
 
 	require.Len(t, result.Preferences, 1)
 	assert.Equal(t, "managed-on-source", result.Preferences[0].DomainName)
-	assert.Equal(t, "cluster1", result.Preferences[0].PreferredCluster)
+	assert.Equal(t, "cluster1", result.Preferences[0].TargetCluster)
 	require.Len(t, result.Snapshots, 1)
 	assert.Equal(t, "cluster0", result.Snapshots[0].PreviousActiveCluster)
 }
@@ -296,7 +296,7 @@ func TestGetDomainsForFailoverV2Activity_WhenClusterAttributesAreSetItFailsOverM
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
-		SourceCluster:     "cluster0",
+		SourceClusters:    []string{"cluster0"},
 		TargetCluster:     "cluster1",
 		ClusterAttributes: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}},
 	})
@@ -306,7 +306,7 @@ func TestGetDomainsForFailoverV2Activity_WhenClusterAttributesAreSetItFailsOverM
 
 	require.Len(t, result.Preferences, 1)
 	assert.Equal(t, "aa-on-source", result.Preferences[0].DomainName)
-	assert.Empty(t, result.Preferences[0].PreferredCluster)
+	assert.Empty(t, result.Preferences[0].TargetCluster)
 	assert.Equal(t, []ClusterAttributePreference{
 		{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
 	}, result.Preferences[0].ClusterAttributeUpdates)
@@ -334,8 +334,8 @@ func TestGetDomainsForFailoverV2Activity_WhenClusterAttributesAreEmptyItSkipsAtt
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
-		SourceCluster: "cluster0",
-		TargetCluster: "cluster1",
+		SourceClusters: []string{"cluster0"},
+		TargetCluster:  "cluster1",
 	})
 	require.NoError(t, err)
 	var result GetDomainsForFailoverV2Result
@@ -389,7 +389,7 @@ func TestGetDomainsForFailoverV2Activity_WhenGivenMixedDomainsItFailsOverOnlySco
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
-		SourceCluster:     "cluster0",
+		SourceClusters:    []string{"cluster0"},
 		TargetCluster:     "cluster1",
 		ClusterAttributes: []types.ClusterAttribute{{Scope: "cluster", Name: "cluster0"}, {Scope: "cluster", Name: "cluster2"}},
 	})
@@ -411,13 +411,13 @@ func TestGetDomainsForFailoverV2Activity_WhenGivenMixedDomainsItFailsOverOnlySco
 	assert.NotContains(t, byName, "aa-unmanaged")
 
 	// aa-included: only the in-filter, on-source attribute moves; domain-level untouched.
-	assert.Empty(t, byName["aa-included"].PreferredCluster)
+	assert.Empty(t, byName["aa-included"].TargetCluster)
 	assert.Equal(t, []ClusterAttributePreference{
 		{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
 	}, byName["aa-included"].ClusterAttributeUpdates)
 
 	// global-onsrc: domain-level moves; no attribute updates.
-	assert.Equal(t, "cluster1", byName["global-onsrc"].PreferredCluster)
+	assert.Equal(t, "cluster1", byName["global-onsrc"].TargetCluster)
 	assert.Empty(t, byName["global-onsrc"].ClusterAttributeUpdates)
 }
 
@@ -438,21 +438,21 @@ func TestFailoverWorkflowV2_WhenAllActivitiesSucceedItReturnsSuccessDomainsAndSn
 	env.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
 
 	collected := &GetDomainsForFailoverV2Result{
-		Preferences: []DomainFailoverPreferences{{DomainName: "d1", PreferredCluster: "cluster1"}},
+		Preferences: []DomainFailoverPreferences{{DomainName: "d1", TargetCluster: "cluster1"}},
 		Snapshots:   []DomainSnapshot{{DomainName: "d1", PreviousActiveCluster: "cluster0"}},
 	}
 	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).Return(collected, nil)
 	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
-		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1"}}, nil)
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}}}, nil)
 
 	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
-		SourceCluster: "cluster0", TargetCluster: "cluster1",
+		SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1",
 	})
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 	var result FailoverV2Result
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.Equal(t, []string{"d1"}, result.SuccessDomains)
+	assert.Equal(t, []string{"d1"}, successDomainNames(result.SuccessDomains))
 	assert.Equal(t, collected.Snapshots, result.Snapshots)
 }
 
@@ -475,10 +475,10 @@ func TestFailoverWorkflowV2_WhenClusterAttributesAreSetItForwardsThemToGetDomain
 			}}},
 		}, nil)
 	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
-		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1"}}, nil)
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}}}, nil)
 
 	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
-		SourceCluster: "cluster0", TargetCluster: "cluster1", ClusterAttributes: clusterAttributes,
+		SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1", ClusterAttributes: clusterAttributes,
 	})
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
@@ -492,7 +492,7 @@ func TestFailoverWorkflowV2_WhenGetDomainsActivityErrorsItFailsTheWorkflow(t *te
 	env.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
 	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).Return(nil, errors.New("boom"))
 
-	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{SourceCluster: "cluster0", TargetCluster: "cluster1"})
+	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1"})
 	require.True(t, env.IsWorkflowCompleted())
 	assert.Error(t, env.GetWorkflowError())
 }
@@ -506,13 +506,13 @@ func TestFailoverWorkflowV2_WhenPausedItBlocksUntilResumedThenCompletes(t *testi
 
 	collected := &GetDomainsForFailoverV2Result{
 		Preferences: []DomainFailoverPreferences{
-			{DomainName: "d1", PreferredCluster: "cluster1"},
-			{DomainName: "d2", PreferredCluster: "cluster1"},
+			{DomainName: "d1", TargetCluster: "cluster1"},
+			{DomainName: "d2", TargetCluster: "cluster1"},
 		},
 	}
 	env.OnActivity(getDomainsForFailoverV2ActivityName, mock.Anything, mock.Anything).Return(collected, nil)
 	env.OnActivity(failoverActivityV2Name, mock.Anything, mock.Anything).
-		Return(&FailoverActivityV2Result{SuccessDomains: []string{"d1", "d2"}}, nil).Once()
+		Return(&FailoverActivityV2Result{SuccessDomains: []DomainFailoverSuccess{{DomainName: "d1"}, {DomainName: "d2"}}}, nil).Once()
 
 	// Pause before the first batch runs; the workflow blocks at the batch boundary and reports
 	// paused until resumed. This mirrors the V1 pause test pattern.
@@ -531,11 +531,11 @@ func TestFailoverWorkflowV2_WhenPausedItBlocksUntilResumedThenCompletes(t *testi
 	}, 200*time.Millisecond)
 
 	env.ExecuteWorkflow(FailoverWorkflowV2TypeName, &FailoverV2Params{
-		SourceCluster: "cluster0", TargetCluster: "cluster1",
+		SourceClusters: []string{"cluster0"}, TargetCluster: "cluster1",
 	})
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())
 	var result FailoverV2Result
 	require.NoError(t, env.GetWorkflowResult(&result))
-	assert.ElementsMatch(t, []string{"d1", "d2"}, result.SuccessDomains)
+	assert.ElementsMatch(t, []string{"d1", "d2"}, successDomainNames(result.SuccessDomains))
 }

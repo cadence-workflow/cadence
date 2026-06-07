@@ -323,7 +323,7 @@ func TestAdminFailoverStartV2_WhenV2FlagIsSetItStartsTheV2WorkflowWithoutDrillSi
 		WorkflowID:                          failovermanager.FailoverWorkflowV2ID,
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 		TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
-		Input:                               []byte(`{"SourceCluster":"cluster1","TargetCluster":"cluster2","BatchSize":10,"WaitBetweenBatchSeconds":120,"Domains":["domain1","domain2"],"ClusterAttributes":null}`),
+		Input:                               []byte(`{"SourceClusters":["cluster1"],"TargetCluster":"cluster2","BatchSize":10,"WaitBetweenBatchSeconds":120,"Domains":["domain1","domain2"],"ClusterAttributes":null}`),
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 		Memo: mustGetWorkflowMemo(t, map[string]interface{}{
@@ -375,7 +375,7 @@ func TestAdminFailoverStartV2_WhenClusterAttributesJSONIsSetItIncludesThemInTheW
 		WorkflowID:                          failovermanager.FailoverWorkflowV2ID,
 		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
 		TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
-		Input:                               []byte(`{"SourceCluster":"cluster1","TargetCluster":"cluster2","BatchSize":10,"WaitBetweenBatchSeconds":120,"Domains":null,"ClusterAttributes":[{"scope":"cluster","name":"cluster0"}]}`),
+		Input:                               []byte(`{"SourceClusters":["cluster1"],"TargetCluster":"cluster2","BatchSize":10,"WaitBetweenBatchSeconds":120,"Domains":null,"ClusterAttributes":[{"scope":"cluster","name":"cluster0"}]}`),
 		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600),
 		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
 		Memo: mustGetWorkflowMemo(t, map[string]interface{}{

@@ -54,8 +54,8 @@ type (
 
 	// RebalanceV2Result is the result of RebalanceWorkflowV2.
 	RebalanceV2Result struct {
-		SuccessDomains []string
-		FailedDomains  []string
+		SuccessDomains []DomainFailoverSuccess
+		FailedDomains  []DomainFailoverFailure
 	}
 )
 
@@ -82,8 +82,8 @@ func RebalanceWorkflowV2(ctx workflow.Context, params *RebalanceV2Params) (*Reba
 
 	var (
 		totalDomains   int
-		successDomains []string
-		failedDomains  []string
+		successDomains []DomainFailoverSuccess
+		failedDomains  []DomainFailoverFailure
 		wfState        = WorkflowInitialized
 		operator       = getOperator(ctx)
 	)
@@ -93,8 +93,8 @@ func RebalanceWorkflowV2(ctx workflow.Context, params *RebalanceV2Params) (*Reba
 			Success:        len(successDomains),
 			Failed:         len(failedDomains),
 			State:          wfState,
-			SuccessDomains: successDomains,
-			FailedDomains:  failedDomains,
+			SuccessDomains: successDomainNames(successDomains),
+			FailedDomains:  failedDomainNames(failedDomains),
 			Operator:       operator,
 		}, nil
 	})
@@ -165,7 +165,7 @@ func rebalancePreferencesForDomain(domain *types.DescribeDomainResponse) (Domain
 	if len(preferred) != 0 &&
 		preferred != domain.ReplicationConfiguration.GetActiveClusterName() &&
 		isPreferredClusterInClusterListForDomain(preferred, domain) {
-		prefs.PreferredCluster = preferred
+		prefs.TargetCluster = preferred
 	}
 
 	// Attribute-level: any attribute whose live active cluster differs from its stored preference.
@@ -173,7 +173,7 @@ func rebalancePreferencesForDomain(domain *types.DescribeDomainResponse) (Domain
 	attrPrefs, _ := getClusterAttributePreferences(domain)
 	prefs.ClusterAttributeUpdates = clusterAttributeUpdatesNeeded(domain, attrPrefs)
 
-	if prefs.PreferredCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
+	if prefs.TargetCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
 		return DomainFailoverPreferences{}, errNoRebalanceRequiredV2
 	}
 	return prefs, nil
