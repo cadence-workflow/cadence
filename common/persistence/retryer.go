@@ -63,7 +63,8 @@ func NewPersistenceRetryer(
 	return newPersistenceRetryer(execManager, historyManager, policy, nil)
 }
 
-// NewPersistenceRetryerWithShardID constructs a new Retryer that populates empty request shard IDs.
+// NewPersistenceRetryerWithShardID constructs a new Retryer that sets the shard ID
+// to be populated on each request if the request's ShardID is nil.
 func NewPersistenceRetryerWithShardID(
 	execManager ExecutionManager,
 	historyManager HistoryManager,
