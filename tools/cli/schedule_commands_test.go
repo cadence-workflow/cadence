@@ -29,7 +29,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/client/frontend"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -117,7 +116,7 @@ func TestScheduleCLI_CreateSchedule_ConcurrencyLimit(t *testing.T) {
 				m.EXPECT().CreateSchedule(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ interface{}, req *types.CreateScheduleRequest, _ ...interface{}) (*types.CreateScheduleResponse, error) {
 						assert.Equal(t, types.ScheduleOverlapPolicyConcurrent, req.Policies.OverlapPolicy)
-						assert.Equal(t, common.Int32Ptr(3), req.Policies.ConcurrencyLimit)
+						assert.Equal(t, int32(3), req.Policies.ConcurrencyLimit)
 						return &types.CreateScheduleResponse{ScheduleID: "my-sched"}, nil
 					})
 			},
@@ -257,7 +256,7 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 						assert.Nil(t, req.Spec)
 						assert.NotNil(t, req.Policies)
-						assert.Equal(t, common.Int32Ptr(3), req.Policies.ConcurrencyLimit)
+						assert.Equal(t, int32(3), req.Policies.ConcurrencyLimit)
 						return &types.UpdateScheduleResponse{}, nil
 					})
 			},
@@ -269,7 +268,7 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 						assert.NotNil(t, req.Policies)
-						assert.Equal(t, common.Int32Ptr(0), req.Policies.ConcurrencyLimit)
+						assert.Equal(t, int32(0), req.Policies.ConcurrencyLimit)
 						return &types.UpdateScheduleResponse{}, nil
 					})
 			},
@@ -281,7 +280,7 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 						assert.Equal(t, types.ScheduleOverlapPolicyConcurrent, req.Policies.OverlapPolicy)
-						assert.Equal(t, common.Int32Ptr(5), req.Policies.ConcurrencyLimit)
+						assert.Equal(t, int32(5), req.Policies.ConcurrencyLimit)
 						return &types.UpdateScheduleResponse{}, nil
 					})
 			},
@@ -594,14 +593,14 @@ func TestScheduleCLI_BuildPoliciesFromFlags(t *testing.T) {
 		{
 			name:       "only --concurrency_limit sets ConcurrencyLimit in result",
 			args:       []string{"--" + FlagConcurrencyLimit, "3"},
-			wantResult: &types.SchedulePolicies{ConcurrencyLimit: common.Int32Ptr(3)},
+			wantResult: &types.SchedulePolicies{ConcurrencyLimit: 3},
 		},
 		{
 			name: "--overlap_policy concurrent and --concurrency_limit both set in result",
 			args: []string{"--" + FlagOverlapPolicy, "concurrent", "--" + FlagConcurrencyLimit, "3"},
 			wantResult: &types.SchedulePolicies{
 				OverlapPolicy:    types.ScheduleOverlapPolicyConcurrent,
-				ConcurrencyLimit: common.Int32Ptr(3),
+				ConcurrencyLimit: 3,
 			},
 		},
 		{
@@ -609,7 +608,7 @@ func TestScheduleCLI_BuildPoliciesFromFlags(t *testing.T) {
 			args: []string{"--" + FlagOverlapPolicy, "skipnew", "--" + FlagConcurrencyLimit, "3"},
 			wantResult: &types.SchedulePolicies{
 				OverlapPolicy:    types.ScheduleOverlapPolicySkipNew,
-				ConcurrencyLimit: common.Int32Ptr(3),
+				ConcurrencyLimit: 3,
 			},
 		},
 		{

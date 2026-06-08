@@ -139,8 +139,8 @@ func FromSchedulePolicies(t *types.SchedulePolicies) *shared.SchedulePolicies {
 		CatchUpPolicy:          FromScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindowInSeconds: durationToSeconds(t.CatchUpWindow),
 		PauseOnFailure:         common.BoolPtr(t.PauseOnFailure),
-		BufferLimit:            t.BufferLimit,
-		ConcurrencyLimit:       t.ConcurrencyLimit,
+		BufferLimit:            common.Int32Ptr(t.BufferLimit),
+		ConcurrencyLimit:       common.Int32Ptr(t.ConcurrencyLimit),
 	}
 }
 
@@ -153,8 +153,8 @@ func ToSchedulePolicies(t *shared.SchedulePolicies) *types.SchedulePolicies {
 		CatchUpPolicy:    ToScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    secondsToDuration(t.CatchUpWindowInSeconds),
 		PauseOnFailure:   t.GetPauseOnFailure(),
-		BufferLimit:      t.BufferLimit,
-		ConcurrencyLimit: t.ConcurrencyLimit,
+		BufferLimit:      t.GetBufferLimit(),
+		ConcurrencyLimit: t.GetConcurrencyLimit(),
 	}
 }
 

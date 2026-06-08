@@ -247,12 +247,11 @@ type SchedulePolicies struct {
 	CatchUpPolicy  ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
 	CatchUpWindow  time.Duration         `json:"catchUpWindow,omitempty"`
 	PauseOnFailure bool                  `json:"pauseOnFailure,omitempty"`
-	// BufferLimit and ConcurrencyLimit use *int32 to distinguish three states:
-	//   nil           -> "preserve existing" on Update, or "use server default" on Create
-	//   *int32(0)     -> explicitly unlimited
-	//   *int32(N>0)   -> capped at N
-	BufferLimit      *int32 `json:"bufferLimit,omitempty"`
-	ConcurrencyLimit *int32 `json:"concurrencyLimit,omitempty"`
+	// BufferLimit caps buffered runs under the BUFFER overlap policy; 0 = no user limit
+	// (the server cap applies). ConcurrencyLimit caps concurrent runs under the CONCURRENT
+	// overlap policy; 0 = unlimited (clamped to the server max when set). nil is treated as 0.
+	BufferLimit      int32 `json:"bufferLimit,omitempty"`
+	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
 }
 
 func (v *SchedulePolicies) GetOverlapPolicy() (o ScheduleOverlapPolicy) {
@@ -283,18 +282,18 @@ func (v *SchedulePolicies) GetPauseOnFailure() (o bool) {
 	return
 }
 
-func (v *SchedulePolicies) GetBufferLimit() *int32 {
+func (v *SchedulePolicies) GetBufferLimit() int32 {
 	if v != nil {
 		return v.BufferLimit
 	}
-	return nil
+	return 0
 }
 
-func (v *SchedulePolicies) GetConcurrencyLimit() *int32 {
+func (v *SchedulePolicies) GetConcurrencyLimit() int32 {
 	if v != nil {
 		return v.ConcurrencyLimit
 	}
-	return nil
+	return 0
 }
 
 // SchedulePauseInfo captures the state of a paused schedule (response-only, server-populated).
