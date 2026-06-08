@@ -243,15 +243,12 @@ func (v *ScheduleAction) GetStartWorkflow() *StartWorkflowAction {
 
 // SchedulePolicies configures schedule behavior.
 type SchedulePolicies struct {
-	OverlapPolicy  ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
-	CatchUpPolicy  ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
-	CatchUpWindow  time.Duration         `json:"catchUpWindow,omitempty"`
-	PauseOnFailure bool                  `json:"pauseOnFailure,omitempty"`
-	// BufferLimit caps buffered runs under the BUFFER overlap policy; 0 = no user limit
-	// (the server cap applies). ConcurrencyLimit caps concurrent runs under the CONCURRENT
-	// overlap policy; 0 = unlimited (clamped to the server max when set). nil is treated as 0.
-	BufferLimit      int32 `json:"bufferLimit,omitempty"`
-	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
+	OverlapPolicy    ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
+	CatchUpPolicy    ScheduleCatchUpPolicy `json:"catchUpPolicy,omitempty"`
+	CatchUpWindow    time.Duration         `json:"catchUpWindow,omitempty"`
+	PauseOnFailure   bool                  `json:"pauseOnFailure,omitempty"`
+	BufferLimit      int32                 `json:"bufferLimit,omitempty"`
+	ConcurrencyLimit int32                 `json:"concurrencyLimit,omitempty"`
 }
 
 func (v *SchedulePolicies) GetOverlapPolicy() (o ScheduleOverlapPolicy) {

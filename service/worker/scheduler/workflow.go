@@ -441,9 +441,8 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		// unbounded (0 = unlimited).
 		newOverlap := input.Policies.OverlapPolicy
 		newLimit := input.Policies.ConcurrencyLimit
-		newLimitIsUnbounded := newLimit == 0
 		if previousOverlap == types.ScheduleOverlapPolicyConcurrent &&
-			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimitIsUnbounded) &&
+			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimit == 0) &&
 			len(state.RunningWorkflows) > 0 {
 			logger.Warn("policy change cleared running workflows tracking",
 				zap.String("from", previousOverlap.String()),

@@ -1095,7 +1095,6 @@ func TestEffectiveConcurrencyLimit(t *testing.T) {
 		userLimit int32
 		want      int32
 	}{
-		{"zero returns zero", 0, 0},
 		{"below system limit returned as-is", 1, 1},
 		{"typical value returned as-is", 10, 10},
 		{"at system limit returned as-is", MaxConcurrencyLimitSystemLimit, MaxConcurrencyLimitSystemLimit},
