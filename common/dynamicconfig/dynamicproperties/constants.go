@@ -1128,6 +1128,13 @@ const (
 	// Allowed filters: N/A
 	TimerProcessorCacheMaxSize
 
+	// TransferProcessorCacheMaxSize is the hard cap on cached task count for the transfer queue
+	// KeyName: history.transferProcessorCacheMaxSize
+	// Value type: Int
+	// Default value: 1000
+	// Allowed filters: N/A
+	TransferProcessorCacheMaxSize
+
 	// TransferTaskBatchSize is batch size for transferQueueProcessor
 	// KeyName: history.transferTaskBatchSize
 	// Value type: Int
@@ -2375,6 +2382,13 @@ const (
 	// Allowed filters: N/A
 	TimerProcessorEnableCachedScheduledQueue
 
+	// TransferProcessorEnableCachedQueue enables the cached queue reader for transfer tasks
+	// KeyName: history.transferProcessorEnableCachedQueue
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	TransferProcessorEnableCachedQueue
+
 	// EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain
 	// KeyName: frontend.enableActiveClusterSelectionPolicyInStartWorkflow
 	// Value type: Bool
@@ -2843,6 +2857,13 @@ const (
 	// Allowed filters: ShardID
 	TimerProcessorCachedQueueReaderMode
 
+	// TransferProcessorCachedQueueReaderMode controls cached queue reader mode for transfer tasks: disabled/shadow/enabled
+	// KeyName: history.transferProcessorCachedQueueReaderMode
+	// Value type: string enum: "disabled", "shadow", "enabled"
+	// Default value: "disabled"
+	// Allowed filters: ShardID
+	TransferProcessorCachedQueueReaderMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -3155,6 +3176,15 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	TimerProcessorCacheMinPrefetchInterval
+
+	// TransferProcessorCacheMinPrefetchInterval is the minimum time between consecutive prefetch
+	// attempts for the transfer queue cached reader.
+	// KeyName: history.transferProcessorCacheMinPrefetchInterval
+	// Value type: Duration
+	// Default value: 1s (1*time.Second)
+	// Allowed filters: N/A
+	TransferProcessorCacheMinPrefetchInterval
+
 	// TransferProcessorFailoverMaxStartJitterInterval is the max jitter interval for starting transfer
 	// failover queue processing. The actual jitter interval used will be a random duration between
 	// 0 and the max interval so that timer failover queue across different shards won't start at
@@ -4254,6 +4284,11 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "TimerProcessorCacheMaxSize is the hard cap on cached task count",
 		DefaultValue: 1000,
 	},
+	TransferProcessorCacheMaxSize: {
+		KeyName:      "history.transferProcessorCacheMaxSize",
+		Description:  "TransferProcessorCacheMaxSize is the hard cap on cached task count for the transfer queue",
+		DefaultValue: 1000,
+	},
 	TransferTaskBatchSize: {
 		KeyName:      "history.transferTaskBatchSize",
 		Description:  "TransferTaskBatchSize is batch size for transferQueueProcessor",
@@ -5332,6 +5367,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks",
 		DefaultValue: false,
 	},
+	TransferProcessorEnableCachedQueue: {
+		KeyName:      "history.transferProcessorEnableCachedQueue",
+		Description:  "TransferProcessorEnableCachedQueue enables the cached queue reader for transfer tasks",
+		DefaultValue: false,
+	},
 	EnableActiveClusterSelectionPolicyInStartWorkflow: {
 		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
@@ -5689,6 +5729,12 @@ var StringKeys = map[StringKey]DynamicString{
 		DefaultValue: "disabled",
 		Filters:      []Filter{ShardID},
 	},
+	TransferProcessorCachedQueueReaderMode: {
+		KeyName:      "history.transferProcessorCachedQueueReaderMode",
+		Description:  "TransferProcessorCachedQueueReaderMode controls cached queue reader mode for transfer tasks: disabled/shadow/enabled",
+		DefaultValue: "disabled",
+		Filters:      []Filter{ShardID},
+	},
 }
 
 var DurationKeys = map[DurationKey]DynamicDuration{
@@ -5972,6 +6018,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	TimerProcessorCacheMinPrefetchInterval: {
 		KeyName:      "history.timerProcessorCacheMinPrefetchInterval",
 		Description:  "TimerProcessorCacheMinPrefetchInterval is the minimum time between consecutive prefetch attempts",
+		DefaultValue: time.Second,
+	},
+	TransferProcessorCacheMinPrefetchInterval: {
+		KeyName:      "history.transferProcessorCacheMinPrefetchInterval",
+		Description:  "TransferProcessorCacheMinPrefetchInterval is the minimum time between consecutive prefetch attempts for the transfer queue",
 		DefaultValue: time.Second,
 	},
 	TransferProcessorFailoverMaxStartJitterInterval: {
