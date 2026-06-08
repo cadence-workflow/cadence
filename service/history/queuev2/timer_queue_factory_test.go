@@ -20,12 +20,12 @@ import (
 func TestTimerQueueFactory_CreateQueuev2(t *testing.T) {
 	tests := []struct {
 		name       string
-		mode       string // empty = use config default ("off")
+		mode       string
 		wantCached bool
 	}{
 		{name: "enabled", mode: "enabled", wantCached: true},
-		{name: "disabled", mode: "disabled", wantCached: true},
-		{name: "off (default)", mode: "", wantCached: false},
+		{name: "shadow", mode: "shadow", wantCached: true},
+		{name: "disabled", mode: "disabled", wantCached: false},
 		{name: "unknown value", mode: "some-unknown-value", wantCached: false},
 	}
 

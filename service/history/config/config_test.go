@@ -140,7 +140,7 @@ func TestNewConfig(t *testing.T) {
 		"TimerProcessorMaxTimeShift":                           {dynamicproperties.TimerProcessorMaxTimeShift, time.Second},
 		"TimerProcessorHistoryArchivalSizeLimit":               {dynamicproperties.TimerProcessorHistoryArchivalSizeLimit, 46},
 		"TimerProcessorArchivalTimeLimit":                      {dynamicproperties.TimerProcessorArchivalTimeLimit, time.Second},
-		"TimerProcessorCachedQueueReaderMode":                  {dynamicproperties.TimerProcessorCachedQueueReaderMode, "off"},
+		"TimerProcessorCachedQueueReaderMode":                  {dynamicproperties.TimerProcessorCachedQueueReaderMode, "disabled"},
 		"TimerProcessorCacheMaxSize":                           {dynamicproperties.TimerProcessorCacheMaxSize, 102},
 		"TimerProcessorCachePrefetchTriggerWindow":             {dynamicproperties.TimerProcessorCachePrefetchTriggerWindow, time.Second},
 		"TimerProcessorCacheTimeEvictionWindow":                {dynamicproperties.TimerProcessorCacheTimeEvictionWindow, time.Second},

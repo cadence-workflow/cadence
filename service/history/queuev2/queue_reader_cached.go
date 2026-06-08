@@ -258,21 +258,20 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 	return backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
 }
 
-// isEnabled returns true if the cache is fully enabled
-func (q *cachedQueueReader) isEnabled() bool { return q.options.Mode() == "enabled" }
-
-// isDisabled returns true for the "disabled" and "off" modes and for any unrecognised value.
-func (q *cachedQueueReader) isDisabled() bool {
-	switch q.options.Mode() {
-	case "enabled":
+// isCachedQueueReaderDisabled reports whether the given mode disables the cached queue reader.
+// "shadow" and "enabled" are active modes; "disabled" and any unrecognised value disable it.
+func isCachedQueueReaderDisabled(mode string) bool {
+	switch mode {
+	case "shadow", "enabled":
 		return false
-	case "off", "disabled":
-		return true
 	default:
-		// Default to disabled for unrecognized modes to
-		// avoid unintended consequences of a bad config value.
 		return true
 	}
+}
+
+// isDisabled returns true for "disabled" and any unrecognised value.
+func (q *cachedQueueReader) isDisabled() bool {
+	return isCachedQueueReaderDisabled(q.options.Mode())
 }
 
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
