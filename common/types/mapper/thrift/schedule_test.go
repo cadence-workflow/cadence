@@ -188,7 +188,15 @@ func TestScheduleActionConversion(t *testing.T) {
 }
 
 func TestSchedulePoliciesConversion(t *testing.T) {
-	for _, item := range []*types.SchedulePolicies{nil, {}, &testdata.SchedulePolicies} {
+	for _, item := range []*types.SchedulePolicies{
+		nil,
+		{},
+		// Pin *int32(0) (explicit "unlimited") round-trips distinctly from nil
+		// ("unset"), the whole point of the *int32 wrappers is keeping
+		// those two states distinguishable end-to-end.
+		{BufferLimit: 0, ConcurrencyLimit: 0},
+		&testdata.SchedulePolicies,
+	} {
 		assert.Equal(t, item, ToSchedulePolicies(FromSchedulePolicies(item)))
 	}
 }

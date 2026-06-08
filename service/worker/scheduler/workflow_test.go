@@ -446,6 +446,26 @@ func TestBuildScheduleDescription(t *testing.T) {
 			state: SchedulerWorkflowState{},
 			want:  &ScheduleDescription{ScheduleID: "sched-new", Domain: "dev"},
 		},
+		{
+			name: "schedule with memo and search attributes",
+			input: SchedulerWorkflowInput{
+				ScheduleID: "sched-sa",
+				Domain:     "test-domain",
+				Memo:       &types.Memo{Fields: map[string][]byte{"k": []byte(`"v"`)}},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"CustomStringField": []byte(`"val"`)},
+				},
+			},
+			state: SchedulerWorkflowState{},
+			want: &ScheduleDescription{
+				ScheduleID: "sched-sa",
+				Domain:     "test-domain",
+				Memo:       &types.Memo{Fields: map[string][]byte{"k": []byte(`"v"`)}},
+				SearchAttributes: &types.SearchAttributes{
+					IndexedFields: map[string][]byte{"CustomStringField": []byte(`"val"`)},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1236,7 +1256,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		wantOverflowReason string
 	}{
 		{
-			name:         "unlimited buffer accepts fire when bufferLimit=0",
+			name:         "unlimited buffer accepts fire when bufferLimit=nil",
 			bufferLimit:  0,
 			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer}},
 			enqueueTime:  t0.Add(time.Minute),
@@ -1536,7 +1556,13 @@ func TestEffectiveBufferLimit(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:       "userLimit=0 (unlimited) yields system limit",
+			name:       "nil userLimit yields system limit",
+			userLimit:  0,
+			wantLimit:  MaxBufferedFiresSystemLimit,
+			wantReason: BufferOverflowReasonSystemLimit,
+		},
+		{
+			name:       "userLimit=0 (explicit unlimited) yields system limit",
 			userLimit:  0,
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
@@ -1601,6 +1627,15 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=0) clears running workflows",
+			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
+			fromLimit:         2,
+			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
+			toLimit:           0,
+			initialRunningWFs: runningWFs,
+			wantNil:           true,
+		},
+		{
+			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=nil) clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
 			fromLimit:         2,
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,

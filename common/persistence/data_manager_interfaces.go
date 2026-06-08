@@ -44,6 +44,7 @@
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/task_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/history_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/domain_generated.go
+//go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/historytaskdlq_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/queue_generated.go
 
 // execution metered wrapper is special
@@ -1785,21 +1786,22 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
-		// GetAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
+		// GetHistoryDLQAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
 		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
-		GetAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
-		// GetTasks returns deserialized tasks from a DLQ partition.
-		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
-		// UpdateAckLevel persists the new ack level for a partition.
-		UpdateAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
-		// DeleteTasks removes tasks up to and including the given key from a DLQ partition.
-		DeleteTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
+		// GetHistoryDLQTasks returns deserialized tasks from a DLQ partition.
+		GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
+		// UpdateHistoryDLQAckLevel persists the new ack level for a partition.
+		UpdateHistoryDLQAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
+		// DeleteHistoryDLQTasks removes tasks up to and including the given key from a DLQ partition.
+		DeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
 	// CreateHistoryDLQTaskRequest is the public request for adding a task to the history DLQ.
 	CreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
+		DomainName            string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		Task                  Task

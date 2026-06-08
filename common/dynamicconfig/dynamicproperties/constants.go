@@ -776,6 +776,12 @@ const (
 	// Default value: 5
 	// Allowed filters: DomainName
 	FrontendFailoverHistoryMaxSize
+	// FrontendMaxFailoverTimeoutInSeconds is the maximum allowed graceful-failover timeout (seconds) accepted on a FailoverDomain request
+	// KeyName: frontend.maxFailoverTimeoutInSeconds
+	// Value type: Int
+	// Default value: 300 (5 minutes)
+	// Allowed filters: DomainName
+	FrontendMaxFailoverTimeoutInSeconds
 
 	// key for matching
 
@@ -2100,7 +2106,7 @@ const (
 	// Can be filtered by domain to enable/disable per domain.
 	// KeyName: worker.enableScheduler
 	// Value type: Bool
-	// Default value: true
+	// Default value: false
 	// Allowed filters: DomainName
 	EnableScheduler
 	// EnableParentClosePolicyWorker decides whether or not enable system workers for processing parent close policy task
@@ -2385,6 +2391,7 @@ const (
 
 	// MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists)
 	// from using the shard manager to handle these shards. These short-lived task lists are assigned using hash_ring.
+	// Read from the primary database-backed operational dynamic config store.
 	// KeyName: matching.excludeShortLivedTaskListsFromShardManager
 	// Value type: Bool
 	// Default value: true
@@ -3229,13 +3236,13 @@ const (
 	// Default value: time.Minute*5
 	// Allowed filters: DomainName
 	NormalDecisionScheduleToStartTimeout
-	// NotifyFailoverMarkerInterval is determines the frequency to notify failover marker
+	// NotifyFailoverMarkerInterval controls the cadence of failover-marker polling and per-host coordinator batch flushes
 	// KeyName: history.NotifyFailoverMarkerInterval
 	// Value type: Duration
 	// Default value: 5s (5*time.Second)
 	// Allowed filters: N/A
 	NotifyFailoverMarkerInterval
-	// ActivityMaxScheduleToStartTimeoutForRetry is maximum value allowed when overwritting the schedule to start timeout for activities with retry policy
+	// ActivityMaxScheduleToStartTimeoutForRetry is maximum value allowed when overwriting the schedule to start timeout for activities with retry policy
 	// KeyName: history.activityMaxScheduleToStartTimeoutForRetry
 	// Value type: Duration
 	// Default value: 30m (30*time.Minute)
@@ -3942,6 +3949,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "FrontendFailoverHistoryMaxSize is the maximum size for the number of failover event records in a domain failover history",
 		DefaultValue: 5,
+	},
+	FrontendMaxFailoverTimeoutInSeconds: {
+		KeyName:      "frontend.maxFailoverTimeoutInSeconds",
+		Filters:      []Filter{DomainName},
+		Description:  "FrontendMaxFailoverTimeoutInSeconds is the maximum allowed graceful-failover timeout (in seconds) accepted on a FailoverDomain request",
+		DefaultValue: 300,
 	},
 	MatchingUserRPS: {
 		KeyName:      "matching.rps",
@@ -5092,7 +5105,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "worker.enableScheduler",
 		Filters:      []Filter{DomainName},
 		Description:  "EnableScheduler decides whether to start the scheduler worker for cron-based scheduling. Can be filtered by domain to enable/disable per domain.",
-		DefaultValue: true,
+		DefaultValue: false,
 	},
 	EnableParentClosePolicyWorker: {
 		KeyName:      "system.enableParentClosePolicyWorker",
@@ -5349,7 +5362,7 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
 		Description:  "EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	EnableTaskListAwareTaskSchedulerByDomain: {
 		KeyName:      "history.enableTaskListAwareTaskSchedulerByDomain",

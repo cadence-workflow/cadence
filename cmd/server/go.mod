@@ -39,7 +39,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20260518100102-6b2ed6e5dde0
+	github.com/uber/cadence-idl v0.0.0-20260608164623-fe524d5381e6
 	github.com/uber/ringpop-go v0.10.0 // indirect
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/valyala/fastjson v1.4.1 // indirect
@@ -52,7 +52,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/thriftrw v1.34.0 // indirect
 	go.uber.org/yarpc v1.88.0 // indirect
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
@@ -67,15 +67,13 @@ require (
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
 	go.uber.org/automaxprocs v1.6.0
-	go.uber.org/mock v0.5.0
+	go.uber.org/mock v0.6.0
 )
 
 require (
 	cloud.google.com/go/auth v0.9.8 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	github.com/IBM/sarama v1.45.2 // indirect
-	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -84,17 +82,14 @@ require (
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/ncruces/go-sqlite3 v0.22.0 // indirect
+	github.com/ncruces/go-sqlite3 v0.23.3 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
-	github.com/tetratelabs/wazero v1.8.2 // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
-	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
-	go.etcd.io/etcd/client/v3 v3.5.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect

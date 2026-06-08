@@ -279,18 +279,18 @@ func (v *SchedulePolicies) GetPauseOnFailure() (o bool) {
 	return
 }
 
-func (v *SchedulePolicies) GetBufferLimit() (o int32) {
+func (v *SchedulePolicies) GetBufferLimit() int32 {
 	if v != nil {
 		return v.BufferLimit
 	}
-	return
+	return 0
 }
 
-func (v *SchedulePolicies) GetConcurrencyLimit() (o int32) {
+func (v *SchedulePolicies) GetConcurrencyLimit() int32 {
 	if v != nil {
 		return v.ConcurrencyLimit
 	}
-	return
+	return 0
 }
 
 // SchedulePauseInfo captures the state of a paused schedule (response-only, server-populated).

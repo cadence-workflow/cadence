@@ -185,8 +185,8 @@ func ToSchedulePolicies(t *apiv1.SchedulePolicies) *types.SchedulePolicies {
 		CatchUpPolicy:    ToScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    durationProtoToDuration(t.CatchUpWindow),
 		PauseOnFailure:   t.PauseOnFailure,
-		BufferLimit:      t.BufferLimit,
-		ConcurrencyLimit: t.ConcurrencyLimit,
+		BufferLimit:      t.GetBufferLimit(),
+		ConcurrencyLimit: t.GetConcurrencyLimit(),
 	}
 }
 

@@ -437,7 +437,8 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 			state.BufferedFires = nil
 		}
 		// Drop running-workflow tracking when leaving bounded CONCURRENT: the
-		// list is meaningless under any other policy or when limit becomes 0.
+		// list is meaningless under any other policy or when the new limit is
+		// unbounded (0 = unlimited).
 		newOverlap := input.Policies.OverlapPolicy
 		newLimit := input.Policies.ConcurrencyLimit
 		if previousOverlap == types.ScheduleOverlapPolicyConcurrent &&
@@ -655,7 +656,7 @@ func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *Scheduler
 // effectiveBufferLimit returns the queue cap actually enforced for the BUFFER
 // overlap policy and the reason tag value to attribute drops at that cap.
 //
-//   - userLimit == 0 (unlimited): returns the system limit, reason=system_limit.
+//   - userLimit == 0 (no user limit): returns the system limit, reason=system_limit.
 //   - 0 < userLimit <= system limit: returns userLimit, reason=user_limit.
 //   - userLimit > system limit: returns the system limit, reason=system_limit
 //     (the user's limit cannot be honored without risking ContinueAsNew payload bloat).
@@ -964,19 +965,21 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 // configuration and runtime state for the describe query handler.
 func buildScheduleDescription(input *SchedulerWorkflowInput, state *SchedulerWorkflowState) *ScheduleDescription {
 	return &ScheduleDescription{
-		ScheduleID:  input.ScheduleID,
-		Domain:      input.Domain,
-		Spec:        input.Spec,
-		Action:      input.Action,
-		Policies:    input.Policies,
-		Paused:      state.Paused,
-		PauseReason: state.PauseReason,
-		PausedBy:    state.PausedBy,
-		LastRunTime: state.LastRunTime,
-		NextRunTime: state.NextRunTime,
-		TotalRuns:   state.TotalRuns,
-		MissedRuns:  state.MissedRuns,
-		SkippedRuns: state.SkippedRuns,
+		ScheduleID:       input.ScheduleID,
+		Domain:           input.Domain,
+		Spec:             input.Spec,
+		Action:           input.Action,
+		Policies:         input.Policies,
+		Paused:           state.Paused,
+		PauseReason:      state.PauseReason,
+		PausedBy:         state.PausedBy,
+		LastRunTime:      state.LastRunTime,
+		NextRunTime:      state.NextRunTime,
+		TotalRuns:        state.TotalRuns,
+		MissedRuns:       state.MissedRuns,
+		SkippedRuns:      state.SkippedRuns,
+		Memo:             input.Memo,
+		SearchAttributes: input.SearchAttributes,
 	}
 }
 

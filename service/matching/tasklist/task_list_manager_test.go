@@ -88,7 +88,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 		dynamicClient:      dynamicClient,
 	}
 	deps.mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return("domainName", nil).Times(1)
-	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), "hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	config := config.NewConfig(dynamicconfig.NewCollection(dynamicClient, logger), dynamicconfig.NewNopCollection(), "hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	mockHistoryService := history.NewMockClient(ctrl)
 	mockRegistry := NewMockTaskListRegistry(ctrl)
 	mockRegistry.EXPECT().Unregister(gomock.Any()).AnyTimes()
@@ -114,7 +114,7 @@ func setupMocksForTaskListManager(t *testing.T, taskListID *Identifier, taskList
 }
 
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 	config.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(1)
 	config.AllIsolationGroups = getIsolationgroupsHelper
@@ -497,7 +497,7 @@ func TestQueriesPerSecond(t *testing.T) {
 func TestCheckIdleTaskList(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	idleInterval := 100 * time.Millisecond
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(idleInterval)
 
 	t.Run("Idle task-list", func(t *testing.T) {
@@ -591,7 +591,7 @@ func TestAddTaskStandby(t *testing.T) {
 	controller := gomock.NewController(t)
 	logger := testlogger.New(t)
 
-	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
+	cfg := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationgroupsHelper)
 	cfg.IdleTasklistCheckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, logger, controller, cfg, clock.NewMockedTimeSource())

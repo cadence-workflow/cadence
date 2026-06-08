@@ -39,7 +39,6 @@ import (
 	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -92,9 +91,6 @@ type (
 		// Shard distributor is used to distribute shards across multiple cadence service instances
 		// Note: This is not recommended for use, it's still experimental
 		ShardDistributorClient ShardDistributorClient `yaml:"shardDistributorClient"`
-
-		// ShardDistribution is a config for the shard distributor leader election component that allows to run a single process per region and manage shard namespaces.
-		ShardDistribution sdconfig.ShardDistribution `yaml:"shardDistribution"`
 
 		// ShardDistributorMatchingConfig is the config for shard distributor executor client in matching service
 		ShardDistributorMatchingConfig clientcommon.Config `yaml:"shard-distributor-matching"`

@@ -62,8 +62,6 @@ $(BUILD)/proto-lint:
 $(BUILD)/gomod-lint:
 $(BUILD)/goversion-lint:
 $(BUILD)/fmt: $(BUILD)/codegen # formatting must occur only after all other go-file-modifications are done
-# $(BUILD)/copyright
-# $(BUILD)/copyright: $(BUILD)/codegen # must add copyright to generated code, sometimes needs re-formatting
 $(BUILD)/codegen: $(BUILD)/thrift $(BUILD)/protoc
 $(BUILD)/thrift: $(BUILD)/go_mod_check
 $(BUILD)/protoc: $(BUILD)/go_mod_check
@@ -79,6 +77,10 @@ $(BUILD)/go_mod_check:
 null  :=
 SPACE := $(null) #
 COMMA := ,
+define NEWLINE
+
+
+endef
 
 # set a V=1 env var for verbose output. V=0 (or unset) disables.
 # this is used to make two verbose flags:
@@ -111,6 +113,18 @@ EMULATE_X86 = arch -x86_64
 endif
 
 PROJECT_ROOT = github.com/uber/cadence
+
+# go submodules only, the top-level go.mod is easy enough to type by hand
+SUBMODULE_PATHS = $(shell \
+	find . \
+		-type f \
+		-name "go.mod" \
+		-not -path "./go.mod" \
+		-not -path "./idls/*" \
+		-exec dirname {} \; \
+	| sed 's|^\./||' \
+)
+SUBMODULE_FILES = $(foreach MOD,$(SUBMODULE_PATHS),$(MOD)/go.mod)
 
 # helper for executing bins that need other bins, just `$(BIN_PATH) the_command ...`
 # I'd recommend not exporting this in general, to reduce the chance of accidentally using non-versioned tools.
@@ -187,7 +201,7 @@ $(BIN)/mockgen: internal/tools/go.mod go.work
 	$(call go_build_tool,go.uber.org/mock/mockgen)
 
 $(BIN)/mockery: internal/tools/go.mod go.work
-	$(call go_build_tool,github.com/vektra/mockery/v2,mockery)
+	$(call go_build_tool,github.com/vektra/mockery/v3,mockery)
 
 $(BIN)/enumer: internal/tools/go.mod go.work
 	$(call go_build_tool,github.com/dmarkham/enumer)
@@ -219,10 +233,6 @@ $(BUILD)/go_mod_check: go.mod internal/tools/go.mod go.work
 	$Q # generated == used is occasionally important for gomock / mock libs in general.  this is not a definite problem if violated though.
 	$Q ./scripts/check-gomod-version.sh github.com/golang/mock/gomock $(if $(verbose),-v)
 	$Q touch $@
-
-# copyright header checker/writer.  only requires stdlib, so no other dependencies are needed.
-# $(BIN)/copyright: cmd/tools/copyright/licensegen.go
-# 	$Q go build -o $@ ./cmd/tools/copyright/licensegen.go
 
 # https://docs.buf.build/
 # changing BUF_VERSION will automatically download and use the specified version.
@@ -376,12 +386,11 @@ $(BUILD)/proto-lint: $(PROTO_FILES) $(STABLE_BIN)/$(BUF_VERSION_BIN) | $(BUILD)
 
 # lints that go modules are as expected, e.g. parent does not import submodule.
 # tool builds that need to be in sync with the parent are partially checked through go_mod_build_tool, but should probably be checked here too
-$(BUILD)/gomod-lint: go.mod internal/tools/go.mod common/archiver/gcloud/go.mod | $(BUILD)
+$(BUILD)/gomod-lint: go.mod  $(SUBMODULE_FILES) | $(BUILD)
 	$Q echo "checking for direct submodule dependencies in root go.mod..."
 	$Q ( \
 		MAIN_MODULE=$$(grep "^module " go.mod | awk '{print $$2}'); \
-		SUBMODULES=$$(find . -type f -name "go.mod" -not -path "./go.mod" -not -path "./idls/*" -not -path "./.worktrees/*" -exec dirname {} \; | sed 's|^\./||'); \
-		for submodule in $$SUBMODULES; do \
+		for submodule in $(SUBMODULE_PATHS); do \
 			submodule_path="$$MAIN_MODULE/$$submodule"; \
 			if grep -q "$$submodule_path" go.mod; then \
 				echo "ERROR: Root go.mod directly depends on submodule: $$submodule_path" >&2; \
@@ -416,19 +425,6 @@ $(BUILD)/goversion-lint: go.work Dockerfile docker/github_actions/Dockerfile${DO
 	$Q ./scripts/check-go-toolchain.sh $(GOWORK_TOOLCHAIN)
 	$Q touch $@
 
-# fmt and copyright are mutually cyclic with their inputs, so if a copyright header is modified:
-# - copyright -> makes changes
-# - fmt sees changes -> makes changes
-# - now copyright thinks it needs to run again (but does nothing)
-# - which means fmt needs to run again (but does nothing)
-# and now after two passes it's finally stable, because they stopped making changes.
-#
-# this is not fatal, we can just run 2x.
-# to be fancier though, we can detect when *both* are run, and re-touch the book-keeping files to prevent the second run.
-# this STRICTLY REQUIRES that `copyright` and `fmt` are mutually stable, and that copyright runs before fmt.
-# if either changes, this will need to change.
-MAYBE_TOUCH_COPYRIGHT=
-
 # use FRESH_ALL_SRC so it won't miss any generated files produced earlier.
 $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "removing unused imports..."
@@ -437,12 +433,6 @@ $(BUILD)/fmt: $(ALL_SRC) $(BIN)/goimports $(BIN)/gci | $(BUILD)
 	$Q echo "grouping imports..."
 	$Q echo $(FRESH_ALL_SRC) | xargs $(BIN)/gci write --section standard --section 'Prefix(github.com/uber/cadence/)' --section default --section blank
 	$Q touch $@
-# 	$Q $(MAYBE_TOUCH_COPYRIGHT)
-
-# $(BUILD)/copyright: $(ALL_SRC) $(BIN)/copyright | $(BUILD)
-# 	$(BIN)/copyright --verifyOnly
-# 	$Q $(eval MAYBE_TOUCH_COPYRIGHT=touch $@)
-# 	$Q touch $@
 
 # ====================================
 # developer-oriented targets
@@ -459,7 +449,7 @@ $Q rm -f $(addprefix $(BUILD)/,$(1))
 $Q +$(MAKE) --no-print-directory $(addprefix $(BUILD)/,$(1))
 endef
 
-.PHONY: lint fmt copyright pr
+.PHONY: lint fmt pr mockery
 
 # useful to actually re-run to get output again.
 # reuse the intermediates for simplicity and consistency.
@@ -469,10 +459,9 @@ lint: ## (Re)run the linter
 # intentionally not re-making, it's a bit slow and it's clear when it's unnecessary
 fmt: $(BUILD)/fmt ## Run `gofmt` / organize imports / etc
 
-# not identical to the intermediate target, but does provide the same codegen (or more).
-# copyright: $(BIN)/copyright | $(BUILD) ## Update copyright headers
-# 	$(BIN)/copyright
-# 	$Q touch $(BUILD)/copyright
+mockery: $(BIN)/mockery
+	$Q $(BIN)/mockery
+	$Q $(call remake,fmt)
 
 define make_quietly
 $Q echo "make $1..."
@@ -489,7 +478,6 @@ pr: ## Redo all codegen and basic checks, to ensure your PR will be able to run 
 	$Q $(if $(verbose),$(MAKE) go-generate $(GO_GENERATE_MAKE_ARG),$(call make_quietly,go-generate $(GO_GENERATE_MAKE_ARG)))
 	$Q $(if $(verbose),$(MAKE) fmt,$(call make_quietly,fmt))
 	$Q $(if $(verbose),$(MAKE) lint,$(call make_quietly,lint))
-# 	$Q $(if $(verbose),$(MAKE) copyright,$(call make_quietly,copyright))
 
 # ====================================
 # binaries to build
@@ -548,7 +536,7 @@ cadence-bench: $(BINS_DEPEND_ON)
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/bench/main.go
 
 
-BINS  += cadence-releaser
+BINS += cadence-releaser
 cadence-releaser: $(BINS_DEPEND_ON)
 	$Q echo "compiling cadence-releaser with OS: $(GOOS), ARCH: $(GOARCH)"
 	$Q ./scripts/build-with-ldflags.sh -o $@ cmd/tools/releaser/releaser.go
@@ -560,12 +548,12 @@ bins: $(BINS) ## Build all binaries, and any fast codegen needed (does not refre
 tools: $(TOOLS)
 
 go-generate: $(BIN)/mockgen $(BIN)/enumer $(BIN)/mockery  $(BIN)/gowrap ## Run `go generate` to regen mocks, enums, etc
-	$Q echo "running go generate $(GO_GENERATE_SCOPE), this takes a minute or more..."
+	$Q echo "running mockery..."
+	$Q $(BIN)/mockery --log-level error
+	$Q echo "running go generate ./..., this takes a few minutes..."
 	$Q # add our bins to PATH so `go generate` can find them
 	$Q $(BIN_PATH) go generate $(if $(verbose),-v) $(GO_GENERATE_SCOPE)
 	$Q $(MAKE) --no-print-directory fmt
-# 	$Q echo "updating copyright headers"
-# 	$Q $(MAKE) --no-print-directory copyright
 
 release: ## Re-generate generated code and run tests
 	$(MAKE) --no-print-directory go-generate
@@ -584,15 +572,21 @@ build: ## `go build` all packages and tests (a quick compile check only, skips a
 	$Q cd cmd/server; go test -exec /usr/bin/true ./... >/dev/null
 
 tidy: ## `go mod tidy` all packages
-	$Q # tidy in dependency order
+	$Q # tidy needs to run in dependency order:
+	$Q # everything depends on the main module, server depends on everything else so it should be last.
+	$Q # but we can just tidy everything 2x, which should be stable as our dependency tree is only 2 deep.
 	$Q go mod tidy
-	$Q cd common/archiver/gcloud; go mod tidy || (echo "failed to tidy gcloud plugin, try manually copying go.mod contents into common/archiver/gcloud/go.mod and rerunning" >&2; exit 1)
-	$Q cd cmd/server; go mod tidy || (echo "failed to tidy main server module, try manually copying go.mod and common/archiver/gcloud/go.mod contents into cmd/server/go.mod and rerunning" >&2; exit 1)
+	$Q $(foreach sub,$(SUBMODULE_PATHS), \
+		$Q cd $(sub); go mod tidy || $$(>&2 echo "failed to tidy $(sub) plugin, try manually copying go.mod contents into $(sub)/go.mod and rerunning by hand"; exit 1)$(NEWLINE) \
+	)
+	$Q $(foreach sub,$(SUBMODULE_PATHS), \
+		$Q cd $(sub); go mod tidy || $$(>&2 echo "failed to tidy $(sub) plugin, try manually copying go.mod contents into $(sub)/go.mod and rerunning by hand"; exit 1)$(NEWLINE) \
+	)
 
 clean: ## Clean build products and SQLite database
 	rm -f $(BINS)
 	rm -Rf $(BUILD)
-	rm *.db
+	rm -f *.db
 	$(if \
 		$(wildcard $(STABLE_BIN)/*), \
 		$(warning usually-stable build tools still exist, delete the $(STABLE_BIN) folder to rebuild them),)
@@ -644,7 +638,6 @@ INTEG_COVER_FILE                := $(COVER_ROOT)/integ_$(PERSISTENCE_TYPE)_$(PER
 INTEG_COVER_FILE_CASS           := $(COVER_ROOT)/integ_cassandra__cover.out
 INTEG_COVER_FILE_MYSQL          := $(COVER_ROOT)/integ_sql_mysql_cover.out
 INTEG_COVER_FILE_POSTGRES       := $(COVER_ROOT)/integ_sql_postgres_cover.out
-INTEG_COVER_FILE_ETCD           := $(COVER_ROOT)/integ_etcd_cover.out
 
 INTEG_NDC_COVER_FILE            := $(COVER_ROOT)/integ_ndc_$(PERSISTENCE_TYPE)_$(PERSISTENCE_PLUGIN)_cover.out
 INTEG_NDC_COVER_FILE_CASS       := $(COVER_ROOT)/integ_ndc_cassandra__cover.out
@@ -713,20 +706,6 @@ cover_integration_profile:
 	$Q time go test $(INTEG_TEST_ROOT) $(TEST_ARG) $(TEST_TAG) -persistenceType=$(PERSISTENCE_TYPE) -sqlPluginName=$(PERSISTENCE_PLUGIN) $(GOCOVERPKG_ARG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1;
 	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE)
 
-integration_tests_etcd:
-	$Q mkdir -p $(BUILD)
-	$Q mkdir -p $(COVER_ROOT)
-	$Q echo "mode: atomic" > $(INTEG_COVER_FILE_ETCD)
-
-	$Q echo "Running integration tests with etcd"
-	$Q mkdir -p $(BUILD)/$(INTEG_TEST_DIR)
-	$Q (ETCD_TEST_DIRS=$$(find . -name "*_test.go" -exec grep -l "testhelper.SetupStoreTestCluster\|testflags.RequireEtcd" {} \; | xargs -n1 dirname | sort | uniq); \
-		echo "Found etcd test directories:"; \
-		echo "$$ETCD_TEST_DIRS"; \
-		echo "Using ETCD_ENDPOINTS='$(ETCD_ENDPOINTS)'"; \
-		ETCD=1 ETCD_ENDPOINTS="$(ETCD_ENDPOINTS)" time go test $$ETCD_TEST_DIRS $(TEST_ARG) $(TEST_TAG) -coverprofile=$(BUILD)/$(INTEG_TEST_DIR)/coverage.out || exit 1)
-	$Q cat $(BUILD)/$(INTEG_TEST_DIR)/coverage.out | grep -v "^mode: \w\+" >> $(INTEG_COVER_FILE_ETCD)
-
 cover_ndc_profile:
 	$Q mkdir -p $(BUILD)
 	$Q mkdir -p $(COVER_ROOT)
@@ -746,7 +725,6 @@ $(COVER_ROOT)/cover.out: $(UNIT_COVER_FILE) $(INTEG_COVER_FILE_CASS) $(INTEG_COV
 	cat $(INTEG_NDC_COVER_FILE_CASS) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 	cat $(INTEG_NDC_COVER_FILE_MYSQL) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 	cat $(INTEG_NDC_COVER_FILE_POSTGRES) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
-	cat $(INTEG_COVER_FILE_ETCD) | grep -v "^mode: \w\+" | grep -vP ".gen|_generated|[Mm]ock[s]?" >> $(COVER_ROOT)/cover.out
 
 cover: $(COVER_ROOT)/cover.out
 	go tool cover -html=$(COVER_ROOT)/cover.out;

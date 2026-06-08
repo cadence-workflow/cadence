@@ -146,6 +146,7 @@ type SchedulerWorkflowInput struct {
 	Action           types.ScheduleAction    `json:"action"`
 	Policies         types.SchedulePolicies  `json:"policies"`
 	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	Memo             *types.Memo             `json:"memo,omitempty"`
 	State            SchedulerWorkflowState  `json:"state"`
 }
 
@@ -238,19 +239,21 @@ type BackfillSignal struct {
 // ScheduleDescription is the query result returned by the describe query handler.
 // It provides a snapshot of the schedule's current configuration and runtime state.
 type ScheduleDescription struct {
-	ScheduleID  string                 `json:"scheduleId"`
-	Domain      string                 `json:"domain"`
-	Spec        types.ScheduleSpec     `json:"spec"`
-	Action      types.ScheduleAction   `json:"action"`
-	Policies    types.SchedulePolicies `json:"policies"`
-	Paused      bool                   `json:"paused"`
-	PauseReason string                 `json:"pauseReason,omitempty"`
-	PausedBy    string                 `json:"pausedBy,omitempty"`
-	LastRunTime time.Time              `json:"lastRunTime,omitempty"`
-	NextRunTime time.Time              `json:"nextRunTime,omitempty"`
-	TotalRuns   int64                  `json:"totalRuns"`
-	MissedRuns  int64                  `json:"missedRuns"`
-	SkippedRuns int64                  `json:"skippedRuns"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Domain           string                  `json:"domain"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	Paused           bool                    `json:"paused"`
+	PauseReason      string                  `json:"pauseReason,omitempty"`
+	PausedBy         string                  `json:"pausedBy,omitempty"`
+	LastRunTime      time.Time               `json:"lastRunTime,omitempty"`
+	NextRunTime      time.Time               `json:"nextRunTime,omitempty"`
+	TotalRuns        int64                   `json:"totalRuns"`
+	MissedRuns       int64                   `json:"missedRuns"`
+	SkippedRuns      int64                   `json:"skippedRuns"`
+	Memo             *types.Memo             `json:"memo,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 // TriggerSource identifies what caused a schedule fire, used to differentiate
@@ -290,7 +293,9 @@ type ProcessFireRequest struct {
 	TriggerSource       TriggerSource               `json:"triggerSource"`
 	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
-	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit; 0 = unlimited.
+	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit:
+	//   0 = unlimited (use server default)
+	//   N = capped at N concurrent runs
 	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
 	// RunningWorkflows is the current in-flight set from workflow state; used
 	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
