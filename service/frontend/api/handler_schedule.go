@@ -335,6 +335,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			LastRunTime: desc.LastRunTime,
 			NextRunTime: desc.NextRunTime,
 			TotalRuns:   desc.TotalRuns,
+			MissedRuns:  desc.MissedRuns,
+			SkippedRuns: desc.SkippedRuns,
 		},
 		Memo:             desc.Memo,
 		SearchAttributes: desc.SearchAttributes,

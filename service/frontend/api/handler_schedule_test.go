@@ -422,6 +422,8 @@ func TestDescribeSchedule(t *testing.T) {
 		PauseReason: "maintenance",
 		PausedBy:    "admin",
 		TotalRuns:   42,
+		MissedRuns:  5,
+		SkippedRuns: 3,
 		Memo:        &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
 		SearchAttributes: &types.SearchAttributes{
 			IndexedFields: map[string][]byte{"CustomIntField": []byte(`7`)},
@@ -764,6 +766,8 @@ func TestDescribeSchedule(t *testing.T) {
 				assert.Equal(t, "maintenance", resp.State.PauseInfo.Reason)
 				assert.Equal(t, "admin", resp.State.PauseInfo.PausedBy)
 				assert.Equal(t, int64(42), resp.Info.TotalRuns)
+				assert.Equal(t, int64(5), resp.Info.MissedRuns)
+				assert.Equal(t, int64(3), resp.Info.SkippedRuns)
 				require.NotNil(t, resp.Memo)
 				assert.Equal(t, []byte(`"sm"`), resp.Memo.Fields["schedMemo"])
 				require.NotNil(t, resp.SearchAttributes)
