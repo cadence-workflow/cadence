@@ -529,13 +529,13 @@ func TestHandlePause(t *testing.T) {
 
 func TestHandleUnpause(t *testing.T) {
 	tests := []struct {
-		name                  string
-		initial               SchedulerWorkflowState
-		sig                   UnpauseSignal
-		wantPaused            bool
-		wantReason            string
-		wantPausedBy          string
-		wantChanged           bool
+		name                     string
+		initial                  SchedulerWorkflowState
+		sig                      UnpauseSignal
+		wantPaused               bool
+		wantReason               string
+		wantPausedBy             string
+		wantChanged              bool
 		wantUnpauseCatchUpPolicy types.ScheduleCatchUpPolicy
 	}{
 		{
@@ -557,25 +557,25 @@ func TestHandleUnpause(t *testing.T) {
 			wantChanged:  false,
 		},
 		{
-			name:    "unpause with CatchUpPolicyOne stores override in state",
-			initial: SchedulerWorkflowState{Paused: true},
-			sig:     UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
+			name:                     "unpause with CatchUpPolicyOne stores override in state",
+			initial:                  SchedulerWorkflowState{Paused: true},
+			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
 			wantPaused:               false,
 			wantChanged:              true,
 			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne,
 		},
 		{
-			name:    "unpause with CatchUpPolicySkip stores override in state",
-			initial: SchedulerWorkflowState{Paused: true},
-			sig:     UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+			name:                     "unpause with CatchUpPolicySkip stores override in state",
+			initial:                  SchedulerWorkflowState{Paused: true},
+			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
 			wantPaused:               false,
 			wantChanged:              true,
 			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicySkip,
 		},
 		{
-			name:    "unpause with Invalid policy does not set override",
-			initial: SchedulerWorkflowState{Paused: true},
-			sig:     UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyInvalid},
+			name:                     "unpause with Invalid policy does not set override",
+			initial:                  SchedulerWorkflowState{Paused: true},
+			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyInvalid},
 			wantPaused:               false,
 			wantChanged:              true,
 			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyInvalid,
@@ -1089,7 +1089,7 @@ func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
 	sched := mustParseCron(t, "* * * * *")
 	scope := tally.NewTestScope("", nil)
 	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
 		Policies: types.SchedulePolicies{
 			// No CatchUpPolicy at creation (Invalid → skip all).
 			// The unpause override in state must take priority.
