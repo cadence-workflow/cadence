@@ -167,6 +167,7 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 		// this means there are no tasks to process, so the lag is 0
 		oldestUnprocessedTaskID = t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID()
 		oldestUnprocessedTaskTimestamp = t.timeSource.Now().UnixNano()
+		msgs.LastRetrievedMessageID = oldestUnprocessedTaskID
 	}
 
 	lagRaw := int(t.ackLevels.UpdateIfNeededAndGetQueueMaxReadLevel(persistence.HistoryTaskCategoryReplication, pollingCluster).GetTaskID() - oldestUnprocessedTaskID)
