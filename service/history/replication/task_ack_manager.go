@@ -211,12 +211,12 @@ func (t *TaskAckManager) getTasks(ctx context.Context, pollingCluster string, la
 
 	tasksReturned := len(msgs.ReplicationTasks)
 	t.scope.RecordTimer(metrics.ReplicationTasksReturned, time.Duration(tasksReturned))
-	t.scope.RecordHistogramValue(metrics.ReplicationTasksReturnedHistogram, float64(tasksReturned))
+	t.scope.UpdateGauge(metrics.ReplicationTasksReturnedGauge, float64(tasksReturned))
 	t.scope.AddCounter(metrics.ReplicationTasksReturnedCounter, int64(tasksReturned))
 
 	tasksReturnedDiff := len(taskInfos) - len(msgs.ReplicationTasks)
 	t.scope.RecordTimer(metrics.ReplicationTasksReturnedDiff, time.Duration(tasksReturnedDiff))
-	t.scope.RecordHistogramValue(metrics.ReplicationTasksReturnedDiffHistogram, float64(tasksReturnedDiff))
+	t.scope.UpdateGauge(metrics.ReplicationTasksReturnedDiffGauge, float64(tasksReturnedDiff))
 	t.scope.AddCounter(metrics.ReplicationTasksReturnedDiffCounter, int64(tasksReturnedDiff))
 
 	t.ackLevel(pollingCluster, lastReadTaskID)
