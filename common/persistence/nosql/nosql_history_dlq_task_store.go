@@ -42,12 +42,12 @@ func newNoSQLHistoryDLQTaskStore(
 	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.HistoryDLQTaskStore, error) {
-	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, false)
 	if err != nil {
 		return nil, err
 	}
 	return &nosqlHistoryDLQTaskStore{
-		shardedNosqlStore: s,
+		shardedNosqlStore: shardedStore,
 	}, nil
 }
 

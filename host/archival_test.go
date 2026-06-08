@@ -199,14 +199,22 @@ func (s *IntegrationSuite) isHistoryDeleted(domainID string, execution *types.Wo
 }
 
 func (s *IntegrationSuite) isMutableStateDeleted(domainID string, execution *types.WorkflowExecution) bool {
+	shardID := common.WorkflowIDToHistoryShard(execution.WorkflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
+	executionManager, err := s.TestCluster.testBase.ExecutionMgrFactory.NewExecutionManager(shardID)
+	if err != nil {
+		s.NoError(err)
+		return false
+	}
+
 	request := &persistence.GetWorkflowExecutionRequest{
 		DomainID:  domainID,
 		Execution: *execution,
+		ShardID:   common.IntPtr(shardID),
 	}
 
 	for i := 0; i < retryLimit; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
-		_, err := s.TestCluster.testBase.ExecutionManager.GetWorkflowExecution(ctx, request)
+		_, err := executionManager.GetWorkflowExecution(ctx, request)
 		cancel()
 		if _, ok := err.(*types.EntityNotExistsError); ok {
 			return true

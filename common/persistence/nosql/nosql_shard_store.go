@@ -52,7 +52,7 @@ func newNoSQLShardStore(
 	dc *persistence.DynamicConfiguration,
 	parser serialization.Parser,
 ) (persistence.ShardStore, error) {
-	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, true)
 	if err != nil {
 		return nil, err
 	}

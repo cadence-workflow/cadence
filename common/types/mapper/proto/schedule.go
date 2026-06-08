@@ -171,8 +171,8 @@ func FromSchedulePolicies(t *types.SchedulePolicies) *apiv1.SchedulePolicies {
 		CatchUpPolicy:    FromScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    durationToDurationProto(t.CatchUpWindow),
 		PauseOnFailure:   t.PauseOnFailure,
-		BufferLimit:      fromInt32Value(t.BufferLimit),
-		ConcurrencyLimit: fromInt32Value(t.ConcurrencyLimit),
+		BufferLimit:      t.BufferLimit,
+		ConcurrencyLimit: t.ConcurrencyLimit,
 	}
 }
 
@@ -185,8 +185,8 @@ func ToSchedulePolicies(t *apiv1.SchedulePolicies) *types.SchedulePolicies {
 		CatchUpPolicy:    ToScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    durationProtoToDuration(t.CatchUpWindow),
 		PauseOnFailure:   t.PauseOnFailure,
-		BufferLimit:      toInt32Value(t.BufferLimit),
-		ConcurrencyLimit: toInt32Value(t.ConcurrencyLimit),
+		BufferLimit:      t.GetBufferLimit(),
+		ConcurrencyLimit: t.GetConcurrencyLimit(),
 	}
 }
 

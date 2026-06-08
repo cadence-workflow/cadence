@@ -26,7 +26,6 @@ import (
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/testutils"
 	"github.com/uber/cadence/common/types/testdata"
@@ -51,15 +50,7 @@ func TestScheduleAction(t *testing.T) {
 }
 
 func TestSchedulePolicies(t *testing.T) {
-	for _, item := range []*types.SchedulePolicies{
-		nil,
-		{},
-		// Pin *int32(0) (explicit "unlimited") round-trips distinctly from nil
-		// ("unset"), the whole point of the *int32 wrappers is keeping
-		// those two states distinguishable end-to-end.
-		{BufferLimit: common.Int32Ptr(0), ConcurrencyLimit: common.Int32Ptr(0)},
-		&testdata.SchedulePolicies,
-	} {
+	for _, item := range []*types.SchedulePolicies{nil, {}, &testdata.SchedulePolicies} {
 		assert.Equal(t, item, ToSchedulePolicies(FromSchedulePolicies(item)))
 	}
 }

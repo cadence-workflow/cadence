@@ -36,7 +36,6 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/constants"
@@ -287,7 +286,7 @@ func TestCreateSchedule(t *testing.T) {
 				},
 				Policies: &types.SchedulePolicies{
 					OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-					BufferLimit:   common.Int32Ptr(int32(scheduler.MaxBufferedFiresSystemLimit * 2)),
+					BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
 				},
 			},
 			mockFn: func(f *scheduleTestFixture) {
@@ -1635,24 +1634,24 @@ func TestWarnIfBufferLimitExceedsSystemLimit_NilSafe(t *testing.T) {
 	}{
 		{name: "nil policies", policies: nil},
 		{
-			name: "Buffer policy with nil BufferLimit",
+			name: "Buffer policy with zero BufferLimit",
 			policies: &types.SchedulePolicies{
 				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-				BufferLimit:   nil,
+				BufferLimit:   0,
 			},
 		},
 		{
 			name: "non-Buffer policy with BufferLimit set",
 			policies: &types.SchedulePolicies{
 				OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
-				BufferLimit:   common.Int32Ptr(int32(scheduler.MaxBufferedFiresSystemLimit * 2)),
+				BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
 			},
 		},
 		{
 			name: "Buffer policy with BufferLimit under system limit",
 			policies: &types.SchedulePolicies{
 				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-				BufferLimit:   common.Int32Ptr(1),
+				BufferLimit:   1,
 			},
 		},
 	}

@@ -23,7 +23,6 @@ package scheduler
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -397,15 +396,6 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
-// formatOptionalInt32 renders a *int32 for log fields, printing "<nil>" when
-// unset so logs distinguish "no user value" from "explicit 0".
-func formatOptionalInt32(v *int32) string {
-	if v == nil {
-		return "<nil>"
-	}
-	return strconv.FormatInt(int64(*v), 10)
-}
-
 func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil && sig.SearchAttributes == nil {
 		logger.Info("ignoring empty update signal")
@@ -448,17 +438,16 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		}
 		// Drop running-workflow tracking when leaving bounded CONCURRENT: the
 		// list is meaningless under any other policy or when the new limit is
-		// unbounded (nil = unset, *int32(0) = explicit unlimited).
+		// unbounded (0 = unlimited).
 		newOverlap := input.Policies.OverlapPolicy
 		newLimit := input.Policies.ConcurrencyLimit
-		newLimitIsUnbounded := newLimit == nil || *newLimit == 0
 		if previousOverlap == types.ScheduleOverlapPolicyConcurrent &&
-			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimitIsUnbounded) &&
+			(newOverlap != types.ScheduleOverlapPolicyConcurrent || newLimit == 0) &&
 			len(state.RunningWorkflows) > 0 {
 			logger.Warn("policy change cleared running workflows tracking",
 				zap.String("from", previousOverlap.String()),
 				zap.String("to", newOverlap.String()),
-				zap.String("newLimit", formatOptionalInt32(newLimit)),
+				zap.Int32("newLimit", newLimit),
 				zap.Int("clearedCount", len(state.RunningWorkflows)))
 			state.RunningWorkflows = nil
 		}
@@ -646,7 +635,7 @@ func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *Scheduler
 			zap.Time("scheduledTime", scheduledTime),
 			zap.String("reason", reason),
 			zap.Int("effectiveLimit", effective),
-			zap.String("userBufferLimit", formatOptionalInt32(input.Policies.BufferLimit)),
+			zap.Int32("userBufferLimit", input.Policies.BufferLimit),
 			zap.Int("systemLimit", MaxBufferedFiresSystemLimit),
 			zap.Int("bufferSize", len(state.BufferedFires)),
 		)
@@ -667,31 +656,27 @@ func enqueueBufferedFire(logger *zap.Logger, scope tally.Scope, input *Scheduler
 // effectiveBufferLimit returns the queue cap actually enforced for the BUFFER
 // overlap policy and the reason tag value to attribute drops at that cap.
 //
-//   - userLimit == nil (unset): returns the system limit, reason=system_limit.
-//   - userLimit == 0 (unlimited): returns the system limit, reason=system_limit.
-//   - 0 < *userLimit <= system limit: returns *userLimit, reason=user_limit.
-//   - *userLimit > system limit: returns the system limit, reason=system_limit
+//   - userLimit == 0 (no user limit): returns the system limit, reason=system_limit.
+//   - 0 < userLimit <= system limit: returns userLimit, reason=user_limit.
+//   - userLimit > system limit: returns the system limit, reason=system_limit
 //     (the user's limit cannot be honored without risking ContinueAsNew payload bloat).
-func effectiveBufferLimit(userLimit *int32) (effective int, reason string) {
-	if userLimit == nil || *userLimit <= 0 || int(*userLimit) > MaxBufferedFiresSystemLimit {
+func effectiveBufferLimit(userLimit int32) (effective int, reason string) {
+	if userLimit <= 0 || int(userLimit) > MaxBufferedFiresSystemLimit {
 		return MaxBufferedFiresSystemLimit, BufferOverflowReasonSystemLimit
 	}
-	return int(*userLimit), BufferOverflowReasonUserLimit
+	return int(userLimit), BufferOverflowReasonUserLimit
 }
 
 // effectiveConcurrencyLimit returns the concurrency cap enforced for the bounded
 // CONCURRENT overlap policy. Values above the system ceiling are silently clamped
 // so RunningWorkflows never grows large enough to bloat the ContinueAsNew payload
-// toward Cadence's BlobSizeLimitError (default 2MB). Only called when userLimit is
-// non-nil and > 0 (i.e., isBoundedConcurrent is true).
-func effectiveConcurrencyLimit(userLimit *int32) int32 {
-	if userLimit == nil {
-		return 0
-	}
-	if *userLimit > MaxConcurrencyLimitSystemLimit {
+// toward Cadence's BlobSizeLimitError (default 2MB). Only called when userLimit > 0
+// (i.e., isBoundedConcurrent is true).
+func effectiveConcurrencyLimit(userLimit int32) int32 {
+	if userLimit > MaxConcurrencyLimitSystemLimit {
 		return MaxConcurrencyLimitSystemLimit
 	}
-	return *userLimit
+	return userLimit
 }
 
 // drainBufferedFires executes queued fires in FIFO order, stopping as soon as

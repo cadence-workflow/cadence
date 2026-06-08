@@ -254,8 +254,14 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 
 	triggerTime := q.exclusiveUpperBound.GetScheduledTime().Add(-q.options.PrefetchTriggerWindow())
 	delay := max(q.options.MinPrefetchInterval(), triggerTime.Sub(q.clock.Now()))
+	jittered := backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
 
-	return backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
+	// Cap the jittered delay to the original delay: positive jitter must not push the
+	// prefetch past triggerTime, which would cause it to fire after the upper bound and
+	// produce cache misses. MinPrefetchInterval is re-applied as the floor because
+	// negative jitter on a delay already clamped to MinPrefetchInterval can otherwise
+	// return a value below it.
+	return max(q.options.MinPrefetchInterval(), min(delay, jittered))
 }
 
 // isEnabled returns true if the cache is fully enabled
@@ -571,6 +577,16 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 		if q.isToBufferTask(t.GetTaskKey()) {
 			q.pendingInjectBuffer = append(q.pendingInjectBuffer, t)
 			continue
+		}
+		// this case should not happen under normal operation,
+		// as the processor should only be persisting tasks near the current upper bound
+		// but log just in case to help debug any unexpected ordering issues
+		if t.GetTaskKey().Less(q.inclusiveLowerBound) {
+			q.logger.Warn("task key is below the lower bound, dropping task",
+				tag.Dynamic("taskKey", t.GetTaskKey()),
+				tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
+				tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
+			)
 		}
 	}
 
