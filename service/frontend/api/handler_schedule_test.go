@@ -348,6 +348,23 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		"recreate after delete succeeds (AllowDuplicate reuse policy)": {
+			// Deleting a schedule terminates the scheduler workflow but the closed run stays
+			// within the retention window. With RejectDuplicate the server would reject a new
+			// StartWorkflowExecution for the same workflow ID; AllowDuplicate lets it through.
+			// This test verifies both that the policy sent to history is AllowDuplicate and that
+			// the handler succeeds when history accepts the start (as it does for closed runs).
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryStartWorkflowExecutionRequest, _ ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
+						assert.Equal(t, types.WorkflowIDReusePolicyAllowDuplicate, *req.StartRequest.WorkflowIDReusePolicy)
+						return &types.StartWorkflowExecutionResponse{RunID: "new-run-id"}, nil
+					})
+			},
+			wantErr: false,
+		},
 		"memo forwarded into workflow input": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,

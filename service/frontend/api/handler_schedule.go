@@ -196,7 +196,11 @@ func (wh *WorkflowHandler) CreateSchedule(
 
 	wfID := scheduleWorkflowID(scheduleID)
 	requestID := uuid.New().String()
-	reusePolicy := types.WorkflowIDReusePolicyRejectDuplicate
+	// AllowDuplicate lets a re-created schedule start a new scheduler workflow even when the
+	// previous (deleted) run is still within the retention window. A currently-running
+	// scheduler still causes WorkflowExecutionAlreadyStartedError, which the block below
+	// converts into the user-visible "schedule already exists" error.
+	reusePolicy := types.WorkflowIDReusePolicyAllowDuplicate
 	executionTimeout := int32(schedulerWorkflowExecutionTimeout.Seconds())
 	decisionTimeout := int32(schedulerWorkflowDecisionTimeout.Seconds())
 
