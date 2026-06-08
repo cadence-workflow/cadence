@@ -1134,7 +1134,7 @@ func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
 	sched := mustParseCron(t, "* * * * *")
 
 	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
 		Policies: types.SchedulePolicies{
 			// No CatchUpPolicy at creation; override must supply All for both batches.
 		},
