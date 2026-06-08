@@ -132,9 +132,8 @@ func (q *inMemQueueImpl) GetTasks(inclusiveMinTaskKey, exclusiveMaxTaskKey persi
 		tasks = append(tasks, q.tasks[i])
 		if len(tasks) > pageSize {
 			// Trim the extra task so we return at most pageSize tasks
-			// and set nextTaskKey to the minimal successor of the last returned task,
-			// matching the DB reader's pagination convention.
-			return tasks[:pageSize], tasks[pageSize-1].GetTaskKey().Next()
+			// and set nextTaskKey to the key of the first excluded task
+			return tasks[:pageSize], tasks[pageSize].GetTaskKey()
 		}
 	}
 

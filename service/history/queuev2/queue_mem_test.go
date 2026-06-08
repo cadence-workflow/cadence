@@ -339,14 +339,14 @@ func TestInMemQueue_GetTasks(t *testing.T) {
 			wantNextKey:  persistence.NewHistoryTaskKey(time.Unix(50, 0), 5),
 		},
 		{
-			name:         "pageSize truncates result and returns minimal successor of last returned task",
+			name:         "pageSize truncates result and returns a key of a dropped task",
 			tasks:        allTasks,
 			inclusiveMin: persistence.NewHistoryTaskKey(time.Unix(10, 0), 1),
 			exclusiveMax: persistence.NewHistoryTaskKey(time.Unix(50, 0), 5),
 			predicate:    NewUniversalPredicate(),
 			pageSize:     2,
 			wantTaskIDs:  []int64{1, 2},
-			wantNextKey:  newTestTask(time.Unix(20, 0), 2).GetTaskKey().Next(),
+			wantNextKey:  newTestTask(time.Unix(30, 0), 3).GetTaskKey(),
 		},
 	}
 

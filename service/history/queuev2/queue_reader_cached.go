@@ -689,9 +689,7 @@ type findMismatchesInShadowResult struct {
 	MissingFromCache []persistence.HistoryTaskKey
 	// ExtraInCache contains task keys present in the cache snapshot but absent from the DB response.
 	ExtraInCache []persistence.HistoryTaskKey
-	// NextKeyMismatch is true when cache and DB disagree on the next-page boundary key.
-	NextKeyMismatch bool
-	// HasMismatches is true when any of the above fields indicate divergence.
+	// HasMismatches is true when either field is non-empty.
 	HasMismatches bool
 }
 
@@ -708,7 +706,6 @@ func (q *cachedQueueReader) reportShadowComparison(
 	tags := append(logTags,
 		tag.Dynamic("shadowMismatch.missingFromCache", result.MissingFromCache),
 		tag.Dynamic("shadowMismatch.extraInCache", result.ExtraInCache),
-		tag.Dynamic("shadowMismatch.nextKeyMismatch", result.NextKeyMismatch),
 		tag.Dynamic("shadowMismatch.dbTaskCount", len(dbResp.Tasks)),
 		tag.Dynamic("shadowMismatch.cacheTaskCount", len(cacheResp.Tasks)),
 	)
@@ -728,10 +725,11 @@ func getTruncatedScheduledTime(t persistence.Task) time.Time {
 // avoids false positives from injected tasks whose nanosecond timestamps Cassandra
 // rounds to milliseconds on the round-trip.
 //
-// NextTaskKey is compared directly: after fixing InMemQueue.GetTasks to return the
-// minimal successor (.Next()) of the last returned task — matching the DB reader's
-// convention — both sides should produce the same next-page boundary for the same
-// request.
+// NextTaskKey is intentionally not compared: Cassandra commonly returns a non-empty
+// paging cursor even on the last page, which causes the DB reader to report
+// lastTask.Next() while the cache (which knows its window is exhausted) reports
+// exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
+// normal production traffic without indicating any real divergence in task data.
 func findMismatchesInShadow(
 	snapshotResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
@@ -758,10 +756,7 @@ func findMismatchesInShadow(
 			result.ExtraInCache = append(result.ExtraInCache, t.GetTaskKey())
 		}
 	}
-	if snapshotResp.Progress != nil && dbResp.Progress != nil {
-		result.NextKeyMismatch = !snapshotResp.Progress.NextTaskKey.Equal(dbResp.Progress.NextTaskKey)
-	}
-	result.HasMismatches = len(result.MissingFromCache) > 0 || len(result.ExtraInCache) > 0 || result.NextKeyMismatch
+	result.HasMismatches = len(result.MissingFromCache) > 0 || len(result.ExtraInCache) > 0
 	return result
 }
 
