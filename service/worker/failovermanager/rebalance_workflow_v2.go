@@ -144,6 +144,7 @@ func GetDomainsForRebalanceV2Activity(ctx context.Context) ([]DomainFailoverPref
 				zap.String("domain", domain.GetDomainInfo().GetName()), zap.Error(err))
 			continue
 		}
+		warnIfMissingPollers(ctx, logger, prefs)
 		res = append(res, prefs)
 	}
 	return res, nil

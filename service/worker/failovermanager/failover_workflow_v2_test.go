@@ -258,6 +258,7 @@ func TestGetDomainsForFailoverV2Activity_WhenListingDomainsItReturnsOnlyManagedD
 		},
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectPollersPresent(mockResource)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
 		SourceClusters: []string{"cluster0"},
@@ -294,6 +295,7 @@ func TestGetDomainsForFailoverV2Activity_WhenClusterAttributesAreSetItFailsOverM
 		},
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectPollersPresent(mockResource)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
 		SourceClusters:    []string{"cluster0"},
@@ -387,6 +389,7 @@ func TestGetDomainsForFailoverV2Activity_WhenGivenMixedDomainsItFailsOverOnlySco
 		},
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectPollersPresent(mockResource)
 
 	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
 		SourceClusters:    []string{"cluster0"},
@@ -419,6 +422,33 @@ func TestGetDomainsForFailoverV2Activity_WhenGivenMixedDomainsItFailsOverOnlySco
 	// global-onsrc: domain-level moves; no attribute updates.
 	assert.Equal(t, "cluster1", byName["global-onsrc"].TargetCluster)
 	assert.Empty(t, byName["global-onsrc"].ClusterAttributeUpdates)
+}
+
+// TestGetDomainsForFailoverV2Activity_WhenDestinationHasNoPollersItStillIncludesTheDomain verifies
+// the V2 poller check is advisory: a destination cluster with zero pollers produces a warning but the
+// domain is still collected for failover (unlike V1, which skips it).
+func TestGetDomainsForFailoverV2Activity_WhenDestinationHasNoPollersItStillIncludesTheDomain(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			createDomainResponse(createDomainResponseParams{name: "managed-on-source", activeClusterName: "cluster0", isManaged: true, isGlobal: true}),
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectDestinationMissingPollers(mockResource)
+
+	val, err := env.ExecuteActivity(GetDomainsForFailoverV2Activity, &GetDomainsForFailoverV2Params{
+		SourceClusters: []string{"cluster0"},
+		TargetCluster:  "cluster1",
+	})
+	require.NoError(t, err)
+	var result GetDomainsForFailoverV2Result
+	require.NoError(t, val.Get(&result))
+
+	require.Len(t, result.Preferences, 1)
+	assert.Equal(t, "managed-on-source", result.Preferences[0].DomainName)
+	assert.Equal(t, "cluster1", result.Preferences[0].TargetCluster)
 }
 
 func TestFailoverWorkflowV2_WhenParamsAreInvalidItFailsTheWorkflow(t *testing.T) {

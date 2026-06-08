@@ -205,6 +205,30 @@ func TestGetDomainsForRebalanceV2Activity_WhenListingDomainsItReturnsOnlyManaged
 		},
 	}
 	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectPollersPresent(mockResource)
+
+	val, err := env.ExecuteActivity(GetDomainsForRebalanceV2Activity)
+	require.NoError(t, err)
+	var prefs []DomainFailoverPreferences
+	require.NoError(t, val.Get(&prefs))
+	require.Len(t, prefs, 1)
+	assert.Equal(t, "needs-move", prefs[0].DomainName)
+	assert.Equal(t, "cluster1", prefs[0].TargetCluster)
+}
+
+// TestGetDomainsForRebalanceV2Activity_WhenDestinationHasNoPollersItStillIncludesTheDomain verifies
+// the V2 poller check is advisory for rebalance too: a preferred cluster with zero pollers produces a
+// warning but the domain is still collected for rebalance.
+func TestGetDomainsForRebalanceV2Activity_WhenDestinationHasNoPollersItStillIncludesTheDomain(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	domains := &types.ListDomainsResponse{
+		Domains: []*types.DescribeDomainResponse{
+			createDomainResponse(createDomainResponseParams{name: "needs-move", activeClusterName: "cluster0", isManaged: true, isGlobal: true, data: map[string]string{constants.DomainDataKeyForPreferredCluster: "cluster1"}}),
+		},
+	}
+	mockResource.FrontendClient.EXPECT().ListDomains(gomock.Any(), gomock.Any()).Return(domains, nil)
+	expectDestinationMissingPollers(mockResource)
 
 	val, err := env.ExecuteActivity(GetDomainsForRebalanceV2Activity)
 	require.NoError(t, err)

@@ -26,9 +26,11 @@ package failovermanager
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"go.uber.org/cadence/workflow"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
@@ -128,6 +130,46 @@ func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences) (*F
 		SuccessDomains: successDomains,
 		FailedDomains:  failedDomains,
 	}, nil
+}
+
+// clustersTouchedByPreferences returns the deduped set of destination clusters a domain will be
+// moved onto.
+func clustersTouchedByPreferences(prefs DomainFailoverPreferences) []string {
+	var uniqueClusters []string
+	seen := make(map[string]struct{})
+
+	if prefs.TargetCluster != "" {
+		uniqueClusters = append(uniqueClusters, prefs.TargetCluster)
+		seen[prefs.TargetCluster] = struct{}{}
+	}
+
+	for _, clusterAttributePreference := range prefs.ClusterAttributeUpdates {
+		if clusterAttributePreference.PreferredCluster == "" {
+			continue
+		}
+
+		if _, ok := seen[clusterAttributePreference.PreferredCluster]; ok {
+			continue
+		}
+		seen[clusterAttributePreference.PreferredCluster] = struct{}{}
+		uniqueClusters = append(uniqueClusters, clusterAttributePreference.PreferredCluster)
+	}
+
+	slices.Sort(uniqueClusters)
+	return uniqueClusters
+}
+
+// warnIfMissingPollers runs the poller check against every destination cluster the domain is being
+// moved onto. If any tasklists are missing a poller it logs a warning.
+func warnIfMissingPollers(ctx context.Context, logger *zap.Logger, prefs DomainFailoverPreferences) {
+	for _, cluster := range clustersTouchedByPreferences(prefs) {
+		if err := validateTaskListPollerInfo(ctx, cluster, prefs.DomainName); err != nil {
+			logger.Warn("domain has no active pollers in destination cluster; proceeding anyway",
+				zap.String("domain", prefs.DomainName),
+				zap.String("targetCluster", cluster),
+				zap.Error(err))
+		}
+	}
 }
 
 // buildActiveClustersFromUpdates constructs an ActiveClusters payload from per-domain

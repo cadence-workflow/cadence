@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
 
 	"github.com/uber/cadence/common/types"
@@ -195,6 +196,7 @@ func executeGetDomainsForFailoverV2(ctx workflow.Context, params *FailoverV2Para
 // marked to move to TargetCluster; a snapshot of the prior values is recorded for restore. Domains not
 // active in any of SourceClusters are skipped, keeping the operation N-region safe.
 func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForFailoverV2Params) (*GetDomainsForFailoverV2Result, error) {
+	logger := activity.GetLogger(ctx)
 	domains, err := getAllDomains(ctx, params.Domains)
 	if err != nil {
 		return nil, err
@@ -208,6 +210,7 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 		if !ok {
 			continue
 		}
+		warnIfMissingPollers(ctx, logger, prefs)
 		result.Preferences = append(result.Preferences, prefs)
 		result.Snapshots = append(result.Snapshots, snapshot)
 	}

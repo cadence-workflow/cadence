@@ -128,6 +128,46 @@ func TestDomainNameExtractors_ReturnNamesAndNilForNilInput(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, failedDomainNames([]DomainFailoverFailure{{DomainName: "a"}, {DomainName: "b"}}))
 }
 
+func TestClustersTouchedByPreferences(t *testing.T) {
+	tests := []struct {
+		name  string
+		prefs DomainFailoverPreferences
+		want  []string
+	}{
+		{
+			name:  "when the preferences only contains the domain default, it should return the domain default target cluster",
+			prefs: DomainFailoverPreferences{DomainName: "d", TargetCluster: "cluster1"},
+			want:  []string{"cluster1"},
+		},
+		{
+			name: "when the preferences contains multiple cluster attribute updates, it should return all distinct target clusters",
+			prefs: DomainFailoverPreferences{DomainName: "d", ClusterAttributeUpdates: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+				{Scope: "region", Name: "us-west", PreferredCluster: "cluster2"},
+			}},
+			want: []string{"cluster1", "cluster2"},
+		},
+		{
+			name: "when the preferences contains both domain-level and cluster attribute updates, it should return only distinct target clusters",
+			prefs: DomainFailoverPreferences{DomainName: "d", TargetCluster: "cluster1", ClusterAttributeUpdates: []ClusterAttributePreference{
+				{Scope: "cluster", Name: "cluster0", PreferredCluster: "cluster1"},
+				{Scope: "cluster", Name: "cluster2", PreferredCluster: "cluster2"},
+			}},
+			want: []string{"cluster1", "cluster2"},
+		},
+		{
+			name:  "when no clusters are specified, it should return an empty list",
+			prefs: DomainFailoverPreferences{DomainName: "d", ClusterAttributeUpdates: []ClusterAttributePreference{{Scope: "cluster", Name: "cluster0", PreferredCluster: ""}}},
+			want:  nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, clustersTouchedByPreferences(tt.prefs))
+		})
+	}
+}
+
 func TestProcessInBatches_WhenItemsExceedBatchSizeItSplitsIntoSizedBatches(t *testing.T) {
 	prefs := []DomainFailoverPreferences{
 		{DomainName: "a"}, {DomainName: "b"}, {DomainName: "c"}, {DomainName: "d"}, {DomainName: "e"},
@@ -176,6 +216,41 @@ func newFailoverV2ActivityEnv(t *testing.T) (*testsuite.TestActivityEnvironment,
 	env.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
 	t.Cleanup(func() { mockResource.Finish(t) })
 	return env, mockResource
+}
+
+// taskListMapWithPollers returns a task-list map with a single task list that has an active poller.
+func taskListMapWithPollers() map[string]*types.DescribeTaskListResponse {
+	return map[string]*types.DescribeTaskListResponse{
+		"tl": {Pollers: []*types.PollerInfo{{Identity: "test"}}},
+	}
+}
+
+// expectPollersPresent makes the destination poller check pass for any domain: both the local and the
+// remote frontend report a task list with pollers, so warnIfMissingPollers logs nothing. Wired with
+// AnyTimes so it is a no-op for tests whose domains are all skipped before the check runs.
+func expectPollersPresent(mockResource *resource.Test) {
+	resp := &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMapWithPollers(),
+		ActivityTaskListMap: taskListMapWithPollers(),
+	}
+	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(resp, nil).AnyTimes()
+	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(resp, nil).AnyTimes()
+}
+
+// expectDestinationMissingPollers simulates a destination cluster with no pollers: the local frontend
+// reports task lists with pollers but the remote (destination) frontend reports none, so the poller
+// check fails and warnIfMissingPollers logs a warning — without skipping the domain.
+func expectDestinationMissingPollers(mockResource *resource.Test) {
+	local := &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: taskListMapWithPollers(),
+		ActivityTaskListMap: taskListMapWithPollers(),
+	}
+	remote := &types.GetTaskListsByDomainResponse{
+		DecisionTaskListMap: map[string]*types.DescribeTaskListResponse{"tl": {}},
+		ActivityTaskListMap: map[string]*types.DescribeTaskListResponse{"tl": {}},
+	}
+	mockResource.FrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(local, nil).AnyTimes()
+	mockResource.RemoteFrontendClient.EXPECT().GetTaskListsByDomain(gomock.Any(), gomock.Any()).Return(remote, nil).AnyTimes()
 }
 
 func TestFailoverActivityV2_WhenGivenPreferencesItAppliesThemAndReportsSuccessDomains(t *testing.T) {
