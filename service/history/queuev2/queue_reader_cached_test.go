@@ -708,6 +708,288 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 	}
 }
 
+func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+	rangeMax := newTimeKey(now.Add(2 * time.Hour))
+
+	t1 := newTask(1, now.Add(10*time.Minute))
+	t2 := newTask(2, now.Add(20*time.Minute))
+	t3 := newTask(3, now.Add(30*time.Minute))
+
+	tests := []struct {
+		name       string
+		lower      persistence.HistoryTaskKey
+		upper      persistence.HistoryTaskKey
+		req        *GetTaskRequest
+		setupMocks func(base *MockQueueReader, queue *MockInMemQueue)
+		wantErr    bool
+		wantResp   *GetTaskResponse
+	}{
+		{
+			// Cache is populated and DB returns the same tasks → returns DB result.
+			name:  "cache hit, tasks match: returns DB result",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1, t2}, upper)
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{t1, t2},
+					Progress: &GetTaskProgress{
+						Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+						NextTaskKey: upper,
+					},
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{
+					Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+					NextTaskKey: upper,
+				},
+			},
+		},
+		{
+			// DB has a task not in cache → MissingFromCache mismatch; still returns DB result.
+			name:  "cache hit, task missing from cache: returns DB result",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				// Cache has only t1; DB has t1 and t2.
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1}, upper)
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{t1, t2},
+					Progress: &GetTaskProgress{
+						Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+						NextTaskKey: upper,
+					},
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{
+					Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+					NextTaskKey: upper,
+				},
+			},
+		},
+		{
+			// Cache has an extra task not in DB (inject race) → ExtraInCache only; returns DB result.
+			name:  "cache hit, extra task in cache (inject race): returns DB result",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				// Cache has t1, t2, t3; DB has only t1, t2 (t3 not yet committed).
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1, t2, t3}, upper)
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{t1, t2},
+					Progress: &GetTaskProgress{
+						Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+						NextTaskKey: upper,
+					},
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{
+					Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+					NextTaskKey: upper,
+				},
+			},
+		},
+		{
+			// Cache and DB have the same tasks but different NextTaskKey → no mismatch; returns DB result.
+			name:  "cache hit, NextTaskKey differs: no mismatch, returns DB result",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1, t2}, upper)
+				// DB returns same tasks but a different NextTaskKey (page boundary differs).
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{t1, t2},
+					Progress: &GetTaskProgress{
+						Range:       Range{InclusiveMinTaskKey: rangeMax, ExclusiveMaxTaskKey: rangeMax},
+						NextTaskKey: rangeMax,
+					},
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{
+					Range:       Range{InclusiveMinTaskKey: rangeMax, ExclusiveMaxTaskKey: rangeMax},
+					NextTaskKey: rangeMax,
+				},
+			},
+		},
+		{
+			// Request range not covered by cache → falls through to base without comparison.
+			name:  "cache miss: delegates to base without comparison",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, rangeMax), // rangeMax > upper
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{t1},
+					Progress: &GetTaskProgress{
+						Range:       Range{InclusiveMinTaskKey: lower, ExclusiveMaxTaskKey: rangeMax},
+						NextTaskKey: rangeMax,
+					},
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1},
+				Progress: &GetTaskProgress{
+					Range:       Range{InclusiveMinTaskKey: lower, ExclusiveMaxTaskKey: rangeMax},
+					NextTaskKey: rangeMax,
+				},
+			},
+		},
+		{
+			// base.GetTask returns an error during shadow comparison → error propagated.
+			name:  "cache hit, base error: returns error",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1}, upper)
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(nil, assert.AnError)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
+				o.Mode = dynamicproperties.GetStringPropertyFn("shadow")
+			})
+			setBounds(r, tc.lower, tc.upper)
+			tc.setupMocks(deps.mockBase, deps.mockQueue)
+
+			resp, err := r.GetTask(context.Background(), tc.req)
+
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantResp, resp)
+		})
+	}
+}
+
+func TestFindMismatchesInShadow(t *testing.T) {
+	now := time.Now()
+	t1 := newTask(1, now.Add(10*time.Minute))
+	t2 := newTask(2, now.Add(20*time.Minute))
+	t3 := newTask(3, now.Add(30*time.Minute))
+
+	key := func(t persistence.Task) persistence.HistoryTaskKey { return t.GetTaskKey() }
+
+	tests := []struct {
+		name         string
+		snapshotResp *GetTaskResponse
+		dbResp       *GetTaskResponse
+		wantResult   findMismatchesInShadowResult
+	}{
+		{
+			name:         "no mismatches",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
+			wantResult:   findMismatchesInShadowResult{HasMismatches: false},
+		},
+		{
+			name:         "empty on both sides",
+			snapshotResp: &GetTaskResponse{},
+			dbResp:       &GetTaskResponse{},
+			wantResult:   findMismatchesInShadowResult{HasMismatches: false},
+		},
+		{
+			name:         "task missing from cache",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
+			wantResult: findMismatchesInShadowResult{
+				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
+				HasMismatches:    true,
+			},
+		},
+		{
+			name:         "extra task in cache",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t2, t3}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
+			wantResult: findMismatchesInShadowResult{
+				ExtraInCache:  []persistence.HistoryTaskKey{key(t3)},
+				HasMismatches: true,
+			},
+		},
+		{
+			name:         "missing and extra simultaneously",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t3}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
+			wantResult: findMismatchesInShadowResult{
+				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
+				ExtraInCache:     []persistence.HistoryTaskKey{key(t3)},
+				HasMismatches:    true,
+			},
+		},
+		{
+			// NextTaskKey differs — not flagged as mismatch because cache and DB paginate differently.
+			name: "NextTaskKey differs: no mismatch",
+			snapshotResp: &GetTaskResponse{
+				Tasks:    []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(time.Hour))},
+			},
+			dbResp: &GetTaskResponse{
+				Tasks:    []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(2 * time.Hour))},
+			},
+			wantResult: findMismatchesInShadowResult{HasMismatches: false},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := findMismatchesInShadow(tc.snapshotResp, tc.dbResp)
+			require.Equal(t, tc.wantResult, got)
+		})
+	}
+}
+
 func TestCachedQueueReader_LookAHead(t *testing.T) {
 	now := time.Now()
 	lower := newTimeKey(now)

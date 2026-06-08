@@ -264,20 +264,23 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 	return max(q.options.MinPrefetchInterval(), min(delay, jittered))
 }
 
-// isCachedQueueReaderDisabled reports whether the given mode disables the cached queue reader.
-// "shadow" and "enabled" are active modes; "disabled" and any unrecognised value disable it.
-func isCachedQueueReaderDisabled(mode string) bool {
-	switch mode {
-	case "shadow", "enabled":
+// isEnabled returns true if the cache is fully enabled
+func (q *cachedQueueReader) isEnabled() bool { return q.options.Mode() == "enabled" }
+
+// isShadow returns true when cache runs in shadow mode — results are compared
+// against the DB but the DB result is returned to the processor.
+func (q *cachedQueueReader) isShadow() bool { return q.options.Mode() == "shadow" }
+
+// isDisabled returns true for the "disabled" mode and for any unrecognised value
+func (q *cachedQueueReader) isDisabled() bool {
+	switch q.options.Mode() {
+	case "disabled":
+		return true
+	case "enabled", "shadow":
 		return false
 	default:
 		return true
 	}
-}
-
-// isDisabled returns true for "disabled" and any unrecognised value.
-func (q *cachedQueueReader) isDisabled() bool {
-	return isCachedQueueReaderDisabled(q.options.Mode())
 }
 
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
@@ -653,7 +656,104 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		},
 	}
 
+	if q.isShadow() {
+		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
+	}
 	return cacheResp, nil
+}
+
+// getTaskInShadow queries the DB for the same request, compares the result
+// against the cache snapshot, and returns the DB result. Mismatches are
+// logged but do not affect processing.
+func (q *cachedQueueReader) getTaskInShadow(
+	ctx context.Context,
+	req *GetTaskRequest,
+	cacheResp *GetTaskResponse,
+	logTags []tag.Tag,
+) (*GetTaskResponse, error) {
+	dbResp, err := q.base.GetTask(ctx, req)
+	if err != nil {
+		q.logger.Error("shadow comparison skipped, base returned error",
+			append(logTags, tag.Error(err))...,
+		)
+		return dbResp, err
+	}
+	result := findMismatchesInShadow(cacheResp, dbResp)
+	q.reportShadowComparison(result, cacheResp, dbResp, logTags)
+	return dbResp, nil
+}
+
+// findMismatchesInShadowResult holds the outcome of a shadow comparison.
+type findMismatchesInShadowResult struct {
+	// MissingFromCache contains task keys present in the DB response but absent from the cache snapshot.
+	MissingFromCache []persistence.HistoryTaskKey
+	// ExtraInCache contains task keys present in the cache snapshot but absent from the DB response
+	// (benign — caused by inject races: tasks written but not yet committed when the DB read fires).
+	ExtraInCache []persistence.HistoryTaskKey
+	// HasMismatches is true when either field is non-empty.
+	HasMismatches bool
+}
+
+// reportShadowComparison logs the result of a shadow comparison.
+func (q *cachedQueueReader) reportShadowComparison(
+	result findMismatchesInShadowResult,
+	cacheResp, dbResp *GetTaskResponse,
+	logTags []tag.Tag,
+) {
+	if !result.HasMismatches {
+		q.logger.Debug("shadow comparison matched")
+		return
+	}
+	tags := append(logTags,
+		tag.Dynamic("shadowMismatch.missingFromCache", result.MissingFromCache),
+		tag.Dynamic("shadowMismatch.extraInCache", result.ExtraInCache),
+		tag.Dynamic("shadowMismatch.dbTaskCount", len(dbResp.Tasks)),
+		tag.Dynamic("shadowMismatch.cacheTaskCount", len(cacheResp.Tasks)),
+	)
+	if len(result.MissingFromCache) > 0 {
+		q.logger.Warn("shadow comparison mismatch", tags...)
+	} else {
+		// Only ExtraInCache — benign inject races, log at Info only.
+		q.logger.Info("shadow comparison mismatch (only extra tasks in cache)", tags...)
+	}
+}
+
+// findMismatchesInShadow compares a cache snapshot response against the DB response.
+//
+// Compares by taskID (not full key): injected tasks have nanosecond timestamps
+// whereas Cassandra stores millisecond precision, so full-key comparison produces
+// false positives for every injected task.
+//
+// NextTaskKey/NextPage are intentionally NOT compared: the cache paginates
+// differently than the DB (cache advances to nextTaskKey from the in-memory
+// position, DB may return a page token), so a key difference is expected and
+// does not indicate real divergence. Only task identity and completeness matter.
+func findMismatchesInShadow(
+	snapshotResp *GetTaskResponse,
+	dbResp *GetTaskResponse,
+) findMismatchesInShadowResult {
+	snapshotIDs := make(map[int64]struct{}, len(snapshotResp.Tasks))
+	for _, t := range snapshotResp.Tasks {
+		snapshotIDs[t.GetTaskID()] = struct{}{}
+	}
+	dbIDs := make(map[int64]struct{}, len(dbResp.Tasks))
+	for _, t := range dbResp.Tasks {
+		dbIDs[t.GetTaskID()] = struct{}{}
+	}
+
+	var result findMismatchesInShadowResult
+	for _, t := range dbResp.Tasks {
+		if _, ok := snapshotIDs[t.GetTaskID()]; !ok {
+			result.MissingFromCache = append(result.MissingFromCache, t.GetTaskKey())
+		}
+	}
+	for _, t := range snapshotResp.Tasks {
+		if _, ok := dbIDs[t.GetTaskID()]; !ok {
+			result.ExtraInCache = append(result.ExtraInCache, t.GetTaskKey())
+		}
+	}
+	result.HasMismatches = len(result.MissingFromCache) > 0 || len(result.ExtraInCache) > 0
+	return result
 }
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
