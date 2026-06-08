@@ -164,6 +164,32 @@ func newCachedQueueReader(
 	)
 }
 
+func newTransferCachedQueueReader(
+	base QueueReader,
+	queue InMemQueue,
+	shard shard.Context,
+	metricsScope metrics.Scope,
+) *cachedQueueReader {
+	config := shard.GetConfig()
+	return newCachedQueueReaderWithOptions(
+		base,
+		queue,
+		shard.GetTimeSource(),
+		shard.GetLogger(),
+		metricsScope,
+		&cachedQueueReaderOptions{
+			Mode:                      config.TransferProcessorCachedQueueReaderMode,
+			MaxSize:                   config.TransferProcessorCacheMaxSize,
+			MaxLookAheadWindow:        config.TransferProcessorMaxPollInterval,
+			PrefetchTriggerWindow:     dynamicproperties.GetDurationPropertyFn(0),
+			PrefetchPageSize:          config.TransferTaskBatchSize,
+			TimeEvictionWindow:        dynamicproperties.GetDurationPropertyFn(0), // disabled: task keys use a fixed past time, time-eviction would drop everything
+			MinPrefetchInterval:       config.TransferProcessorCacheMinPrefetchInterval,
+			PrefetchJitterCoefficient: config.TransferProcessorMaxPollIntervalJitterCoefficient,
+		},
+	)
+}
+
 func newCachedQueueReaderWithOptions(
 	base QueueReader,
 	queue InMemQueue,
@@ -328,7 +354,7 @@ func (q *cachedQueueReader) prefetch() error {
 	// now-TimeEvictionWindow; starting from absolute minimum would pull tasks
 	// that timeEvict would drop immediately.
 	inclusiveMinTaskKey := upperBound
-	if inclusiveMinTaskKey.Equal(persistence.MinimumHistoryTaskKey) {
+	if inclusiveMinTaskKey.Equal(persistence.MinimumHistoryTaskKey) && q.options.TimeEvictionWindow() > 0 {
 		inclusiveMinTaskKey = persistence.NewHistoryTaskKey(now.Add(-q.options.TimeEvictionWindow()), 0)
 	}
 
@@ -525,6 +551,9 @@ func (q *cachedQueueReader) advanceInclusiveLowerBound(newKey persistence.Histor
 func (q *cachedQueueReader) tryTimeEvict(extraTasks int) {
 	if q.queue.Len()+extraTasks < q.options.MaxSize() {
 		return
+	}
+	if q.options.TimeEvictionWindow() == 0 {
+		return // disabled: rely on size-based eviction only
 	}
 	evictBefore := persistence.NewHistoryTaskKey(q.clock.Now().Add(-q.options.TimeEvictionWindow()), 0)
 	q.advanceInclusiveLowerBound(evictBefore)
