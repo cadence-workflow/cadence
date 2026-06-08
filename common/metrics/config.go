@@ -89,11 +89,6 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
 
-	"replication_tasks_returned":             {},
-	"replication_tasks_returned_counts":      {},
-	"replication_tasks_returned_diff":        {},
-	"replication_tasks_returned_diff_counts": {},
-
 	"replication_tasks_fetched":        {},
 	"replication_tasks_fetched_counts": {},
 	"replication_tasks_lag_raw":        {},
@@ -455,6 +450,11 @@ var GaugeMigrationMetrics = map[string]struct{}{
 	"cache_size_gauge":                {},
 	"replication_tasks_lag_gauge":     {},
 	"replication_tasks_lag_raw_gauge": {},
+
+	"replication_tasks_returned":            {},
+	"replication_tasks_returned_gauge":      {},
+	"replication_tasks_returned_diff":       {},
+	"replication_tasks_returned_diff_gauge": {},
 }
 
 func (g GaugeMigration) EmitTimer(name string) bool {
