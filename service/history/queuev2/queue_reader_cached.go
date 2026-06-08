@@ -687,10 +687,11 @@ func (q *cachedQueueReader) getTaskInShadow(
 type findMismatchesInShadowResult struct {
 	// MissingFromCache contains task keys present in the DB response but absent from the cache snapshot.
 	MissingFromCache []persistence.HistoryTaskKey
-	// ExtraInCache contains task keys present in the cache snapshot but absent from the DB response
-	// (benign — caused by inject races: tasks written but not yet committed when the DB read fires).
+	// ExtraInCache contains task keys present in the cache snapshot but absent from the DB response.
 	ExtraInCache []persistence.HistoryTaskKey
-	// HasMismatches is true when either field is non-empty.
+	// NextKeyMismatch is true when cache and DB disagree on the next-page boundary key.
+	NextKeyMismatch bool
+	// HasMismatches is true when any of the above fields indicate divergence.
 	HasMismatches bool
 }
 
@@ -707,52 +708,60 @@ func (q *cachedQueueReader) reportShadowComparison(
 	tags := append(logTags,
 		tag.Dynamic("shadowMismatch.missingFromCache", result.MissingFromCache),
 		tag.Dynamic("shadowMismatch.extraInCache", result.ExtraInCache),
+		tag.Dynamic("shadowMismatch.nextKeyMismatch", result.NextKeyMismatch),
 		tag.Dynamic("shadowMismatch.dbTaskCount", len(dbResp.Tasks)),
 		tag.Dynamic("shadowMismatch.cacheTaskCount", len(cacheResp.Tasks)),
 	)
-	if len(result.MissingFromCache) > 0 {
-		q.logger.Warn("shadow comparison mismatch", tags...)
-	} else {
-		// Only ExtraInCache — benign inject races, log at Info only.
-		q.logger.Info("shadow comparison mismatch (only extra tasks in cache)", tags...)
-	}
+	q.logger.Warn("shadow comparison mismatch", tags...)
+}
+
+// getTruncatedScheduledTime returns the scheduled time of a task truncated to
+// DBTimestampMinPrecision (millisecond), matching Cassandra's storage precision.
+func getTruncatedScheduledTime(t persistence.Task) time.Time {
+	return t.GetTaskKey().GetScheduledTime().Truncate(persistence.DBTimestampMinPrecision)
 }
 
 // findMismatchesInShadow compares a cache snapshot response against the DB response.
 //
-// Compares by taskID (not full key): injected tasks have nanosecond timestamps
-// whereas Cassandra stores millisecond precision, so full-key comparison produces
-// false positives for every injected task.
+// Task comparison uses taskID as the primary key and the scheduled time truncated to
+// millisecond precision (DBTimestampMinPrecision) as a secondary check. Truncation
+// avoids false positives from injected tasks whose nanosecond timestamps Cassandra
+// rounds to milliseconds on the round-trip.
 //
-// NextTaskKey/NextPage are intentionally NOT compared: the cache paginates
-// differently than the DB (cache advances to nextTaskKey from the in-memory
-// position, DB may return a page token), so a key difference is expected and
-// does not indicate real divergence. Only task identity and completeness matter.
+// NextTaskKey is compared directly: after fixing InMemQueue.GetTasks to return the
+// minimal successor (.Next()) of the last returned task — matching the DB reader's
+// convention — both sides should produce the same next-page boundary for the same
+// request.
 func findMismatchesInShadow(
 	snapshotResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
 ) findMismatchesInShadowResult {
-	snapshotIDs := make(map[int64]struct{}, len(snapshotResp.Tasks))
+	cacheTaskKeys := make(map[int64]time.Time, len(snapshotResp.Tasks))
 	for _, t := range snapshotResp.Tasks {
-		snapshotIDs[t.GetTaskID()] = struct{}{}
+		cacheTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
 	}
-	dbIDs := make(map[int64]struct{}, len(dbResp.Tasks))
+	dbTaskKeys := make(map[int64]time.Time, len(dbResp.Tasks))
 	for _, t := range dbResp.Tasks {
-		dbIDs[t.GetTaskID()] = struct{}{}
+		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
 	}
 
 	var result findMismatchesInShadowResult
 	for _, t := range dbResp.Tasks {
-		if _, ok := snapshotIDs[t.GetTaskID()]; !ok {
+		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
+		if !ok || !cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
 			result.MissingFromCache = append(result.MissingFromCache, t.GetTaskKey())
 		}
 	}
 	for _, t := range snapshotResp.Tasks {
-		if _, ok := dbIDs[t.GetTaskID()]; !ok {
+		dbTime, ok := dbTaskKeys[t.GetTaskID()]
+		if !ok || !dbTime.Equal(cacheTaskKeys[t.GetTaskID()]) {
 			result.ExtraInCache = append(result.ExtraInCache, t.GetTaskKey())
 		}
 	}
-	result.HasMismatches = len(result.MissingFromCache) > 0 || len(result.ExtraInCache) > 0
+	if snapshotResp.Progress != nil && dbResp.Progress != nil {
+		result.NextKeyMismatch = !snapshotResp.Progress.NextTaskKey.Equal(dbResp.Progress.NextTaskKey)
+	}
+	result.HasMismatches = len(result.MissingFromCache) > 0 || len(result.ExtraInCache) > 0 || result.NextKeyMismatch
 	return result
 }
 

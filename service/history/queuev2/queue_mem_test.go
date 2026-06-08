@@ -339,7 +339,7 @@ func TestInMemQueue_GetTasks(t *testing.T) {
 			wantNextKey:  persistence.NewHistoryTaskKey(time.Unix(50, 0), 5),
 		},
 		{
-			name:         "pageSize truncates result and returns next task key after last returned task",
+			name:         "pageSize truncates result and returns minimal successor of last returned task",
 			tasks:        allTasks,
 			inclusiveMin: persistence.NewHistoryTaskKey(time.Unix(10, 0), 1),
 			exclusiveMax: persistence.NewHistoryTaskKey(time.Unix(50, 0), 5),

@@ -817,8 +817,8 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			},
 		},
 		{
-			// Cache and DB have the same tasks but different NextTaskKey → no mismatch; returns DB result.
-			name:  "cache hit, NextTaskKey differs: no mismatch, returns DB result",
+			// Cache and DB have the same tasks and the same NextTaskKey → no mismatch; returns DB result.
+			name:  "cache hit, NextTaskKey matches: no mismatch, returns DB result",
 			lower: lower, upper: upper,
 			req: &GetTaskRequest{
 				Progress:  newProgress(lower, upper),
@@ -829,20 +829,19 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
 					Return([]persistence.Task{t1, t2}, upper)
-				// DB returns same tasks but a different NextTaskKey (page boundary differs).
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
 					Tasks: []persistence.Task{t1, t2},
 					Progress: &GetTaskProgress{
-						Range:       Range{InclusiveMinTaskKey: rangeMax, ExclusiveMaxTaskKey: rangeMax},
-						NextTaskKey: rangeMax,
+						Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+						NextTaskKey: upper,
 					},
 				}, nil)
 			},
 			wantResp: &GetTaskResponse{
 				Tasks: []persistence.Task{t1, t2},
 				Progress: &GetTaskProgress{
-					Range:       Range{InclusiveMinTaskKey: rangeMax, ExclusiveMaxTaskKey: rangeMax},
-					NextTaskKey: rangeMax,
+					Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+					NextTaskKey: upper,
 				},
 			},
 		},
@@ -968,8 +967,21 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			},
 		},
 		{
-			// NextTaskKey differs — not flagged as mismatch because cache and DB paginate differently.
-			name: "NextTaskKey differs: no mismatch",
+			// Same tasks and NextTaskKey → all match.
+			name: "NextTaskKey matches: no mismatch",
+			snapshotResp: &GetTaskResponse{
+				Tasks:    []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(time.Hour))},
+			},
+			dbResp: &GetTaskResponse{
+				Tasks:    []persistence.Task{t1, t2},
+				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(time.Hour))},
+			},
+			wantResult: findMismatchesInShadowResult{HasMismatches: false},
+		},
+		{
+			// NextTaskKey differs → NextKeyMismatch is flagged.
+			name: "NextTaskKey differs: mismatch",
 			snapshotResp: &GetTaskResponse{
 				Tasks:    []persistence.Task{t1, t2},
 				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(time.Hour))},
@@ -977,6 +989,18 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			dbResp: &GetTaskResponse{
 				Tasks:    []persistence.Task{t1, t2},
 				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(2 * time.Hour))},
+			},
+			wantResult: findMismatchesInShadowResult{NextKeyMismatch: true, HasMismatches: true},
+		},
+		{
+			// Cache task has nanosecond timestamp; DB task has the same time truncated to ms.
+			// They should compare as equal after truncation.
+			name: "timestamp sub-millisecond jitter: no mismatch",
+			snapshotResp: &GetTaskResponse{
+				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute+500*time.Nanosecond))},
+			},
+			dbResp: &GetTaskResponse{
+				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
 			},
 			wantResult: findMismatchesInShadowResult{HasMismatches: false},
 		},
