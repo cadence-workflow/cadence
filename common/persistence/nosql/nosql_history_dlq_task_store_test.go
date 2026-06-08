@@ -36,13 +36,17 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func setUpMocksForHistoryDLQTaskStore(t *testing.T) (*nosqlHistoryDLQTaskStore, *nosqlplugin.MockDB) {
+// setUpMocksForHistoryDLQTaskStore returns the store under test, the DB mock, the sharded store mock,
+// and the pre-built nosqlStore that shardMock.GetStoreShardByHistoryShard should return.
+func setUpMocksForHistoryDLQTaskStore(t *testing.T) (*nosqlHistoryDLQTaskStore, *nosqlplugin.MockDB, *MockshardedNosqlStore, *nosqlStore) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	dbMock := nosqlplugin.NewMockDB(ctrl)
-	return &nosqlHistoryDLQTaskStore{
-		nosqlStore: nosqlStore{db: dbMock, logger: testlogger.New(t)},
-	}, dbMock
+	shardMock := NewMockshardedNosqlStore(ctrl)
+	// Allow GetLogger to be called any number of times (used for warning logs).
+	shardMock.EXPECT().GetLogger().Return(testlogger.New(t)).AnyTimes()
+	storeShard := &nosqlStore{db: dbMock, logger: testlogger.New(t)}
+	return &nosqlHistoryDLQTaskStore{shardedNosqlStore: shardMock}, dbMock, shardMock, storeShard
 }
 
 func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
@@ -79,13 +83,14 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupMock      func(*nosqlplugin.MockDB)
+		setupMock      func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *nosqlStore)
 		request        persistence.InternalCreateHistoryDLQTaskRequest
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 	}{
 		"when insert succeeds then no error is returned": {
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, shardMock *MockshardedNosqlStore, storeShard *nosqlStore) {
+				shardMock.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				dbMock.EXPECT().
 					InsertHistoryDLQTaskRow(ctx, expectedTask).
 					Return(nil).
@@ -94,7 +99,8 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 			request: baseRequest,
 		},
 		"when the database returns a timeout error then TimeoutError is returned": {
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, shardMock *MockshardedNosqlStore, storeShard *nosqlStore) {
+				shardMock.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				dbMock.EXPECT().
 					InsertHistoryDLQTaskRow(ctx, gomock.Any()).
 					Return(errors.New("context deadline exceeded"))
@@ -111,7 +117,8 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 			},
 		},
 		"when the database returns a throttling error then ServiceBusyError is returned": {
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
+			setupMock: func(dbMock *nosqlplugin.MockDB, shardMock *MockshardedNosqlStore, storeShard *nosqlStore) {
+				shardMock.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				dbMock.EXPECT().
 					InsertHistoryDLQTaskRow(ctx, gomock.Any()).
 					Return(errors.New("rate exceeded"))
@@ -129,8 +136,8 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 			},
 		},
 		"when task blob is nil then InvalidPersistenceRequestError is returned": {
-			setupMock: func(dbMock *nosqlplugin.MockDB) {
-				// no DB calls expected — nil check fires before any DB interaction
+			setupMock: func(dbMock *nosqlplugin.MockDB, shardMock *MockshardedNosqlStore, storeShard *nosqlStore) {
+				// nil check fires before shard resolution — no DB or shard calls expected
 			},
 			request: func() persistence.InternalCreateHistoryDLQTaskRequest {
 				r := baseRequest
@@ -143,12 +150,19 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 				assert.ErrorAs(t, err, &invalidReqErr)
 			},
 		},
+		"when GetStoreShardByHistoryShard fails then error is propagated": {
+			setupMock: func(dbMock *nosqlplugin.MockDB, shardMock *MockshardedNosqlStore, storeShard *nosqlStore) {
+				shardMock.EXPECT().GetStoreShardByHistoryShard(5).Return(nil, errors.New("unknown shard"))
+			},
+			request:     baseRequest,
+			expectError: true,
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			store, dbMock := setUpMocksForHistoryDLQTaskStore(t)
-			tc.setupMock(dbMock)
+			store, dbMock, shardMock, storeShard := setUpMocksForHistoryDLQTaskStore(t)
+			tc.setupMock(dbMock, shardMock, storeShard)
 
 			err := store.CreateHistoryDLQTask(ctx, tc.request)
 
@@ -165,15 +179,16 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 }
 
 func TestNoSQLHistoryDLQTaskStore_GetName(t *testing.T) {
-	store, dbMock := setUpMocksForHistoryDLQTaskStore(t)
+	store, dbMock, shardMock, storeShard := setUpMocksForHistoryDLQTaskStore(t)
+	shardMock.EXPECT().GetDefaultShard().Return(*storeShard)
 	dbMock.EXPECT().PluginName().Return("cassandra")
 	assert.Equal(t, "cassandra", store.GetName())
 }
 
 func TestNoSQLHistoryDLQTaskStore_Close(t *testing.T) {
-	// Close is a no-op on the nosqlHistoryDLQTaskStore itself; the db is not closed here.
-	store, _ := setUpMocksForHistoryDLQTaskStore(t)
-	store.Close() // must not panic
+	store, _, shardMock, _ := setUpMocksForHistoryDLQTaskStore(t)
+	shardMock.EXPECT().Close()
+	store.Close()
 }
 
 // The following tests verify the implemented read/delete/ack-level methods.
@@ -211,14 +226,15 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupMock      func(*nosqlplugin.MockDB)
+		setupMock      func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *nosqlStore)
 		request        persistence.HistoryDLQGetTasksRequest
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 		validate       func(t *testing.T, resp persistence.InternalGetHistoryDLQTasksResponse)
 	}{
 		"when db returns rows then tasks are mapped and returned with next page token": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().
 					SelectHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskFilter{
 						ShardID:                  5,
@@ -246,7 +262,8 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 			},
 		},
 		"when db returns no rows then empty task list and nil page token are returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().
 					SelectHistoryDLQTaskRows(ctx, gomock.Any()).
 					Return(nil, nil, nil)
@@ -258,7 +275,8 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 			},
 		},
 		"when db returns a throttling error then ServiceBusyError is returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().SelectHistoryDLQTaskRows(ctx, gomock.Any()).Return(nil, nil, errors.New("rate exceeded"))
 				// These are mocked as the convertCommonErrors function calls an ErrorChecker interface, mocked by
 				// nosqlplugin.MockDB without a real implementation.
@@ -273,12 +291,19 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks(t *testing.T) {
 				assert.ErrorAs(t, err, &busyErr)
 			},
 		},
+		"when GetStoreShardByHistoryShard fails then error is propagated": {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(nil, errors.New("unknown shard"))
+			},
+			request:     baseRequest,
+			expectError: true,
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			store, dbMock := setUpMocksForHistoryDLQTaskStore(t)
-			tc.setupMock(dbMock)
+			store, dbMock, shardMock, storeShard := setUpMocksForHistoryDLQTaskStore(t)
+			tc.setupMock(dbMock, shardMock, storeShard)
 
 			resp, err := store.GetHistoryDLQTasks(ctx, tc.request)
 			if tc.expectError {
@@ -311,12 +336,13 @@ func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupMock      func(*nosqlplugin.MockDB)
+		setupMock      func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *nosqlStore)
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 	}{
 		"when db delete succeeds then no error is returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().
 					RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
 						ShardID:                  5,
@@ -331,7 +357,8 @@ func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks(t *testing.T) {
 			},
 		},
 		"when db returns a throttling error then ServiceBusyError is returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().RangeDeleteHistoryDLQTaskRows(ctx, gomock.Any()).Return(errors.New("rate exceeded"))
 				// These are mocked as the convertCommonErrors function calls an ErrorChecker interface, mocked by
 				// nosqlplugin.MockDB without a real implementation.
@@ -345,12 +372,18 @@ func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks(t *testing.T) {
 				assert.ErrorAs(t, err, &busyErr)
 			},
 		},
+		"when GetStoreShardByHistoryShard fails then error is propagated": {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(nil, errors.New("unknown shard"))
+			},
+			expectError: true,
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			store, dbMock := setUpMocksForHistoryDLQTaskStore(t)
-			tc.setupMock(dbMock)
+			store, dbMock, shardMock, storeShard := setUpMocksForHistoryDLQTaskStore(t)
+			tc.setupMock(dbMock, shardMock, storeShard)
 
 			err := store.RangeDeleteHistoryDLQTasks(ctx, baseRequest)
 			if tc.expectError {
@@ -382,14 +415,15 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupMock      func(*nosqlplugin.MockDB)
+		setupMock      func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *nosqlStore)
 		request        persistence.HistoryDLQGetAckLevelsRequest
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 		validate       func(t *testing.T, resp persistence.InternalGetHistoryDLQAckLevelsResponse)
 	}{
 		"when db returns rows then ack levels are mapped and returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().
 					SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{
 						ShardID:               5,
@@ -415,7 +449,8 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 			},
 		},
 		"when only shard ID is provided then all ack levels for the shard are returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().
 					SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{ShardID: 5}).
 					Return(nil, nil)
@@ -429,7 +464,8 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 			},
 		},
 		"when db returns a throttling error then ServiceBusyError is returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().SelectHistoryDLQAckLevelRows(ctx, gomock.Any()).Return(nil, errors.New("rate exceeded"))
 				// These are mocked as the convertCommonErrors function calls an ErrorChecker interface, mocked by
 				// nosqlplugin.MockDB without a real implementation.
@@ -447,12 +483,22 @@ func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels(t *testing.T) {
 				assert.ErrorAs(t, err, &busyErr)
 			},
 		},
+		"when GetStoreShardByHistoryShard fails then error is propagated": {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(nil, errors.New("unknown shard"))
+			},
+			request: persistence.HistoryDLQGetAckLevelsRequest{
+				ShardID:      5,
+				TaskCategory: persistence.HistoryTaskCategoryTransfer,
+			},
+			expectError: true,
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			store, dbMock := setUpMocksForHistoryDLQTaskStore(t)
-			tc.setupMock(dbMock)
+			store, dbMock, shardMock, storeShard := setUpMocksForHistoryDLQTaskStore(t)
+			tc.setupMock(dbMock, shardMock, storeShard)
 
 			resp, err := store.GetHistoryDLQAckLevels(ctx, tc.request)
 			if tc.expectError {
@@ -489,12 +535,13 @@ func TestNoSQLHistoryDLQTaskStore_UpdateHistoryDLQAckLevel(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupMock      func(*nosqlplugin.MockDB)
+		setupMock      func(*nosqlplugin.MockDB, *MockshardedNosqlStore, *nosqlStore)
 		expectError    bool
 		errorValidator func(t *testing.T, err error)
 	}{
 		"when db upsert succeeds then no error is returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().
 					InsertOrUpdateHistoryDLQAckLevelRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
 						ShardID:               5,
@@ -510,7 +557,8 @@ func TestNoSQLHistoryDLQTaskStore_UpdateHistoryDLQAckLevel(t *testing.T) {
 			},
 		},
 		"when db returns a throttling error then ServiceBusyError is returned": {
-			setupMock: func(db *nosqlplugin.MockDB) {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(storeShard, nil)
 				db.EXPECT().InsertOrUpdateHistoryDLQAckLevelRow(ctx, gomock.Any()).Return(errors.New("rate exceeded"))
 				// These are mocked as the convertCommonErrors function calls an ErrorChecker interface, mocked by
 				// nosqlplugin.MockDB without a real implementation.
@@ -524,12 +572,18 @@ func TestNoSQLHistoryDLQTaskStore_UpdateHistoryDLQAckLevel(t *testing.T) {
 				assert.ErrorAs(t, err, &busyErr)
 			},
 		},
+		"when GetStoreShardByHistoryShard fails then error is propagated": {
+			setupMock: func(db *nosqlplugin.MockDB, sh *MockshardedNosqlStore, storeShard *nosqlStore) {
+				sh.EXPECT().GetStoreShardByHistoryShard(5).Return(nil, errors.New("unknown shard"))
+			},
+			expectError: true,
+		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			store, dbMock := setUpMocksForHistoryDLQTaskStore(t)
-			tc.setupMock(dbMock)
+			store, dbMock, shardMock, storeShard := setUpMocksForHistoryDLQTaskStore(t)
+			tc.setupMock(dbMock, shardMock, storeShard)
 
 			err := store.UpdateHistoryDLQAckLevel(ctx, baseRequest)
 			if tc.expectError {
