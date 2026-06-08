@@ -105,3 +105,6 @@ system.workflowDeletionJitterRange:
   constraints: {}
 system.enableWorkflowTimerTaskCleanup:
 - value: true
+worker.enableScheduler:
+- value: true
+  constraints: {}
