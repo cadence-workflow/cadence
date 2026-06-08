@@ -1079,8 +1079,7 @@ func TestProcessMissedRunsAtMetrics(t *testing.T) {
 // TestProcessMissedRunsAt_PauseUnpause is the primary end-to-end scenario for catch-up:
 // the schedule is paused for 5 minutes (missing 5 per-minute fires), then unpaused
 // with CatchUpPolicyOne. Exactly 1 fire (the most recent) must run; the other 4 are skipped.
-// This also verifies that state.UnpauseCatchUpPolicy is cleared after use so subsequent
-// processMissedRunsAt calls fall back to input.Policies.CatchUpPolicy.
+// Because all 5 fires fit in one execution (moreMissed=false), the override is cleared.
 func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	watermark := base
@@ -1119,6 +1118,55 @@ func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
 		map[string]string{CatchUpPolicyTag: types.ScheduleCatchUpPolicyOne.String()})
 	require.True(t, ok, "4 skipped fires should be recorded")
 	assert.Equal(t, int64(4), skippedC.Value(), "4 of 5 missed fires are skipped under CatchUpPolicyOne")
+}
+
+// TestProcessMissedRunsAt_PauseUnpause_MultiBatch verifies that the UnpauseCatchUpPolicy
+// override survives ContinueAsNew batching. When CatchUpPolicyAll produces more than
+// maxCatchUpFiresPerExecution (10) eligible fires, processMissedRunsAt returns moreMissed=true
+// and the override must remain in state so the next execution continues with the same policy.
+// Once the final batch completes (moreMissed=false), the override is cleared.
+func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
+	// 15 minutes → 15 fires (10:01–10:15), exceeding the cap of 10.
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	watermark := base
+	now := base.Add(15 * time.Minute)
+
+	sched := mustParseCron(t, "* * * * *")
+
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{
+			// No CatchUpPolicy at creation; override must supply All for both batches.
+		},
+	}
+
+	// --- First batch ---
+	scope1 := tally.NewTestScope("", nil)
+	state := &SchedulerWorkflowState{
+		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+	}
+	moreMissed := processMissedRunsAt(nil, testLogger, scope1, sched, input, state, watermark, now)
+
+	assert.True(t, moreMissed, "first batch of 15 should report more remaining")
+	assert.Equal(t, types.ScheduleCatchUpPolicyAll, state.UnpauseCatchUpPolicy,
+		"override must survive the first batch so ContinueAsNew can continue with All policy")
+
+	firedC, ok := findCounter(scope1.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(maxCatchUpFiresPerExecution), firedC.Value(), "first batch fires exactly the cap")
+
+	// --- Second batch: resume from where the first left off ---
+	scope2 := tally.NewTestScope("", nil)
+	watermark2 := state.LastProcessedTime
+	moreMissed = processMissedRunsAt(nil, testLogger, scope2, sched, input, state, watermark2, now)
+
+	assert.False(t, moreMissed, "second batch completes the remaining fires")
+	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
+		"override must be cleared after the pass is fully done")
+
+	firedC2, ok := findCounter(scope2.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(5), firedC2.Value(), "second batch fires the remaining 5")
 }
 
 // noopChannel is a workflow.Channel whose ReceiveAsync always returns false (no pending signal).

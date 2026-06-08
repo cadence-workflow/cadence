@@ -863,10 +863,12 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 
 	// Use the per-unpause policy override if set; it is a one-shot value that
 	// takes priority over the schedule's configured policy for this catch-up pass.
+	// Do NOT clear it here: a single pass can span multiple ContinueAsNew executions
+	// (when unfired > 0 or fires.truncated). We clear it only after the pass is fully
+	// complete so the override survives each batch.
 	effectivePolicy := input.Policies.CatchUpPolicy
 	if state.UnpauseCatchUpPolicy != types.ScheduleCatchUpPolicyInvalid {
 		effectivePolicy = state.UnpauseCatchUpPolicy
-		state.UnpauseCatchUpPolicy = types.ScheduleCatchUpPolicyInvalid
 	}
 	result := applyMissedRunPolicy(effectivePolicy, input.Policies.CatchUpWindow, fires.times, now, logger)
 
@@ -906,7 +908,14 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 		state.LastProcessedTime = last
 	}
 
-	return unfired > 0 || fires.truncated
+	moreMissed := unfired > 0 || fires.truncated
+	// Clear the per-unpause override only when the entire catch-up pass is done.
+	// While moreMissed is true the state is carried into the next ContinueAsNew
+	// execution; clearing it here would lose the override for those batches.
+	if !moreMissed {
+		state.UnpauseCatchUpPolicy = types.ScheduleCatchUpPolicyInvalid
+	}
+	return moreMissed
 }
 
 // processBackfills drains pending backfill requests from state, computing
