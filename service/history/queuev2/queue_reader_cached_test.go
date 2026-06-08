@@ -128,12 +128,14 @@ func newProgress(lower, upper persistence.HistoryTaskKey) *GetTaskProgress {
 func TestCachedQueueReader_Modes(t *testing.T) {
 	tests := []struct {
 		mode     string
+		enabled  bool
+		shadow   bool
 		disabled bool
 	}{
-		{"enabled", false},
-		{"shadow", false},
-		{"disabled", true},
-		{"unknown", true},
+		{"enabled", true, false, false},
+		{"shadow", false, true, false},
+		{"disabled", false, false, true},
+		{"unknown", false, false, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.mode, func(t *testing.T) {
@@ -141,6 +143,8 @@ func TestCachedQueueReader_Modes(t *testing.T) {
 			r, _ := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
 				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
 			})
+			assert.Equal(t, tc.enabled, r.isEnabled(), "mode %q: isEnabled", tc.mode)
+			assert.Equal(t, tc.shadow, r.isShadow(), "mode %q: isShadow", tc.mode)
 			assert.Equal(t, tc.disabled, r.isDisabled(), "mode %q: isDisabled", tc.mode)
 		})
 	}
@@ -1047,18 +1051,17 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// shadow no longer gets special treatment in LookAHead; with an uninitialized
-			// window both bounds are Minimum so isTaskCovered returns false → miss → base.
-			name:      "shadow: uninitialized window falls back to DB",
+			// shadow bypasses cache entirely — same early return as disabled.
+			name:      "shadow: bypasses cache, delegates to DB",
 			mode:      "shadow",
-			initLower: persistence.MinimumHistoryTaskKey,
-			initUpper: persistence.MinimumHistoryTaskKey,
+			initLower: lower,
+			initUpper: upper,
 			minKey:    lower,
 			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
-				queue.EXPECT().Len().Return(0).AnyTimes()
-				base.EXPECT().LookAHead(gomock.Any(), gomock.Any()).Return(&LookAHeadResponse{}, nil)
+				// returns before acquiring the lock, so no queue.Len()
+				base.EXPECT().LookAHead(gomock.Any(), gomock.Any()).Return(&LookAHeadResponse{Task: task1}, nil)
 			},
-			wantResp: &LookAHeadResponse{},
+			wantResp: &LookAHeadResponse{Task: task1},
 		},
 		{
 			name:      "miss: min key before lower bound falls back to DB",

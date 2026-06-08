@@ -762,10 +762,11 @@ func findMismatchesInShadow(
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
 // from cache when the request falls within the prefetched window. Bypasses
-// cache when disabled mode.
+// cache when disabled or in shadow mode. Shadow mode bypasses because in-flight
+// inject notifications make cache/DB comparison unreliable for look-ahead.
 func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
-	if q.isDisabled() {
-		q.logger.Debug("fail back to original look-ahead, cache is disabled")
+	if q.isDisabled() || q.isShadow() {
+		q.logger.Debug("fail back to original look-ahead, cache is disabled or shadow mode")
 		return q.base.LookAHead(ctx, req)
 	}
 
