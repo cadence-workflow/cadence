@@ -392,6 +392,9 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	state.Paused = false
 	state.PauseReason = ""
 	state.PausedBy = ""
+	if sig.CatchUpPolicy != types.ScheduleCatchUpPolicyInvalid {
+		state.UnpauseCatchUpPolicy = sig.CatchUpPolicy
+	}
 	logger.Info("schedule unpaused", zap.String("reason", sig.Reason), zap.String("catchUpPolicy", sig.CatchUpPolicy.String()))
 	return true
 }
@@ -858,7 +861,14 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 		)
 	}
 
-	result := applyMissedRunPolicy(input.Policies.CatchUpPolicy, input.Policies.CatchUpWindow, fires.times, now, logger)
+	// Use the per-unpause policy override if set; it is a one-shot value that
+	// takes priority over the schedule's configured policy for this catch-up pass.
+	effectivePolicy := input.Policies.CatchUpPolicy
+	if state.UnpauseCatchUpPolicy != types.ScheduleCatchUpPolicyInvalid {
+		effectivePolicy = state.UnpauseCatchUpPolicy
+		state.UnpauseCatchUpPolicy = types.ScheduleCatchUpPolicyInvalid
+	}
+	result := applyMissedRunPolicy(effectivePolicy, input.Policies.CatchUpWindow, fires.times, now, logger)
 
 	fired := 0
 	for _, t := range result.toFire {
@@ -874,7 +884,7 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 		scope.Counter(SchedulerMissedFiredCountPerDomain).Inc(int64(fired))
 	}
 
-	policyStr := input.Policies.CatchUpPolicy.String()
+	policyStr := effectivePolicy.String()
 	if result.skipped > 0 {
 		scope.Tagged(map[string]string{CatchUpPolicyTag: policyStr}).
 			Counter(SchedulerMissedSkippedCountPerDomain).Inc(result.skipped)

@@ -177,6 +177,10 @@ type SchedulerWorkflowState struct {
 	// RunningWorkflows holds in-flight target workflows under bounded CONCURRENT
 	// (ConcurrencyLimit > 0); completed entries are pruned by the activity on each fire.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
+	// UnpauseCatchUpPolicy is a one-shot override set by UnpauseSignal.CatchUpPolicy.
+	// processMissedRunsAt prefers this over input.Policies.CatchUpPolicy for the first
+	// catch-up pass after an unpause, then clears it. Invalid (zero) means no override.
+	UnpauseCatchUpPolicy types.ScheduleCatchUpPolicy `json:"unpauseCatchUpPolicy,omitempty"`
 }
 
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER

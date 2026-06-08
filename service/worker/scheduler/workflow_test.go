@@ -529,13 +529,14 @@ func TestHandlePause(t *testing.T) {
 
 func TestHandleUnpause(t *testing.T) {
 	tests := []struct {
-		name         string
-		initial      SchedulerWorkflowState
-		sig          UnpauseSignal
-		wantPaused   bool
-		wantReason   string
-		wantPausedBy string
-		wantChanged  bool
+		name                  string
+		initial               SchedulerWorkflowState
+		sig                   UnpauseSignal
+		wantPaused            bool
+		wantReason            string
+		wantPausedBy          string
+		wantChanged           bool
+		wantUnpauseCatchUpPolicy types.ScheduleCatchUpPolicy
 	}{
 		{
 			name:         "unpause from paused",
@@ -555,6 +556,30 @@ func TestHandleUnpause(t *testing.T) {
 			wantPausedBy: "",
 			wantChanged:  false,
 		},
+		{
+			name:    "unpause with CatchUpPolicyOne stores override in state",
+			initial: SchedulerWorkflowState{Paused: true},
+			sig:     UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
+			wantPaused:               false,
+			wantChanged:              true,
+			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+		},
+		{
+			name:    "unpause with CatchUpPolicySkip stores override in state",
+			initial: SchedulerWorkflowState{Paused: true},
+			sig:     UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+			wantPaused:               false,
+			wantChanged:              true,
+			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicySkip,
+		},
+		{
+			name:    "unpause with Invalid policy does not set override",
+			initial: SchedulerWorkflowState{Paused: true},
+			sig:     UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyInvalid},
+			wantPaused:               false,
+			wantChanged:              true,
+			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyInvalid,
+		},
 	}
 
 	for _, tt := range tests {
@@ -565,6 +590,7 @@ func TestHandleUnpause(t *testing.T) {
 			assert.Equal(t, tt.wantPaused, state.Paused)
 			assert.Equal(t, tt.wantReason, state.PauseReason)
 			assert.Equal(t, tt.wantPausedBy, state.PausedBy)
+			assert.Equal(t, tt.wantUnpauseCatchUpPolicy, state.UnpauseCatchUpPolicy)
 		})
 	}
 }
@@ -1048,6 +1074,51 @@ func TestProcessMissedRunsAtMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestProcessMissedRunsAt_PauseUnpause is the primary end-to-end scenario for catch-up:
+// the schedule is paused for 5 minutes (missing 5 per-minute fires), then unpaused
+// with CatchUpPolicyOne. Exactly 1 fire (the most recent) must run; the other 4 are skipped.
+// This also verifies that state.UnpauseCatchUpPolicy is cleared after use so subsequent
+// processMissedRunsAt calls fall back to input.Policies.CatchUpPolicy.
+func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	watermark := base
+	now := base.Add(5 * time.Minute) // 5 fires missed: 10:01–10:05
+
+	sched := mustParseCron(t, "* * * * *")
+	scope := tally.NewTestScope("", nil)
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{
+			// No CatchUpPolicy at creation (Invalid → skip all).
+			// The unpause override in state must take priority.
+		},
+		// Action.StartWorkflow intentionally nil: processScheduleFire returns
+		// before reaching ctx, so nil ctx is safe here.
+	}
+	state := &SchedulerWorkflowState{
+		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne, // set by handleUnpause
+	}
+
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now)
+
+	assert.False(t, moreMissed, "all 5 fires fit within maxCatchUpFiresPerExecution")
+
+	// Override must be consumed and cleared so the next catch-up uses the schedule's own policy.
+	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
+		"UnpauseCatchUpPolicy must be cleared after use")
+
+	counters := scope.Snapshot().Counters()
+
+	firedC, ok := findCounter(counters, SchedulerMissedFiredCountPerDomain, map[string]string{})
+	require.True(t, ok, "one fire should be recorded")
+	assert.Equal(t, int64(1), firedC.Value(), "CatchUpPolicyOne fires exactly the most recent missed run")
+
+	skippedC, ok := findCounter(counters, SchedulerMissedSkippedCountPerDomain,
+		map[string]string{CatchUpPolicyTag: types.ScheduleCatchUpPolicyOne.String()})
+	require.True(t, ok, "4 skipped fires should be recorded")
+	assert.Equal(t, int64(4), skippedC.Value(), "4 of 5 missed fires are skipped under CatchUpPolicyOne")
 }
 
 // noopChannel is a workflow.Channel whose ReceiveAsync always returns false (no pending signal).
