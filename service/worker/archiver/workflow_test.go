@@ -24,6 +24,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/testsuite"
@@ -70,6 +71,13 @@ func (s *workflowSuite) SetupTest() {
 		ArchivalsPerIteration:         dynamicproperties.GetIntPropertyFn(0),
 		TimeLimitPerArchivalIteration: dynamicproperties.GetDurationPropertyFn(MaxArchivalIterationTimeout()),
 	}
+
+	// archival workflow dual-emits CadenceLatency timer + CadenceLatencyHistogram via
+	// metricsClient.Scope(ArchiverArchivalWorkflowScope).ExponentialHistogram(...). Wire a
+	// permissive scope mock so we don't have to repeat the expectation in every test.
+	archivalScopeMock := &mmocks.Scope{}
+	archivalScopeMock.On("ExponentialHistogram", metrics.CadenceLatencyHistogram, mock.Anything).Maybe()
+	workflowTestMetrics.On("Scope", metrics.ArchiverArchivalWorkflowScope).Return(archivalScopeMock).Maybe()
 }
 
 func (s *workflowSuite) TestArchivalWorkflow_Fail_HashesDoNotEqual() {

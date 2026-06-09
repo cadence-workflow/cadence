@@ -104,7 +104,7 @@ func (v *visibilityArchiver) Archive(
 ) (err error) {
 	scope := v.container.MetricsClient.Scope(metrics.VisibilityArchiverScope, metrics.DomainTag(request.DomainName))
 	featureCatalog := archiver.GetFeatureCatalog(opts...)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
 	logger := archiver.TagLoggerWithArchiveVisibilityRequestAndURI(v.container.Logger, request, URI.String())
 	archiveFailReason := ""
 	defer func() {

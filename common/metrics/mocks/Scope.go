@@ -406,6 +406,63 @@ func (_c *Scope_StartTimer_Call) RunAndReturn(run func(timer metrics.MetricIdx) 
 	return _c
 }
 
+// StartTimerWithExponentialHistogram provides a mock function for the type Scope
+func (_mock *Scope) StartTimerWithExponentialHistogram(timer metrics.MetricIdx, histogram metrics.MetricIdx) metrics.Stopwatch {
+	ret := _mock.Called(timer, histogram)
+
+	if len(ret) == 0 {
+		panic("no return value specified for StartTimerWithExponentialHistogram")
+	}
+
+	var r0 metrics.Stopwatch
+	if returnFunc, ok := ret.Get(0).(func(metrics.MetricIdx, metrics.MetricIdx) metrics.Stopwatch); ok {
+		r0 = returnFunc(timer, histogram)
+	} else {
+		r0 = ret.Get(0).(metrics.Stopwatch)
+	}
+	return r0
+}
+
+// Scope_StartTimerWithExponentialHistogram_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'StartTimerWithExponentialHistogram'
+type Scope_StartTimerWithExponentialHistogram_Call struct {
+	*mock.Call
+}
+
+// StartTimerWithExponentialHistogram is a helper method to define mock.On call
+//   - timer metrics.MetricIdx
+//   - histogram metrics.MetricIdx
+func (_e *Scope_Expecter) StartTimerWithExponentialHistogram(timer interface{}, histogram interface{}) *Scope_StartTimerWithExponentialHistogram_Call {
+	return &Scope_StartTimerWithExponentialHistogram_Call{Call: _e.mock.On("StartTimerWithExponentialHistogram", timer, histogram)}
+}
+
+func (_c *Scope_StartTimerWithExponentialHistogram_Call) Run(run func(timer metrics.MetricIdx, histogram metrics.MetricIdx)) *Scope_StartTimerWithExponentialHistogram_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 metrics.MetricIdx
+		if args[0] != nil {
+			arg0 = args[0].(metrics.MetricIdx)
+		}
+		var arg1 metrics.MetricIdx
+		if args[1] != nil {
+			arg1 = args[1].(metrics.MetricIdx)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Scope_StartTimerWithExponentialHistogram_Call) Return(stopwatch metrics.Stopwatch) *Scope_StartTimerWithExponentialHistogram_Call {
+	_c.Call.Return(stopwatch)
+	return _c
+}
+
+func (_c *Scope_StartTimerWithExponentialHistogram_Call) RunAndReturn(run func(timer metrics.MetricIdx, histogram metrics.MetricIdx) metrics.Stopwatch) *Scope_StartTimerWithExponentialHistogram_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Tagged provides a mock function for the type Scope
 func (_mock *Scope) Tagged(tags ...metrics.Tag) metrics.Scope {
 	var tmpRet mock.Arguments

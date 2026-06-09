@@ -1519,7 +1519,7 @@ func (adh *adminHandlerImpl) validatePaginationToken(
 // startRequestProfile initiates recording of request metrics
 func (adh *adminHandlerImpl) startRequestProfile(ctx context.Context, scope metrics.ScopeIdx) (metrics.Scope, metrics.Stopwatch) {
 	metricsScope := adh.GetMetricsClient().Scope(scope).Tagged(metrics.DomainUnknownTag()).Tagged(metrics.GetContextTags(ctx)...)
-	sw := metricsScope.StartTimer(metrics.CadenceLatency)
+	sw := metricsScope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
 	metricsScope.IncCounter(metrics.CadenceRequests)
 	return metricsScope, sw
 }
