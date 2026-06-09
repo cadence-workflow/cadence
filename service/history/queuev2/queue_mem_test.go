@@ -795,10 +795,42 @@ func TestInMemQueueBudget(t *testing.T) {
 			},
 		},
 		{
-			name: "Two queues sharing budget: RTrimBySize on one fixes host total",
+			name: "RTrimBySize trims untracked task inserted when at capacity",
 			run: func(t *testing.T) {
-				// Both queues insert with unlimited capacity, then we shrink to 4
-				// so q2.RTrimBySize() must trim until total <= 4.
+				// Capacity=3. Insert 3 tasks (all succeed). Then insert a 4th task
+				// whose ReserveCountWithCallback fails (budget at capacity with
+				// AdmissionOptimistic: increments, detects overage, rolls back).
+				// The 4th task is still appended to q.tasks (by design — tasks are
+				// never silently skipped). RTrimBySize must detect Len()>capacity and
+				// trim the untracked tail task.
+				mgr := newTestBudgetMgr(3)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				q.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+				})
+				// 4th insert: reserve will fail (capacity=3, used=3).
+				q.putTask(newTestTask(time.Unix(40, 0), 4))
+				// Queue has 4 tasks but UsedCount is still 3.
+				require.Equal(t, 4, q.Len(), "pre-condition: 4th task was inserted despite reserve failure")
+
+				_, trimmed := q.RTrimBySize()
+
+				assert.True(t, trimmed)
+				assert.Equal(t, 3, q.Len())
+			},
+		},
+		{
+			name: "Two queues sharing budget: RTrimBySize trims local queue to capacity bound",
+			run: func(t *testing.T) {
+				// RTrimBySize trims the local queue down to CapacityCount entries.
+				// It cannot account for tasks held in sibling queues — that is the
+				// caller's responsibility (trim each queue individually).
+				// Here q1 holds 3 tasks, q2 holds 5 tasks, capacity=3.
+				// q2.RTrimBySize() trims q2 from 5→3 (the local len bound).
 				capFn := newMutableCountFn(-1)
 				mgr := newTestBudgetMgrMutable(capFn)
 				defer mgr.Stop()
@@ -815,15 +847,17 @@ func TestInMemQueueBudget(t *testing.T) {
 					newTestTask(time.Unix(40, 0), 4),
 					newTestTask(time.Unix(50, 0), 5),
 					newTestTask(time.Unix(60, 0), 6),
+					newTestTask(time.Unix(70, 0), 7),
+					newTestTask(time.Unix(80, 0), 8),
 				})
 
-				// Shrink shared capacity to 4 (total 6 > 4).
-				capFn.v.Store(4)
-				_, _ = q2.RTrimBySize()
+				// Shrink shared capacity to 3 (total 8 > 3).
+				capFn.v.Store(3)
+				_, trimmed := q2.RTrimBySize()
 
-				assert.Equal(t, int64(4), mgr.UsedCount(), "host-level used count must equal capacity after trim")
+				assert.True(t, trimmed)
 				assert.Equal(t, 3, q1.Len(), "q1 must be untouched")
-				assert.Equal(t, 1, q2.Len(), "q2 must be trimmed to 1 task")
+				assert.Equal(t, 3, q2.Len(), "q2 must be trimmed to CapacityCount=3")
 			},
 		},
 	}

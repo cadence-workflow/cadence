@@ -170,7 +170,8 @@ func (q *inMemQueueImpl) RTrimBySize() (persistence.HistoryTaskKey, bool) {
 		return persistence.MinimumHistoryTaskKey, false
 	}
 	trimmed := false
-	for len(q.tasks) > 0 && q.budgetMgr.UsedCount() > q.budgetMgr.CapacityCount() {
+	// Use q.Len() (not UsedCount) because reserve may fail for tasks inserted while at capacity.
+	for len(q.tasks) > 0 && int64(len(q.tasks)) > q.budgetMgr.CapacityCount() {
 		q.tasks[len(q.tasks)-1] = nil // release GC ref
 		q.tasks = q.tasks[:len(q.tasks)-1]
 		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return 1, nil })
