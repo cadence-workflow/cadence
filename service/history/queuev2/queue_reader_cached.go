@@ -749,11 +749,11 @@ type findMismatchesInShadowResult struct {
 	MissedInCacheTaskKeys []persistence.HistoryTaskKey `json:"missedInCacheTaskKeys,omitempty"`
 	// IncorrectTimeTaskKeys contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
 	IncorrectTimeTaskKeys []shadowTimeMismatch `json:"incorrectTimeTaskKeys,omitempty"`
-	// ExtraInCacheTaskKeys contains task keys present in cache but absent from the DB response.
+	// ExtraInCacheTaskKeys contains task keys present in cache but absent from the DB response, created by the current rangeID.
 	ExtraInCacheTaskKeys []persistence.HistoryTaskKey `json:"extraInCacheTaskKeys,omitempty"`
-	// OwnerChangedTaskKeys holds DB tasks absent from cache whose taskID encodes a different rangeID
+	// OwnerChangedTaskKeys holds tasks absent from DB or cache whose taskID encodes a different rangeID
 	// than the current shard. It may happen when a shard movement happens, but the queue processor on the previous instance
-	// is still processing tasks, but not receiving new tasks created by the new owner.
+	// is still processing tasks, and not receiving new tasks created by the new owner.
 	// These tasks are not counted as mismatches because they cannot be served from cache, but they are still logged for visibility.
 	OwnerChangedTaskKeys []persistence.HistoryTaskKey `json:"ownerChangedTaskKeys,omitempty"`
 	// OwnerChangedRangeIDs holds the distinct rangeIDs encoded in the OwnerChangedTaskKeys tasks' taskIDs.
@@ -815,9 +815,10 @@ func getTruncatedScheduledTime(t persistence.Task) time.Time {
 // exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
 // normal production traffic without indicating any real divergence in task data.
 //
-// DB tasks absent from cache are partitioned into MissedInCacheTaskKeys (same shard owner)
-// and OwnerChangedTaskKeys (different rangeID — created by a different owner or after a range
-// rollover). Only MissedInCacheTaskKeys contributes to HasMismatches.
+// DB tasks absent from cache are partitioned into MissedInCacheTaskKeys (same rangeID)
+// and OwnerChangedTaskKeys (different rangeID). Cache tasks absent from DB are similarly
+// partitioned into ExtraInCacheTaskKeys (same rangeID) and OwnerChangedTaskKeys (different rangeID).
+// Only MissedInCacheTaskKeys, IncorrectTimeTaskKeys, and ExtraInCacheTaskKeys contribute to HasMismatches.
 // Tasks present in both but with mismatched scheduled times are recorded in IncorrectTimeTaskKeys.
 func (q *cachedQueueReader) findMismatchesInShadow(
 	cacheResp *GetTaskResponse,
@@ -872,8 +873,16 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 			continue
 		}
 
-		// Task ID is missing from DB response, but present in cache snapshot
-		result.ExtraInCacheTaskKeys = append(result.ExtraInCacheTaskKeys, t.GetTaskKey())
+		taskRangeID := q.getTaskRangeID(t.GetTaskID())
+		if taskRangeID == currentRangeID {
+			// Task ID is missing from DB response, but present in cache snapshot
+			result.ExtraInCacheTaskKeys = append(result.ExtraInCacheTaskKeys, t.GetTaskKey())
+			continue
+		}
+
+		// Task in cache but not DB, created by a previous owner — not a true mismatch
+		result.OwnerChangedTaskKeys = append(result.OwnerChangedTaskKeys, t.GetTaskKey())
+		rangeIDs[taskRangeID] = struct{}{}
 	}
 
 	result.HasMismatches = len(result.MissedInCacheTaskKeys) > 0 || len(result.IncorrectTimeTaskKeys) > 0 || len(result.ExtraInCacheTaskKeys) > 0

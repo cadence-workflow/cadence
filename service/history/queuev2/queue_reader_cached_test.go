@@ -1109,6 +1109,31 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				DBTaskCount:    1,
 			},
 		},
+		{
+			name:         "extra task in cache: different rangeID → owner changed, not a mismatch",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			wantResult: findMismatchesInShadowResult{
+				OwnerChangedTaskKeys: []persistence.HistoryTaskKey{key(tOtherRange1)},
+				OwnerChangedRangeIDs: []int64{1},
+				HasMismatches:        false,
+				CacheTaskCount:       2,
+				DBTaskCount:          1,
+			},
+		},
+		{
+			name:         "extra task in cache: mixed same-range (mismatch) and different-range (owner change)",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t3, tOtherRange1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			wantResult: findMismatchesInShadowResult{
+				ExtraInCacheTaskKeys: []persistence.HistoryTaskKey{key(t3)},
+				OwnerChangedTaskKeys: []persistence.HistoryTaskKey{key(tOtherRange1)},
+				OwnerChangedRangeIDs: []int64{1},
+				HasMismatches:        true,
+				CacheTaskCount:       3,
+				DBTaskCount:          1,
+			},
+		},
 	}
 
 	for _, tc := range tests {
