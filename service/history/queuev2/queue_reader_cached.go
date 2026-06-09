@@ -442,7 +442,7 @@ func (q *cachedQueueReader) putTasks(tasks []persistence.Task) bool {
 	// tasks older than TimeEvictionWindow first to make room.
 	q.tryTimeEvict(len(tasks))
 	q.queue.PutTasks(tasks)
-	newUpper, trimmed := q.queue.RTrimBySize(q.options.MaxSize())
+	newUpper, trimmed := q.queue.RTrimBySize()
 
 	if !trimmed {
 		return false

@@ -251,7 +251,7 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				queue.EXPECT().PutTasks([]persistence.Task{inside})
-				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 			wantUpper: upper,
 		},
@@ -273,7 +273,7 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				queue.EXPECT().PutTasks([]persistence.Task{inside})
-				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 			wantUpper: upper,
 		},
@@ -294,7 +294,7 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				queue.EXPECT().PutTasks([]persistence.Task{inside})
-				queue.EXPECT().RTrimBySize(1).Return(trimKey, true)
+				queue.EXPECT().RTrimBySize().Return(trimKey, true)
 			},
 			wantUpper: trimKey,
 		},
@@ -400,7 +400,7 @@ func TestCachedQueueReader_InsertBufferedTasks(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				queue.EXPECT().PutTasks([]persistence.Task{tIn})
-				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 		},
 		{
@@ -414,7 +414,7 @@ func TestCachedQueueReader_InsertBufferedTasks(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				queue.EXPECT().PutTasks([]persistence.Task{tIn})
-				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 		},
 	}
@@ -936,7 +936,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					Progress: &GetTaskProgress{NextTaskKey: maxKey},
 				}, nil)
 				queue.EXPECT().PutTasks([]persistence.Task{t1, t2})
-				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 			wantLower: evictBefore,
 			wantUpper: maxKey,
@@ -966,7 +966,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					Progress: &GetTaskProgress{NextTaskKey: t4.GetTaskKey().Next()},
 				}, nil)
 				queue.EXPECT().PutTasks([]persistence.Task{t3, t4})
-				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 			wantLower: someLower,
 			wantUpper: t4.GetTaskKey().Next(),
@@ -988,7 +988,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 					assert.Equal(t, evictBefore.Compare(key), 0)
 				})
 				queue.EXPECT().PutTasks([]persistence.Task{t3})
-				queue.EXPECT().RTrimBySize(1).Return(trimKey, true)
+				queue.EXPECT().RTrimBySize().Return(trimKey, true)
 			},
 			wantLower: evictBefore,
 			wantUpper: trimKey,
@@ -1036,7 +1036,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				}, nil)
 				// insertBufferedTasks drains tBuf after upper advances to maxKey.
 				queue.EXPECT().PutTasks([]persistence.Task{tBuf})
-				queue.EXPECT().RTrimBySize(maxSize).Return(persistence.MinimumHistoryTaskKey, false)
+				queue.EXPECT().RTrimBySize().Return(persistence.MinimumHistoryTaskKey, false)
 			},
 			wantLower: someLower,
 			wantUpper: maxKey,

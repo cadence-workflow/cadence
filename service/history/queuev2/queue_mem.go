@@ -169,19 +169,17 @@ func (q *inMemQueueImpl) RTrimBySize() (persistence.HistoryTaskKey, bool) {
 	if len(q.tasks) == 0 {
 		return persistence.MinimumHistoryTaskKey, false
 	}
-	prevLen := len(q.tasks)
+	trimmed := false
 	for len(q.tasks) > 0 && q.budgetMgr.UsedCount() > q.budgetMgr.CapacityCount() {
 		q.tasks[len(q.tasks)-1] = nil // release GC ref
 		q.tasks = q.tasks[:len(q.tasks)-1]
-	}
-	freed := int64(prevLen - len(q.tasks))
-	if freed > 0 {
-		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return freed, nil })
+		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return 1, nil })
+		trimmed = true
 	}
 	if len(q.tasks) == 0 {
-		return persistence.MinimumHistoryTaskKey, freed > 0
+		return persistence.MinimumHistoryTaskKey, trimmed
 	}
-	return q.tasks[len(q.tasks)-1].GetTaskKey().Next(), freed > 0
+	return q.tasks[len(q.tasks)-1].GetTaskKey().Next(), trimmed
 }
 
 // Clear removes all tasks from the queue.

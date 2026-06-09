@@ -23,14 +23,53 @@
 package queuev2
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/cache"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 )
+
+// newTestBudgetMgr creates a budget manager for tests.
+// maxCount < 0 means unlimited; >= 0 is an enforced cap.
+func newTestBudgetMgr(maxCount int64) cache.Manager {
+	return cache.NewBudgetManager(
+		"test",
+		dynamicproperties.GetIntPropertyFn(-1), // bytes: unlimited
+		dynamicproperties.GetIntPropertyFn(int(maxCount)),
+		cache.AdmissionOptimistic,
+		0, nil, nil, nil,
+	)
+}
+
+// mutableCountFn wraps an atomic so tests can change the capacity after construction.
+type mutableCountFn struct{ v atomic.Int64 }
+
+func newMutableCountFn(initial int64) *mutableCountFn {
+	f := &mutableCountFn{}
+	f.v.Store(initial)
+	return f
+}
+
+func (m *mutableCountFn) fn(_ ...dynamicproperties.FilterOption) int {
+	return int(m.v.Load())
+}
+
+// newTestBudgetMgrMutable creates a budget manager whose count capacity can be changed at runtime.
+func newTestBudgetMgrMutable(cap *mutableCountFn) cache.Manager {
+	return cache.NewBudgetManager(
+		"test",
+		dynamicproperties.GetIntPropertyFn(-1), // bytes: unlimited
+		cap.fn,
+		cache.AdmissionOptimistic,
+		0, nil, nil, nil,
+	)
+}
 
 // testTask is a minimal persistence.Task for testing InMemQueue.
 // It uses DeleteHistoryEventTask because it's a timer task that uses
@@ -126,7 +165,9 @@ func TestInMemQueue_putTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := newInMemQueue()
+			mgr := newTestBudgetMgr(-1)
+			defer mgr.Stop()
+			q := newInMemQueueWithBudget(mgr, "test")
 			for _, task := range tt.existing {
 				q.putTask(task)
 			}
@@ -178,7 +219,9 @@ func TestInMemQueue_PutTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := newInMemQueue()
+			mgr := newTestBudgetMgr(-1)
+			defer mgr.Stop()
+			q := newInMemQueueWithBudget(mgr, "test")
 			for _, task := range tt.existing {
 				q.putTask(task)
 			}
@@ -244,7 +287,9 @@ func TestInMemQueue_LookAHead(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := newInMemQueue()
+			mgr := newTestBudgetMgr(-1)
+			defer mgr.Stop()
+			q := newInMemQueueWithBudget(mgr, "test")
 			q.PutTasks(tt.tasks)
 
 			task := q.LookAHead(tt.minTaskKey)
@@ -352,7 +397,9 @@ func TestInMemQueue_GetTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := newInMemQueue()
+			mgr := newTestBudgetMgr(-1)
+			defer mgr.Stop()
+			q := newInMemQueueWithBudget(mgr, "test")
 			q.PutTasks(tt.tasks)
 
 			gotTasks, nextKey := q.GetTasks(tt.inclusiveMin, tt.exclusiveMax, tt.predicate, tt.pageSize)
@@ -427,7 +474,9 @@ func TestInMemQueue_LTrim(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := newInMemQueue()
+			mgr := newTestBudgetMgr(-1)
+			defer mgr.Stop()
+			q := newInMemQueueWithBudget(mgr, "test")
 			q.PutTasks(tt.tasks)
 
 			q.LTrim(tt.trimKey)
@@ -446,7 +495,7 @@ func TestInMemQueue_RTrimBySize(t *testing.T) {
 	tests := []struct {
 		name        string
 		tasks       []persistence.Task
-		maxSize     int
+		maxSize     int64
 		wantLen     int
 		wantTaskIDs []int64
 		wantKey     persistence.HistoryTaskKey
@@ -515,10 +564,17 @@ func TestInMemQueue_RTrimBySize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q := newInMemQueue()
+			// Insert tasks with unlimited capacity so all fit.
+			cap := newMutableCountFn(-1)
+			mgr := newTestBudgetMgrMutable(cap)
+			defer mgr.Stop()
+			q := newInMemQueueWithBudget(mgr, "test")
 			q.PutTasks(tt.tasks)
 
-			gotKey, gotTrimmed := q.RTrimBySize(tt.maxSize)
+			// Now reduce capacity to maxSize to trigger trimming on next RTrimBySize call.
+			cap.v.Store(tt.maxSize)
+
+			gotKey, gotTrimmed := q.RTrimBySize()
 
 			assert.Equal(t, tt.wantLen, q.Len())
 			var gotIDs []int64
@@ -533,7 +589,9 @@ func TestInMemQueue_RTrimBySize(t *testing.T) {
 }
 
 func TestInMemQueue_Len(t *testing.T) {
-	q := newInMemQueue()
+	mgr := newTestBudgetMgr(-1)
+	defer mgr.Stop()
+	q := newInMemQueueWithBudget(mgr, "test")
 	assert.Equal(t, 0, q.Len())
 
 	q.putTask(newTestTask(time.Unix(10, 0), 1))
@@ -545,7 +603,9 @@ func TestInMemQueue_Len(t *testing.T) {
 }
 
 func TestInMemQueue_Clear(t *testing.T) {
-	q := newInMemQueue()
+	mgr := newTestBudgetMgr(-1)
+	defer mgr.Stop()
+	q := newInMemQueueWithBudget(mgr, "test")
 	q.PutTasks([]persistence.Task{
 		newTestTask(time.Unix(10, 0), 1),
 		newTestTask(time.Unix(20, 0), 2),
@@ -560,7 +620,11 @@ func TestInMemQueue_Clear(t *testing.T) {
 // backing array elements beyond maxSize so removed Task interface values are
 // eligible for GC and don't linger in the underlying array.
 func TestInMemQueue_RTrimBySize_NilsTail(t *testing.T) {
-	q := newInMemQueue()
+	// Insert 3 tasks with unlimited capacity, then shrink capacity to 1.
+	capFn := newMutableCountFn(-1)
+	mgr := newTestBudgetMgrMutable(capFn)
+	defer mgr.Stop()
+	q := newInMemQueueWithBudget(mgr, "test")
 	q.PutTasks([]persistence.Task{
 		newTestTask(time.Unix(1, 0), 1),
 		newTestTask(time.Unix(2, 0), 2),
@@ -569,7 +633,9 @@ func TestInMemQueue_RTrimBySize_NilsTail(t *testing.T) {
 	// Grow the backing array so we can inspect it after trimming.
 	cap0 := cap(q.tasks)
 
-	_, trimmed := q.RTrimBySize(1)
+	// Reduce capacity to 1 so RTrimBySize trims.
+	capFn.v.Store(1)
+	_, trimmed := q.RTrimBySize()
 	assert.True(t, trimmed)
 	assert.Equal(t, 1, q.Len())
 
@@ -583,7 +649,9 @@ func TestInMemQueue_RTrimBySize_NilsTail(t *testing.T) {
 }
 
 func TestInMemQueue_PutTasks_AppendFastPath(t *testing.T) {
-	q := newInMemQueue()
+	mgr := newTestBudgetMgr(-1)
+	defer mgr.Stop()
+	q := newInMemQueueWithBudget(mgr, "test")
 	// Insert tasks in ascending order — all should use fast path.
 	tasks := []persistence.Task{
 		newTestTask(time.Unix(10, 0), 1),
@@ -596,6 +664,173 @@ func TestInMemQueue_PutTasks_AppendFastPath(t *testing.T) {
 	assert.Equal(t, int64(1), q.tasks[0].GetTaskID())
 	assert.Equal(t, int64(2), q.tasks[1].GetTaskID())
 	assert.Equal(t, int64(3), q.tasks[2].GetTaskID())
+}
+
+// TestInMemQueueBudget covers budget-specific behaviors of inMemQueueImpl.
+func TestInMemQueueBudget(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "PutTasks reserves count for inserted tasks",
+			run: func(t *testing.T) {
+				mgr := newTestBudgetMgr(10)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				q.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+				})
+
+				assert.Equal(t, int64(3), mgr.UsedCount())
+				assert.Equal(t, 3, q.Len())
+			},
+		},
+		{
+			name: "PutTasks does NOT reserve for duplicate tasks",
+			run: func(t *testing.T) {
+				mgr := newTestBudgetMgr(10)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				tasks := []persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+				}
+				q.PutTasks(tasks)
+				// Insert same 3 tasks again — duplicates should be skipped, count unchanged.
+				q.PutTasks(tasks)
+
+				assert.Equal(t, int64(3), mgr.UsedCount(), "duplicates must not increment used count")
+			},
+		},
+		{
+			name: "RTrimBySize trims when over capacity",
+			run: func(t *testing.T) {
+				// Insert 5 tasks with unlimited capacity, then shrink to 3 to trigger trim.
+				capFn := newMutableCountFn(-1)
+				mgr := newTestBudgetMgrMutable(capFn)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				q.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+					newTestTask(time.Unix(40, 0), 4),
+					newTestTask(time.Unix(50, 0), 5),
+				})
+
+				capFn.v.Store(3) // reduce capacity to trigger trimming
+				_, trimmed := q.RTrimBySize()
+
+				assert.True(t, trimmed)
+				assert.Equal(t, 3, q.Len())
+				assert.Equal(t, int64(3), mgr.UsedCount())
+			},
+		},
+		{
+			name: "RTrimBySize is no-op when within capacity",
+			run: func(t *testing.T) {
+				mgr := newTestBudgetMgr(10)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				q.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+				})
+
+				_, trimmed := q.RTrimBySize()
+
+				assert.False(t, trimmed)
+				assert.Equal(t, 3, q.Len())
+				assert.Equal(t, int64(3), mgr.UsedCount())
+			},
+		},
+		{
+			name: "LTrim releases count for removed tasks",
+			run: func(t *testing.T) {
+				mgr := newTestBudgetMgr(10)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				q.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+					newTestTask(time.Unix(40, 0), 4),
+					newTestTask(time.Unix(50, 0), 5),
+				})
+				// LTrim removes tasks strictly before key(40,4) — removes tasks 1,2,3.
+				q.LTrim(persistence.NewHistoryTaskKey(time.Unix(40, 0), 4))
+
+				assert.Equal(t, 2, q.Len())
+				assert.Equal(t, int64(2), mgr.UsedCount())
+			},
+		},
+		{
+			name: "Clear releases all count",
+			run: func(t *testing.T) {
+				mgr := newTestBudgetMgr(10)
+				defer mgr.Stop()
+				q := newInMemQueueWithBudget(mgr, "test")
+
+				q.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+					newTestTask(time.Unix(40, 0), 4),
+				})
+
+				q.Clear()
+
+				assert.Equal(t, 0, q.Len())
+				assert.Equal(t, int64(0), mgr.UsedCount())
+			},
+		},
+		{
+			name: "Two queues sharing budget: RTrimBySize on one fixes host total",
+			run: func(t *testing.T) {
+				// Both queues insert with unlimited capacity, then we shrink to 4
+				// so q2.RTrimBySize() must trim until total <= 4.
+				capFn := newMutableCountFn(-1)
+				mgr := newTestBudgetMgrMutable(capFn)
+				defer mgr.Stop()
+
+				q1 := newInMemQueueWithBudget(mgr, "q1")
+				q2 := newInMemQueueWithBudget(mgr, "q2")
+
+				q1.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(10, 0), 1),
+					newTestTask(time.Unix(20, 0), 2),
+					newTestTask(time.Unix(30, 0), 3),
+				})
+				q2.PutTasks([]persistence.Task{
+					newTestTask(time.Unix(40, 0), 4),
+					newTestTask(time.Unix(50, 0), 5),
+					newTestTask(time.Unix(60, 0), 6),
+				})
+
+				// Shrink shared capacity to 4 (total 6 > 4).
+				capFn.v.Store(4)
+				_, _ = q2.RTrimBySize()
+
+				assert.Equal(t, int64(4), mgr.UsedCount(), "host-level used count must equal capacity after trim")
+				assert.Equal(t, 3, q1.Len(), "q1 must be untouched")
+				assert.Equal(t, 1, q2.Len(), "q2 must be trimmed to 1 task")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, tt.run)
+	}
 }
 
 // taskIDFilterPredicate is a test helper that only allows specific task IDs.
