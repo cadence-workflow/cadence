@@ -669,6 +669,16 @@ func TestHandleUpdate(t *testing.T) {
 			wantChanged: false,
 		},
 		{
+			name: "out-of-range minute (99) is rejected, spec unchanged",
+			sig: UpdateSignal{
+				Spec: &types.ScheduleSpec{CronExpression: "99 * * * *"},
+			},
+			wantCron:    "0 * * * *",
+			wantWF:      "old-workflow",
+			wantPol:     types.ScheduleOverlapPolicySkipNew,
+			wantChanged: false,
+		},
+		{
 			name: "invalid cron rejected but action and policies still applied",
 			sig: UpdateSignal{
 				Spec:     &types.ScheduleSpec{CronExpression: "bad"},

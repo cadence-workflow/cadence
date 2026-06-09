@@ -153,6 +153,15 @@ func TestCreateSchedule(t *testing.T) {
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
 		},
+		"out-of-range minute in cron expression": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "99 * * * *"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
 		"impossible cron date (Feb 30) parses but never fires": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
@@ -968,6 +977,15 @@ func TestUpdateSchedule(t *testing.T) {
 				Domain:     testDomain,
 				ScheduleID: "s1",
 				Spec:       &types.ScheduleSpec{CronExpression: "not-a-cron"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"out-of-range minute in cron expression rejects update": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "99 * * * *"},
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
