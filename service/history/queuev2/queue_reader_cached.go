@@ -746,18 +746,18 @@ type shadowTimeMismatch struct {
 // findMismatchesInShadowResult holds the outcome of a shadow comparison.
 type findMismatchesInShadowResult struct {
 	// MissedInCacheTaskKeys contains task keys present in DB but absent from cache, created by the current rangeID.
-	MissedInCacheTaskKeys []persistence.HistoryTaskKey `json:"missedInCacheTaskKeys"`
+	MissedInCacheTaskKeys []persistence.HistoryTaskKey `json:"missedInCacheTaskKeys,omitempty"`
 	// IncorrectTimeTaskKeys contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
-	IncorrectTimeTaskKeys []shadowTimeMismatch `json:"incorrectTimeTaskKeys"`
+	IncorrectTimeTaskKeys []shadowTimeMismatch `json:"incorrectTimeTaskKeys,omitempty"`
 	// ExtraInCacheTaskKeys contains task keys present in cache but absent from the DB response.
-	ExtraInCacheTaskKeys []persistence.HistoryTaskKey `json:"extraInCacheTaskKeys"`
+	ExtraInCacheTaskKeys []persistence.HistoryTaskKey `json:"extraInCacheTaskKeys,omitempty"`
 	// OwnerChangedTaskKeys holds DB tasks absent from cache whose taskID encodes a different rangeID
 	// than the current shard. It may happen when a shard movement happens, but the queue processor on the previous instance
 	// is still processing tasks, but not receiving new tasks created by the new owner.
 	// These tasks are not counted as mismatches because they cannot be served from cache, but they are still logged for visibility.
-	OwnerChangedTaskKeys []persistence.HistoryTaskKey `json:"ownerChangedTaskKeys"`
+	OwnerChangedTaskKeys []persistence.HistoryTaskKey `json:"ownerChangedTaskKeys,omitempty"`
 	// OwnerChangedRangeIDs holds the distinct rangeIDs encoded in the OwnerChangedTaskKeys tasks' taskIDs.
-	OwnerChangedRangeIDs []int64 `json:"ownerChangedRangeIDs"`
+	OwnerChangedRangeIDs []int64 `json:"ownerChangedRangeIDs,omitempty"`
 	// CurrentRangeID is the shard's rangeID at the time of comparison.
 	CurrentRangeID int64 `json:"currentRangeID"`
 	// CacheTaskCount is the number of tasks in the cache snapshot
