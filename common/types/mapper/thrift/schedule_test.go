@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/testdata"
 )
@@ -292,4 +293,29 @@ func TestFromUnpauseScheduleResponse(t *testing.T) {
 func TestFromBackfillScheduleResponse(t *testing.T) {
 	assert.NotNil(t, FromBackfillScheduleResponse(nil))
 	assert.NotNil(t, FromBackfillScheduleResponse(&types.BackfillScheduleResponse{}))
+}
+
+func TestToUpdateScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.UpdateScheduleResponse{}, ToUpdateScheduleResponse(nil))
+	assert.Equal(t, &types.UpdateScheduleResponse{}, ToUpdateScheduleResponse(&shared.UpdateScheduleResponse{}))
+}
+
+func TestToDeleteScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.DeleteScheduleResponse{}, ToDeleteScheduleResponse(nil))
+	assert.Equal(t, &types.DeleteScheduleResponse{}, ToDeleteScheduleResponse(&shared.DeleteScheduleResponse{}))
+}
+
+func TestToPauseScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.PauseScheduleResponse{}, ToPauseScheduleResponse(nil))
+	assert.Equal(t, &types.PauseScheduleResponse{}, ToPauseScheduleResponse(&shared.PauseScheduleResponse{}))
+}
+
+func TestToUnpauseScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.UnpauseScheduleResponse{}, ToUnpauseScheduleResponse(nil))
+	assert.Equal(t, &types.UnpauseScheduleResponse{}, ToUnpauseScheduleResponse(&shared.UnpauseScheduleResponse{}))
+}
+
+func TestToBackfillScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.BackfillScheduleResponse{}, ToBackfillScheduleResponse(nil))
+	assert.Equal(t, &types.BackfillScheduleResponse{}, ToBackfillScheduleResponse(&shared.BackfillScheduleResponse{}))
 }

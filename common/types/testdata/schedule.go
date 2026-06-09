@@ -73,6 +73,8 @@ var (
 		LastRunTime:      scheduleTimeLocal2,
 		NextRunTime:      scheduleTimeLocal3,
 		TotalRuns:        42,
+		MissedRuns:       3,
+		SkippedRuns:      1,
 		CreateTime:       scheduleTimeLocal5,
 		LastUpdateTime:   scheduleTimeLocal2,
 		OngoingBackfills: []*types.BackfillInfo{&ScheduleBackfillInfoThrift},
