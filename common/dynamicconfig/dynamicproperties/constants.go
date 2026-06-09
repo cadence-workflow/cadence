@@ -2504,7 +2504,7 @@ const (
 	// Value type: Float64
 	// Default value: 0.15
 	// Allowed filters: N/A
-	// Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is disabled or enabled.
+	// Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.
 	TimerProcessorMaxPollIntervalJitterCoefficient
 	// TimerProcessorSplitQueueIntervalJitterCoefficient is the split processing queue interval jitter coefficient
 	// KeyName: history.timerProcessorSplitQueueIntervalJitterCoefficient
@@ -3111,7 +3111,7 @@ const (
 	// Value type: Duration
 	// Default value: 5m (5*time.Minute)
 	// Allowed filters: N/A
-	// Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is disabled or enabled.
+	// Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.
 	TimerProcessorMaxPollInterval
 	// TimerProcessorSplitQueueInterval is the split processing queue interval for timer processor
 	// KeyName: history.timerProcessorSplitQueueInterval
@@ -5422,7 +5422,7 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 	},
 	TimerProcessorMaxPollIntervalJitterCoefficient: {
 		KeyName:      "history.timerProcessorMaxPollIntervalJitterCoefficient",
-		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient. Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is disabled or enabled.",
+		Description:  "TimerProcessorMaxPollIntervalJitterCoefficient is the max poll interval jitter coefficient. Also used as the prefetch jitter coefficient when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
 		DefaultValue: 0.15,
 	},
 	TimerProcessorSplitQueueIntervalJitterCoefficient: {
@@ -5932,7 +5932,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	},
 	TimerProcessorMaxPollInterval: {
 		KeyName:      "history.timerProcessorMaxPollInterval",
-		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor. Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is disabled or enabled.",
+		Description:  "TimerProcessorMaxPollInterval is max poll interval for timer processor. Also used as the prefetch look-ahead ceiling when TimerProcessorCachedQueueReaderMode is shadow or enabled.",
 		DefaultValue: time.Minute * 5,
 	},
 	TimerProcessorSplitQueueInterval: {
