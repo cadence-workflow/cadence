@@ -25,6 +25,8 @@ package queuev2
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -666,128 +668,6 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 	return cacheResp, nil
 }
 
-// getTaskInShadow queries the DB for the same request, compares the result
-// against the cache snapshot, and returns the DB result. Mismatches are
-// logged but do not affect processing.
-func (q *cachedQueueReader) getTaskInShadow(
-	ctx context.Context,
-	req *GetTaskRequest,
-	cacheResp *GetTaskResponse,
-	logTags []tag.Tag,
-) (*GetTaskResponse, error) {
-	dbResp, err := q.base.GetTask(ctx, req)
-	if err != nil {
-		q.logger.Error("shadow comparison skipped, base returned error",
-			append(logTags, tag.Error(err))...,
-		)
-		return dbResp, err
-	}
-	result := q.findMismatchesInShadow(cacheResp, dbResp)
-	q.reportShadowComparison(result, cacheResp, dbResp, logTags)
-	return dbResp, nil
-}
-
-// findMismatchesInShadowResult holds the outcome of a shadow comparison.
-type findMismatchesInShadowResult struct {
-	// MissingFromCache contains task keys present in the DB response but absent from the cache snapshot.
-	MissingFromCache []persistence.HistoryTaskKey
-	// OwnerChanged holds DB tasks absent from cache whose taskID encodes a different rangeID
-	// than the current shard — likely created by a different shard owner or after a sequence
-	// range rollover. These are not counted as real mismatches.
-	OwnerChanged []persistence.HistoryTaskKey
-	// ExtraInCache contains task keys present in the cache snapshot but absent from the DB response.
-	ExtraInCache []persistence.HistoryTaskKey
-	// HasMismatches is true when MissingFromCache or ExtraInCache is non-empty.
-	HasMismatches bool
-}
-
-// isTaskCreatedByCurrentRange reports whether taskID was assigned during the shard's
-// current rangeID ownership.
-func (q *cachedQueueReader) isTaskCreatedByRangeID(rangeID, taskID int64) bool {
-	return taskID>>int64(q.shard.GetConfig().RangeSizeBits) == rangeID
-}
-
-// reportShadowComparison logs the result of a shadow comparison.
-func (q *cachedQueueReader) reportShadowComparison(
-	result findMismatchesInShadowResult,
-	cacheResp, dbResp *GetTaskResponse,
-	logTags []tag.Tag,
-) {
-	if len(result.OwnerChanged) > 0 {
-		q.logger.Warn("possible shard ownership change, missed tasks are created in another range",
-			append(logTags, tag.Dynamic("shadowMismatch.ownerChangedTaskKeys", result.OwnerChanged))...,
-		)
-	}
-	if !result.HasMismatches {
-		q.logger.Debug("shadow comparison matched")
-		return
-	}
-	tags := append(logTags,
-		tag.Dynamic("shadowMismatch.missingFromCache", result.MissingFromCache),
-		tag.Dynamic("shadowMismatch.extraInCache", result.ExtraInCache),
-		tag.Dynamic("shadowMismatch.dbTaskCount", len(dbResp.Tasks)),
-		tag.Dynamic("shadowMismatch.cacheTaskCount", len(cacheResp.Tasks)),
-	)
-	q.logger.Warn("shadow comparison mismatch", tags...)
-}
-
-// getTruncatedScheduledTime returns the scheduled time of a task truncated to
-// DBTimestampMinPrecision (millisecond), matching Cassandra's storage precision.
-func getTruncatedScheduledTime(t persistence.Task) time.Time {
-	return t.GetTaskKey().GetScheduledTime().Truncate(persistence.DBTimestampMinPrecision)
-}
-
-// findMismatchesInShadow compares a cache snapshot response against the DB response.
-//
-// Task comparison uses taskID as the primary key and the scheduled time truncated to
-// millisecond precision (DBTimestampMinPrecision) as a secondary check. Truncation
-// avoids false positives from injected tasks whose nanosecond timestamps Cassandra
-// rounds to milliseconds on the round-trip.
-//
-// NextTaskKey is intentionally not compared: Cassandra commonly returns a non-empty
-// paging cursor even on the last page, which causes the DB reader to report
-// lastTask.Next() while the cache (which knows its window is exhausted) reports
-// exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
-// normal production traffic without indicating any real divergence in task data.
-//
-// DB tasks absent from cache are partitioned into MissingFromCache (same shard owner)
-// and OwnerChanged (different rangeID — created by a different owner or after a range
-// rollover). Only MissingFromCache contributes to HasMismatches.
-func (q *cachedQueueReader) findMismatchesInShadow(
-	snapshotResp *GetTaskResponse,
-	dbResp *GetTaskResponse,
-) findMismatchesInShadowResult {
-	cacheTaskKeys := make(map[int64]time.Time, len(snapshotResp.Tasks))
-	for _, t := range snapshotResp.Tasks {
-		cacheTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
-	}
-	dbTaskKeys := make(map[int64]time.Time, len(dbResp.Tasks))
-	for _, t := range dbResp.Tasks {
-		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
-	}
-
-	rangeID := q.shard.GetRangeID()
-	var result findMismatchesInShadowResult
-	for _, t := range dbResp.Tasks {
-		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
-		if !ok || !cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
-			if !q.isTaskCreatedByRangeID(rangeID, t.GetTaskID()) {
-				result.OwnerChanged = append(result.OwnerChanged, t.GetTaskKey())
-			} else {
-				result.MissingFromCache = append(result.MissingFromCache, t.GetTaskKey())
-			}
-		}
-	}
-	for _, t := range snapshotResp.Tasks {
-		dbTime, ok := dbTaskKeys[t.GetTaskID()]
-		if !ok || !dbTime.Equal(cacheTaskKeys[t.GetTaskID()]) {
-			result.ExtraInCache = append(result.ExtraInCache, t.GetTaskKey())
-		}
-	}
-	result.HasMismatches = len(result.MissingFromCache) > 0 || len(result.ExtraInCache) > 0
-	return result
-}
-
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
 // from cache when the request falls within the prefetched window. Bypasses
 // cache when disabled or in shadow mode. Shadow mode bypasses because in-flight
@@ -822,4 +702,175 @@ func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 		Task:             cacheTask,
 		LookAheadMaxTime: lookAHeadMaxTime,
 	}, nil
+}
+
+// getTaskInShadow queries the DB for the same request, compares the result
+// against the cache snapshot, and returns the DB result. Mismatches are
+// logged but do not affect processing.
+func (q *cachedQueueReader) getTaskInShadow(
+	ctx context.Context,
+	req *GetTaskRequest,
+	cacheResp *GetTaskResponse,
+	logTags []tag.Tag,
+) (*GetTaskResponse, error) {
+	dbResp, err := q.base.GetTask(ctx, req)
+	if err != nil {
+		q.logger.Error("shadow comparison skipped, base returned error",
+			append(logTags, tag.Error(err))...,
+		)
+		return dbResp, err
+	}
+	result := q.findMismatchesInShadow(cacheResp, dbResp)
+	q.reportShadowComparison(result, logTags)
+	return dbResp, nil
+}
+
+// shadowMismatchLogLimit caps the number of tasks logged
+const shadowMismatchLogLimit = 100
+
+// shadowTimeMismatch records a task present in both DB and cache but with mismatched scheduled times.
+type shadowTimeMismatch struct {
+	TaskKey   persistence.HistoryTaskKey
+	DBTime    time.Time
+	CacheTime time.Time
+}
+
+// findMismatchesInShadowResult holds the outcome of a shadow comparison.
+type findMismatchesInShadowResult struct {
+	// MissedInCacheTaskKeys contains task keys present in DB but absent from cache, created by the current rangeID.
+	MissedInCacheTaskKeys []persistence.HistoryTaskKey `json:"missedInCacheTaskKeys"`
+	// IncorrectTimeTaskKeys contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
+	IncorrectTimeTaskKeys []shadowTimeMismatch `json:"incorrectTimeTaskKeys"`
+	// ExtraInCacheTaskKeys contains task keys present in cache but absent from the DB response.
+	ExtraInCacheTaskKeys []persistence.HistoryTaskKey `json:"extraInCacheTaskKeys"`
+	// OwnerChangedTaskKeys holds DB tasks absent from cache whose taskID encodes a different rangeID
+	// than the current shard. It may happen when a shard movement happens, but the queue processor on the previous instance
+	// is still processing tasks, but not receiving new tasks created by the new owner.
+	// These tasks are not counted as mismatches because they cannot be served from cache, but they are still logged for visibility.
+	OwnerChangedTaskKeys []persistence.HistoryTaskKey `json:"ownerChangedTaskKeys"`
+	// OwnerChangedRangeIDs holds the distinct rangeIDs encoded in the OwnerChangedTaskKeys tasks' taskIDs.
+	OwnerChangedRangeIDs []int64 `json:"ownerChangedRangeIDs"`
+	// CurrentRangeID is the shard's rangeID at the time of comparison.
+	CurrentRangeID int64 `json:"currentRangeID"`
+	// CacheTaskCount is the number of tasks in the cache snapshot
+	CacheTaskCount int `json:"cacheTaskCount"`
+	// DBTaskCount is the number of tasks in the DB response
+	DBTaskCount int `json:"dbTaskCount"`
+	// HasMismatches is true when MissedInCacheTaskKeys, IncorrectTimeTaskKeys, or ExtraInCacheTaskKeys is non-empty.
+	HasMismatches bool `json:"-"`
+}
+
+// getTaskRangeID extracts the rangeID encoded in taskID, which is assigned at task creation time and immutable.
+func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
+	return taskID >> int64(q.shard.GetConfig().RangeSizeBits)
+}
+
+// reportShadowComparison logs the result of a shadow comparison.
+func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
+
+	// Cap the number of mismatched task keys logged to avoid excessively large logs
+	result.MissedInCacheTaskKeys = result.MissedInCacheTaskKeys[:shadowMismatchLogLimit]
+	result.IncorrectTimeTaskKeys = result.IncorrectTimeTaskKeys[:shadowMismatchLogLimit]
+	result.ExtraInCacheTaskKeys = result.ExtraInCacheTaskKeys[:shadowMismatchLogLimit]
+	result.OwnerChangedTaskKeys = result.OwnerChangedTaskKeys[:shadowMismatchLogLimit]
+	result.OwnerChangedRangeIDs = result.OwnerChangedRangeIDs[:shadowMismatchLogLimit]
+
+	logTags = append(logTags, tag.Dynamic("shadowMismatch", result))
+
+	if len(result.OwnerChangedTaskKeys) > 0 {
+		q.logger.Warn("possible shard ownership change, missed tasks are created in another range", logTags...)
+	}
+	if !result.HasMismatches {
+		q.logger.Debug("shadow comparison matched", logTags...)
+		return
+	}
+
+	q.logger.Warn("shadow comparison mismatch", logTags...)
+}
+
+// getTruncatedScheduledTime returns the scheduled time of a task truncated to
+// DBTimestampMinPrecision (millisecond), matching Cassandra's storage precision.
+func getTruncatedScheduledTime(t persistence.Task) time.Time {
+	return t.GetTaskKey().GetScheduledTime().Truncate(persistence.DBTimestampMinPrecision)
+}
+
+// findMismatchesInShadow compares a cache snapshot response against the DB response.
+//
+// Task comparison uses taskID as the primary key and the scheduled time truncated to
+// millisecond precision (DBTimestampMinPrecision) as a secondary check. Truncation
+// avoids false positives from injected tasks whose nanosecond timestamps Cassandra
+// rounds to milliseconds on the round-trip.
+//
+// NextTaskKey is intentionally not compared: Cassandra commonly returns a non-empty
+// paging cursor even on the last page, which causes the DB reader to report
+// lastTask.Next() while the cache (which knows its window is exhausted) reports
+// exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
+// normal production traffic without indicating any real divergence in task data.
+//
+// DB tasks absent from cache are partitioned into MissedInCacheTaskKeys (same shard owner)
+// and OwnerChangedTaskKeys (different rangeID — created by a different owner or after a range
+// rollover). Only MissedInCacheTaskKeys contributes to HasMismatches.
+// Tasks present in both but with mismatched scheduled times are recorded in IncorrectTimeTaskKeys.
+func (q *cachedQueueReader) findMismatchesInShadow(
+	cacheResp *GetTaskResponse,
+	dbResp *GetTaskResponse,
+) findMismatchesInShadowResult {
+	cacheTaskKeys := make(map[int64]time.Time, len(cacheResp.Tasks))
+	for _, t := range cacheResp.Tasks {
+		cacheTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
+	}
+	dbTaskKeys := make(map[int64]time.Time, len(dbResp.Tasks))
+	for _, t := range dbResp.Tasks {
+		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
+	}
+
+	var (
+		result         findMismatchesInShadowResult
+		currentRangeID = q.shard.GetRangeID()
+		rangeIDs       = map[int64]struct{}{}
+	)
+
+	for _, t := range dbResp.Tasks {
+		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
+		if ok {
+			if cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
+				// Task is present in both DB and cache with matching scheduled time
+				continue
+			}
+
+			result.IncorrectTimeTaskKeys = append(result.IncorrectTimeTaskKeys, shadowTimeMismatch{
+				TaskKey:   t.GetTaskKey(),
+				DBTime:    dbTaskKeys[t.GetTaskID()],
+				CacheTime: cacheTime,
+			})
+			continue
+		}
+
+		taskRangeID := q.getTaskRangeID(t.GetTaskID())
+		if taskRangeID == currentRangeID {
+			result.MissedInCacheTaskKeys = append(result.MissedInCacheTaskKeys, t.GetTaskKey())
+			continue
+		}
+
+		// Task ID is missing from cache and belongs to a different rangeID than the current shard
+		// It means the shard was already owned by another instance, and the task was created by that instance after the ownership change
+		result.OwnerChangedTaskKeys = append(result.OwnerChangedTaskKeys, t.GetTaskKey())
+		rangeIDs[taskRangeID] = struct{}{}
+	}
+
+	for _, t := range cacheResp.Tasks {
+		if _, ok := dbTaskKeys[t.GetTaskID()]; ok {
+			// Task is present in DB (time mismatches are already captured from the DB loop above)
+			continue
+		}
+
+		// Task ID is missing from DB response, but present in cache snapshot
+		result.ExtraInCacheTaskKeys = append(result.ExtraInCacheTaskKeys, t.GetTaskKey())
+	}
+
+	result.HasMismatches = len(result.MissedInCacheTaskKeys) > 0 || len(result.IncorrectTimeTaskKeys) > 0 || len(result.ExtraInCacheTaskKeys) > 0
+	result.OwnerChangedRangeIDs = slices.Collect(maps.Keys(rangeIDs))
+	result.CurrentRangeID = currentRangeID
+
+	return result
 }
