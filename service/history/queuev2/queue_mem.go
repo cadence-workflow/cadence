@@ -44,9 +44,9 @@ type InMemQueue interface {
 	GetTasks(inclusiveMinTaskKey, exclusiveMaxTaskKey persistence.HistoryTaskKey, predicate Predicate, pageSize int) (tasks []persistence.Task, nextTaskKey persistence.HistoryTaskKey)
 	// LTrim removes all tasks strictly before newInclusiveMinTaskKey.
 	LTrim(newInclusiveMinTaskKey persistence.HistoryTaskKey)
-	// RTrimBySize drops tasks from the tail while the host total exceeds capacity.
-	// Returns the key just past the last kept task and true if any tasks were
-	// removed, or the zero key and false if the queue was already within bounds.
+	// RTrimBySize trims the tail until the host-level budget capacity is satisfied.
+	// Returns the key after the last retained task (or MinimumHistoryTaskKey if empty)
+	// and true if any tasks were removed.
 	RTrimBySize() (persistence.HistoryTaskKey, bool)
 	// Clear removes all tasks.
 	Clear()
@@ -162,25 +162,26 @@ func (q *inMemQueueImpl) LTrim(newInclusiveMinTaskKey persistence.HistoryTaskKey
 	_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return freed, nil })
 }
 
-// RTrimBySize trims tasks from the tail while the host total exceeds capacity,
-// releasing each removed task from the budget.
-// Returns the next key after the last task or MinimumHistoryTaskKey if the queue is empty, and
-// true if any tasks were removed, or false if the queue was already within bounds.
+// RTrimBySize trims the tail until the host-level budget capacity is satisfied.
+// Returns the key after the last retained task (or MinimumHistoryTaskKey if empty)
+// and true if any tasks were removed.
 func (q *inMemQueueImpl) RTrimBySize() (persistence.HistoryTaskKey, bool) {
 	if len(q.tasks) == 0 {
 		return persistence.MinimumHistoryTaskKey, false
 	}
-	trimmed := false
+	prevLen := len(q.tasks)
 	for len(q.tasks) > 0 && q.budgetMgr.UsedCount() > q.budgetMgr.CapacityCount() {
 		q.tasks[len(q.tasks)-1] = nil // release GC ref
 		q.tasks = q.tasks[:len(q.tasks)-1]
-		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return 1, nil })
-		trimmed = true
+	}
+	freed := int64(prevLen - len(q.tasks))
+	if freed > 0 {
+		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return freed, nil })
 	}
 	if len(q.tasks) == 0 {
-		return persistence.MinimumHistoryTaskKey, trimmed
+		return persistence.MinimumHistoryTaskKey, freed > 0
 	}
-	return q.tasks[len(q.tasks)-1].GetTaskKey().Next(), trimmed
+	return q.tasks[len(q.tasks)-1].GetTaskKey().Next(), freed > 0
 }
 
 // Clear removes all tasks from the queue.
