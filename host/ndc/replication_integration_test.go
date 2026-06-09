@@ -28,6 +28,7 @@ import (
 
 	"github.com/pborman/uuid"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	test "github.com/uber/cadence/common/testing"
 	"github.com/uber/cadence/common/types"
@@ -131,6 +132,7 @@ Loop:
 		request := persistence.NewGetReplicationTasksFromDLQRequest(
 			"standby", 0, math.MaxInt64, math.MaxInt64, nil,
 		)
+		request.ShardID = common.IntPtr(0)
 		var token []byte
 		for doPaging := true; doPaging; doPaging = len(token) > 0 {
 			request.NextPageToken = token
