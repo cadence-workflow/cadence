@@ -31,13 +31,13 @@ type ExecutionManagerFactory struct {
 	mock.Mock
 }
 
-// NewExecutionManager provides a mock function with given fields: shardID
-func (_m *ExecutionManagerFactory) NewExecutionManager(shardID int) (persistence.ExecutionManager, error) {
-	ret := _m.Called(shardID)
+// NewExecutionManager provides a mock function
+func (_m *ExecutionManagerFactory) NewExecutionManager() (persistence.ExecutionManager, error) {
+	ret := _m.Called()
 
 	var r0 persistence.ExecutionManager
-	if rf, ok := ret.Get(0).(func(int) persistence.ExecutionManager); ok {
-		r0 = rf(shardID)
+	if rf, ok := ret.Get(0).(func() persistence.ExecutionManager); ok {
+		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(persistence.ExecutionManager)
@@ -45,8 +45,8 @@ func (_m *ExecutionManagerFactory) NewExecutionManager(shardID int) (persistence
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(int) error); ok {
-		r1 = rf(shardID)
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
 	} else {
 		r1 = ret.Error(1)
 	}
