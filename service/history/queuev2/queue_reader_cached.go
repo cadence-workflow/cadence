@@ -92,6 +92,7 @@ type cachedQueueReaderOptions struct {
 type cachedQueueReader struct {
 	status  int32 // DaemonStatusInitialized / Started / Stopped
 	base    QueueReader
+	shard   shard.Context
 	queue   InMemQueue
 	options *cachedQueueReaderOptions
 	clock   clock.TimeSource
@@ -148,6 +149,7 @@ func newCachedQueueReader(
 	return newCachedQueueReaderWithOptions(
 		base,
 		queue,
+		shard,
 		shard.GetTimeSource(),
 		shard.GetLogger(),
 		metricsScope,
@@ -167,6 +169,7 @@ func newCachedQueueReader(
 func newCachedQueueReaderWithOptions(
 	base QueueReader,
 	queue InMemQueue,
+	shard shard.Context,
 	clockSource clock.TimeSource,
 	logger log.Logger,
 	metricsScope metrics.Scope,
@@ -176,6 +179,7 @@ func newCachedQueueReaderWithOptions(
 	return &cachedQueueReader{
 		status:              common.DaemonStatusInitialized,
 		base:                base,
+		shard:               shard,
 		queue:               queue,
 		options:             options,
 		clock:               clockSource,
@@ -678,7 +682,7 @@ func (q *cachedQueueReader) getTaskInShadow(
 		)
 		return dbResp, err
 	}
-	result := findMismatchesInShadow(cacheResp, dbResp)
+	result := q.findMismatchesInShadow(cacheResp, dbResp)
 	q.reportShadowComparison(result, cacheResp, dbResp, logTags)
 	return dbResp, nil
 }
@@ -687,10 +691,20 @@ func (q *cachedQueueReader) getTaskInShadow(
 type findMismatchesInShadowResult struct {
 	// MissingFromCache contains task keys present in the DB response but absent from the cache snapshot.
 	MissingFromCache []persistence.HistoryTaskKey
+	// OwnerChanged holds DB tasks absent from cache whose taskID encodes a different rangeID
+	// than the current shard — likely created by a different shard owner or after a sequence
+	// range rollover. These are not counted as real mismatches.
+	OwnerChanged []persistence.HistoryTaskKey
 	// ExtraInCache contains task keys present in the cache snapshot but absent from the DB response.
 	ExtraInCache []persistence.HistoryTaskKey
-	// HasMismatches is true when either field is non-empty.
+	// HasMismatches is true when MissingFromCache or ExtraInCache is non-empty.
 	HasMismatches bool
+}
+
+// isTaskCreatedByCurrentRange reports whether taskID was assigned during the shard's
+// current rangeID ownership.
+func (q *cachedQueueReader) isTaskCreatedByCurrentRange(currentRangeID, taskID int64) bool {
+	return taskID>>int64(q.shard.GetConfig().RangeSizeBits) == currentRangeID
 }
 
 // reportShadowComparison logs the result of a shadow comparison.
@@ -699,6 +713,11 @@ func (q *cachedQueueReader) reportShadowComparison(
 	cacheResp, dbResp *GetTaskResponse,
 	logTags []tag.Tag,
 ) {
+	if len(result.OwnerChanged) > 0 {
+		q.logger.Warn("shadow mismatch skipped: possible shard ownership change or range rollover",
+			append(logTags, tag.Dynamic("shadowMismatch.ownerChangedTaskKeys", result.OwnerChanged))...,
+		)
+	}
 	if !result.HasMismatches {
 		q.logger.Debug("shadow comparison matched")
 		return
@@ -730,7 +749,11 @@ func getTruncatedScheduledTime(t persistence.Task) time.Time {
 // lastTask.Next() while the cache (which knows its window is exhausted) reports
 // exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
 // normal production traffic without indicating any real divergence in task data.
-func findMismatchesInShadow(
+//
+// DB tasks absent from cache are partitioned into MissingFromCache (same shard owner)
+// and OwnerChanged (different rangeID — created by a different owner or after a range
+// rollover). Only MissingFromCache contributes to HasMismatches.
+func (q *cachedQueueReader) findMismatchesInShadow(
 	snapshotResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
 ) findMismatchesInShadowResult {
@@ -743,11 +766,16 @@ func findMismatchesInShadow(
 		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
 	}
 
+	currentRangeID := q.shard.GetRangeID()
 	var result findMismatchesInShadowResult
 	for _, t := range dbResp.Tasks {
 		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
 		if !ok || !cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
-			result.MissingFromCache = append(result.MissingFromCache, t.GetTaskKey())
+			if !q.isTaskCreatedByCurrentRange(currentRangeID, t.GetTaskID()) {
+				result.OwnerChanged = append(result.OwnerChanged, t.GetTaskKey())
+			} else {
+				result.MissingFromCache = append(result.MissingFromCache, t.GetTaskKey())
+			}
 		}
 	}
 	for _, t := range snapshotResp.Tasks {

@@ -36,6 +36,8 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/service/history/config"
+	"github.com/uber/cadence/service/history/shard"
 )
 
 func testOptions(overrides ...func(*cachedQueueReaderOptions)) *cachedQueueReaderOptions {
@@ -61,6 +63,7 @@ func testOptions(overrides ...func(*cachedQueueReaderOptions)) *cachedQueueReade
 type cachedQueueReaderMockDeps struct {
 	mockBase  *MockQueueReader
 	mockQueue *MockInMemQueue
+	mockShard *shard.MockContext
 	clock     clock.MockedTimeSource
 }
 
@@ -70,15 +73,20 @@ func setupMocksForCachedQueueReader(
 	overrides ...func(*cachedQueueReaderOptions),
 ) (*cachedQueueReader, *cachedQueueReaderMockDeps) {
 	t.Helper()
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
+	mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
 	deps := &cachedQueueReaderMockDeps{
 		mockBase:  NewMockQueueReader(ctrl),
 		mockQueue: NewMockInMemQueue(ctrl),
+		mockShard: mockShard,
 		clock:     clock.NewMockedTimeSource(),
 	}
 
 	r := newCachedQueueReaderWithOptions(
 		deps.mockBase,
 		deps.mockQueue,
+		deps.mockShard,
 		deps.clock,
 		testlogger.New(t),
 		metrics.NoopScope,
@@ -721,6 +729,9 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 	t1 := newTask(1, now.Add(10*time.Minute))
 	t2 := newTask(2, now.Add(20*time.Minute))
 	t3 := newTask(3, now.Add(30*time.Minute))
+	// tOtherOwner has a taskID in rangeID=1 (1<<20 at RangeSizeBits=20).
+	// The default mock GetRangeID()=0, so this task will be classified as OwnerChanged.
+	tOtherOwner := newTask(1<<20, now.Add(40*time.Minute))
 
 	tests := []struct {
 		name       string
@@ -894,6 +905,37 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			// DB has a task created by a different shard owner (different rangeID) → classified as
+			// OwnerChanged, not a mismatch; DB result returned normally.
+			name:  "task missing from cache, different rangeID: owner changed, no mismatch warning",
+			lower: lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, upper),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				// Cache has only t1; DB has t1 and tOtherOwner (rangeID=1, current rangeID=0).
+				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
+					Return([]persistence.Task{t1}, upper)
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Tasks: []persistence.Task{t1, tOtherOwner},
+					Progress: &GetTaskProgress{
+						Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+						NextTaskKey: upper,
+					},
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Tasks: []persistence.Task{t1, tOtherOwner},
+				Progress: &GetTaskProgress{
+					Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+					NextTaskKey: upper,
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -922,6 +964,10 @@ func TestFindMismatchesInShadow(t *testing.T) {
 	t1 := newTask(1, now.Add(10*time.Minute))
 	t2 := newTask(2, now.Add(20*time.Minute))
 	t3 := newTask(3, now.Add(30*time.Minute))
+	// Tasks with taskID in rangeID=1 range (1<<20 .. 2<<20-1) at RangeSizeBits=20.
+	// The default mock rangeID is 0, so these will be classified as OwnerChanged.
+	tOtherRange1 := newTask(1<<20, now.Add(10*time.Minute))
+	tOtherRange2 := newTask(2<<20, now.Add(20*time.Minute))
 
 	key := func(t persistence.Task) persistence.HistoryTaskKey { return t.GetTaskKey() }
 
@@ -944,12 +990,40 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			wantResult:   findMismatchesInShadowResult{HasMismatches: false},
 		},
 		{
-			name:         "task missing from cache",
+			name:         "task missing from cache: same rangeID → real mismatch",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
 				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
 				HasMismatches:    true,
+			},
+		},
+		{
+			name:         "task missing from cache: different rangeID → owner changed, not a mismatch",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1}},
+			wantResult: findMismatchesInShadowResult{
+				OwnerChanged:  []persistence.HistoryTaskKey{key(tOtherRange1)},
+				HasMismatches: false,
+			},
+		},
+		{
+			name:         "mixed: same-range missing (mismatch) and different-range missing (owner change)",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2, tOtherRange1}},
+			wantResult: findMismatchesInShadowResult{
+				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
+				OwnerChanged:     []persistence.HistoryTaskKey{key(tOtherRange1)},
+				HasMismatches:    true,
+			},
+		},
+		{
+			name:         "all db tasks from different range: no mismatch, all owner changed",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1, tOtherRange2}},
+			wantResult: findMismatchesInShadowResult{
+				OwnerChanged:  []persistence.HistoryTaskKey{key(tOtherRange1), key(tOtherRange2)},
+				HasMismatches: false,
 			},
 		},
 		{
@@ -1002,7 +1076,9 @@ func TestFindMismatchesInShadow(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := findMismatchesInShadow(tc.snapshotResp, tc.dbResp)
+			ctrl := gomock.NewController(t)
+			r, _ := setupMocksForCachedQueueReader(t, ctrl)
+			got := r.findMismatchesInShadow(tc.snapshotResp, tc.dbResp)
 			require.Equal(t, tc.wantResult, got)
 		})
 	}

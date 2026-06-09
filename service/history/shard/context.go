@@ -61,6 +61,8 @@ type (
 		GetActiveClusterManager() activecluster.Manager
 		GetClusterMetadata() cluster.Metadata
 		GetConfig() *config.Config
+		// GetRangeID returns the shard's current rangeID, read atomically.
+		GetRangeID() int64
 		GetEventsCache() events.Cache
 		// GetLogger returns a logger tagged with this shard (history item includes shard-id).
 		// Prefer it for work scoped to a shard so logs remain attributable when downstream adds tags.
@@ -1060,6 +1062,10 @@ func (s *contextImpl) GetReplicationBudgetManager() cache.Manager {
 
 func (s *contextImpl) getRangeID() int64 {
 	return s.shardInfo.RangeID
+}
+
+func (s *contextImpl) GetRangeID() int64 {
+	return atomic.LoadInt64(&s.rangeID)
 }
 
 func (s *contextImpl) closedError() error {
