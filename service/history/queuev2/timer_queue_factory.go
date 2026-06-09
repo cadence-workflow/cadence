@@ -165,9 +165,9 @@ func (f *timerQueueFactory) createQueuev2(
 		budgetMgr = cache.NewBudgetManager(
 			"timer-queue",
 			dynamicproperties.GetIntPropertyFn(-1),
-			dynamicproperties.GetIntPropertyFn(config.TimerProcessorCacheMaxSize()),
+			config.TimerProcessorCacheMaxSize,
 			cache.AdmissionOptimistic,
-			0, nil, nil, nil,
+			0, metricsScope, shard.GetLogger(), nil,
 		)
 		cachedReader = newCachedQueueReader(reader, newInMemQueueWithBudget(budgetMgr, "timer"), shard, metricsScope)
 		reader = cachedReader
