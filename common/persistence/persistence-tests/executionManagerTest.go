@@ -1654,6 +1654,7 @@ func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
 	s.NoError(err)
 
 	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
@@ -1662,6 +1663,7 @@ func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
 	s.Equal(policy, got)
 
 	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      uuid.New(),
@@ -1723,6 +1725,7 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	s.NoError(err)
 
 	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
@@ -1731,6 +1734,7 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	s.Equal(policy, got)
 
 	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
@@ -1738,6 +1742,7 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	s.NoError(err)
 
 	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
@@ -1746,6 +1751,7 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	s.IsType(&types.EntityNotExistsError{}, err)
 
 	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 		RunID:      runID,
