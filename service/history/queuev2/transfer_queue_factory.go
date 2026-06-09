@@ -139,40 +139,54 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 	)
 	config := shard.GetConfig()
-	queueReader := NewQueueReader(
+	metricsScope := shard.GetMetricsClient().Scope(metrics.TransferQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	options := &Options{
+		PageSize:                             config.TransferTaskBatchSize,
+		DeleteBatchSize:                      config.TransferTaskDeleteBatchSize,
+		MaxPollRPS:                           config.TransferProcessorMaxPollRPS,
+		MaxPollInterval:                      config.TransferProcessorMaxPollInterval,
+		MaxPollIntervalJitterCoefficient:     config.TransferProcessorMaxPollIntervalJitterCoefficient,
+		UpdateAckInterval:                    config.TransferProcessorUpdateAckInterval,
+		UpdateAckIntervalJitterCoefficient:   config.TransferProcessorUpdateAckIntervalJitterCoefficient,
+		MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
+		PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
+		PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
+		VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
+		EnableValidator:                      config.TransferProcessorEnableValidator,
+		ValidationInterval:                   config.TransferProcessorValidationInterval,
+		MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
+		RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
+		CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
+		EnablePendingTaskCountAlert:          func() bool { return config.EnableTransferQueueV2PendingTaskCountAlert(shard.GetShardID()) },
+		MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
+	}
+
+	var cachedReader CachedQueueReader
+	reader := NewQueueReader(
 		shard,
 		persistence.HistoryTaskCategoryTransfer,
 		config.TransferProcessorMaxPollInterval,
 		config.TransferProcessorMaxPollIntervalJitterCoefficient,
 	)
-	return NewImmediateQueue(
+	if config.TransferProcessorEnableCachedQueue() {
+		cachedReader = newTransferCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
+		reader = cachedReader
+	}
+
+	base := newImmediateQueue(
 		shard,
 		persistence.HistoryTaskCategoryTransfer,
 		f.taskProcessor,
 		executorWrapper,
 		logger,
 		shard.GetMetricsClient(),
-		shard.GetMetricsClient().Scope(metrics.TransferQueueProcessorV2Scope).Tagged(metrics.ShardIDTag(shard.GetShardID())),
-		queueReader,
-		&Options{
-			PageSize:                             config.TransferTaskBatchSize,
-			DeleteBatchSize:                      config.TransferTaskDeleteBatchSize,
-			MaxPollRPS:                           config.TransferProcessorMaxPollRPS,
-			MaxPollInterval:                      config.TransferProcessorMaxPollInterval,
-			MaxPollIntervalJitterCoefficient:     config.TransferProcessorMaxPollIntervalJitterCoefficient,
-			UpdateAckInterval:                    config.TransferProcessorUpdateAckInterval,
-			UpdateAckIntervalJitterCoefficient:   config.TransferProcessorUpdateAckIntervalJitterCoefficient,
-			MaxPendingTasksCount:                 config.QueueMaxPendingTaskCount,
-			PollBackoffInterval:                  config.QueueProcessorPollBackoffInterval,
-			PollBackoffIntervalJitterCoefficient: config.QueueProcessorPollBackoffIntervalJitterCoefficient,
-			VirtualSliceForceAppendInterval:      config.VirtualSliceForceAppendInterval,
-			EnableValidator:                      config.TransferProcessorEnableValidator,
-			ValidationInterval:                   config.TransferProcessorValidationInterval,
-			MaxStartJitterInterval:               dynamicproperties.GetDurationPropertyFn(0),
-			RedispatchInterval:                   config.ActiveTaskRedispatchInterval,
-			CriticalPendingTaskCount:             config.QueueCriticalPendingTaskCount,
-			EnablePendingTaskCountAlert:          func() bool { return config.EnableTransferQueueV2PendingTaskCountAlert(shard.GetShardID()) },
-			MaxVirtualQueueCount:                 config.QueueMaxVirtualQueueCount,
-		},
+		metricsScope,
+		reader,
+		options,
 	)
+
+	if cachedReader != nil {
+		return newCachedImmediateQueue(base, cachedReader)
+	}
+	return base
 }

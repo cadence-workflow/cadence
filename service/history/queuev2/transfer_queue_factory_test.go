@@ -7,6 +7,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/service/history/config"
@@ -14,6 +15,7 @@ import (
 	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
+	"github.com/uber/cadence/service/history/workflowcache"
 	"github.com/uber/cadence/service/worker/archiver"
 )
 
@@ -92,4 +94,55 @@ func TestTransferQueueFactory_IsQueueV2Enabled(t *testing.T) {
 	// by default, queue v2 is disabled
 	enabled := factory.isQueueV2Enabled(mockShard)
 	assert.False(t, enabled)
+}
+
+func TestTransferQueueFactory_CreateQueuev2_CachedEnabled(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+
+	cfg := config.NewForTest()
+	cfg.TransferProcessorEnableCachedQueue = dynamicproperties.GetBoolPropertyFn(true)
+
+	mockShard := shard.NewTestContext(
+		t, ctrl, &persistence.ShardInfo{
+			ShardID:          10,
+			RangeID:          1,
+			TransferAckLevel: 0,
+		}, cfg)
+
+	factory := &transferQueueFactory{
+		taskProcessor:  task.NewMockProcessor(ctrl),
+		archivalClient: archiver.NewMockClient(ctrl),
+		wfIDCache:      workflowcache.NewMockWFCache(ctrl),
+	}
+
+	processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
+
+	assert.NotNil(t, processor)
+	_, isCached := processor.(*cachedImmediateQueue)
+	assert.True(t, isCached, "expected *cachedImmediateQueue when TransferProcessorEnableCachedQueue=true")
+}
+
+func TestTransferQueueFactory_CreateQueuev2_CachedDisabledByDefault(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	ctrl := gomock.NewController(t)
+
+	mockShard := shard.NewTestContext(
+		t, ctrl, &persistence.ShardInfo{
+			ShardID:          10,
+			RangeID:          1,
+			TransferAckLevel: 0,
+		}, config.NewForTest())
+
+	factory := &transferQueueFactory{
+		taskProcessor:  task.NewMockProcessor(ctrl),
+		archivalClient: archiver.NewMockClient(ctrl),
+		wfIDCache:      workflowcache.NewMockWFCache(ctrl),
+	}
+
+	processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
+
+	assert.NotNil(t, processor)
+	_, isCached := processor.(*cachedImmediateQueue)
+	assert.False(t, isCached, "expected plain immediateQueue when TransferProcessorEnableCachedQueue=false")
 }

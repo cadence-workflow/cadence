@@ -166,6 +166,10 @@ type Config struct {
 	TimerProcessorCacheMinPrefetchInterval            dynamicproperties.DurationPropertyFn
 
 	// TransferQueueProcessor settings
+	TransferProcessorEnableCachedQueue                   dynamicproperties.BoolPropertyFn
+	TransferProcessorCachedQueueReaderMode               dynamicproperties.StringPropertyFn
+	TransferProcessorCacheMaxSize                        dynamicproperties.IntPropertyFn
+	TransferProcessorCacheMinPrefetchInterval            dynamicproperties.DurationPropertyFn
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
 	TransferTaskDeleteBatchSize                          dynamicproperties.IntPropertyFn
 	TransferProcessorCompleteTransferFailureRetryCount   dynamicproperties.IntPropertyFn
@@ -484,6 +488,10 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorCachePrefetchTriggerWindow:             dc.GetDurationProperty(dynamicproperties.TimerProcessorCachePrefetchTriggerWindow),
 		TimerProcessorCacheTimeEvictionWindow:                dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheTimeEvictionWindow),
 		TimerProcessorCacheMinPrefetchInterval:               dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheMinPrefetchInterval),
+		TransferProcessorEnableCachedQueue:                   dc.GetBoolProperty(dynamicproperties.TransferProcessorEnableCachedQueue),
+		TransferProcessorCachedQueueReaderMode:               dc.GetStringProperty(dynamicproperties.TransferProcessorCachedQueueReaderMode),
+		TransferProcessorCacheMaxSize:                        dc.GetIntProperty(dynamicproperties.TransferProcessorCacheMaxSize),
+		TransferProcessorCacheMinPrefetchInterval:            dc.GetDurationProperty(dynamicproperties.TransferProcessorCacheMinPrefetchInterval),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),
