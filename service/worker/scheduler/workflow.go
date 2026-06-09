@@ -850,6 +850,9 @@ func catchUpWatermark(state *SchedulerWorkflowState) time.Time {
 func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, watermark, now time.Time) bool {
 	fires := computeMissedFireTimes(sched, watermark, now, input.Spec)
 	if len(fires.times) == 0 {
+		// No missed fires: consume the one-shot override so it does not bleed
+		// into a future catch-up pass triggered by a subsequent unpause.
+		state.UnpauseCatchUpPolicy = types.ScheduleCatchUpPolicyInvalid
 		return false
 	}
 

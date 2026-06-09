@@ -1076,6 +1076,36 @@ func TestProcessMissedRunsAtMetrics(t *testing.T) {
 	}
 }
 
+// TestProcessMissedRunsAt_NoMissedFires_ClearsOverride verifies that the UnpauseCatchUpPolicy
+// override is cleared even when there are no missed fires. Without this, a short pause that
+// produces zero missed fires would leave the override set, causing a future catch-up pass to
+// inherit a stale policy from an earlier unpause.
+func TestProcessMissedRunsAt_NoMissedFires_ClearsOverride(t *testing.T) {
+	// now == watermark: no fires were missed during the pause.
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	sched := mustParseCron(t, "* * * * *")
+	scope := tally.NewTestScope("", nil)
+	input := &SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{},
+	}
+	state := &SchedulerWorkflowState{
+		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne, // set by handleUnpause
+	}
+
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, base, base)
+
+	assert.False(t, moreMissed, "no missed fires, nothing to catch up")
+	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
+		"override must be cleared even when there are no missed fires")
+
+	// No counters should have been emitted.
+	counters := scope.Snapshot().Counters()
+	_, hasFired := findCounter(counters, SchedulerMissedFiredCountPerDomain, map[string]string{})
+	assert.False(t, hasFired, "no fires emitted when there are no missed runs")
+}
+
 // TestProcessMissedRunsAt_PauseUnpause is the primary end-to-end scenario for catch-up:
 // the schedule is paused for 5 minutes (missing 5 per-minute fires), then unpaused
 // with CatchUpPolicyOne. Exactly 1 fire (the most recent) must run; the other 4 are skipped.
