@@ -234,7 +234,7 @@ func TestCachedScheduledQueue_UpdateQueueStateFn_PropagatesReadLevel(t *testing.
 			mockVQM.EXPECT().GetMinReadLevel().Return(tt.minReadLevel)
 			mockReader.EXPECT().UpdateReadLevel(tt.expectedLevel)
 
-			q := newCachedScheduledQueue(inner, mockReader)
+			q := newCachedScheduledQueue(inner, mockReader, nil)
 			q.(*cachedScheduledQueue).scheduledQueue.base.updateQueueStateFn(context.Background())
 		})
 	}
