@@ -728,6 +728,14 @@ func (q *cachedQueueReader) getTaskInShadow(
 // shadowMismatchLogLimit caps the number of tasks logged
 const shadowMismatchLogLimit = 100
 
+// capShadowMismatchSlice returns the first shadowMismatchLogLimit elements of s, or s itself if shorter.
+func capShadowMismatchSlice[T any](s []T) []T {
+	if len(s) <= shadowMismatchLogLimit {
+		return s
+	}
+	return s[:shadowMismatchLogLimit]
+}
+
 // shadowTimeMismatch records a task present in both DB and cache but with mismatched scheduled times.
 type shadowTimeMismatch struct {
 	TaskKey   persistence.HistoryTaskKey
@@ -769,11 +777,11 @@ func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
 func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
 
 	// Cap the number of mismatched task keys logged to avoid excessively large logs
-	result.MissedInCacheTaskKeys = result.MissedInCacheTaskKeys[:shadowMismatchLogLimit]
-	result.IncorrectTimeTaskKeys = result.IncorrectTimeTaskKeys[:shadowMismatchLogLimit]
-	result.ExtraInCacheTaskKeys = result.ExtraInCacheTaskKeys[:shadowMismatchLogLimit]
-	result.OwnerChangedTaskKeys = result.OwnerChangedTaskKeys[:shadowMismatchLogLimit]
-	result.OwnerChangedRangeIDs = result.OwnerChangedRangeIDs[:shadowMismatchLogLimit]
+	result.MissedInCacheTaskKeys = capShadowMismatchSlice(result.MissedInCacheTaskKeys)
+	result.IncorrectTimeTaskKeys = capShadowMismatchSlice(result.IncorrectTimeTaskKeys)
+	result.ExtraInCacheTaskKeys = capShadowMismatchSlice(result.ExtraInCacheTaskKeys)
+	result.OwnerChangedTaskKeys = capShadowMismatchSlice(result.OwnerChangedTaskKeys)
+	result.OwnerChangedRangeIDs = capShadowMismatchSlice(result.OwnerChangedRangeIDs)
 
 	logTags = append(logTags, tag.Dynamic("shadowMismatch", result))
 

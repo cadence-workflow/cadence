@@ -24,6 +24,7 @@ package queuev2
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -772,7 +773,7 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			},
 		},
 		{
-			// DB has a task not in cache → MissingFromCache mismatch; still returns DB result.
+			// DB has a task not in cache → MissedFromCache mismatch; still returns DB result.
 			name:  "cache hit, task missing from cache: returns DB result",
 			lower: lower, upper: upper,
 			req: &GetTaskRequest{
@@ -994,8 +995,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
-				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
-				HasMismatches:    true,
+				MissedInCacheTaskKeys: []persistence.HistoryTaskKey{key(t2)},
+				HasMismatches:         true,
 			},
 		},
 		{
@@ -1003,8 +1004,9 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1}},
 			wantResult: findMismatchesInShadowResult{
-				OwnerChanged:  []persistence.HistoryTaskKey{key(tOtherRange1)},
-				HasMismatches: false,
+				OwnerChangedTaskKeys: []persistence.HistoryTaskKey{key(tOtherRange1)},
+				OwnerChangedRangeIDs: []int64{1},
+				HasMismatches:        false,
 			},
 		},
 		{
@@ -1012,9 +1014,10 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2, tOtherRange1}},
 			wantResult: findMismatchesInShadowResult{
-				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
-				OwnerChanged:     []persistence.HistoryTaskKey{key(tOtherRange1)},
-				HasMismatches:    true,
+				MissedInCacheTaskKeys: []persistence.HistoryTaskKey{key(t2)},
+				OwnerChangedTaskKeys:  []persistence.HistoryTaskKey{key(tOtherRange1)},
+				OwnerChangedRangeIDs:  []int64{1},
+				HasMismatches:         true,
 			},
 		},
 		{
@@ -1022,8 +1025,9 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1, tOtherRange2}},
 			wantResult: findMismatchesInShadowResult{
-				OwnerChanged:  []persistence.HistoryTaskKey{key(tOtherRange1), key(tOtherRange2)},
-				HasMismatches: false,
+				OwnerChangedTaskKeys: []persistence.HistoryTaskKey{key(tOtherRange1), key(tOtherRange2)},
+				OwnerChangedRangeIDs: []int64{1, 2},
+				HasMismatches:        false,
 			},
 		},
 		{
@@ -1031,8 +1035,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t2, t3}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
-				ExtraInCache:  []persistence.HistoryTaskKey{key(t3)},
-				HasMismatches: true,
+				ExtraInCacheTaskKeys: []persistence.HistoryTaskKey{key(t3)},
+				HasMismatches:        true,
 			},
 		},
 		{
@@ -1040,9 +1044,9 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t3}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
-				MissingFromCache: []persistence.HistoryTaskKey{key(t2)},
-				ExtraInCache:     []persistence.HistoryTaskKey{key(t3)},
-				HasMismatches:    true,
+				MissedInCacheTaskKeys: []persistence.HistoryTaskKey{key(t2)},
+				ExtraInCacheTaskKeys:  []persistence.HistoryTaskKey{key(t3)},
+				HasMismatches:         true,
 			},
 		},
 		{
@@ -1072,6 +1076,25 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			},
 			wantResult: findMismatchesInShadowResult{HasMismatches: false},
 		},
+		{
+			name: "task ID present in both but scheduled time differs → IncorrectTimeTaskKeys",
+			snapshotResp: &GetTaskResponse{
+				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
+			},
+			dbResp: &GetTaskResponse{
+				Tasks: []persistence.Task{newTask(1, now.Add(11*time.Minute))},
+			},
+			wantResult: findMismatchesInShadowResult{
+				IncorrectTimeTaskKeys: []shadowTimeMismatch{
+					{
+						TaskKey:   newTask(1, now.Add(11*time.Minute)).GetTaskKey(),
+						DBTime:    now.Add(11 * time.Minute).Truncate(persistence.DBTimestampMinPrecision),
+						CacheTime: now.Add(10 * time.Minute).Truncate(persistence.DBTimestampMinPrecision),
+					},
+				},
+				HasMismatches: true,
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1079,6 +1102,7 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, _ := setupMocksForCachedQueueReader(t, ctrl)
 			got := r.findMismatchesInShadow(tc.snapshotResp, tc.dbResp)
+			slices.Sort(got.OwnerChangedRangeIDs)
 			require.Equal(t, tc.wantResult, got)
 		})
 	}
