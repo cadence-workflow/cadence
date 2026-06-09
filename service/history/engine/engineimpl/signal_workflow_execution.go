@@ -56,6 +56,7 @@ func (e *historyEngineImpl) SignalWorkflowExecution(
 		e.logger,
 		e.executionCache,
 		e.executionManager,
+		e.shard.GetShardID(),
 		domainID,
 		e.shard.GetDomainCache(),
 		workflowExecution,

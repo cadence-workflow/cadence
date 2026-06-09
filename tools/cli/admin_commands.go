@@ -347,6 +347,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 	}
 
 	req := &persistence.DeleteWorkflowExecutionRequest{
+		ShardID:    common.Ptr(shardIDInt),
 		DomainID:   domainID,
 		WorkflowID: wid,
 		RunID:      rid,
@@ -364,6 +365,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 	fmt.Println("delete mutableState row successfully")
 
 	deleteCurrentReq := &persistence.DeleteCurrentWorkflowExecutionRequest{
+		ShardID:    common.Ptr(shardIDInt),
 		DomainID:   domainID,
 		WorkflowID: wid,
 		RunID:      rid,

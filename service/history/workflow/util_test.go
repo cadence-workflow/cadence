@@ -188,6 +188,7 @@ func TestWorkflowLoad(t *testing.T) {
 				context.Background(),
 				execution.NewCache(mockShard),
 				mockShard.Resource.ExecutionMgr,
+				mockShard.GetShardID(),
 				constants.TestDomainID,
 				constants.TestDomainName,
 				constants.TestWorkflowID,
