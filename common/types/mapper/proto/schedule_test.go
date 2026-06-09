@@ -128,8 +128,12 @@ func TestBackfillInfoFuzz(t *testing.T) {
 }
 
 func TestScheduleInfoFuzz(t *testing.T) {
+	// TODO: remove WithExcludedFields once cadence-idl#272 is merged, go.mod bumped to the new
+	// version, and the proto mapper updated to map MissedRuns/SkippedRuns. Until then the proto
+	// round-trip drops these fields because apiv1.ScheduleInfo does not yet carry them.
 	testutils.RunMapperFuzzTest(t, FromScheduleInfo, ToScheduleInfo,
 		WithScheduleEnumFuzzers(),
+		testutils.WithExcludedFields("MissedRuns", "SkippedRuns"),
 	)
 }
 
@@ -216,8 +220,10 @@ func TestDescribeScheduleRequestFuzz(t *testing.T) {
 }
 
 func TestDescribeScheduleResponseFuzz(t *testing.T) {
+	// TODO: remove WithExcludedFields once cadence-idl#272 is merged and go.mod is bumped.
 	testutils.RunMapperFuzzTest(t, FromDescribeScheduleResponse, ToDescribeScheduleResponse,
 		WithScheduleEnumFuzzers(),
+		testutils.WithExcludedFields("MissedRuns", "SkippedRuns"),
 	)
 }
 

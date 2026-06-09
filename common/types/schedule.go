@@ -390,6 +390,8 @@ type ScheduleInfo struct {
 	LastRunTime      time.Time       `json:"lastRunTime,omitempty"`
 	NextRunTime      time.Time       `json:"nextRunTime,omitempty"`
 	TotalRuns        int64           `json:"totalRuns,omitempty"`
+	MissedRuns       int64           `json:"missedRuns,omitempty"`
+	SkippedRuns      int64           `json:"skippedRuns,omitempty"`
 	CreateTime       time.Time       `json:"createTime,omitempty"`
 	LastUpdateTime   time.Time       `json:"lastUpdateTime,omitempty"`
 	OngoingBackfills []*BackfillInfo `json:"ongoingBackfills,omitempty"`
@@ -412,6 +414,20 @@ func (v *ScheduleInfo) GetNextRunTime() (o time.Time) {
 func (v *ScheduleInfo) GetTotalRuns() (o int64) {
 	if v != nil {
 		return v.TotalRuns
+	}
+	return
+}
+
+func (v *ScheduleInfo) GetMissedRuns() (o int64) {
+	if v != nil {
+		return v.MissedRuns
+	}
+	return
+}
+
+func (v *ScheduleInfo) GetSkippedRuns() (o int64) {
+	if v != nil {
+		return v.SkippedRuns
 	}
 	return
 }

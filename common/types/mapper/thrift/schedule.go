@@ -237,6 +237,8 @@ func FromScheduleInfo(t *types.ScheduleInfo) *shared.ScheduleInfo {
 		CreateTimeNano:     timeValToNano(t.CreateTime),
 		LastUpdateTimeNano: timeValToNano(t.LastUpdateTime),
 		OngoingBackfills:   fromBackfillInfoSlice(t.OngoingBackfills),
+		MissedRuns:         common.Int64Ptr(t.MissedRuns),
+		SkippedRuns:        common.Int64Ptr(t.SkippedRuns),
 	}
 }
 
@@ -251,6 +253,8 @@ func ToScheduleInfo(t *shared.ScheduleInfo) *types.ScheduleInfo {
 		CreateTime:       nanoToTimeVal(t.CreateTimeNano),
 		LastUpdateTime:   nanoToTimeVal(t.LastUpdateTimeNano),
 		OngoingBackfills: toBackfillInfoSlice(t.OngoingBackfills),
+		MissedRuns:       t.GetMissedRuns(),
+		SkippedRuns:      t.GetSkippedRuns(),
 	}
 }
 
