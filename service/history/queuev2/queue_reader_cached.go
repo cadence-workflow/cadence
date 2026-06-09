@@ -703,8 +703,8 @@ type findMismatchesInShadowResult struct {
 
 // isTaskCreatedByCurrentRange reports whether taskID was assigned during the shard's
 // current rangeID ownership.
-func (q *cachedQueueReader) isTaskCreatedByCurrentRange(currentRangeID, taskID int64) bool {
-	return taskID>>int64(q.shard.GetConfig().RangeSizeBits) == currentRangeID
+func (q *cachedQueueReader) isTaskCreatedByRangeID(rangeID, taskID int64) bool {
+	return taskID>>int64(q.shard.GetConfig().RangeSizeBits) == rangeID
 }
 
 // reportShadowComparison logs the result of a shadow comparison.
@@ -714,7 +714,7 @@ func (q *cachedQueueReader) reportShadowComparison(
 	logTags []tag.Tag,
 ) {
 	if len(result.OwnerChanged) > 0 {
-		q.logger.Warn("shadow mismatch skipped: possible shard ownership change or range rollover",
+		q.logger.Warn("possible shard ownership change, missed tasks are created in another range",
 			append(logTags, tag.Dynamic("shadowMismatch.ownerChangedTaskKeys", result.OwnerChanged))...,
 		)
 	}
@@ -766,12 +766,12 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
 	}
 
-	currentRangeID := q.shard.GetRangeID()
+	rangeID := q.shard.GetRangeID()
 	var result findMismatchesInShadowResult
 	for _, t := range dbResp.Tasks {
 		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
 		if !ok || !cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
-			if !q.isTaskCreatedByCurrentRange(currentRangeID, t.GetTaskID()) {
+			if !q.isTaskCreatedByRangeID(rangeID, t.GetTaskID()) {
 				result.OwnerChanged = append(result.OwnerChanged, t.GetTaskKey())
 			} else {
 				result.MissingFromCache = append(result.MissingFromCache, t.GetTaskKey())
