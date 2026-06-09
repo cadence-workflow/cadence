@@ -225,7 +225,7 @@ func (s *WorkflowTimerTaskCleanupSuite) newExecutionManager() persistence.Execut
 		s.Logger,
 		&s.TestCluster.testBase.DynamicConfiguration,
 	)
-	execMgr, err := factory.NewExecutionManager(0)
+	execMgr, err := factory.NewExecutionManager()
 	s.Require().NoError(err)
 	return execMgr
 }
@@ -400,7 +400,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) newExecutionManager() persistenc
 		s.Logger,
 		&s.TestCluster.testBase.DynamicConfiguration,
 	)
-	execMgr, err := factory.NewExecutionManager(0)
+	execMgr, err := factory.NewExecutionManager()
 	s.Require().NoError(err)
 	return execMgr
 }
