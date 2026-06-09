@@ -982,7 +982,7 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			name:         "no mismatches",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
-			wantResult:   findMismatchesInShadowResult{HasMismatches: false},
+			wantResult:   findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 2, DBTaskCount: 2},
 		},
 		{
 			name:         "empty on both sides",
@@ -997,6 +997,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			wantResult: findMismatchesInShadowResult{
 				MissedInCacheTaskKeys: []persistence.HistoryTaskKey{key(t2)},
 				HasMismatches:         true,
+				CacheTaskCount:        1,
+				DBTaskCount:           2,
 			},
 		},
 		{
@@ -1007,6 +1009,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				OwnerChangedTaskKeys: []persistence.HistoryTaskKey{key(tOtherRange1)},
 				OwnerChangedRangeIDs: []int64{1},
 				HasMismatches:        false,
+				CacheTaskCount:       1,
+				DBTaskCount:          2,
 			},
 		},
 		{
@@ -1018,6 +1022,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				OwnerChangedTaskKeys:  []persistence.HistoryTaskKey{key(tOtherRange1)},
 				OwnerChangedRangeIDs:  []int64{1},
 				HasMismatches:         true,
+				CacheTaskCount:        1,
+				DBTaskCount:           3,
 			},
 		},
 		{
@@ -1028,6 +1034,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				OwnerChangedTaskKeys: []persistence.HistoryTaskKey{key(tOtherRange1), key(tOtherRange2)},
 				OwnerChangedRangeIDs: []int64{1, 2},
 				HasMismatches:        false,
+				CacheTaskCount:       1,
+				DBTaskCount:          3,
 			},
 		},
 		{
@@ -1037,6 +1045,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			wantResult: findMismatchesInShadowResult{
 				ExtraInCacheTaskKeys: []persistence.HistoryTaskKey{key(t3)},
 				HasMismatches:        true,
+				CacheTaskCount:       3,
+				DBTaskCount:          2,
 			},
 		},
 		{
@@ -1047,6 +1057,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				MissedInCacheTaskKeys: []persistence.HistoryTaskKey{key(t2)},
 				ExtraInCacheTaskKeys:  []persistence.HistoryTaskKey{key(t3)},
 				HasMismatches:         true,
+				CacheTaskCount:        2,
+				DBTaskCount:           2,
 			},
 		},
 		{
@@ -1059,7 +1071,7 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			dbResp: &GetTaskResponse{
 				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
 			},
-			wantResult: findMismatchesInShadowResult{HasMismatches: false},
+			wantResult: findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 1, DBTaskCount: 1},
 		},
 		{
 			// NextTaskKey is not compared: Cassandra may return a non-empty cursor on the last page,
@@ -1074,7 +1086,7 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				Tasks:    []persistence.Task{t1, t2},
 				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(2 * time.Hour))},
 			},
-			wantResult: findMismatchesInShadowResult{HasMismatches: false},
+			wantResult: findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 2, DBTaskCount: 2},
 		},
 		{
 			name: "task ID present in both but scheduled time differs → IncorrectTimeTaskKeys",
@@ -1092,7 +1104,9 @@ func TestFindMismatchesInShadow(t *testing.T) {
 						CacheTime: now.Add(10 * time.Minute).Truncate(persistence.DBTimestampMinPrecision),
 					},
 				},
-				HasMismatches: true,
+				HasMismatches:  true,
+				CacheTaskCount: 1,
+				DBTaskCount:    1,
 			},
 		},
 	}

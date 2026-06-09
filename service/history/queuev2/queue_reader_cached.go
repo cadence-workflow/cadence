@@ -879,6 +879,8 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 	result.HasMismatches = len(result.MissedInCacheTaskKeys) > 0 || len(result.IncorrectTimeTaskKeys) > 0 || len(result.ExtraInCacheTaskKeys) > 0
 	result.OwnerChangedRangeIDs = slices.Collect(maps.Keys(rangeIDs))
 	result.CurrentRangeID = currentRangeID
+	result.DBTaskCount = len(dbResp.Tasks)
+	result.CacheTaskCount = len(cacheResp.Tasks)
 
 	return result
 }
