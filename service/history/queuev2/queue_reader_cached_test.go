@@ -268,16 +268,20 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			wantUpper: upper,
 		},
 		{
-			name:       "task before lower skipped",
-			tasks:      []persistence.Task{before},
-			setupMocks: func(*MockInMemQueue) {},
-			wantUpper:  upper,
+			name:  "task before lower skipped",
+			tasks: []persistence.Task{before},
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+			},
+			wantUpper: upper,
 		},
 		{
-			name:       "task at upper bound (exclusive) skipped",
-			tasks:      []persistence.Task{atUpper},
-			setupMocks: func(*MockInMemQueue) {},
-			wantUpper:  upper,
+			name:  "task at upper bound (exclusive) skipped",
+			tasks: []persistence.Task{atUpper},
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+			},
+			wantUpper: upper,
 		},
 		{
 			name:  "mixed: only inside accepted",
@@ -314,17 +318,21 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			name:               "task in [upper, prefetchTarget) buffered when prefetch in-flight",
 			tasks:              []persistence.Task{inBuffer},
 			initPrefetchTarget: prefetchTarget,
-			setupMocks:         func(*MockInMemQueue) {},
-			wantUpper:          upper,
-			wantBufferLen:      1,
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+			},
+			wantUpper:     upper,
+			wantBufferLen: 1,
 		},
 		{
 			name:               "task beyond prefetchTarget dropped even when prefetch in-flight",
 			tasks:              []persistence.Task{beyondTarget},
 			initPrefetchTarget: prefetchTarget,
-			setupMocks:         func(*MockInMemQueue) {},
-			wantUpper:          upper,
-			wantBufferLen:      0,
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+			},
+			wantUpper:     upper,
+			wantBufferLen: 0,
 		},
 		{
 			name:               "task with ID=0 not buffered even when prefetch in-flight",

@@ -106,6 +106,7 @@ var (
 	ComponentTransferQueueV2                  = component("transfer-queue-processor-v2")
 	ComponentTimerQueue                       = component("timer-queue-processor")
 	ComponentTimerQueueV2                     = component("timer-queue-processor-v2")
+	ComponentCachedQueueReader                = component("cached-queue-reader")
 	ComponentTimerBuilder                     = component("timer-builder")
 	ComponentReplicatorQueue                  = component("replicator-queue-processor")
 	ComponentShardController                  = component("shard-controller")

@@ -153,7 +153,7 @@ func newCachedQueueReader(
 		queue,
 		shard,
 		shard.GetTimeSource(),
-		shard.GetLogger(),
+		shard.GetLogger().WithTags(tag.ComponentCachedQueueReader),
 		metricsScope,
 		&cachedQueueReaderOptions{
 			Mode:                      config.TimerProcessorCachedQueueReaderMode,
@@ -295,9 +295,7 @@ func (q *cachedQueueReader) Clear() {
 	defer q.mu.Unlock()
 
 	q.logger.Info("cache fully cleared",
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
+		tag.Dynamic("cacheState", q.getState()),
 	)
 
 	q.queue.Clear()
@@ -322,7 +320,9 @@ func (q *cachedQueueReader) prefetch() error {
 	q.mu.RUnlock()
 
 	if availableCacheSize <= 0 {
-		q.logger.Debug("prefetch skipped, cache full")
+		q.logger.Debug("prefetch skipped, cache full",
+			tag.Dynamic("cacheState", q.getState()),
+		)
 		return nil
 	}
 
@@ -384,7 +384,7 @@ func (q *cachedQueueReader) prefetch() error {
 	if !q.exclusiveUpperBound.Equal(upperBound) {
 		q.logger.Info("gap detected, discarding fetched data",
 			tag.Dynamic("prevUpper", upperBound),
-			tag.Dynamic("newUpper", q.exclusiveUpperBound),
+			tag.Dynamic("cacheState", q.getState()),
 		)
 		return fmt.Errorf("gap detected: upper bound changed during fetch")
 	}
@@ -406,8 +406,7 @@ func (q *cachedQueueReader) prefetch() error {
 
 	q.logger.Debug("prefetch complete",
 		tag.Dynamic("tasksFetched", len(resp.Tasks)),
-		tag.Dynamic("newUpper", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
+		tag.Dynamic("cacheState", q.getState()),
 	)
 	return nil
 }
@@ -484,12 +483,12 @@ func (q *cachedQueueReader) insertBufferedTasks() {
 // updateExclusiveUpperBound sets the upper bound and trigger prefetch if needed.
 // Caller must hold q.mu.
 func (q *cachedQueueReader) updateExclusiveUpperBound(newKey persistence.HistoryTaskKey) {
-	q.logger.Debug("upper bound is updated",
-		tag.Dynamic("prevUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("newUpperBound", newKey),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
-	)
+	if q.logger.DebugOn() {
+		q.logger.Debug("upper bound is updated",
+			tag.Dynamic("cacheState", q.getState()),
+			tag.Dynamic("newUpperBound", newKey),
+		)
+	}
 
 	q.exclusiveUpperBound = newKey
 	q.metrics.RecordHistogramValue(metrics.CachedQueueSizeHistogram, float64(q.queue.Len()))
@@ -499,12 +498,12 @@ func (q *cachedQueueReader) updateExclusiveUpperBound(newKey persistence.History
 // updateInclusiveLowerBound sets the lower bound
 // Caller must hold q.mu.
 func (q *cachedQueueReader) updateInclusiveLowerBound(newKey persistence.HistoryTaskKey) {
-	q.logger.Debug("lower bound is updated",
-		tag.Dynamic("prevLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("newLowerBound", newKey),
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
-	)
+	if q.logger.DebugOn() {
+		q.logger.Debug("lower bound is updated",
+			tag.Dynamic("cacheState", q.getState()),
+			tag.Dynamic("newLowerBound", newKey),
+		)
+	}
 
 	q.inclusiveLowerBound = newKey
 	q.metrics.RecordHistogramValue(metrics.CachedQueueSizeHistogram, float64(q.queue.Len()))
@@ -579,21 +578,42 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 			continue
 		}
 		if q.isTaskCovered(t.GetTaskKey()) {
+			if q.logger.DebugOn() {
+				q.logger.Debug("injecting task",
+					tag.Dynamic("taskKey", t.GetTaskKey()),
+					tag.Dynamic("cacheState", q.getState()),
+				)
+			}
+
 			covered = append(covered, t)
 			continue
 		}
 		if q.isToBufferTask(t.GetTaskKey()) {
+			if q.logger.DebugOn() {
+				q.logger.Debug("buffering task",
+					tag.Dynamic("taskKey", t.GetTaskKey()),
+					tag.Dynamic("cacheState", q.getState()),
+				)
+			}
 			q.pendingInjectBuffer = append(q.pendingInjectBuffer, t)
 			continue
 		}
+
 		// this case should not happen under normal operation,
 		// as the processor should only be persisting tasks near the current upper bound
 		// but log just in case to help debug any unexpected ordering issues
 		if t.GetTaskKey().Less(q.inclusiveLowerBound) {
 			q.logger.Warn("task key is below the lower bound, dropping task",
 				tag.Dynamic("taskKey", t.GetTaskKey()),
-				tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-				tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
+				tag.Dynamic("cacheState", q.getState()),
+			)
+			continue
+		}
+
+		if q.logger.DebugOn() {
+			q.logger.Debug("task key is beyond the upper/target prefetch bound, dropping task",
+				tag.Dynamic("taskKey", t.GetTaskKey()),
+				tag.Dynamic("cacheState", q.getState()),
 			)
 		}
 	}
@@ -626,10 +646,8 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 
 	logTags := []tag.Tag{
 		tag.Dynamic("getTaskRequest", req),
+		tag.Dynamic("cacheState", q.getState()),
 		tag.Dynamic("inclusiveMinTaskKey", inclusiveMinTaskKey),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
 	}
 
 	if !covered {
@@ -682,9 +700,7 @@ func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 
 	logTags := []tag.Tag{
 		tag.Dynamic("lookAHeadRequest", req),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
+		tag.Dynamic("cacheState", q.getState()),
 	}
 
 	if !q.isTaskCovered(req.InclusiveMinTaskKey) {
@@ -702,6 +718,25 @@ func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 		Task:             cacheTask,
 		LookAheadMaxTime: lookAHeadMaxTime,
 	}, nil
+}
+
+// getState returns a snapshot of the cached queue reader's key state variables for logging and debugging.
+// Caller must hold q.mu (read or write).
+func (q *cachedQueueReader) getState() cachedQueueReaderState {
+	return cachedQueueReaderState{
+		InclusiveLowerBound: q.inclusiveLowerBound,
+		ExclusiveUpperBound: q.exclusiveUpperBound,
+		CacheSize:           q.queue.Len(),
+		TargetUpperBound:    q.prefetchTargetUpper,
+	}
+}
+
+// cachedQueueReaderState is a snapshot of the cached queue reader's key state variables for logging and debugging.
+type cachedQueueReaderState struct {
+	InclusiveLowerBound persistence.HistoryTaskKey `json:"inclusiveLowerBound"`
+	ExclusiveUpperBound persistence.HistoryTaskKey `json:"exclusiveUpperBound"`
+	CacheSize           int                        `json:"cacheSize"`
+	TargetUpperBound    persistence.HistoryTaskKey `json:"targetUpperBound"`
 }
 
 // getTaskInShadow queries the DB for the same request, compares the result
