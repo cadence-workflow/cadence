@@ -1339,34 +1339,25 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerEx
 
 func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionRegressed() {
 	// Marker carries a higher FailoverVersion than the domain currently reports.
-	// In all three subcases the marker must be dropped; only the active-cluster
-	// case with a confirmed regression should bump the alarm counter.
+	// The marker is always dropped; only the active-cluster case bumps the
+	// alarm counter (passive replicas have no ordering guarantee).
 	const domainFailoverVersion int64 = 5
 	const markerFailoverVersion int64 = 100
 
 	cases := []struct {
-		name                     string
-		domainActiveCluster      string
-		freshPersistenceVersion  int64
-		expectAlarmCounter       bool
+		name                string
+		domainActiveCluster string
+		expectAlarmCounter  bool
 	}{
 		{
-			name:                    "ConfirmedRegressionOnActiveCluster",
-			domainActiveCluster:     cluster.TestCurrentClusterName,
-			freshPersistenceVersion: domainFailoverVersion,
-			expectAlarmCounter:      true,
+			name:                "OnActiveCluster",
+			domainActiveCluster: cluster.TestCurrentClusterName,
+			expectAlarmCounter:  true,
 		},
 		{
-			name:                    "RegressionOnPassiveCluster",
-			domainActiveCluster:     cluster.TestAlternativeClusterName,
-			freshPersistenceVersion: domainFailoverVersion,
-			expectAlarmCounter:      false,
-		},
-		{
-			name:                    "ResolvedByFreshPersistenceRead",
-			domainActiveCluster:     cluster.TestCurrentClusterName,
-			freshPersistenceVersion: markerFailoverVersion,
-			expectAlarmCounter:      false,
+			name:                "OnPassiveCluster",
+			domainActiveCluster: cluster.TestAlternativeClusterName,
+			expectAlarmCounter:  false,
 		},
 	}
 
@@ -1399,14 +1390,6 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionReg
 			s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
 
 			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
-			s.mockResource.MetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: testDomainID}).Return(&persistence.GetDomainResponse{
-				Info:   &persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
-				Config: &persistence.DomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{
-					ActiveClusterName: tc.domainActiveCluster,
-				},
-				FailoverVersion: tc.freshPersistenceVersion,
-			}, nil).Once()
 			s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 
 			before := alarmCounterValue(s.mockResource.MetricsScope)
@@ -1418,9 +1401,9 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionReg
 
 			after := alarmCounterValue(s.mockResource.MetricsScope)
 			if tc.expectAlarmCounter {
-				s.Equal(int64(1), after-before, "alarm counter should fire once for confirmed regression on active cluster")
+				s.Equal(int64(1), after-before, "alarm counter should fire once on active cluster")
 			} else {
-				s.Equal(int64(0), after-before, "alarm counter should be suppressed")
+				s.Equal(int64(0), after-before, "alarm counter should be suppressed on passive cluster")
 			}
 		})
 	}
@@ -1430,34 +1413,25 @@ func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegresse
 	// AddingPendingFailoverMarker must refuse to persist a marker whose
 	// FailoverVersion is greater than the domain's current FailoverVersion —
 	// otherwise we'd seed the same forever-stuck marker we're trying to
-	// defend against on the validation side. Same three subcases: only the
-	// confirmed-active path should bump the alarm counter.
+	// defend against on the validation side. Same gating: alarm fires only
+	// on the to-be-active cluster.
 	const domainFailoverVersion int64 = 5
 	const markerFailoverVersion int64 = 100
 
 	cases := []struct {
-		name                     string
-		domainActiveCluster      string
-		freshPersistenceVersion  int64
-		expectAlarmCounter       bool
+		name                string
+		domainActiveCluster string
+		expectAlarmCounter  bool
 	}{
 		{
-			name:                    "ConfirmedRegressionOnActiveCluster",
-			domainActiveCluster:     cluster.TestCurrentClusterName,
-			freshPersistenceVersion: domainFailoverVersion,
-			expectAlarmCounter:      true,
+			name:                "OnActiveCluster",
+			domainActiveCluster: cluster.TestCurrentClusterName,
+			expectAlarmCounter:  true,
 		},
 		{
-			name:                    "RegressionOnPassiveCluster",
-			domainActiveCluster:     cluster.TestAlternativeClusterName,
-			freshPersistenceVersion: domainFailoverVersion,
-			expectAlarmCounter:      false,
-		},
-		{
-			name:                    "ResolvedByFreshPersistenceRead",
-			domainActiveCluster:     cluster.TestCurrentClusterName,
-			freshPersistenceVersion: markerFailoverVersion,
-			expectAlarmCounter:      false,
+			name:                "OnPassiveCluster",
+			domainActiveCluster: cluster.TestAlternativeClusterName,
+			expectAlarmCounter:  false,
 		},
 	}
 
@@ -1482,14 +1456,6 @@ func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegresse
 			)
 
 			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
-			s.mockResource.MetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: testDomainID}).Return(&persistence.GetDomainResponse{
-				Info:   &persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
-				Config: &persistence.DomainConfig{},
-				ReplicationConfig: &persistence.DomainReplicationConfig{
-					ActiveClusterName: tc.domainActiveCluster,
-				},
-				FailoverVersion: tc.freshPersistenceVersion,
-			}, nil).Once()
 
 			regressedMarker := &types.FailoverMarkerAttributes{
 				DomainID:        testDomainID,
@@ -1504,9 +1470,9 @@ func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegresse
 
 			after := alarmCounterValue(s.mockResource.MetricsScope)
 			if tc.expectAlarmCounter {
-				s.Equal(int64(1), after-before, "alarm counter should fire once for confirmed regression on active cluster")
+				s.Equal(int64(1), after-before, "alarm counter should fire once on active cluster")
 			} else {
-				s.Equal(int64(0), after-before, "alarm counter should be suppressed")
+				s.Equal(int64(0), after-before, "alarm counter should be suppressed on passive cluster")
 			}
 		})
 	}

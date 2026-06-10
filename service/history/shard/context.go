@@ -1544,11 +1544,12 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
 	// markerVersion > domainVersion violates the monotonic-version
-	// invariant. Always drop; only alarm when a fresh persistence read
-	// still shows the regression and we are the to-be-active cluster
-	// (where graceful-failover ordering guarantees the invariant).
+	// invariant. Always drop; only alarm on the to-be-active cluster
+	// (where graceful-failover ordering guarantees the invariant). On
+	// passive replicas a transient regression can be a benign race
+	// between independent domain and marker replication queues.
 	if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
-		s.verifyAndLogMarkerRegression(domainEntry, marker, "Skipped pending failover marker: marker version is greater than domain version")
+		s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Skipped pending failover marker: marker version is greater than domain version")
 		return nil
 	}
 
@@ -1582,41 +1583,26 @@ func failoverMarkerSkipReason(isActive, failoverCompleted bool, domainFailoverVe
 	}
 }
 
-// verifyAndLogMarkerRegression re-reads the domain row from persistence to
-// confirm that markerVersion > domainVersion is not just stale cache, then
-// emits an Error log + counter only when the regression is confirmed AND the
-// local cluster is the to-be-active for the domain (where graceful-failover
-// ordering guarantees the monotonic-version invariant must hold). Marker
-// dropping is the caller's responsibility — this helper is alarm-only.
-func (s *contextImpl) verifyAndLogMarkerRegression(
+// logMarkerRegressionIfOnActiveCluster emits an Error log + counter only when
+// the local cluster is the active for the domain — i.e. the cluster where
+// graceful-failover ordering guarantees the monotonic-version invariant must
+// hold. On passive replicas a transient regression can be a benign race
+// between the independent domain and marker replication queues, so we drop
+// the marker silently there. This is in-memory only by design: the caller
+// may be holding the shard RLock, and we must not perform I/O under it.
+func (s *contextImpl) logMarkerRegressionIfOnActiveCluster(
 	domainEntry *cache.DomainCacheEntry,
 	marker *types.FailoverMarkerAttributes,
 	logMessage string,
 ) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	resp, err := s.GetDomainManager().GetDomain(ctx, &persistence.GetDomainRequest{ID: marker.GetDomainID()})
-	if err != nil {
-		// Couldn't verify; suppress the alarm rather than fire on a
-		// transient persistence error. The marker is dropped anyway.
-		return
-	}
-	if resp.FailoverVersion >= marker.GetFailoverVersion() {
-		// Cache was stale; persistence is at-or-past the marker version,
-		// so there is no real regression to alarm about.
-		return
-	}
-	if resp.ReplicationConfig == nil ||
-		resp.ReplicationConfig.ActiveClusterName != s.GetClusterMetadata().GetCurrentClusterName() {
-		// Ordering is only guaranteed on the to-be-active cluster. On
-		// other replicas a brief regression can be a benign race between
-		// independent domain and marker replication queues.
+	repl := domainEntry.GetReplicationConfig()
+	if repl == nil || repl.ActiveClusterName != s.GetClusterMetadata().GetCurrentClusterName() {
 		return
 	}
 	s.logger.Error(logMessage,
 		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
 		tag.WorkflowDomainID(marker.GetDomainID()),
-		tag.Number(resp.FailoverVersion),
+		tag.Number(domainEntry.GetFailoverVersion()),
 		tag.NextNumber(marker.GetFailoverVersion()),
 	)
 	s.GetMetricsClient().Scope(metrics.FailoverMarkerScope, metrics.DomainTag(domainEntry.GetInfo().Name)).IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
@@ -1660,10 +1646,10 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		// invariant: a marker's FailoverVersion is set from the domain's
 		// FailoverVersion at the moment the marker is written. Always
 		// drop so it doesn't ship every 5s forever and falsely advertise
-		// an in-flight graceful failover; only alarm when a fresh
-		// persistence read confirms the regression on the active cluster.
+		// an in-flight graceful failover; only alarm on the to-be-active
+		// cluster where the ordering invariant must hold.
 		if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
-			s.verifyAndLogMarkerRegression(domainEntry, marker, "Dropped pending failover marker: marker version is greater than domain version")
+			s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Dropped pending failover marker: marker version is greater than domain version")
 			completedFailoverMarkers[marker] = struct{}{}
 			continue
 		}
