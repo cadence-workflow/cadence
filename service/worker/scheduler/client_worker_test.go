@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
@@ -450,6 +451,43 @@ func TestMembershipChangeTriggersRefresh(t *testing.T) {
 		t.Fatal("timed out waiting for membership change to trigger refresh")
 	}
 
+	wm.Stop()
+}
+
+// TestWorkerManager_StartStop_NoGoroutineLeak verifies that the manager's
+// Start/Stop pair leaves no leaked goroutines: the background run loop must
+// observe context cancellation, the membership subscription must be released,
+// and Stop must drain the wait group before returning.
+func TestWorkerManager_StartStop_NoGoroutineLeak(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+
+	// Empty domain cache so refreshWorkers does not spawn any per-domain
+	// SDK workers (which would pull in real Cadence client goroutines that
+	// goleak isn't the right tool to police).
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{}).AnyTimes()
+
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockResolver.EXPECT().
+		Subscribe(service.Worker, membershipSubscriberName, gomock.Any()).
+		Return(nil)
+	mockResolver.EXPECT().
+		Unsubscribe(service.Worker, membershipSubscriberName).
+		Return(nil)
+
+	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
+
+	wm := NewWorkerManager(&BootstrapParams{
+		Logger:             testlogger.New(t),
+		MetricsClient:      metrics.NewNoopMetricsClient(),
+		DomainCache:        mockDomainCache,
+		MembershipResolver: mockResolver,
+		HostInfo:           selfHost,
+	}, dynamicproperties.GetBoolPropertyFnFilteredByDomain(false))
+
+	wm.Start()
 	wm.Stop()
 }
 
