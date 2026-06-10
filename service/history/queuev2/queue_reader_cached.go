@@ -277,16 +277,19 @@ func (q *cachedQueueReader) isEnabled() bool { return q.options.Mode() == "enabl
 // against the DB but the DB result is returned to the processor.
 func (q *cachedQueueReader) isShadow() bool { return q.options.Mode() == "shadow" }
 
-// isDisabled returns true for the "disabled" mode and for any unrecognised value
-func (q *cachedQueueReader) isDisabled() bool {
-	switch q.options.Mode() {
-	case "disabled":
-		return true
+// isCachedQueueReaderDisabled reports whether the given mode disables the cached queue reader.
+func isCachedQueueReaderDisabled(mode string) bool {
+	switch mode {
 	case "enabled", "shadow":
 		return false
 	default:
 		return true
 	}
+}
+
+// isDisabled returns true for the "disabled" mode and for any unrecognised value
+func (q *cachedQueueReader) isDisabled() bool {
+	return isCachedQueueReaderDisabled(q.options.Mode())
 }
 
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
@@ -320,9 +323,7 @@ func (q *cachedQueueReader) prefetch() error {
 	q.mu.RUnlock()
 
 	if availableCacheSize <= 0 {
-		q.logger.Debug("prefetch skipped, cache full",
-			tag.Dynamic("cacheState", q.getState()),
-		)
+		q.logger.Debug("prefetch skipped, cache full")
 		return nil
 	}
 
