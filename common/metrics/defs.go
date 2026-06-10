@@ -3023,6 +3023,7 @@ const (
 	FailoverMarkerNotificationFailure
 	FailoverMarkerUpdateShardFailure
 	FailoverMarkerCallbackCount
+	FailoverMarkerDroppedRegressedDomain
 	HistoryFailoverCallbackCount
 	WorkflowVersionCount
 	WorkflowTypeCount
@@ -4031,6 +4032,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		FailoverMarkerNotificationFailure:                             {metricName: "failover_marker_notification_failures", metricType: Counter},
 		FailoverMarkerUpdateShardFailure:                              {metricName: "failover_marker_update_shard_failures", metricType: Counter},
 		FailoverMarkerCallbackCount:                                   {metricName: "failover_marker_callback_count", metricType: Counter},
+		FailoverMarkerDroppedRegressedDomain:                          {metricName: "failover_marker_dropped_regressed_domain", metricType: Counter},
 		HistoryFailoverCallbackCount:                                  {metricName: "failover_callback_handler_count", metricType: Counter},
 		TransferTasksCount:                                            {metricName: "transfer_tasks_count", metricType: Timer},
 		TransferTasksCountHistogram:                                   {metricName: "transfer_tasks_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},

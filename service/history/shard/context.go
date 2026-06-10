@@ -1543,6 +1543,20 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	// the marker is stale and should be dropped to avoid an infinite re-notify loop
 	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
+	// markerVersion > domainVersion violates the monotonic-version
+	// invariant. Refuse to insert so we never persist a marker that
+	// could never be dropped by the existing four conditions.
+	if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
+		s.logger.Error("Skipped pending failover marker: marker version is greater than domain version",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.WorkflowDomainID(marker.GetDomainID()),
+			tag.Number(domainEntry.GetFailoverVersion()),
+			tag.NextNumber(marker.GetFailoverVersion()),
+		)
+		s.GetMetricsClient().Scope(metrics.FailoverMarkerScope, metrics.DomainTag(domainEntry.GetInfo().Name)).IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
+		return nil
+	}
+
 	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
 		s.logger.Info("Skipped pending failover marker",
 			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
@@ -1606,6 +1620,23 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
 		failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
+
+		// markerVersion > domainVersion violates the monotonic-version
+		// invariant: a marker's FailoverVersion is set from the domain's
+		// FailoverVersion at the moment the marker is written. Drop the
+		// marker so it doesn't ship every 5s forever and falsely advertise
+		// an in-flight graceful failover.
+		if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
+			s.logger.Error("Dropped pending failover marker: marker version is greater than domain version",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.WorkflowDomainID(marker.GetDomainID()),
+				tag.Number(domainEntry.GetFailoverVersion()),
+				tag.NextNumber(marker.GetFailoverVersion()),
+			)
+			s.GetMetricsClient().Scope(metrics.FailoverMarkerScope, metrics.DomainTag(domainEntry.GetInfo().Name)).IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
+			completedFailoverMarkers[marker] = struct{}{}
+			continue
+		}
 
 		// Drop failover markers if domain is deprecated
 		// or domain is already active in the currentCluster

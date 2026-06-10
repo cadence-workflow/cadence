@@ -1141,7 +1141,7 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers() {
 
 	failoverMarker := types.FailoverMarkerAttributes{
 		DomainID:        testDomainID,
-		FailoverVersion: 101,
+		FailoverVersion: int64(domainFailoverVersion),
 	}
 
 	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
@@ -1335,6 +1335,82 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerEx
 	s.NoError(err, "orphan-domain marker must not poison the cleanup loop")
 	s.Empty(pendingFailoverMarkers, "both the orphan and the otherwise-droppable marker should be cleaned")
 	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared of both markers")
+}
+
+func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionRegressed() {
+	// Marker carries a higher FailoverVersion than the domain currently reports.
+	// The monotonic-version invariant is violated, so the marker must be dropped
+	// rather than re-shipped every 5s forever.
+	const domainFailoverVersion int64 = 5
+	const markerFailoverVersion int64 = 100
+
+	domainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		domainFailoverVersion,
+		nil,
+		0, 0, 0,
+	)
+
+	regressedMarker := &types.FailoverMarkerAttributes{
+		DomainID:        testDomainID,
+		FailoverVersion: markerFailoverVersion,
+	}
+	// inject directly to bypass AddingPendingFailoverMarker's own guard
+	s.context.shardInfo.PendingFailoverMarkers = append(s.context.shardInfo.PendingFailoverMarkers, regressedMarker)
+	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
+	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+
+	pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
+	s.NoError(err)
+	s.Empty(pendingFailoverMarkers, "regressed-version marker should be dropped")
+	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared")
+}
+
+func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegressed() {
+	// AddingPendingFailoverMarker must refuse to persist a marker whose
+	// FailoverVersion is greater than the domain's current FailoverVersion —
+	// otherwise we'd seed the same forever-stuck marker we're trying to
+	// defend against on the validation side.
+	const domainFailoverVersion int64 = 5
+	const markerFailoverVersion int64 = 100
+
+	domainEntry := cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
+		&persistence.DomainConfig{Retention: 7},
+		true,
+		&persistence.DomainReplicationConfig{
+			ActiveClusterName: cluster.TestAlternativeClusterName,
+			Clusters: []*persistence.ClusterReplicationConfig{
+				{ClusterName: cluster.TestCurrentClusterName},
+				{ClusterName: cluster.TestAlternativeClusterName},
+			},
+		},
+		domainFailoverVersion,
+		nil,
+		0, 0, 0,
+	)
+
+	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
+
+	regressedMarker := &types.FailoverMarkerAttributes{
+		DomainID:        testDomainID,
+		FailoverVersion: markerFailoverVersion,
+	}
+
+	s.NoError(s.context.AddingPendingFailoverMarker(regressedMarker))
+	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "regressed-version marker must not be persisted")
+	s.mockShardManager.AssertNotCalled(s.T(), "UpdateShard", mock.Anything, mock.Anything)
 }
 
 func (s *contextTestSuite) TestGetAndUpdateProcessingQueueStates() {
