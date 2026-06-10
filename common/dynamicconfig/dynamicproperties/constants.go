@@ -1660,6 +1660,18 @@ const (
 	// Default value: 1
 	OperationalConfigStoreUpdateRetryAttempts
 
+	// SchedulerWorkerRedundancyFactor is the number of cadence-worker hosts
+	// that concurrently run a scheduler worker for each enabled domain.
+	// Re-evaluated every refresh tick, so changes take effect within one
+	// refresh interval without a restart. Non-positive values fall back to
+	// the in-process default. Per-domain overrides let tier-1 domains
+	// request more redundancy than the cluster default.
+	// KeyName: worker.schedulerWorkerRedundancyFactor
+	// Value type: Int
+	// Default value: 2
+	// Allowed filters: DomainName
+	SchedulerWorkerRedundancyFactor
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -4694,6 +4706,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "system.operationalConfigStoreUpdateRetryAttempts",
 		Description:  "Number of attempts to push a value to the operational dynamic config store on conflict",
 		DefaultValue: 1,
+	},
+	SchedulerWorkerRedundancyFactor: {
+		KeyName:      "worker.schedulerWorkerRedundancyFactor",
+		Filters:      []Filter{DomainName},
+		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
+		DefaultValue: 2,
 	},
 }
 

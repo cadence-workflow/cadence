@@ -87,6 +87,7 @@ type (
 		EnableBatcher                       dynamicproperties.BoolPropertyFn
 		EnableScheduler                     dynamicproperties.BoolPropertyFnWithDomainFilter
 		SchedulerWorkerRefreshInterval      dynamicproperties.DurationPropertyFn
+		SchedulerWorkerRedundancyFactor     dynamicproperties.IntPropertyFnWithDomainFilter
 		EnableParentClosePolicyWorker       dynamicproperties.BoolPropertyFn
 		NumParentClosePolicySystemWorkflows dynamicproperties.IntPropertyFn
 		EnableFailoverManager               dynamicproperties.BoolPropertyFn
@@ -186,6 +187,7 @@ func NewConfig(params *resource.Params) *Config {
 		EnableBatcher:                       dc.GetBoolProperty(dynamicproperties.EnableBatcher),
 		EnableScheduler:                     dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
 		SchedulerWorkerRefreshInterval:      dc.GetDurationProperty(dynamicproperties.SchedulerWorkerRefreshInterval),
+		SchedulerWorkerRedundancyFactor:     dc.GetIntPropertyFilteredByDomain(dynamicproperties.SchedulerWorkerRedundancyFactor),
 		EnableParentClosePolicyWorker:       dc.GetBoolProperty(dynamicproperties.EnableParentClosePolicyWorker),
 		NumParentClosePolicySystemWorkflows: dc.GetIntProperty(dynamicproperties.NumParentClosePolicySystemWorkflows),
 		EnableESAnalyzer:                    dc.GetBoolProperty(dynamicproperties.EnableESAnalyzer),
@@ -355,6 +357,7 @@ func (s *Service) startSchedulerWorkerManager() *scheduler.WorkerManager {
 		MembershipResolver: s.GetMembershipResolver(),
 		HostInfo:           s.GetHostInfo(),
 		RefreshInterval:    s.config.SchedulerWorkerRefreshInterval,
+		RedundancyFactor:   s.config.SchedulerWorkerRedundancyFactor,
 	}
 	wm := scheduler.NewWorkerManager(params, s.config.EnableScheduler)
 	wm.Start()
