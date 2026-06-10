@@ -90,6 +90,7 @@ func TestTimerQueueFactory_CreateQueueV2_Cached(t *testing.T) {
 	}
 
 	processor := factory.createQueuev2(mockShard, execution.NewMockCache(ctrl), invariant.NewMockInvariant(ctrl))
+	defer processor.Stop()
 
 	assert.NotNil(t, processor)
 	_, ok := processor.(*cachedScheduledQueue)

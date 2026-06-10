@@ -25,6 +25,7 @@ package queuev2
 import (
 	"context"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -153,6 +154,7 @@ func (f *timerQueueFactory) createQueuev2(
 	}
 
 	var cachedReader CachedQueueReader
+	var budgetMgr cache.Manager
 	reader := NewQueueReader(
 		shard,
 		persistence.HistoryTaskCategoryTimer,
@@ -160,7 +162,14 @@ func (f *timerQueueFactory) createQueuev2(
 		options.MaxPollIntervalJitterCoefficient,
 	)
 	if config.TimerProcessorEnableCachedScheduledQueue() {
-		cachedReader = newCachedQueueReader(reader, newInMemQueue(), shard, metricsScope)
+		budgetMgr = cache.NewBudgetManager(
+			"timer-queue",
+			dynamicproperties.GetIntPropertyFn(-1),
+			config.TimerProcessorCacheMaxSize,
+			cache.AdmissionOptimistic,
+			0, metricsScope, shard.GetLogger(), nil,
+		)
+		cachedReader = newCachedQueueReader(reader, newInMemQueueWithBudget(budgetMgr, "timer"), shard, metricsScope)
 		reader = cachedReader
 	}
 
@@ -177,7 +186,7 @@ func (f *timerQueueFactory) createQueuev2(
 	)
 
 	if cachedReader != nil {
-		return newCachedScheduledQueue(base, cachedReader)
+		return newCachedScheduledQueue(base, cachedReader, budgetMgr)
 	}
 
 	return base

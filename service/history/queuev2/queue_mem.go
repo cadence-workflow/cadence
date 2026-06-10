@@ -25,6 +25,7 @@ package queuev2
 import (
 	"sort"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/persistence"
 )
 
@@ -43,10 +44,10 @@ type InMemQueue interface {
 	GetTasks(inclusiveMinTaskKey, exclusiveMaxTaskKey persistence.HistoryTaskKey, predicate Predicate, pageSize int) (tasks []persistence.Task, nextTaskKey persistence.HistoryTaskKey)
 	// LTrim removes all tasks strictly before newInclusiveMinTaskKey.
 	LTrim(newInclusiveMinTaskKey persistence.HistoryTaskKey)
-	// RTrimBySize drops tasks from the tail until Len() <= maxSize.
-	// Returns the key just past the last kept task and true if any tasks were
-	// removed, or the zero key and false if the queue was already within bounds.
-	RTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool)
+	// RTrimBySize trims the tail until the host-level budget capacity is satisfied.
+	// Returns the key after the last retained task (or MinimumHistoryTaskKey if empty)
+	// and true if any tasks were removed.
+	RTrimBySize() (persistence.HistoryTaskKey, bool)
 	// Clear removes all tasks.
 	Clear()
 	// Len returns the number of tasks currently in the queue.
@@ -54,11 +55,13 @@ type InMemQueue interface {
 }
 
 type inMemQueueImpl struct {
-	tasks []persistence.Task
+	tasks     []persistence.Task
+	budgetMgr cache.Manager
+	cacheID   string
 }
 
-func newInMemQueue() *inMemQueueImpl {
-	return &inMemQueueImpl{}
+func newInMemQueueWithBudget(mgr cache.Manager, cacheID string) *inMemQueueImpl {
+	return &inMemQueueImpl{budgetMgr: mgr, cacheID: cacheID}
 }
 
 // putTask inserts a task into the queue maintaining sorted order by task key.
@@ -70,6 +73,7 @@ func (q *inMemQueueImpl) putTask(task persistence.Task) {
 	// Fast path: empty queue or key is strictly greater than the tail — append directly.
 	if n == 0 || q.tasks[n-1].GetTaskKey().Compare(key) < 0 {
 		q.tasks = append(q.tasks, task)
+		_ = q.budgetMgr.ReserveCountWithCallback(q.cacheID, 1, func() error { return nil })
 		return
 	}
 
@@ -82,6 +86,7 @@ func (q *inMemQueueImpl) putTask(task persistence.Task) {
 	q.tasks = append(q.tasks, nil)
 	copy(q.tasks[pos+1:], q.tasks[pos:])
 	q.tasks[pos] = task
+	_ = q.budgetMgr.ReserveCountWithCallback(q.cacheID, 1, func() error { return nil })
 }
 
 // PutTasks inserts multiple tasks into the queue.
@@ -150,41 +155,40 @@ func (q *inMemQueueImpl) LTrim(newInclusiveMinTaskKey persistence.HistoryTaskKey
 		return
 	}
 
+	freed := int64(pos)
 	remaining := make([]persistence.Task, len(q.tasks)-pos)
 	copy(remaining, q.tasks[pos:])
 	q.tasks = remaining
+	_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return freed, nil })
 }
 
-// RTrimBySize truncates the queue to at most maxSize elements by dropping
-// the newest tasks from the right.
-// Returns the next key after the last task or MinimumHistoryTaskKey if the queue is empty, and
-// true if any tasks were removed, or false if the queue was already within bounds.
-func (q *inMemQueueImpl) RTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool) {
+// RTrimBySize trims the tail until the host-level budget capacity is satisfied.
+// Returns the key after the last retained task (or MinimumHistoryTaskKey if empty)
+// and true if any tasks were removed.
+func (q *inMemQueueImpl) RTrimBySize() (persistence.HistoryTaskKey, bool) {
 	if len(q.tasks) == 0 {
 		return persistence.MinimumHistoryTaskKey, false
 	}
-
-	if maxSize <= 0 {
-		q.tasks = nil
-		return persistence.MinimumHistoryTaskKey, true
+	trimmed := false
+	// Use q.Len() (not UsedCount) because reserve may fail for tasks inserted while at capacity.
+	for len(q.tasks) > 0 && int64(len(q.tasks)) > q.budgetMgr.CapacityCount() {
+		q.tasks[len(q.tasks)-1] = nil // release GC ref
+		q.tasks = q.tasks[:len(q.tasks)-1]
+		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return 1, nil })
+		trimmed = true
 	}
-
-	trimmed := len(q.tasks) > maxSize
-	if trimmed {
-		// Nil out the tail elements so the backing array releases references to
-		// the removed Task interface values. Without this, interface values beyond
-		// maxSize remain rooted in the array until it is reallocated.
-		for i := maxSize; i < len(q.tasks); i++ {
-			q.tasks[i] = nil
-		}
-		q.tasks = q.tasks[:maxSize]
+	if len(q.tasks) == 0 {
+		return persistence.MinimumHistoryTaskKey, trimmed
 	}
-
 	return q.tasks[len(q.tasks)-1].GetTaskKey().Next(), trimmed
 }
 
 // Clear removes all tasks from the queue.
 func (q *inMemQueueImpl) Clear() {
+	n := int64(len(q.tasks))
+	if n > 0 {
+		_ = q.budgetMgr.ReleaseCountWithCallback(q.cacheID, func() (int64, error) { return n, nil })
+	}
 	q.tasks = nil
 }
 

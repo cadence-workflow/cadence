@@ -121,16 +121,16 @@ func (mr *MockInMemQueueMockRecorder) PutTasks(tasks any) *gomock.Call {
 }
 
 // RTrimBySize mocks base method.
-func (m *MockInMemQueue) RTrimBySize(maxSize int) (persistence.HistoryTaskKey, bool) {
+func (m *MockInMemQueue) RTrimBySize() (persistence.HistoryTaskKey, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RTrimBySize", maxSize)
+	ret := m.ctrl.Call(m, "RTrimBySize")
 	ret0, _ := ret[0].(persistence.HistoryTaskKey)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
 // RTrimBySize indicates an expected call of RTrimBySize.
-func (mr *MockInMemQueueMockRecorder) RTrimBySize(maxSize any) *gomock.Call {
+func (mr *MockInMemQueueMockRecorder) RTrimBySize() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RTrimBySize", reflect.TypeOf((*MockInMemQueue)(nil).RTrimBySize), maxSize)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RTrimBySize", reflect.TypeOf((*MockInMemQueue)(nil).RTrimBySize))
 }

@@ -57,7 +57,7 @@ func TestCachedScheduledQueue_Construction(t *testing.T) {
 		task.NewMockProcessor(ctrl), task.NewMockExecutor(ctrl),
 		mockShard.GetLogger(), metrics.NoopClient, metrics.NoopScope, mockReader, options).(*scheduledQueue)
 
-	q := newCachedScheduledQueue(inner, mockReader)
+	q := newCachedScheduledQueue(inner, mockReader, nil)
 
 	require.NotNil(t, q)
 	_, ok := q.(*cachedScheduledQueue)
@@ -158,7 +158,7 @@ func TestCachedScheduledQueue_StartStop(t *testing.T) {
 		task.NewMockProcessor(ctrl), task.NewMockExecutor(ctrl),
 		mockShard.GetLogger(), metrics.NoopClient, metrics.NoopScope, mockReader, options).(*scheduledQueue)
 
-	q := newCachedScheduledQueue(inner, mockReader)
+	q := newCachedScheduledQueue(inner, mockReader, nil)
 
 	q.Start()
 	q.Stop()
@@ -185,7 +185,7 @@ func TestCachedScheduledQueue_EvictionHookWired(t *testing.T) {
 	// can be called without triggering real shard persistence.
 	inner.base.updateQueueStateFn = func(ctx context.Context) {}
 
-	q := newCachedScheduledQueue(inner, mockReader)
+	q := newCachedScheduledQueue(inner, mockReader, nil)
 	csq := q.(*cachedScheduledQueue)
 
 	// Calling the hooked function exercises the closure (covers the inner body).
@@ -234,7 +234,7 @@ func TestCachedScheduledQueue_UpdateQueueStateFn_PropagatesReadLevel(t *testing.
 			mockVQM.EXPECT().GetMinReadLevel().Return(tt.minReadLevel)
 			mockReader.EXPECT().UpdateReadLevel(tt.expectedLevel)
 
-			q := newCachedScheduledQueue(inner, mockReader)
+			q := newCachedScheduledQueue(inner, mockReader, nil)
 			q.(*cachedScheduledQueue).scheduledQueue.base.updateQueueStateFn(context.Background())
 		})
 	}

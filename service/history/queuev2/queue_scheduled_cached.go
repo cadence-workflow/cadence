@@ -25,16 +25,18 @@ package queuev2
 import (
 	"context"
 
+	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
 )
 
 type cachedScheduledQueue struct {
 	*scheduledQueue
-	reader CachedQueueReader
+	reader    CachedQueueReader
+	budgetMgr cache.Manager // optional; stopped in Stop() if non-nil
 }
 
-func newCachedScheduledQueue(inner *scheduledQueue, reader CachedQueueReader) Queue {
+func newCachedScheduledQueue(inner *scheduledQueue, reader CachedQueueReader, budgetMgr cache.Manager) Queue {
 	// Wrap the queue state update to propagate min read level across all virtual queues
 	// to CachedQueueReader each time the ack level is updated
 	originalUpdateFn := inner.base.updateQueueStateFn
@@ -51,6 +53,7 @@ func newCachedScheduledQueue(inner *scheduledQueue, reader CachedQueueReader) Qu
 	return &cachedScheduledQueue{
 		scheduledQueue: inner,
 		reader:         reader,
+		budgetMgr:      budgetMgr,
 	}
 }
 
@@ -71,4 +74,7 @@ func (q *cachedScheduledQueue) Start() {
 func (q *cachedScheduledQueue) Stop() {
 	q.scheduledQueue.Stop()
 	q.reader.Stop()
+	if q.budgetMgr != nil {
+		q.budgetMgr.Stop()
+	}
 }
