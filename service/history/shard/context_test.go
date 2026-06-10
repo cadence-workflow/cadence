@@ -1339,78 +1339,191 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerEx
 
 func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionRegressed() {
 	// Marker carries a higher FailoverVersion than the domain currently reports.
-	// The monotonic-version invariant is violated, so the marker must be dropped
-	// rather than re-shipped every 5s forever.
+	// In all three subcases the marker must be dropped; only the active-cluster
+	// case with a confirmed regression should bump the alarm counter.
 	const domainFailoverVersion int64 = 5
 	const markerFailoverVersion int64 = 100
 
-	domainEntry := cache.NewDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
-		&persistence.DomainConfig{Retention: 7},
-		true,
-		&persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.TestAlternativeClusterName,
-			Clusters: []*persistence.ClusterReplicationConfig{
-				{ClusterName: cluster.TestCurrentClusterName},
-				{ClusterName: cluster.TestAlternativeClusterName},
-			},
+	cases := []struct {
+		name                     string
+		domainActiveCluster      string
+		freshPersistenceVersion  int64
+		expectAlarmCounter       bool
+	}{
+		{
+			name:                    "ConfirmedRegressionOnActiveCluster",
+			domainActiveCluster:     cluster.TestCurrentClusterName,
+			freshPersistenceVersion: domainFailoverVersion,
+			expectAlarmCounter:      true,
 		},
-		domainFailoverVersion,
-		nil,
-		0, 0, 0,
-	)
-
-	regressedMarker := &types.FailoverMarkerAttributes{
-		DomainID:        testDomainID,
-		FailoverVersion: markerFailoverVersion,
+		{
+			name:                    "RegressionOnPassiveCluster",
+			domainActiveCluster:     cluster.TestAlternativeClusterName,
+			freshPersistenceVersion: domainFailoverVersion,
+			expectAlarmCounter:      false,
+		},
+		{
+			name:                    "ResolvedByFreshPersistenceRead",
+			domainActiveCluster:     cluster.TestCurrentClusterName,
+			freshPersistenceVersion: markerFailoverVersion,
+			expectAlarmCounter:      false,
+		},
 	}
-	// inject directly to bypass AddingPendingFailoverMarker's own guard
-	s.context.shardInfo.PendingFailoverMarkers = append(s.context.shardInfo.PendingFailoverMarkers, regressedMarker)
-	s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
 
-	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
-	s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			// fresh context per subcase so PendingFailoverMarkers and metric snapshots are isolated
+			s.context = s.newContext()
 
-	pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
-	s.NoError(err)
-	s.Empty(pendingFailoverMarkers, "regressed-version marker should be dropped")
-	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared")
+			domainEntry := cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
+				&persistence.DomainConfig{Retention: 7},
+				true,
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: tc.domainActiveCluster,
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{ClusterName: cluster.TestCurrentClusterName},
+						{ClusterName: cluster.TestAlternativeClusterName},
+					},
+				},
+				domainFailoverVersion,
+				nil,
+				0, 0, 0,
+			)
+
+			regressedMarker := &types.FailoverMarkerAttributes{
+				DomainID:        testDomainID,
+				FailoverVersion: markerFailoverVersion,
+			}
+			s.context.shardInfo.PendingFailoverMarkers = append(s.context.shardInfo.PendingFailoverMarkers, regressedMarker)
+			s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
+
+			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
+			s.mockResource.MetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: testDomainID}).Return(&persistence.GetDomainResponse{
+				Info:   &persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
+				Config: &persistence.DomainConfig{},
+				ReplicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: tc.domainActiveCluster,
+				},
+				FailoverVersion: tc.freshPersistenceVersion,
+			}, nil).Once()
+			s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
+
+			before := alarmCounterValue(s.mockResource.MetricsScope)
+
+			pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
+			s.NoError(err)
+			s.Empty(pendingFailoverMarkers, "regressed-version marker should be dropped")
+			s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared")
+
+			after := alarmCounterValue(s.mockResource.MetricsScope)
+			if tc.expectAlarmCounter {
+				s.Equal(int64(1), after-before, "alarm counter should fire once for confirmed regression on active cluster")
+			} else {
+				s.Equal(int64(0), after-before, "alarm counter should be suppressed")
+			}
+		})
+	}
 }
 
 func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegressed() {
 	// AddingPendingFailoverMarker must refuse to persist a marker whose
 	// FailoverVersion is greater than the domain's current FailoverVersion —
 	// otherwise we'd seed the same forever-stuck marker we're trying to
-	// defend against on the validation side.
+	// defend against on the validation side. Same three subcases: only the
+	// confirmed-active path should bump the alarm counter.
 	const domainFailoverVersion int64 = 5
 	const markerFailoverVersion int64 = 100
 
-	domainEntry := cache.NewDomainCacheEntryForTest(
-		&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
-		&persistence.DomainConfig{Retention: 7},
-		true,
-		&persistence.DomainReplicationConfig{
-			ActiveClusterName: cluster.TestAlternativeClusterName,
-			Clusters: []*persistence.ClusterReplicationConfig{
-				{ClusterName: cluster.TestCurrentClusterName},
-				{ClusterName: cluster.TestAlternativeClusterName},
-			},
+	cases := []struct {
+		name                     string
+		domainActiveCluster      string
+		freshPersistenceVersion  int64
+		expectAlarmCounter       bool
+	}{
+		{
+			name:                    "ConfirmedRegressionOnActiveCluster",
+			domainActiveCluster:     cluster.TestCurrentClusterName,
+			freshPersistenceVersion: domainFailoverVersion,
+			expectAlarmCounter:      true,
 		},
-		domainFailoverVersion,
-		nil,
-		0, 0, 0,
-	)
-
-	s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
-
-	regressedMarker := &types.FailoverMarkerAttributes{
-		DomainID:        testDomainID,
-		FailoverVersion: markerFailoverVersion,
+		{
+			name:                    "RegressionOnPassiveCluster",
+			domainActiveCluster:     cluster.TestAlternativeClusterName,
+			freshPersistenceVersion: domainFailoverVersion,
+			expectAlarmCounter:      false,
+		},
+		{
+			name:                    "ResolvedByFreshPersistenceRead",
+			domainActiveCluster:     cluster.TestCurrentClusterName,
+			freshPersistenceVersion: markerFailoverVersion,
+			expectAlarmCounter:      false,
+		},
 	}
 
-	s.NoError(s.context.AddingPendingFailoverMarker(regressedMarker))
-	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "regressed-version marker must not be persisted")
-	s.mockShardManager.AssertNotCalled(s.T(), "UpdateShard", mock.Anything, mock.Anything)
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			s.context = s.newContext()
+
+			domainEntry := cache.NewDomainCacheEntryForTest(
+				&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
+				&persistence.DomainConfig{Retention: 7},
+				true,
+				&persistence.DomainReplicationConfig{
+					ActiveClusterName: tc.domainActiveCluster,
+					Clusters: []*persistence.ClusterReplicationConfig{
+						{ClusterName: cluster.TestCurrentClusterName},
+						{ClusterName: cluster.TestAlternativeClusterName},
+					},
+				},
+				domainFailoverVersion,
+				nil,
+				0, 0, 0,
+			)
+
+			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
+			s.mockResource.MetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: testDomainID}).Return(&persistence.GetDomainResponse{
+				Info:   &persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
+				Config: &persistence.DomainConfig{},
+				ReplicationConfig: &persistence.DomainReplicationConfig{
+					ActiveClusterName: tc.domainActiveCluster,
+				},
+				FailoverVersion: tc.freshPersistenceVersion,
+			}, nil).Once()
+
+			regressedMarker := &types.FailoverMarkerAttributes{
+				DomainID:        testDomainID,
+				FailoverVersion: markerFailoverVersion,
+			}
+
+			before := alarmCounterValue(s.mockResource.MetricsScope)
+
+			s.NoError(s.context.AddingPendingFailoverMarker(regressedMarker))
+			s.Empty(s.context.shardInfo.PendingFailoverMarkers, "regressed-version marker must not be persisted")
+			s.mockShardManager.AssertNotCalled(s.T(), "UpdateShard", mock.Anything, mock.Anything)
+
+			after := alarmCounterValue(s.mockResource.MetricsScope)
+			if tc.expectAlarmCounter {
+				s.Equal(int64(1), after-before, "alarm counter should fire once for confirmed regression on active cluster")
+			} else {
+				s.Equal(int64(0), after-before, "alarm counter should be suppressed")
+			}
+		})
+	}
+}
+
+// alarmCounterValue returns the current sum of the
+// failover_marker_dropped_regressed_domain counter across all tag combinations
+// recorded on the tally scope. The metric is tagged with domain name, so the
+// snapshot key includes that tag; summing avoids hard-coding the key.
+func alarmCounterValue(scope tally.TestScope) int64 {
+	var total int64
+	for _, c := range scope.Snapshot().Counters() {
+		if c.Name() == "test.failover_marker_dropped_regressed_domain" {
+			total += c.Value()
+		}
+	}
+	return total
 }
 
 func (s *contextTestSuite) TestGetAndUpdateProcessingQueueStates() {
