@@ -1340,24 +1340,24 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerEx
 func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionRegressed() {
 	// Marker carries a higher FailoverVersion than the domain currently reports.
 	// The marker is always dropped; only the active-cluster case bumps the
-	// alarm counter (passive replicas have no ordering guarantee).
+	// alert counter (passive replicas have no ordering guarantee).
 	const domainFailoverVersion int64 = 5
 	const markerFailoverVersion int64 = 100
 
 	cases := []struct {
 		name                string
 		domainActiveCluster string
-		expectAlarmCounter  bool
+		expectAlertCounter  bool
 	}{
 		{
-			name:                "OnActiveCluster",
+			name:                "active cluster emits alert and drops marker",
 			domainActiveCluster: cluster.TestCurrentClusterName,
-			expectAlarmCounter:  true,
+			expectAlertCounter:  true,
 		},
 		{
-			name:                "OnPassiveCluster",
+			name:                "passive cluster drops marker silently",
 			domainActiveCluster: cluster.TestAlternativeClusterName,
-			expectAlarmCounter:  false,
+			expectAlertCounter:  false,
 		},
 	}
 
@@ -1392,18 +1392,18 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionReg
 			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
 			s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
 
-			before := alarmCounterValue(s.mockResource.MetricsScope)
+			before := alertCounterValue(s.mockResource.MetricsScope)
 
 			pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
 			s.NoError(err)
 			s.Empty(pendingFailoverMarkers, "regressed-version marker should be dropped")
 			s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared")
 
-			after := alarmCounterValue(s.mockResource.MetricsScope)
-			if tc.expectAlarmCounter {
-				s.Equal(int64(1), after-before, "alarm counter should fire once on active cluster")
+			after := alertCounterValue(s.mockResource.MetricsScope)
+			if tc.expectAlertCounter {
+				s.Equal(int64(1), after-before, "alert counter should fire once on active cluster")
 			} else {
-				s.Equal(int64(0), after-before, "alarm counter should be suppressed on passive cluster")
+				s.Equal(int64(0), after-before, "alert counter should be suppressed on passive cluster")
 			}
 		})
 	}
@@ -1413,7 +1413,7 @@ func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegresse
 	// AddingPendingFailoverMarker must refuse to persist a marker whose
 	// FailoverVersion is greater than the domain's current FailoverVersion —
 	// otherwise we'd seed the same forever-stuck marker we're trying to
-	// defend against on the validation side. Same gating: alarm fires only
+	// defend against on the validation side. Same gating: alert fires only
 	// on the to-be-active cluster.
 	const domainFailoverVersion int64 = 5
 	const markerFailoverVersion int64 = 100
@@ -1421,17 +1421,17 @@ func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegresse
 	cases := []struct {
 		name                string
 		domainActiveCluster string
-		expectAlarmCounter  bool
+		expectAlertCounter  bool
 	}{
 		{
-			name:                "OnActiveCluster",
+			name:                "active cluster emits alert and drops marker",
 			domainActiveCluster: cluster.TestCurrentClusterName,
-			expectAlarmCounter:  true,
+			expectAlertCounter:  true,
 		},
 		{
-			name:                "OnPassiveCluster",
+			name:                "passive cluster drops marker silently",
 			domainActiveCluster: cluster.TestAlternativeClusterName,
-			expectAlarmCounter:  false,
+			expectAlertCounter:  false,
 		},
 	}
 
@@ -1462,27 +1462,27 @@ func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegresse
 				FailoverVersion: markerFailoverVersion,
 			}
 
-			before := alarmCounterValue(s.mockResource.MetricsScope)
+			before := alertCounterValue(s.mockResource.MetricsScope)
 
 			s.NoError(s.context.AddingPendingFailoverMarker(regressedMarker))
 			s.Empty(s.context.shardInfo.PendingFailoverMarkers, "regressed-version marker must not be persisted")
 			s.mockShardManager.AssertNotCalled(s.T(), "UpdateShard", mock.Anything, mock.Anything)
 
-			after := alarmCounterValue(s.mockResource.MetricsScope)
-			if tc.expectAlarmCounter {
-				s.Equal(int64(1), after-before, "alarm counter should fire once on active cluster")
+			after := alertCounterValue(s.mockResource.MetricsScope)
+			if tc.expectAlertCounter {
+				s.Equal(int64(1), after-before, "alert counter should fire once on active cluster")
 			} else {
-				s.Equal(int64(0), after-before, "alarm counter should be suppressed on passive cluster")
+				s.Equal(int64(0), after-before, "alert counter should be suppressed on passive cluster")
 			}
 		})
 	}
 }
 
-// alarmCounterValue returns the current sum of the
+// alertCounterValue returns the current sum of the
 // failover_marker_dropped_regressed_domain counter across all tag combinations
 // recorded on the tally scope. The metric is tagged with domain name, so the
 // snapshot key includes that tag; summing avoids hard-coding the key.
-func alarmCounterValue(scope tally.TestScope) int64 {
+func alertCounterValue(scope tally.TestScope) int64 {
 	var total int64
 	for _, c := range scope.Snapshot().Counters() {
 		if c.Name() == "test.failover_marker_dropped_regressed_domain" {

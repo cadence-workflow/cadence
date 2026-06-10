@@ -1544,7 +1544,7 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
 	// markerVersion > domainVersion violates the monotonic-version
-	// invariant. Always drop; only alarm on the to-be-active cluster
+	// invariant. Always drop; only alert on the to-be-active cluster
 	// (where graceful-failover ordering guarantees the invariant). On
 	// passive replicas a transient regression can be a benign race
 	// between independent domain and marker replication queues.
@@ -1646,7 +1646,7 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		// invariant: a marker's FailoverVersion is set from the domain's
 		// FailoverVersion at the moment the marker is written. Always
 		// drop so it doesn't ship every 5s forever and falsely advertise
-		// an in-flight graceful failover; only alarm on the to-be-active
+		// an in-flight graceful failover; only alert on the to-be-active
 		// cluster where the ordering invariant must hold.
 		if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
 			s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Dropped pending failover marker: marker version is greater than domain version")
