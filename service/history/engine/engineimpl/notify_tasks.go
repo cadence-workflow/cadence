@@ -53,6 +53,7 @@ func (e *historyEngineImpl) NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 		}
 		transferProcessor.NotifyNewTask(clusterName, info)
 	}
+	e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
 }
 
 func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
@@ -70,6 +71,7 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 		}
 		timerProcessor.NotifyNewTask(clusterName, info)
 	}
+	e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
 }
 
 func (e *historyEngineImpl) NotifyNewReplicationTasks(info *hcommon.NotifyTaskInfo) {

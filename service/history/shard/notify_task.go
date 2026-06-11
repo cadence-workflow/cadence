@@ -23,6 +23,7 @@
 package shard
 
 import (
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
 )
@@ -62,7 +63,9 @@ func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
+		return
 	}
+	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err), tag.Dynamic("request", request))
 }
 
 // notifyTasksFromUpdateWorkflowExecution sends task notifications for an UpdateWorkflowExecution operation.
@@ -74,7 +77,9 @@ func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromMutation(&request.UpdateWorkflowMutation, persistenceError)
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
+		return
 	}
+	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err), tag.Dynamic("request", request))
 }
 
 // notifyTasksFromConflictResolveWorkflowExecution sends task notifications for a ConflictResolveWorkflowExecution operation.
@@ -87,7 +92,9 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 		s.notifyTasksFromSnapshot(&request.ResetWorkflowSnapshot, persistenceError)
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
+		return
 	}
+	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err), tag.Dynamic("request", request))
 }
 
 // notifyTasks notifies the transfer and timer queue processors of new tasks.
