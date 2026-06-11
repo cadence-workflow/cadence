@@ -811,6 +811,38 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	return nil
 }
 
+func (d *nosqlExecutionStore) CreateHistoryTasks(
+	ctx context.Context,
+	request *persistence.CreateHistoryTasksRequest,
+) error {
+	shardID := d.effectiveShardID(request.ShardID, "CreateHistoryTasks")
+
+	outputTasks := make(map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask)
+	// The transfer/timer prepare helpers read each task's own (domainID, workflowID, runID) from
+	// its info, so no per-workflow grouping is needed here; the runID argument is unused for these
+	// categories. The cassandra writer likewise derives each row's owner from the task itself.
+	if err := d.prepareNoSQLTasksForWorkflowTxn("", "", "", request.TasksByCategory, outputTasks); err != nil {
+		return err
+	}
+
+	err := d.db.InsertHistoryTasks(ctx, outputTasks, request.CurrentTimeStamp, nosqlplugin.ShardCondition{
+		ShardID: shardID,
+		RangeID: request.RangeID,
+	})
+
+	if err != nil {
+		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.ShardOperationConditionFailure)
+		if isConditionFailedError {
+			return &persistence.ShardOwnershipLostError{
+				ShardID: shardID,
+				Msg: fmt.Sprintf("Failed to create history tasks.  Request RangeID: %v, columns: (%v)",
+					conditionFailureErr.RangeID, conditionFailureErr.Details),
+			}
+		}
+	}
+	return nil
+}
+
 func (d *nosqlExecutionStore) GetHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,

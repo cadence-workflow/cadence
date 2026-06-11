@@ -999,6 +999,14 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
+func (m *executionManagerImpl) CreateHistoryTasks(
+	ctx context.Context,
+	request *CreateHistoryTasksRequest,
+) error {
+	request.CurrentTimeStamp = m.timeSrc.Now()
+	return m.persistence.CreateHistoryTasks(ctx, request)
+}
+
 func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
 	ctx context.Context,
 	request *GetActiveClusterSelectionPolicyRequest,

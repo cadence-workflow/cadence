@@ -86,6 +86,21 @@ func (c *injectorExecutionManager) CreateFailoverMarkerTasks(ctx context.Context
 	return
 }
 
+func (c *injectorExecutionManager) CreateHistoryTasks(ctx context.Context, request *persistence.CreateHistoryTasksRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.CreateHistoryTasks(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.CreateHistoryTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) CreateWorkflowExecution(ctx context.Context, request *persistence.CreateWorkflowExecutionRequest) (cp1 *persistence.CreateWorkflowExecutionResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool

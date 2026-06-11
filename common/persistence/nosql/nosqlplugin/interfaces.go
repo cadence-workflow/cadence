@@ -493,6 +493,8 @@ type (
 		RangeDeleteReplicationTasks(ctx context.Context, shardID int, exclusiveEndTaskID int64) error
 		// insert replication task with shard condition check
 		InsertReplicationTask(ctx context.Context, tasks []*HistoryMigrationTask, condition ShardCondition) error
+		// insert history tasks (e.g. transfer/timer) by category, chunked into CAS batches with shard condition check
+		InsertHistoryTasks(ctx context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask, currentTimeStamp time.Time, condition ShardCondition) error
 
 		// cross_cluster_task table
 		// delete a single transfer task

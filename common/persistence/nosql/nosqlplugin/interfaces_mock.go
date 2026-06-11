@@ -14,11 +14,10 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	config "github.com/uber/cadence/common/config"
 	log "github.com/uber/cadence/common/log"
 	persistence "github.com/uber/cadence/common/persistence"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockPlugin is a mock of Plugin interface.
@@ -457,6 +456,20 @@ func (m *MockDB) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTa
 func (mr *MockDBMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MockDB)(nil).InsertHistoryDLQTaskRow), ctx, task)
+}
+
+// InsertHistoryTasks mocks base method.
+func (m *MockDB) InsertHistoryTasks(ctx context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask, currentTimeStamp time.Time, condition ShardCondition) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryTasks", ctx, tasksByCategory, currentTimeStamp, condition)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryTasks indicates an expected call of InsertHistoryTasks.
+func (mr *MockDBMockRecorder) InsertHistoryTasks(ctx, tasksByCategory, currentTimeStamp, condition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryTasks", reflect.TypeOf((*MockDB)(nil).InsertHistoryTasks), ctx, tasksByCategory, currentTimeStamp, condition)
 }
 
 // InsertIntoHistoryTreeAndNode mocks base method.
@@ -1690,6 +1703,20 @@ func (m *MocktableCRUD) InsertHistoryDLQTaskRow(ctx context.Context, task *Histo
 func (mr *MocktableCRUDMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertHistoryDLQTaskRow), ctx, task)
+}
+
+// InsertHistoryTasks mocks base method.
+func (m *MocktableCRUD) InsertHistoryTasks(ctx context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask, currentTimeStamp time.Time, condition ShardCondition) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryTasks", ctx, tasksByCategory, currentTimeStamp, condition)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryTasks indicates an expected call of InsertHistoryTasks.
+func (mr *MocktableCRUDMockRecorder) InsertHistoryTasks(ctx, tasksByCategory, currentTimeStamp, condition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryTasks", reflect.TypeOf((*MocktableCRUD)(nil).InsertHistoryTasks), ctx, tasksByCategory, currentTimeStamp, condition)
 }
 
 // InsertIntoHistoryTreeAndNode mocks base method.
@@ -3490,6 +3517,20 @@ func (m *MockWorkflowCRUD) DeleteWorkflowExecution(ctx context.Context, shardID 
 func (mr *MockWorkflowCRUDMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, workflowID, runID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockWorkflowCRUD)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
+}
+
+// InsertHistoryTasks mocks base method.
+func (m *MockWorkflowCRUD) InsertHistoryTasks(ctx context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask, currentTimeStamp time.Time, condition ShardCondition) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertHistoryTasks", ctx, tasksByCategory, currentTimeStamp, condition)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertHistoryTasks indicates an expected call of InsertHistoryTasks.
+func (mr *MockWorkflowCRUDMockRecorder) InsertHistoryTasks(ctx, tasksByCategory, currentTimeStamp, condition any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryTasks", reflect.TypeOf((*MockWorkflowCRUD)(nil).InsertHistoryTasks), ctx, tasksByCategory, currentTimeStamp, condition)
 }
 
 // InsertReplicationDLQTask mocks base method.

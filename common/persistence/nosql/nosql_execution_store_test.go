@@ -1063,6 +1063,128 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 	}
 }
 
+func TestCreateHistoryTasks(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	domainA := "domainA"
+	workflowA := "workflowA"
+	runA := "runA"
+	domainB := "domainB"
+	workflowB := "workflowB"
+	runB := "runB"
+
+	newTransfer := func(domainID, workflowID, runID string, taskID int64) persistence.Task {
+		return &persistence.DecisionTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: domainID, WorkflowID: workflowID, RunID: runID},
+			TaskData:           persistence.TaskData{TaskID: taskID},
+			TaskList:           "tl",
+			ScheduleID:         1,
+		}
+	}
+	newTimer := func(domainID, workflowID, runID string, taskID int64) persistence.Task {
+		return &persistence.UserTimerTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{DomainID: domainID, WorkflowID: workflowID, RunID: runID},
+			TaskData:           persistence.TaskData{TaskID: taskID, VisibilityTimestamp: time.Unix(0, 100)},
+			EventID:            7,
+		}
+	}
+
+	t.Run("prepares tasks by category with per-task owners", func(t *testing.T) {
+		controller := gomock.NewController(t)
+		mockDB := nosqlplugin.NewMockDB(controller)
+		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+		// Disable dual-write so no task serializer is required.
+		store.dc = &persistence.DynamicConfiguration{
+			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
+		}
+
+		now := time.Unix(0, 12345)
+
+		var captured map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		var capturedTime time.Time
+		mockDB.EXPECT().
+			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 99}).
+			DoAndReturn(func(_ context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask, ts time.Time, _ nosqlplugin.ShardCondition) error {
+				captured = tasksByCategory
+				capturedTime = ts
+				return nil
+			})
+
+		req := &persistence.CreateHistoryTasksRequest{
+			RangeID: 99,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: {
+					newTransfer(domainA, workflowA, runA, 1),
+					newTransfer(domainB, workflowB, runB, 2),
+				},
+				persistence.HistoryTaskCategoryTimer: {
+					newTimer(domainA, workflowA, runA, 3),
+				},
+			},
+			CurrentTimeStamp: now,
+		}
+
+		require.NoError(t, store.CreateHistoryTasks(ctx, req))
+		require.Equal(t, now, capturedTime)
+
+		transfers := captured[persistence.HistoryTaskCategoryTransfer]
+		require.Len(t, transfers, 2)
+		byTaskID := make(map[int64]*nosqlplugin.TransferTask)
+		for _, tr := range transfers {
+			byTaskID[tr.Transfer.TaskID] = tr.Transfer
+		}
+		require.Equal(t, domainA, byTaskID[1].DomainID)
+		require.Equal(t, workflowA, byTaskID[1].WorkflowID)
+		require.Equal(t, runA, byTaskID[1].RunID)
+		require.Equal(t, domainB, byTaskID[2].DomainID)
+		require.Equal(t, workflowB, byTaskID[2].WorkflowID)
+		require.Equal(t, runB, byTaskID[2].RunID)
+
+		timers := captured[persistence.HistoryTaskCategoryTimer]
+		require.Len(t, timers, 1)
+		require.Equal(t, int64(3), timers[0].Timer.TaskID)
+		require.Equal(t, runA, timers[0].Timer.RunID)
+	})
+
+	t.Run("empty request does not error", func(t *testing.T) {
+		controller := gomock.NewController(t)
+		mockDB := nosqlplugin.NewMockDB(controller)
+		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+		store.dc = &persistence.DynamicConfiguration{
+			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
+		}
+		mockDB.EXPECT().
+			InsertHistoryTasks(ctx, gomock.Len(0), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 1}).
+			Return(nil)
+		require.NoError(t, store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
+			RangeID: 1,
+		}))
+	})
+
+	t.Run("shard condition failure maps to ShardOwnershipLostError", func(t *testing.T) {
+		controller := gomock.NewController(t)
+		mockDB := nosqlplugin.NewMockDB(controller)
+		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+		store.dc = &persistence.DynamicConfiguration{
+			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
+		}
+		mockDB.EXPECT().
+			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 7}).
+			Return(&nosqlplugin.ShardOperationConditionFailure{RangeID: 8, Details: "boom"})
+
+		err := store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
+			RangeID: 7,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: {newTransfer(domainA, workflowA, runA, 1)},
+			},
+		})
+		var shardLost *persistence.ShardOwnershipLostError
+		require.ErrorAs(t, err, &shardLost)
+		require.Equal(t, shardID, shardLost.ShardID)
+	})
+}
+
 func TestIsWorkflowExecutionExists(t *testing.T) {
 	ctx := context.Background()
 	gomockController := gomock.NewController(t)

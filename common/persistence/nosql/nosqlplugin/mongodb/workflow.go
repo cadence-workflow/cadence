@@ -125,6 +125,10 @@ func (db *mdb) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.H
 	panic("TODO")
 }
 
+func (db *mdb) InsertHistoryTasks(ctx context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask, currentTimeStamp time.Time, condition nosqlplugin.ShardCondition) error {
+	panic("TODO")
+}
+
 func (db *mdb) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCluster string, taskID int64) error {
 	panic("TODO")
 }

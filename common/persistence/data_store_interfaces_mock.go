@@ -94,6 +94,20 @@ func (mr *MockExecutionStoreMockRecorder) CreateFailoverMarkerTasks(ctx, request
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFailoverMarkerTasks", reflect.TypeOf((*MockExecutionStore)(nil).CreateFailoverMarkerTasks), ctx, request)
 }
 
+// CreateHistoryTasks mocks base method.
+func (m *MockExecutionStore) CreateHistoryTasks(ctx context.Context, request *CreateHistoryTasksRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateHistoryTasks", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHistoryTasks indicates an expected call of CreateHistoryTasks.
+func (mr *MockExecutionStoreMockRecorder) CreateHistoryTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryTasks", reflect.TypeOf((*MockExecutionStore)(nil).CreateHistoryTasks), ctx, request)
+}
+
 // CreateWorkflowExecution mocks base method.
 func (m *MockExecutionStore) CreateWorkflowExecution(ctx context.Context, request *InternalCreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()

@@ -2418,6 +2418,130 @@ func TestInsertReplicationTask(t *testing.T) {
 	}
 }
 
+func TestInsertHistoryTasks(t *testing.T) {
+	mkTransfer := func(taskID int64, blobSize int) *nosqlplugin.HistoryMigrationTask {
+		return &nosqlplugin.HistoryMigrationTask{
+			Transfer: &nosqlplugin.TransferTask{
+				DomainID:            "domainID",
+				WorkflowID:          "workflowID",
+				RunID:               "runID",
+				TaskID:              taskID,
+				VisibilityTimestamp: time.Unix(0, 100),
+			},
+			Task:   &persistence.DataBlob{Data: make([]byte, blobSize), Encoding: constants.EncodingTypeThriftRW},
+			TaskID: taskID,
+		}
+	}
+	transferCategory := func(tasks ...*nosqlplugin.HistoryMigrationTask) map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask {
+		return map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{
+			persistence.HistoryTaskCategoryTransfer: tasks,
+		}
+	}
+	newDB := func(t *testing.T, session *fakeSession) *CDB {
+		return NewCassandraDBFromSession(nil, session, testlogger.New(t), nil, DbWithClient(gocql.NewMockClient(gomock.NewController(t))))
+	}
+	cond := nosqlplugin.ShardCondition{ShardID: 1, RangeID: 4}
+
+	t.Run("no tasks writes nothing", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		if err := db.InsertHistoryTasks(context.Background(), nil, time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 0 {
+			t.Fatalf("got %v batches, want 0", len(session.batches))
+		}
+	})
+
+	t.Run("single batch when under budget", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		tasks := transferCategory(mkTransfer(1, 10), mkTransfer(2, 10), mkTransfer(3, 10))
+		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 1 {
+			t.Fatalf("got %v batches, want 1", len(session.batches))
+		}
+		// 3 task queries + 1 assertShardRangeID guard.
+		if got := len(session.batches[0].queries); got != 4 {
+			t.Errorf("got %v queries in batch, want 4", got)
+		}
+	})
+
+	t.Run("splits into multiple batches when byte budget exceeded", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		// Each task's payload alone is most of the byte budget, so any two together overflow it.
+		big := 30 * 1024
+		tasks := transferCategory(mkTransfer(1, big), mkTransfer(2, big), mkTransfer(3, big))
+		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 3 {
+			t.Fatalf("got %v batches, want 3", len(session.batches))
+		}
+		for i, b := range session.batches {
+			// 1 task query + 1 assertShardRangeID guard per chunk.
+			if got := len(b.queries); got != 2 {
+				t.Errorf("batch %d: got %v queries, want 2", i, got)
+			}
+		}
+	})
+
+	t.Run("splits into multiple batches when count budget exceeded", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		tasks := make([]*nosqlplugin.HistoryMigrationTask, historyTaskInsertMaxBatchCount+1)
+		for i := range tasks {
+			tasks[i] = mkTransfer(int64(i+1), 1)
+		}
+		if err := db.InsertHistoryTasks(context.Background(), transferCategory(tasks...), time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 2 {
+			t.Fatalf("got %v batches, want 2", len(session.batches))
+		}
+		if got := len(session.batches[0].queries); got != historyTaskInsertMaxBatchCount+1 {
+			t.Errorf("first batch: got %v queries, want %v", got, historyTaskInsertMaxBatchCount+1)
+		}
+		if got := len(session.batches[1].queries); got != 2 {
+			t.Errorf("second batch: got %v queries, want 2", got)
+		}
+	})
+
+	t.Run("error on a chunk returns and stops", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
+		db := newDB(t, session)
+		big := 30 * 1024
+		tasks := transferCategory(mkTransfer(1, big), mkTransfer(2, big))
+		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		// The first chunk failed, so the second chunk is never built.
+		if len(session.batches) != 1 {
+			t.Fatalf("got %v batches, want 1", len(session.batches))
+		}
+	})
+
+	t.Run("shard condition failure maps to ShardOperationConditionFailure", func(t *testing.T) {
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev:    map[string]any{"type": rowTypeShard, "range_id": int64(5)},
+			iter:                      &fakeIter{},
+		}
+		db := newDB(t, session)
+		err := db.InsertHistoryTasks(context.Background(), transferCategory(mkTransfer(1, 10)), time.Unix(0, 1), cond)
+		var condErr *nosqlplugin.ShardOperationConditionFailure
+		if !errors.As(err, &condErr) {
+			t.Fatalf("got error %v, want ShardOperationConditionFailure", err)
+		}
+		if condErr.RangeID != 5 {
+			t.Errorf("got RangeID %v, want 5", condErr.RangeID)
+		}
+	})
+}
+
 func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 	tests := []struct {
 		name       string

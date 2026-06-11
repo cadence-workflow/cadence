@@ -231,6 +231,7 @@ var (
 	StoreOperationDeleteReplicationTaskFromDLQ       = storeOperation("delete-replication-task-from-dlq")
 	StoreOperationRangeDeleteReplicationTaskFromDLQ  = storeOperation("range-delete-replication-task-from-dlq")
 	StoreOperationCreateFailoverMarkerTasks          = storeOperation("createFailoverMarkerTasks")
+	StoreOperationCreateHistoryTasks                 = storeOperation("createHistoryTasks")
 	StoreOperationGetTimerIndexTasks                 = storeOperation("get-timer-index-tasks")
 	StoreOperationCompleteTimerTask                  = storeOperation("complete-timer-task")
 	StoreOperationGetHistoryTasks                    = storeOperation("get-history-tasks")

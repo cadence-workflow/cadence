@@ -65,6 +65,8 @@ type sqlExecutionStore struct {
 
 var _ p.ExecutionStore = (*sqlExecutionStore)(nil)
 
+var errHistoryTasksNotImplemented = errors.New("create history tasks not implemented for SQL")
+
 // NewSQLExecutionStore creates an instance of ExecutionStore
 func NewSQLExecutionStore(
 	db sqlplugin.DB,
@@ -1067,6 +1069,13 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 		}
 		return nil
 	})
+}
+
+func (m *sqlExecutionStore) CreateHistoryTasks(
+	ctx context.Context,
+	request *p.CreateHistoryTasksRequest,
+) error {
+	return errHistoryTasksNotImplemented
 }
 
 type timerTaskPageToken struct {

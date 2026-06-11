@@ -219,7 +219,7 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	return executionRequest, nil
 }
 
-func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(domainID, workflowID, runID string, timerTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
+func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(_, _, _ string, timerTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
 	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range timerTasks {
@@ -339,7 +339,7 @@ func (d *nosqlExecutionStore) prepareNoSQLTasksForWorkflowTxn(
 	return nil
 }
 
-func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(domainID, workflowID, runID string, transferTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
+func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(_, _, _ string, transferTasks []persistence.Task) ([]*nosqlplugin.HistoryMigrationTask, error) {
 	var tasks []*nosqlplugin.HistoryMigrationTask
 
 	for _, task := range transferTasks {
