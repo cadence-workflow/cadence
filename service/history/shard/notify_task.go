@@ -65,7 +65,7 @@ func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
 		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err), tag.Dynamic("request", request))
+	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err))
 }
 
 // notifyTasksFromUpdateWorkflowExecution sends task notifications for an UpdateWorkflowExecution operation.
@@ -79,7 +79,7 @@ func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err), tag.Dynamic("request", request))
+	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err))
 }
 
 // notifyTasksFromConflictResolveWorkflowExecution sends task notifications for a ConflictResolveWorkflowExecution operation.
@@ -94,7 +94,7 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
 		return
 	}
-	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err), tag.Dynamic("request", request))
+	s.logger.Info("notify tasks dropped due to persistence error", tag.Error(err))
 }
 
 // notifyTasks notifies the transfer and timer queue processors of new tasks.

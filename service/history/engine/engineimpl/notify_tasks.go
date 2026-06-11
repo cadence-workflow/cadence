@@ -45,15 +45,17 @@ func (e *historyEngineImpl) NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)
 
 	task := info.Tasks[0]
 	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
-	if err == nil {
-		transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
-		if !ok {
-			e.logger.Error("transfer processor not found", tag.Error(err))
-			return
-		}
-		transferProcessor.NotifyNewTask(clusterName, info)
+	if err != nil {
+		e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
+		return
 	}
-	e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
+
+	transferProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTransfer]
+	if !ok {
+		e.logger.Error("transfer processor not found", tag.Error(err))
+		return
+	}
+	transferProcessor.NotifyNewTask(clusterName, info)
 }
 
 func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
@@ -63,15 +65,16 @@ func (e *historyEngineImpl) NotifyNewTimerTasks(info *hcommon.NotifyTaskInfo) {
 
 	task := info.Tasks[0]
 	clusterName, err := e.shard.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
-	if err == nil {
-		timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
-		if !ok {
-			e.logger.Error("timer processor not found", tag.Error(err))
-			return
-		}
-		timerProcessor.NotifyNewTask(clusterName, info)
+	if err != nil {
+		e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
+		return
 	}
-	e.logger.Warn("cluster name for failover version not found", tag.Error(err), tag.Value(task.GetVersion()), tag.TaskID(task.GetTaskID()))
+	timerProcessor, ok := e.queueProcessors[persistence.HistoryTaskCategoryTimer]
+	if !ok {
+		e.logger.Error("timer processor not found", tag.Error(err))
+		return
+	}
+	timerProcessor.NotifyNewTask(clusterName, info)
 }
 
 func (e *historyEngineImpl) NotifyNewReplicationTasks(info *hcommon.NotifyTaskInfo) {
