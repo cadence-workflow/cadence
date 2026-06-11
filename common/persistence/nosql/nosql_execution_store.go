@@ -839,6 +839,7 @@ func (d *nosqlExecutionStore) CreateHistoryTasks(
 					conditionFailureErr.RangeID, conditionFailureErr.Details),
 			}
 		}
+		return err
 	}
 	return nil
 }

@@ -1090,7 +1090,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 		}
 	}
 
-	t.Run("prepares tasks by category with per-task owners", func(t *testing.T) {
+	t.Run("when tasks span multiple workflows it should prepare them by category with per-task owners", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
 		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
@@ -1147,7 +1147,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 		require.Equal(t, runA, timers[0].Timer.RunID)
 	})
 
-	t.Run("empty request does not error", func(t *testing.T) {
+	t.Run("when the request has no tasks it should not error", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
 		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
@@ -1162,7 +1162,7 @@ func TestCreateHistoryTasks(t *testing.T) {
 		}))
 	})
 
-	t.Run("shard condition failure maps to ShardOwnershipLostError", func(t *testing.T) {
+	t.Run("when InsertHistoryTasks returns a shard condition failure it should return a ShardOwnershipLostError", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)
 		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
@@ -1182,6 +1182,29 @@ func TestCreateHistoryTasks(t *testing.T) {
 		var shardLost *persistence.ShardOwnershipLostError
 		require.ErrorAs(t, err, &shardLost)
 		require.Equal(t, shardID, shardLost.ShardID)
+	})
+
+	t.Run("when InsertHistoryTasks returns a non-condition error it should return that error unchanged", func(t *testing.T) {
+		controller := gomock.NewController(t)
+		mockDB := nosqlplugin.NewMockDB(controller)
+		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+		store.dc = &persistence.DynamicConfiguration{
+			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
+		}
+		genericErr := errors.New("some generic db error")
+		mockDB.EXPECT().
+			InsertHistoryTasks(ctx, gomock.Any(), gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 7}).
+			Return(genericErr)
+
+		err := store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
+			RangeID: 7,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryTransfer: {newTransfer(domainA, workflowA, runA, 1)},
+			},
+		})
+		require.ErrorContains(t, err, "some generic db error")
+		var shardLost *persistence.ShardOwnershipLostError
+		require.NotErrorAs(t, err, &shardLost)
 	})
 }
 
