@@ -130,6 +130,11 @@ func DomainTag(value string) Tag {
 	return metricWithUnknown(domain, value)
 }
 
+// NonDomainTag is used for metrics that need a stable domain label but are not scoped to a real domain.
+func NonDomainTag() Tag {
+	return DomainTag("-1")
+}
+
 // DomainTypeTag returns a tag for domain type.
 // This allows differentiating between global/local domains.
 func DomainTypeTag(isGlobal bool) Tag {

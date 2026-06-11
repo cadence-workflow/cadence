@@ -96,7 +96,7 @@ func (a *{{$decorator}}) {{$method.Declaration}} {
 	{{- if or (eq $interfaceType "admin.Handler") (hasKey $permissionMap $method.Name) }}
 	{{- if and (eq $interfaceType "api.Handler") (ge (len $method.Params) 2)}}
 	{{- if has $method.Name $nonDomainAuthAPIs}}
-	scope := a.GetMetricsClient().Scope(metrics.Frontend{{$method.Name}}Scope)
+	scope := a.GetMetricsClient().Scope(metrics.Frontend{{$method.Name}}Scope).Tagged(metrics.NonDomainTag())
 	{{- else}}
 	scope := a.getMetricsScopeWithDomain(metrics.Frontend{{$method.Name}}Scope, {{(index $method.Params 1).Name}}.GetDomain())
 	{{- end}}

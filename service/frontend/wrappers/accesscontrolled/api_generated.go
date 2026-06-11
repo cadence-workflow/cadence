@@ -94,7 +94,7 @@ func (a *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 }
 
 func (a *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRequest) (err error) {
-	scope := a.GetMetricsClient().Scope(metrics.FrontendDeleteDomainScope)
+	scope := a.GetMetricsClient().Scope(metrics.FrontendDeleteDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{
 		APIName:     "DeleteDomain",
 		Permission:  authorization.PermissionAdmin,
@@ -129,7 +129,7 @@ func (a *apiHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteSchedu
 }
 
 func (a *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDomainRequest) (err error) {
-	scope := a.GetMetricsClient().Scope(metrics.FrontendDeprecateDomainScope)
+	scope := a.GetMetricsClient().Scope(metrics.FrontendDeprecateDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{
 		APIName:     "DeprecateDomain",
 		Permission:  authorization.PermissionAdmin,
@@ -146,7 +146,7 @@ func (a *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDo
 }
 
 func (a *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDomainRequest) (dp2 *types.DescribeDomainResponse, err error) {
-	scope := a.GetMetricsClient().Scope(metrics.FrontendDescribeDomainScope)
+	scope := a.GetMetricsClient().Scope(metrics.FrontendDescribeDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{
 		APIName:     "DescribeDomain",
 		Permission:  authorization.PermissionRead,
@@ -504,7 +504,7 @@ func (a *apiHandler) RefreshWorkflowTasks(ctx context.Context, rp1 *types.Refres
 }
 
 func (a *apiHandler) RegisterDomain(ctx context.Context, rp1 *types.RegisterDomainRequest) (err error) {
-	scope := a.GetMetricsClient().Scope(metrics.FrontendRegisterDomainScope)
+	scope := a.GetMetricsClient().Scope(metrics.FrontendRegisterDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{
 		APIName:     "RegisterDomain",
 		Permission:  authorization.PermissionAdmin,
@@ -767,7 +767,7 @@ func (a *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseSche
 }
 
 func (a *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRequest) (up2 *types.UpdateDomainResponse, err error) {
-	scope := a.GetMetricsClient().Scope(metrics.FrontendUpdateDomainScope)
+	scope := a.GetMetricsClient().Scope(metrics.FrontendUpdateDomainScope).Tagged(metrics.NonDomainTag())
 	attr := &authorization.Attributes{
 		APIName:     "UpdateDomain",
 		Permission:  authorization.PermissionAdmin,
