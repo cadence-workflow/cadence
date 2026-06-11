@@ -131,9 +131,10 @@ func (q *inMemQueueImpl) GetTasks(inclusiveMinTaskKey, exclusiveMaxTaskKey persi
 
 		tasks = append(tasks, q.tasks[i])
 		if len(tasks) > pageSize {
-			// Trim the extra task so we return at most pageSize tasks
-			// and set nextTaskKey to the key of the first excluded task
-			return tasks[:pageSize], tasks[pageSize].GetTaskKey()
+			// Trim the extra task so we return at most pageSize tasks.
+			// Use .Next() of the last returned task as NextTaskKey, matching
+			// simpleQueueReader's convention for consistent pagination boundaries.
+			return tasks[:pageSize], tasks[pageSize-1].GetTaskKey().Next()
 		}
 	}
 
