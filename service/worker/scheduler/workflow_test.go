@@ -1003,12 +1003,17 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 			},
 		},
 	}
-	// processBackfills should short-circuit without touching PendingBackfills
 	scope := tally.NewTestScope("", nil)
 	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
-	assert.False(t, moreWork, "paused schedule should not process backfills")
-	assert.Len(t, state.PendingBackfills, 1, "pending backfills should be preserved while paused")
-	assert.Empty(t, scope.Snapshot().Counters(), "no metrics should be emitted when paused")
+	assert.False(t, moreWork, "paused schedule should not fire backfills")
+	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
+	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
+	// RunsTotal must still be populated so DescribeSchedule does not report
+	// the queued backfill as 0/0 (which by contract means an empty range).
+	// Hourly cron over (10:00-1s, 13:00] → fires at 10, 11, 12, 13 = 4.
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+	assert.Equal(t, int32(4), state.PendingBackfills[0].RunsTotal)
+	assert.Equal(t, int32(0), state.PendingBackfills[0].RunsCompleted)
 }
 
 func TestProcessBackfillsFiredMetric(t *testing.T) {

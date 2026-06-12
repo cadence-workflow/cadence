@@ -943,34 +943,42 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 // Like processMissedRuns, it caps fires per execution and returns true
 // if more work remains (signalling the caller to ContinueAsNew).
 func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
-	// Backfills respect the pause state: an explicit user request to replay a time
-	// range should not fire workflows while the schedule is paused. The pending
-	// backfills are preserved in state and will execute once the schedule is unpaused.
-	if state.Paused || len(state.PendingBackfills) == 0 {
+	if len(state.PendingBackfills) == 0 {
+		return false
+	}
+
+	// Populate RunsTotal for any queued backfill that hasn't been counted
+	// yet. Done outside the pause short-circuit so DescribeSchedule reports
+	// accurate progress for queued work on a paused schedule instead of 0/0.
+	// Uses the cron parsed at the top of this workflow execution, so a
+	// same-batch UpdateSchedule that changed the cron does not leave us
+	// counting against the stale expression.
+	for i := range state.PendingBackfills {
+		bf := &state.PendingBackfills[i]
+		if bf.RunsTotalComputed {
+			continue
+		}
+		total, truncated := countCronFires(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec, maxBackfillRunsTotalCount)
+		if truncated {
+			// Range exceeds the count cap; report the cap as a lower bound
+			// rather than overload 0 as "unknown".
+			bf.RunsTotal = int32(maxBackfillRunsTotalCount)
+		} else {
+			bf.RunsTotal = int32(total)
+		}
+		bf.RunsTotalComputed = true
+	}
+
+	// Backfills respect the pause state: an explicit user request to replay
+	// a time range should not fire workflows while the schedule is paused.
+	// The pending backfills are preserved and will execute on unpause.
+	if state.Paused {
 		return false
 	}
 
 	fired := 0
 	for len(state.PendingBackfills) > 0 {
 		bf := &state.PendingBackfills[0]
-
-		// RunsTotal is computed lazily on first contact. Doing it here (not in
-		// handleBackfill) uses the cron schedule re-parsed at the top of this
-		// workflow execution, so a same-batch UpdateSchedule that changed the
-		// cron does not leave us counting against the stale expression.
-		if !bf.RunsTotalComputed {
-			total, truncated := countCronFires(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec, maxBackfillRunsTotalCount)
-			if truncated {
-				// The range exceeds the count cap; report the cap as a lower
-				// bound rather than overload 0 as "unknown". Callers comparing
-				// RunsCompleted against RunsTotal may see RunsCompleted reach
-				// or exceed this value before the backfill finishes draining.
-				bf.RunsTotal = int32(maxBackfillRunsTotalCount)
-			} else {
-				bf.RunsTotal = int32(total)
-			}
-			bf.RunsTotalComputed = true
-		}
 
 		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
 
