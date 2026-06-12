@@ -58,7 +58,7 @@ func TestIsOperationPossiblySuccessfulError(t *testing.T) {
 	assert.False(t, isOperationPossiblySuccessfulError(&types.WorkflowExecutionAlreadyStartedError{}))
 	assert.False(t, isOperationPossiblySuccessfulError(&persistence.WorkflowExecutionAlreadyStartedError{}))
 	assert.False(t, isOperationPossiblySuccessfulError(&persistence.CurrentWorkflowConditionFailedError{}))
-	assert.False(t, isOperationPossiblySuccessfulError(&persistence.ConditionFailedError{}))
+	assert.True(t, isOperationPossiblySuccessfulError(&persistence.ConditionFailedError{}))
 	assert.False(t, isOperationPossiblySuccessfulError(&types.ServiceBusyError{}))
 	assert.False(t, isOperationPossiblySuccessfulError(&types.LimitExceededError{}))
 	assert.False(t, isOperationPossiblySuccessfulError(&persistence.ShardOwnershipLostError{}))

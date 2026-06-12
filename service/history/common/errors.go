@@ -35,7 +35,6 @@ func IsOperationPossiblySuccessfulError(err error) bool {
 		*types.WorkflowExecutionAlreadyStartedError,
 		*persistence.WorkflowExecutionAlreadyStartedError,
 		*persistence.CurrentWorkflowConditionFailedError,
-		*persistence.ConditionFailedError,
 		*types.ServiceBusyError,
 		*types.LimitExceededError,
 		*persistence.ShardOwnershipLostError:

@@ -40,7 +40,7 @@ func TestIsOperationPossiblySuccessfulError(t *testing.T) {
 		{"WorkflowExecutionAlreadyStartedError (types)", &types.WorkflowExecutionAlreadyStartedError{}, false},
 		{"WorkflowExecutionAlreadyStartedError (persistence)", &persistence.WorkflowExecutionAlreadyStartedError{}, false},
 		{"CurrentWorkflowConditionFailedError", &persistence.CurrentWorkflowConditionFailedError{}, false},
-		{"ConditionFailedError", &persistence.ConditionFailedError{}, false},
+		{"ConditionFailedError", &persistence.ConditionFailedError{}, true},
 		{"ServiceBusyError", &types.ServiceBusyError{}, false},
 		{"LimitExceededError", &types.LimitExceededError{}, false},
 		{"ShardOwnershipLostError", &persistence.ShardOwnershipLostError{}, false},
