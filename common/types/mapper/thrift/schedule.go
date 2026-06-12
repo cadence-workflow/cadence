@@ -231,14 +231,16 @@ func FromScheduleInfo(t *types.ScheduleInfo) *shared.ScheduleInfo {
 		return nil
 	}
 	return &shared.ScheduleInfo{
-		LastRunTimeNano:    timeValToNano(t.LastRunTime),
-		NextRunTimeNano:    timeValToNano(t.NextRunTime),
-		TotalRuns:          common.Int64Ptr(t.TotalRuns),
-		MissedRuns:         common.Int64Ptr(t.MissedRuns),
-		SkippedRuns:        common.Int64Ptr(t.SkippedRuns),
-		CreateTimeNano:     timeValToNano(t.CreateTime),
-		LastUpdateTimeNano: timeValToNano(t.LastUpdateTime),
-		OngoingBackfills:   fromBackfillInfoSlice(t.OngoingBackfills),
+		LastRunTimeNano:      timeValToNano(t.LastRunTime),
+		NextRunTimeNano:      timeValToNano(t.NextRunTime),
+		TotalRuns:            common.Int64Ptr(t.TotalRuns),
+		MissedRuns:           common.Int64Ptr(t.MissedRuns),
+		SkippedRuns:          common.Int64Ptr(t.SkippedRuns),
+		CreateTimeNano:       timeValToNano(t.CreateTime),
+		LastUpdateTimeNano:   timeValToNano(t.LastUpdateTime),
+		OngoingBackfills:     fromBackfillInfoSlice(t.OngoingBackfills),
+		BufferedFireCount:    common.Int64Ptr(t.BufferedFireCount),
+		RunningWorkflowCount: common.Int64Ptr(t.RunningWorkflowCount),
 	}
 }
 
@@ -247,14 +249,16 @@ func ToScheduleInfo(t *shared.ScheduleInfo) *types.ScheduleInfo {
 		return nil
 	}
 	return &types.ScheduleInfo{
-		LastRunTime:      nanoToTimeVal(t.LastRunTimeNano),
-		NextRunTime:      nanoToTimeVal(t.NextRunTimeNano),
-		TotalRuns:        t.GetTotalRuns(),
-		MissedRuns:       t.GetMissedRuns(),
-		SkippedRuns:      t.GetSkippedRuns(),
-		CreateTime:       nanoToTimeVal(t.CreateTimeNano),
-		LastUpdateTime:   nanoToTimeVal(t.LastUpdateTimeNano),
-		OngoingBackfills: toBackfillInfoSlice(t.OngoingBackfills),
+		LastRunTime:          nanoToTimeVal(t.LastRunTimeNano),
+		NextRunTime:          nanoToTimeVal(t.NextRunTimeNano),
+		TotalRuns:            t.GetTotalRuns(),
+		MissedRuns:           t.GetMissedRuns(),
+		SkippedRuns:          t.GetSkippedRuns(),
+		CreateTime:           nanoToTimeVal(t.CreateTimeNano),
+		LastUpdateTime:       nanoToTimeVal(t.LastUpdateTimeNano),
+		OngoingBackfills:     toBackfillInfoSlice(t.OngoingBackfills),
+		BufferedFireCount:    t.GetBufferedFireCount(),
+		RunningWorkflowCount: t.GetRunningWorkflowCount(),
 	}
 }
 
