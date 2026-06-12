@@ -449,14 +449,24 @@ func TestRegisterDomainRequestFuzz(t *testing.T) {
 		testutils.EnsureFuzzCoverage(t, []string{
 			"nil", "empty", "filled",
 		}, func(t *testing.T, f *fuzz.Fuzzer) string {
-			// Configure fuzzer to generate valid enum values and reasonable day ranges
 			fuzzer := f.Funcs(
 				func(e *types.ArchivalStatus, c fuzz.Continue) {
-					*e = types.ArchivalStatus(c.Intn(2)) // 0-1 are valid values (Disabled=0, Enabled=1)
+					*e = types.ArchivalStatus(c.Intn(2))
 				},
 				func(days *int32, c fuzz.Continue) {
-					// Generate reasonable retention period values to avoid precision loss in conversion
-					*days = int32(c.Intn(10000)) // 0-9999 days is reasonable range
+					*days = int32(c.Intn(10000))
+				},
+				func(r **types.RegisterDomainRequest, c fuzz.Continue) {
+					switch c.Intn(3) {
+					case 0:
+						*r = nil
+					case 1:
+						*r = &types.RegisterDomainRequest{}
+					default:
+						var v types.RegisterDomainRequest
+						c.Fuzz(&v)
+						*r = &v
+					}
 				},
 			).NilChance(0.3)
 
