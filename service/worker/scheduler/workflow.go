@@ -147,7 +147,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		previousPaused := state.Paused
-		changed, timerFired := applyAllInputs(ctx, logger, scope, sched, timerFuture, chs, state, &input)
+		changed, timerFired := applyAllInputs(ctx, logger, scope, timerFuture, chs, state, &input)
 
 		if timerCancel != nil {
 			timerCancel()
@@ -207,7 +207,6 @@ func applyAllInputs(
 	ctx workflow.Context,
 	logger *zap.Logger,
 	scope tally.Scope,
-	sched cron.Schedule,
 	timerFuture workflow.Future,
 	chs signalChannels,
 	state *SchedulerWorkflowState,
@@ -257,7 +256,7 @@ func applyAllInputs(
 		var sig BackfillSignal
 		c.Receive(ctx, &sig)
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagBackfill}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handleBackfill(logger, scope, sched, input, sig, state) {
+		if handleBackfill(logger, scope, sig, state) {
 			stateChanged = true
 		}
 	})
@@ -270,7 +269,7 @@ func applyAllInputs(
 
 	selector.Select(ctx)
 
-	if drainBufferedSignals(logger, scope, sched, chs, state, input) {
+	if drainBufferedSignals(logger, scope, chs, state, input) {
 		stateChanged = true
 	}
 
@@ -283,7 +282,6 @@ func applyAllInputs(
 func drainBufferedSignals(
 	logger *zap.Logger,
 	scope tally.Scope,
-	sched cron.Schedule,
 	chs signalChannels,
 	state *SchedulerWorkflowState,
 	input *SchedulerWorkflowInput,
@@ -331,7 +329,7 @@ func drainBufferedSignals(
 			break
 		}
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagBackfill}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handleBackfill(logger, scope, sched, input, sig, state) {
+		if handleBackfill(logger, scope, sig, state) {
 			stateChanged = true
 		}
 	}
@@ -467,7 +465,7 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	return changed
 }
 
-func handleBackfill(logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, sig BackfillSignal, state *SchedulerWorkflowState) bool {
+func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, state *SchedulerWorkflowState) bool {
 	if !sig.EndTime.After(sig.StartTime) {
 		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonInvalidRange}).
 			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
@@ -497,33 +495,17 @@ func handleBackfill(logger *zap.Logger, scope tally.Scope, sched cron.Schedule, 
 			)
 		}
 	}
-	// Compute RunsTotal up front so DescribeSchedule can show progress as the
-	// backfill drains. handleBackfill runs inside the workflow loop, so this
-	// walk is deterministic — passing a stable cron.Schedule / spec snapshot.
-	// Match processBackfills' fire boundary: (StartTime, EndTime].
-	runsTotal, truncated := countCronFires(sched, sig.StartTime.Add(-time.Second), sig.EndTime, input.Spec, maxBackfillRunsTotalCount)
-	if truncated {
-		// Don't surface a misleadingly bounded count for huge ranges; report
-		// "unknown" via 0 so consumers know the percentage is meaningless.
-		logger.Info("backfill range exceeds RunsTotal count cap, reporting unknown total",
-			zap.String("backfillId", sig.BackfillID),
-			zap.Int("cap", maxBackfillRunsTotalCount),
-		)
-		runsTotal = 0
-	}
 	state.PendingBackfills = append(state.PendingBackfills, BackfillRequest{
 		StartTime:     sig.StartTime,
 		EndTime:       sig.EndTime,
 		OverlapPolicy: sig.OverlapPolicy,
 		BackfillID:    sig.BackfillID,
-		RunsTotal:     int32(runsTotal),
 	})
 	logger.Info("backfill queued",
 		zap.Time("startTime", sig.StartTime),
 		zap.Time("endTime", sig.EndTime),
 		zap.String("overlapPolicy", sig.OverlapPolicy.String()),
 		zap.String("backfillId", sig.BackfillID),
-		zap.Int("runsTotal", runsTotal),
 		zap.Int("pendingCount", len(state.PendingBackfills)),
 	)
 	return true
@@ -787,12 +769,9 @@ func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec ty
 	return missedFiresResult{times: missed, truncated: true}
 }
 
-// countCronFires returns the number of cron fire times in (start, end],
-// without materializing the fires. Used to populate BackfillRequest.RunsTotal
-// at signal-handle time when we only need the count, not the times.
-// Caps the walk at `limit`; the second return value is true when the range
-// would have produced more than `limit` fires (caller treats the count as
-// unknown in that case).
+// countCronFires returns the number of cron fire times in (start, end] without
+// materializing them, capped at limit. The second return value is true when
+// the range would have produced more fires than the cap.
 func countCronFires(sched cron.Schedule, start, end time.Time, spec types.ScheduleSpec, limit int) (int, bool) {
 	count := 0
 	t := start
@@ -975,6 +954,24 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 	for len(state.PendingBackfills) > 0 {
 		bf := &state.PendingBackfills[0]
 
+		// RunsTotal is computed lazily on first contact. Doing it here (not in
+		// handleBackfill) uses the cron schedule re-parsed at the top of this
+		// workflow execution, so a same-batch UpdateSchedule that changed the
+		// cron does not leave us counting against the stale expression.
+		if !bf.RunsTotalComputed {
+			total, truncated := countCronFires(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec, maxBackfillRunsTotalCount)
+			if truncated {
+				// The range exceeds the count cap; report the cap as a lower
+				// bound rather than overload 0 as "unknown". Callers comparing
+				// RunsCompleted against RunsTotal may see RunsCompleted reach
+				// or exceed this value before the backfill finishes draining.
+				bf.RunsTotal = int32(maxBackfillRunsTotalCount)
+			} else {
+				bf.RunsTotal = int32(total)
+			}
+			bf.RunsTotalComputed = true
+		}
+
 		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
 
 		for _, t := range fires.times {
@@ -991,11 +988,10 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
 			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
 			fired++
-			// RunsCompleted advances on every fire that leaves processScheduleFire,
-			// regardless of whether it actually started, was skipped under the
-			// overlap policy, or was queued into the BUFFER. Anything else would
-			// pin the backfill in OngoingBackfills indefinitely whenever the
-			// schedule's overlap policy holds runs back from starting.
+			// Count any fire handed off to processScheduleFire, whether it
+			// started, was skipped under the overlap policy, or was queued
+			// into the BUFFER. Counting only "started" would pin a
+			// BUFFER-deferred backfill in OngoingBackfills indefinitely.
 			bf.RunsCompleted++
 		}
 

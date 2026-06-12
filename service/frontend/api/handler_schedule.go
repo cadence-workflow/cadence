@@ -133,11 +133,9 @@ func validateUserSearchAttributes(sa *types.SearchAttributes) error {
 }
 
 // ongoingBackfillsForResponse converts the scheduler workflow's snapshot of
-// pending backfills into the public BackfillInfo list returned via
-// DescribeScheduleResponse. Returns nil (not empty slice) when there are no
-// backfills, so json.Marshal of the response keeps the field absent rather
-// than emitting an empty array — matches the pattern used by Memo /
-// SearchAttributes elsewhere in the handler.
+// pending backfills into the BackfillInfo pointer slice carried in
+// DescribeScheduleResponse. Returns nil (not an empty slice) when there are
+// no backfills so the marshalled response omits the field.
 func ongoingBackfillsForResponse(in []types.BackfillInfo) []*types.BackfillInfo {
 	if len(in) == 0 {
 		return nil

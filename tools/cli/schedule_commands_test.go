@@ -21,10 +21,16 @@
 package cli
 
 import (
+	"bytes"
 	"flag"
+	"io"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
 
@@ -180,6 +186,74 @@ func TestScheduleCLI_DescribeSchedule(t *testing.T) {
 	sc := &scheduleCLIImpl{frontendClient: mockClient}
 	err := sc.DescribeSchedule(c)
 	assert.NoError(t, err)
+}
+
+func TestPrintDescribeSchedule_OngoingBackfills(t *testing.T) {
+	resp := &types.DescribeScheduleResponse{
+		Spec:     &types.ScheduleSpec{CronExpression: "0 * * * *"},
+		Action:   &types.ScheduleAction{StartWorkflow: &types.StartWorkflowAction{WorkflowType: &types.WorkflowType{Name: "wf"}}},
+		Policies: &types.SchedulePolicies{},
+		State:    &types.ScheduleState{},
+		Info: &types.ScheduleInfo{
+			TotalRuns: 4,
+			OngoingBackfills: []*types.BackfillInfo{
+				{
+					BackfillID:    "bf-a",
+					StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+					RunsTotal:     24,
+					RunsCompleted: 7,
+				},
+				nil, // nil entries must be tolerated
+				{
+					BackfillID:    "bf-b",
+					StartTime:     time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:       time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					RunsTotal:     12,
+					RunsCompleted: 12,
+				},
+			},
+		},
+	}
+
+	out := captureStdout(t, func() { printDescribeSchedule(resp) })
+	assert.Contains(t, out, "Ongoing Backfills:")
+	assert.Contains(t, out, "id: bf-a")
+	assert.Contains(t, out, "progress: 7/24")
+	assert.Contains(t, out, "id: bf-b")
+	assert.Contains(t, out, "progress: 12/12")
+}
+
+func TestPrintDescribeSchedule_NoOngoingBackfills(t *testing.T) {
+	resp := &types.DescribeScheduleResponse{
+		Spec:     &types.ScheduleSpec{CronExpression: "0 * * * *"},
+		Action:   &types.ScheduleAction{StartWorkflow: &types.StartWorkflowAction{WorkflowType: &types.WorkflowType{Name: "wf"}}},
+		Policies: &types.SchedulePolicies{},
+		State:    &types.ScheduleState{},
+		Info:     &types.ScheduleInfo{TotalRuns: 4},
+	}
+
+	out := captureStdout(t, func() { printDescribeSchedule(resp) })
+	assert.NotContains(t, out, "Ongoing Backfills")
+}
+
+// captureStdout runs fn with os.Stdout redirected to a pipe and returns
+// what fn wrote. Used to assert against printDescribeSchedule output.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+
+	fn()
+	require.NoError(t, w.Close())
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, r)
+	require.NoError(t, err)
+	return strings.TrimRight(buf.String(), "\n")
 }
 
 func TestScheduleCLI_PauseSchedule(t *testing.T) {

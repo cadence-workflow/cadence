@@ -1592,6 +1592,40 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
+func TestOngoingBackfillsForResponse(t *testing.T) {
+	t.Run("nil input returns nil", func(t *testing.T) {
+		assert.Nil(t, ongoingBackfillsForResponse(nil))
+	})
+	t.Run("empty input returns nil", func(t *testing.T) {
+		assert.Nil(t, ongoingBackfillsForResponse([]types.BackfillInfo{}))
+	})
+	t.Run("non-empty input is mapped one-to-one and copies each entry", func(t *testing.T) {
+		in := []types.BackfillInfo{
+			{
+				BackfillID:    "bf-a",
+				StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+				RunsTotal:     24,
+				RunsCompleted: 5,
+			},
+			{
+				BackfillID: "bf-b",
+				StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+			},
+		}
+		out := ongoingBackfillsForResponse(in)
+		require.Len(t, out, 2)
+		assert.Equal(t, in[0], *out[0])
+		assert.Equal(t, in[1], *out[1])
+
+		// Each pointer must refer to an independent copy so a later mutation
+		// of the response slice does not race against scheduler-workflow state.
+		out[0].RunsCompleted = 99
+		assert.Equal(t, int32(5), in[0].RunsCompleted, "mutating out must not affect in")
+	})
+}
+
 // TestValidateUserSearchAttributes verifies that user-supplied search attribute
 // keys colliding with the scheduler-reserved "CadenceSchedule" prefix are
 // rejected, while other keys (including a lowercase near-miss) are allowed. The
