@@ -76,6 +76,31 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
+// defaultCatchUpWindow bounds how far back the scheduler walks when catching up
+// missed runs after a pause / worker recovery. Chosen to match temporal
+// (CurrentTweakablePolicies.DefaultCatchupWindow = 365 days) so users moving
+// between systems see the same recovery behavior. The IDL comment on
+// SchedulePolicies.catch_up_window already promises a server-applied default
+// when the field is unset; this constant is what that promise resolves to.
+const defaultCatchUpWindow = 365 * 24 * time.Hour
+
+// applySchedulePolicyDefaults fills in server-defaulted fields on a
+// user-supplied SchedulePolicies in place. Today the only defaulted field is
+// CatchUpWindow when a catch-up policy that actually consults the window is
+// selected: SKIP and the zero value (Invalid → treated as SKIP downstream)
+// ignore the window, so leaving it 0 in those cases is harmless and we avoid
+// rewriting fields the user did not exercise.
+func applySchedulePolicyDefaults(policies *types.SchedulePolicies) {
+	if policies == nil {
+		return
+	}
+	usesWindow := policies.CatchUpPolicy == types.ScheduleCatchUpPolicyOne ||
+		policies.CatchUpPolicy == types.ScheduleCatchUpPolicyAll
+	if usesWindow && policies.CatchUpWindow == 0 {
+		policies.CatchUpWindow = defaultCatchUpWindow
+	}
+}
+
 // validateScheduleSpecTimeRange rejects a spec whose EndTime is not after its
 // StartTime when both are set. A zero StartTime or EndTime means "unbounded" and
 // is left unchecked. Mirrors the range validation BackfillSchedule performs, and
@@ -172,6 +197,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
+	applySchedulePolicyDefaults(request.GetPolicies())
 	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
 	if err := validateUserSearchAttributes(request.GetSearchAttributes()); err != nil {
 		return nil, err
@@ -368,6 +394,7 @@ func (wh *WorkflowHandler) UpdateSchedule(
 	if err := validateSchedulePolicies(request.GetPolicies()); err != nil {
 		return nil, err
 	}
+	applySchedulePolicyDefaults(request.GetPolicies())
 	wh.warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName, request.GetPolicies())
 	if spec := request.GetSpec(); spec != nil && spec.GetCronExpression() != "" {
 		if _, err := backoff.ValidateSchedule(spec.GetCronExpression()); err != nil {

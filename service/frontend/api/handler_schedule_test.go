@@ -1592,6 +1592,60 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
+func TestApplySchedulePolicyDefaults(t *testing.T) {
+	tests := map[string]struct {
+		policies     *types.SchedulePolicies
+		wantWindow   time.Duration
+		wantPolicies *types.SchedulePolicies
+	}{
+		"nil policies is a no-op": {
+			policies:     nil,
+			wantPolicies: nil,
+		},
+		"CATCH_UP_ALL with unset window gets default": {
+			policies: &types.SchedulePolicies{
+				CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+			},
+			wantWindow: defaultCatchUpWindow,
+		},
+		"CATCH_UP_ONE with unset window gets default": {
+			policies: &types.SchedulePolicies{
+				CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+			},
+			wantWindow: defaultCatchUpWindow,
+		},
+		"explicitly-set window is preserved (not overwritten)": {
+			policies: &types.SchedulePolicies{
+				CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+				CatchUpWindow: 30 * time.Minute,
+			},
+			wantWindow: 30 * time.Minute,
+		},
+		"SKIP catch-up does not consult the window, so we leave it zero": {
+			policies: &types.SchedulePolicies{
+				CatchUpPolicy: types.ScheduleCatchUpPolicySkip,
+			},
+			wantWindow: 0,
+		},
+		"invalid/uninitialized catch-up policy leaves the window untouched": {
+			// The workflow treats Invalid as Skip, so injecting a window here
+			// would be misleading and would surprise callers who never set a
+			// catch-up policy in the first place.
+			policies:   &types.SchedulePolicies{},
+			wantWindow: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			applySchedulePolicyDefaults(tt.policies)
+			if tt.policies == nil {
+				return
+			}
+			assert.Equal(t, tt.wantWindow, tt.policies.CatchUpWindow)
+		})
+	}
+}
+
 // TestValidateUserSearchAttributes verifies that user-supplied search attribute
 // keys colliding with the scheduler-reserved "CadenceSchedule" prefix are
 // rejected, while other keys (including a lowercase near-miss) are allowed. The
