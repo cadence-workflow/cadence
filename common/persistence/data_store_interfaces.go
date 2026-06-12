@@ -1288,8 +1288,9 @@ func (t *InternalReplicationTaskInfo) ToTask() (Task, error) {
 	case ReplicationTaskTypeFailoverMarker:
 		return &FailoverMarkerTask{
 			TaskData: TaskData{
-				Version: t.Version,
-				TaskID:  t.TaskID,
+				Version:             t.Version,
+				TaskID:              t.TaskID,
+				VisibilityTimestamp: t.CreationTime,
 			},
 			DomainID: t.DomainID,
 		}, nil
