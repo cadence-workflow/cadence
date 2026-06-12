@@ -774,25 +774,48 @@ func capShadowMismatchSlice[T any](s []T) []T {
 
 // shadowTimeMismatch records a task present in both DB and cache but with mismatched scheduled times.
 type shadowTimeMismatch struct {
-	TaskKey   persistence.HistoryTaskKey
-	DBTime    time.Time
-	CacheTime time.Time
+	shadowMismatchTaskInfo `json:",inline"`
+	DBTime                 time.Time `json:"dbTime"`
+	CacheTime              time.Time `json:"cacheTime"`
+}
+
+// toShadowTimeMismatch constructs a shadowTimeMismatch from a persistence.Task and its scheduled times in DB and cache.
+func toShadowTimeMismatch(t persistence.Task, dbTime, cacheTime time.Time) shadowTimeMismatch {
+	return shadowTimeMismatch{
+		shadowMismatchTaskInfo: toShadowMismatchTaskInfo(t),
+		DBTime:                 dbTime,
+		CacheTime:              cacheTime,
+	}
+}
+
+// shadowMismatchTaskInfo holds identifying information about a task mismatch for logging purposes.
+type shadowMismatchTaskInfo struct {
+	TaskKey persistence.HistoryTaskKey `json:"taskKey"`
+	RunID   string                     `json:"runID"`
+}
+
+// toShadowMismatchTaskInfo extracts the identifying information from a persistence.Task for logging mismatches.
+func toShadowMismatchTaskInfo(t persistence.Task) shadowMismatchTaskInfo {
+	return shadowMismatchTaskInfo{
+		TaskKey: t.GetTaskKey(),
+		RunID:   t.GetRunID(),
+	}
 }
 
 // findMismatchesInShadowResult holds the outcome of a shadow comparison.
 type findMismatchesInShadowResult struct {
-	// MissedInCacheTaskKeys contains task keys present in DB but absent from cache, created by the current rangeID.
-	MissedInCacheTaskKeys []persistence.HistoryTaskKey `json:"missedInCacheTaskKeys,omitempty"`
-	// IncorrectTimeTaskKeys contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
-	IncorrectTimeTaskKeys []shadowTimeMismatch `json:"incorrectTimeTaskKeys,omitempty"`
-	// ExtraInCacheTaskKeys contains task keys present in cache but absent from the DB response, created by the current rangeID.
-	ExtraInCacheTaskKeys []persistence.HistoryTaskKey `json:"extraInCacheTaskKeys,omitempty"`
-	// OwnerChangedTaskKeys holds tasks absent from DB or cache whose taskID encodes a different rangeID
+	// MissedInCacheTasks contains tasks present in DB but absent from cache, created by the current rangeID.
+	MissedInCacheTasks []shadowMismatchTaskInfo `json:"missedInCacheTaskKeys,omitempty"`
+	// IncorrectTimeTasks contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
+	IncorrectTimeTasks []shadowTimeMismatch `json:"incorrectTimeTaskKeys,omitempty"`
+	// ExtraInCacheTasks contains task keys present in cache but absent from the DB response, created by the current rangeID.
+	ExtraInCacheTasks []shadowMismatchTaskInfo `json:"extraInCacheTaskKeys,omitempty"`
+	// OwnerChangedTasks holds tasks absent from DB or cache whose taskID encodes a different rangeID
 	// than the current shard. It may happen when a shard movement happens, but the queue processor on the previous instance
 	// is still processing tasks, and not receiving new tasks created by the new owner.
 	// These tasks are not counted as mismatches because they cannot be served from cache, but they are still logged for visibility.
-	OwnerChangedTaskKeys []persistence.HistoryTaskKey `json:"ownerChangedTaskKeys,omitempty"`
-	// OwnerChangedRangeIDs holds the distinct rangeIDs encoded in the OwnerChangedTaskKeys tasks' taskIDs.
+	OwnerChangedTasks []shadowMismatchTaskInfo `json:"ownerChangedTaskKeys,omitempty"`
+	// OwnerChangedRangeIDs holds the distinct rangeIDs encoded in the OwnerChangedTasks tasks' taskIDs.
 	OwnerChangedRangeIDs []int64 `json:"ownerChangedRangeIDs,omitempty"`
 	// CurrentRangeID is the shard's rangeID at the time of comparison.
 	CurrentRangeID int64 `json:"currentRangeID"`
@@ -800,7 +823,7 @@ type findMismatchesInShadowResult struct {
 	CacheTaskCount int `json:"cacheTaskCount"`
 	// DBTaskCount is the number of tasks in the DB response
 	DBTaskCount int `json:"dbTaskCount"`
-	// HasMismatches is true when MissedInCacheTaskKeys, IncorrectTimeTaskKeys, or ExtraInCacheTaskKeys is non-empty.
+	// HasMismatches is true when MissedInCacheTasks, IncorrectTimeTasks, or ExtraInCacheTasks is non-empty.
 	HasMismatches bool `json:"-"`
 }
 
@@ -813,15 +836,15 @@ func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
 func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
 
 	// Cap the number of mismatched task keys logged to avoid excessively large logs
-	result.MissedInCacheTaskKeys = capShadowMismatchSlice(result.MissedInCacheTaskKeys)
-	result.IncorrectTimeTaskKeys = capShadowMismatchSlice(result.IncorrectTimeTaskKeys)
-	result.ExtraInCacheTaskKeys = capShadowMismatchSlice(result.ExtraInCacheTaskKeys)
-	result.OwnerChangedTaskKeys = capShadowMismatchSlice(result.OwnerChangedTaskKeys)
+	result.MissedInCacheTasks = capShadowMismatchSlice(result.MissedInCacheTasks)
+	result.IncorrectTimeTasks = capShadowMismatchSlice(result.IncorrectTimeTasks)
+	result.ExtraInCacheTasks = capShadowMismatchSlice(result.ExtraInCacheTasks)
+	result.OwnerChangedTasks = capShadowMismatchSlice(result.OwnerChangedTasks)
 	result.OwnerChangedRangeIDs = capShadowMismatchSlice(result.OwnerChangedRangeIDs)
 
 	logTags = append(logTags, tag.Dynamic("shadowMismatch", result))
 
-	if len(result.OwnerChangedTaskKeys) > 0 {
+	if len(result.OwnerChangedTasks) > 0 {
 		q.logger.Warn("possible shard ownership change, missed tasks are created in another range", logTags...)
 	}
 	if !result.HasMismatches {
@@ -851,11 +874,11 @@ func getTruncatedScheduledTime(t persistence.Task) time.Time {
 // exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
 // normal production traffic without indicating any real divergence in task data.
 //
-// DB tasks absent from cache are partitioned into MissedInCacheTaskKeys (same rangeID)
-// and OwnerChangedTaskKeys (different rangeID). Cache tasks absent from DB are similarly
-// partitioned into ExtraInCacheTaskKeys (same rangeID) and OwnerChangedTaskKeys (different rangeID).
-// Only MissedInCacheTaskKeys, IncorrectTimeTaskKeys, and ExtraInCacheTaskKeys contribute to HasMismatches.
-// Tasks present in both but with mismatched scheduled times are recorded in IncorrectTimeTaskKeys.
+// DB tasks absent from cache are partitioned into MissedInCacheTasks (same rangeID)
+// and OwnerChangedTasks (different rangeID). Cache tasks absent from DB are similarly
+// partitioned into ExtraInCacheTasks (same rangeID) and OwnerChangedTasks (different rangeID).
+// Only MissedInCacheTasks, IncorrectTimeTasks, and ExtraInCacheTasks contribute to HasMismatches.
+// Tasks present in both but with mismatched scheduled times are recorded in IncorrectTimeTasks.
 func (q *cachedQueueReader) findMismatchesInShadow(
 	cacheResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
@@ -883,23 +906,19 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 				continue
 			}
 
-			result.IncorrectTimeTaskKeys = append(result.IncorrectTimeTaskKeys, shadowTimeMismatch{
-				TaskKey:   t.GetTaskKey(),
-				DBTime:    dbTaskKeys[t.GetTaskID()],
-				CacheTime: cacheTime,
-			})
+			result.IncorrectTimeTasks = append(result.IncorrectTimeTasks, toShadowTimeMismatch(t, dbTaskKeys[t.GetTaskID()], cacheTime))
 			continue
 		}
 
 		taskRangeID := q.getTaskRangeID(t.GetTaskID())
 		if taskRangeID == currentRangeID {
-			result.MissedInCacheTaskKeys = append(result.MissedInCacheTaskKeys, t.GetTaskKey())
+			result.MissedInCacheTasks = append(result.MissedInCacheTasks, toShadowMismatchTaskInfo(t))
 			continue
 		}
 
 		// Task ID is missing from cache and belongs to a different rangeID than the current shard
 		// It means the shard was already owned by another instance, and the task was created by that instance after the ownership change
-		result.OwnerChangedTaskKeys = append(result.OwnerChangedTaskKeys, t.GetTaskKey())
+		result.OwnerChangedTasks = append(result.OwnerChangedTasks, toShadowMismatchTaskInfo(t))
 		rangeIDs[taskRangeID] = struct{}{}
 	}
 
@@ -912,16 +931,16 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 		taskRangeID := q.getTaskRangeID(t.GetTaskID())
 		if taskRangeID == currentRangeID {
 			// Task ID is missing from DB response, but present in cache snapshot
-			result.ExtraInCacheTaskKeys = append(result.ExtraInCacheTaskKeys, t.GetTaskKey())
+			result.ExtraInCacheTasks = append(result.ExtraInCacheTasks, toShadowMismatchTaskInfo(t))
 			continue
 		}
 
 		// Task in cache but not DB, created by a previous owner — not a true mismatch
-		result.OwnerChangedTaskKeys = append(result.OwnerChangedTaskKeys, t.GetTaskKey())
+		result.OwnerChangedTasks = append(result.OwnerChangedTasks, toShadowMismatchTaskInfo(t))
 		rangeIDs[taskRangeID] = struct{}{}
 	}
 
-	result.HasMismatches = len(result.MissedInCacheTaskKeys) > 0 || len(result.IncorrectTimeTaskKeys) > 0 || len(result.ExtraInCacheTaskKeys) > 0
+	result.HasMismatches = len(result.MissedInCacheTasks) > 0 || len(result.IncorrectTimeTasks) > 0 || len(result.ExtraInCacheTasks) > 0
 	result.OwnerChangedRangeIDs = slices.Collect(maps.Keys(rangeIDs))
 	result.CurrentRangeID = currentRangeID
 	result.DBTaskCount = len(dbResp.Tasks)
