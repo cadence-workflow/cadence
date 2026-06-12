@@ -133,7 +133,7 @@ func TestContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		reader := strings.NewReader("y\n") // This won't be read due to cancellation
+		reader := newBlockingReader()
 		writer := &bytes.Buffer{}
 		manager := NewManager(reader, writer)
 
