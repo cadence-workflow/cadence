@@ -399,9 +399,31 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
+// invalidSchedulePolicyCombo mirrors the rejection rule enforced by
+// validateSchedulePolicies in the frontend handler: SKIP_NEW + CATCH_UP_ALL is
+// nonsensical because every caught-up fire would be skipped on arrival as an
+// overlap with the previous run. Kept in-package so the workflow does not have
+// to import service/frontend.
+func invalidSchedulePolicyCombo(p *types.SchedulePolicies) bool {
+	return p.OverlapPolicy == types.ScheduleOverlapPolicySkipNew &&
+		p.CatchUpPolicy == types.ScheduleCatchUpPolicyAll
+}
+
 func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil && sig.SearchAttributes == nil {
 		logger.Info("ignoring empty update signal")
+		return false
+	}
+	// Defense in depth: the frontend validates SchedulePolicies before sending
+	// the update signal, but a signal sent directly (e.g. via `cadence cli signal`)
+	// could still carry a combination the ERD declares invalid. Reject the whole
+	// signal rather than mutate input.Policies into an unfireable state and then
+	// silently apply partial spec/action changes around it.
+	if sig.Policies != nil && invalidSchedulePolicyCombo(sig.Policies) {
+		logger.Error("ignoring update signal with invalid policy combination",
+			zap.String("overlapPolicy", sig.Policies.OverlapPolicy.String()),
+			zap.String("catchUpPolicy", sig.Policies.CatchUpPolicy.String()),
+		)
 		return false
 	}
 	changed := false
@@ -486,6 +508,17 @@ func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, s
 		return false
 	}
 	for _, existing := range state.PendingBackfills {
+		if sig.BackfillID != "" && existing.BackfillID == sig.BackfillID {
+			// Idempotent retry: a backfill with the same non-empty BackfillID is
+			// already queued. Absorb the duplicate so the user can safely retry
+			// BackfillSchedule on transient RPC errors without doubling the fires.
+			scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID}).
+				Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
+			logger.Info("ignoring duplicate backfill: BackfillID matches a pending request",
+				zap.String("backfillId", sig.BackfillID),
+			)
+			return false
+		}
 		if sig.StartTime.Before(existing.EndTime) && sig.EndTime.After(existing.StartTime) {
 			logger.Warn("backfill window overlaps with pending backfill, fires for overlapping times will be deduplicated",
 				zap.String("newBackfillId", sig.BackfillID),

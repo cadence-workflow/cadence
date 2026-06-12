@@ -77,6 +77,11 @@ const (
 	// Reason tag values for scheduler_backfill_rejected_count_per_domain.
 	BackfillRejectedReasonInvalidRange = "invalid_range"
 	BackfillRejectedReasonQueueFull    = "queue_full"
+	// BackfillRejectedReasonDuplicateID is emitted when a backfill signal
+	// arrives with a non-empty BackfillID that matches an already-pending
+	// backfill. The signal is absorbed for idempotent-retry safety rather
+	// than enqueued a second time.
+	BackfillRejectedReasonDuplicateID = "duplicate_id"
 
 	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
 	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the

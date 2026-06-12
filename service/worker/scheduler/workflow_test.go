@@ -702,6 +702,39 @@ func TestHandleUpdate(t *testing.T) {
 			wantPol:     types.ScheduleOverlapPolicySkipNew,
 			wantChanged: true,
 		},
+		{
+			// Defense in depth: even if the frontend validator is bypassed
+			// (e.g. a direct signal from `cadence cli`), the workflow must
+			// not adopt an unfireable SKIP_NEW + CATCH_UP_ALL combination.
+			name: "invalid policy combo (SKIP_NEW + CATCH_UP_ALL) is rejected, input unchanged",
+			sig: UpdateSignal{
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+				},
+			},
+			wantCron:    "0 * * * *",
+			wantWF:      "old-workflow",
+			wantPol:     types.ScheduleOverlapPolicySkipNew,
+			wantChanged: false,
+		},
+		{
+			// An invalid policy combo on a multi-field signal should drop the
+			// whole signal, not partially apply spec/action around the bad policy.
+			name: "invalid policy combo rejects whole signal, spec and action unchanged",
+			sig: UpdateSignal{
+				Spec:   &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
+				Action: &types.ScheduleAction{StartWorkflow: &types.StartWorkflowAction{WorkflowType: &types.WorkflowType{Name: "new-workflow"}}},
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+				},
+			},
+			wantCron:    "0 * * * *",
+			wantWF:      "old-workflow",
+			wantPol:     types.ScheduleOverlapPolicySkipNew,
+			wantChanged: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -866,6 +899,54 @@ func TestHandleBackfill(t *testing.T) {
 			assert.Equal(t, int64(1), c.Value())
 		})
 	}
+
+	t.Run("duplicate BackfillID is absorbed as idempotent retry", func(t *testing.T) {
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:    time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+					BackfillID: "bf-dup",
+				},
+			},
+		}
+		scope := tally.NewTestScope("", nil)
+		// Same BackfillID, even with a different time range, must not enqueue a
+		// second copy: BackfillSchedule is meant to be retry-safe by ID.
+		sig := BackfillSignal{
+			StartTime:  time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+			BackfillID: "bf-dup",
+		}
+		got := handleBackfill(testLogger, scope, sig, state)
+		assert.False(t, got)
+		assert.Len(t, state.PendingBackfills, 1)
+		assert.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), state.PendingBackfills[0].StartTime)
+
+		c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillRejectedCountPerDomain,
+			map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID})
+		require.True(t, ok)
+		assert.Equal(t, int64(1), c.Value())
+	})
+
+	t.Run("empty BackfillID does not collide with another empty BackfillID", func(t *testing.T) {
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:   time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		}
+		scope := tally.NewTestScope("", nil)
+		sig := BackfillSignal{
+			StartTime: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC),
+		}
+		got := handleBackfill(testLogger, scope, sig, state)
+		assert.True(t, got)
+		assert.Len(t, state.PendingBackfills, 2)
+	})
 }
 
 func TestEffectiveFireOverlap(t *testing.T) {
