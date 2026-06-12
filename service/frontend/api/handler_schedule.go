@@ -278,8 +278,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 	if info.CloseStatus != nil {
 		if *info.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
 			return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
-				scheduleID, domainName, info.CloseStatus.String(),
+				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
+				scheduleID, domainName,
 			)
 		}
 		return nil, &types.InternalServiceError{
@@ -305,8 +305,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			closeStatus = queryResp.QueryRejected.CloseStatus.String()
 			if *queryResp.QueryRejected.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
 				return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-					"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
-					scheduleID, domainName, closeStatus,
+					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
+					scheduleID, domainName,
 				)
 			}
 		}

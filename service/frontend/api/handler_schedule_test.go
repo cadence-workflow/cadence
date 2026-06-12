@@ -591,7 +591,7 @@ func TestDescribeSchedule(t *testing.T) {
 			checkErr: func(t *testing.T, err error) {
 				assert.True(t, yarpcerrors.IsStatus(err))
 				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
-				assert.Contains(t, yarpcerrors.FromError(err).Message(), "CONTINUED_AS_NEW")
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		// A freshly started scheduler run has not yet processed its first decision
@@ -763,7 +763,7 @@ func TestDescribeSchedule(t *testing.T) {
 			checkErr: func(t *testing.T, err error) {
 				assert.True(t, yarpcerrors.IsStatus(err))
 				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
-				assert.Contains(t, yarpcerrors.FromError(err).Message(), "CONTINUED_AS_NEW")
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		"success": {
