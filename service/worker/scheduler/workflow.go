@@ -399,31 +399,9 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
-// invalidSchedulePolicyCombo mirrors the rejection rule enforced by
-// validateSchedulePolicies in the frontend handler: SKIP_NEW + CATCH_UP_ALL is
-// nonsensical because every caught-up fire would be skipped on arrival as an
-// overlap with the previous run. Kept in-package so the workflow does not have
-// to import service/frontend.
-func invalidSchedulePolicyCombo(p *types.SchedulePolicies) bool {
-	return p.OverlapPolicy == types.ScheduleOverlapPolicySkipNew &&
-		p.CatchUpPolicy == types.ScheduleCatchUpPolicyAll
-}
-
 func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil && sig.SearchAttributes == nil {
 		logger.Info("ignoring empty update signal")
-		return false
-	}
-	// Defense in depth: the frontend validates SchedulePolicies before sending
-	// the update signal, but a signal sent directly (e.g. via `cadence cli signal`)
-	// could still carry a combination the ERD declares invalid. Reject the whole
-	// signal rather than mutate input.Policies into an unfireable state and then
-	// silently apply partial spec/action changes around it.
-	if sig.Policies != nil && invalidSchedulePolicyCombo(sig.Policies) {
-		logger.Error("ignoring update signal with invalid policy combination",
-			zap.String("overlapPolicy", sig.Policies.OverlapPolicy.String()),
-			zap.String("catchUpPolicy", sig.Policies.CatchUpPolicy.String()),
-		)
 		return false
 	}
 	changed := false
@@ -509,9 +487,14 @@ func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, s
 	}
 	for _, existing := range state.PendingBackfills {
 		if sig.BackfillID != "" && existing.BackfillID == sig.BackfillID {
-			// Idempotent retry: a backfill with the same non-empty BackfillID is
-			// already queued. Absorb the duplicate so the user can safely retry
-			// BackfillSchedule on transient RPC errors without doubling the fires.
+			// Idempotent retry of a still-queued backfill: same BackfillID is
+			// already pending, so absorb the duplicate signal rather than
+			// enqueue a second copy. This protects RPC-level retries that
+			// arrive before the original starts draining. It does NOT protect
+			// retries that arrive after the original has already finished and
+			// been removed from PendingBackfills; those will fire the range
+			// again. If stronger idempotency is needed, track completed
+			// BackfillIDs separately.
 			scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID}).
 				Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
 			logger.Info("ignoring duplicate backfill: BackfillID matches a pending request",

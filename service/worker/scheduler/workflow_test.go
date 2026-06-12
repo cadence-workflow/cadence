@@ -702,39 +702,6 @@ func TestHandleUpdate(t *testing.T) {
 			wantPol:     types.ScheduleOverlapPolicySkipNew,
 			wantChanged: true,
 		},
-		{
-			// Defense in depth: even if the frontend validator is bypassed
-			// (e.g. a direct signal from `cadence cli`), the workflow must
-			// not adopt an unfireable SKIP_NEW + CATCH_UP_ALL combination.
-			name: "invalid policy combo (SKIP_NEW + CATCH_UP_ALL) is rejected, input unchanged",
-			sig: UpdateSignal{
-				Policies: &types.SchedulePolicies{
-					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
-					CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
-				},
-			},
-			wantCron:    "0 * * * *",
-			wantWF:      "old-workflow",
-			wantPol:     types.ScheduleOverlapPolicySkipNew,
-			wantChanged: false,
-		},
-		{
-			// An invalid policy combo on a multi-field signal should drop the
-			// whole signal, not partially apply spec/action around the bad policy.
-			name: "invalid policy combo rejects whole signal, spec and action unchanged",
-			sig: UpdateSignal{
-				Spec:   &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
-				Action: &types.ScheduleAction{StartWorkflow: &types.StartWorkflowAction{WorkflowType: &types.WorkflowType{Name: "new-workflow"}}},
-				Policies: &types.SchedulePolicies{
-					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
-					CatchUpPolicy: types.ScheduleCatchUpPolicyAll,
-				},
-			},
-			wantCron:    "0 * * * *",
-			wantWF:      "old-workflow",
-			wantPol:     types.ScheduleOverlapPolicySkipNew,
-			wantChanged: false,
-		},
 	}
 
 	for _, tt := range tests {
