@@ -487,14 +487,10 @@ func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, s
 	}
 	for _, existing := range state.PendingBackfills {
 		if sig.BackfillID != "" && existing.BackfillID == sig.BackfillID {
-			// Idempotent retry of a still-queued backfill: same BackfillID is
-			// already pending, so absorb the duplicate signal rather than
-			// enqueue a second copy. This protects RPC-level retries that
-			// arrive before the original starts draining. It does NOT protect
-			// retries that arrive after the original has already finished and
-			// been removed from PendingBackfills; those will fire the range
-			// again. If stronger idempotency is needed, track completed
-			// BackfillIDs separately.
+			// Drop the duplicate: BackfillID already matches a pending
+			// request, so a second copy would fire the range twice. Match is
+			// only checked against state.PendingBackfills, so a retry that
+			// lands after the original has drained is not detected here.
 			scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID}).
 				Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
 			logger.Info("ignoring duplicate backfill: BackfillID matches a pending request",
