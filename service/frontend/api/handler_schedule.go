@@ -76,20 +76,14 @@ func validateSchedulePolicies(policies *types.SchedulePolicies) error {
 	return nil
 }
 
-// defaultCatchUpWindow bounds how far back the scheduler walks when catching up
-// missed runs after a pause / worker recovery. Chosen to match temporal
-// (CurrentTweakablePolicies.DefaultCatchupWindow = 365 days) so users moving
-// between systems see the same recovery behavior. The IDL comment on
-// SchedulePolicies.catch_up_window already promises a server-applied default
-// when the field is unset; this constant is what that promise resolves to.
+// defaultCatchUpWindow is applied to SchedulePolicies.CatchUpWindow when the
+// field is unset and the configured catch-up policy consults the window.
 const defaultCatchUpWindow = 365 * 24 * time.Hour
 
-// applySchedulePolicyDefaults fills in server-defaulted fields on a
-// user-supplied SchedulePolicies in place. Today the only defaulted field is
-// CatchUpWindow when a catch-up policy that actually consults the window is
-// selected: SKIP and the zero value (Invalid → treated as SKIP downstream)
-// ignore the window, so leaving it 0 in those cases is harmless and we avoid
-// rewriting fields the user did not exercise.
+// applySchedulePolicyDefaults fills in server-defaulted fields on a user-supplied
+// SchedulePolicies in place. CatchUpWindow is set to defaultCatchUpWindow only
+// when CatchUpPolicy is ONE or ALL; SKIP and the zero value do not consult the
+// window.
 func applySchedulePolicyDefaults(policies *types.SchedulePolicies) {
 	if policies == nil {
 		return

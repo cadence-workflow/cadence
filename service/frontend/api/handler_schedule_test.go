@@ -1628,9 +1628,6 @@ func TestApplySchedulePolicyDefaults(t *testing.T) {
 			wantWindow: 0,
 		},
 		"invalid/uninitialized catch-up policy leaves the window untouched": {
-			// The workflow treats Invalid as Skip, so injecting a window here
-			// would be misleading and would surprise callers who never set a
-			// catch-up policy in the first place.
 			policies:   &types.SchedulePolicies{},
 			wantWindow: 0,
 		},
