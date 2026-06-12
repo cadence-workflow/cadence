@@ -132,6 +132,24 @@ func validateUserSearchAttributes(sa *types.SearchAttributes) error {
 	return nil
 }
 
+// ongoingBackfillsForResponse converts the scheduler workflow's snapshot of
+// pending backfills into the public BackfillInfo list returned via
+// DescribeScheduleResponse. Returns nil (not empty slice) when there are no
+// backfills, so json.Marshal of the response keeps the field absent rather
+// than emitting an empty array — matches the pattern used by Memo /
+// SearchAttributes elsewhere in the handler.
+func ongoingBackfillsForResponse(in []types.BackfillInfo) []*types.BackfillInfo {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*types.BackfillInfo, 0, len(in))
+	for i := range in {
+		bf := in[i]
+		out = append(out, &bf)
+	}
+	return out
+}
+
 func (wh *WorkflowHandler) CreateSchedule(
 	ctx context.Context,
 	request *types.CreateScheduleRequest,
@@ -332,11 +350,12 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			}(),
 		},
 		Info: &types.ScheduleInfo{
-			LastRunTime: desc.LastRunTime,
-			NextRunTime: desc.NextRunTime,
-			TotalRuns:   desc.TotalRuns,
-			MissedRuns:  desc.MissedRuns,
-			SkippedRuns: desc.SkippedRuns,
+			LastRunTime:      desc.LastRunTime,
+			NextRunTime:      desc.NextRunTime,
+			TotalRuns:        desc.TotalRuns,
+			MissedRuns:       desc.MissedRuns,
+			SkippedRuns:      desc.SkippedRuns,
+			OngoingBackfills: ongoingBackfillsForResponse(desc.OngoingBackfills),
 		},
 		Memo:             desc.Memo,
 		SearchAttributes: desc.SearchAttributes,

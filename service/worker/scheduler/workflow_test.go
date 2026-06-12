@@ -466,6 +466,47 @@ func TestBuildScheduleDescription(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Describe must surface PendingBackfills as OngoingBackfills so
+			// callers can show progress; this is what fills the new
+			// ScheduleInfo.OngoingBackfills field on DescribeScheduleResponse.
+			name:  "schedule with pending backfills exposes ongoing backfills",
+			input: SchedulerWorkflowInput{ScheduleID: "sched-bf", Domain: "dev"},
+			state: SchedulerWorkflowState{
+				PendingBackfills: []BackfillRequest{
+					{
+						BackfillID:    "bf-a",
+						StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+						RunsTotal:     24,
+						RunsCompleted: 5,
+					},
+					{
+						BackfillID: "bf-b",
+						StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			want: &ScheduleDescription{
+				ScheduleID: "sched-bf",
+				Domain:     "dev",
+				OngoingBackfills: []types.BackfillInfo{
+					{
+						BackfillID:    "bf-a",
+						StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+						RunsTotal:     24,
+						RunsCompleted: 5,
+					},
+					{
+						BackfillID: "bf-b",
+						StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -850,7 +891,10 @@ func TestHandleBackfill(t *testing.T) {
 				})
 			}
 			scope := tally.NewTestScope("", nil)
-			got := handleBackfill(testLogger, scope, tt.sig, state)
+			// Hourly cron: a 1-day range = 24 fires for counting RunsTotal.
+			sched := mustParseCron(t, "0 * * * *")
+			input := &SchedulerWorkflowInput{Spec: types.ScheduleSpec{CronExpression: "0 * * * *"}}
+			got := handleBackfill(testLogger, scope, sched, input, tt.sig, state)
 			assert.Equal(t, tt.wantQueued, got)
 			assert.Equal(t, tt.wantPendingLen, len(state.PendingBackfills))
 
@@ -864,6 +908,67 @@ func TestHandleBackfill(t *testing.T) {
 				map[string]string{ReasonTag: tt.wantRejectReason})
 			require.True(t, ok)
 			assert.Equal(t, int64(1), c.Value())
+		})
+	}
+
+	t.Run("RunsTotal computed from cron walk", func(t *testing.T) {
+		state := &SchedulerWorkflowState{}
+		scope := tally.NewTestScope("", nil)
+		// Hourly cron over a 24-hour window. The cron walk uses (start-1s, end]
+		// (matching processBackfills' fire enumeration), so the 00:00 fire at
+		// each end of the window is included — 25 fires total.
+		sched := mustParseCron(t, "0 * * * *")
+		input := &SchedulerWorkflowInput{Spec: types.ScheduleSpec{CronExpression: "0 * * * *"}}
+		sig := BackfillSignal{
+			StartTime:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			BackfillID: "bf-counted",
+		}
+		got := handleBackfill(testLogger, scope, sched, input, sig, state)
+		require.True(t, got)
+		require.Len(t, state.PendingBackfills, 1)
+		assert.Equal(t, int32(25), state.PendingBackfills[0].RunsTotal)
+		assert.Equal(t, int32(0), state.PendingBackfills[0].RunsCompleted)
+	})
+}
+
+func TestCountCronFires(t *testing.T) {
+	hourly := mustParseCron(t, "0 * * * *")
+	spec := types.ScheduleSpec{CronExpression: "0 * * * *"}
+
+	tests := map[string]struct {
+		start, end time.Time
+		limit      int
+		wantCount  int
+		wantTrunc  bool
+	}{
+		"hourly cron over 24h inclusive fits under cap": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second),
+			end:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			limit:     100,
+			wantCount: 25,
+			wantTrunc: false,
+		},
+		"empty range returns zero": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 30, time.UTC),
+			end:       time.Date(2026, 1, 1, 0, 30, 0, 0, time.UTC),
+			limit:     100,
+			wantCount: 0,
+			wantTrunc: false,
+		},
+		"limit truncates a long range": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second),
+			end:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			limit:     10,
+			wantCount: 10,
+			wantTrunc: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			count, truncated := countCronFires(hourly, tt.start, tt.end, spec, tt.limit)
+			assert.Equal(t, tt.wantCount, count)
+			assert.Equal(t, tt.wantTrunc, truncated)
 		})
 	}
 }
@@ -954,6 +1059,36 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
 	require.True(t, ok, "backfill fired metric should be emitted")
 	assert.Equal(t, int64(3), c.Value(), "expected 3 fires: 10:00, 11:00, 12:00")
+}
+
+// TestProcessBackfillsTracksRunsCompleted verifies that RunsCompleted advances
+// on every fire processBackfills hands off (which is what
+// DescribeSchedule.OngoingBackfills surfaces as progress). The backfill must
+// have more fires than maxBackfillFiresPerExecution so it remains in
+// PendingBackfills after one call and we can read the partial counter.
+func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Hourly cron over 24h-inclusive → 25 fires. maxBackfillFiresPerExecution
+	// is 10, so the first call processes 10 and leaves 15 behind.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-partial",
+				RunsTotal:  25,
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	assert.True(t, moreWork, "backfill should signal more work after hitting per-execution cap")
+	require.Len(t, state.PendingBackfills, 1, "partial backfill should remain in state")
+	assert.Equal(t, int32(maxBackfillFiresPerExecution), state.PendingBackfills[0].RunsCompleted)
+	assert.Equal(t, int32(25), state.PendingBackfills[0].RunsTotal, "RunsTotal should not change as fires drain")
 }
 
 func TestBackfillFireComputation(t *testing.T) {

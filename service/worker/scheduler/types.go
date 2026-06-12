@@ -131,6 +131,15 @@ const (
 	maxDrainFiresPerExecution        = 10
 	maxPendingBackfills              = 10
 
+	// maxBackfillRunsTotalCount caps the cron-walk used to populate
+	// BackfillRequest.RunsTotal at enqueue. A per-second cron over a year
+	// would otherwise produce ~31M fires of counting work in the workflow
+	// signal handler; capping at 100k keeps the cost bounded and covers the
+	// vast majority of real backfills (typical: a few hundred fires). When
+	// a range exceeds the cap, RunsTotal is recorded as 0 to signal
+	// "unknown" rather than a misleading bounded count.
+	maxBackfillRunsTotalCount = 100000
+
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
 	localActivityRetryInitialInterval   = time.Second
@@ -210,6 +219,22 @@ type BackfillRequest struct {
 	EndTime       time.Time                   `json:"endTime"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	BackfillID    string                      `json:"backfillId,omitempty"`
+	// RunsTotal is the number of cron fires within (StartTime, EndTime] at the
+	// time the backfill was enqueued. It does NOT track spec changes
+	// mid-backfill, because a spec change clears all pending backfills (see
+	// handleUpdate). 0 means "unknown" — set when the count would exceed
+	// maxBackfillRunsTotalCount, which happens for very-frequent crons over
+	// very long ranges. Consumers surfacing a progress percentage should
+	// ignore entries with RunsTotal == 0.
+	RunsTotal int32 `json:"runsTotal,omitempty"`
+	// RunsCompleted is the number of fires from this backfill the scheduler
+	// has finished considering. A fire counts the moment it leaves
+	// processBackfills — whether it actually started, was skipped under the
+	// overlap policy, or was deferred into the BUFFER queue. This matches
+	// how SchedulerWorkflowState.TotalRuns / SkippedRuns are updated and lets
+	// the backfill drop out of PendingBackfills the moment processing is done,
+	// not whenever the BUFFER queue happens to drain.
+	RunsCompleted int32 `json:"runsCompleted,omitempty"`
 }
 
 // PauseSignal is the payload sent with a pause signal.
@@ -258,6 +283,11 @@ type ScheduleDescription struct {
 	SkippedRuns      int64                   `json:"skippedRuns"`
 	Memo             *types.Memo             `json:"memo,omitempty"`
 	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	// OngoingBackfills mirrors SchedulerWorkflowState.PendingBackfills at the
+	// time of the describe query. Each entry is reported as a BackfillInfo
+	// (id, range, progress) so the frontend can surface it as
+	// ScheduleInfo.OngoingBackfills without a separate query path.
+	OngoingBackfills []types.BackfillInfo `json:"ongoingBackfills,omitempty"`
 }
 
 // TriggerSource identifies what caused a schedule fire, used to differentiate
