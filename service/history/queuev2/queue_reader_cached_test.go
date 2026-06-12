@@ -159,6 +159,43 @@ func TestCachedQueueReader_Modes(t *testing.T) {
 	}
 }
 
+func TestCachedQueueReader_IsEmpty(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name      string
+		initLower persistence.HistoryTaskKey
+		initUpper persistence.HistoryTaskKey
+		want      bool
+	}{
+		{
+			name:      "empty when upper bound is minimum",
+			initLower: persistence.MinimumHistoryTaskKey,
+			initUpper: persistence.MinimumHistoryTaskKey,
+			want:      true,
+		},
+		{
+			name:      "not empty when upper bound is set",
+			initLower: newTimeKey(now),
+			initUpper: newTimeKey(now.Add(time.Hour)),
+			want:      false,
+		},
+		{
+			name:      "not empty when only upper bound is set",
+			initLower: persistence.MinimumHistoryTaskKey,
+			initUpper: newTimeKey(now.Add(time.Hour)),
+			want:      false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			r, _ := setupMocksForCachedQueueReader(t, ctrl)
+			setBounds(r, tc.initLower, tc.initUpper)
+			assert.Equal(t, tc.want, r.IsEmpty())
+		})
+	}
+}
+
 func TestCachedQueueReader_UpdateReadLevel(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
@@ -249,13 +286,16 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 		wantBufferLen      int
 	}{
 		{
-			name:  "disabled skips all",
+			name:  "disabled clears stale cache",
 			tasks: []persistence.Task{inside},
 			optsOverride: func(o *cachedQueueReaderOptions) {
 				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
 			},
-			setupMocks: func(*MockInMemQueue) {},
-			wantUpper:  upper,
+			setupMocks: func(queue *MockInMemQueue) {
+				queue.EXPECT().Clear()
+				queue.EXPECT().Len().Return(0).AnyTimes()
+			},
+			wantUpper: persistence.MinimumHistoryTaskKey,
 		},
 		{
 			name:  "task inside window accepted",
@@ -1324,7 +1364,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		wantUpper    persistence.HistoryTaskKey
 	}{
 		{
-			name: "disabled: no-op, bounds unchanged",
+			name: "disabled: no-op when cache empty",
 			optsOverride: func(o *cachedQueueReaderOptions) {
 				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
 			},
@@ -1333,6 +1373,20 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {},
 			wantLower:  persistence.MinimumHistoryTaskKey,
 			wantUpper:  persistence.MinimumHistoryTaskKey,
+		},
+		{
+			name: "disabled: clears stale cache when not empty",
+			optsOverride: func(o *cachedQueueReaderOptions) {
+				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+			},
+			initLower: someLower,
+			initUpper: someUpper,
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, _ *cachedQueueReader) {
+				queue.EXPECT().Clear()
+				queue.EXPECT().Len().Return(0).AnyTimes()
+			},
+			wantLower: persistence.MinimumHistoryTaskKey,
+			wantUpper: persistence.MinimumHistoryTaskKey,
 		},
 		{
 			name:      "cache full: skips DB fetch, bounds unchanged",
@@ -1486,6 +1540,28 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			wantLower: someLower,
 			wantUpper: maxKey,
 		},
+		{
+			name:      "mode switched to disabled during in-flight fetch discards results and buffer",
+			initLower: someLower,
+			initUpper: someUpper,
+			initBuffer: []persistence.Task{
+				newTask(99, someUpper.GetScheduledTime().Add(time.Minute)),
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue, r *cachedQueueReader) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, _ *GetTaskRequest) (*GetTaskResponse, error) {
+						r.options.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+						return &GetTaskResponse{
+							Tasks:    []persistence.Task{t1, t2},
+							Progress: &GetTaskProgress{NextTaskKey: maxKey},
+						}, nil
+					},
+				)
+			},
+			wantLower: someLower,
+			wantUpper: someUpper,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1512,6 +1588,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			r.mu.RLock()
 			gotLower := r.inclusiveLowerBound
 			gotUpper := r.exclusiveUpperBound
+			gotBufferLen := len(r.pendingInjectBuffer)
 			r.mu.RUnlock()
 
 			if tc.wantErr {
@@ -1521,6 +1598,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 			}
 			assert.True(t, gotLower.Equal(tc.wantLower), "lower: got %v want %v", gotLower, tc.wantLower)
 			assert.True(t, gotUpper.Equal(tc.wantUpper), "upper: got %v want %v", gotUpper, tc.wantUpper)
+			assert.Equal(t, 0, gotBufferLen, "pending inject buffer should be empty after prefetch")
 		})
 	}
 }

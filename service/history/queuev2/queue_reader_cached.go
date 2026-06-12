@@ -292,6 +292,20 @@ func (q *cachedQueueReader) isDisabled() bool {
 	return isCachedQueueReaderDisabled(q.options.Mode())
 }
 
+// IsEmpty reports whether the cache queue reader is empty
+func (q *cachedQueueReader) IsEmpty() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.exclusiveUpperBound.Equal(persistence.MinimumHistoryTaskKey)
+}
+
+// clearIfNotEmpty clears cached state only when the cache has data
+func (q *cachedQueueReader) clearIfNotEmpty() {
+	if !q.IsEmpty() {
+		q.Clear()
+	}
+}
+
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
 func (q *cachedQueueReader) Clear() {
 	q.mu.Lock()
@@ -313,6 +327,9 @@ func (q *cachedQueueReader) Clear() {
 // (prefetchLoop) schedules the next attempt.
 func (q *cachedQueueReader) prefetch() error {
 	if q.isDisabled() {
+		// Clear stale cache so re-enabling starts with a fresh prefetch
+		// instead of serving outdated boundaries that cause cache misses.
+		q.clearIfNotEmpty()
 		q.logger.Debug("prefetch skipped, cache disabled")
 		return nil
 	}
@@ -374,6 +391,12 @@ func (q *cachedQueueReader) prefetch() error {
 	if err != nil {
 		q.logger.Error("prefetch failed", tag.Error(err))
 		return fmt.Errorf("prefetch failed: %w", err)
+	}
+
+	if q.isDisabled() {
+		q.logger.Info("prefetch result discarded, mode switched to disabled during prefetch")
+		q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
+		return nil
 	}
 
 	// Upper bound changed while we held the lock (e.g. a concurrent Inject
@@ -566,6 +589,9 @@ func (q *cachedQueueReader) UpdateReadLevel(readLevel persistence.HistoryTaskKey
 // tasks are dropped. No-op when the cache is off.
 func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 	if q.isDisabled() {
+		// Clear stale cache so re-enabling starts with a fresh prefetch
+		// instead of serving outdated boundaries that cause cache misses.
+		q.clearIfNotEmpty()
 		return
 	}
 
