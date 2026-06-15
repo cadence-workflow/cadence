@@ -25,6 +25,7 @@ package failover
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,19 +103,31 @@ func (s *coordinatorSuite) TestNotifyFailoverMarkers() {
 		FailoverVersion: 1,
 		CreationTime:    common.Int64Ptr(1),
 	}
+
+	var mu sync.Mutex
+	seenShards := make(map[int32]struct{})
 	s.historyClient.EXPECT().NotifyFailoverMarkers(
-		context.Background(), &types.NotifyFailoverMarkersRequest{
-			FailoverMarkerTokens: []*types.FailoverMarkerToken{
-				{
-					ShardIDs:       []int32{1, 2},
-					FailoverMarker: attributes,
-				},
-			},
-		},
-	).DoAndReturn(func(ctx context.Context, request *types.NotifyFailoverMarkersRequest, opts ...yarpc.CallOption) error {
-		close(doneCh)
+		context.Background(), gomock.Any(),
+	).DoAndReturn(func(_ context.Context, request *types.NotifyFailoverMarkersRequest, _ ...yarpc.CallOption) error {
+		mu.Lock()
+		defer mu.Unlock()
+		s.Len(request.FailoverMarkerTokens, 1)
+		token := request.FailoverMarkerTokens[0]
+		s.Equal(attributes, token.FailoverMarker)
+		for _, shardID := range token.ShardIDs {
+			seenShards[shardID] = struct{}{}
+		}
+		if _, ok := seenShards[1]; ok {
+			if _, ok := seenShards[2]; ok {
+				select {
+				case <-doneCh:
+				default:
+					close(doneCh)
+				}
+			}
+		}
 		return nil
-	}).Times(1)
+	}).MinTimes(1)
 
 	s.coordinator.NotifyFailoverMarkers(
 		1,
@@ -126,6 +139,50 @@ func (s *coordinatorSuite) TestNotifyFailoverMarkers() {
 	)
 	s.coordinator.Start()
 	<-doneCh
+}
+
+func (s *coordinatorSuite) TestNotifyFailoverMarkers_EagerFlush() {
+	s.config.NotifyFailoverMarkerInterval = dynamicproperties.GetDurationPropertyFn(time.Hour)
+	s.coordinator = NewCoordinator(
+		s.mockMetadataManager,
+		s.historyClient,
+		s.mockResource.GetTimeSource(),
+		s.mockResource.GetDomainCache(),
+		s.config,
+		s.mockResource.GetMetricsClient(),
+		s.mockResource.GetLogger(),
+	).(*coordinatorImpl)
+
+	doneCh := make(chan struct{})
+	attributes := &types.FailoverMarkerAttributes{
+		DomainID:        uuid.New(),
+		FailoverVersion: 1,
+		CreationTime:    common.Int64Ptr(1),
+	}
+	s.historyClient.EXPECT().NotifyFailoverMarkers(
+		context.Background(), &types.NotifyFailoverMarkersRequest{
+			FailoverMarkerTokens: []*types.FailoverMarkerToken{
+				{
+					ShardIDs:       []int32{1},
+					FailoverMarker: attributes,
+				},
+			},
+		},
+	).DoAndReturn(func(_ context.Context, _ *types.NotifyFailoverMarkersRequest, _ ...yarpc.CallOption) error {
+		close(doneCh)
+		return nil
+	}).Times(1)
+
+	s.coordinator.Start()
+	s.coordinator.NotifyFailoverMarkers(
+		1,
+		[]*types.FailoverMarkerAttributes{attributes},
+	)
+	select {
+	case <-doneCh:
+	case <-time.After(5 * time.Second):
+		s.Fail("eager-flush did not fire within timeout")
+	}
 }
 
 func (s *coordinatorSuite) TestNotifyRemoteCoordinator_Empty() {

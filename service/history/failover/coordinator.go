@@ -52,6 +52,7 @@ const (
 	updateDomainRetryInitialInterval = 50 * time.Millisecond
 	updateDomainRetryCoefficient     = 2.0
 	updateDomainMaxRetry             = 2
+	notifyFailoverMarkerMinInterval  = 500 * time.Millisecond
 )
 
 var (
@@ -237,6 +238,30 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 	))
 	defer timer.Stop()
 	requestByMarker := make(map[types.FailoverMarkerAttributes]*receiveRequest)
+	var lastFlush time.Time
+
+	flush := func() {
+		if len(requestByMarker) == 0 {
+			return
+		}
+		if err := c.notifyRemoteCoordinator(requestByMarker); err == nil {
+			requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
+			lastFlush = c.timeSource.Now()
+		}
+	}
+
+	resetTimer := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(backoff.JitDuration(
+			c.config.NotifyFailoverMarkerInterval(),
+			c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
+		))
+	}
 
 	for {
 		select {
@@ -246,10 +271,12 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 			// if a shard movement happens, it is fine to have duplicated shard IDs in the request
 			// The receiver side will de-dup the shard IDs. See: handleFailoverMarkers
 			aggregateNotificationRequests(notificationReq, requestByMarker)
-		case <-timer.C:
-			if err := c.notifyRemoteCoordinator(requestByMarker); err == nil {
-				requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
+			if c.timeSource.Now().Sub(lastFlush) >= notifyFailoverMarkerMinInterval {
+				flush()
+				resetTimer()
 			}
+		case <-timer.C:
+			flush()
 			timer.Reset(backoff.JitDuration(
 				c.config.NotifyFailoverMarkerInterval(),
 				c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
