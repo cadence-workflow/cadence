@@ -740,6 +740,8 @@ func TestMapPendingActivityInfo(t *testing.T) {
 				StartedIdentity:          "StartedWorkerIdentity",
 				LastWorkerIdentity:       "LastWorkerIdentity",
 				LastFailureDetails:       []byte("failure details"),
+				LastFailureCategory:      types.FailureCategoryFatal,
+				LastRetryIntervalSeconds: 42,
 				ScheduledTime:            time.Unix(0, 1999),
 			},
 			activityScheduledEvent: &types.HistoryEvent{
@@ -763,8 +765,52 @@ func TestMapPendingActivityInfo(t *testing.T) {
 				StartedWorkerIdentity:  "StartedWorkerIdentity",
 				LastWorkerIdentity:     "LastWorkerIdentity",
 				LastFailureDetails:     []byte("failure details"),
+				LastFailureOptions: &types.FailureOptions{
+					FailureCategory:          types.FailureCategoryFatal.Ptr(),
+					NextRetryIntervalSeconds: common.Int32Ptr(42),
+				},
 				ActivityType: &types.ActivityType{
 					Name: "test-activity-type",
+				},
+			},
+		},
+		{
+			name: "Success - last failure without explicit category defaults to Standard",
+			activityInfo: &persistence.ActivityInfo{
+				ActivityID:         "test-activity-id-default",
+				ScheduleID:         200,
+				StartedID:          201,
+				CancelRequested:    false,
+				StartedTime:        time.Unix(0, 2001),
+				HasRetryPolicy:     true,
+				Attempt:            1,
+				LastFailureReason:  "failure reason",
+				LastFailureDetails: []byte("failure details"),
+				// LastFailureCategory and LastRetryIntervalSeconds are left as their zero values,
+				// which must map to Standard / 0 (the legacy, non-breaking behavior).
+				ScheduledTime: time.Unix(0, 1999),
+			},
+			activityScheduledEvent: &types.HistoryEvent{
+				ActivityTaskScheduledEventAttributes: &types.ActivityTaskScheduledEventAttributes{
+					ActivityType: &types.ActivityType{
+						Name: "test-activity-type-default",
+					},
+				},
+			},
+			expected: &types.PendingActivityInfo{
+				ActivityID:           "test-activity-id-default",
+				ScheduleID:           200,
+				State:                types.PendingActivityStateStarted.Ptr(),
+				LastStartedTimestamp: common.Int64Ptr(2001),
+				Attempt:              1,
+				LastFailureReason:    common.StringPtr("failure reason"),
+				LastFailureDetails:   []byte("failure details"),
+				LastFailureOptions: &types.FailureOptions{
+					FailureCategory:          types.FailureCategoryStandard.Ptr(),
+					NextRetryIntervalSeconds: common.Int32Ptr(0),
+				},
+				ActivityType: &types.ActivityType{
+					Name: "test-activity-type-default",
 				},
 			},
 		},

@@ -663,6 +663,7 @@ func FromSyncActivityTaskAttributes(t *types.SyncActivityTaskAttributes) *replic
 		LastFailureReason:  t.LastFailureReason,
 		LastWorkerIdentity: &t.LastWorkerIdentity,
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: FromFailureOptions(t.LastFailureOptions),
 		VersionHistory:     FromVersionHistory(t.VersionHistory),
 	}
 }
@@ -687,6 +688,7 @@ func ToSyncActivityTaskAttributes(t *replicator.SyncActivityTaskAttributes) *typ
 		LastFailureReason:  t.LastFailureReason,
 		LastWorkerIdentity: t.GetLastWorkerIdentity(),
 		LastFailureDetails: t.LastFailureDetails,
+		LastFailureOptions: ToFailureOptions(t.LastFailureOptions),
 		VersionHistory:     ToVersionHistory(t.VersionHistory),
 	}
 }

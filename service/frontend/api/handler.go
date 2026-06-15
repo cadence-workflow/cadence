@@ -1146,10 +1146,12 @@ func (wh *WorkflowHandler) RespondActivityTaskFailedByID(
 	}
 
 	req := &types.RespondActivityTaskFailedRequest{
-		TaskToken: token,
-		Reason:    failedRequest.Reason,
-		Details:   failedRequest.Details,
-		Identity:  failedRequest.Identity,
+		TaskToken:        token,
+		Reason:           failedRequest.Reason,
+		Details:          failedRequest.Details,
+		Identity:         failedRequest.Identity,
+		FailureOptions:   failedRequest.FailureOptions,
+		HeartbeatDetails: failedRequest.HeartbeatDetails,
 	}
 
 	err = wh.GetHistoryClient().RespondActivityTaskFailed(ctx, &types.HistoryRespondActivityTaskFailedRequest{

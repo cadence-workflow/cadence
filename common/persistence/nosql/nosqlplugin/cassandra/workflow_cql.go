@@ -176,6 +176,8 @@ const (
 		`last_failure_reason: ?, ` +
 		`last_worker_identity: ?, ` +
 		`last_failure_details: ?, ` +
+		`last_failure_category: ?, ` +
+		`last_retry_interval_seconds: ?, ` +
 		`event_data_encoding: ?` +
 		`}`
 

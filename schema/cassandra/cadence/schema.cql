@@ -207,6 +207,8 @@ CREATE TYPE activity_info (
   last_failure_details      blob,
   event_data_encoding       text, -- Protocol used for history serialization
   task_list_kind            int, -- enum TaskListKind {Normal, Sticky, Ephemeral},
+  last_failure_category     int, -- enum FailureCategory {Poll, Normal, Fatal}
+  last_retry_interval_seconds int, -- override for the retry interval from the FailureOptions
 );
 
 -- User timer details

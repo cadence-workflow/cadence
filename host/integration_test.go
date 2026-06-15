@@ -494,7 +494,7 @@ func (s *IntegrationSuite) TestTerminateWorkflow() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -591,6 +591,18 @@ func (s *IntegrationSuite) TestSequentialWorkflow() {
 		"integration-sequential-workflow-test-type",
 		"integration-sequential-workflow-test-tasklist",
 		0,
+		false,
+	)
+}
+
+func (s *IntegrationSuite) TestSequentialWorkflow_ByID() {
+	RunSequentialWorkflow(
+		s,
+		"integration-sequential-by-id-workflow-test",
+		"integration-sequential-workflow-test-type",
+		"integration-sequential-by-id-workflow-test-tasklist",
+		0,
+		true,
 	)
 }
 
@@ -602,6 +614,7 @@ func (s *IntegrationSuite) TestDelayStartWorkflow_SLOW() {
 		"integration-delay-start-workflow-test-type",
 		"integration-delay-start-workflow-test-tasklist",
 		10,
+		false,
 	)
 
 	targetBackoffDuration := time.Second * 10
@@ -691,6 +704,7 @@ func RunSequentialWorkflow(
 	workflowTypeStr string,
 	taskListStr string,
 	delayStartSeconds int32,
+	useByID bool,
 ) {
 	identity := "worker1"
 	activityName := "activity_type1"
@@ -771,13 +785,20 @@ func RunSequentialWorkflow(
 		return []byte("Activity Result."), false, nil
 	}
 
+	var activities ActivityExecutor
+	if useByID {
+		activities = activityTaskByIDHandler(atHandler)
+	} else {
+		activities = activityTaskHandler(atHandler)
+	}
+
 	poller := &TaskPoller{
 		Engine:          s.Engine,
 		Domain:          s.DomainName,
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activities,
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -786,11 +807,7 @@ func RunSequentialWorkflow(
 		_, err := poller.PollAndProcessDecisionTask(false, false)
 		s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 		s.Nil(err)
-		if i%2 == 0 {
-			err = poller.PollAndProcessActivityTask(false)
-		} else { // just for testing respondActivityTaskCompleteByID
-			err = poller.PollAndProcessActivityTaskWithID(false)
-		}
+		err = poller.PollAndProcessActivityTask()
 		s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 		s.Nil(err)
 	}
@@ -970,7 +987,7 @@ func (s *IntegrationSuite) TestDecisionAndActivityTimeoutsWorkflow_SLOW() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -1001,7 +1018,11 @@ func (s *IntegrationSuite) TestDecisionAndActivityTimeoutsWorkflow_SLOW() {
 		s.True(err == nil || err == tasklist.ErrNoTasks, "%v", err)
 		if !dropDecisionTask {
 			s.Logger.Info("Calling Activity Task: %d", tag.Counter(i))
-			err = poller.PollAndProcessActivityTask(i%4 == 0)
+			if i%4 == 0 {
+				err = poller.PollAndDropActivityTask()
+			} else {
+				err = poller.PollAndProcessActivityTask()
+			}
 			s.True(err == nil || err == tasklist.ErrNoTasks)
 		}
 	}
@@ -2046,7 +2067,7 @@ func (s *IntegrationSuite) TestDescribeWorkflowExecution() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -2081,7 +2102,7 @@ func (s *IntegrationSuite) TestDescribeWorkflowExecution() {
 	s.Equal(false, dweResponse.WorkflowExecutionInfo.IsCron)
 
 	// process activity task
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 
 	dweResponse, err = describeWorkflowExecution()
 	s.Nil(err)
@@ -2857,7 +2878,7 @@ func (s *IntegrationSuite) TestDecisionTaskFailed() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -2868,7 +2889,7 @@ func (s *IntegrationSuite) TestDecisionTaskFailed() {
 	s.Nil(err)
 
 	// process activity
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
@@ -3022,7 +3043,7 @@ func (s *IntegrationSuite) TestGetPollerHistory() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -3079,7 +3100,7 @@ func (s *IntegrationSuite) TestGetPollerHistory() {
 	s.True(time.Unix(0, pollerInfos[0].GetLastAccessTime()).After(before))
 	s.NotEmpty(pollerInfos[0].GetLastAccessTime())
 
-	errActivity := poller.PollAndProcessActivityTask(false)
+	errActivity := poller.PollAndProcessActivityTask()
 	s.Nil(errActivity)
 	pollerInfos = testDescribeTaskList(s.DomainName, taskList, types.TaskListTypeActivity)
 	s.Equal(1, len(pollerInfos))
@@ -3973,7 +3994,7 @@ func (s *IntegrationSuite) TestBufferedEventsOutOfOrder() {
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -3992,7 +4013,7 @@ func (s *IntegrationSuite) TestBufferedEventsOutOfOrder() {
 	s.Nil(err)
 
 	// This will cause activity start and complete to be buffered
-	err = poller.PollAndProcessActivityTask(false)
+	err = poller.PollAndProcessActivityTask()
 	s.Logger.Info("pollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 

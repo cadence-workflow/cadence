@@ -658,20 +658,22 @@ type (
 		LastHeartBeatUpdatedTime time.Time
 		TimerTaskStatus          int32
 		// For retry
-		Attempt            int32
-		StartedIdentity    string
-		TaskList           string
-		TaskListKind       types.TaskListKind
-		HasRetryPolicy     bool
-		InitialInterval    int32
-		BackoffCoefficient float64
-		MaximumInterval    int32
-		ExpirationTime     time.Time
-		MaximumAttempts    int32
-		NonRetriableErrors []string
-		LastFailureReason  string
-		LastWorkerIdentity string
-		LastFailureDetails []byte
+		Attempt                  int32
+		StartedIdentity          string
+		TaskList                 string
+		TaskListKind             types.TaskListKind
+		HasRetryPolicy           bool
+		InitialInterval          int32
+		BackoffCoefficient       float64
+		MaximumInterval          int32
+		ExpirationTime           time.Time
+		MaximumAttempts          int32
+		NonRetriableErrors       []string
+		LastFailureReason        string
+		LastWorkerIdentity       string
+		LastFailureDetails       []byte
+		LastFailureCategory      types.FailureCategory
+		LastRetryIntervalSeconds int32
 		// Not written to database - This is used only for deduping heartbeat timer creation
 		LastHeartbeatTimeoutVisibilityInSeconds int64
 	}

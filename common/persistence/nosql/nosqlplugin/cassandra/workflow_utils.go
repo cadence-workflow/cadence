@@ -1089,6 +1089,8 @@ func resetActivityInfoMap(activityInfos map[int64]*persistence.InternalActivityI
 		aInfo["last_failure_reason"] = a.LastFailureReason
 		aInfo["last_worker_identity"] = a.LastWorkerIdentity
 		aInfo["last_failure_details"] = a.LastFailureDetails
+		aInfo["last_failure_category"] = int32(a.LastFailureCategory)
+		aInfo["last_retry_interval_seconds"] = a.LastRetryIntervalSeconds
 
 		aMap[a.ScheduleID] = aInfo
 	}
@@ -1142,6 +1144,8 @@ func updateActivityInfos(
 			a.LastFailureReason,
 			a.LastWorkerIdentity,
 			a.LastFailureDetails,
+			int32(a.LastFailureCategory),
+			a.LastRetryIntervalSeconds,
 			a.ScheduledEvent.GetEncodingString(),
 			timeStamp,
 			shardID,

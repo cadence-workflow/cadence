@@ -193,7 +193,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInte
 		TaskList:        &types.TaskList{Name: testTaskListName},
 		Identity:        testIdentity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -202,7 +202,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInte
 		_, err = poller.PollAndProcessDecisionTask(false, false)
 		s.True(err == nil || err == tasklist.ErrNoTasks)
 
-		err = poller.PollAndProcessActivityTask(false)
+		err = poller.PollAndProcessActivityTask()
 		s.True(err == nil || err == tasklist.ErrNoTasks)
 	}
 

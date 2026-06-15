@@ -130,6 +130,10 @@ var (
 var (
 	FailureReason  = "FailureReason"
 	FailureDetails = []byte{190, 0}
+	FailureOptions = types.FailureOptions{
+		FailureCategory:          types.FailureCategoryStandard.Ptr(),
+		NextRetryIntervalSeconds: common.Int32Ptr(Duration1),
+	}
 )
 
 var PartitionConfig = map[string]string{
@@ -448,6 +452,7 @@ var (
 		LastFailureReason:      &FailureReason,
 		LastWorkerIdentity:     Identity,
 		LastFailureDetails:     FailureDetails,
+		LastFailureOptions:     &FailureOptions,
 		StartedWorkerIdentity:  Identity,
 		ScheduleID:             ScheduleID,
 	}
