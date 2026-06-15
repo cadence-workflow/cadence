@@ -231,7 +231,9 @@ Loop:
 				tag.Counter(len(response.GetReplicationTasks())),
 			)
 
-			p.taskProcessingStartWait()
+			if !batchContainsFailoverMarker(response) {
+				p.taskProcessingStartWait()
+			}
 			p.processResponse(response)
 		case <-p.done:
 			return
@@ -325,7 +327,8 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 	batchRequestStartTime := time.Now()
 	ctx := context.Background()
 	for _, replicationTask := range response.ReplicationTasks {
-		if replicationTask.GetTaskType() == types.ReplicationTaskTypeFailoverMarker {
+		isFailoverMarker := replicationTask.GetTaskType() == types.ReplicationTaskTypeFailoverMarker
+		if isFailoverMarker {
 			if attr := replicationTask.GetFailoverMarkerAttributes(); attr != nil {
 				p.logger.Info("Failover marker arrived at standby replication processor",
 					tag.ShardID(p.shard.GetShardID()),
@@ -334,10 +337,15 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 					tag.Dynamic("arrival-lag", time.Since(time.Unix(0, replicationTask.GetCreationTime()))),
 				)
 			}
+		} else {
+			// failover markers bypass rate limiting: bounded volume (one per shard
+			// per failover), shard-level (no workflow lock), and cheap to execute.
+			// throttling them behind history replication needlessly delays the
+			// completion of graceful failover.
+			// TODO: move to MultiStageRateLimiter
+			_ = p.hostRateLimiter.Wait(ctx)
+			_ = p.shardRateLimiter.Wait(ctx)
 		}
-		// TODO: move to MultiStageRateLimiter
-		_ = p.hostRateLimiter.Wait(ctx)
-		_ = p.shardRateLimiter.Wait(ctx)
 		err := p.processSingleTask(replicationTask)
 		if err != nil {
 			// Encounter error and skip updating ack levels
@@ -762,6 +770,18 @@ func (p *taskProcessorImpl) taskProcessingStartWait() {
 		p.config.ReplicationTaskProcessorStartWait(shardID),
 		p.config.ReplicationTaskProcessorStartWaitJitterCoefficient(shardID),
 	))
+}
+
+// batchContainsFailoverMarker returns true if any task in the response batch is
+// a FailoverMarker. Failover markers gate graceful-failover completion, so
+// batches that carry them skip the per-batch start wait to minimize tail latency.
+func batchContainsFailoverMarker(response *types.ReplicationMessages) bool {
+	for _, task := range response.GetReplicationTasks() {
+		if task.GetTaskType() == types.ReplicationTaskTypeFailoverMarker {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *taskProcessorImpl) isShuttingDown() bool {
