@@ -1666,6 +1666,8 @@ func TestApplySchedulePolicyDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantWindow, tt.policies.CatchUpWindow)
 		})
 	}
+}
+
 func TestOngoingBackfillsForResponse(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		assert.Nil(t, ongoingBackfillsForResponse(nil))
