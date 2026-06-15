@@ -77,6 +77,11 @@ const (
 	// Reason tag values for scheduler_backfill_rejected_count_per_domain.
 	BackfillRejectedReasonInvalidRange = "invalid_range"
 	BackfillRejectedReasonQueueFull    = "queue_full"
+	// BackfillRejectedReasonDuplicateID is emitted when a backfill signal
+	// arrives with a non-empty BackfillID that matches an already-pending
+	// backfill. The signal is absorbed for idempotent-retry safety rather
+	// than enqueued a second time.
+	BackfillRejectedReasonDuplicateID = "duplicate_id"
 
 	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
 	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the
@@ -130,6 +135,11 @@ const (
 	maxBackfillFiresPerExecution     = 10
 	maxDrainFiresPerExecution        = 10
 	maxPendingBackfills              = 10
+
+	// maxBackfillRunsTotalCount caps the cron walk that populates
+	// BackfillRequest.RunsTotal. When a backfill range produces more fires
+	// than this, RunsTotal is set to the cap as a lower bound.
+	maxBackfillRunsTotalCount = 100000
 
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
@@ -210,6 +220,22 @@ type BackfillRequest struct {
 	EndTime       time.Time                   `json:"endTime"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	BackfillID    string                      `json:"backfillId,omitempty"`
+	// RunsTotal is the number of cron fires within (StartTime, EndTime] at the
+	// time the backfill was first processed. Populated lazily by processBackfills
+	// using the workflow's currently parsed cron. When the range exceeds
+	// maxBackfillRunsTotalCount, RunsTotal is set to that cap as a lower bound;
+	// consumers may observe RunsCompleted approach or exceed RunsTotal before
+	// the backfill finishes draining.
+	RunsTotal int32 `json:"runsTotal,omitempty"`
+	// RunsCompleted is the number of fires from this backfill that
+	// processBackfills has handed off to processScheduleFire — counted whether
+	// the fire started, was skipped under the overlap policy, or was deferred
+	// into the BUFFER queue.
+	RunsCompleted int32 `json:"runsCompleted,omitempty"`
+	// RunsTotalComputed records whether RunsTotal has been populated, so
+	// processBackfills does not re-walk the cron on every batch and an empty
+	// range (RunsTotal == 0) is not confused with "not yet computed".
+	RunsTotalComputed bool `json:"runsTotalComputed,omitempty"`
 }
 
 // PauseSignal is the payload sent with a pause signal.
@@ -258,6 +284,9 @@ type ScheduleDescription struct {
 	SkippedRuns      int64                   `json:"skippedRuns"`
 	Memo             *types.Memo             `json:"memo,omitempty"`
 	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	// OngoingBackfills mirrors SchedulerWorkflowState.PendingBackfills at the
+	// time of the describe query.
+	OngoingBackfills []types.BackfillInfo `json:"ongoingBackfills,omitempty"`
 }
 
 // TriggerSource identifies what caused a schedule fire, used to differentiate

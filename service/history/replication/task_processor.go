@@ -325,6 +325,16 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 	batchRequestStartTime := time.Now()
 	ctx := context.Background()
 	for _, replicationTask := range response.ReplicationTasks {
+		if replicationTask.GetTaskType() == types.ReplicationTaskTypeFailoverMarker {
+			if attr := replicationTask.GetFailoverMarkerAttributes(); attr != nil {
+				p.logger.Info("Failover marker arrived at standby replication processor",
+					tag.ShardID(p.shard.GetShardID()),
+					tag.WorkflowDomainID(attr.GetDomainID()),
+					tag.FailoverVersion(attr.GetFailoverVersion()),
+					tag.Dynamic("arrival-lag", time.Since(time.Unix(0, replicationTask.GetCreationTime()))),
+				)
+			}
+		}
 		// TODO: move to MultiStageRateLimiter
 		_ = p.hostRateLimiter.Wait(ctx)
 		_ = p.shardRateLimiter.Wait(ctx)

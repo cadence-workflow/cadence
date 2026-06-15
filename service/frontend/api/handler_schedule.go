@@ -151,6 +151,22 @@ func validateUserSearchAttributes(sa *types.SearchAttributes) error {
 	return nil
 }
 
+// ongoingBackfillsForResponse converts the scheduler workflow's snapshot of
+// pending backfills into the BackfillInfo pointer slice carried in
+// DescribeScheduleResponse. Returns nil (not an empty slice) when there are
+// no backfills so the marshalled response omits the field.
+func ongoingBackfillsForResponse(in []types.BackfillInfo) []*types.BackfillInfo {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*types.BackfillInfo, 0, len(in))
+	for i := range in {
+		bf := in[i]
+		out = append(out, &bf)
+	}
+	return out
+}
+
 func (wh *WorkflowHandler) CreateSchedule(
 	ctx context.Context,
 	request *types.CreateScheduleRequest,
@@ -296,6 +312,12 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		return nil, err
 	}
 	if info.CloseStatus != nil {
+		if *info.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
+			return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
+				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
+				scheduleID, domainName,
+			)
+		}
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
 				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
@@ -317,6 +339,12 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		closeStatus := "unknown"
 		if queryResp.QueryRejected.CloseStatus != nil {
 			closeStatus = queryResp.QueryRejected.CloseStatus.String()
+			if *queryResp.QueryRejected.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
+				return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
+					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
+					scheduleID, domainName,
+				)
+			}
 		}
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
@@ -352,11 +380,12 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			}(),
 		},
 		Info: &types.ScheduleInfo{
-			LastRunTime: desc.LastRunTime,
-			NextRunTime: desc.NextRunTime,
-			TotalRuns:   desc.TotalRuns,
-			MissedRuns:  desc.MissedRuns,
-			SkippedRuns: desc.SkippedRuns,
+			LastRunTime:      desc.LastRunTime,
+			NextRunTime:      desc.NextRunTime,
+			TotalRuns:        desc.TotalRuns,
+			MissedRuns:       desc.MissedRuns,
+			SkippedRuns:      desc.SkippedRuns,
+			OngoingBackfills: ongoingBackfillsForResponse(desc.OngoingBackfills),
 		},
 		Memo:             desc.Memo,
 		SearchAttributes: desc.SearchAttributes,

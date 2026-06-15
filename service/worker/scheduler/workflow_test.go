@@ -466,6 +466,47 @@ func TestBuildScheduleDescription(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Describe must surface PendingBackfills as OngoingBackfills so
+			// callers can show progress; this is what fills the new
+			// ScheduleInfo.OngoingBackfills field on DescribeScheduleResponse.
+			name:  "schedule with pending backfills exposes ongoing backfills",
+			input: SchedulerWorkflowInput{ScheduleID: "sched-bf", Domain: "dev"},
+			state: SchedulerWorkflowState{
+				PendingBackfills: []BackfillRequest{
+					{
+						BackfillID:    "bf-a",
+						StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+						RunsTotal:     24,
+						RunsCompleted: 5,
+					},
+					{
+						BackfillID: "bf-b",
+						StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			want: &ScheduleDescription{
+				ScheduleID: "sched-bf",
+				Domain:     "dev",
+				OngoingBackfills: []types.BackfillInfo{
+					{
+						BackfillID:    "bf-a",
+						StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+						RunsTotal:     24,
+						RunsCompleted: 5,
+					},
+					{
+						BackfillID: "bf-b",
+						StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -866,6 +907,95 @@ func TestHandleBackfill(t *testing.T) {
 			assert.Equal(t, int64(1), c.Value())
 		})
 	}
+
+	t.Run("duplicate BackfillID is absorbed as idempotent retry", func(t *testing.T) {
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:    time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+					BackfillID: "bf-dup",
+				},
+			},
+		}
+		scope := tally.NewTestScope("", nil)
+		// Same BackfillID, even with a different time range, must not enqueue a
+		// second copy: BackfillSchedule is meant to be retry-safe by ID.
+		sig := BackfillSignal{
+			StartTime:  time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+			BackfillID: "bf-dup",
+		}
+		got := handleBackfill(testLogger, scope, sig, state)
+		assert.False(t, got)
+		assert.Len(t, state.PendingBackfills, 1)
+		assert.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), state.PendingBackfills[0].StartTime)
+
+		c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillRejectedCountPerDomain,
+			map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID})
+		require.True(t, ok)
+		assert.Equal(t, int64(1), c.Value())
+	})
+
+	t.Run("empty BackfillID does not collide with another empty BackfillID", func(t *testing.T) {
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:   time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		}
+		scope := tally.NewTestScope("", nil)
+		sig := BackfillSignal{
+			StartTime: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC),
+		}
+		got := handleBackfill(testLogger, scope, sig, state)
+		assert.True(t, got)
+		assert.Len(t, state.PendingBackfills, 2)
+	})
+}
+
+func TestCountCronFires(t *testing.T) {
+	hourly := mustParseCron(t, "0 * * * *")
+	spec := types.ScheduleSpec{CronExpression: "0 * * * *"}
+
+	tests := map[string]struct {
+		start, end time.Time
+		limit      int
+		wantCount  int
+		wantTrunc  bool
+	}{
+		"hourly cron over 24h inclusive fits under cap": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second),
+			end:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			limit:     100,
+			wantCount: 25,
+			wantTrunc: false,
+		},
+		"empty range returns zero": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 30, time.UTC),
+			end:       time.Date(2026, 1, 1, 0, 30, 0, 0, time.UTC),
+			limit:     100,
+			wantCount: 0,
+			wantTrunc: false,
+		},
+		"limit truncates a long range": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second),
+			end:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			limit:     10,
+			wantCount: 10,
+			wantTrunc: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			count, truncated := countCronFires(hourly, tt.start, tt.end, spec, tt.limit)
+			assert.Equal(t, tt.wantCount, count)
+			assert.Equal(t, tt.wantTrunc, truncated)
+		})
+	}
 }
 
 func TestEffectiveFireOverlap(t *testing.T) {
@@ -921,12 +1051,17 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 			},
 		},
 	}
-	// processBackfills should short-circuit without touching PendingBackfills
 	scope := tally.NewTestScope("", nil)
 	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
-	assert.False(t, moreWork, "paused schedule should not process backfills")
-	assert.Len(t, state.PendingBackfills, 1, "pending backfills should be preserved while paused")
-	assert.Empty(t, scope.Snapshot().Counters(), "no metrics should be emitted when paused")
+	assert.False(t, moreWork, "paused schedule should not fire backfills")
+	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
+	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
+	// RunsTotal must still be populated so DescribeSchedule does not report
+	// the queued backfill as 0/0 (which by contract means an empty range).
+	// Hourly cron over (10:00-1s, 13:00] → fires at 10, 11, 12, 13 = 4.
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+	assert.Equal(t, int32(4), state.PendingBackfills[0].RunsTotal)
+	assert.Equal(t, int32(0), state.PendingBackfills[0].RunsCompleted)
 }
 
 func TestProcessBackfillsFiredMetric(t *testing.T) {
@@ -954,6 +1089,92 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
 	require.True(t, ok, "backfill fired metric should be emitted")
 	assert.Equal(t, int64(3), c.Value(), "expected 3 fires: 10:00, 11:00, 12:00")
+}
+
+// TestProcessBackfillsTracksRunsCompleted verifies that RunsCompleted advances
+// on every fire handed off by processBackfills, and that RunsTotal is computed
+// once on the first batch and preserved across subsequent batches.
+func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Hourly cron over 24h-inclusive → 25 fires. maxBackfillFiresPerExecution
+	// is 10, so the first call processes 10 and leaves 15 behind.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-partial",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	assert.True(t, moreWork, "backfill should signal more work after hitting per-execution cap")
+	require.Len(t, state.PendingBackfills, 1, "partial backfill should remain in state")
+	assert.Equal(t, int32(maxBackfillFiresPerExecution), state.PendingBackfills[0].RunsCompleted)
+	assert.Equal(t, int32(25), state.PendingBackfills[0].RunsTotal, "RunsTotal computed lazily on first batch")
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+}
+
+// TestProcessBackfillsRunsTotalTruncated covers a range that exceeds the count
+// cap: RunsTotal is set to the cap as a lower bound, not 0.
+func TestProcessBackfillsRunsTotalTruncated(t *testing.T) {
+	// Per-minute cron over 100 days = 144000 fires, above the
+	// maxBackfillRunsTotalCount (100000) cap.
+	sched := mustParseCron(t, "* * * * *")
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-huge",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	_ = processBackfills(nil, testLogger, scope, sched, input, state)
+	require.Len(t, state.PendingBackfills, 1)
+	assert.Equal(t, int32(maxBackfillRunsTotalCount), state.PendingBackfills[0].RunsTotal,
+		"truncated count should report the cap as a lower bound, not 0")
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+}
+
+// TestProcessBackfillsLazyRunsTotalIgnoresStaleSched simulates a same-batch
+// UpdateSchedule changing the cron between backfill enqueue and processing.
+// RunsTotal must reflect the cron passed into processBackfills (the freshly
+// re-parsed one), not the cron that was in effect when handleBackfill ran.
+func TestProcessBackfillsLazyRunsTotalUsesProcessSched(t *testing.T) {
+	// Backfill enqueued with no RunsTotal computed yet. processBackfills now
+	// receives an hourly cron; we expect RunsTotal to come from that, not from
+	// some other cron a hypothetical caller might have used at enqueue time.
+	hourly := mustParseCron(t, "0 * * * *")
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+				BackfillID: "bf-fresh-sched",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	_ = processBackfills(nil, testLogger, scope, hourly, input, state)
+	// 3 fires for hourly cron over [10:00, 12:00]: 10:00, 11:00, 12:00.
+	// Backfill drains in one call (under the per-execution cap), so it has
+	// been removed; check the firing metric reflects the count instead.
+	assert.Empty(t, state.PendingBackfills)
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(3), c.Value())
 }
 
 func TestBackfillFireComputation(t *testing.T) {

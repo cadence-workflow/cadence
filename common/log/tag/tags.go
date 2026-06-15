@@ -368,6 +368,11 @@ func WorkflowHistorySize(historySize int) Tag {
 	return newInt("wf-history-size", historySize)
 }
 
+// WorkflowHistorySizeLimit returns tag for HistorySizeLimit
+func WorkflowHistorySizeLimit(historySize int) Tag {
+	return newInt("wf-history-size-limit", historySize)
+}
+
 // WorkflowHistorySizeBytes returns tag for HistorySizeBytes
 func WorkflowHistorySizeBytes(historySizeBytes int) Tag {
 	return newInt("wf-history-size-bytes", historySizeBytes)
@@ -376,6 +381,11 @@ func WorkflowHistorySizeBytes(historySizeBytes int) Tag {
 // WorkflowEventCount returns tag for EventCount
 func WorkflowEventCount(eventCount int) Tag {
 	return newInt("wf-event-count", eventCount)
+}
+
+// WorkflowEventCountLimit returns tag for EventCountLimit
+func WorkflowEventCountLimit(eventCount int) Tag {
+	return newInt("wf-event-count-limit", eventCount)
 }
 
 func WorkflowEventType(eventType string) Tag {

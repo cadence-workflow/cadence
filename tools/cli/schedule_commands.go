@@ -483,5 +483,20 @@ func printDescribeSchedule(resp *types.DescribeScheduleResponse) {
 		if !info.NextRunTime.IsZero() {
 			fmt.Printf("  Next Run:         %s\n", info.NextRunTime.Format(time.RFC3339))
 		}
+		if len(info.OngoingBackfills) > 0 {
+			fmt.Printf("  Ongoing Backfills:\n")
+			for _, bf := range info.OngoingBackfills {
+				if bf == nil {
+					continue
+				}
+				fmt.Printf("    - id: %s [%s, %s] progress: %d/%d\n",
+					bf.BackfillID,
+					bf.StartTime.Format(time.RFC3339),
+					bf.EndTime.Format(time.RFC3339),
+					bf.RunsCompleted,
+					bf.RunsTotal,
+				)
+			}
+		}
 	}
 }

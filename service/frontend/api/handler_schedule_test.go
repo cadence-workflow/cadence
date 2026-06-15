@@ -575,8 +575,7 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the close status stays CONTINUED_AS_NEW past the retry budget, the
-		// scheduler is likely stuck mid-transition; surface that as not operational
-		// so an operator can investigate.
+		// scheduler is stuck mid-transition; return Unavailable so clients retry.
 		"scheduler mid-ContinueAsNew - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -590,9 +589,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				var internalErr *types.InternalServiceError
-				assert.ErrorAs(t, err, &internalErr)
-				assert.Contains(t, internalErr.Message, "CONTINUED_AS_NEW")
+				assert.True(t, yarpcerrors.IsStatus(err))
+				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		// A freshly started scheduler run has not yet processed its first decision
@@ -739,6 +738,32 @@ func TestDescribeSchedule(t *testing.T) {
 				var internalErr *types.InternalServiceError
 				assert.ErrorAs(t, err, &internalErr)
 				assert.Contains(t, internalErr.Message, "FAILED")
+			},
+		},
+		// If the scheduler does ContinueAsNew between the DWE probe and the query,
+		// the query is rejected with CONTINUED_AS_NEW. Return Unavailable so the
+		// client retries — the new run will be queryable momentarily.
+		"scheduler ContinueAsNew between DWE and Query - return Unavailable": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil)
+				closeStatus := types.WorkflowExecutionCloseStatusContinuedAsNew
+				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.HistoryQueryWorkflowResponse{
+						Response: &types.QueryWorkflowResponse{
+							QueryRejected: &types.QueryRejected{CloseStatus: &closeStatus},
+						},
+					}, nil)
+			},
+			wantErr: true,
+			checkErr: func(t *testing.T, err error) {
+				assert.True(t, yarpcerrors.IsStatus(err))
+				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		"success": {
@@ -1641,6 +1666,38 @@ func TestApplySchedulePolicyDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantWindow, tt.policies.CatchUpWindow)
 		})
 	}
+func TestOngoingBackfillsForResponse(t *testing.T) {
+	t.Run("nil input returns nil", func(t *testing.T) {
+		assert.Nil(t, ongoingBackfillsForResponse(nil))
+	})
+	t.Run("empty input returns nil", func(t *testing.T) {
+		assert.Nil(t, ongoingBackfillsForResponse([]types.BackfillInfo{}))
+	})
+	t.Run("non-empty input is mapped one-to-one and copies each entry", func(t *testing.T) {
+		in := []types.BackfillInfo{
+			{
+				BackfillID:    "bf-a",
+				StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+				RunsTotal:     24,
+				RunsCompleted: 5,
+			},
+			{
+				BackfillID: "bf-b",
+				StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+			},
+		}
+		out := ongoingBackfillsForResponse(in)
+		require.Len(t, out, 2)
+		assert.Equal(t, in[0], *out[0])
+		assert.Equal(t, in[1], *out[1])
+
+		// Each pointer must refer to an independent copy so a later mutation
+		// of the response slice does not race against scheduler-workflow state.
+		out[0].RunsCompleted = 99
+		assert.Equal(t, int32(5), in[0].RunsCompleted, "mutating out must not affect in")
+	})
 }
 
 // TestValidateUserSearchAttributes verifies that user-supplied search attribute
