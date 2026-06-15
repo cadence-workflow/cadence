@@ -231,9 +231,7 @@ Loop:
 				tag.Counter(len(response.GetReplicationTasks())),
 			)
 
-			if !batchContainsFailoverMarker(response) {
-				p.taskProcessingStartWait()
-			}
+			p.taskProcessingStartWait(response.GetReplicationTasks())
 			p.processResponse(response)
 		case <-p.done:
 			return
@@ -764,24 +762,23 @@ func (p *taskProcessorImpl) updateFailureMetric(scope metrics.ScopeIdx, err erro
 	}
 }
 
-func (p *taskProcessorImpl) taskProcessingStartWait() {
+func (p *taskProcessorImpl) taskProcessingStartWait(tasks []*types.ReplicationTask) {
 	shardID := p.shard.GetShardID()
-	time.Sleep(backoff.JitDuration(
-		p.config.ReplicationTaskProcessorStartWait(shardID),
-		p.config.ReplicationTaskProcessorStartWaitJitterCoefficient(shardID),
-	))
-}
-
-// batchContainsFailoverMarker returns true if any task in the response batch is
-// a FailoverMarker. Failover markers gate graceful-failover completion, so
-// batches that carry them skip the per-batch start wait to minimize tail latency.
-func batchContainsFailoverMarker(response *types.ReplicationMessages) bool {
-	for _, task := range response.GetReplicationTasks() {
+	wait := p.config.ReplicationTaskProcessorStartWait(shardID)
+	if wait <= 0 {
+		return
+	}
+	// failover markers gate graceful-failover completion — skip the per-batch
+	// wait when one is in flight to minimize tail latency.
+	for _, task := range tasks {
 		if task.GetTaskType() == types.ReplicationTaskTypeFailoverMarker {
-			return true
+			return
 		}
 	}
-	return false
+	time.Sleep(backoff.JitDuration(
+		wait,
+		p.config.ReplicationTaskProcessorStartWaitJitterCoefficient(shardID),
+	))
 }
 
 func (p *taskProcessorImpl) isShuttingDown() bool {
