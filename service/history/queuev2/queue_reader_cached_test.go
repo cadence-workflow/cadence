@@ -477,14 +477,15 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 	)
 
 	tests := []struct {
-		name       string
-		mode       string
-		lower      persistence.HistoryTaskKey
-		upper      persistence.HistoryTaskKey
-		req        *GetTaskRequest
-		setupMocks func(base *MockQueueReader, queue *MockInMemQueue)
-		wantErr    bool
-		wantResp   *GetTaskResponse
+		name        string
+		mode        string
+		lastRangeID int64
+		lower       persistence.HistoryTaskKey
+		upper       persistence.HistoryTaskKey
+		req         *GetTaskRequest
+		setupMocks  func(base *MockQueueReader, queue *MockInMemQueue)
+		wantErr     bool
+		wantResp    *GetTaskResponse
 	}{
 		{
 			name:  "disabled delegates to base",
@@ -705,6 +706,27 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 				Progress: newProgress(lower, upper),
 			},
 		},
+		{
+			name:        "rangeID changed: clears cache and falls back to base",
+			mode:        "enabled",
+			lastRangeID: 1,
+			lower:       lower, upper: upper,
+			req: &GetTaskRequest{
+				Progress:  newProgress(lower, rangeMax),
+				Predicate: NewUniversalPredicate(),
+				PageSize:  10,
+			},
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().Clear()
+				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
+					Progress: newProgress(upper, rangeMax),
+				}, nil)
+			},
+			wantResp: &GetTaskResponse{
+				Progress: newProgress(upper, rangeMax),
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -715,6 +737,7 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 			})
 			base, queue := deps.mockBase, deps.mockQueue
 			setBounds(r, tc.lower, tc.upper)
+			r.lastRangeID = tc.lastRangeID
 			tc.setupMocks(base, queue)
 
 			resp, err := r.GetTask(context.Background(), tc.req)
@@ -1163,14 +1186,15 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 	task1 := newTask(1, now.Add(10*time.Minute))
 
 	tests := []struct {
-		name       string
-		mode       string
-		initLower  persistence.HistoryTaskKey
-		initUpper  persistence.HistoryTaskKey
-		minKey     persistence.HistoryTaskKey
-		setupMocks func(base *MockQueueReader, queue *MockInMemQueue)
-		wantErr    bool
-		wantResp   *LookAHeadResponse
+		name        string
+		mode        string
+		lastRangeID int64
+		initLower   persistence.HistoryTaskKey
+		initUpper   persistence.HistoryTaskKey
+		minKey      persistence.HistoryTaskKey
+		setupMocks  func(base *MockQueueReader, queue *MockInMemQueue)
+		wantErr     bool
+		wantResp    *LookAHeadResponse
 	}{
 		{
 			name:      "disabled falls back to DB",
@@ -1263,6 +1287,24 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 				LookAheadMaxTime: upper.GetScheduledTime(),
 			},
 		},
+		{
+			name:        "rangeID changed: clears cache and falls back to base",
+			mode:        "enabled",
+			lastRangeID: 1,
+			initLower:   lower,
+			initUpper:   upper,
+			minKey:      lower,
+			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+				queue.EXPECT().Len().Return(0).AnyTimes()
+				queue.EXPECT().Clear()
+				base.EXPECT().LookAHead(gomock.Any(), gomock.Any()).Return(&LookAHeadResponse{
+					LookAheadMaxTime: upper.GetScheduledTime(),
+				}, nil)
+			},
+			wantResp: &LookAHeadResponse{
+				LookAheadMaxTime: upper.GetScheduledTime(),
+			},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1272,6 +1314,7 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 			})
 			base, queue := deps.mockBase, deps.mockQueue
 			setBounds(r, tc.initLower, tc.initUpper)
+			r.lastRangeID = tc.lastRangeID
 			tc.setupMocks(base, queue)
 
 			resp, err := r.LookAHead(context.Background(), &LookAHeadRequest{InclusiveMinTaskKey: tc.minKey})
@@ -1763,108 +1806,3 @@ func TestCachedQueueReader_IsToBufferTask(t *testing.T) {
 	}
 }
 
-func TestCachedQueueReader_RangeIDChange(t *testing.T) {
-	now := time.Now()
-	lower := newTimeKey(now)
-	upper := newTimeKey(now.Add(time.Hour))
-	rangeMax := newTimeKey(now.Add(2 * time.Hour))
-
-	t.Run("GetTask clears cache and falls back to base on rangeID change", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockShard := shard.NewMockContext(ctrl)
-		mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
-
-		rangeIDCall := mockShard.EXPECT().GetRangeID().Return(int64(1))
-		mockShard.EXPECT().GetRangeID().Return(int64(2)).After(rangeIDCall).AnyTimes()
-
-		mockBase := NewMockQueueReader(ctrl)
-		mockQueue := NewMockInMemQueue(ctrl)
-
-		r := newCachedQueueReaderWithOptions(
-			mockBase, mockQueue, mockShard,
-			clock.NewMockedTimeSource(),
-			testlogger.New(t),
-			metrics.NoopScope,
-			testOptions(),
-		)
-		setBounds(r, lower, upper)
-
-		req := &GetTaskRequest{
-			Progress:  newProgress(lower, rangeMax),
-			Predicate: NewUniversalPredicate(),
-			PageSize:  10,
-		}
-
-		baseResp := &GetTaskResponse{Progress: newProgress(upper, rangeMax)}
-		mockQueue.EXPECT().Len().Return(0).AnyTimes()
-		mockQueue.EXPECT().Clear()
-		mockBase.EXPECT().GetTask(gomock.Any(), req).Return(baseResp, nil)
-
-		resp, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-		assert.Equal(t, baseResp, resp)
-
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		assert.True(t, r.exclusiveUpperBound.Equal(persistence.MinimumHistoryTaskKey))
-		assert.True(t, r.inclusiveLowerBound.Equal(persistence.MinimumHistoryTaskKey))
-		assert.Equal(t, int64(2), r.lastRangeID)
-	})
-
-	t.Run("GetTask serves from cache when rangeID unchanged", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		r, deps := setupMocksForCachedQueueReader(t, ctrl)
-		setBounds(r, lower, upper)
-
-		req := &GetTaskRequest{
-			Progress:  newProgress(lower, upper),
-			Predicate: NewUniversalPredicate(),
-			PageSize:  10,
-		}
-
-		task := newTask(1, now.Add(30*time.Minute))
-		deps.mockQueue.EXPECT().Len().Return(0).AnyTimes()
-		deps.mockQueue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{task}, upper)
-
-		resp, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-		assert.Equal(t, []persistence.Task{task}, resp.Tasks)
-	})
-
-	t.Run("LookAHead clears cache on rangeID change", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		mockShard := shard.NewMockContext(ctrl)
-		mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
-
-		rangeIDCall := mockShard.EXPECT().GetRangeID().Return(int64(1))
-		mockShard.EXPECT().GetRangeID().Return(int64(2)).After(rangeIDCall).AnyTimes()
-
-		mockBase := NewMockQueueReader(ctrl)
-		mockQueue := NewMockInMemQueue(ctrl)
-
-		r := newCachedQueueReaderWithOptions(
-			mockBase, mockQueue, mockShard,
-			clock.NewMockedTimeSource(),
-			testlogger.New(t),
-			metrics.NoopScope,
-			testOptions(),
-		)
-		setBounds(r, lower, upper)
-
-		req := &LookAHeadRequest{InclusiveMinTaskKey: lower}
-		baseResp := &LookAHeadResponse{LookAheadMaxTime: now.Add(time.Hour)}
-
-		mockQueue.EXPECT().Len().Return(0).AnyTimes()
-		mockQueue.EXPECT().Clear()
-		mockBase.EXPECT().LookAHead(gomock.Any(), req).Return(baseResp, nil)
-
-		resp, err := r.LookAHead(context.Background(), req)
-		require.NoError(t, err)
-		assert.Equal(t, baseResp, resp)
-
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		assert.True(t, r.exclusiveUpperBound.Equal(persistence.MinimumHistoryTaskKey))
-		assert.Equal(t, int64(2), r.lastRangeID)
-	})
-}

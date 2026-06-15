@@ -333,10 +333,10 @@ func (q *cachedQueueReader) isRangeIDChanged() bool {
 	return q.isRangeIDChangedLocked()
 }
 
-// clearIfRangeIDChanged clears the cache if the shard's rangeID has changed,
+// fallbackIfRangeIDChanged clears the cache if the shard's rangeID has changed,
 // e.g. when a shard moved away and was re-acquired by the same host.
 // Returns true if the cache was cleared.
-func (q *cachedQueueReader) clearIfRangeIDChanged() bool {
+func (q *cachedQueueReader) fallbackIfRangeIDChanged() bool {
 	if !q.isRangeIDChanged() {
 		return false
 	}
@@ -678,7 +678,8 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		return q.base.GetTask(ctx, req)
 	}
 
-	if q.clearIfRangeIDChanged() {
+	if q.fallbackIfRangeIDChanged() {
+		q.logger.Info("GetTask falling back to base reader after rangeID change")
 		return q.base.GetTask(ctx, req)
 	}
 
@@ -746,11 +747,11 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 // inject notifications make cache/DB comparison unreliable for look-ahead.
 func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
 	if q.isDisabled() || q.isShadow() {
-		q.logger.Debug("fail back to original look-ahead, cache is disabled or shadow mode")
 		return q.base.LookAHead(ctx, req)
 	}
 
-	if q.clearIfRangeIDChanged() {
+	if q.fallbackIfRangeIDChanged() {
+		q.logger.Info("LookAHead falling back to base reader after rangeID change")
 		return q.base.LookAHead(ctx, req)
 	}
 
