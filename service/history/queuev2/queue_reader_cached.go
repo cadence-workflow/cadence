@@ -139,6 +139,11 @@ type cachedQueueReader struct {
 	// senders never block; duplicate signals are dropped, the loop reads current
 	// state on each wake.
 	prefetchCh chan struct{}
+
+	// lastRangeID is the shard rangeID observed when the cache was last valid.
+	// A change means the shard was re-acquired and the cache may be stale.
+	// Protected by mu.
+	lastRangeID int64
 }
 
 func newCachedQueueReader(
@@ -190,6 +195,7 @@ func newCachedQueueReaderWithOptions(
 		inclusiveLowerBound: persistence.MinimumHistoryTaskKey,
 		exclusiveUpperBound: persistence.MinimumHistoryTaskKey,
 		prefetchCh:          make(chan struct{}, 1),
+		lastRangeID:         shard.GetRangeID(),
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
@@ -301,11 +307,54 @@ func (q *cachedQueueReader) Clear() {
 		tag.Dynamic("cacheState", q.getState()),
 	)
 
+	q.clearLocked()
+}
+
+// clearLocked wipes all cached state. Caller must hold q.mu for writing.
+func (q *cachedQueueReader) clearLocked() {
 	q.queue.Clear()
 	q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
 	q.prefetchTargetUpper = persistence.MinimumHistoryTaskKey
 	q.updateInclusiveLowerBound(persistence.MinimumHistoryTaskKey)
 	q.updateExclusiveUpperBound(persistence.MinimumHistoryTaskKey)
+}
+
+// isRangeIDChangedLocked reports whether the shard's current rangeID differs
+// from the last observed value. Caller must hold q.mu (read or write).
+func (q *cachedQueueReader) isRangeIDChangedLocked() bool {
+	return q.shard.GetRangeID() != q.lastRangeID
+}
+
+// isRangeIDChanged reports whether the shard's current rangeID differs
+// from the last observed value.
+func (q *cachedQueueReader) isRangeIDChanged() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.isRangeIDChangedLocked()
+}
+
+// clearIfRangeIDChanged clears the cache if the shard's rangeID has changed,
+// e.g. when a shard moved away and was re-acquired by the same host.
+// Returns true if the cache was cleared.
+func (q *cachedQueueReader) clearIfRangeIDChanged() bool {
+	if !q.isRangeIDChanged() {
+		return false
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if !q.isRangeIDChangedLocked() {
+		return false
+	}
+
+	q.logger.Info("rangeID changed, clearing cache",
+		tag.Dynamic("previousRangeID", q.lastRangeID),
+		tag.Dynamic("currentRangeID", q.shard.GetRangeID()),
+	)
+	q.clearLocked()
+	q.lastRangeID = q.shard.GetRangeID()
+	return true
 }
 
 // prefetch fetches one page of tasks into the look-ahead window. Returns nil
@@ -629,6 +678,10 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		return q.base.GetTask(ctx, req)
 	}
 
+	if q.clearIfRangeIDChanged() {
+		return q.base.GetTask(ctx, req)
+	}
+
 	inclusiveMinTaskKey := req.Progress.Range.InclusiveMinTaskKey
 	exclusiveMaxTaskKey := req.Progress.Range.ExclusiveMaxTaskKey
 
@@ -694,6 +747,10 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
 	if q.isDisabled() || q.isShadow() {
 		q.logger.Debug("fail back to original look-ahead, cache is disabled or shadow mode")
+		return q.base.LookAHead(ctx, req)
+	}
+
+	if q.clearIfRangeIDChanged() {
 		return q.base.LookAHead(ctx, req)
 	}
 
