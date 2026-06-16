@@ -293,10 +293,9 @@ func (wh *WorkflowHandler) DescribeSchedule(
 	}
 	if info.CloseStatus != nil {
 		if *info.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
-			return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
-				scheduleID, domainName,
-			)
+			return nil, &types.ServiceBusyError{
+				Message: fmt.Sprintf("schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName),
+			}
 		}
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
@@ -320,10 +319,9 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		if queryResp.QueryRejected.CloseStatus != nil {
 			closeStatus = queryResp.QueryRejected.CloseStatus.String()
 			if *queryResp.QueryRejected.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
-				return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
-					scheduleID, domainName,
-				)
+				return nil, &types.ServiceBusyError{
+					Message: fmt.Sprintf("schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName),
+				}
 			}
 		}
 		return nil, &types.InternalServiceError{
