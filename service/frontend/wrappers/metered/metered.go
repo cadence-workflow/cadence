@@ -96,7 +96,6 @@ func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger
 			return err
 		}
 		if err.Code() == yarpcerrors.CodeUnavailable {
-			scope.IncCounter(metrics.CadenceErrServiceBusyCounter)
 			return err
 		}
 	}
