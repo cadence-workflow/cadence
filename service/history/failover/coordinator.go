@@ -274,6 +274,14 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 			if c.timeSource.Now().Sub(lastFlush) >= notifyFailoverMarkerMinInterval {
 				flush()
 				resetTimer()
+			} else {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(notifyFailoverMarkerMinInterval - c.timeSource.Now().Sub(lastFlush))
 			}
 		case <-timer.C:
 			flush()
