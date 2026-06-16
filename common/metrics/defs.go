@@ -3307,7 +3307,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		HistorySize:                                                  {metricName: "history_size", metricType: Timer},
 		HistorySizeHistogram:                                         {metricName: "history_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		HistoryCount:                                                 {metricName: "history_count", metricType: Timer},
-		HistoryCountHistogram:                                        {metricName: "history_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		HistoryCountHistogram:                                        {metricName: "history_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To50k},
 		EventBlobSizeExceedLimit:                                     {metricName: "blob_size_exceed_limit", metricType: Counter},
 		EventBlobSize:                                                {metricName: "event_blob_size", metricType: Timer},
 		EventBlobSizeHistogram:                                       {metricName: "event_blob_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
