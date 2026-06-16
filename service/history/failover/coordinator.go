@@ -47,6 +47,7 @@ import (
 const (
 	notificationChanBufferSize       = 1000
 	receiveChanBufferSize            = 1000
+	workerChanBufferSize             = 512
 	cleanupMarkerInterval            = 30 * time.Minute
 	invalidMarkerDuration            = 1 * time.Hour
 	updateDomainRetryInitialInterval = 50 * time.Millisecond
@@ -76,8 +77,8 @@ type (
 		shutdownChan     chan struct{}
 		retryPolicy      backoff.RetryPolicy
 
-		recorderLock sync.Mutex
-		recorder     map[string]*failoverRecord
+		workersLock sync.RWMutex
+		workers     map[string]*domainWorker
 
 		domainManager persistence.DomainManager
 		historyClient history.Client
@@ -104,6 +105,19 @@ type (
 		lastUpdatedTime time.Time
 		firstSeenTime   time.Time
 	}
+
+	workerMsg struct {
+		receive *receiveRequest
+		cleanup bool
+	}
+
+	domainWorker struct {
+		domainID    string
+		receiveChan chan workerMsg
+
+		mu     sync.Mutex
+		record *failoverRecord
+	}
 )
 
 // NewCoordinator initialize a failover coordinator
@@ -123,7 +137,7 @@ func NewCoordinator(
 
 	return &coordinatorImpl{
 		status:           common.DaemonStatusInitialized,
-		recorder:         make(map[string]*failoverRecord),
+		workers:          make(map[string]*domainWorker),
 		notificationChan: make(chan *notificationRequest, notificationChanBufferSize),
 		receiveChan:      make(chan *receiveRequest, receiveChanBufferSize),
 		shutdownChan:     make(chan struct{}),
@@ -193,22 +207,27 @@ func (c *coordinatorImpl) ReceiveFailoverMarkers(
 func (c *coordinatorImpl) GetFailoverInfo(
 	domainID string,
 ) (*types.GetFailoverInfoResponse, error) {
-	c.recorderLock.Lock()
-	defer c.recorderLock.Unlock()
-
-	record, ok := c.recorder[domainID]
+	c.workersLock.RLock()
+	w, ok := c.workers[domainID]
+	c.workersLock.RUnlock()
 	if !ok {
+		return nil, errRecordNotFound
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.record == nil {
 		return nil, errRecordNotFound
 	}
 
 	var pendingShards []int32
 	for i := 0; i < c.config.NumberOfShards; i++ {
-		if _, ok := record.shards[int32(i)]; !ok {
+		if _, ok := w.record.shards[int32(i)]; !ok {
 			pendingShards = append(pendingShards, int32(i))
 		}
 	}
 	return &types.GetFailoverInfoResponse{
-		CompletedShardCount: int32(len(record.shards)),
+		CompletedShardCount: int32(len(w.record.shards)),
 		PendingShards:       pendingShards,
 	}, nil
 }
@@ -225,7 +244,234 @@ func (c *coordinatorImpl) receiveFailoverMarkersLoop() {
 		case <-ticker.C:
 			c.cleanupInvalidMarkers()
 		case request := <-c.receiveChan:
-			c.handleFailoverMarkers(request)
+			c.dispatchToWorker(request)
+		}
+	}
+}
+
+func (c *coordinatorImpl) dispatchToWorker(request *receiveRequest) {
+	domainID := request.marker.GetDomainID()
+	w := c.getOrCreateWorker(domainID)
+
+	select {
+	case w.receiveChan <- workerMsg{receive: request}:
+	default:
+		// Worker's channel is saturated. Process inline rather than blocking
+		// the dispatcher — blocking would re-serialize every other domain
+		// behind this one slow worker. handleFailoverMarkers takes w.mu, so
+		// state mutations remain serialized per worker. The version-check in
+		// handleFailoverMarkers tolerates this happening out-of-order relative
+		// to any messages still queued for the worker.
+		c.handleFailoverMarkers(w, request)
+	}
+}
+
+func (c *coordinatorImpl) getOrCreateWorker(domainID string) *domainWorker {
+	c.workersLock.RLock()
+	w, ok := c.workers[domainID]
+	c.workersLock.RUnlock()
+	if ok {
+		return w
+	}
+
+	c.workersLock.Lock()
+	defer c.workersLock.Unlock()
+	if w, ok := c.workers[domainID]; ok {
+		return w
+	}
+	w = &domainWorker{
+		domainID:    domainID,
+		receiveChan: make(chan workerMsg, workerChanBufferSize),
+	}
+	c.workers[domainID] = w
+	go c.runDomainWorker(w)
+	return w
+}
+
+func (c *coordinatorImpl) runDomainWorker(w *domainWorker) {
+	for {
+		select {
+		case <-c.shutdownChan:
+			return
+		case msg := <-w.receiveChan:
+			done := false
+			if msg.cleanup {
+				done = true
+			} else {
+				done = c.handleFailoverMarkers(w, msg.receive)
+			}
+			if done && c.tryRemoveWorker(w) {
+				return
+			}
+		}
+	}
+}
+
+// tryRemoveWorker removes the worker from the outer map iff it has no pending
+// messages and no live failover record. Returns true if the worker was removed
+// and the goroutine should exit. Returns false if work arrived after the worker
+// decided to exit (queued message, or a record re-created by an inline dispatch
+// from dispatchToWorker), in which case the worker keeps running.
+func (c *coordinatorImpl) tryRemoveWorker(w *domainWorker) bool {
+	c.workersLock.Lock()
+	defer c.workersLock.Unlock()
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.receiveChan) > 0 || w.record != nil {
+		return false
+	}
+	delete(c.workers, w.domainID)
+	return true
+}
+
+// handleFailoverMarkers processes a single receiveRequest for one domain.
+// Returns true if the failover record was deleted (worker should attempt exit).
+func (c *coordinatorImpl) handleFailoverMarkers(
+	w *domainWorker,
+	request *receiveRequest,
+) bool {
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	marker := request.marker
+	domainID := marker.GetDomainID()
+	if w.record != nil {
+		// if the local failover version is less than the failover version in the marker,
+		// it means that another failover happened for this domain and the local one should be invalidated
+		if w.record.failoverVersion < marker.GetFailoverVersion() {
+			w.record = nil
+		}
+
+		// if the local failover version is larger than the failover version in the marker,
+		// ignore the incoming marker
+		if w.record != nil && w.record.failoverVersion > marker.GetFailoverVersion() {
+			return false
+		}
+	}
+
+	now := c.timeSource.Now()
+	if w.record == nil {
+		w.record = &failoverRecord{
+			failoverVersion: marker.GetFailoverVersion(),
+			shards:          make(map[int32]struct{}),
+			firstSeenTime:   now,
+		}
+	}
+
+	w.record.lastUpdatedTime = now
+	for _, shardID := range request.shardIDs {
+		w.record.shards[shardID] = struct{}{}
+	}
+
+	domainName, err := c.domainCache.GetDomainName(domainID)
+	if err != nil {
+		c.logger.Error("Coordinator failed to get domain name while recording failover markers from request",
+			tag.WorkflowDomainID(domainID),
+			tag.Error(err),
+		)
+
+		c.scope.Tagged(metrics.DomainTag(domainName)).IncCounter(metrics.CadenceFailures)
+		return false
+	}
+
+	if len(w.record.shards) == c.config.NumberOfShards {
+		cleanStart := c.timeSource.Now()
+		updated, err := domain.CleanPendingActiveState(
+			c.domainManager,
+			domainID,
+			w.record.failoverVersion,
+			c.retryPolicy,
+		)
+		cleanDuration := c.timeSource.Now().Sub(cleanStart)
+		if err != nil {
+			c.logger.Error("Coordinator failed to update domain after receiving failover markers from all shards",
+				tag.WorkflowDomainID(domainID),
+				tag.Error(err),
+			)
+			c.scope.IncCounter(metrics.CadenceFailures)
+			return false
+		}
+		firstSeenTime := w.record.firstSeenTime
+		w.record = nil
+		// reset the gauge so it reflects the current (empty) pending state for this domain
+		// rather than the last partial-count value, which would otherwise linger forever
+		c.scope.Tagged(
+			metrics.DomainTag(domainName),
+		).UpdateGauge(
+			metrics.FailoverMarkerCount,
+			0,
+		)
+
+		if !updated {
+			// another path already cleared the pending-active state — avoid the
+			// misleading "Updated domain from pending-active to active" log and
+			// the bogus GracefulFailoverLatency (which would otherwise report
+			// now - marker.CreationTime on a long-stale marker)
+			return true
+		}
+
+		now := c.timeSource.Now()
+		// use the last marker to calculate the failover duration
+		failoverDuration := now.Sub(time.Unix(0, marker.GetCreationTime()))
+		markerPipelineDuration := now.Sub(firstSeenTime)
+		c.scope.Tagged(
+			metrics.DomainTag(domainName),
+		).RecordTimer(
+			metrics.GracefulFailoverLatency,
+			failoverDuration,
+		)
+		c.scope.Tagged(
+			metrics.DomainTag(domainName),
+		).RecordHistogramDuration(
+			metrics.GracefulFailoverLatencyHistogram,
+			failoverDuration,
+		)
+		c.logger.Info("Updated domain from pending-active to active",
+			tag.WorkflowDomainName(domainName),
+			tag.FailoverVersion(marker.FailoverVersion),
+			tag.Duration(failoverDuration),
+			tag.Dynamic("marker-pipeline-duration", markerPipelineDuration),
+			tag.Dynamic("clean-pending-active-duration", cleanDuration),
+		)
+		return true
+	}
+
+	c.scope.Tagged(
+		metrics.DomainTag(domainName),
+	).UpdateGauge(
+		metrics.FailoverMarkerCount,
+		float64(len(w.record.shards)),
+	)
+	return false
+}
+
+func (c *coordinatorImpl) cleanupInvalidMarkers() {
+	c.workersLock.RLock()
+	expired := make([]*domainWorker, 0)
+	for _, w := range c.workers {
+		w.mu.Lock()
+		stale := w.record != nil && c.timeSource.Now().Sub(w.record.lastUpdatedTime) > invalidMarkerDuration
+		if stale {
+			w.record = nil
+		}
+		empty := w.record == nil
+		w.mu.Unlock()
+		if empty {
+			expired = append(expired, w)
+		}
+	}
+	c.workersLock.RUnlock()
+
+	for _, w := range expired {
+		select {
+		case w.receiveChan <- workerMsg{cleanup: true}:
+		case <-c.shutdownChan:
+			return
+		default:
+			// Worker's channel is full; skip this round. The record is already
+			// cleared, so the worker will reach tryRemoveWorker and exit on
+			// its own once it drains.
 		}
 	}
 }
@@ -289,136 +535,6 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 				c.config.NotifyFailoverMarkerInterval(),
 				c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
 			))
-		}
-	}
-}
-
-func (c *coordinatorImpl) handleFailoverMarkers(
-	request *receiveRequest,
-) {
-
-	c.recorderLock.Lock()
-	defer c.recorderLock.Unlock()
-
-	marker := request.marker
-	domainID := marker.GetDomainID()
-	if record, ok := c.recorder[domainID]; ok {
-		// if the local failover version is less than the failover version in the marker,
-		// it means that another failover happened for this domain and the local one should be invalidated
-		if record.failoverVersion < marker.GetFailoverVersion() {
-			delete(c.recorder, domainID)
-		}
-
-		// if the local failover version is larger than the failover version in the marker,
-		// ignore the incoming marker
-		if record.failoverVersion > marker.GetFailoverVersion() {
-			return
-		}
-	}
-
-	now := c.timeSource.Now()
-	if _, ok := c.recorder[domainID]; !ok {
-		// initialize the failover record
-		c.recorder[marker.GetDomainID()] = &failoverRecord{
-			failoverVersion: marker.GetFailoverVersion(),
-			shards:          make(map[int32]struct{}),
-			firstSeenTime:   now,
-		}
-	}
-
-	record := c.recorder[domainID]
-	record.lastUpdatedTime = now
-	for _, shardID := range request.shardIDs {
-		record.shards[shardID] = struct{}{}
-	}
-
-	domainName, err := c.domainCache.GetDomainName(domainID)
-	if err != nil {
-		c.logger.Error("Coordinator failed to get domain name while recording failover markers from request",
-			tag.WorkflowDomainID(domainID),
-			tag.Error(err),
-		)
-
-		c.scope.Tagged(metrics.DomainTag(domainName)).IncCounter(metrics.CadenceFailures)
-		return
-	}
-
-	if len(record.shards) == c.config.NumberOfShards {
-		cleanStart := c.timeSource.Now()
-		updated, err := domain.CleanPendingActiveState(
-			c.domainManager,
-			domainID,
-			record.failoverVersion,
-			c.retryPolicy,
-		)
-		cleanDuration := c.timeSource.Now().Sub(cleanStart)
-		if err != nil {
-			c.logger.Error("Coordinator failed to update domain after receiving failover markers from all shards",
-				tag.WorkflowDomainID(domainID),
-				tag.Error(err),
-			)
-			c.scope.IncCounter(metrics.CadenceFailures)
-			return
-		}
-		firstSeenTime := record.firstSeenTime
-		delete(c.recorder, domainID)
-		// reset the gauge so it reflects the current (empty) pending state for this domain
-		// rather than the last partial-count value, which would otherwise linger forever
-		c.scope.Tagged(
-			metrics.DomainTag(domainName),
-		).UpdateGauge(
-			metrics.FailoverMarkerCount,
-			0,
-		)
-
-		if !updated {
-			// another path already cleared the pending-active state — avoid the
-			// misleading "Updated domain from pending-active to active" log and
-			// the bogus GracefulFailoverLatency (which would otherwise report
-			// now - marker.CreationTime on a long-stale marker)
-			return
-		}
-
-		now := c.timeSource.Now()
-		// use the last marker to calculate the failover duration
-		failoverDuration := now.Sub(time.Unix(0, marker.GetCreationTime()))
-		markerPipelineDuration := now.Sub(firstSeenTime)
-		c.scope.Tagged(
-			metrics.DomainTag(domainName),
-		).RecordTimer(
-			metrics.GracefulFailoverLatency,
-			failoverDuration,
-		)
-		c.scope.Tagged(
-			metrics.DomainTag(domainName),
-		).RecordHistogramDuration(
-			metrics.GracefulFailoverLatencyHistogram,
-			failoverDuration,
-		)
-		c.logger.Info("Updated domain from pending-active to active",
-			tag.WorkflowDomainName(domainName),
-			tag.FailoverVersion(marker.FailoverVersion),
-			tag.Duration(failoverDuration),
-			tag.Dynamic("marker-pipeline-duration", markerPipelineDuration),
-			tag.Dynamic("clean-pending-active-duration", cleanDuration),
-		)
-	} else {
-		c.scope.Tagged(
-			metrics.DomainTag(domainName),
-		).UpdateGauge(
-			metrics.FailoverMarkerCount,
-			float64(len(record.shards)),
-		)
-	}
-}
-
-func (c *coordinatorImpl) cleanupInvalidMarkers() {
-	c.recorderLock.Lock()
-	defer c.recorderLock.Unlock()
-
-	for domainID, record := range c.recorder {
-		if c.timeSource.Now().Sub(record.lastUpdatedTime) > invalidMarkerDuration {
-			delete(c.recorder, domainID)
 		}
 	}
 }

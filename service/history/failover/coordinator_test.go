@@ -280,6 +280,29 @@ func (s *coordinatorSuite) TestAggregateNotificationRequests() {
 	s.Equal([]int32{3}, requestByMarker[attributes2].shardIDs)
 }
 
+func (s *coordinatorSuite) handle(req *receiveRequest) bool {
+	domainID := req.marker.GetDomainID()
+	w, ok := s.coordinator.workers[domainID]
+	if !ok {
+		w = &domainWorker{
+			domainID:    domainID,
+			receiveChan: make(chan workerMsg, workerChanBufferSize),
+		}
+		s.coordinator.workers[domainID] = w
+	}
+	return s.coordinator.handleFailoverMarkers(w, req)
+}
+
+func (s *coordinatorSuite) record(domainID string) *failoverRecord {
+	w, ok := s.coordinator.workers[domainID]
+	if !ok {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.record
+}
+
 func (s *coordinatorSuite) TestHandleFailoverMarkers_DeleteExpiredFailoverMarker() {
 	domainID := uuid.New()
 	attributes1 := &types.FailoverMarkerAttributes{
@@ -301,9 +324,12 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_DeleteExpiredFailoverMarker
 		marker:   attributes2,
 	}
 
-	s.coordinator.handleFailoverMarkers(request1)
-	s.coordinator.handleFailoverMarkers(request2)
-	s.Equal(1, len(s.coordinator.recorder))
+	s.handle(request1)
+	s.handle(request2)
+	rec := s.record(domainID)
+	s.NotNil(rec)
+	s.Equal(int64(2), rec.failoverVersion)
+	s.Len(rec.shards, 1)
 }
 
 func (s *coordinatorSuite) TestHandleFailoverMarkers_IgnoreExpiredFailoverMarker() {
@@ -327,9 +353,12 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_IgnoreExpiredFailoverMarker
 		marker:   attributes2,
 	}
 
-	s.coordinator.handleFailoverMarkers(request2)
-	s.coordinator.handleFailoverMarkers(request1)
-	s.Equal(1, len(s.coordinator.recorder))
+	s.handle(request2)
+	s.handle(request1)
+	rec := s.record(domainID)
+	s.NotNil(rec)
+	s.Equal(int64(2), rec.failoverVersion)
+	s.Len(rec.shards, 1)
 }
 
 func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_Success() {
@@ -400,9 +429,9 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_Suc
 		NotificationVersion:         1,
 	}).Return(nil).Times(1)
 
-	s.coordinator.handleFailoverMarkers(request1)
-	s.coordinator.handleFailoverMarkers(request2)
-	s.Equal(0, len(s.coordinator.recorder))
+	s.handle(request1)
+	s.handle(request2)
+	s.Nil(s.record(domainID))
 }
 
 func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_Error() {
@@ -473,9 +502,11 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_Err
 		NotificationVersion:         1,
 	}).Return(fmt.Errorf("test error")).Times(3)
 
-	s.coordinator.handleFailoverMarkers(request1)
-	s.coordinator.handleFailoverMarkers(request2)
-	s.Equal(1, len(s.coordinator.recorder))
+	s.handle(request1)
+	s.handle(request2)
+	rec := s.record(domainID)
+	s.NotNil(rec)
+	s.Len(rec.shards, 2)
 }
 
 func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_NoOp() {
@@ -535,9 +566,9 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_NoO
 		NotificationVersion:         1,
 	}, nil).Times(1)
 
-	s.coordinator.handleFailoverMarkers(request1)
-	s.coordinator.handleFailoverMarkers(request2)
-	s.Equal(0, len(s.coordinator.recorder), "recorder entry should be cleared even when CleanPendingActiveState is a no-op")
+	s.handle(request1)
+	s.handle(request2)
+	s.Nil(s.record(domainID), "record should be cleared even when CleanPendingActiveState is a no-op")
 	s.mockMetadataManager.AssertNotCalled(s.T(), "UpdateDomain", mock.Anything, mock.Anything)
 }
 
@@ -554,7 +585,7 @@ func (s *coordinatorSuite) TestGetFailoverInfo_Success() {
 		shardIDs: []int32{1},
 		marker:   attributes,
 	}
-	s.coordinator.handleFailoverMarkers(request)
+	s.handle(request)
 
 	resp, err := s.coordinator.GetFailoverInfo(domainID)
 	s.NoError(err)
@@ -567,4 +598,69 @@ func (s *coordinatorSuite) TestGetFailoverInfo_DomainIDNotFound_Error() {
 	resp, err := s.coordinator.GetFailoverInfo(domainID)
 	s.Nil(resp)
 	s.Error(err)
+}
+
+func (s *coordinatorSuite) TestHandleFailoverMarkers_PerDomainConcurrency() {
+	domainA := uuid.New()
+	domainB := uuid.New()
+
+	infoA := &persistence.DomainInfo{ID: domainA, Status: persistence.DomainStatusRegistered}
+	infoB := &persistence.DomainInfo{ID: domainB, Status: persistence.DomainStatusRegistered}
+	cfg := &persistence.DomainConfig{Retention: 1, EmitMetric: true}
+	repl := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active",
+		Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: "active"}},
+	}
+
+	s.mockMetadataManager.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{NotificationVersion: 1}, nil)
+	s.mockMetadataManager.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: domainA}).Return(&persistence.GetDomainResponse{
+		Info: infoA, Config: cfg, ReplicationConfig: repl, IsGlobalDomain: true,
+		ConfigVersion: 1, FailoverVersion: 2, FailoverNotificationVersion: 2,
+		FailoverEndTime: common.Int64Ptr(1), NotificationVersion: 1,
+	}, nil).Times(1)
+	s.mockMetadataManager.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{ID: domainB}).Return(&persistence.GetDomainResponse{
+		Info: infoB, Config: cfg, ReplicationConfig: repl, IsGlobalDomain: true,
+		ConfigVersion: 1, FailoverVersion: 2, FailoverNotificationVersion: 2,
+		FailoverEndTime: common.Int64Ptr(1), NotificationVersion: 1,
+	}, nil).Times(1)
+
+	blockA := make(chan struct{})
+	aDone := make(chan struct{})
+	s.mockMetadataManager.On("UpdateDomain", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateDomainRequest) bool {
+		return req.Info.ID == domainA
+	})).Run(func(args mock.Arguments) {
+		<-blockA
+		close(aDone)
+	}).Return(nil).Times(1)
+
+	bDone := make(chan struct{})
+	s.mockMetadataManager.On("UpdateDomain", mock.Anything, mock.MatchedBy(func(req *persistence.UpdateDomainRequest) bool {
+		return req.Info.ID == domainB
+	})).Run(func(args mock.Arguments) { close(bDone) }).Return(nil).Times(1)
+
+	s.coordinator.Start()
+	defer s.coordinator.Stop()
+
+	mkMarker := func(domainID string) *types.FailoverMarkerAttributes {
+		return &types.FailoverMarkerAttributes{
+			DomainID: domainID, FailoverVersion: 2, CreationTime: common.Int64Ptr(1),
+		}
+	}
+	// Two shards each => completion fires on the second marker per domain.
+	s.coordinator.ReceiveFailoverMarkers([]int32{0}, mkMarker(domainA))
+	s.coordinator.ReceiveFailoverMarkers([]int32{1}, mkMarker(domainA))
+	s.coordinator.ReceiveFailoverMarkers([]int32{0}, mkMarker(domainB))
+	s.coordinator.ReceiveFailoverMarkers([]int32{1}, mkMarker(domainB))
+
+	select {
+	case <-bDone:
+	case <-time.After(2 * time.Second):
+		s.Fail("domain B's completion was blocked by domain A's in-flight UpdateDomain")
+	}
+	close(blockA)
+	select {
+	case <-aDone:
+	case <-time.After(2 * time.Second):
+		s.Fail("domain A's UpdateDomain never completed after unblock")
+	}
 }
