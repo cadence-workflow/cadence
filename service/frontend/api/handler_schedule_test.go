@@ -575,8 +575,7 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the close status stays CONTINUED_AS_NEW past the retry budget, the
-		// scheduler is stuck mid-transition; return ServiceBusyError so the
-		// middleware maps it to RESOURCE_EXHAUSTED and clients retry.
+		// scheduler is stuck mid-transition; return CodeUnavailable so clients retry.
 		"scheduler mid-ContinueAsNew - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -590,9 +589,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				var sbe *types.ServiceBusyError
-				assert.ErrorAs(t, err, &sbe)
-				assert.Contains(t, sbe.Message, "mid-ContinueAsNew")
+				assert.True(t, yarpcerrors.IsStatus(err))
+				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		// A freshly started scheduler run has not yet processed its first decision
@@ -742,9 +741,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 		},
 		// If the scheduler does ContinueAsNew between the DWE probe and the query,
-		// the query is rejected with CONTINUED_AS_NEW. Return ServiceBusyError so
-		// the middleware maps it to RESOURCE_EXHAUSTED and the client retries.
-		"scheduler ContinueAsNew between DWE and Query - return ServiceBusyError": {
+		// the query is rejected with CONTINUED_AS_NEW. Return CodeUnavailable so
+		// the client retries — the new run will be queryable momentarily.
+		"scheduler ContinueAsNew between DWE and Query - return Unavailable": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
 				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
@@ -762,9 +761,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				var sbe *types.ServiceBusyError
-				assert.ErrorAs(t, err, &sbe)
-				assert.Contains(t, sbe.Message, "mid-ContinueAsNew")
+				assert.True(t, yarpcerrors.IsStatus(err))
+				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		"success": {
