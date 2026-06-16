@@ -37,6 +37,7 @@ frontend.validSearchAttributes:
     CadenceScheduleState: 1
     CadenceScheduleCron: 1
     CadenceScheduleWorkflowType: 1
+    CadenceScheduleBackfillID: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
@@ -83,6 +84,9 @@ matching.enableClientAutoConfig:
 - value: true
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
+worker.enableScheduler:
+- value: true
+  constraints: {}
 history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 - value: true
 
