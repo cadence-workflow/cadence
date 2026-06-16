@@ -38,11 +38,6 @@ type scheduleCLIImpl struct {
 }
 
 func withScheduleClient(c *cli.Context, cb func(sc *scheduleCLIImpl) error) error {
-	if c.String(FlagTransport) != grpcTransport {
-		if err := c.Set(FlagTransport, grpcTransport); err != nil {
-			return commoncli.Problem("Schedule commands require gRPC transport but failed to set it", err)
-		}
-	}
 	client, err := initializeFrontendClient(c)
 	if err != nil {
 		return err
