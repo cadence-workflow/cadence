@@ -96,6 +96,8 @@ func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger
 			return err
 		}
 		if err.Code() == yarpcerrors.CodeUnavailable {
+			logger.Error("Frontend request failed with service unavailable", tag.Error(err))
+			scope.IncCounter(metrics.CadenceErrServiceUnavailableCounter)
 			return err
 		}
 	}
