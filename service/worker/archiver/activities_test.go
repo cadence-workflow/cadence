@@ -84,8 +84,8 @@ func (s *activitiesSuite) SetupTest() {
 	s.archiverProvider = provider.NewMockArchiverProvider(s.controller)
 	s.historyArchiver = &carchiver.HistoryArchiverMock{}
 	s.visibilityArchiver = &carchiver.VisibilityArchiverMock{}
-	s.metricsScope.On("StartTimer", metrics.CadenceLatency).Return(metrics.NewTestStopwatch()).Maybe()
-	s.metricsScope.On("StartTimerWithExponentialHistogram", metrics.CadenceLatency, metrics.CadenceLatencyHistogram).Return(metrics.NewTestStopwatch()).Maybe()
+	s.metricsScope.On("StartTimer", metrics.CadenceLatencyPerDomain).Return(metrics.NewTestStopwatch()).Maybe()
+	s.metricsScope.On("StartTimerWithExponentialHistogram", metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram).Return(metrics.NewTestStopwatch()).Maybe()
 	s.metricsScope.On("RecordTimer", mock.Anything, mock.Anything).Maybe()
 }
 

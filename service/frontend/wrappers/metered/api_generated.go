@@ -47,8 +47,11 @@ func (h *apiHandler) BackfillSchedule(ctx context.Context, bp1 *types.BackfillSc
 	scope := h.metricsClient.Scope(metrics.FrontendBackfillScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(bp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	bp2, err = h.handler.BackfillSchedule(ctx, bp1)
@@ -64,8 +67,11 @@ func (h *apiHandler) CountWorkflowExecutions(ctx context.Context, cp1 *types.Cou
 	scope := h.metricsClient.Scope(metrics.FrontendCountWorkflowExecutionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(cp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	cp2, err = h.handler.CountWorkflowExecutions(ctx, cp1)
@@ -81,8 +87,11 @@ func (h *apiHandler) CreateSchedule(ctx context.Context, cp1 *types.CreateSchedu
 	scope := h.metricsClient.Scope(metrics.FrontendCreateScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(cp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	cp2, err = h.handler.CreateSchedule(ctx, cp1)
@@ -97,8 +106,11 @@ func (h *apiHandler) DeleteDomain(ctx context.Context, dp1 *types.DeleteDomainRe
 	scope := h.metricsClient.Scope(metrics.FrontendDeleteDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.DeleteDomain(ctx, dp1)
@@ -114,8 +126,11 @@ func (h *apiHandler) DeleteSchedule(ctx context.Context, dp1 *types.DeleteSchedu
 	scope := h.metricsClient.Scope(metrics.FrontendDeleteScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	dp2, err = h.handler.DeleteSchedule(ctx, dp1)
@@ -130,8 +145,11 @@ func (h *apiHandler) DeprecateDomain(ctx context.Context, dp1 *types.DeprecateDo
 	scope := h.metricsClient.Scope(metrics.FrontendDeprecateDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.DeprecateDomain(ctx, dp1)
@@ -146,8 +164,11 @@ func (h *apiHandler) DescribeDomain(ctx context.Context, dp1 *types.DescribeDoma
 	scope := h.metricsClient.Scope(metrics.FrontendDescribeDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	dp2, err = h.handler.DescribeDomain(ctx, dp1)
@@ -163,8 +184,11 @@ func (h *apiHandler) DescribeSchedule(ctx context.Context, dp1 *types.DescribeSc
 	scope := h.metricsClient.Scope(metrics.FrontendDescribeScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	dp2, err = h.handler.DescribeSchedule(ctx, dp1)
@@ -188,10 +212,10 @@ func (h *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTa
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendDescribeTaskListScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -208,8 +232,11 @@ func (h *apiHandler) DescribeWorkflowExecution(ctx context.Context, dp1 *types.D
 	scope := h.metricsClient.Scope(metrics.FrontendDescribeWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	dp2, err = h.handler.DescribeWorkflowExecution(ctx, dp1)
@@ -225,8 +252,11 @@ func (h *apiHandler) DiagnoseWorkflowExecution(ctx context.Context, dp1 *types.D
 	scope := h.metricsClient.Scope(metrics.FrontendDiagnoseWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(dp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	dp2, err = h.handler.DiagnoseWorkflowExecution(ctx, dp1)
@@ -242,8 +272,11 @@ func (h *apiHandler) FailoverDomain(ctx context.Context, fp1 *types.FailoverDoma
 	scope := h.metricsClient.Scope(metrics.FrontendFailoverDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(fp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	fp2, err = h.handler.FailoverDomain(ctx, fp1)
@@ -258,8 +291,11 @@ func (h *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo
 	scope := h.metricsClient.Scope(metrics.FrontendGetClusterInfoScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	cp1, err = h.handler.GetClusterInfo(ctx)
@@ -274,8 +310,11 @@ func (h *apiHandler) GetSearchAttributes(ctx context.Context) (gp1 *types.GetSea
 	scope := h.metricsClient.Scope(metrics.FrontendGetSearchAttributesScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	gp1, err = h.handler.GetSearchAttributes(ctx)
@@ -291,8 +330,11 @@ func (h *apiHandler) GetTaskListsByDomain(ctx context.Context, gp1 *types.GetTas
 	scope := h.metricsClient.Scope(metrics.FrontendGetTaskListsByDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(gp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	gp2, err = h.handler.GetTaskListsByDomain(ctx, gp1)
@@ -308,8 +350,11 @@ func (h *apiHandler) GetWorkflowExecutionHistory(ctx context.Context, gp1 *types
 	scope := h.metricsClient.Scope(metrics.FrontendGetWorkflowExecutionHistoryScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(gp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	gp2, err = h.handler.GetWorkflowExecutionHistory(ctx, gp1)
@@ -328,8 +373,11 @@ func (h *apiHandler) ListArchivedWorkflowExecutions(ctx context.Context, lp1 *ty
 	scope := h.metricsClient.Scope(metrics.FrontendListArchivedWorkflowExecutionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListArchivedWorkflowExecutions(ctx, lp1)
@@ -345,8 +393,11 @@ func (h *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 	scope := h.metricsClient.Scope(metrics.FrontendListClosedWorkflowExecutionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListClosedWorkflowExecutions(ctx, lp1)
@@ -361,8 +412,11 @@ func (h *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequ
 	scope := h.metricsClient.Scope(metrics.FrontendListDomainsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListDomains(ctx, lp1)
@@ -377,8 +431,11 @@ func (h *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFai
 	scope := h.metricsClient.Scope(metrics.FrontendListFailoverHistoryScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListFailoverHistory(ctx, lp1)
@@ -394,8 +451,11 @@ func (h *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.
 	scope := h.metricsClient.Scope(metrics.FrontendListOpenWorkflowExecutionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListOpenWorkflowExecutions(ctx, lp1)
@@ -411,8 +471,11 @@ func (h *apiHandler) ListSchedules(ctx context.Context, lp1 *types.ListSchedules
 	scope := h.metricsClient.Scope(metrics.FrontendListSchedulesScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListSchedules(ctx, lp1)
@@ -436,10 +499,10 @@ func (h *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.List
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendListTaskListPartitionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -456,8 +519,11 @@ func (h *apiHandler) ListWorkflowExecutions(ctx context.Context, lp1 *types.List
 	scope := h.metricsClient.Scope(metrics.FrontendListWorkflowExecutionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ListWorkflowExecutions(ctx, lp1)
@@ -473,8 +539,11 @@ func (h *apiHandler) PauseSchedule(ctx context.Context, pp1 *types.PauseSchedule
 	scope := h.metricsClient.Scope(metrics.FrontendPauseScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	pp2, err = h.handler.PauseSchedule(ctx, pp1)
@@ -498,10 +567,10 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendPollForActivityTaskScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -526,10 +595,10 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendPollForDecisionTaskScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(pp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -546,8 +615,11 @@ func (h *apiHandler) QueryWorkflow(ctx context.Context, qp1 *types.QueryWorkflow
 	scope := h.metricsClient.Scope(metrics.FrontendQueryWorkflowScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(qp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	qp2, err = h.handler.QueryWorkflow(ctx, qp1)
@@ -571,8 +643,11 @@ func (h *apiHandler) RecordActivityTaskHeartbeat(ctx context.Context, rp1 *types
 	scope := h.metricsClient.Scope(metrics.FrontendRecordActivityTaskHeartbeatScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	rp2, err = h.handler.RecordActivityTaskHeartbeat(ctx, rp1)
@@ -588,8 +663,11 @@ func (h *apiHandler) RecordActivityTaskHeartbeatByID(ctx context.Context, rp1 *t
 	scope := h.metricsClient.Scope(metrics.FrontendRecordActivityTaskHeartbeatByIDScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	rp2, err = h.handler.RecordActivityTaskHeartbeatByID(ctx, rp1)
@@ -605,8 +683,11 @@ func (h *apiHandler) RefreshWorkflowTasks(ctx context.Context, rp1 *types.Refres
 	scope := h.metricsClient.Scope(metrics.FrontendRefreshWorkflowTasksScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RefreshWorkflowTasks(ctx, rp1)
@@ -621,8 +702,11 @@ func (h *apiHandler) RegisterDomain(ctx context.Context, rp1 *types.RegisterDoma
 	scope := h.metricsClient.Scope(metrics.FrontendRegisterDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RegisterDomain(ctx, rp1)
@@ -638,8 +722,11 @@ func (h *apiHandler) RequestCancelWorkflowExecution(ctx context.Context, rp1 *ty
 	scope := h.metricsClient.Scope(metrics.FrontendRequestCancelWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RequestCancelWorkflowExecution(ctx, rp1)
@@ -655,8 +742,11 @@ func (h *apiHandler) ResetStickyTaskList(ctx context.Context, rp1 *types.ResetSt
 	scope := h.metricsClient.Scope(metrics.FrontendResetStickyTaskListScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	rp2, err = h.handler.ResetStickyTaskList(ctx, rp1)
@@ -672,8 +762,11 @@ func (h *apiHandler) ResetWorkflowExecution(ctx context.Context, rp1 *types.Rese
 	scope := h.metricsClient.Scope(metrics.FrontendResetWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	rp2, err = h.handler.ResetWorkflowExecution(ctx, rp1)
@@ -697,8 +790,11 @@ func (h *apiHandler) RespondActivityTaskCanceled(ctx context.Context, rp1 *types
 	scope := h.metricsClient.Scope(metrics.FrontendRespondActivityTaskCanceledScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondActivityTaskCanceled(ctx, rp1)
@@ -714,8 +810,11 @@ func (h *apiHandler) RespondActivityTaskCanceledByID(ctx context.Context, rp1 *t
 	scope := h.metricsClient.Scope(metrics.FrontendRespondActivityTaskCanceledByIDScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondActivityTaskCanceledByID(ctx, rp1)
@@ -739,8 +838,11 @@ func (h *apiHandler) RespondActivityTaskCompleted(ctx context.Context, rp1 *type
 	scope := h.metricsClient.Scope(metrics.FrontendRespondActivityTaskCompletedScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondActivityTaskCompleted(ctx, rp1)
@@ -756,8 +858,11 @@ func (h *apiHandler) RespondActivityTaskCompletedByID(ctx context.Context, rp1 *
 	scope := h.metricsClient.Scope(metrics.FrontendRespondActivityTaskCompletedByIDScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondActivityTaskCompletedByID(ctx, rp1)
@@ -781,8 +886,11 @@ func (h *apiHandler) RespondActivityTaskFailed(ctx context.Context, rp1 *types.R
 	scope := h.metricsClient.Scope(metrics.FrontendRespondActivityTaskFailedScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondActivityTaskFailed(ctx, rp1)
@@ -798,8 +906,11 @@ func (h *apiHandler) RespondActivityTaskFailedByID(ctx context.Context, rp1 *typ
 	scope := h.metricsClient.Scope(metrics.FrontendRespondActivityTaskFailedByIDScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondActivityTaskFailedByID(ctx, rp1)
@@ -823,8 +934,11 @@ func (h *apiHandler) RespondDecisionTaskCompleted(ctx context.Context, rp1 *type
 	scope := h.metricsClient.Scope(metrics.FrontendRespondDecisionTaskCompletedScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	rp2, err = h.handler.RespondDecisionTaskCompleted(ctx, rp1)
@@ -848,8 +962,11 @@ func (h *apiHandler) RespondDecisionTaskFailed(ctx context.Context, rp1 *types.R
 	scope := h.metricsClient.Scope(metrics.FrontendRespondDecisionTaskFailedScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondDecisionTaskFailed(ctx, rp1)
@@ -873,8 +990,11 @@ func (h *apiHandler) RespondQueryTaskCompleted(ctx context.Context, rp1 *types.R
 	scope := h.metricsClient.Scope(metrics.FrontendRespondQueryTaskCompletedScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(domainName))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.RespondQueryTaskCompleted(ctx, rp1)
@@ -890,8 +1010,11 @@ func (h *apiHandler) RestartWorkflowExecution(ctx context.Context, rp1 *types.Re
 	scope := h.metricsClient.Scope(metrics.FrontendRestartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(rp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	rp2, err = h.handler.RestartWorkflowExecution(ctx, rp1)
@@ -907,8 +1030,11 @@ func (h *apiHandler) ScanWorkflowExecutions(ctx context.Context, lp1 *types.List
 	scope := h.metricsClient.Scope(metrics.FrontendScanWorkflowExecutionsScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(lp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	lp2, err = h.handler.ScanWorkflowExecutions(ctx, lp1)
@@ -932,10 +1058,10 @@ func (h *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendSignalWithStartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -960,10 +1086,10 @@ func (h *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendSignalWithStartWorkflowExecutionAsyncScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -981,8 +1107,11 @@ func (h *apiHandler) SignalWorkflowExecution(ctx context.Context, sp1 *types.Sig
 	scope := h.metricsClient.Scope(metrics.FrontendSignalWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.SignalWorkflowExecution(ctx, sp1)
@@ -1006,10 +1135,10 @@ func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendStartWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -1034,10 +1163,10 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 	scopePerDomain := h.metricsClient.Scope(metrics.FrontendStartWorkflowExecutionAsyncScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(sp1.GetDomain()))...)
 	scopePerDomain.IncCounter(metrics.CadenceRequests)
 	swPerDomainStart := time.Now()
-	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatency)
+	swPerDomain := scopePerDomain.StartTimer(metrics.CadenceLatencyPerDomain)
 	defer func() {
 		swPerDomain.Stop()
-		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swPerDomainStart))
+		scopePerDomain.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swPerDomainStart))
 	}()
 	logger := h.logger.WithTags(tags...)
 
@@ -1054,8 +1183,11 @@ func (h *apiHandler) TerminateWorkflowExecution(ctx context.Context, tp1 *types.
 	scope := h.metricsClient.Scope(metrics.FrontendTerminateWorkflowExecutionScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(tp1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	err = h.handler.TerminateWorkflowExecution(ctx, tp1)
@@ -1071,8 +1203,11 @@ func (h *apiHandler) UnpauseSchedule(ctx context.Context, up1 *types.UnpauseSche
 	scope := h.metricsClient.Scope(metrics.FrontendUnpauseScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(up1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	up2, err = h.handler.UnpauseSchedule(ctx, up1)
@@ -1087,8 +1222,11 @@ func (h *apiHandler) UpdateDomain(ctx context.Context, up1 *types.UpdateDomainRe
 	scope := h.metricsClient.Scope(metrics.FrontendUpdateDomainScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainUnknownTag())...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	up2, err = h.handler.UpdateDomain(ctx, up1)
@@ -1104,8 +1242,11 @@ func (h *apiHandler) UpdateSchedule(ctx context.Context, up1 *types.UpdateSchedu
 	scope := h.metricsClient.Scope(metrics.FrontendUpdateScheduleScope).Tagged(append(metrics.GetContextTags(ctx), metrics.DomainTag(up1.GetDomain()))...)
 	scope.IncCounter(metrics.CadenceRequests)
 	swStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceLatency)
-	defer func() { sw.Stop(); scope.ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(swStart)) }()
+	sw := scope.StartTimer(metrics.CadenceLatencyPerDomain)
+	defer func() {
+		sw.Stop()
+		scope.ExponentialHistogram(metrics.CadenceLatencyPerDomainHistogram, time.Since(swStart))
+	}()
 	logger := h.logger.WithTags(tags...)
 
 	up2, err = h.handler.UpdateSchedule(ctx, up1)

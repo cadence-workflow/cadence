@@ -132,7 +132,7 @@ func (h *historyArchiver) Archive(
 ) (err error) {
 	scope := h.container.MetricsClient.Scope(metrics.HistoryArchiverScope, metrics.DomainTag(request.DomainName))
 	featureCatalog := archiver.GetFeatureCatalog(opts...)
-	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram)
 	defer func() {
 		sw.Stop()
 		if err != nil {

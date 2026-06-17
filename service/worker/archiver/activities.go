@@ -53,7 +53,7 @@ var (
 func uploadHistoryActivity(ctx context.Context, request ArchiveRequest) (err error) {
 	container := ctx.Value(bootstrapContainerKey).(*BootstrapContainer)
 	scope := container.MetricsClient.Scope(metrics.ArchiverUploadHistoryActivityScope, metrics.DomainTag(request.DomainName))
-	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram)
 	defer func() {
 		sw.Stop()
 		if err != nil {
@@ -106,7 +106,7 @@ func uploadHistoryActivity(ctx context.Context, request ArchiveRequest) (err err
 func deleteHistoryActivity(ctx context.Context, request ArchiveRequest) (err error) {
 	container := ctx.Value(bootstrapContainerKey).(*BootstrapContainer)
 	scope := container.MetricsClient.Scope(metrics.ArchiverDeleteHistoryActivityScope, metrics.DomainTag(request.DomainName))
-	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram)
 	defer func() {
 		sw.Stop()
 		if err != nil {
@@ -135,7 +135,7 @@ func deleteHistoryActivity(ctx context.Context, request ArchiveRequest) (err err
 func archiveVisibilityActivity(ctx context.Context, request ArchiveRequest) (err error) {
 	container := ctx.Value(bootstrapContainerKey).(*BootstrapContainer)
 	scope := container.MetricsClient.Scope(metrics.ArchiverArchiveVisibilityActivityScope, metrics.DomainTag(request.DomainName))
-	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram)
 	defer func() {
 		sw.Stop()
 		if err != nil {

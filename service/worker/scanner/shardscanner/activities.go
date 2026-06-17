@@ -160,7 +160,7 @@ func scanShard(
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
 		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
-	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram)
 	defer sw.Stop()
 
 	if ctx.Hooks == nil {
@@ -384,7 +384,7 @@ func fixShard(
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
 		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
-	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatencyPerDomain, metrics.CadenceLatencyPerDomainHistogram)
 	defer sw.Stop()
 
 	if ctx.Hooks == nil {
