@@ -141,6 +141,13 @@ const (
 	// than this, RunsTotal is set to the cap as a lower bound.
 	maxBackfillRunsTotalCount = 100000
 
+	// defaultCatchUpWindow is applied to CatchUpWindow when the field is unset
+	// (zero) and the catch-up policy consults the window (ONE or ALL).
+	// One year is large enough to cover most outage scenarios while still
+	// bounding catch-up so a long-dormant schedule doesn't fire thousands of
+	// times on restart.
+	defaultCatchUpWindow = 365 * 24 * time.Hour
+
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
 	localActivityRetryInitialInterval   = time.Second

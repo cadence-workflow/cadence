@@ -64,6 +64,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	scope := workflow.GetMetricsScope(ctx).Tagged(map[string]string{"domain": input.Domain})
 
 	state := &input.State
+	ensurePolicyDefaults(&input.Policies)
 
 	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
 		return buildScheduleDescription(&input, state), nil
@@ -426,6 +427,7 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	if sig.Policies != nil {
 		previousOverlap := input.Policies.OverlapPolicy
 		input.Policies = *sig.Policies
+		ensurePolicyDefaults(&input.Policies)
 		changed = true
 		// Drop buffered fires if the overlap policy is no longer BUFFER:
 		// draining a queue under non-BUFFER semantics is ill-defined.
@@ -727,6 +729,18 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 		drained++
 	}
 	return false
+}
+
+// ensurePolicyDefaults fills in server-defined defaults for SchedulePolicies
+// fields whose zero value is ambiguous. Called at workflow start and on every
+// policy update so the default is always normalised inside the workflow state,
+// not at the API layer.
+func ensurePolicyDefaults(p *types.SchedulePolicies) {
+	usesWindow := p.CatchUpPolicy == types.ScheduleCatchUpPolicyOne ||
+		p.CatchUpPolicy == types.ScheduleCatchUpPolicyAll
+	if usesWindow && p.CatchUpWindow <= 0 {
+		p.CatchUpWindow = defaultCatchUpWindow
+	}
 }
 
 // defaultActivityOptions returns the standard local activity options used by

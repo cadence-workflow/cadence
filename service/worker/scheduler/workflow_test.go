@@ -2143,3 +2143,38 @@ func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsurePolicyDefaults(t *testing.T) {
+	tests := map[string]struct {
+		input      types.SchedulePolicies
+		wantWindow time.Duration
+	}{
+		"ONE with unset window gets default": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
+			wantWindow: defaultCatchUpWindow,
+		},
+		"ALL with unset window gets default": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyAll},
+			wantWindow: defaultCatchUpWindow,
+		},
+		"explicit window is preserved": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyAll, CatchUpWindow: 30 * time.Minute},
+			wantWindow: 30 * time.Minute,
+		},
+		"SKIP does not set window": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+			wantWindow: 0,
+		},
+		"zero policy does not set window": {
+			input:      types.SchedulePolicies{},
+			wantWindow: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := tt.input
+			ensurePolicyDefaults(&p)
+			assert.Equal(t, tt.wantWindow, p.CatchUpWindow)
+		})
+	}
+}
