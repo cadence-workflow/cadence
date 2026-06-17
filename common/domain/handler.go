@@ -430,12 +430,11 @@ func (d *handlerImpl) DescribeDomain(
 	return response, nil
 }
 
-// UpdateDomain update the domain
+// UpdateDomain updates the domain
 func (d *handlerImpl) UpdateDomain(
 	ctx context.Context,
 	updateRequest *types.UpdateDomainRequest,
 ) (*types.UpdateDomainResponse, error) {
-
 	// must get the metadata (notificationVersion) first
 	// this version can be regarded as the lock on the v2 domain table
 	// and since we do not know which table will return the domain afterwards
@@ -456,10 +455,11 @@ func (d *handlerImpl) UpdateDomain(
 		return d.updateLocalDomain(ctx, updateRequest, currentDomainState, notificationVersion)
 	}
 
+	if updateRequest.IsAConfigUpdateRequest() && updateRequest.IsAFailoverRequest() {
+		return nil, errCannotDoDomainFailoverAndUpdate
+	}
+
 	if updateRequest.IsAFailoverRequest() {
-		if updateRequest.IsAConfigUpdateRequest() {
-			return nil, errCannotDoDomainFailoverAndUpdate
-		}
 		return d.handleFailoverRequest(ctx, updateRequest, currentDomainState, notificationVersion)
 	}
 
@@ -1000,12 +1000,12 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 	return response, nil
 }
 
-// FailoverDomain handles failover of the domain to a different cluster
+// FailoverDomain is used to change the active cluster of a domain or a domain's cluster attributes.
+// Returns an error if the domain does not exist, the failover request is invalid, or the domain is currently in cooldown.
 func (d *handlerImpl) FailoverDomain(
 	ctx context.Context,
 	failoverRequest *types.FailoverDomainRequest,
 ) (*types.FailoverDomainResponse, error) {
-
 	metadata, err := d.domainManager.GetMetadata(ctx)
 	if err != nil {
 		return nil, err
