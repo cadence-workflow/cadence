@@ -457,6 +457,9 @@ func (d *handlerImpl) UpdateDomain(
 	}
 
 	if updateRequest.IsAFailoverRequest() {
+		if updateRequest.IsAConfigUpdateRequest() {
+			return nil, errCannotDoDomainFailoverAndUpdate
+		}
 		return d.handleFailoverRequest(ctx, updateRequest, currentDomainState, notificationVersion)
 	}
 
