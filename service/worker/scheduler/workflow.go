@@ -64,9 +64,12 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	scope := workflow.GetMetricsScope(ctx).Tagged(map[string]string{"domain": input.Domain})
 
 	state := &input.State
-	ensurePolicyDefaults(&input.Policies)
 
 	if state.CreateTime.IsZero() {
+		// First-ever execution: apply policy defaults for brand-new schedules only.
+		// On ContinueAsNew the stored state already reflects the user's intent
+		// (including CatchUpWindow=0 meaning "unlimited"), so we must not overwrite.
+		ensurePolicyDefaults(&input.Policies)
 		state.CreateTime = workflow.Now(ctx)
 		state.LastUpdateTime = state.CreateTime
 	}
@@ -437,8 +440,14 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	}
 	if sig.Policies != nil {
 		previousOverlap := input.Policies.OverlapPolicy
+		prevWindow := input.Policies.CatchUpWindow
 		input.Policies = *sig.Policies
-		ensurePolicyDefaults(&input.Policies)
+		// Treat CatchUpWindow=0 in the update as "no change": a zero value in a
+		// Go struct is indistinguishable from "field omitted", so we preserve the
+		// existing window rather than silently resetting it to unlimited.
+		if input.Policies.CatchUpWindow <= 0 && prevWindow > 0 {
+			input.Policies.CatchUpWindow = prevWindow
+		}
 		changed = true
 		// Drop buffered fires if the overlap policy is no longer BUFFER:
 		// draining a queue under non-BUFFER semantics is ill-defined.
@@ -743,9 +752,10 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 }
 
 // ensurePolicyDefaults fills in server-defined defaults for SchedulePolicies
-// fields whose zero value is ambiguous. Called at workflow start and on every
-// policy update so the default is always normalised inside the workflow state,
-// not at the API layer.
+// fields whose zero value is ambiguous. Called only on the very first workflow
+// execution so that new schedules get a sensible CatchUpWindow. ContinueAsNew
+// executions must not call this: a stored CatchUpWindow=0 means "unlimited"
+// (the upstream semantic) and must not be silently overwritten.
 func ensurePolicyDefaults(p *types.SchedulePolicies) {
 	usesWindow := p.CatchUpPolicy == types.ScheduleCatchUpPolicyOne ||
 		p.CatchUpPolicy == types.ScheduleCatchUpPolicyAll

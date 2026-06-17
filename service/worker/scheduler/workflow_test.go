@@ -2011,6 +2011,57 @@ func TestEffectiveBufferLimit(t *testing.T) {
 	}
 }
 
+func TestHandleUpdate_CatchUpWindowPreservation(t *testing.T) {
+	tests := []struct {
+		name       string
+		existing   time.Duration
+		updateWith time.Duration
+		want       time.Duration
+	}{
+		{
+			name:       "zero update preserves existing non-zero window",
+			existing:   365 * 24 * time.Hour,
+			updateWith: 0,
+			want:       365 * 24 * time.Hour,
+		},
+		{
+			name:       "explicit window in update overrides existing",
+			existing:   365 * 24 * time.Hour,
+			updateWith: 90 * time.Minute,
+			want:       90 * time.Minute,
+		},
+		{
+			name:       "zero update leaves zero window unchanged",
+			existing:   0,
+			updateWith: 0,
+			want:       0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+					CatchUpWindow: tt.existing,
+				},
+			}
+			state := &SchedulerWorkflowState{}
+			sig := UpdateSignal{
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+					CatchUpWindow: tt.updateWith,
+				},
+			}
+			changed := handleUpdate(testLogger, sig, &input, state)
+			assert.True(t, changed)
+			assert.Equal(t, tt.want, input.Policies.CatchUpWindow)
+		})
+	}
+}
+
 func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T) {
 	runningWFs := []RunningWorkflowInfo{
 		{WorkflowID: "wf-1", RunID: "run-1"},
