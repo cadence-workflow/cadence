@@ -835,6 +835,13 @@ func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
 // reportShadowComparison logs the result of a shadow comparison.
 func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
 
+	// Compute min ownerChangedRangeID before capping for logging, so the
+	// Info-vs-Warn decision uses the full set rather than a truncated slice.
+	var minOwnerChangedRangeID int64
+	if len(result.OwnerChangedRangeIDs) > 0 {
+		minOwnerChangedRangeID = slices.Min(result.OwnerChangedRangeIDs)
+	}
+
 	// Cap the number of mismatched task keys logged to avoid excessively large logs
 	result.MissedInCacheTasks = capShadowMismatchSlice(result.MissedInCacheTasks)
 	result.IncorrectTimeTasks = capShadowMismatchSlice(result.IncorrectTimeTasks)
@@ -848,7 +855,7 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 		// When currentRangeID is less than all ownerChangedRangeIDs, the tasks were created
 		// by a newer shard owner. This host has already lost ownership and will be stopped soon,
 		// so it's expected to see tasks from the new owner that aren't in its cache.
-		if result.CurrentRangeID < slices.Min(result.OwnerChangedRangeIDs) {
+		if result.CurrentRangeID < minOwnerChangedRangeID {
 			q.logger.Info("shard ownership already transferred, new owner created tasks not in cache", logTags...)
 		} else {
 			q.logger.Warn("possible shard ownership change, missed tasks are created in another range", logTags...)
