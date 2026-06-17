@@ -352,6 +352,7 @@ func (wh *WorkflowHandler) DescribeSchedule(
 				return &types.SchedulePauseInfo{
 					Reason:   desc.PauseReason,
 					PausedBy: desc.PausedBy,
+					PausedAt: desc.PausedAt,
 				}
 			}(),
 		},
@@ -361,6 +362,8 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			TotalRuns:        desc.TotalRuns,
 			MissedRuns:       desc.MissedRuns,
 			SkippedRuns:      desc.SkippedRuns,
+			CreateTime:       desc.CreateTime,
+			LastUpdateTime:   desc.LastUpdateTime,
 			OngoingBackfills: ongoingBackfillsForResponse(desc.OngoingBackfills),
 		},
 		Memo:             desc.Memo,

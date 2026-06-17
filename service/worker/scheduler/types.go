@@ -198,6 +198,15 @@ type SchedulerWorkflowState struct {
 	// processMissedRunsAt prefers this over input.Policies.CatchUpPolicy for the first
 	// catch-up pass after an unpause, then clears it. Invalid (zero) means no override.
 	UnpauseCatchUpPolicy types.ScheduleCatchUpPolicy `json:"unpauseCatchUpPolicy,omitempty"`
+	// CreateTime is the wall-clock time when the schedule was first created.
+	// Set once on the first workflow execution and preserved across ContinueAsNew.
+	CreateTime time.Time `json:"createTime,omitempty"`
+	// LastUpdateTime is the wall-clock time of the most recent UpdateSchedule that
+	// changed at least one field. Also set to CreateTime at schedule creation.
+	LastUpdateTime time.Time `json:"lastUpdateTime,omitempty"`
+	// PausedAt is the wall-clock time when the schedule was most recently paused.
+	// Zero when the schedule is not paused (or was never paused).
+	PausedAt time.Time `json:"pausedAt,omitempty"`
 }
 
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER
@@ -284,11 +293,14 @@ type ScheduleDescription struct {
 	Paused           bool                    `json:"paused"`
 	PauseReason      string                  `json:"pauseReason,omitempty"`
 	PausedBy         string                  `json:"pausedBy,omitempty"`
+	PausedAt         time.Time               `json:"pausedAt,omitempty"`
 	LastRunTime      time.Time               `json:"lastRunTime,omitempty"`
 	NextRunTime      time.Time               `json:"nextRunTime,omitempty"`
 	TotalRuns        int64                   `json:"totalRuns"`
 	MissedRuns       int64                   `json:"missedRuns"`
 	SkippedRuns      int64                   `json:"skippedRuns"`
+	CreateTime       time.Time               `json:"createTime,omitempty"`
+	LastUpdateTime   time.Time               `json:"lastUpdateTime,omitempty"`
 	Memo             *types.Memo             `json:"memo,omitempty"`
 	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 	// OngoingBackfills mirrors SchedulerWorkflowState.PendingBackfills at the
