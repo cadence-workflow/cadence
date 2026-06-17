@@ -71,7 +71,6 @@ func TestCadenceLatencyMetricsLabelConsistency(t *testing.T) {
 		CachedReporter: reporter,
 		Separator:      tallyp8s.DefaultSeparator,
 	}, time.Second)
-	defer closer.Close()
 
 	metricsClient := metrics.NewClient(rootScope, metrics.Frontend, metrics.MigrationConfig{
 		Histogram: metrics.HistogramMigration{Default: "histogram"},
@@ -103,6 +102,10 @@ func TestCadenceLatencyMetricsLabelConsistency(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	// Force the cached reporter to flush so metrics are registered against the
+	// Prometheus registry and any label-set collisions surface via OnError.
+	require.NoError(t, closer.Close())
 
 	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
 }
