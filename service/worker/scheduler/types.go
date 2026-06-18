@@ -131,9 +131,10 @@ const (
 	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
-	// maxActivitiesPerExecution caps the total number of activity fires the drain
-	// coroutine may dispatch before triggering ContinueAsNew. It also bounds the
-	// per-execution work of catch-up and backfill processing.
+	// maxActivitiesPerExecution is the shared budget for local-activity fires
+	// across the drain coroutine and the catch-up/backfill pre-loop within a
+	// single execution. Both consumers decrement the same counter, so the total
+	// fires per execution is bounded by this value before ContinueAsNew.
 	maxActivitiesPerExecution = 500
 	maxPendingBackfills       = 10
 

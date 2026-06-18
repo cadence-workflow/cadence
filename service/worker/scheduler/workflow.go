@@ -109,11 +109,17 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	// cleared the head of BufferedFires. SendAsync is used so the send is a
 	// no-op when the coroutine is already actively draining.
 	wakeDrain := workflow.NewBufferedChannel(ctx, 1)
-	// drainNeedsCAN is sent by the drain coroutine when it has dispatched
-	// maxActivitiesPerExecution fires and more buffered work remains.
-	// The main loop receives it and triggers ContinueAsNew so the next
-	// execution begins with a fresh budget.
+	// drainNeedsCAN is sent by the drain coroutine when the shared
+	// activityBudget is exhausted with buffered work still remaining.
+	// It is registered with the applyAllInputs selector so a budget-exhausted
+	// drain immediately unblocks the main loop, triggering ContinueAsNew without
+	// waiting for the next timer or signal.
 	drainNeedsCAN := workflow.NewBufferedChannel(ctx, 1)
+
+	// activityBudget is a shared ceiling for local-activity fires across the
+	// drain coroutine and the catch-up/backfill pre-loop. Both consumers
+	// decrement this counter so the total fires per execution stays bounded.
+	activityBudget := maxActivitiesPerExecution
 
 	// The drain coroutine runs concurrently with the main event loop. It
 	// processes BufferedFires in FIFO order whenever the head becomes startable,
@@ -123,14 +129,15 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	// workflow.Go is called at the top of every execution and BufferedFires
 	// survives in state across ContinueAsNew.
 	workflow.Go(ctx, func(ctx workflow.Context) {
-		totalDrained := 0
+		drainedThisExecution := 0
 		for {
 			if !state.Paused {
 				n, _ := drainBufferedFires(ctx, logger, &input, state)
-				totalDrained += n
-				if totalDrained >= maxActivitiesPerExecution && len(state.BufferedFires) > 0 {
+				activityBudget -= n
+				drainedThisExecution += n
+				if activityBudget <= 0 && len(state.BufferedFires) > 0 {
 					logger.Info("drain coroutine budget exhausted, continuing after ContinueAsNew",
-						zap.Int("drainedThisBatch", totalDrained),
+						zap.Int("drainedThisExecution", drainedThisExecution),
 						zap.Int("remaining", len(state.BufferedFires)),
 					)
 					drainNeedsCAN.SendAsync(nil)
@@ -140,8 +147,6 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			wakeDrain.Receive(ctx, nil)
 		}
 	})
-
-	activityBudget := maxActivitiesPerExecution
 
 	// On the first iteration (after ContinueAsNew or fresh start), check for
 	// fires that were missed during the transition gap or prior pause period.
@@ -182,7 +187,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		previousPaused := state.Paused
-		changed, timerFired := applyAllInputs(ctx, logger, scope, timerFuture, chs, state, &input)
+		changed, timerFired, drainCAN := applyAllInputs(ctx, logger, scope, timerFuture, chs, drainNeedsCAN, state, &input)
 
 		if timerCancel != nil {
 			timerCancel()
@@ -217,9 +222,11 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		// SendAsync is a no-op when the coroutine is already active.
 		wakeDrain.SendAsync(nil)
 
-		// Check whether the drain coroutine signalled that it exhausted its
-		// per-execution budget with more work remaining.
-		if drainNeedsCAN.ReceiveAsync(nil) {
+		// Check whether the drain coroutine signalled budget exhaustion.
+		// drainCAN is set when applyAllInputs itself woke on the drain notice;
+		// ReceiveAsync catches the case where drain sent after the selector had
+		// already unblocked on a timer or signal.
+		if drainCAN || drainNeedsCAN.ReceiveAsync(nil) {
 			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
 		}
 
@@ -233,26 +240,24 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	}
 }
 
-// applyAllInputs blocks until at least one input (signal or timer) arrives,
-// processes it, then drains any remaining buffered signals.
+// applyAllInputs blocks until at least one input (timer, signal, or drain-CAN
+// notice) arrives, processes it, then drains any remaining buffered signals.
 // Signals and the timer are treated uniformly: each mutates state without
 // triggering side effects (no timer cancellation, no ContinueAsNew).
-// Returns (stateChanged, timerFired): stateChanged is true if a state-changing
-// signal (pause, unpause, update) was received; timerFired is true if the timer
-// completed successfully.
+// Returns (stateChanged, timerFired, drainCAN): stateChanged is true if a
+// state-changing signal was received; timerFired is true if the timer fired;
+// drainCAN is true if the drain coroutine signalled budget exhaustion.
 func applyAllInputs(
 	ctx workflow.Context,
 	logger *zap.Logger,
 	scope tally.Scope,
 	timerFuture workflow.Future,
 	chs signalChannels,
+	drainNeedsCAN workflow.Channel,
 	state *SchedulerWorkflowState,
 	input *SchedulerWorkflowInput,
-) (bool, bool) {
+) (stateChanged, timerFired, drainCAN bool) {
 	selector := workflow.NewSelector(ctx)
-	stateChanged := false
-
-	timerFired := false
 	if timerFuture != nil {
 		selector.AddFuture(timerFuture, func(f workflow.Future) {
 			if f.Get(ctx, nil) != nil {
@@ -305,6 +310,11 @@ func applyAllInputs(
 		state.Deleted = true
 	})
 
+	selector.AddReceive(drainNeedsCAN, func(c workflow.Channel, more bool) {
+		c.Receive(ctx, nil)
+		drainCAN = true
+	})
+
 	selector.Select(ctx)
 
 	now := workflow.Now(ctx)
@@ -312,7 +322,7 @@ func applyAllInputs(
 		stateChanged = true
 	}
 
-	return stateChanged, timerFired
+	return stateChanged, timerFired, drainCAN
 }
 
 // drainBufferedSignals processes any remaining buffered signals without blocking.
