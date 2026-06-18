@@ -2453,7 +2453,7 @@ func TestInsertHistoryTasks(t *testing.T) {
 		}
 	})
 
-	t.Run("single batch when under budget", func(t *testing.T) {
+	t.Run("single atomic batch when under budget", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
 		db := newDB(t, session)
 		tasks := transferCategory(mkTransfer(1, 10), mkTransfer(2, 10), mkTransfer(3, 10))
@@ -2469,56 +2469,32 @@ func TestInsertHistoryTasks(t *testing.T) {
 		}
 	})
 
-	t.Run("splits into multiple batches when byte budget exceeded", func(t *testing.T) {
+	t.Run("all tasks written in a single atomic batch regardless of size", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
 		db := newDB(t, session)
-		// Each task's payload alone is most of the byte budget, so any two together overflow it.
+		// Large payloads that the previous chunking implementation would have split: the
+		// persistence layer no longer batches, so everything goes into one CAS.
 		big := 30 * 1024
 		tasks := transferCategory(mkTransfer(1, big), mkTransfer(2, big), mkTransfer(3, big))
 		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(session.batches) != 3 {
-			t.Fatalf("got %v batches, want 3", len(session.batches))
+		if len(session.batches) != 1 {
+			t.Fatalf("got %v batches, want 1", len(session.batches))
 		}
-		for i, b := range session.batches {
-			// 1 task query + 1 assertShardRangeID guard per chunk.
-			if got := len(b.queries); got != 2 {
-				t.Errorf("batch %d: got %v queries, want 2", i, got)
-			}
+		// 3 task queries + 1 assertShardRangeID guard, all in the same batch.
+		if got := len(session.batches[0].queries); got != 4 {
+			t.Errorf("got %v queries in batch, want 4", got)
 		}
 	})
 
-	t.Run("splits into multiple batches when count budget exceeded", func(t *testing.T) {
-		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
-		db := newDB(t, session)
-		tasks := make([]*nosqlplugin.HistoryMigrationTask, historyTaskInsertMaxBatchCount+1)
-		for i := range tasks {
-			tasks[i] = mkTransfer(int64(i+1), 1)
-		}
-		if err := db.InsertHistoryTasks(context.Background(), transferCategory(tasks...), time.Unix(0, 1), cond); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(session.batches) != 2 {
-			t.Fatalf("got %v batches, want 2", len(session.batches))
-		}
-		if got := len(session.batches[0].queries); got != historyTaskInsertMaxBatchCount+1 {
-			t.Errorf("first batch: got %v queries, want %v", got, historyTaskInsertMaxBatchCount+1)
-		}
-		if got := len(session.batches[1].queries); got != 2 {
-			t.Errorf("second batch: got %v queries, want 2", got)
-		}
-	})
-
-	t.Run("error on a chunk returns and stops", func(t *testing.T) {
+	t.Run("error executing the batch is returned", func(t *testing.T) {
 		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
 		db := newDB(t, session)
-		big := 30 * 1024
-		tasks := transferCategory(mkTransfer(1, big), mkTransfer(2, big))
+		tasks := transferCategory(mkTransfer(1, 10), mkTransfer(2, 10))
 		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err == nil {
 			t.Fatal("expected error, got nil")
 		}
-		// The first chunk failed, so the second chunk is never built.
 		if len(session.batches) != 1 {
 			t.Fatalf("got %v batches, want 1", len(session.batches))
 		}
