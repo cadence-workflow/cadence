@@ -1162,6 +1162,25 @@ func TestCreateHistoryTasks(t *testing.T) {
 		}))
 	})
 
+	t.Run("when a category other than transfer or timer is provided it should return a BadRequestError without writing", func(t *testing.T) {
+		controller := gomock.NewController(t)
+		mockDB := nosqlplugin.NewMockDB(controller)
+		store := newTestNosqlExecutionStore(mockDB, log.NewNoop())
+		store.dc = &persistence.DynamicConfiguration{
+			EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
+		}
+		// InsertHistoryTasks must never be called for an unsupported category.
+
+		err := store.CreateHistoryTasks(ctx, &persistence.CreateHistoryTasksRequest{
+			RangeID: 1,
+			TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+				persistence.HistoryTaskCategoryReplication: {newTransfer(domainA, workflowA, runA, 1)},
+			},
+		})
+		var badRequest *types.BadRequestError
+		require.ErrorAs(t, err, &badRequest)
+	})
+
 	t.Run("when InsertHistoryTasks returns a shard condition failure it should return a ShardOwnershipLostError", func(t *testing.T) {
 		controller := gomock.NewController(t)
 		mockDB := nosqlplugin.NewMockDB(controller)

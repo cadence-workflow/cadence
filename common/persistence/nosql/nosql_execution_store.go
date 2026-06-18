@@ -811,11 +811,20 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	return nil
 }
 
+// CreateHistoryTasks allows direct injection of tasks without a corresponding workflow update.
+// It supports transfer and timer tasks - replication tasks are not supported.
+// Returns an error when an unsupported category is provided or when the task insertion fails.
 func (d *nosqlExecutionStore) CreateHistoryTasks(
 	ctx context.Context,
 	request *persistence.CreateHistoryTasksRequest,
 ) error {
 	shardID := d.effectiveShardID(request.ShardID, "CreateHistoryTasks")
+
+	for category := range request.TasksByCategory {
+		if id := category.ID(); id != persistence.HistoryTaskCategoryIDTransfer && id != persistence.HistoryTaskCategoryIDTimer {
+			return &types.BadRequestError{Message: fmt.Sprintf("CreateHistoryTasks only supports transfer and timer tasks, got category: %v", id)}
+		}
+	}
 
 	outputTasks := make(map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask)
 	// The transfer/timer prepare helpers read each task's own (domainID, workflowID, runID) from
