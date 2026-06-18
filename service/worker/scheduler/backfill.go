@@ -118,9 +118,9 @@ func countCronFires(sched cron.Schedule, start, end time.Time, spec types.Schedu
 
 // processBackfills drains pending backfill requests from state, computing
 // cron fire times for each request's time range and executing them.
-// Returns true when more backfill work remains beyond this execution's scan
-// window, signalling the caller to ContinueAsNew.
-func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, fireSem workflow.Channel) bool {
+// Returns true when more backfill work remains (budget exhausted or scan cap
+// reached), signalling the caller to ContinueAsNew.
+func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int, fireSem workflow.Channel) bool {
 	if len(state.PendingBackfills) == 0 {
 		return false
 	}
@@ -161,6 +161,15 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
 
 		for _, t := range fires.times {
+			if *budget <= 0 {
+				bf.StartTime = t
+				logger.Info("activity budget exhausted mid-backfill, continuing after ContinueAsNew",
+					zap.String("backfillId", bf.BackfillID),
+					zap.Int("firedThisExecution", fired),
+				)
+				scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
+				return true
+			}
 			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
 			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID, fireSem)
 			fired++
@@ -169,6 +178,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 			// into the BUFFER. Counting only "started" would pin a
 			// BUFFER-deferred backfill in OngoingBackfills indefinitely.
 			bf.RunsCompleted++
+			*budget--
 		}
 
 		if fires.truncated {

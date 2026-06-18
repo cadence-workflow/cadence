@@ -131,10 +131,10 @@ const (
 	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
-	// maxActivitiesPerExecution is the shared budget for local-activity fires
-	// across the drain coroutine and the catch-up/backfill pre-loop within a
-	// single execution. Both consumers decrement the same counter, so the total
-	// fires per execution is bounded by this value before ContinueAsNew.
+	// maxActivitiesPerExecution is the per-execution ceiling for local-activity
+	// dispatches. processMissedRuns, processBackfills, and the drain coroutine
+	// all decrement the same counter, so the total fires per execution is
+	// bounded by this value before ContinueAsNew.
 	maxActivitiesPerExecution = 500
 	maxPendingBackfills       = 10
 

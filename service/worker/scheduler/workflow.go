@@ -116,9 +116,9 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	// waiting for the next timer or signal.
 	drainNeedsCAN := workflow.NewBufferedChannel(ctx, 1)
 
-	// activityBudget is a shared ceiling for local-activity fires across the
-	// drain coroutine and the catch-up/backfill pre-loop. Both consumers
-	// decrement this counter so the total fires per execution stays bounded.
+	// activityBudget is the per-execution ceiling for local-activity dispatches.
+	// processMissedRuns, processBackfills, and the drain coroutine all decrement
+	// the same counter so total fires stay bounded before ContinueAsNew.
 	activityBudget := maxActivitiesPerExecution
 
 	// fireSem is a single-token semaphore that serialises fire dispatch across
@@ -169,7 +169,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	}
 
 	// Process any pending backfill requests carried over from a previous execution.
-	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state, fireSem); moreBackfills {
+	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state, &activityBudget, fireSem); moreBackfills {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
 	}
 
@@ -597,6 +597,7 @@ func tryStartFire(ctx workflow.Context, logger *zap.Logger, input *SchedulerWork
 	// activities independently see the previous workflow as complete, and both
 	// start new workflows — corrupting RunningWorkflows tracking and violating
 	// BUFFER's serial guarantee.
+	// nil only in unit tests that bypass the workflow context.
 	if fireSem != nil {
 		fireSem.Receive(ctx, nil)
 		defer fireSem.SendAsync(nil)

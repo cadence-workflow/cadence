@@ -1082,7 +1082,8 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, nil)
+	budget := maxActivitiesPerExecution
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
 	assert.False(t, moreWork, "paused schedule should not fire backfills")
 	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
 	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
@@ -1112,7 +1113,8 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, nil)
+	budget := maxActivitiesPerExecution
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
 	assert.False(t, moreWork)
 	assert.Empty(t, state.PendingBackfills, "completed backfill should be removed")
 
@@ -1140,7 +1142,8 @@ func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, nil)
+	budget := maxActivitiesPerExecution
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
 	assert.False(t, moreWork, "all fires in range processed")
 	assert.Empty(t, state.PendingBackfills, "backfill should be removed when complete")
 	// RunsCompleted must match the 3 fires dispatched.
@@ -1148,6 +1151,38 @@ func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
 	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
 	require.True(t, ok, "backfill fired metric should be emitted")
 	assert.Equal(t, int64(3), c.Value(), "RunsCompleted advances on every processScheduleFire call")
+}
+
+// TestProcessBackfillsBudgetExhaustion verifies that processBackfills honours
+// the shared activity budget: when the budget hits zero mid-range it sets
+// bf.StartTime to the first unprocessed fire and returns true (CAN).
+func TestProcessBackfillsBudgetExhaustion(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Hourly cron [10:00, 13:00] → 4 fires: 10, 11, 12, 13.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	start := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC)
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{StartTime: start, EndTime: end, BackfillID: "bf-budget"},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	budget := 2
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
+
+	assert.True(t, moreWork, "should signal CAN when budget exhausted mid-range")
+	require.Len(t, state.PendingBackfills, 1, "partially-drained backfill must remain")
+	// Two fires processed (10:00, 11:00); resume point is the third (12:00).
+	assert.Equal(t, time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC), state.PendingBackfills[0].StartTime,
+		"StartTime must advance to the first unprocessed fire")
+	assert.Equal(t, 0, budget, "budget should be exactly zero after 2 fires")
+
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(2), c.Value(), "metric should reflect only the fires dispatched this execution")
 }
 
 // TestProcessBackfillsRunsTotalTruncated covers a range that exceeds the count
@@ -1169,7 +1204,8 @@ func TestProcessBackfillsRunsTotalTruncated(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	_ = processBackfills(nil, testLogger, scope, sched, input, state, nil)
+	budget := maxActivitiesPerExecution
+	_ = processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
 	require.Len(t, state.PendingBackfills, 1)
 	assert.Equal(t, int32(maxBackfillRunsTotalCount), state.PendingBackfills[0].RunsTotal,
 		"truncated count should report the cap as a lower bound, not 0")
@@ -1198,7 +1234,8 @@ func TestProcessBackfillsLazyRunsTotalUsesProcessSched(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	_ = processBackfills(nil, testLogger, scope, hourly, input, state, nil)
+	budget := maxActivitiesPerExecution
+	_ = processBackfills(nil, testLogger, scope, hourly, input, state, &budget, nil)
 	// 3 fires for hourly cron over [10:00, 12:00]: 10:00, 11:00, 12:00.
 	// Backfill drains in one call (within the activity budget), so it has
 	// been removed; check the firing metric reflects the count instead.
