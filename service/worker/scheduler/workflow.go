@@ -65,10 +65,6 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 
 	state := &input.State
 
-	if state.CreatedAt.IsZero() {
-		state.CreatedAt = workflow.Now(ctx)
-	}
-
 	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
 		return buildScheduleDescription(&input, state), nil
 	})

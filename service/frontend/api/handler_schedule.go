@@ -193,6 +193,7 @@ func (wh *WorkflowHandler) CreateSchedule(
 		return nil, err
 	}
 
+	now := time.Now()
 	workflowInput := scheduler.SchedulerWorkflowInput{
 		Domain:           domainName,
 		ScheduleID:       scheduleID,
@@ -200,6 +201,10 @@ func (wh *WorkflowHandler) CreateSchedule(
 		Action:           *request.GetAction(),
 		SearchAttributes: request.GetSearchAttributes(),
 		Memo:             request.GetMemo(),
+		State: scheduler.SchedulerWorkflowState{
+			CreatedAt:     now,
+			LastUpdatedAt: now,
+		},
 	}
 	if request.GetPolicies() != nil {
 		workflowInput.Policies = *request.GetPolicies()
