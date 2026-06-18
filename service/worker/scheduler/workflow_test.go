@@ -1812,9 +1812,10 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 		BufferedFires: append([]BufferedFire(nil), queue...),
 	}
 
-	moreToDrain := drainBufferedFires(nil, testLogger, input, state)
+	moreToDrain, drainedAny := drainBufferedFires(nil, testLogger, input, state)
 
 	assert.False(t, moreToDrain, "queue smaller than cap should fully drain")
+	assert.True(t, drainedAny, "should report progress when fires were dispatched")
 	assert.Empty(t, state.BufferedFires)
 	assert.Equal(t, int64(3), state.MissedRuns)
 	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime)
@@ -1951,9 +1952,10 @@ func TestDrainBufferedFiresRespectsCap(t *testing.T) {
 		BufferedFires: append([]BufferedFire(nil), queue...),
 	}
 
-	moreToDrain := drainBufferedFires(nil, testLogger, input, state)
+	moreToDrain, drainedAny := drainBufferedFires(nil, testLogger, input, state)
 
 	assert.True(t, moreToDrain, "should signal more work when queue exceeds the cap")
+	assert.True(t, drainedAny, "should report progress when fires were dispatched before the cap")
 	assert.Len(t, state.BufferedFires, 5, "should leave the unprocessed remainder on the queue")
 	assert.Equal(t, int64(maxDrainFiresPerExecution), state.MissedRuns, "should consume exactly the cap on this execution")
 }
@@ -2309,21 +2311,18 @@ func TestProcessBackfillsYieldsWhenBufferFillsUnderBUFFERPolicy(t *testing.T) {
 		"StartTime must advance past the queued fire")
 }
 
-// TestProcessBackfillsBufferNonEmptyAfterExhaustion verifies the invariant that
-// draining must continue when processBackfills exhausts PendingBackfills but
-// BufferedFires is still non-empty. The pre-main-loop guard in the workflow
-// checks len(state.BufferedFires) > 0 after processBackfills returns false and
-// forces another ContinueAsNew so the buffer drains at ContinueAsNew cadence,
-// not at the cron timer cadence.
-func TestProcessBackfillsBufferNonEmptyAfterExhaustion(t *testing.T) {
+// TestProcessBackfillsYieldsWhenQueueBlockedAtStart verifies that when
+// processBackfills starts with a non-empty buffer (a prior fire is still
+// draining), it enqueues the next backfill fire via the FIFO path and
+// immediately returns true. This keeps the ContinueAsNew chain alive so the
+// drain loop continues rather than falling through to the main event loop.
+func TestProcessBackfillsYieldsWhenQueueBlockedAtStart(t *testing.T) {
 	sched := mustParseCron(t, "0 * * * *")
-	// Single-fire backfill window so processBackfills exhausts in one call.
 	input := &SchedulerWorkflowInput{
 		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
 	}
 	state := &SchedulerWorkflowState{
-		// Residual buffered fire: previous workflow still running from an earlier
-		// backfill ContinueAsNew; drain stalled on it.
+		// One fire already in the queue whose previous target is still running.
 		BufferedFires: []BufferedFire{
 			{
 				ScheduledTime: time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC),
@@ -2344,10 +2343,8 @@ func TestProcessBackfillsBufferNonEmptyAfterExhaustion(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
 
-	// processBackfills encounters BufferedFires non-empty, enqueues the backfill
-	// fire via the FIFO path, then hits the early-yield check (buffer still
-	// non-empty). The caller's safety guard must also see a non-empty buffer and
-	// ContinueAsNew rather than fall into the main event loop.
-	assert.True(t, moreWork, "non-empty buffer after backfill must keep ContinueAsNew alive")
-	assert.NotEmpty(t, state.BufferedFires, "buffer remains non-empty after yield")
+	// processBackfills sees BufferedFires non-empty, enqueues the backfill fire
+	// via the FIFO path (no tryStartFire call), then hits the early-yield check.
+	assert.True(t, moreWork, "non-empty buffer must keep ContinueAsNew chain alive")
+	assert.Len(t, state.BufferedFires, 2, "backfill fire appended behind the existing entry")
 }

@@ -110,8 +110,11 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	// FIFO order across ContinueAsNew. If the queue is large, drain in batches
 	// (at most maxDrainFiresPerExecution per execution) so a single decision
 	// task doesn't time out.
+	var drainedAny bool
 	if !state.Paused {
-		if moreToDrain := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
+		var moreToDrain bool
+		moreToDrain, drainedAny = drainBufferedFires(ctx, logger, &input, state)
+		if moreToDrain {
 			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
 		}
 	}
@@ -129,12 +132,13 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state); moreBackfills {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
 	}
-	// drainBufferedFires above returns false both when the queue is empty and when
-	// the head re-buffered (previous workflow still running). In the latter case,
-	// the buffer is non-empty but we'd fall into the main loop, where drain only
-	// runs on each timer tick — potentially minutes between attempts. Keep the
-	// ContinueAsNew chain alive until the buffer is clear.
-	if !state.Paused && len(state.BufferedFires) > 0 {
+	// Only keep the ContinueAsNew chain alive when drain made progress this
+	// execution. drainBufferedFires returns drainedAny=false when the head fire
+	// re-buffers immediately (the previous target workflow is still running);
+	// in that case spinning ContinueAsNew would busy-loop for the entire
+	// duration of the target workflow with no progress. Fall into the main loop
+	// instead: drain retries after each timer tick, which is slow but bounded.
+	if !state.Paused && drainedAny && len(state.BufferedFires) > 0 {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
 	}
 
@@ -194,7 +198,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		// queue is processed in FIFO order. If the cap is hit, ContinueAsNew
 		// so the next batch runs in a fresh decision task.
 		if !state.Paused {
-			if moreToDrain := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
+			if moreToDrain, _ := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
 				return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
 			}
 		}
@@ -726,13 +730,17 @@ func effectiveConcurrencyLimit(userLimit int32) int32 {
 
 // drainBufferedFires executes queued fires in FIFO order, stopping as soon as
 // one re-buffers (previous target workflow still running) or
-// maxDrainFiresPerExecution fires have been processed. Returns true when more
-// queued work remains and the caller should ContinueAsNew so the next batch
-// runs in a fresh decision task (mirrors processMissedRuns / processBackfills).
+// maxDrainFiresPerExecution fires have been processed. Returns moreToDrain=true
+// when the drain cap was hit and more queued work remains; the caller should
+// ContinueAsNew so the next batch runs in a fresh decision task. drainedAny
+// reports whether at least one fire was successfully dispatched this execution,
+// which lets callers distinguish "head blocked, no progress" from "drained
+// some, hit a blocker": only the latter warrants keeping the ContinueAsNew
+// chain alive.
 //
 // Retries are safe because the activity derives WorkflowID and RequestID from
 // scheduledTime and triggerSource, so the server de-duplicates on replay.
-func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) (moreToDrain, drainedAny bool) {
 	drained := 0
 	for len(state.BufferedFires) > 0 {
 		if drained >= maxDrainFiresPerExecution {
@@ -740,7 +748,7 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 				zap.Int("drainedThisBatch", drained),
 				zap.Int("remaining", len(state.BufferedFires)),
 			)
-			return true
+			return true, true
 		}
 		head := state.BufferedFires[0]
 		headOverlap := head.OverlapPolicy
@@ -751,12 +759,12 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 			headOverlap = input.Policies.OverlapPolicy
 		}
 		if tryStartFire(ctx, logger, input, state, head.ScheduledTime, head.TriggerSource, headOverlap, head.BackfillID) == fireOutcomeBuffered {
-			return false
+			return false, drained > 0
 		}
 		state.BufferedFires = state.BufferedFires[1:]
 		drained++
 	}
-	return false
+	return false, drained > 0
 }
 
 // ensurePolicyDefaults fills in server-defined defaults for SchedulePolicies
