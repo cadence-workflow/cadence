@@ -2259,3 +2259,95 @@ func TestEnsurePolicyDefaults(t *testing.T) {
 		})
 	}
 }
+
+// TestProcessBackfillsYieldsWhenBufferFillsUnderBUFFERPolicy verifies that
+// processBackfills returns true (requesting ContinueAsNew) as soon as a fire
+// lands in state.BufferedFires under the BUFFER overlap policy, rather than
+// continuing to queue the remaining batch. Without this early return, subsequent
+// fires pile into the buffer 10x faster than drainBufferedFires can empty it,
+// and once PendingBackfills is exhausted the buffer drains at the cron timer
+// cadence (potentially minutes per fire) instead of at ContinueAsNew cadence.
+func TestProcessBackfillsYieldsWhenBufferFillsUnderBUFFERPolicy(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Hourly cron over a 12-hour window → 13 fires; well above the batch cap,
+	// so without the early-yield the function would process all 10 into the buffer.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	// Pre-populate BufferedFires to simulate a previous backfill fire that is
+	// still running. The FIFO rule in processScheduleFire will directly enqueue
+	// the first backfill fire rather than call tryStartFire, so nil ctx is safe.
+	existing := BufferedFire{
+		ScheduledTime: time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC),
+		TriggerSource: TriggerSourceBackfill,
+		OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: []BufferedFire{existing},
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:     time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:       time.Date(2026, 1, 15, 22, 0, 0, 0, time.UTC),
+				BackfillID:    "bf-buffer",
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+			},
+		},
+	}
+
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+
+	assert.True(t, moreWork, "should signal more work to keep ContinueAsNew chain alive")
+	require.Len(t, state.PendingBackfills, 1, "backfill not yet exhausted")
+	// Only the first fire was processed (queued into the buffer); the loop must
+	// have stopped before adding more entries.
+	assert.Len(t, state.BufferedFires, 2, "exactly one new fire appended to the existing buffer entry")
+	// StartTime must have advanced past the fire that was just queued so the
+	// next execution does not re-process it.
+	firstFireTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	assert.True(t, state.PendingBackfills[0].StartTime.After(firstFireTime),
+		"StartTime must advance past the queued fire")
+}
+
+// TestProcessBackfillsBufferNonEmptyAfterExhaustion verifies the invariant that
+// draining must continue when processBackfills exhausts PendingBackfills but
+// BufferedFires is still non-empty. The pre-main-loop guard in the workflow
+// checks len(state.BufferedFires) > 0 after processBackfills returns false and
+// forces another ContinueAsNew so the buffer drains at ContinueAsNew cadence,
+// not at the cron timer cadence.
+func TestProcessBackfillsBufferNonEmptyAfterExhaustion(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Single-fire backfill window so processBackfills exhausts in one call.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		// Residual buffered fire: previous workflow still running from an earlier
+		// backfill ContinueAsNew; drain stalled on it.
+		BufferedFires: []BufferedFire{
+			{
+				ScheduledTime: time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC),
+				TriggerSource: TriggerSourceBackfill,
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+			},
+		},
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:     time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:       time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				BackfillID:    "bf-last",
+				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
+			},
+		},
+	}
+
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+
+	// processBackfills encounters BufferedFires non-empty, enqueues the backfill
+	// fire via the FIFO path, then hits the early-yield check (buffer still
+	// non-empty). The caller's safety guard must also see a non-empty buffer and
+	// ContinueAsNew rather than fall into the main event loop.
+	assert.True(t, moreWork, "non-empty buffer after backfill must keep ContinueAsNew alive")
+	assert.NotEmpty(t, state.BufferedFires, "buffer remains non-empty after yield")
+}

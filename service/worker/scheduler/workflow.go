@@ -129,6 +129,14 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state); moreBackfills {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
 	}
+	// drainBufferedFires above returns false both when the queue is empty and when
+	// the head re-buffered (previous workflow still running). In the latter case,
+	// the buffer is non-empty but we'd fall into the main loop, where drain only
+	// runs on each timer tick — potentially minutes between attempts. Keep the
+	// ContinueAsNew chain alive until the buffer is clear.
+	if !state.Paused && len(state.BufferedFires) > 0 {
+		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
+	}
 
 	for {
 		state.Iterations++
@@ -1048,6 +1056,18 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 			// into the BUFFER. Counting only "started" would pin a
 			// BUFFER-deferred backfill in OngoingBackfills indefinitely.
 			bf.RunsCompleted++
+
+			// Under the BUFFER overlap policy, a fire that finds the previous
+			// workflow still starting lands in state.BufferedFires. If we
+			// continue looping, subsequent fires pile into the buffer faster
+			// than drainBufferedFires can empty it (10 added per execution,
+			// 1 drained). Yield now so the drain runs first; the next
+			// execution resumes from the fire after t.
+			if len(state.BufferedFires) > 0 {
+				bf.StartTime = t.Add(time.Second)
+				scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
+				return true
+			}
 		}
 
 		if fires.truncated {
