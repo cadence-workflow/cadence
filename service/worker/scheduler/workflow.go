@@ -777,7 +777,6 @@ func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec ty
 	return missedFiresResult{times: missed, truncated: true}
 }
 
-
 // missedRunPolicyResult is the output of applyMissedRunPolicy.
 type missedRunPolicyResult struct {
 	toFire  []time.Time // fire times to execute, in order
@@ -939,7 +938,6 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 	}
 	return moreMissed
 }
-
 
 // buildScheduleDescription creates a snapshot of the current schedule
 // configuration and runtime state for the describe query handler.
