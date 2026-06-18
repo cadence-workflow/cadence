@@ -692,7 +692,7 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 				zap.Int("drainedThisBatch", drained),
 				zap.Int("remaining", len(state.BufferedFires)),
 			)
-			return true, true
+			return true, drained > 0
 		}
 		head := state.BufferedFires[0]
 		headOverlap := head.OverlapPolicy
