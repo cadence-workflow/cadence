@@ -104,53 +104,56 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
-	// All three pre-loop bulk operations (drain, catch-up, backfill) share a
-	// single activity budget so their combined work in one execution stays
-	// within the decision-task timeout.
-	activityBudget := maxActivitiesPerExecution
+	// wakeDrain is a single-slot channel the main loop sends to after each
+	// iteration so the drain coroutine retries when a completion event may have
+	// cleared the head of BufferedFires. SendAsync is used so the send is a
+	// no-op when the coroutine is already actively draining.
+	wakeDrain := workflow.NewBufferedChannel(ctx, 1)
+	// drainNeedsCAN is sent by the drain coroutine when it has dispatched
+	// maxActivitiesPerExecution fires and more buffered work remains.
+	// The main loop receives it and triggers ContinueAsNew so the next
+	// execution begins with a fresh budget.
+	drainNeedsCAN := workflow.NewBufferedChannel(ctx, 1)
 
-	// Drain fires buffered by the BUFFER overlap policy in the previous
-	// execution before processing missed runs. Buffered fires are older than
-	// anything processMissedRuns can compute, so draining them first preserves
-	// FIFO order across ContinueAsNew. If the budget is exhausted, ContinueAsNew
-	// so the next batch runs in a fresh decision task.
-	var drainedAny bool
-	if !state.Paused {
-		var moreToDrain bool
-		moreToDrain, drainedAny = drainBufferedFires(ctx, logger, &input, state, &activityBudget)
-		if moreToDrain {
-			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
+	// The drain coroutine runs concurrently with the main event loop. It
+	// processes BufferedFires in FIFO order whenever the head becomes startable,
+	// without blocking timer-fired runs from being scheduled. It yields to the
+	// main loop whenever it is waiting for a new completion event to unblock
+	// the head. ContinueAsNew restarts the coroutine automatically because
+	// workflow.Go is called at the top of every execution and BufferedFires
+	// survives in state across ContinueAsNew.
+	workflow.Go(ctx, func(ctx workflow.Context) {
+		totalDrained := 0
+		for {
+			if !state.Paused {
+				n, _ := drainBufferedFires(ctx, logger, &input, state)
+				totalDrained += n
+				if totalDrained >= maxActivitiesPerExecution && len(state.BufferedFires) > 0 {
+					logger.Info("drain coroutine budget exhausted, continuing after ContinueAsNew",
+						zap.Int("drainedThisBatch", totalDrained),
+						zap.Int("remaining", len(state.BufferedFires)),
+					)
+					drainNeedsCAN.SendAsync(nil)
+					return
+				}
+			}
+			wakeDrain.Receive(ctx, nil)
 		}
-	}
+	})
+
+	activityBudget := maxActivitiesPerExecution
 
 	// On the first iteration (after ContinueAsNew or fresh start), check for
 	// fires that were missed during the transition gap or prior pause period.
-	// Subsequent iterations don't need this because the timer handles fire times.
-	// If more missed fires remain beyond the shared budget, ContinueAsNew
-	// immediately so each batch runs in its own decision task.
+	// If more missed fires remain beyond the budget, ContinueAsNew so each
+	// batch runs in its own decision task.
 	if moreMissed := processMissedRuns(ctx, logger, scope, sched, &input, state, &activityBudget); moreMissed {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonMissedRun, chs.delete, input, state)
 	}
 
 	// Process any pending backfill requests carried over from a previous execution.
-	// Skip when drain made no progress and the buffer is non-empty: the head fire
-	// is blocked by a still-running target workflow, so adding more backfill fires
-	// would spin ContinueAsNew one-per-fire until the buffer cap is hit and fires
-	// are silently dropped. Fall into the main loop instead; drain retries after
-	// each timer tick.
-	if drainedAny || len(state.BufferedFires) == 0 {
-		if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state, &activityBudget); moreBackfills {
-			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
-		}
-	}
-	// Only keep the ContinueAsNew chain alive when drain made progress this
-	// execution. drainBufferedFires returns drainedAny=false when the head fire
-	// re-buffers immediately (the previous target workflow is still running);
-	// in that case spinning ContinueAsNew would busy-loop for the entire
-	// duration of the target workflow with no progress. Fall into the main loop
-	// instead: drain retries after each timer tick, which is slow but bounded.
-	if !state.Paused && drainedAny && len(state.BufferedFires) > 0 {
-		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
+	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state); moreBackfills {
+		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
 	}
 
 	for {
@@ -205,19 +208,19 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			return nil
 		}
 
-		// Drain BUFFER-overlap fires before handling the current fire so the
-		// queue is processed in FIFO order. Uses a per-call budget separate
-		// from the pre-loop shared budget: this path runs once per timer tick,
-		// so a tighter ceiling prevents one drain from delaying the next fire.
-		if !state.Paused {
-			drainBudget := maxDrainFiresPerExecution
-			if moreToDrain, _ := drainBufferedFires(ctx, logger, &input, state, &drainBudget); moreToDrain {
-				return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
-			}
-		}
-
 		if timerFired && !state.Paused {
 			processScheduleFire(ctx, logger, scope, &input, state, state.NextRunTime, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
+		}
+
+		// Wake the drain coroutine so it can process any fires that became
+		// startable after this iteration's events (timer completion, signals).
+		// SendAsync is a no-op when the coroutine is already active.
+		wakeDrain.SendAsync(nil)
+
+		// Check whether the drain coroutine signalled that it exhausted its
+		// per-execution budget with more work remaining.
+		if drainNeedsCAN.ReceiveAsync(nil) {
+			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
 		}
 
 		if changed || state.Iterations >= maxIterationsBeforeContinueAsNew {
@@ -674,26 +677,12 @@ func effectiveConcurrencyLimit(userLimit int32) int32 {
 }
 
 // drainBufferedFires executes queued fires in FIFO order, stopping as soon as
-// one re-buffers (previous target workflow still running) or the shared
-// activity budget is exhausted. Returns moreToDrain=true when the budget was
-// hit and more queued work remains; the caller should ContinueAsNew so the
-// next batch runs in a fresh decision task. drainedAny reports whether at
-// least one fire was successfully dispatched this execution, which lets
-// callers distinguish "head blocked, no progress" from "drained some, hit a
-// blocker": only the latter warrants keeping the ContinueAsNew chain alive.
-//
-// Retries are safe because the activity derives WorkflowID and RequestID from
+// one re-buffers (previous target workflow still running).
+// Returns the number of fires dispatched and whether the head is blocked.
+// Retries are safe: the activity derives WorkflowID and RequestID from
 // scheduledTime and triggerSource, so the server de-duplicates on replay.
-func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int) (moreToDrain, drainedAny bool) {
-	drained := 0
+func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) (drained int, headBlocked bool) {
 	for len(state.BufferedFires) > 0 {
-		if *budget <= 0 {
-			logger.Info("buffer drain budget exhausted, continuing after ContinueAsNew",
-				zap.Int("drainedThisBatch", drained),
-				zap.Int("remaining", len(state.BufferedFires)),
-			)
-			return true, drained > 0
-		}
 		head := state.BufferedFires[0]
 		headOverlap := head.OverlapPolicy
 		// OverlapPolicy is INVALID only for BufferedFires persisted before this
@@ -703,13 +692,12 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 			headOverlap = input.Policies.OverlapPolicy
 		}
 		if tryStartFire(ctx, logger, input, state, head.ScheduledTime, head.TriggerSource, headOverlap, head.BackfillID) == fireOutcomeBuffered {
-			return false, drained > 0
+			return drained, true
 		}
 		state.BufferedFires = state.BufferedFires[1:]
 		drained++
-		*budget--
 	}
-	return false, drained > 0
+	return drained, false
 }
 
 // ensurePolicyDefaults fills in server-defined defaults for SchedulePolicies

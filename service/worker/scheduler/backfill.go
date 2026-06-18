@@ -118,9 +118,9 @@ func countCronFires(sched cron.Schedule, start, end time.Time, spec types.Schedu
 
 // processBackfills drains pending backfill requests from state, computing
 // cron fire times for each request's time range and executing them.
-// Like processMissedRuns, it draws from the shared activity budget and returns
-// true if more work remains (signalling the caller to ContinueAsNew).
-func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int) bool {
+// Returns true when more backfill work remains beyond this execution's scan
+// window, signalling the caller to ContinueAsNew.
+func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
 	if len(state.PendingBackfills) == 0 {
 		return false
 	}
@@ -161,37 +161,14 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
 
 		for _, t := range fires.times {
-			if *budget <= 0 {
-				bf.StartTime = t
-				logger.Info("backfill batch budget exhausted, continuing after ContinueAsNew",
-					zap.String("backfillId", bf.BackfillID),
-					zap.Time("resumeFrom", t),
-					zap.Int("firedThisBatch", fired),
-				)
-				scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
-				return true
-			}
 			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
 			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
 			fired++
-			*budget--
 			// Count any fire handed off to processScheduleFire, whether it
 			// started, was skipped under the overlap policy, or was queued
 			// into the BUFFER. Counting only "started" would pin a
 			// BUFFER-deferred backfill in OngoingBackfills indefinitely.
 			bf.RunsCompleted++
-
-			// Under the BUFFER overlap policy, a fire that finds the previous
-			// workflow still starting lands in state.BufferedFires. If we
-			// continue looping, subsequent fires pile into the buffer faster
-			// than drainBufferedFires can empty it (10 added per execution,
-			// 1 drained). Yield now so the drain runs first; the next
-			// execution resumes from the fire after t.
-			if len(state.BufferedFires) > 0 {
-				bf.StartTime = t.Add(time.Second)
-				scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
-				return true
-			}
 		}
 
 		if fires.truncated {

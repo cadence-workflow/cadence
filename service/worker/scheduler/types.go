@@ -131,15 +131,10 @@ const (
 	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
-	// maxActivitiesPerExecution caps the total number of activity fires across
-	// drain, catch-up, and backfill in the pre-loop section. All three sources
-	// share this budget so a single execution doesn't overshoot the decision-task
-	// timeout when one source has a large backlog.
-	maxActivitiesPerExecution = 100
-	// maxDrainFiresPerExecution caps drain within the main event loop. That path
-	// runs once per timer tick rather than as a bulk pre-loop operation, so a
-	// smaller per-call ceiling prevents one drain from monopolising an iteration.
-	maxDrainFiresPerExecution = 10
+	// maxActivitiesPerExecution caps the total number of activity fires the drain
+	// coroutine may dispatch before triggering ContinueAsNew. It also bounds the
+	// per-execution work of catch-up and backfill processing.
+	maxActivitiesPerExecution = 500
 	maxPendingBackfills       = 10
 
 	// maxBackfillRunsTotalCount caps the cron walk that populates

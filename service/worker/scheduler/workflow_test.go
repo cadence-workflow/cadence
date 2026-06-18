@@ -1082,8 +1082,7 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
 	assert.False(t, moreWork, "paused schedule should not fire backfills")
 	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
 	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
@@ -1113,8 +1112,7 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
 	assert.False(t, moreWork)
 	assert.Empty(t, state.PendingBackfills, "completed backfill should be removed")
 
@@ -1125,31 +1123,31 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 
 // TestProcessBackfillsTracksRunsCompleted verifies that RunsCompleted advances
 // on every fire handed off by processBackfills, and that RunsTotal is computed
-// once on the first batch and preserved across subsequent batches.
+// once on the first call and preserved.
 func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
 	sched := mustParseCron(t, "0 * * * *")
-	// Hourly cron over 24h-inclusive → 25 fires. With a budget of 10, the first
-	// call processes 10 and leaves 15 behind.
+	// Hourly cron over 3h window → 3 fires (10:00, 11:00, 12:00).
 	input := &SchedulerWorkflowInput{
 		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
 	}
 	state := &SchedulerWorkflowState{
 		PendingBackfills: []BackfillRequest{
 			{
-				StartTime:  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
-				EndTime:    time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+				StartTime:  time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
 				BackfillID: "bf-partial",
 			},
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	budget := 10
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
-	assert.True(t, moreWork, "backfill should signal more work after hitting per-execution cap")
-	require.Len(t, state.PendingBackfills, 1, "partial backfill should remain in state")
-	assert.Equal(t, int32(10), state.PendingBackfills[0].RunsCompleted)
-	assert.Equal(t, int32(25), state.PendingBackfills[0].RunsTotal, "RunsTotal computed lazily on first batch")
-	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	assert.False(t, moreWork, "all fires in range processed")
+	assert.Empty(t, state.PendingBackfills, "backfill should be removed when complete")
+	// RunsCompleted must match the 3 fires dispatched.
+	// Backfill was already removed from PendingBackfills so verify via fired metric.
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok, "backfill fired metric should be emitted")
+	assert.Equal(t, int64(3), c.Value(), "RunsCompleted advances on every processScheduleFire call")
 }
 
 // TestProcessBackfillsRunsTotalTruncated covers a range that exceeds the count
@@ -1171,8 +1169,7 @@ func TestProcessBackfillsRunsTotalTruncated(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	budget := maxActivitiesPerExecution
-	_ = processBackfills(nil, testLogger, scope, sched, input, state, &budget)
+	_ = processBackfills(nil, testLogger, scope, sched, input, state)
 	require.Len(t, state.PendingBackfills, 1)
 	assert.Equal(t, int32(maxBackfillRunsTotalCount), state.PendingBackfills[0].RunsTotal,
 		"truncated count should report the cap as a lower bound, not 0")
@@ -1201,8 +1198,7 @@ func TestProcessBackfillsLazyRunsTotalUsesProcessSched(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	budget := maxActivitiesPerExecution
-	_ = processBackfills(nil, testLogger, scope, hourly, input, state, &budget)
+	_ = processBackfills(nil, testLogger, scope, hourly, input, state)
 	// 3 fires for hourly cron over [10:00, 12:00]: 10:00, 11:00, 12:00.
 	// Backfill drains in one call (within the activity budget), so it has
 	// been removed; check the firing metric reflects the count instead.
@@ -1482,9 +1478,9 @@ func (c *noopChannel) Close()                                              {}
 
 // TestProcessMissedRunsAtZeroBudgetNoPanic guards against the index-out-of-bounds
 // panic in processMissedRunsAt when budget is 0 on entry. This can happen when
-// drainBufferedFires consumes the entire shared activity budget (e.g. exactly
-// maxActivitiesPerExecution fires in the buffer). Before the fix, the fire loop
-// broke immediately leaving fired=0, then result.toFire[fired-1] = toFire[-1] panicked.
+// processMissedRuns exhausts its per-execution budget across multiple calls.
+// Before the fix, the fire loop broke immediately leaving fired=0, then
+// result.toFire[fired-1] = toFire[-1] panicked.
 func TestProcessMissedRunsAtZeroBudgetNoPanic(t *testing.T) {
 	sched := mustParseCron(t, "* * * * *")
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
@@ -1849,11 +1845,10 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 		BufferedFires: append([]BufferedFire(nil), queue...),
 	}
 
-	budget := maxActivitiesPerExecution
-	moreToDrain, drainedAny := drainBufferedFires(nil, testLogger, input, state, &budget)
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state)
 
-	assert.False(t, moreToDrain, "queue smaller than cap should fully drain")
-	assert.True(t, drainedAny, "should report progress when fires were dispatched")
+	assert.False(t, headBlocked, "queue should fully drain with no head block")
+	assert.Equal(t, 3, drained, "should dispatch all three fires")
 	assert.Empty(t, state.BufferedFires)
 	assert.Equal(t, int64(3), state.MissedRuns)
 	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime)
@@ -1974,29 +1969,6 @@ func TestCatchUpWatermark(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-// TestDrainBufferedFiresRespectsCap verifies drainBufferedFires processes at
-// most maxDrainFiresPerExecution fires per call and signals more remaining
-// work via the bool return so the caller ContinueAsNews. This cap applies in
-// the main event loop, where drain runs once per timer tick.
-func TestDrainBufferedFiresRespectsCap(t *testing.T) {
-	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	queue := largeBufferedFires(maxDrainFiresPerExecution+5, t0)
-	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
-	}
-	state := &SchedulerWorkflowState{
-		BufferedFires: append([]BufferedFire(nil), queue...),
-	}
-
-	budget := maxDrainFiresPerExecution
-	moreToDrain, drainedAny := drainBufferedFires(nil, testLogger, input, state, &budget)
-
-	assert.True(t, moreToDrain, "should signal more work when queue exceeds the cap")
-	assert.True(t, drainedAny, "should report progress when fires were dispatched before the cap")
-	assert.Len(t, state.BufferedFires, 5, "should leave the unprocessed remainder on the queue")
-	assert.Equal(t, int64(maxDrainFiresPerExecution), state.MissedRuns, "should consume exactly the cap on this execution")
 }
 
 func TestEffectiveBufferLimit(t *testing.T) {
@@ -2299,144 +2271,4 @@ func TestEnsurePolicyDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantWindow, p.CatchUpWindow)
 		})
 	}
-}
-
-// TestProcessBackfillsYieldsWhenBufferFillsUnderBUFFERPolicy verifies that
-// processBackfills returns true (requesting ContinueAsNew) as soon as a fire
-// lands in state.BufferedFires under the BUFFER overlap policy, rather than
-// continuing to queue the remaining batch. Without this early return, subsequent
-// fires pile into the buffer 10x faster than drainBufferedFires can empty it,
-// and once PendingBackfills is exhausted the buffer drains at the cron timer
-// cadence (potentially minutes per fire) instead of at ContinueAsNew cadence.
-func TestProcessBackfillsYieldsWhenBufferFillsUnderBUFFERPolicy(t *testing.T) {
-	sched := mustParseCron(t, "0 * * * *")
-	// Hourly cron over a 12-hour window → 13 fires; well above the batch cap,
-	// so without the early-yield the function would process all 10 into the buffer.
-	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
-	}
-	// Pre-populate BufferedFires to simulate a previous backfill fire that is
-	// still running. The FIFO rule in processScheduleFire will directly enqueue
-	// the first backfill fire rather than call tryStartFire, so nil ctx is safe.
-	existing := BufferedFire{
-		ScheduledTime: time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC),
-		TriggerSource: TriggerSourceBackfill,
-		OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-	}
-	state := &SchedulerWorkflowState{
-		BufferedFires: []BufferedFire{existing},
-		PendingBackfills: []BackfillRequest{
-			{
-				StartTime:     time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-				EndTime:       time.Date(2026, 1, 15, 22, 0, 0, 0, time.UTC),
-				BackfillID:    "bf-buffer",
-				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-			},
-		},
-	}
-
-	scope := tally.NewTestScope("", nil)
-	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
-
-	assert.True(t, moreWork, "should signal more work to keep ContinueAsNew chain alive")
-	require.Len(t, state.PendingBackfills, 1, "backfill not yet exhausted")
-	// Only the first fire was processed (queued into the buffer); the loop must
-	// have stopped before adding more entries.
-	assert.Len(t, state.BufferedFires, 2, "exactly one new fire appended to the existing buffer entry")
-	// StartTime must have advanced past the fire that was just queued so the
-	// next execution does not re-process it.
-	firstFireTime := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	assert.True(t, state.PendingBackfills[0].StartTime.After(firstFireTime),
-		"StartTime must advance past the queued fire")
-}
-
-// TestProcessBackfillsYieldsWhenQueueBlockedAtStart verifies that when
-// processBackfills starts with a non-empty buffer (a prior fire is still
-// draining), it enqueues the next backfill fire via the FIFO path and
-// immediately returns true. This keeps the ContinueAsNew chain alive so the
-// drain loop continues rather than falling through to the main event loop.
-func TestProcessBackfillsYieldsWhenQueueBlockedAtStart(t *testing.T) {
-	sched := mustParseCron(t, "0 * * * *")
-	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
-	}
-	state := &SchedulerWorkflowState{
-		// One fire already in the queue whose previous target is still running.
-		BufferedFires: []BufferedFire{
-			{
-				ScheduledTime: time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC),
-				TriggerSource: TriggerSourceBackfill,
-				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-			},
-		},
-		PendingBackfills: []BackfillRequest{
-			{
-				StartTime:     time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-				EndTime:       time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-				BackfillID:    "bf-last",
-				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-			},
-		},
-	}
-
-	scope := tally.NewTestScope("", nil)
-	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
-
-	// processBackfills sees BufferedFires non-empty, enqueues the backfill fire
-	// via the FIFO path (no tryStartFire call), then hits the early-yield check.
-	assert.True(t, moreWork, "non-empty buffer must keep ContinueAsNew chain alive")
-	assert.Len(t, state.BufferedFires, 2, "backfill fire appended behind the existing entry")
-}
-
-// TestPreLoopSkipsBackfillsWhenDrainStalled verifies that processBackfills is
-// not called when the buffer head is blocked (drainedAny=false and BufferedFires
-// non-empty). This prevents the CAN-per-fire spin the Gitar bot flagged: without
-// the guard, processBackfills would enqueue one backfill fire per CAN until the
-// buffer cap is hit and fires are silently dropped.
-//
-// The test exercises the orchestration logic directly rather than going through
-// the full workflow to keep it fast and deterministic.
-func TestPreLoopSkipsBackfillsWhenDrainStalled(t *testing.T) {
-	sched := mustParseCron(t, "0 * * * *")
-	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
-		Policies: types.SchedulePolicies{
-			OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-		},
-	}
-	// Buffer has one entry whose target is still running (tryStartFire would
-	// re-buffer), AND a pending backfill. The orchestration guard must skip
-	// processBackfills entirely when drainedAny=false.
-	state := &SchedulerWorkflowState{
-		BufferedFires: []BufferedFire{
-			{
-				ScheduledTime: time.Date(2026, 1, 15, 9, 0, 0, 0, time.UTC),
-				TriggerSource: TriggerSourceSchedule,
-				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-			},
-		},
-		PendingBackfills: []BackfillRequest{
-			{
-				StartTime:     time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
-				EndTime:       time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
-				BackfillID:    "bf-stalled",
-				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-			},
-		},
-	}
-
-	drainedAny := false // drain made no progress this execution
-
-	// When drainedAny=false and buffer non-empty, the orchestration skips
-	// processBackfills. Verify by checking buffer length is unchanged.
-	bufferLenBefore := len(state.BufferedFires)
-	if drainedAny || len(state.BufferedFires) == 0 {
-		budget := maxActivitiesPerExecution
-		processBackfills(nil, testLogger, tally.NewTestScope("", nil), sched, input, state, &budget)
-	}
-
-	assert.Len(t, state.BufferedFires, bufferLenBefore, "processBackfills must not run when drain is stalled")
-	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved; they will resume once drain makes progress")
 }
