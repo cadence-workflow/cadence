@@ -251,18 +251,35 @@ func (c *coordinatorImpl) receiveFailoverMarkersLoop() {
 
 func (c *coordinatorImpl) dispatchToWorker(request *receiveRequest) {
 	domainID := request.marker.GetDomainID()
-	w := c.getOrCreateWorker(domainID)
+	for {
+		w := c.getOrCreateWorker(domainID)
 
-	select {
-	case w.receiveChan <- workerMsg{receive: request}:
-	default:
-		// Worker's channel is saturated. Process inline rather than blocking
-		// the dispatcher — blocking would re-serialize every other domain
-		// behind this one slow worker. handleFailoverMarkers takes w.mu, so
-		// state mutations remain serialized per worker. The version-check in
-		// handleFailoverMarkers tolerates this happening out-of-order relative
-		// to any messages still queued for the worker.
-		c.handleFailoverMarkers(w, request)
+		// Re-validate under RLock that w is still the current worker for this
+		// domain before sending. Without this, the worker goroutine could call
+		// tryRemoveWorker (deleting itself from the map and exiting) between
+		// getOrCreateWorker returning and the channel send, leaving the message
+		// sitting in an orphaned buffered channel that no one drains.
+		c.workersLock.RLock()
+		cur, ok := c.workers[domainID]
+		if !ok || cur != w {
+			c.workersLock.RUnlock()
+			continue
+		}
+		select {
+		case w.receiveChan <- workerMsg{receive: request}:
+			c.workersLock.RUnlock()
+			return
+		default:
+			// Worker's channel is saturated. Don't hold workersLock across the
+			// inline call — handleFailoverMarkers may invoke CleanPendingActiveState,
+			// which would block all worker exits and new-worker creates for every
+			// other domain. A saturated channel also means tryRemoveWorker cannot
+			// succeed for this w (len(receiveChan) > 0), so w is guaranteed to
+			// still be the live worker when we call handleFailoverMarkers below.
+			c.workersLock.RUnlock()
+			c.handleFailoverMarkers(w, request)
+			return
+		}
 	}
 }
 
