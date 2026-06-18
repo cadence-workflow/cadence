@@ -89,6 +89,18 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
 
+	"replicator_latency":    {},
+	"replicator_latency_ns": {},
+
+	"archiver_handle_history_request_latency":       {},
+	"archiver_handle_history_request_latency_ns":    {},
+	"archiver_handle_visibility_request_latency":    {},
+	"archiver_handle_visibility_request_latency_ns": {},
+	"archiver_upload_with_retries_latency":          {},
+	"archiver_upload_with_retries_latency_ns":       {},
+	"archiver_delete_with_retries_latency":          {},
+	"archiver_delete_with_retries_latency_ns":       {},
+
 	"replication_tasks_fetched":        {},
 	"replication_tasks_fetched_counts": {},
 	"replication_tasks_lag_raw":        {},

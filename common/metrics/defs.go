@@ -3091,6 +3091,7 @@ const (
 	ReplicatorFailures
 	ReplicatorMessagesDropped
 	ReplicatorLatency
+	ReplicatorLatencyHistogram
 	ReplicatorDLQFailures
 	ESProcessorRequests
 	ESProcessorRetries
@@ -3107,9 +3108,13 @@ const (
 	ArchiverCoroutineStartedCount
 	ArchiverCoroutineStoppedCount
 	ArchiverHandleHistoryRequestLatency
+	ArchiverHandleHistoryRequestLatencyHistogram
 	ArchiverHandleVisibilityRequestLatency
+	ArchiverHandleVisibilityRequestLatencyHistogram
 	ArchiverUploadWithRetriesLatency
+	ArchiverUploadWithRetriesLatencyHistogram
 	ArchiverDeleteWithRetriesLatency
+	ArchiverDeleteWithRetriesLatencyHistogram
 	ArchiverUploadFailedAllRetriesCount
 	ArchiverUploadSuccessCount
 	ArchiverDeleteFailedAllRetriesCount
@@ -4040,7 +4045,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ReplicatorMessages:                            {metricName: "replicator_messages"},
 		ReplicatorFailures:                            {metricName: "replicator_errors"},
 		ReplicatorMessagesDropped:                     {metricName: "replicator_messages_dropped"},
-		ReplicatorLatency:                             {metricName: "replicator_latency"},
+		ReplicatorLatency:                             {metricName: "replicator_latency", metricType: Timer},
+		ReplicatorLatencyHistogram:                    {metricName: "replicator_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ReplicatorDLQFailures:                         {metricName: "replicator_dlq_enqueue_fails", metricType: Counter},
 		ESProcessorRequests:                           {metricName: "es_processor_requests"},
 		ESProcessorRetries:                            {metricName: "es_processor_retries"},
@@ -4056,10 +4062,14 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		ArchiverStoppedCount:                          {metricName: "archiver_stopped"},
 		ArchiverCoroutineStartedCount:                 {metricName: "archiver_coroutine_started"},
 		ArchiverCoroutineStoppedCount:                 {metricName: "archiver_coroutine_stopped"},
-		ArchiverHandleHistoryRequestLatency:           {metricName: "archiver_handle_history_request_latency"},
-		ArchiverHandleVisibilityRequestLatency:        {metricName: "archiver_handle_visibility_request_latency"},
-		ArchiverUploadWithRetriesLatency:              {metricName: "archiver_upload_with_retries_latency"},
-		ArchiverDeleteWithRetriesLatency:              {metricName: "archiver_delete_with_retries_latency"},
+		ArchiverHandleHistoryRequestLatency:              {metricName: "archiver_handle_history_request_latency", metricType: Timer},
+		ArchiverHandleHistoryRequestLatencyHistogram:     {metricName: "archiver_handle_history_request_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverHandleVisibilityRequestLatency:           {metricName: "archiver_handle_visibility_request_latency", metricType: Timer},
+		ArchiverHandleVisibilityRequestLatencyHistogram:  {metricName: "archiver_handle_visibility_request_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverUploadWithRetriesLatency:                 {metricName: "archiver_upload_with_retries_latency", metricType: Timer},
+		ArchiverUploadWithRetriesLatencyHistogram:        {metricName: "archiver_upload_with_retries_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverDeleteWithRetriesLatency:                 {metricName: "archiver_delete_with_retries_latency", metricType: Timer},
+		ArchiverDeleteWithRetriesLatencyHistogram:        {metricName: "archiver_delete_with_retries_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		ArchiverUploadFailedAllRetriesCount:           {metricName: "archiver_upload_failed_all_retries"},
 		ArchiverUploadSuccessCount:                    {metricName: "archiver_upload_success"},
 		ArchiverDeleteFailedAllRetriesCount:           {metricName: "archiver_delete_failed_all_retries"},
