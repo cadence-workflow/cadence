@@ -865,6 +865,15 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 		return false
 	}
 
+	if *budget <= 0 {
+		// Activity budget exhausted by a prior consumer (drain) in this execution.
+		// Return true so the caller ContinueAsNews and the next execution processes
+		// missed fires with a fresh budget. Do not run the policy logic here:
+		// advancing the watermark or counting skips would be incorrect since nothing
+		// was actually processed.
+		return true
+	}
+
 	if fires.truncated {
 		logger.Warn("missed fires truncated, remaining will be caught up after ContinueAsNew",
 			zap.Int("count", len(fires.times)),

@@ -1480,6 +1480,33 @@ func (c *noopChannel) Send(_ workflow.Context, _ interface{})              {}
 func (c *noopChannel) SendAsync(_ interface{}) bool                        { return false }
 func (c *noopChannel) Close()                                              {}
 
+// TestProcessMissedRunsAtZeroBudgetNoPanic guards against the index-out-of-bounds
+// panic in processMissedRunsAt when budget is 0 on entry. This can happen when
+// drainBufferedFires consumes the entire shared activity budget (e.g. exactly
+// maxActivitiesPerExecution fires in the buffer). Before the fix, the fire loop
+// broke immediately leaving fired=0, then result.toFire[fired-1] = toFire[-1] panicked.
+func TestProcessMissedRunsAtZeroBudgetNoPanic(t *testing.T) {
+	sched := mustParseCron(t, "* * * * *")
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	watermark := base
+	now := base.Add(5 * time.Minute) // 5 missed fires: 10:01–10:05
+
+	input := &SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyAll},
+	}
+	state := &SchedulerWorkflowState{}
+
+	scope := tally.NewTestScope("", nil)
+	budget := 0
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
+
+	assert.True(t, moreMissed, "exhausted budget with missed fires must signal ContinueAsNew")
+	_, ok := findCounter(scope.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
+	assert.False(t, ok, "no fires emitted when budget is zero")
+	assert.Equal(t, state.LastProcessedTime, time.Time{}, "watermark must not advance when nothing was processed")
+}
+
 func TestSafeContinueAsNewMetric(t *testing.T) {
 	tests := []struct {
 		name   string
