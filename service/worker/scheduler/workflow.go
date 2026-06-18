@@ -144,8 +144,7 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		drainedThisExecution := 0
 		for {
 			if !state.Paused {
-				n, _ := drainBufferedFires(ctx, logger, &input, state, fireSem)
-				activityBudget -= n
+				n, _ := drainBufferedFires(ctx, logger, &input, state, &activityBudget, fireSem)
 				drainedThisExecution += n
 				if activityBudget <= 0 && len(state.BufferedFires) > 0 {
 					logger.Info("drain coroutine budget exhausted, continuing after ContinueAsNew",
@@ -713,12 +712,15 @@ func effectiveConcurrencyLimit(userLimit int32) int32 {
 }
 
 // drainBufferedFires executes queued fires in FIFO order, stopping as soon as
-// one re-buffers (previous target workflow still running).
+// the budget is exhausted or one re-buffers (previous target workflow still running).
 // Returns the number of fires dispatched and whether the head is blocked.
 // Retries are safe: the activity derives WorkflowID and RequestID from
 // scheduledTime and triggerSource, so the server de-duplicates on replay.
-func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, fireSem workflow.Channel) (drained int, headBlocked bool) {
+func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int, fireSem workflow.Channel) (drained int, headBlocked bool) {
 	for len(state.BufferedFires) > 0 {
+		if *budget <= 0 {
+			return drained, false
+		}
 		head := state.BufferedFires[0]
 		headOverlap := head.OverlapPolicy
 		// OverlapPolicy is INVALID only for BufferedFires persisted before this
@@ -732,6 +734,7 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 		}
 		state.BufferedFires = state.BufferedFires[1:]
 		drained++
+		*budget--
 	}
 	return drained, false
 }

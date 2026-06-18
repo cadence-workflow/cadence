@@ -1882,7 +1882,8 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 		BufferedFires: append([]BufferedFire(nil), queue...),
 	}
 
-	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, nil)
+	budget := maxActivitiesPerExecution
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget, nil)
 
 	assert.False(t, headBlocked, "queue should fully drain with no head block")
 	assert.Equal(t, 3, drained, "should dispatch all three fires")
