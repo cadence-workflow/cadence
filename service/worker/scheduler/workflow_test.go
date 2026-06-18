@@ -507,6 +507,28 @@ func TestBuildScheduleDescription(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "schedule with timestamps",
+			input: SchedulerWorkflowInput{ScheduleID: "sched-ts", Domain: "test-domain"},
+			state: SchedulerWorkflowState{
+				CreatedAt:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				LastUpdatedAt: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+				Paused:        true,
+				PauseReason:   "test",
+				PausedBy:      "admin",
+				PausedAt:      time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+			},
+			want: &ScheduleDescription{
+				ScheduleID:    "sched-ts",
+				Domain:        "test-domain",
+				Paused:        true,
+				PauseReason:   "test",
+				PausedBy:      "admin",
+				CreatedAt:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				LastUpdatedAt: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+				PausedAt:      time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -556,14 +578,18 @@ func TestHandlePause(t *testing.T) {
 		},
 	}
 
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			state := tt.initial
-			changed := handlePause(testLogger, tt.sig, &state)
+			changed := handlePause(testLogger, tt.sig, &state, now)
 			assert.Equal(t, tt.wantChanged, changed)
 			assert.Equal(t, tt.wantPaused, state.Paused)
 			assert.Equal(t, tt.wantReason, state.PauseReason)
 			assert.Equal(t, tt.wantPausedBy, state.PausedBy)
+			if tt.wantChanged {
+				assert.Equal(t, now, state.PausedAt)
+			}
 		})
 	}
 }
@@ -581,7 +607,7 @@ func TestHandleUnpause(t *testing.T) {
 	}{
 		{
 			name:         "unpause from paused",
-			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "maintenance", PausedBy: "admin"},
+			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "maintenance", PausedBy: "admin", PausedAt: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)},
 			sig:          UnpauseSignal{Reason: "maintenance done"},
 			wantPaused:   false,
 			wantReason:   "",
@@ -599,7 +625,7 @@ func TestHandleUnpause(t *testing.T) {
 		},
 		{
 			name:                     "unpause with CatchUpPolicyOne stores override in state",
-			initial:                  SchedulerWorkflowState{Paused: true},
+			initial:                  SchedulerWorkflowState{Paused: true, PausedAt: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)},
 			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
 			wantPaused:               false,
 			wantChanged:              true,
@@ -607,7 +633,7 @@ func TestHandleUnpause(t *testing.T) {
 		},
 		{
 			name:                     "unpause with CatchUpPolicySkip stores override in state",
-			initial:                  SchedulerWorkflowState{Paused: true},
+			initial:                  SchedulerWorkflowState{Paused: true, PausedAt: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)},
 			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
 			wantPaused:               false,
 			wantChanged:              true,
@@ -615,7 +641,7 @@ func TestHandleUnpause(t *testing.T) {
 		},
 		{
 			name:                     "unpause with Invalid policy does not set override",
-			initial:                  SchedulerWorkflowState{Paused: true},
+			initial:                  SchedulerWorkflowState{Paused: true, PausedAt: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)},
 			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyInvalid},
 			wantPaused:               false,
 			wantChanged:              true,
@@ -632,6 +658,9 @@ func TestHandleUnpause(t *testing.T) {
 			assert.Equal(t, tt.wantReason, state.PauseReason)
 			assert.Equal(t, tt.wantPausedBy, state.PausedBy)
 			assert.Equal(t, tt.wantUnpauseCatchUpPolicy, state.UnpauseCatchUpPolicy)
+			if tt.wantChanged {
+				assert.True(t, state.PausedAt.IsZero(), "PausedAt should be cleared on unpause")
+			}
 		})
 	}
 }
@@ -745,17 +774,23 @@ func TestHandleUpdate(t *testing.T) {
 		},
 	}
 
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := original
 			state := &SchedulerWorkflowState{}
-			changed := handleUpdate(testLogger, tt.sig, &input, state)
+			changed := handleUpdate(testLogger, tt.sig, &input, state, now)
 			assert.Equal(t, tt.wantChanged, changed)
 			assert.Equal(t, tt.wantCron, input.Spec.CronExpression)
 			assert.Equal(t, tt.wantWF, input.Action.StartWorkflow.WorkflowType.Name)
 			assert.Equal(t, tt.wantPol, input.Policies.OverlapPolicy)
 			if tt.sig.SearchAttributes != nil {
 				assert.Equal(t, tt.sig.SearchAttributes, input.SearchAttributes)
+			}
+			if tt.wantChanged {
+				assert.Equal(t, now, state.LastUpdatedAt)
+			} else {
+				assert.True(t, state.LastUpdatedAt.IsZero())
 			}
 		})
 	}
@@ -770,7 +805,7 @@ func TestHandleUpdate(t *testing.T) {
 		}
 		changed := handleUpdate(testLogger, UpdateSignal{
 			Spec: &types.ScheduleSpec{CronExpression: "*/5 * * * *"},
-		}, &input, state)
+		}, &input, state, now)
 		assert.True(t, changed)
 		assert.Equal(t, "*/5 * * * *", input.Spec.CronExpression)
 		assert.Empty(t, state.PendingBackfills)
@@ -785,7 +820,7 @@ func TestHandleUpdate(t *testing.T) {
 		}
 		changed := handleUpdate(testLogger, UpdateSignal{
 			Action: &types.ScheduleAction{StartWorkflow: &types.StartWorkflowAction{WorkflowType: &types.WorkflowType{Name: "new-workflow"}}},
-		}, &input, state)
+		}, &input, state, now)
 		assert.True(t, changed)
 		assert.Len(t, state.PendingBackfills, 1)
 	})
@@ -799,7 +834,7 @@ func TestHandleUpdate(t *testing.T) {
 		}
 		changed := handleUpdate(testLogger, UpdateSignal{
 			Spec: &types.ScheduleSpec{CronExpression: "not-a-cron"},
-		}, &input, state)
+		}, &input, state, now)
 		assert.False(t, changed)
 		assert.Len(t, state.PendingBackfills, 1)
 	})
@@ -2062,7 +2097,7 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 				},
 			}
 
-			changed := handleUpdate(testLogger, sig, input, state)
+			changed := handleUpdate(testLogger, sig, input, state, time.Now())
 
 			assert.True(t, changed, "policy update signal should report state as changed")
 			if tt.wantNil {
@@ -2134,7 +2169,7 @@ func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 				Policies: &types.SchedulePolicies{OverlapPolicy: tt.toOverlap},
 			}
 
-			changed := handleUpdate(testLogger, sig, input, state)
+			changed := handleUpdate(testLogger, sig, input, state, time.Now())
 
 			assert.True(t, changed, "policy change should always report as changed")
 			assert.Equal(t, tt.toOverlap, input.Policies.OverlapPolicy)

@@ -191,6 +191,9 @@ type SchedulerWorkflowState struct {
 	// processMissedRunsAt prefers this over input.Policies.CatchUpPolicy for the first
 	// catch-up pass after an unpause, then clears it. Invalid (zero) means no override.
 	UnpauseCatchUpPolicy types.ScheduleCatchUpPolicy `json:"unpauseCatchUpPolicy,omitempty"`
+	CreatedAt            time.Time                   `json:"createdAt,omitempty"`
+	LastUpdatedAt        time.Time                   `json:"lastUpdatedAt,omitempty"`
+	PausedAt             time.Time                   `json:"pausedAt,omitempty"`
 }
 
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER
@@ -287,6 +290,9 @@ type ScheduleDescription struct {
 	// OngoingBackfills mirrors SchedulerWorkflowState.PendingBackfills at the
 	// time of the describe query.
 	OngoingBackfills []types.BackfillInfo `json:"ongoingBackfills,omitempty"`
+	CreatedAt        time.Time            `json:"createdAt,omitempty"`
+	LastUpdatedAt    time.Time            `json:"lastUpdatedAt,omitempty"`
+	PausedAt         time.Time            `json:"pausedAt,omitempty"`
 }
 
 // TriggerSource identifies what caused a schedule fire, used to differentiate

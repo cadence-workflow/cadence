@@ -65,6 +65,10 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 
 	state := &input.State
 
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = workflow.Now(ctx)
+	}
+
 	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
 		return buildScheduleDescription(&input, state), nil
 	})
@@ -229,7 +233,7 @@ func applyAllInputs(
 		var sig PauseSignal
 		c.Receive(ctx, &sig)
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagPause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handlePause(logger, sig, state) {
+		if handlePause(logger, sig, state, workflow.Now(ctx)) {
 			stateChanged = true
 		}
 	})
@@ -247,7 +251,7 @@ func applyAllInputs(
 		var sig UpdateSignal
 		c.Receive(ctx, &sig)
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUpdate}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handleUpdate(logger, sig, input, state) {
+		if handleUpdate(logger, sig, input, state, workflow.Now(ctx)) {
 			stateChanged = true
 		}
 	})
@@ -269,7 +273,7 @@ func applyAllInputs(
 
 	selector.Select(ctx)
 
-	if drainBufferedSignals(logger, scope, chs, state, input) {
+	if drainBufferedSignals(ctx, logger, scope, chs, state, input) {
 		stateChanged = true
 	}
 
@@ -280,6 +284,7 @@ func applyAllInputs(
 // Delete signals are checked first to prevent signal loss across ContinueAsNew boundaries.
 // Returns true if a state-changing signal was found.
 func drainBufferedSignals(
+	ctx workflow.Context,
 	logger *zap.Logger,
 	scope tally.Scope,
 	chs signalChannels,
@@ -299,7 +304,7 @@ func drainBufferedSignals(
 			break
 		}
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagPause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handlePause(logger, sig, state) {
+		if handlePause(logger, sig, state, workflow.Now(ctx)) {
 			stateChanged = true
 		}
 	}
@@ -319,7 +324,7 @@ func drainBufferedSignals(
 			break
 		}
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUpdate}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handleUpdate(logger, sig, input, state) {
+		if handleUpdate(logger, sig, input, state, workflow.Now(ctx)) {
 			stateChanged = true
 		}
 	}
@@ -372,7 +377,7 @@ func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *Schedul
 	return sa
 }
 
-func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState) bool {
+func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState, now time.Time) bool {
 	if state.Paused {
 		logger.Info("ignoring pause signal, schedule is already paused")
 		return false
@@ -380,6 +385,7 @@ func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowSt
 	state.Paused = true
 	state.PauseReason = sig.Reason
 	state.PausedBy = sig.PausedBy
+	state.PausedAt = now
 	logger.Info("schedule paused", zap.String("reason", sig.Reason), zap.String("pausedBy", sig.PausedBy))
 	return true
 }
@@ -392,6 +398,7 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	state.Paused = false
 	state.PauseReason = ""
 	state.PausedBy = ""
+	state.PausedAt = time.Time{}
 	if sig.CatchUpPolicy != types.ScheduleCatchUpPolicyInvalid {
 		state.UnpauseCatchUpPolicy = sig.CatchUpPolicy
 	}
@@ -399,7 +406,7 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	return true
 }
 
-func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, now time.Time) bool {
 	if sig.Spec == nil && sig.Action == nil && sig.Policies == nil && sig.SearchAttributes == nil {
 		logger.Info("ignoring empty update signal")
 		return false
@@ -460,6 +467,7 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		changed = true
 	}
 	if changed {
+		state.LastUpdatedAt = now
 		logger.Info("schedule updated")
 	}
 	return changed
@@ -1078,6 +1086,9 @@ func buildScheduleDescription(input *SchedulerWorkflowInput, state *SchedulerWor
 		Memo:             input.Memo,
 		SearchAttributes: input.SearchAttributes,
 		OngoingBackfills: ongoing,
+		CreatedAt:        state.CreatedAt,
+		LastUpdatedAt:    state.LastUpdatedAt,
+		PausedAt:         state.PausedAt,
 	}
 }
 
