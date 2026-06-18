@@ -110,6 +110,7 @@ type (
 		AppendHistoryV2Events(ctx context.Context, request *persistence.AppendHistoryNodesRequest, domainID string, execution types.WorkflowExecution) (*persistence.AppendHistoryNodesResponse, error)
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
+		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
 	}
@@ -1528,10 +1529,93 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 	return err
 }
 
+func (s *contextImpl) ReinjectHistoryTasks(
+	ctx context.Context,
+	tasks []persistence.Task,
+) error {
+	if err := s.closedError(); err != nil {
+		return err
+	}
+
+	// Group by category. Only transfer + timer are produced by the standby DLQ write path.
+	tasksByCategory := make(map[persistence.HistoryTaskCategory][]persistence.Task)
+	for _, task := range tasks {
+		tasksByCategory[task.GetTaskCategory()] = append(tasksByCategory[task.GetTaskCategory()], task)
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	immediateTaskMaxReadLevel := int64(0)
+
+	// Transfer task IDs are shard-global (a single shared sequence) and the transfer queue orders by
+	// task ID alone, so a single allocation pass over the whole slice is correct regardless of which
+	// domains the tasks span — no per-domain handling needed.
+	if transferTasks := tasksByCategory[persistence.HistoryTaskCategoryTransfer]; len(transferTasks) > 0 {
+		if err := s.allocateTransferIDsLocked(transferTasks, &immediateTaskMaxReadLevel); err != nil {
+			return err
+		}
+	}
+
+	// Timer tasks also get a shard-global ID, but the scheduled queue's read cursor is per-cluster, and
+	// allocateTimerIDsLocked needs the per-domain domainEntry to determine the task's active
+	// cluster/version and bump its visibility timestamp above that cluster's cursor so the queue re-reads
+	// it (workflowID is logging-only). So group by domain and look the entry up once per domain.
+	if timerTasks := tasksByCategory[persistence.HistoryTaskCategoryTimer]; len(timerTasks) > 0 {
+		timerTasksByDomain := make(map[string][]persistence.Task)
+		for _, task := range timerTasks {
+			timerTasksByDomain[task.GetDomainID()] = append(timerTasksByDomain[task.GetDomainID()], task)
+		}
+		for domainID, domainTimerTasks := range timerTasksByDomain {
+			domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
+			if err != nil {
+				return err
+			}
+			if err := s.allocateTimerIDsLocked(
+				domainEntry,
+				domainTimerTasks[0].GetWorkflowID(),
+				domainTimerTasks,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := s.closedError(); err != nil {
+		return err
+	}
+	err := s.executionManager.CreateHistoryTasks(
+		ctx,
+		&persistence.CreateHistoryTasksRequest{
+			ShardID:         common.Ptr(s.shardID),
+			RangeID:         s.getRangeID(),
+			TasksByCategory: tasksByCategory,
+		},
+	)
+	// errors.As (rather than a type switch or errors.Is): ShardOwnershipLostError is a struct error with
+	// no Is() method, so errors.Is would only do pointer equality. errors.As matches by type and unwraps.
+	if err == nil {
+		// Update MaxReadLevel if write to DB succeeds
+		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+	} else if errors.As(err, new(*persistence.ShardOwnershipLostError)) {
+		// do not retry on ShardOwnershipLostError
+		s.logger.Warn(
+			"Closing shard: ReinjectHistoryTasks failed due to stolen shard.",
+			tag.Error(err),
+		)
+		s.closeShard()
+	} else {
+		s.logger.Error(
+			"Failed to re-inject history DLQ tasks into the executions table.",
+			tag.Error(err),
+		)
+	}
+	return err
+}
+
 func (s *contextImpl) AddingPendingFailoverMarker(
 	marker *types.FailoverMarkerAttributes,
 ) error {
-
 	domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 	if err != nil {
 		return err

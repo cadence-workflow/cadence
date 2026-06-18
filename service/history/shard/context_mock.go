@@ -523,6 +523,20 @@ func (mr *MockContextMockRecorder) PreviousShardOwnerWasDifferent() *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PreviousShardOwnerWasDifferent", reflect.TypeOf((*MockContext)(nil).PreviousShardOwnerWasDifferent))
 }
 
+// ReinjectHistoryTasks mocks base method.
+func (m *MockContext) ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReinjectHistoryTasks", ctx, tasks)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReinjectHistoryTasks indicates an expected call of ReinjectHistoryTasks.
+func (mr *MockContextMockRecorder) ReinjectHistoryTasks(ctx, tasks any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReinjectHistoryTasks", reflect.TypeOf((*MockContext)(nil).ReinjectHistoryTasks), ctx, tasks)
+}
+
 // ReplicateFailoverMarkers mocks base method.
 func (m *MockContext) ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error {
 	m.ctrl.T.Helper()
