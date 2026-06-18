@@ -118,9 +118,9 @@ func countCronFires(sched cron.Schedule, start, end time.Time, spec types.Schedu
 
 // processBackfills drains pending backfill requests from state, computing
 // cron fire times for each request's time range and executing them.
-// Like processMissedRuns, it caps fires per execution and returns true
-// if more work remains (signalling the caller to ContinueAsNew).
-func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+// Like processMissedRuns, it draws from the shared activity budget and returns
+// true if more work remains (signalling the caller to ContinueAsNew).
+func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int) bool {
 	if len(state.PendingBackfills) == 0 {
 		return false
 	}
@@ -161,9 +161,9 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
 
 		for _, t := range fires.times {
-			if fired >= maxBackfillFiresPerExecution {
+			if *budget <= 0 {
 				bf.StartTime = t
-				logger.Info("backfill batch cap reached, continuing after ContinueAsNew",
+				logger.Info("backfill batch budget exhausted, continuing after ContinueAsNew",
 					zap.String("backfillId", bf.BackfillID),
 					zap.Time("resumeFrom", t),
 					zap.Int("firedThisBatch", fired),
@@ -174,6 +174,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
 			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
 			fired++
+			*budget--
 			// Count any fire handed off to processScheduleFire, whether it
 			// started, was skipped under the overlap policy, or was queued
 			// into the BUFFER. Counting only "started" would pin a
