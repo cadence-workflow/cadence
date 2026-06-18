@@ -7,9 +7,6 @@ history.enableTransferQueueV2:
 frontend.warmupDuration:
 - value: "1s"
   constraints: {}
-history.timerProcessorEnableCachedScheduledQueue:
-- value: true
-  constraints: {}
 history.timerProcessorCachedQueueReaderMode:
 - value: "enabled"
   constraints: {}

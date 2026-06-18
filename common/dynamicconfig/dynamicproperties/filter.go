@@ -171,13 +171,6 @@ func RatelimitKeyFilter(key string) FilterOption {
 	}
 }
 
-// NamespaceFilter filters by namespace
-func NamespaceFilter(namespace string) FilterOption {
-	return func(filterMap map[Filter]interface{}) {
-		filterMap[Namespace] = namespace
-	}
-}
-
 // ToGetDynamicConfigFilterRequest generates a GetDynamicConfigRequest object
 // by converting filters to DynamicConfigFilter objects and setting values
 func ToGetDynamicConfigFilterRequest(configName string, filters []FilterOption) *types.GetDynamicConfigRequest {

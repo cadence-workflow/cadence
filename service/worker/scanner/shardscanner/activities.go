@@ -160,7 +160,7 @@ func scanShard(
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
 		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
 	defer sw.Stop()
 
 	if ctx.Hooks == nil {
@@ -174,7 +174,7 @@ func scanShard(
 		return nil, err
 	}
 
-	pr := persistence.NewPersistenceRetryer(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy())
+	pr := persistence.NewPersistenceRetryerWithShardID(execManager, resources.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 
 	scanner := NewScanner(
 		shardID,
@@ -384,7 +384,7 @@ func fixShard(
 		metrics.WorkflowTypeTag(info.WorkflowType.Name),
 		metrics.DomainTag(constants.SystemLocalDomainName),
 	)
-	sw := scope.StartTimer(metrics.CadenceLatency)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
 	defer sw.Stop()
 
 	if ctx.Hooks == nil {
@@ -397,7 +397,7 @@ func fixShard(
 		return nil, err
 	}
 
-	pr := persistence.NewPersistenceRetryer(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy())
+	pr := persistence.NewPersistenceRetryerWithShardID(execManager, resource.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 
 	fixer := NewFixer(
 		activityCtx,

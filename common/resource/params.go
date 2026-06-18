@@ -21,8 +21,10 @@
 package resource
 
 import (
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
@@ -46,7 +48,6 @@ import (
 	"github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant"
 )
 
@@ -57,6 +58,7 @@ type (
 		InstanceID         string
 		Logger             log.Logger
 		ThrottledLogger    log.Logger
+		ZapLogger          *zap.Logger
 		HostName           string
 		GetIsolationGroups func() []string
 

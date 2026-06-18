@@ -205,6 +205,7 @@ const (
 	FlagFailoverDomains                = "domains"
 	FlagFailoverDrillWaitTime          = "failover_drill_wait_second"
 	FlagFailoverDrill                  = "failover_drill"
+	FlagFailoverV2                     = "v2"
 	FlagRetryInterval                  = "retry_interval"
 	FlagRetryAttempts                  = "retry_attempts"
 	FlagMaxActivityRetries             = "max_activity_retries"

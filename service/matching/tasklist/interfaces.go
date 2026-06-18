@@ -33,8 +33,10 @@ import (
 	"context"
 	"time"
 
+	smtypes "github.com/cadence-workflow/shard-manager/common/types"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
+
 	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -120,6 +122,6 @@ type (
 		Start(ctx context.Context) error
 		Stop()
 		GetShardReport() executorclient.ShardReport
-		SetShardStatus(types.ShardStatus)
+		SetShardStatus(smtypes.ShardStatus)
 	}
 )

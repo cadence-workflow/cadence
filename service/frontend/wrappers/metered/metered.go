@@ -95,6 +95,11 @@ func (h *apiHandler) handleErr(err error, scope metrics.Scope, logger log.Logger
 			logger.Warn(constants.GRPCConnectionClosingError, tag.Error(err))
 			return err
 		}
+		if err.Code() == yarpcerrors.CodeUnavailable {
+			logger.Error("Frontend request failed with service unavailable", tag.Error(err))
+			scope.IncCounter(metrics.CadenceErrServiceUnavailableCounter)
+			return err
+		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		logger.Error("Frontend request timedout", tag.Error(err))

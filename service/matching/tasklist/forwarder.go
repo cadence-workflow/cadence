@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber/cadence/client/matching"
 	"github.com/uber/cadence/common/metrics"
@@ -129,8 +130,12 @@ func (fwdr *forwarderImpl) ForwardTask(ctx context.Context, task *InternalTask) 
 
 	var err error
 
+	startT := time.Now()
 	sw := fwdr.scope.StartTimer(metrics.ForwardTaskLatencyPerTaskList)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		fwdr.scope.ExponentialHistogram(metrics.ForwardTaskLatencyPerTaskListHistogram, time.Since(startT))
+	}()
 	switch fwdr.taskListID.GetType() {
 	case persistence.TaskListTypeDecision:
 		_, err = fwdr.client.AddDecisionTask(ctx, &types.AddDecisionTaskRequest{
@@ -183,8 +188,12 @@ func (fwdr *forwarderImpl) ForwardQueryTask(
 		return nil, ErrNoParent
 	}
 
+	startT := time.Now()
 	sw := fwdr.scope.StartTimer(metrics.ForwardQueryLatencyPerTaskList)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		fwdr.scope.ExponentialHistogram(metrics.ForwardQueryLatencyPerTaskListHistogram, time.Since(startT))
+	}()
 	resp, err := fwdr.client.QueryWorkflow(ctx, &types.MatchingQueryWorkflowRequest{
 		DomainUUID: task.Query.Request.DomainUUID,
 		TaskList: &types.TaskList{
@@ -209,8 +218,12 @@ func (fwdr *forwarderImpl) ForwardPoll(ctx context.Context) (*InternalTask, erro
 		return nil, ErrNoParent
 	}
 
+	startT := time.Now()
 	sw := fwdr.scope.StartTimer(metrics.ForwardPollLatencyPerTaskList)
-	defer sw.Stop()
+	defer func() {
+		sw.Stop()
+		fwdr.scope.ExponentialHistogram(metrics.ForwardPollLatencyPerTaskListHistogram, time.Since(startT))
+	}()
 	pollerID := PollerIDFromContext(ctx)
 	identity := IdentityFromContext(ctx)
 	isolationGroup := IsolationGroupFromContext(ctx)

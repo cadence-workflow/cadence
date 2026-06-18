@@ -25,12 +25,12 @@ package membership
 import (
 	"testing"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 func TestShardDistributorResolver_Lookup(t *testing.T) {

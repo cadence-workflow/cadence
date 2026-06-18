@@ -1,12 +1,12 @@
 package executors
 
 import (
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"go.uber.org/fx"
 
 	"github.com/uber/cadence/service/sharddistributor/canary/config"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type ExecutorResult struct {

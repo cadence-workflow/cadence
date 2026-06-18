@@ -255,12 +255,14 @@ func TestSimpleQueueReader_LookAHead(t *testing.T) {
 		{
 			name: "task found",
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), &persistence.GetHistoryTasksRequest{
 					TaskCategory:        persistence.HistoryTaskCategoryTimer,
 					InclusiveMinTaskKey: minTaskKey,
 					ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(expectedMaxTime, 0),
 					PageSize:            1,
+					ShardID:             common.Ptr(0),
 				}).Return(&persistence.GetHistoryTasksResponse{
 					Tasks: []persistence.Task{foundTask},
 				}, nil)
@@ -270,6 +272,7 @@ func TestSimpleQueueReader_LookAHead(t *testing.T) {
 		{
 			name: "no task found",
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{
 					Tasks: nil,
@@ -280,6 +283,7 @@ func TestSimpleQueueReader_LookAHead(t *testing.T) {
 		{
 			name: "DB error",
 			mockSetup: func(mockShard *shard.MockContext, mockExec *persistence.MockExecutionManager) {
+				mockShard.EXPECT().GetShardID().Return(0)
 				mockShard.EXPECT().GetExecutionManager().Return(mockExec)
 				mockExec.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("db error"))
 			},

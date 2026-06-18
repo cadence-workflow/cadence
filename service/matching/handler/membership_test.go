@@ -29,9 +29,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -52,7 +54,6 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestGetTaskListManager_OwnerShip(t *testing.T) {
@@ -123,6 +124,7 @@ func TestGetTaskListManager_OwnerShip(t *testing.T) {
 				mockMatchingClient,
 				config,
 				logger,
+				zap.NewNop(),
 				metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 				tally.NoopScope,
 				mockDomainCache,

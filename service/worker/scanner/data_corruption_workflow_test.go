@@ -102,7 +102,6 @@ func (s *dataCorruptionWorkflowTestSuite) TestExecutionFixerActivity_Success() {
 			RunID:      uuid.New(),
 		},
 	}
-	mockResource.ExecutionMgr.On("GetShardID").Return(0)
 	mockResource.ExecutionMgr.On("GetCurrentExecution", mock.Anything, mock.Anything).Return(&p.GetCurrentExecutionResponse{
 		RunID:            fixList[0].RunID,
 		State:            2,

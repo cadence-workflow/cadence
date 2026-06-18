@@ -175,7 +175,10 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),
 			tag.WorkflowHistorySize(historySize),
-			tag.WorkflowEventCount(historyCount))
+			tag.WorkflowHistorySizeLimit(c.historySizeLimitError),
+			tag.WorkflowEventCount(historyCount),
+			tag.WorkflowEventCountLimit(c.historyCountLimitError),
+		)
 
 		attributes := &types.FailWorkflowExecutionDecisionAttributes{
 			Reason:  common.StringPtr(common.FailureReasonSizeExceedsLimit),
@@ -196,7 +199,10 @@ func (c *workflowSizeChecker) failWorkflowSizeExceedsLimit() (bool, error) {
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),
 			tag.WorkflowHistorySize(historySize),
-			tag.WorkflowEventCount(historyCount))
+			tag.WorkflowEventCount(historyCount),
+			tag.WorkflowHistorySizeLimit(c.historySizeLimitWarn),
+			tag.WorkflowEventCountLimit(c.historyCountLimitWarn),
+		)
 		return false, nil
 	}
 

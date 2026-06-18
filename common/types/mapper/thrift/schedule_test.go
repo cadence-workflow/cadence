@@ -25,7 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/testdata"
 )
@@ -195,7 +195,7 @@ func TestSchedulePoliciesConversion(t *testing.T) {
 		// Pin *int32(0) (explicit "unlimited") round-trips distinctly from nil
 		// ("unset"), the whole point of the *int32 wrappers is keeping
 		// those two states distinguishable end-to-end.
-		{BufferLimit: common.Int32Ptr(0), ConcurrencyLimit: common.Int32Ptr(0)},
+		{BufferLimit: 0, ConcurrencyLimit: 0},
 		&testdata.SchedulePolicies,
 	} {
 		assert.Equal(t, item, ToSchedulePolicies(FromSchedulePolicies(item)))
@@ -293,4 +293,29 @@ func TestFromUnpauseScheduleResponse(t *testing.T) {
 func TestFromBackfillScheduleResponse(t *testing.T) {
 	assert.NotNil(t, FromBackfillScheduleResponse(nil))
 	assert.NotNil(t, FromBackfillScheduleResponse(&types.BackfillScheduleResponse{}))
+}
+
+func TestToUpdateScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.UpdateScheduleResponse{}, ToUpdateScheduleResponse(nil))
+	assert.Equal(t, &types.UpdateScheduleResponse{}, ToUpdateScheduleResponse(&shared.UpdateScheduleResponse{}))
+}
+
+func TestToDeleteScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.DeleteScheduleResponse{}, ToDeleteScheduleResponse(nil))
+	assert.Equal(t, &types.DeleteScheduleResponse{}, ToDeleteScheduleResponse(&shared.DeleteScheduleResponse{}))
+}
+
+func TestToPauseScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.PauseScheduleResponse{}, ToPauseScheduleResponse(nil))
+	assert.Equal(t, &types.PauseScheduleResponse{}, ToPauseScheduleResponse(&shared.PauseScheduleResponse{}))
+}
+
+func TestToUnpauseScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.UnpauseScheduleResponse{}, ToUnpauseScheduleResponse(nil))
+	assert.Equal(t, &types.UnpauseScheduleResponse{}, ToUnpauseScheduleResponse(&shared.UnpauseScheduleResponse{}))
+}
+
+func TestToBackfillScheduleResponse(t *testing.T) {
+	assert.Equal(t, &types.BackfillScheduleResponse{}, ToBackfillScheduleResponse(nil))
+	assert.Equal(t, &types.BackfillScheduleResponse{}, ToBackfillScheduleResponse(&shared.BackfillScheduleResponse{}))
 }

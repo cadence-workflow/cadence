@@ -4,18 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
 	"github.com/uber/cadence/service/sharddistributor/canary/processorephemeral"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // mockLifecycle is a simple mock implementation of fx.Lifecycle for testing
@@ -91,12 +91,12 @@ func TestNewExecutor_InvalidConfig(t *testing.T) {
 			name: "No namespaces configured",
 			params: executorclient.Params[*processor.ShardProcessor]{
 				MetricsScope:          tally.NoopScope,
-				Logger:                log.NewNoop(),
+				Logger:                zap.NewNop(),
 				ShardProcessorFactory: mockShardProcessorFactory,
 				Config: clientcommon.Config{
 					Namespaces: []clientcommon.NamespaceConfig{},
 				},
-				TimeSource: clock.NewMockedTimeSource(),
+				TimeSource: clock.NewSMTimeSourceAdapter(clock.NewMockedTimeSource()),
 			},
 			errorString: "at least one namespace must be configured",
 		},
@@ -104,18 +104,17 @@ func TestNewExecutor_InvalidConfig(t *testing.T) {
 			name: "No valid namespace",
 			params: executorclient.Params[*processor.ShardProcessor]{
 				MetricsScope:          tally.NoopScope,
-				Logger:                log.NewNoop(),
+				Logger:                zap.NewNop(),
 				ShardProcessorFactory: mockShardProcessorFactory,
 				Config: clientcommon.Config{
 					Namespaces: []clientcommon.NamespaceConfig{
 						{
 							Namespace:         "wrong-namespace",
 							HeartBeatInterval: 5 * time.Second,
-							MigrationMode:     "onboarded",
 						},
 					},
 				},
-				TimeSource: clock.NewMockedTimeSource(),
+				TimeSource: clock.NewSMTimeSourceAdapter(clock.NewMockedTimeSource()),
 			},
 			errorString: "namespace shard-distributor-canary not found in config",
 		},
@@ -186,18 +185,17 @@ func createMockParams[SP executorclient.ShardProcessor](
 
 	return executorclient.Params[SP]{
 		MetricsScope:          tally.NoopScope,
-		Logger:                log.NewNoop(),
+		Logger:                zap.NewNop(),
 		ShardProcessorFactory: mockShardProcessorFactory,
 		Config: clientcommon.Config{
 			Namespaces: []clientcommon.NamespaceConfig{
 				{
 					Namespace:         namespace,
 					HeartBeatInterval: 5 * time.Second,
-					MigrationMode:     "onboarded",
 				},
 			},
 		},
-		TimeSource: clock.NewMockedTimeSource(),
+		TimeSource: clock.NewSMTimeSourceAdapter(clock.NewMockedTimeSource()),
 	}
 }
 

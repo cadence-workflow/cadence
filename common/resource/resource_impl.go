@@ -25,16 +25,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	smretryable "github.com/cadence-workflow/shard-manager/client/wrappers/retryable"
+	smcommon "github.com/cadence-workflow/shard-manager/common"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
@@ -63,7 +66,6 @@ import (
 	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func NewResourceFactory() ResourceFactory {
@@ -112,18 +114,15 @@ type Impl struct {
 
 	// internal services clients
 
-	sdkClient                         workflowserviceclient.Interface
-	frontendRawClient                 frontend.Client
-	frontendClient                    frontend.Client
-	matchingRawClient                 matching.Client
-	matchingClient                    matching.Client
-	historyRawClient                  history.Client
-	historyClient                     history.Client
-	shardDistributorRawClient         sharddistributor.Client
-	shardDistributorClient            sharddistributor.Client
-	shardDistributorExecutorRawClient executorclient.Client
-	shardDistributorExecutorClient    executorclient.Client
-	clientBean                        client.Bean
+	sdkClient                      workflowserviceclient.Interface
+	frontendRawClient              frontend.Client
+	frontendClient                 frontend.Client
+	matchingRawClient              matching.Client
+	matchingClient                 matching.Client
+	historyRawClient               history.Client
+	historyClient                  history.Client
+	shardDistributorExecutorClient executorclient.Client
+	clientBean                     client.Bean
 
 	// persistence clients
 	persistenceBean persistenceClient.Bean
@@ -131,6 +130,7 @@ type Impl struct {
 	// loggers
 	logger          log.Logger
 	throttledLogger log.Logger
+	zapLogger       *zap.Logger
 	hostName        string
 
 	// for registering handlers
@@ -275,31 +275,15 @@ func New(
 		serviceConfig.IsErrorRetryableFunction,
 	)
 
-	shardDistributorRawClient := clientBean.GetShardDistributorClient()
-
-	// If the raw client is nil, then the client bean is not configured to provide a shard distributor client, so we
-	// do not wrap and provide a retryable client
-	var shardDistributorClient sharddistributor.Client
-	if shardDistributorRawClient == nil {
-		shardDistributorClient = nil
-	} else {
-		shardDistributorClient = retryable.NewShardDistributorClient(
-			shardDistributorRawClient,
-			common.CreateShardDistributorServiceRetryPolicy(),
-			serviceConfig.IsErrorRetryableFunction,
-		)
-	}
-
 	shardDistributorExecutorRawClient := clientBean.GetShardDistributorExecutorClient()
 	var shardDistributorExecutorClient executorclient.Client
-	if shardDistributorExecutorRawClient == nil {
-		shardDistributorExecutorClient = nil
-	} else {
-		shardDistributorExecutorClient = retryable.NewShardDistributorExecutorClient(
+	if shardDistributorExecutorRawClient != nil {
+		retryableClient := smretryable.NewShardDistributorExecutorClient(
 			shardDistributorExecutorRawClient,
-			common.CreateShardDistributorServiceRetryPolicy(),
-			serviceConfig.IsErrorRetryableFunction,
+			smcommon.CreateShardDistributorServiceRetryPolicy(),
+			smcommon.IsServiceTransientError,
 		)
+		shardDistributorExecutorClient = executorclient.NewMeteredShardDistributorExecutorClient(retryableClient, params.MetricScope)
 	}
 
 	var historyRawClient history.Client
@@ -390,18 +374,15 @@ func New(
 
 		// internal services clients
 
-		sdkClient:                         params.PublicClient,
-		frontendRawClient:                 frontendRawClient,
-		frontendClient:                    frontendClient,
-		matchingRawClient:                 matchingRawClient,
-		matchingClient:                    matchingClient,
-		historyRawClient:                  historyRawClient,
-		historyClient:                     historyClient,
-		shardDistributorRawClient:         shardDistributorRawClient,
-		shardDistributorClient:            shardDistributorClient,
-		shardDistributorExecutorRawClient: shardDistributorExecutorRawClient,
-		shardDistributorExecutorClient:    shardDistributorExecutorClient,
-		clientBean:                        clientBean,
+		sdkClient:                      params.PublicClient,
+		frontendRawClient:              frontendRawClient,
+		frontendClient:                 frontendClient,
+		matchingRawClient:              matchingRawClient,
+		matchingClient:                 matchingClient,
+		historyRawClient:               historyRawClient,
+		historyClient:                  historyClient,
+		shardDistributorExecutorClient: shardDistributorExecutorClient,
+		clientBean:                     clientBean,
 
 		// persistence clients
 		persistenceBean: persistenceBean,
@@ -409,6 +390,7 @@ func New(
 		// loggers
 		logger:          logger,
 		throttledLogger: throttledLogger,
+		zapLogger:       params.ZapLogger,
 		hostName:        hostname,
 
 		// for registering handlers
@@ -621,14 +603,9 @@ func (h *Impl) GetHistoryClient() history.Client {
 	return h.historyClient
 }
 
-// GetShardDistributorExecutorRawClient return client for sharddistributor executor
-func (h *Impl) GetShardDistributorExecutorRawClient() executorclient.Client {
-	return h.shardDistributorExecutorRawClient
-}
-
 // GetShardDistributorExecutorClient return client for sharddistributor executor
 func (h *Impl) GetShardDistributorExecutorClient() executorclient.Client {
-	return h.shardDistributorExecutorRawClient
+	return h.shardDistributorExecutorClient
 }
 
 func (h *Impl) GetRatelimiterAggregatorsClient() qrpc.Client {
@@ -718,6 +695,10 @@ func (h *Impl) GetLogger() log.Logger {
 // GetThrottledLogger return throttled logger
 func (h *Impl) GetThrottledLogger() log.Logger {
 	return h.throttledLogger
+}
+
+func (h *Impl) GetZapLogger() *zap.Logger {
+	return h.zapLogger
 }
 
 // GetDispatcher return YARPC dispatcher, used for registering handlers

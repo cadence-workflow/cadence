@@ -73,6 +73,8 @@ var (
 		LastRunTime:      scheduleTimeLocal2,
 		NextRunTime:      scheduleTimeLocal3,
 		TotalRuns:        42,
+		MissedRuns:       3,
+		SkippedRuns:      1,
 		CreateTime:       scheduleTimeLocal5,
 		LastUpdateTime:   scheduleTimeLocal2,
 		OngoingBackfills: []*types.BackfillInfo{&ScheduleBackfillInfoThrift},
@@ -156,8 +158,8 @@ var (
 		CatchUpPolicy:    types.ScheduleCatchUpPolicyAll,
 		CatchUpWindow:    time.Hour,
 		PauseOnFailure:   true,
-		BufferLimit:      common.Int32Ptr(5),
-		ConcurrencyLimit: common.Int32Ptr(2),
+		BufferLimit:      5,
+		ConcurrencyLimit: 2,
 	}
 
 	SchedulePauseInfo = types.SchedulePauseInfo{

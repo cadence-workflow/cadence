@@ -8,33 +8,24 @@ import (
 //go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination percentage_onboarded_mock.go -self_package github.com/uber/cadence/common/membership
 
 // PercentageOnboarded is the shared read path for the shard-manager onboarding
-// percentage. Value returns 0 when emergency offboarding is on.
+// percentage.
 type PercentageOnboarded interface {
 	Value() int
 }
 
 func NewPercentageOnboarded(
 	metricsClient metrics.Client,
-	fromDynamicConfig dynamicproperties.IntPropertyFn,
-	fromOperational dynamicproperties.IntPropertyFn,
-	useOperational dynamicproperties.BoolPropertyFn,
-	emergencyOffboarding dynamicproperties.BoolPropertyFn,
+	value dynamicproperties.IntPropertyFn,
 ) PercentageOnboarded {
 	return &percentageOnboarded{
-		metricsClient:        metricsClient,
-		fromDynamicConfig:    fromDynamicConfig,
-		fromOperational:      fromOperational,
-		useOperational:       useOperational,
-		emergencyOffboarding: emergencyOffboarding,
+		metricsClient: metricsClient,
+		value:         value,
 	}
 }
 
 type percentageOnboarded struct {
-	metricsClient        metrics.Client
-	fromDynamicConfig    dynamicproperties.IntPropertyFn
-	fromOperational      dynamicproperties.IntPropertyFn
-	useOperational       dynamicproperties.BoolPropertyFn
-	emergencyOffboarding dynamicproperties.BoolPropertyFn
+	metricsClient metrics.Client
+	value         dynamicproperties.IntPropertyFn
 }
 
 // StaticPercentageOnboarded always returns the given value. Intended for test
@@ -48,25 +39,10 @@ type staticPercentageOnboarded int
 func (s staticPercentageOnboarded) Value() int { return int(s) }
 
 func (p *percentageOnboarded) Value() int {
-	if p.emergencyOffboarding() {
-		return 0
-	}
+	value := p.value()
 
-	operational := p.useOperational()
-	dynamicValue := p.fromDynamicConfig()
-	operationalValue := p.fromOperational()
+	p.metricsClient.Scope(metrics.ShardManagerOnboardingScope).
+		UpdateGauge(metrics.PercentageOnboardedToShardManagerGauge, float64(value))
 
-	p.metricsClient.Scope(metrics.ShardManagerOnboardingScope,
-		metrics.OnboardingSourceTag("dynamicconfig"),
-		metrics.OnboardingActiveTag(!operational),
-	).UpdateGauge(metrics.PercentageOnboardedToShardManagerGauge, float64(dynamicValue))
-	p.metricsClient.Scope(metrics.ShardManagerOnboardingScope,
-		metrics.OnboardingSourceTag("operational"),
-		metrics.OnboardingActiveTag(operational),
-	).UpdateGauge(metrics.PercentageOnboardedToShardManagerGauge, float64(operationalValue))
-
-	if operational {
-		return operationalValue
-	}
-	return dynamicValue
+	return value
 }

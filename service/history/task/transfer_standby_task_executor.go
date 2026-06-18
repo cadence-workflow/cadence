@@ -715,8 +715,12 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 	resendInfo := postActionInfo.(*historyResendInfo)
 
 	t.metricsClient.IncCounter(metrics.HistoryRereplicationByTransferTaskScope, metrics.CadenceClientRequests)
+	rereplicationLatencyStart := time.Now()
 	stopwatch := t.metricsClient.StartTimer(metrics.HistoryRereplicationByTransferTaskScope, metrics.CadenceClientLatency)
-	defer stopwatch.Stop()
+	defer func() {
+		stopwatch.Stop()
+		t.metricsClient.Scope(metrics.HistoryRereplicationByTransferTaskScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(rereplicationLatencyStart))
+	}()
 
 	remoteClusterName, err := t.getRemoteClusterNameFn(ctx, taskInfo)
 	if err != nil {

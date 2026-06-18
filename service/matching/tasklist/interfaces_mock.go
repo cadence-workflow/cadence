@@ -14,10 +14,11 @@ import (
 	reflect "reflect"
 	time "time"
 
+	types "github.com/cadence-workflow/shard-manager/common/types"
+	executorclient "github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	gomock "go.uber.org/mock/gomock"
 
-	types "github.com/uber/cadence/common/types"
-	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
+	types0 "github.com/uber/cadence/common/types"
 )
 
 // MockTaskListRegistry is a mock of TaskListRegistry interface.
@@ -179,10 +180,10 @@ func (mr *MockManagerMockRecorder) CancelPoller(pollerID any) *gomock.Call {
 }
 
 // DescribeTaskList mocks base method.
-func (m *MockManager) DescribeTaskList(includeTaskListStatus bool) *types.DescribeTaskListResponse {
+func (m *MockManager) DescribeTaskList(includeTaskListStatus bool) *types0.DescribeTaskListResponse {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DescribeTaskList", includeTaskListStatus)
-	ret0, _ := ret[0].(*types.DescribeTaskListResponse)
+	ret0, _ := ret[0].(*types0.DescribeTaskListResponse)
 	return ret0
 }
 
@@ -193,10 +194,10 @@ func (mr *MockManagerMockRecorder) DescribeTaskList(includeTaskListStatus any) *
 }
 
 // DispatchQueryTask mocks base method.
-func (m *MockManager) DispatchQueryTask(ctx context.Context, taskID string, request *types.MatchingQueryWorkflowRequest) (*types.MatchingQueryWorkflowResponse, error) {
+func (m *MockManager) DispatchQueryTask(ctx context.Context, taskID string, request *types0.MatchingQueryWorkflowRequest) (*types0.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DispatchQueryTask", ctx, taskID, request)
-	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
+	ret0, _ := ret[0].(*types0.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -222,10 +223,10 @@ func (mr *MockManagerMockRecorder) DispatchTask(ctx, task any) *gomock.Call {
 }
 
 // GetAllPollerInfo mocks base method.
-func (m *MockManager) GetAllPollerInfo() []*types.PollerInfo {
+func (m *MockManager) GetAllPollerInfo() []*types0.PollerInfo {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAllPollerInfo")
-	ret0, _ := ret[0].([]*types.PollerInfo)
+	ret0, _ := ret[0].([]*types0.PollerInfo)
 	return ret0
 }
 
@@ -251,10 +252,10 @@ func (mr *MockManagerMockRecorder) GetTask(ctx, maxDispatchPerSecond any) *gomoc
 }
 
 // GetTaskListKind mocks base method.
-func (m *MockManager) GetTaskListKind() types.TaskListKind {
+func (m *MockManager) GetTaskListKind() types0.TaskListKind {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTaskListKind")
-	ret0, _ := ret[0].(types.TaskListKind)
+	ret0, _ := ret[0].(types0.TaskListKind)
 	return ret0
 }
 
@@ -279,10 +280,10 @@ func (mr *MockManagerMockRecorder) HasPollerAfter(accessTime any) *gomock.Call {
 }
 
 // LoadBalancerHints mocks base method.
-func (m *MockManager) LoadBalancerHints() *types.LoadBalancerHints {
+func (m *MockManager) LoadBalancerHints() *types0.LoadBalancerHints {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LoadBalancerHints")
-	ret0, _ := ret[0].(*types.LoadBalancerHints)
+	ret0, _ := ret[0].(*types0.LoadBalancerHints)
 	return ret0
 }
 
@@ -307,7 +308,7 @@ func (mr *MockManagerMockRecorder) QueriesPerSecond() *gomock.Call {
 }
 
 // RefreshTaskListPartitionConfig mocks base method.
-func (m *MockManager) RefreshTaskListPartitionConfig(arg0 context.Context, arg1 *types.TaskListPartitionConfig) error {
+func (m *MockManager) RefreshTaskListPartitionConfig(arg0 context.Context, arg1 *types0.TaskListPartitionConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RefreshTaskListPartitionConfig", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -389,10 +390,10 @@ func (mr *MockManagerMockRecorder) TaskListID() *gomock.Call {
 }
 
 // TaskListPartitionConfig mocks base method.
-func (m *MockManager) TaskListPartitionConfig() *types.TaskListPartitionConfig {
+func (m *MockManager) TaskListPartitionConfig() *types0.TaskListPartitionConfig {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TaskListPartitionConfig")
-	ret0, _ := ret[0].(*types.TaskListPartitionConfig)
+	ret0, _ := ret[0].(*types0.TaskListPartitionConfig)
 	return ret0
 }
 
@@ -403,7 +404,7 @@ func (mr *MockManagerMockRecorder) TaskListPartitionConfig() *gomock.Call {
 }
 
 // UpdateTaskListPartitionConfig mocks base method.
-func (m *MockManager) UpdateTaskListPartitionConfig(arg0 context.Context, arg1 *types.TaskListPartitionConfig) error {
+func (m *MockManager) UpdateTaskListPartitionConfig(arg0 context.Context, arg1 *types0.TaskListPartitionConfig) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTaskListPartitionConfig", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -497,10 +498,10 @@ func (mr *MockTaskMatcherMockRecorder) OfferOrTimeout(ctx, startT, task any) *go
 }
 
 // OfferQuery mocks base method.
-func (m *MockTaskMatcher) OfferQuery(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
+func (m *MockTaskMatcher) OfferQuery(ctx context.Context, task *InternalTask) (*types0.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OfferQuery", ctx, task)
-	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
+	ret0, _ := ret[0].(*types0.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -607,10 +608,10 @@ func (mr *MockForwarderMockRecorder) ForwardPoll(ctx any) *gomock.Call {
 }
 
 // ForwardQueryTask mocks base method.
-func (m *MockForwarder) ForwardQueryTask(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
+func (m *MockForwarder) ForwardQueryTask(ctx context.Context, task *InternalTask) (*types0.MatchingQueryWorkflowResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ForwardQueryTask", ctx, task)
-	ret0, _ := ret[0].(*types.MatchingQueryWorkflowResponse)
+	ret0, _ := ret[0].(*types0.MatchingQueryWorkflowResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

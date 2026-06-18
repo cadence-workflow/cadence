@@ -102,15 +102,14 @@ func validateScheduleSpecTimeRange(spec *types.ScheduleSpec) error {
 func (wh *WorkflowHandler) warnIfBufferLimitExceedsSystemLimit(scheduleID, domainName string, policies *types.SchedulePolicies) {
 	if policies == nil ||
 		policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer ||
-		policies.BufferLimit == nil ||
-		int(*policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
+		int(policies.BufferLimit) <= scheduler.MaxBufferedFiresSystemLimit {
 		return
 	}
 	wh.GetLogger().Warn(
 		"buffer_limit exceeds scheduler system limit; drops will be attributed to system_limit",
 		tag.WorkflowDomainName(domainName),
 		tag.WorkflowID(scheduleWorkflowID(scheduleID)),
-		tag.Dynamic("bufferLimit", int(*policies.BufferLimit)),
+		tag.Dynamic("bufferLimit", int(policies.BufferLimit)),
 		tag.Dynamic("systemLimit", scheduler.MaxBufferedFiresSystemLimit),
 	)
 }
@@ -131,6 +130,22 @@ func validateUserSearchAttributes(sa *types.SearchAttributes) error {
 		}
 	}
 	return nil
+}
+
+// ongoingBackfillsForResponse converts the scheduler workflow's snapshot of
+// pending backfills into the BackfillInfo pointer slice carried in
+// DescribeScheduleResponse. Returns nil (not an empty slice) when there are
+// no backfills so the marshalled response omits the field.
+func ongoingBackfillsForResponse(in []types.BackfillInfo) []*types.BackfillInfo {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*types.BackfillInfo, 0, len(in))
+	for i := range in {
+		bf := in[i]
+		out = append(out, &bf)
+	}
+	return out
 }
 
 func (wh *WorkflowHandler) CreateSchedule(
@@ -197,7 +212,11 @@ func (wh *WorkflowHandler) CreateSchedule(
 
 	wfID := scheduleWorkflowID(scheduleID)
 	requestID := uuid.New().String()
-	reusePolicy := types.WorkflowIDReusePolicyRejectDuplicate
+	// AllowDuplicate lets a re-created schedule start a new scheduler workflow even when the
+	// previous (deleted) run is still within the retention window. A currently-running
+	// scheduler still causes WorkflowExecutionAlreadyStartedError, which the block below
+	// converts into the user-visible "schedule already exists" error.
+	reusePolicy := types.WorkflowIDReusePolicyAllowDuplicate
 	executionTimeout := int32(schedulerWorkflowExecutionTimeout.Seconds())
 	decisionTimeout := int32(schedulerWorkflowDecisionTimeout.Seconds())
 
@@ -273,6 +292,10 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		return nil, err
 	}
 	if info.CloseStatus != nil {
+		if *info.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
+			return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
+				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName)
+		}
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
 				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
@@ -294,6 +317,10 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		closeStatus := "unknown"
 		if queryResp.QueryRejected.CloseStatus != nil {
 			closeStatus = queryResp.QueryRejected.CloseStatus.String()
+			if *queryResp.QueryRejected.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
+				return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
+					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName)
+			}
 		}
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
@@ -329,9 +356,12 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			}(),
 		},
 		Info: &types.ScheduleInfo{
-			LastRunTime: desc.LastRunTime,
-			NextRunTime: desc.NextRunTime,
-			TotalRuns:   desc.TotalRuns,
+			LastRunTime:      desc.LastRunTime,
+			NextRunTime:      desc.NextRunTime,
+			TotalRuns:        desc.TotalRuns,
+			MissedRuns:       desc.MissedRuns,
+			SkippedRuns:      desc.SkippedRuns,
+			OngoingBackfills: ongoingBackfillsForResponse(desc.OngoingBackfills),
 		},
 		Memo:             desc.Memo,
 		SearchAttributes: desc.SearchAttributes,

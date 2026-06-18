@@ -338,6 +338,12 @@ func (e *taskExecutorImpl) handleFailoverReplicationTask(
 		return ErrEmptyFailoverMarkerAttributes
 	}
 	failoverAttributes.CreationTime = task.CreationTime
+	e.logger.Info("Failover marker handed to standby executor",
+		tag.ShardID(e.shard.GetShardID()),
+		tag.WorkflowDomainID(failoverAttributes.GetDomainID()),
+		tag.FailoverVersion(failoverAttributes.GetFailoverVersion()),
+		tag.Dynamic("execute-lag", time.Since(time.Unix(0, task.GetCreationTime()))),
+	)
 	return e.shard.AddingPendingFailoverMarker(failoverAttributes)
 }
 

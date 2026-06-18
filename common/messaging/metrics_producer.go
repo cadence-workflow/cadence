@@ -61,7 +61,7 @@ func NewMetricProducer(
 func (p *MetricsProducer) Publish(ctx context.Context, msg interface{}) error {
 	p.scope.IncCounter(metrics.CadenceClientRequests)
 
-	sw := p.scope.StartTimer(metrics.CadenceClientLatency)
+	sw := p.scope.StartTimerWithExponentialHistogram(metrics.CadenceClientLatency, metrics.CadenceClientLatencyHistogram)
 	err := p.producer.Publish(ctx, msg)
 	sw.Stop()
 

@@ -25,6 +25,8 @@ package queuev2
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,6 +94,7 @@ type cachedQueueReaderOptions struct {
 type cachedQueueReader struct {
 	status  int32 // DaemonStatusInitialized / Started / Stopped
 	base    QueueReader
+	shard   shard.Context
 	queue   InMemQueue
 	options *cachedQueueReaderOptions
 	clock   clock.TimeSource
@@ -148,8 +151,9 @@ func newCachedQueueReader(
 	return newCachedQueueReaderWithOptions(
 		base,
 		queue,
+		shard,
 		shard.GetTimeSource(),
-		shard.GetLogger(),
+		shard.GetLogger().WithTags(tag.ComponentCachedQueueReader),
 		metricsScope,
 		&cachedQueueReaderOptions{
 			Mode:                      config.TimerProcessorCachedQueueReaderMode,
@@ -167,6 +171,7 @@ func newCachedQueueReader(
 func newCachedQueueReaderWithOptions(
 	base QueueReader,
 	queue InMemQueue,
+	shard shard.Context,
 	clockSource clock.TimeSource,
 	logger log.Logger,
 	metricsScope metrics.Scope,
@@ -176,6 +181,7 @@ func newCachedQueueReaderWithOptions(
 	return &cachedQueueReader{
 		status:              common.DaemonStatusInitialized,
 		base:                base,
+		shard:               shard,
 		queue:               queue,
 		options:             options,
 		clock:               clockSource,
@@ -254,25 +260,36 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 
 	triggerTime := q.exclusiveUpperBound.GetScheduledTime().Add(-q.options.PrefetchTriggerWindow())
 	delay := max(q.options.MinPrefetchInterval(), triggerTime.Sub(q.clock.Now()))
+	jittered := backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
 
-	return backoff.JitDuration(delay, q.options.PrefetchJitterCoefficient())
+	// Cap the jittered delay to the original delay: positive jitter must not push the
+	// prefetch past triggerTime, which would cause it to fire after the upper bound and
+	// produce cache misses. MinPrefetchInterval is re-applied as the floor because
+	// negative jitter on a delay already clamped to MinPrefetchInterval can otherwise
+	// return a value below it.
+	return max(q.options.MinPrefetchInterval(), min(delay, jittered))
 }
 
 // isEnabled returns true if the cache is fully enabled
 func (q *cachedQueueReader) isEnabled() bool { return q.options.Mode() == "enabled" }
 
-// isDisabled returns true for the "disabled" mode and for any unrecognised value
-func (q *cachedQueueReader) isDisabled() bool {
-	switch q.options.Mode() {
-	case "disabled":
-		return true
-	case "enabled":
+// isShadow returns true when cache runs in shadow mode — results are compared
+// against the DB but the DB result is returned to the processor.
+func (q *cachedQueueReader) isShadow() bool { return q.options.Mode() == "shadow" }
+
+// isCachedQueueReaderDisabled reports whether the given mode disables the cached queue reader.
+func isCachedQueueReaderDisabled(mode string) bool {
+	switch mode {
+	case "enabled", "shadow":
 		return false
 	default:
-		// Default to disabled for unrecognized modes to
-		// avoid unintended consequences of a bad config value.
 		return true
 	}
+}
+
+// isDisabled returns true for the "disabled" mode and for any unrecognised value
+func (q *cachedQueueReader) isDisabled() bool {
+	return isCachedQueueReaderDisabled(q.options.Mode())
 }
 
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
@@ -281,9 +298,7 @@ func (q *cachedQueueReader) Clear() {
 	defer q.mu.Unlock()
 
 	q.logger.Info("cache fully cleared",
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
+		tag.Dynamic("cacheState", q.getState()),
 	)
 
 	q.queue.Clear()
@@ -370,7 +385,7 @@ func (q *cachedQueueReader) prefetch() error {
 	if !q.exclusiveUpperBound.Equal(upperBound) {
 		q.logger.Info("gap detected, discarding fetched data",
 			tag.Dynamic("prevUpper", upperBound),
-			tag.Dynamic("newUpper", q.exclusiveUpperBound),
+			tag.Dynamic("cacheState", q.getState()),
 		)
 		return fmt.Errorf("gap detected: upper bound changed during fetch")
 	}
@@ -392,8 +407,7 @@ func (q *cachedQueueReader) prefetch() error {
 
 	q.logger.Debug("prefetch complete",
 		tag.Dynamic("tasksFetched", len(resp.Tasks)),
-		tag.Dynamic("newUpper", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
+		tag.Dynamic("cacheState", q.getState()),
 	)
 	return nil
 }
@@ -470,12 +484,12 @@ func (q *cachedQueueReader) insertBufferedTasks() {
 // updateExclusiveUpperBound sets the upper bound and trigger prefetch if needed.
 // Caller must hold q.mu.
 func (q *cachedQueueReader) updateExclusiveUpperBound(newKey persistence.HistoryTaskKey) {
-	q.logger.Debug("upper bound is updated",
-		tag.Dynamic("prevUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("newUpperBound", newKey),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
-	)
+	if q.logger.DebugOn() {
+		q.logger.Debug("upper bound is updated",
+			tag.Dynamic("cacheState", q.getState()),
+			tag.Dynamic("newUpperBound", newKey),
+		)
+	}
 
 	q.exclusiveUpperBound = newKey
 	q.metrics.RecordHistogramValue(metrics.CachedQueueSizeHistogram, float64(q.queue.Len()))
@@ -485,12 +499,12 @@ func (q *cachedQueueReader) updateExclusiveUpperBound(newKey persistence.History
 // updateInclusiveLowerBound sets the lower bound
 // Caller must hold q.mu.
 func (q *cachedQueueReader) updateInclusiveLowerBound(newKey persistence.HistoryTaskKey) {
-	q.logger.Debug("lower bound is updated",
-		tag.Dynamic("prevLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("newLowerBound", newKey),
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
-	)
+	if q.logger.DebugOn() {
+		q.logger.Debug("lower bound is updated",
+			tag.Dynamic("cacheState", q.getState()),
+			tag.Dynamic("newLowerBound", newKey),
+		)
+	}
 
 	q.inclusiveLowerBound = newKey
 	q.metrics.RecordHistogramValue(metrics.CachedQueueSizeHistogram, float64(q.queue.Len()))
@@ -565,12 +579,43 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 			continue
 		}
 		if q.isTaskCovered(t.GetTaskKey()) {
+			if q.logger.DebugOn() {
+				q.logger.Debug("injecting task",
+					tag.Dynamic("taskKey", t.GetTaskKey()),
+					tag.Dynamic("cacheState", q.getState()),
+				)
+			}
+
 			covered = append(covered, t)
 			continue
 		}
 		if q.isToBufferTask(t.GetTaskKey()) {
+			if q.logger.DebugOn() {
+				q.logger.Debug("buffering task",
+					tag.Dynamic("taskKey", t.GetTaskKey()),
+					tag.Dynamic("cacheState", q.getState()),
+				)
+			}
 			q.pendingInjectBuffer = append(q.pendingInjectBuffer, t)
 			continue
+		}
+
+		// this case should not happen under normal operation,
+		// as the processor should only be persisting tasks near the current upper bound
+		// but log just in case to help debug any unexpected ordering issues
+		if t.GetTaskKey().Less(q.inclusiveLowerBound) {
+			q.logger.Warn("task key is below the lower bound, dropping task",
+				tag.Dynamic("taskKey", t.GetTaskKey()),
+				tag.Dynamic("cacheState", q.getState()),
+			)
+			continue
+		}
+
+		if q.logger.DebugOn() {
+			q.logger.Debug("task key is beyond the upper/target prefetch bound, dropping task",
+				tag.Dynamic("taskKey", t.GetTaskKey()),
+				tag.Dynamic("cacheState", q.getState()),
+			)
 		}
 	}
 
@@ -602,10 +647,8 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 
 	logTags := []tag.Tag{
 		tag.Dynamic("getTaskRequest", req),
+		tag.Dynamic("cacheState", q.getState()),
 		tag.Dynamic("inclusiveMinTaskKey", inclusiveMinTaskKey),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
 	}
 
 	if !covered {
@@ -638,15 +681,19 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		},
 	}
 
+	if q.isShadow() {
+		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
+	}
 	return cacheResp, nil
 }
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
 // from cache when the request falls within the prefetched window. Bypasses
-// cache when disabled mode.
+// cache when disabled or in shadow mode. Shadow mode bypasses because in-flight
+// inject notifications make cache/DB comparison unreliable for look-ahead.
 func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
-	if q.isDisabled() {
-		q.logger.Debug("fail back to original look-ahead, cache is disabled")
+	if q.isDisabled() || q.isShadow() {
+		q.logger.Debug("fail back to original look-ahead, cache is disabled or shadow mode")
 		return q.base.LookAHead(ctx, req)
 	}
 
@@ -654,9 +701,7 @@ func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 
 	logTags := []tag.Tag{
 		tag.Dynamic("lookAHeadRequest", req),
-		tag.Dynamic("inclusiveLowerBound", q.inclusiveLowerBound),
-		tag.Dynamic("exclusiveUpperBound", q.exclusiveUpperBound),
-		tag.Dynamic("cacheSize", q.queue.Len()),
+		tag.Dynamic("cacheState", q.getState()),
 	}
 
 	if !q.isTaskCovered(req.InclusiveMinTaskKey) {
@@ -674,4 +719,232 @@ func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 		Task:             cacheTask,
 		LookAheadMaxTime: lookAHeadMaxTime,
 	}, nil
+}
+
+// getState returns a snapshot of the cached queue reader's key state variables for logging and debugging.
+// Caller must hold q.mu (read or write).
+func (q *cachedQueueReader) getState() cachedQueueReaderState {
+	return cachedQueueReaderState{
+		InclusiveLowerBound: q.inclusiveLowerBound,
+		ExclusiveUpperBound: q.exclusiveUpperBound,
+		CacheSize:           q.queue.Len(),
+		TargetUpperBound:    q.prefetchTargetUpper,
+	}
+}
+
+// cachedQueueReaderState is a snapshot of the cached queue reader's key state variables for logging and debugging.
+type cachedQueueReaderState struct {
+	InclusiveLowerBound persistence.HistoryTaskKey `json:"inclusiveLowerBound"`
+	ExclusiveUpperBound persistence.HistoryTaskKey `json:"exclusiveUpperBound"`
+	CacheSize           int                        `json:"cacheSize"`
+	TargetUpperBound    persistence.HistoryTaskKey `json:"targetUpperBound"`
+}
+
+// getTaskInShadow queries the DB for the same request, compares the result
+// against the cache snapshot, and returns the DB result. Mismatches are
+// logged but do not affect processing.
+func (q *cachedQueueReader) getTaskInShadow(
+	ctx context.Context,
+	req *GetTaskRequest,
+	cacheResp *GetTaskResponse,
+	logTags []tag.Tag,
+) (*GetTaskResponse, error) {
+	dbResp, err := q.base.GetTask(ctx, req)
+	if err != nil {
+		q.logger.Error("shadow comparison skipped, base returned error",
+			append(logTags, tag.Error(err))...,
+		)
+		return dbResp, err
+	}
+	result := q.findMismatchesInShadow(cacheResp, dbResp)
+	q.reportShadowComparison(result, logTags)
+	return dbResp, nil
+}
+
+// shadowMismatchLogLimit caps the number of tasks logged
+const shadowMismatchLogLimit = 100
+
+// capShadowMismatchSlice returns the first shadowMismatchLogLimit elements of s, or s itself if shorter.
+func capShadowMismatchSlice[T any](s []T) []T {
+	if len(s) <= shadowMismatchLogLimit {
+		return s
+	}
+	return s[:shadowMismatchLogLimit]
+}
+
+// shadowTimeMismatch records a task present in both DB and cache but with mismatched scheduled times.
+type shadowTimeMismatch struct {
+	shadowMismatchTaskInfo `json:",inline"`
+	DBTime                 time.Time `json:"dbTime"`
+	CacheTime              time.Time `json:"cacheTime"`
+}
+
+// toShadowTimeMismatch constructs a shadowTimeMismatch from a persistence.Task and its scheduled times in DB and cache.
+func toShadowTimeMismatch(t persistence.Task, dbTime, cacheTime time.Time) shadowTimeMismatch {
+	return shadowTimeMismatch{
+		shadowMismatchTaskInfo: toShadowMismatchTaskInfo(t),
+		DBTime:                 dbTime,
+		CacheTime:              cacheTime,
+	}
+}
+
+// shadowMismatchTaskInfo holds identifying information about a task mismatch for logging purposes.
+type shadowMismatchTaskInfo struct {
+	TaskKey persistence.HistoryTaskKey `json:"taskKey"`
+	RunID   string                     `json:"runID"`
+}
+
+// toShadowMismatchTaskInfo extracts the identifying information from a persistence.Task for logging mismatches.
+func toShadowMismatchTaskInfo(t persistence.Task) shadowMismatchTaskInfo {
+	return shadowMismatchTaskInfo{
+		TaskKey: t.GetTaskKey(),
+		RunID:   t.GetRunID(),
+	}
+}
+
+// findMismatchesInShadowResult holds the outcome of a shadow comparison.
+type findMismatchesInShadowResult struct {
+	// MissedInCacheTasks contains tasks present in DB but absent from cache, created by the current rangeID.
+	MissedInCacheTasks []shadowMismatchTaskInfo `json:"missedInCacheTaskKeys,omitempty"`
+	// IncorrectTimeTasks contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
+	IncorrectTimeTasks []shadowTimeMismatch `json:"incorrectTimeTaskKeys,omitempty"`
+	// ExtraInCacheTasks contains task keys present in cache but absent from the DB response, created by the current rangeID.
+	ExtraInCacheTasks []shadowMismatchTaskInfo `json:"extraInCacheTaskKeys,omitempty"`
+	// OwnerChangedTasks holds tasks absent from DB or cache whose taskID encodes a different rangeID
+	// than the current shard. It may happen when a shard movement happens, but the queue processor on the previous instance
+	// is still processing tasks, and not receiving new tasks created by the new owner.
+	// These tasks are not counted as mismatches because they cannot be served from cache, but they are still logged for visibility.
+	OwnerChangedTasks []shadowMismatchTaskInfo `json:"ownerChangedTaskKeys,omitempty"`
+	// OwnerChangedRangeIDs holds the distinct rangeIDs encoded in the OwnerChangedTasks tasks' taskIDs.
+	OwnerChangedRangeIDs []int64 `json:"ownerChangedRangeIDs,omitempty"`
+	// CurrentRangeID is the shard's rangeID at the time of comparison.
+	CurrentRangeID int64 `json:"currentRangeID"`
+	// CacheTaskCount is the number of tasks in the cache snapshot
+	CacheTaskCount int `json:"cacheTaskCount"`
+	// DBTaskCount is the number of tasks in the DB response
+	DBTaskCount int `json:"dbTaskCount"`
+	// HasMismatches is true when MissedInCacheTasks, IncorrectTimeTasks, or ExtraInCacheTasks is non-empty.
+	HasMismatches bool `json:"-"`
+}
+
+// getTaskRangeID extracts the rangeID encoded in taskID, which is assigned at task creation time and immutable.
+func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
+	return taskID >> int64(q.shard.GetConfig().RangeSizeBits)
+}
+
+// reportShadowComparison logs the result of a shadow comparison.
+func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
+
+	// Cap the number of mismatched task keys logged to avoid excessively large logs
+	result.MissedInCacheTasks = capShadowMismatchSlice(result.MissedInCacheTasks)
+	result.IncorrectTimeTasks = capShadowMismatchSlice(result.IncorrectTimeTasks)
+	result.ExtraInCacheTasks = capShadowMismatchSlice(result.ExtraInCacheTasks)
+	result.OwnerChangedTasks = capShadowMismatchSlice(result.OwnerChangedTasks)
+	result.OwnerChangedRangeIDs = capShadowMismatchSlice(result.OwnerChangedRangeIDs)
+
+	logTags = append(logTags, tag.Dynamic("shadowMismatch", result))
+
+	if len(result.OwnerChangedTasks) > 0 {
+		q.logger.Warn("possible shard ownership change, missed tasks are created in another range", logTags...)
+	}
+	if !result.HasMismatches {
+		q.logger.Debug("shadow comparison matched", logTags...)
+		return
+	}
+
+	q.logger.Warn("shadow comparison mismatch", logTags...)
+}
+
+// getTruncatedScheduledTime returns the scheduled time of a task truncated to
+// DBTimestampMinPrecision (millisecond), matching Cassandra's storage precision.
+func getTruncatedScheduledTime(t persistence.Task) time.Time {
+	return t.GetTaskKey().GetScheduledTime().Truncate(persistence.DBTimestampMinPrecision)
+}
+
+// findMismatchesInShadow compares a cache snapshot response against the DB response.
+//
+// Task comparison uses taskID as the primary key and the scheduled time truncated to
+// millisecond precision (DBTimestampMinPrecision) as a secondary check. Truncation
+// avoids false positives from injected tasks whose nanosecond timestamps Cassandra
+// rounds to milliseconds on the round-trip.
+//
+// NextTaskKey is intentionally not compared: Cassandra commonly returns a non-empty
+// paging cursor even on the last page, which causes the DB reader to report
+// lastTask.Next() while the cache (which knows its window is exhausted) reports
+// exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
+// normal production traffic without indicating any real divergence in task data.
+//
+// DB tasks absent from cache are partitioned into MissedInCacheTasks (same rangeID)
+// and OwnerChangedTasks (different rangeID). Cache tasks absent from DB are similarly
+// partitioned into ExtraInCacheTasks (same rangeID) and OwnerChangedTasks (different rangeID).
+// Only MissedInCacheTasks, IncorrectTimeTasks, and ExtraInCacheTasks contribute to HasMismatches.
+// Tasks present in both but with mismatched scheduled times are recorded in IncorrectTimeTasks.
+func (q *cachedQueueReader) findMismatchesInShadow(
+	cacheResp *GetTaskResponse,
+	dbResp *GetTaskResponse,
+) findMismatchesInShadowResult {
+	cacheTaskKeys := make(map[int64]time.Time, len(cacheResp.Tasks))
+	for _, t := range cacheResp.Tasks {
+		cacheTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
+	}
+	dbTaskKeys := make(map[int64]time.Time, len(dbResp.Tasks))
+	for _, t := range dbResp.Tasks {
+		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
+	}
+
+	var (
+		result         findMismatchesInShadowResult
+		currentRangeID = q.shard.GetRangeID()
+		rangeIDs       = map[int64]struct{}{}
+	)
+
+	for _, t := range dbResp.Tasks {
+		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
+		if ok {
+			if cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
+				// Task is present in both DB and cache with matching scheduled time
+				continue
+			}
+
+			result.IncorrectTimeTasks = append(result.IncorrectTimeTasks, toShadowTimeMismatch(t, dbTaskKeys[t.GetTaskID()], cacheTime))
+			continue
+		}
+
+		taskRangeID := q.getTaskRangeID(t.GetTaskID())
+		if taskRangeID == currentRangeID {
+			result.MissedInCacheTasks = append(result.MissedInCacheTasks, toShadowMismatchTaskInfo(t))
+			continue
+		}
+
+		// Task ID is missing from cache and belongs to a different rangeID than the current shard
+		// It means the shard was already owned by another instance, and the task was created by that instance after the ownership change
+		result.OwnerChangedTasks = append(result.OwnerChangedTasks, toShadowMismatchTaskInfo(t))
+		rangeIDs[taskRangeID] = struct{}{}
+	}
+
+	for _, t := range cacheResp.Tasks {
+		if _, ok := dbTaskKeys[t.GetTaskID()]; ok {
+			// Task is present in DB (time mismatches are already captured from the DB loop above)
+			continue
+		}
+
+		taskRangeID := q.getTaskRangeID(t.GetTaskID())
+		if taskRangeID == currentRangeID {
+			// Task ID is missing from DB response, but present in cache snapshot
+			result.ExtraInCacheTasks = append(result.ExtraInCacheTasks, toShadowMismatchTaskInfo(t))
+			continue
+		}
+
+		// Task in cache but not DB, created by a previous owner — not a true mismatch
+		result.OwnerChangedTasks = append(result.OwnerChangedTasks, toShadowMismatchTaskInfo(t))
+		rangeIDs[taskRangeID] = struct{}{}
+	}
+
+	result.HasMismatches = len(result.MissedInCacheTasks) > 0 || len(result.IncorrectTimeTasks) > 0 || len(result.ExtraInCacheTasks) > 0
+	result.OwnerChangedRangeIDs = slices.Collect(maps.Keys(rangeIDs))
+	result.CurrentRangeID = currentRangeID
+	result.DBTaskCount = len(dbResp.Tasks)
+	result.CacheTaskCount = len(cacheResp.Tasks)
+
+	return result
 }

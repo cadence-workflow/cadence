@@ -30,8 +30,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -55,8 +58,6 @@ import (
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/event"
 	"github.com/uber/cadence/service/matching/tasklist"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 const (
@@ -109,6 +110,7 @@ type (
 		membershipResolver             membership.Resolver
 		isolationState                 isolationgroup.State
 		timeSource                     clock.TimeSource
+		zapLogger                      *zap.Logger
 		failoverNotificationVersion    int64
 		ShardDistributorMatchingConfig clientcommon.Config
 		drainObserver                  clientcommon.DrainSignalObserver
@@ -134,6 +136,7 @@ func NewEngine(
 	matchingClient matching.Client,
 	config *config.Config,
 	logger log.Logger,
+	zapLogger *zap.Logger,
 	metricsClient metrics.Client,
 	metricsScope tally.Scope,
 	domainCache cache.DomainCache,
@@ -164,6 +167,7 @@ func NewEngine(
 		membershipResolver:             resolver,
 		isolationState:                 isolationState,
 		timeSource:                     timeSource,
+		zapLogger:                      zapLogger,
 		ShardDistributorMatchingConfig: ShardDistributorMatchingConfig,
 		drainObserver:                  drainObserver,
 		percentageOnboarded:            percentageOnboarded,
@@ -224,13 +228,16 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 		e.logger.Fatal("Failed to get listen IP", tag.Error(err))
 	}
 
+	smTimeSource := clock.NewSMTimeSourceAdapter(e.timeSource)
+
 	params := executorclient.Params[tasklist.ShardProcessor]{
 		ExecutorClient:        shardDistributorExecutorClient,
 		MetricsScope:          e.metricsScope,
-		Logger:                e.logger,
+		Logger:                e.zapLogger,
 		ShardProcessorFactory: taskListFactory,
 		Config:                cfg,
-		TimeSource:            e.timeSource,
+		TimeSource:            smTimeSource,
+		Enabled:               e.shardDistributorOnboarded,
 		Metadata: map[string]string{
 			"tchannel": fmt.Sprintf("%d", e.config.RPCConfig.Port),
 			"grpc":     fmt.Sprintf("%d", e.config.RPCConfig.GRPCPort),
@@ -244,6 +251,13 @@ func (e *matchingEngineImpl) setupExecutor(shardDistributorExecutorClient execut
 	}
 
 	e.executor = executor
+}
+
+// shardDistributorOnboarded reports whether this matching host should heartbeat
+// to the shard distributor, gated on the onboarding percentage. It is consulted
+// on every heartbeat tick, so driving the percentage to 0 offboards the executor.
+func (e *matchingEngineImpl) shardDistributorOnboarded() bool {
+	return e.percentageOnboarded.Value() > 0
 }
 
 func (e *matchingEngineImpl) getValidatedShardDistributorConfig() (clientcommon.Config, time.Duration) {

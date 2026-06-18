@@ -69,6 +69,12 @@ type BootstrapParams struct {
 	// tick so live dynamic-config changes take effect on the next iteration.
 	// Nil falls back to a sensible default.
 	RefreshInterval dynamicproperties.DurationPropertyFn
+	// RedundancyFactor returns the number of cadence-worker hosts that
+	// concurrently run a worker for each enabled domain. Looked up per
+	// domain on every refresh tick, so changes propagate within one tick
+	// without a worker restart. Nil or a non-positive return falls back to
+	// workerRedundancyFactor.
+	RedundancyFactor dynamicproperties.IntPropertyFnWithDomainFilter
 }
 
 // workerHandle is the subset of cadenceworker.Worker used by the manager,
@@ -98,6 +104,7 @@ type WorkerManager struct {
 	hostInfo           membership.HostInfo
 	timeSrc            clock.TimeSource
 	refreshInterval    dynamicproperties.DurationPropertyFn
+	redundancyFactor   dynamicproperties.IntPropertyFnWithDomainFilter
 	shutdownTimeout    time.Duration
 	ctx                context.Context
 	cancelFn           context.CancelFunc
@@ -114,6 +121,10 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 	if refresh == nil {
 		refresh = dynamicproperties.GetDurationPropertyFn(defaultRefreshInterval)
 	}
+	redundancy := params.RedundancyFactor
+	if redundancy == nil {
+		redundancy = dynamicproperties.GetIntPropertyFilteredByDomain(workerRedundancyFactor)
+	}
 	wm := &WorkerManager{
 		enabledFn:          enabledFn,
 		serviceClient:      params.ServiceClient,
@@ -125,6 +136,7 @@ func NewWorkerManager(params *BootstrapParams, enabledFn dynamicproperties.BoolP
 		hostInfo:           params.HostInfo,
 		timeSrc:            clock.NewRealTimeSource(),
 		refreshInterval:    refresh,
+		redundancyFactor:   redundancy,
 		shutdownTimeout:    defaultShutdownTimeout,
 		ctx:                ctx,
 		cancelFn:           cancel,
@@ -214,7 +226,12 @@ func (m *WorkerManager) refreshWorkers() {
 
 		domainName := domainEntry.GetInfo().Name
 
-		owners, err := m.membershipResolver.LookupN(service.Worker, domainName, workerRedundancyFactor)
+		redundancy := m.redundancyFactor(domainName)
+		if redundancy < 1 {
+			redundancy = workerRedundancyFactor
+		}
+
+		owners, err := m.membershipResolver.LookupN(service.Worker, domainName, redundancy)
 		if err != nil {
 			m.logger.Warn("failed to look up domain owners, skipping",
 				tag.WorkflowDomainName(domainName),

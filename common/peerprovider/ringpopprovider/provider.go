@@ -281,6 +281,7 @@ func (r *Provider) Stop() {
 		return
 	}
 
+	r.ringpop.RemoveListener(r)
 	r.ringpop.Destroy()
 }
 

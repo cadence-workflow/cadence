@@ -24,6 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -34,7 +36,6 @@ import (
 	"github.com/uber/cadence/service/matching/handler"
 	"github.com/uber/cadence/service/matching/wrappers/grpc"
 	"github.com/uber/cadence/service/matching/wrappers/thrift"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
 )
 
 // Service represents the cadence-matching service
@@ -113,6 +114,7 @@ func (s *Service) Start() {
 		s.GetMatchingRawClient(), // Use non retry client inside matching
 		s.config,
 		s.GetLogger(),
+		s.GetZapLogger(),
 		s.GetMetricsClient(),
 		s.GetMetricsScope(),
 		s.GetDomainCache(),

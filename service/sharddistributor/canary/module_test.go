@@ -4,6 +4,10 @@ import (
 	"testing"
 	"time"
 
+	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
+	smclock "github.com/cadence-workflow/shard-manager/common/clock"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/golang/mock/gomock"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
@@ -16,11 +20,8 @@ import (
 	"go.uber.org/yarpc/yarpctest"
 	"go.uber.org/zap/zaptest"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestModule(t *testing.T) {
@@ -49,8 +50,8 @@ func TestModule(t *testing.T) {
 
 	config := clientcommon.Config{
 		Namespaces: []clientcommon.NamespaceConfig{
-			{Namespace: "shard-distributor-canary", HeartBeatInterval: 5 * time.Second, MigrationMode: "onboarded"},
-			{Namespace: "shard-distributor-canary-ephemeral", HeartBeatInterval: 5 * time.Second, MigrationMode: "onboarded"},
+			{Namespace: "shard-distributor-canary", HeartBeatInterval: 5 * time.Second},
+			{Namespace: "shard-distributor-canary-ephemeral", HeartBeatInterval: 5 * time.Second},
 		},
 	}
 
@@ -69,6 +70,7 @@ func TestModule(t *testing.T) {
 		fx.Supply(
 			fx.Annotate(tally.NoopScope, fx.As(new(tally.Scope))),
 			fx.Annotate(clock.NewMockedTimeSource(), fx.As(new(clock.TimeSource))),
+			fx.Annotate(clock.NewSMTimeSourceAdapter(clock.NewMockedTimeSource()), fx.As(new(smclock.TimeSource))),
 			fx.Annotate(mockLogger, fx.As(new(log.Logger))),
 			fx.Annotate(mockClientConfigProvider, fx.As(new(yarpc.ClientConfig))),
 			fx.Annotate(transport, fx.As(new(peer.Transport))),

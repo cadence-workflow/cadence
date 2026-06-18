@@ -88,17 +88,6 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: cadence
 
-  etcd:
-    image: bitnamilegacy/etcd:3.5.5
-    restart: always
-    networks:
-      services-network:
-        aliases:
-          - etcd
-    environment:
-      ALLOW_NONE_AUTHENTICATION: "yes"
-      ETCD_ADVERTISE_CLIENT_URLS: "http://etcd:2379"
-
   unit-test:
     build:
       context: ../../
@@ -363,23 +352,6 @@ services:
       services-network:
         aliases:
           - integration-test-async-wf
-
-  integration-test-with-etcd:
-    build:
-      context: ../../
-      dockerfile: ./docker/github_actions/Dockerfile${DOCKERFILE_SUFFIX}
-    environment:
-      - "ETCD=1"
-      - "ETCD_ENDPOINTS=http://etcd:2379"
-    depends_on:
-      etcd:
-        condition: service_started
-    volumes:
-      - ../../:/cadence
-    networks:
-      services-network:
-        aliases:
-          - integration-test-with-etcd
 
   coverage-report:
     build:

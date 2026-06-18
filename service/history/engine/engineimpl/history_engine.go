@@ -217,10 +217,11 @@ func NewEngineWithShardContext(
 		historyEngImpl.executionCache,
 		historyEngImpl.tokenSerializer,
 	)
-	pRetry := persistence.NewPersistenceRetryer(
+	pRetry := persistence.NewPersistenceRetryerWithShardID(
 		shard.GetExecutionManager(),
 		shard.GetHistoryManager(),
 		common.CreatePersistenceRetryPolicy(),
+		shard.GetShardID(),
 	)
 	openExecutionCheck := invariant.NewConcreteExecutionExists(pRetry, shard.GetDomainCache())
 

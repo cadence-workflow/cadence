@@ -3,6 +3,7 @@ package factory
 import (
 	"testing"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/service/sharddistributor/canary/processor"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func TestNewShardProcessorFactory(t *testing.T) {

@@ -23,6 +23,9 @@
 package shard
 
 import (
+	"slices"
+
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
 )
@@ -62,7 +65,12 @@ func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
 ) {
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
+		return
 	}
+	s.logger.Info("notify tasks dropped due to persistence error",
+		tag.Error(err),
+		tag.Dynamic("droppedTaskIDs", taskIDsFromSnapshot(&request.NewWorkflowSnapshot)),
+	)
 }
 
 // notifyTasksFromUpdateWorkflowExecution sends task notifications for an UpdateWorkflowExecution operation.
@@ -74,7 +82,15 @@ func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
 	if notify, persistenceError := isNotifyTaskNeeded(err); notify {
 		s.notifyTasksFromMutation(&request.UpdateWorkflowMutation, persistenceError)
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
+		return
 	}
+	s.logger.Info("notify tasks dropped due to persistence error",
+		tag.Error(err),
+		tag.Dynamic("droppedTaskIDs", slices.Concat(
+			taskIDsFromMutation(&request.UpdateWorkflowMutation),
+			taskIDsFromSnapshot(request.NewWorkflowSnapshot),
+		)),
+	)
 }
 
 // notifyTasksFromConflictResolveWorkflowExecution sends task notifications for a ConflictResolveWorkflowExecution operation.
@@ -87,7 +103,16 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 		s.notifyTasksFromSnapshot(&request.ResetWorkflowSnapshot, persistenceError)
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
+		return
 	}
+	s.logger.Info("notify tasks dropped due to persistence error",
+		tag.Error(err),
+		tag.Dynamic("droppedTaskIDs", slices.Concat(
+			taskIDsFromSnapshot(&request.ResetWorkflowSnapshot),
+			taskIDsFromSnapshot(request.NewWorkflowSnapshot),
+			taskIDsFromMutation(request.CurrentWorkflowMutation),
+		)),
+	)
 }
 
 // notifyTasks notifies the transfer and timer queue processors of new tasks.
@@ -132,4 +157,28 @@ func (s *contextImpl) notifyTasksFromMutation(mutation *persistence.WorkflowMuta
 		return
 	}
 	s.notifyTasks(mutation.ExecutionInfo, mutation.TasksByCategory, persistenceError)
+}
+
+func taskIDsFromSnapshot(snapshot *persistence.WorkflowSnapshot) []int64 {
+	if snapshot == nil {
+		return nil
+	}
+	return taskIDsFromCategories(snapshot.TasksByCategory)
+}
+
+func taskIDsFromMutation(mutation *persistence.WorkflowMutation) []int64 {
+	if mutation == nil {
+		return nil
+	}
+	return taskIDsFromCategories(mutation.TasksByCategory)
+}
+
+func taskIDsFromCategories(tasksByCategory map[persistence.HistoryTaskCategory][]persistence.Task) []int64 {
+	var ids []int64
+	for _, tasks := range tasksByCategory {
+		for _, t := range tasks {
+			ids = append(ids, t.GetTaskID())
+		}
+	}
+	return ids
 }

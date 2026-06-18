@@ -66,6 +66,11 @@ var (
 	// due to float->duration truncation, which Prometheus rejects.
 	Mid1To16k = IntSubsettableHistogram(makeSubsettableHistogram(2, 8, 16384, 64))
 
+	// Mid1To50k is a histogram for medium counters, like workflow history event counts.
+	//
+	// This targets single-digits through ~50k, covering the default history count warning limit.
+	Mid1To50k = IntSubsettableHistogram(makeSubsettableHistogram(2, 8, 65536, 68))
+
 	// Mid8B16MB is a histogram for byte sizes, like mutable state or history blob sizes.
 	//
 	// This targets a few bytes through ~16MB, covering typical workflow execution sizes.

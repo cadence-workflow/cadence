@@ -7,9 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	smtypes "github.com/cadence-workflow/shard-manager/common/types"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
+
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type ShardProcessorParams struct {
@@ -43,10 +44,10 @@ func NewShardProcessor(params ShardProcessorParams) (ShardProcessor, error) {
 		reportTTL:         params.ReportTTL,
 		timeSource:        params.TimeSource,
 	}
-	shardprocessor.SetShardStatus(types.ShardStatusREADY)
+	shardprocessor.SetShardStatus(smtypes.ShardStatusREADY)
 	shardprocessor.shardReport = executorclient.ShardReport{
 		ShardLoad: 0,
-		Status:    types.ShardStatusREADY,
+		Status:    smtypes.ShardStatusREADY,
 	}
 	return shardprocessor, nil
 }
@@ -77,12 +78,12 @@ func (sp *shardProcessorImpl) GetShardReport() executorclient.ShardReport {
 	}
 	sp.shardReport = executorclient.ShardReport{
 		ShardLoad: load,
-		Status:    types.ShardStatus(sp.Status.Load()),
+		Status:    smtypes.ShardStatus(sp.Status.Load()),
 	}
 	return sp.shardReport
 }
 
-func (sp *shardProcessorImpl) SetShardStatus(status types.ShardStatus) {
+func (sp *shardProcessorImpl) SetShardStatus(status smtypes.ShardStatus) {
 	sp.Status.Store(int32(status))
 }
 

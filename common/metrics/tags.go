@@ -84,10 +84,6 @@ const (
 	overlapPolicy = "overlap_policy"
 	triggerSource = "trigger_source"
 
-	// operational dynamic config migration tags
-	onboardingSource = "onboarding_source"
-	onboardingActive = "onboarding_active"
-
 	allValue     = "all"
 	unknownValue = "_unknown_"
 )
@@ -358,26 +354,6 @@ func IsRetryTag(retry bool) Tag {
 	return simpleMetric{key: isRetry, value: strconv.FormatBool(retry)}
 }
 
-func NamespaceTag(namespace string) Tag {
-	return metricWithUnknown("namespace", namespace)
-}
-
-func NamespaceTypeTag(namespaceType string) Tag {
-	return metricWithUnknown("namespace_type", namespaceType)
-}
-
-func HandoverTypeTag(handoverType string) Tag {
-	return metricWithUnknown("handover_type", handoverType)
-}
-
-func ExecutorStatusTag(status string) Tag {
-	return metricWithUnknown("executor_status", status)
-}
-
-func ShardDistributorWatchTypeTag(watchType string) Tag {
-	return metricWithUnknown("watch_type", watchType)
-}
-
 func TaskCategoryTag(category string) Tag {
 	return metricWithUnknown("task_category", category)
 }
@@ -405,25 +381,6 @@ func OverlapPolicyTag(value string) Tag {
 // TriggerSourceTag returns a new trigger_source tag for scheduler metrics.
 func TriggerSourceTag(value string) Tag {
 	return metricWithUnknown(triggerSource, value)
-}
-
-// OnboardingSourceTag tags a metric with the source the value was read from
-// during the operational dynamic config migration. Expected values are
-// "dynamicconfig" (generic dynamic config) and "operational" (cassandra-backed
-// operational dynamic config store).
-func OnboardingSourceTag(value string) Tag {
-	return metricWithUnknown(onboardingSource, value)
-}
-
-// OnboardingActiveTag tags a metric with whether the source it was read from
-// is the currently-active source of truth. Tag value is "active" when the
-// source is authoritative and "shadow" when it is read only for comparison.
-func OnboardingActiveTag(active bool) Tag {
-	value := "shadow"
-	if active {
-		value = "active"
-	}
-	return simpleMetric{key: onboardingActive, value: value}
 }
 
 // QueryConsistencyLevelTag returns a new query consistency level tag.

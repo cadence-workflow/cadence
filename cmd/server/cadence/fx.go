@@ -37,15 +37,10 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
-	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
-	shardDistributorCfg "github.com/uber/cadence/service/sharddistributor/config"
-	"github.com/uber/cadence/service/sharddistributor/sharddistributorfx"
-	"github.com/uber/cadence/service/sharddistributor/store/etcd"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
 )
@@ -60,25 +55,6 @@ var _commonModule = fx.Options(
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
 func Module(serviceName string) fx.Option {
-	if serviceName == service.ShortName(service.ShardDistributor) {
-		return fx.Options(
-			fx.Supply(serviceContext{
-				Name:     serviceName,
-				FullName: service.FullName(serviceName),
-			}),
-			fx.Provide(func(cfg config.Config) shardDistributorCfg.ShardDistribution {
-				return cfg.ShardDistribution
-			}),
-			// Decorate both logger so all components use proper service name.
-			fx.Decorate(func(z *zap.Logger, l log.Logger) (*zap.Logger, log.Logger) {
-				return z.With(zap.String("service", service.ShardDistributor)), l.WithTags(tag.Service(service.ShardDistributor))
-			}),
-
-			etcd.Module,
-
-			rpcfx.Module,
-			sharddistributorfx.Module)
-	}
 	return fx.Options(
 		fx.Supply(serviceContext{
 			Name:     serviceName,
@@ -97,6 +73,7 @@ type AppParams struct {
 	AppContext    config.Context
 	Config        config.Config
 	Logger        log.Logger
+	ZapLogger     *zap.Logger
 	LifeCycle     fx.Lifecycle
 	DynamicConfig dynamicconfig.Client
 	Scope         tally.Scope
@@ -108,6 +85,7 @@ func NewApp(params AppParams) *App {
 	app := &App{
 		cfg:           params.Config,
 		logger:        params.Logger,
+		zapLogger:     params.ZapLogger,
 		service:       params.Service,
 		dynamicConfig: params.DynamicConfig,
 		scope:         params.Scope,
@@ -125,6 +103,7 @@ type App struct {
 	cfg           config.Config
 	rootDir       string
 	logger        log.Logger
+	zapLogger     *zap.Logger
 	dynamicConfig dynamicconfig.Client
 	scope         tally.Scope
 	metricsClient metrics.Client
@@ -134,7 +113,7 @@ type App struct {
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.dynamicConfig, a.scope, a.metricsClient)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.scope, a.metricsClient)
 	a.daemon.Start()
 	return nil
 }

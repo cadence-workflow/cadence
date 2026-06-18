@@ -58,6 +58,15 @@ type (
 		// StartTimer starts a timer for the given metric name.
 		// Time will be recorded when stopwatch is stopped.
 		StartTimer(timer MetricIdx) Stopwatch
+		// StartTimerWithExponentialHistogram is like StartTimer but the returned
+		// Stopwatch also records the elapsed duration into the given
+		// exponential histogram metric on Stop. Use during the
+		// timer→histogram migration so callers can dual-emit without
+		// changing call sites that already defer Stop on the returned
+		// stopwatch. The histogram metric must be defined with
+		// exponentialBuckets in defs.go — other histogram bucket
+		// strategies are not supported by this helper.
+		StartTimerWithExponentialHistogram(timer MetricIdx, histogram MetricIdx) Stopwatch
 		// RecordTimer starts a timer for the given metric name
 		RecordTimer(timer MetricIdx, d time.Duration)
 		// RecordHistogramDuration records a histogram duration value for the given

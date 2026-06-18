@@ -37,6 +37,7 @@ frontend.validSearchAttributes:
     CadenceScheduleState: 1
     CadenceScheduleCron: 1
     CadenceScheduleWorkflowType: 1
+    CadenceScheduleBackfillID: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
@@ -83,6 +84,9 @@ matching.enableClientAutoConfig:
 - value: true
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
+worker.enableScheduler:
+- value: true
+  constraints: {}
 history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 - value: true
 
@@ -90,24 +94,6 @@ history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 history.enableTimerQueueV2:
 - value: true
   constraints: {}
-history.timerProcessorEnableCachedScheduledQueue:
-- value: true
-  constraints: {}
 history.timerProcessorCachedQueueReaderMode:
 - value: "enabled"
   constraints: {}
-
-shardDistributor.migrationMode:
-  - value: "onboarded"
-  - value: "local_pass"
-    constraints:
-      namespace: "test-local-passthrough"
-  - value: "local_pass_shadow"
-    constraints:
-      namespace: "test-local-passthrough-shadow"
-  - value: "distributed_pass"
-    constraints:
-      namespace: "test-distributed-passthrough"
-  - value: "distributed_pass"
-    constraints:
-      namespace: "test-external-assignment"

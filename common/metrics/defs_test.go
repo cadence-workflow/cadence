@@ -83,14 +83,6 @@ func TestScopeDefsMapped(t *testing.T) {
 			assert.True(t, IsMetric(tag), "metric tags should conform to regex")
 		}
 	}
-	for i := ShardDistributorGetShardOwnerScope; i < NumShardDistributorScopes; i++ {
-		key, ok := ScopeDefs[ShardDistributor][i]
-		require.True(t, ok)
-		require.NotEmpty(t, key)
-		for tag := range key.tags {
-			assert.True(t, IsMetric(tag), "metric tags should conform to regex")
-		}
-	}
 }
 
 func TestMetricDefsMapped(t *testing.T) {
@@ -111,11 +103,6 @@ func TestMetricDefsMapped(t *testing.T) {
 	}
 	for i := ReplicatorMessages; i < NumWorkerMetrics; i++ {
 		key, ok := MetricDefs[Worker][i]
-		require.True(t, ok)
-		require.NotEmpty(t, key)
-	}
-	for i := ShardDistributorRequests; i < NumShardDistributorMetrics; i++ {
-		key, ok := MetricDefs[ShardDistributor][i]
 		require.True(t, ok)
 		require.NotEmpty(t, key)
 	}

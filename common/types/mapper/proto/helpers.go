@@ -57,20 +57,6 @@ func toInt64Value(v *gogo.Int64Value) *int64 {
 	return common.Int64Ptr(v.Value)
 }
 
-func fromInt32Value(v *int32) *gogo.Int32Value {
-	if v == nil {
-		return nil
-	}
-	return &gogo.Int32Value{Value: *v}
-}
-
-func toInt32Value(v *gogo.Int32Value) *int32 {
-	if v == nil {
-		return nil
-	}
-	return common.Int32Ptr(v.Value)
-}
-
 func unixNanoToTime(t *int64) *gogo.Timestamp {
 	if t == nil {
 		return nil

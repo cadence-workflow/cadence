@@ -6015,11 +6015,12 @@ func (s *ExecutionManagerSuite) TestCreateFailoverMarkerTasks() {
 	defer cancel()
 
 	domainID := uuid.New()
+	visibilityTimestamp := time.Now().Truncate(p.DBTimestampMinPrecision)
 	markers := []*p.FailoverMarkerTask{
 		{
 			TaskData: p.TaskData{
 				TaskID:              1,
-				VisibilityTimestamp: time.Now(),
+				VisibilityTimestamp: visibilityTimestamp,
 				Version:             1,
 			},
 			DomainID: domainID,
@@ -6035,6 +6036,9 @@ func (s *ExecutionManagerSuite) TestCreateFailoverMarkerTasks() {
 	s.Equal(tasks[0].GetTaskID(), int64(1))
 	s.Equal(tasks[0].GetDomainID(), domainID)
 	s.Equal(tasks[0].GetTaskType(), p.ReplicationTaskTypeFailoverMarker)
+	s.True(tasks[0].GetVisibilityTimestamp().Equal(visibilityTimestamp),
+		"VisibilityTimestamp should round-trip; got %v, want %v",
+		tasks[0].GetVisibilityTimestamp(), visibilityTimestamp)
 }
 
 func copyWorkflowExecutionInfo(sourceInfo *p.WorkflowExecutionInfo) *p.WorkflowExecutionInfo {

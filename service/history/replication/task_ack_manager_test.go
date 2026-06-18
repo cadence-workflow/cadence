@@ -137,7 +137,7 @@ func TestTaskAckManager_GetTasks(t *testing.T) {
 			batchSize:      10,
 			expectResult: &types.ReplicationMessages{
 				ReplicationTasks:       []*types.ReplicationTask{},
-				LastRetrievedMessageID: 5,
+				LastRetrievedMessageID: 200,
 				HasMore:                false,
 			},
 			expectAckLevel: 5,

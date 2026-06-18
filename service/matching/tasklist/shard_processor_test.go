@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
+	smtypes "github.com/cadence-workflow/shard-manager/common/types"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence"
-	"github.com/uber/cadence/common/types"
 )
 
 func mustNewIdentifier(domainID, name string, taskType int) *Identifier {
@@ -62,16 +62,16 @@ func TestGetShardReport(t *testing.T) {
 	shardReport := td.shardProcessor.GetShardReport()
 	require.NotNil(t, shardReport)
 	require.Equal(t, float64(0), shardReport.ShardLoad)
-	require.Equal(t, types.ShardStatusREADY, shardReport.Status)
+	require.Equal(t, smtypes.ShardStatusREADY, shardReport.Status)
 }
 
 func TestSetShardStatus(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	td := newShardProcessorTestData(t, testIdentifier)
 
-	td.shardProcessor.SetShardStatus(types.ShardStatusREADY)
+	td.shardProcessor.SetShardStatus(smtypes.ShardStatusREADY)
 	shardReport := td.shardProcessor.GetShardReport()
 	require.NotNil(t, shardReport)
 	require.Equal(t, float64(0), shardReport.ShardLoad)
-	require.Equal(t, types.ShardStatusREADY, shardReport.Status)
+	require.Equal(t, smtypes.ShardStatusREADY, shardReport.Status)
 }

@@ -32,7 +32,7 @@ import (
 )
 
 type nosqlHistoryDLQTaskStore struct {
-	nosqlStore
+	shardedNosqlStore
 }
 
 // newNoSQLHistoryDLQTaskStore creates an instance of HistoryDLQTaskStore backed by NoSQL.
@@ -42,25 +42,34 @@ func newNoSQLHistoryDLQTaskStore(
 	metricsClient metrics.Client,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.HistoryDLQTaskStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, false)
 	if err != nil {
 		return nil, err
 	}
 	return &nosqlHistoryDLQTaskStore{
-		nosqlStore: shardedStore.GetDefaultShard(),
+		shardedNosqlStore: shardedStore,
 	}, nil
 }
 
+func (sh *nosqlHistoryDLQTaskStore) GetName() string {
+	return sh.GetDefaultShard().db.PluginName()
+}
+
 // CreateHistoryDLQTask writes a task to the history DLQ.
-func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
+func (sh *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 	ctx context.Context,
 	request persistence.InternalCreateHistoryDLQTaskRequest,
 ) error {
 	if request.TaskBlob == nil {
-		m.logger.Warn("unable to persist history DLQ task: task blob is required")
+		sh.GetLogger().Warn("unable to persist history DLQ task: task blob is required")
 		return &persistence.InvalidPersistenceRequestError{
 			Msg: "unable to persist history DLQ task: task blob is required",
 		}
+	}
+
+	storeShard, err := sh.GetStoreShardByHistoryShard(request.ShardID)
+	if err != nil {
+		return err
 	}
 
 	row := &nosqlplugin.HistoryDLQTaskRow{
@@ -79,25 +88,24 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		CreatedAt:             request.CreatedAt,
 	}
 
-	err := m.db.InsertHistoryDLQTaskRow(
-		ctx,
-		row,
-	)
+	err = storeShard.db.InsertHistoryDLQTaskRow(ctx, row)
 	if err != nil {
-		return convertCommonErrors(m.db, "CreateHistoryDLQTask", err)
+		return convertCommonErrors(storeShard.db, "CreateHistoryDLQTask", err)
 	}
 	return nil
 }
 
-func (m *nosqlHistoryDLQTaskStore) GetName() string { return m.db.PluginName() }
-func (m *nosqlHistoryDLQTaskStore) Close()          {}
-
 // GetHistoryDLQTasks reads paginated tasks from the history DLQ.
-func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
+func (sh *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 	ctx context.Context,
 	request persistence.HistoryDLQGetTasksRequest,
 ) (persistence.InternalGetHistoryDLQTasksResponse, error) {
-	rows, nextPageToken, err := m.db.SelectHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskFilter{
+	storeShard, err := sh.GetStoreShardByHistoryShard(request.ShardID)
+	if err != nil {
+		return persistence.InternalGetHistoryDLQTasksResponse{}, err
+	}
+
+	rows, nextPageToken, err := storeShard.db.SelectHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskFilter{
 		ShardID:                  request.ShardID,
 		DomainID:                 request.DomainID,
 		ClusterAttributeScope:    request.ClusterAttributeScope,
@@ -111,7 +119,7 @@ func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 		NextPageToken:            request.NextPageToken,
 	})
 	if err != nil {
-		return persistence.InternalGetHistoryDLQTasksResponse{}, convertCommonErrors(m.db, "GetHistoryDLQTasks", err)
+		return persistence.InternalGetHistoryDLQTasksResponse{}, convertCommonErrors(storeShard.db, "GetHistoryDLQTasks", err)
 	}
 
 	tasks := make([]*persistence.InternalHistoryDLQTask, 0, len(rows))
@@ -134,11 +142,16 @@ func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
 }
 
 // RangeDeleteHistoryDLQTasks deletes all tasks strictly before the exclusive max key.
-func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
+func (sh *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
 	ctx context.Context,
 	request persistence.HistoryDLQDeleteTasksRequest,
 ) error {
-	err := m.db.RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
+	storeShard, err := sh.GetStoreShardByHistoryShard(request.ShardID)
+	if err != nil {
+		return err
+	}
+
+	err = storeShard.db.RangeDeleteHistoryDLQTaskRows(ctx, nosqlplugin.HistoryDLQTaskRangeDeleteFilter{
 		ShardID:                  request.ShardID,
 		DomainID:                 request.DomainID,
 		ClusterAttributeScope:    request.ClusterAttributeScope,
@@ -148,24 +161,29 @@ func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
 		ExclusiveMaxTaskID:       request.ExclusiveMaxTaskKey.GetTaskID(),
 	})
 	if err != nil {
-		return convertCommonErrors(m.db, "RangeDeleteHistoryDLQTasks", err)
+		return convertCommonErrors(storeShard.db, "RangeDeleteHistoryDLQTasks", err)
 	}
 	return nil
 }
 
 // GetHistoryDLQAckLevels reads ack-level rows for a shard, filtered by task category in application code.
-func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
+func (sh *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
 	ctx context.Context,
 	request persistence.HistoryDLQGetAckLevelsRequest,
 ) (persistence.InternalGetHistoryDLQAckLevelsResponse, error) {
-	rows, err := m.db.SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{
+	storeShard, err := sh.GetStoreShardByHistoryShard(request.ShardID)
+	if err != nil {
+		return persistence.InternalGetHistoryDLQAckLevelsResponse{}, err
+	}
+
+	rows, err := storeShard.db.SelectHistoryDLQAckLevelRows(ctx, nosqlplugin.HistoryDLQAckLevelFilter{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
 	})
 	if err != nil {
-		return persistence.InternalGetHistoryDLQAckLevelsResponse{}, convertCommonErrors(m.db, "GetHistoryDLQAckLevels", err)
+		return persistence.InternalGetHistoryDLQAckLevelsResponse{}, convertCommonErrors(storeShard.db, "GetHistoryDLQAckLevels", err)
 	}
 
 	ackLevels := make([]*persistence.InternalHistoryDLQAckLevel, 0, len(rows))
@@ -187,11 +205,16 @@ func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
 }
 
 // UpdateHistoryDLQAckLevel upserts a single ack-level row.
-func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
+func (sh *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
 	ctx context.Context,
 	request persistence.InternalUpdateHistoryDLQAckLevelRequest,
 ) error {
-	err := m.db.InsertOrUpdateHistoryDLQAckLevelRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
+	storeShard, err := sh.GetStoreShardByHistoryShard(request.Row.ShardID)
+	if err != nil {
+		return err
+	}
+
+	err = storeShard.db.InsertOrUpdateHistoryDLQAckLevelRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
 		ShardID:               request.Row.ShardID,
 		DomainID:              request.Row.DomainID,
 		ClusterAttributeScope: request.Row.ClusterAttributeScope,
@@ -202,7 +225,7 @@ func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
 		LastUpdatedAt:         request.Row.LastUpdatedAt,
 	})
 	if err != nil {
-		return convertCommonErrors(m.db, "UpdateHistoryDLQAckLevel", err)
+		return convertCommonErrors(storeShard.db, "UpdateHistoryDLQAckLevel", err)
 	}
 	return nil
 }

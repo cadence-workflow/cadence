@@ -1637,15 +1637,6 @@ const (
 	// Allowed filters: N/A
 	QueueMaxVirtualQueueCount
 
-	// ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction.
-	// etcd enforces a server-side limit (--max-txn-ops, default 128).
-	// This value must not exceed the etcd cluster's configured limit.
-	// KeyName: shardDistributor.maxEtcdTxnOps
-	// Value type: Int
-	// Default value: 128
-	// Allowed filters: N/A
-	ShardDistributorMaxEtcdTxnOps
-
 	// HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list.
 	// KeyName: history.taskListNiceValue
 	// Value type: Int
@@ -1659,6 +1650,18 @@ const (
 	// Value type: Int
 	// Default value: 1
 	OperationalConfigStoreUpdateRetryAttempts
+
+	// SchedulerWorkerRedundancyFactor is the number of cadence-worker hosts
+	// that concurrently run a scheduler worker for each enabled domain.
+	// Re-evaluated every refresh tick, so changes take effect within one
+	// refresh interval without a restart. Non-positive values fall back to
+	// the in-process default. Per-domain overrides let tier-1 domains
+	// request more redundancy than the cluster default.
+	// KeyName: worker.schedulerWorkerRedundancyFactor
+	// Value type: Int
+	// Default value: 2
+	// Allowed filters: DomainName
+	SchedulerWorkerRedundancyFactor
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -2368,13 +2371,6 @@ const (
 	// Default value: false
 	// Allowed filters: ShardID
 	EnableTimerQueueV2PendingTaskCountAlert
-	// TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks
-	// KeyName: history.timerProcessorEnableCachedScheduledQueue
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	TimerProcessorEnableCachedScheduledQueue
-
 	// EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain
 	// KeyName: frontend.enableActiveClusterSelectionPolicyInStartWorkflow
 	// Value type: Bool
@@ -2397,23 +2393,6 @@ const (
 	// Default value: true
 	// Allowed filters: N/A
 	MatchingExcludeShortLivedTaskListsFromShardManager
-	// MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager.
-	// When true, all task lists fall back to the hash ring, ignoring MatchingPercentageOnboardedToShardManager.
-	// KeyName: matching.emergencyOffboardingFromShardManager
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	MatchingEmergencyOffboardingFromShardManager
-	// MatchingPercentageOnboardedReadFromOperationalStore selects the source of
-	// MatchingPercentageOnboardedToShardManager during the migration to the cassandra-backed
-	// operational dynamic config store.
-	// When false (default), cadence reads the value from the generic dynamic config.
-	// When true, cadence reads the value from the operational dynamic config store.
-	// KeyName: matching.percentageOnboardedReadFromOperationalStore
-	// Value type: Bool
-	// Default value: false
-	// Allowed filters: N/A
-	MatchingPercentageOnboardedReadFromOperationalStore
 
 	// EnableHierarchicalWeightedRoundRobinTaskScheduler is to enable hierarchical weighted round robin task scheduler
 	// KeyName: history.enableHierarchicalWeightedRoundRobinTaskScheduler
@@ -2626,67 +2605,6 @@ const (
 	// Allowed filters: DomainName, TaskListName, TaskType
 	MatchingOverrideTaskListRPS
 
-	// Key for shard distributor
-
-	// ShardDistributorErrorInjectionRate is rate for injecting random error in shard distributor client
-	// KeyName: sharddistributor.errorInjectionRate
-	// Value type: Float64
-	// Default value: 0
-	// Allowed filters: N/A
-	ShardDistributorErrorInjectionRate
-
-	// ShardDistributorExecutorErrorInjectionRate is rate for injecting random error in shard distributor executor client
-	// KeyName: sharddistributorexecutor.errorInjectionRate
-	// Value type: Float64
-	// Default value: 0
-	// Allowed filters: N/A
-	ShardDistributorExecutorErrorInjectionRate
-
-	// ShardDistributorLoadBalancingNaiveMaxDeviation is max deviation between the coldest and hottest executors
-	// in naive load balancing mode
-	//
-	// KeyName: shardDistributor.loadBalancingNaive.maxDeviation
-	// Value type: Float64
-	// Default value: 2.0
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingNaiveMaxDeviation
-
-	// ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards
-	// that may be moved per greedy load-balance pass.
-	//
-	// KeyName: shardDistributor.loadBalancingGreedy.moveBudgetProportion
-	// Value type: Float64
-	// Default value: 0.01
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingGreedyMoveBudgetProportion
-
-	// ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load
-	// that qualifies an executor as a greedy rebalance source.
-	//
-	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisUpperBand
-	// Value type: Float64
-	// Default value: 1.15
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingGreedyHysteresisUpperBand
-
-	// ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load
-	// that qualifies an executor as a greedy rebalance destination.
-	//
-	// KeyName: shardDistributor.loadBalancingGreedy.hysteresisLowerBand
-	// Value type: Float64
-	// Default value: 0.90
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingGreedyHysteresisLowerBand
-
-	// ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination
-	// selection when maxLoad/meanLoad reaches this value.
-	//
-	// KeyName: shardDistributor.loadBalancingGreedy.severeImbalanceRatio
-	// Value type: Float64
-	// Default value: 1.3
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingGreedySevereImbalanceRatio
-
 	// LastFloatKey must be the last one in this const group
 	LastFloatKey
 )
@@ -2800,30 +2718,6 @@ const (
 	// Default value: "thriftrw"
 	SerializationEncoding
 
-	// ShardDistributorMigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism
-	//
-	// "invalid" invalid mode for the migration, not expected to be used
-	// "local_pass" the executor library is integrated but no external call to the SD happening
-	// "onboarded" the sharding logic in SD is used
-	//
-	// KeyName: shardDistributor.migrationMode
-	// Value type: String
-	// Default value: onboarded
-	// Allowed filters: namespace
-	ShardDistributorMigrationMode
-
-	// ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor
-	// Depending on the mode, the shard distributor will use different ways to distribute the shards
-	//
-	// * "naive" 	- mode assigns shards to the least loaded hosts without considering the existing shard distribution
-	// * "greedy" 	- mode balances the load across all hosts while minimizing shard movements and uses shard statistics to make better decisions
-	//
-	// KeyName: shardDistributor.loadBalancingMode
-	// Value type: String
-	// Default value: "naive"
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingMode
-
 	// HistoryTaskDLQMode enables writing tasks to the History Task Dead Letter Queue rather than discarding them.
 	// To enable this key, HistoryTaskDLQProcessorEnabled must be enabled.
 	//
@@ -2836,7 +2730,10 @@ const (
 	// Allowed filters: domainName
 	HistoryTaskDLQMode
 
-	// TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled
+	// TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used.
+	// "disabled" (default): no cached reader, plain scheduledQueue is used.
+	// "shadow": cached reader is created and prefetches, but all reads are forwarded to the base reader.
+	// "enabled": cached reader fully active.
 	// KeyName: history.timerProcessorCachedQueueReaderMode
 	// Value type: string enum: "disabled", "shadow", "enabled"
 	// Default value: "disabled"
@@ -3431,22 +3328,6 @@ const (
 	// Default value: 30m (30 * time.Minute)
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
-
-	// ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between
-	// moving the same shard in greedy load balancing mode.
-	// KeyName: shardDistributor.loadBalancingGreedy.perShardCooldown
-	// Value type: Duration
-	// Default value: 1 minute
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingGreedyPerShardCooldown
-
-	// ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant
-	// for exponential smoothing of shard load in greedy load balancing mode.
-	// KeyName: shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant
-	// Value type: Duration
-	// Default value: 1 minute
-	// Allowed filters: namespace
-	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant
 
 	// OperationalConfigStorePollInterval controls how often the operational
 	// dynamic config store re-reads its snapshot from the primary database.
@@ -4683,11 +4564,6 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "QueueMaxVirtualQueueCount is the max number of virtual queues",
 		DefaultValue: 2,
 	},
-	ShardDistributorMaxEtcdTxnOps: {
-		KeyName:      "shardDistributor.maxEtcdTxnOps",
-		Description:  "ShardDistributorMaxEtcdTxnOps is the maximum number of operations per etcd transaction, must not exceed the etcd cluster's configured --max-txn-ops limit",
-		DefaultValue: 128,
-	},
 	HistoryTaskListNiceValue: {
 		KeyName:      "history.taskListNiceValue",
 		Description:  "HistoryTaskListNiceValue is the nice value for task processing priority per domain and task list",
@@ -4698,6 +4574,12 @@ var IntKeys = map[IntKey]DynamicInt{
 		KeyName:      "system.operationalConfigStoreUpdateRetryAttempts",
 		Description:  "Number of attempts to push a value to the operational dynamic config store on conflict",
 		DefaultValue: 1,
+	},
+	SchedulerWorkerRedundancyFactor: {
+		KeyName:      "worker.schedulerWorkerRedundancyFactor",
+		Filters:      []Filter{DomainName},
+		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
+		DefaultValue: 2,
 	},
 }
 
@@ -5327,11 +5209,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{ShardID},
 		DefaultValue: false,
 	},
-	TimerProcessorEnableCachedScheduledQueue: {
-		KeyName:      "history.timerProcessorEnableCachedScheduledQueue",
-		Description:  "TimerProcessorEnableCachedScheduledQueue enables the cached scheduled queue for timer tasks",
-		DefaultValue: false,
-	},
 	EnableActiveClusterSelectionPolicyInStartWorkflow: {
 		KeyName:      "frontend.enableActiveClusterSelectionPolicyInStartWorkflow",
 		Description:  "EnableActiveClusterSelectionPolicyInStartWorkflow is to enable active cluster selection policy in start workflow requests for a domain",
@@ -5348,16 +5225,6 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		KeyName:      "matching.excludeShortLivedTaskListsFromShardManager",
 		Description:  "MatchingExcludeShortLivedTaskListsFromShardManager excludes short-lived task lists (e.g. bits task lists and sticky task lists) from the shard manager",
 		DefaultValue: true,
-	},
-	MatchingEmergencyOffboardingFromShardManager: {
-		KeyName:      "matching.emergencyOffboardingFromShardManager",
-		Description:  "MatchingEmergencyOffboardingFromShardManager is a kill switch to immediately offboard all task lists from the shard manager, ignoring the onboarding percentage",
-		DefaultValue: false,
-	},
-	MatchingPercentageOnboardedReadFromOperationalStore: {
-		KeyName:      "matching.percentageOnboardedReadFromOperationalStore",
-		Description:  "MatchingPercentageOnboardedReadFromOperationalStore selects the source of MatchingPercentageOnboardedToShardManager: false (default) reads from the generic dynamic config, true reads from the cassandra-backed operational dynamic config store",
-		DefaultValue: false,
 	},
 	EnableHierarchicalWeightedRoundRobinTaskScheduler: {
 		KeyName:      "history.enableHierarchicalWeightedRoundRobinTaskScheduler",
@@ -5533,47 +5400,6 @@ var FloatKeys = map[FloatKey]DynamicFloat{
 		Filters:      []Filter{DomainName, TaskListName, TaskType},
 		DefaultValue: 0,
 	},
-	ShardDistributorErrorInjectionRate: {
-		KeyName:      "sharddistributor.errorInjectionRate",
-		Description:  "ShardDistributorInjectionRate is rate for injecting random error in shard distributor client",
-		DefaultValue: 0,
-	},
-	ShardDistributorExecutorErrorInjectionRate: {
-		KeyName:      "sharddistributorexecutor.errorInjectionRate",
-		Description:  "ShardDistributorExecutorInjectionRate is rate for injecting random error in shard distributor executor client",
-		DefaultValue: 0,
-	},
-
-	ShardDistributorLoadBalancingNaiveMaxDeviation: {
-		KeyName:      "shardDistributor.loadBalancingNaive.maxDeviation",
-		Description:  "ShardDistributorLoadBalancingNaiveMaxDeviation is max deviation between the coldest and hottest executors in naive load balancing mode",
-		DefaultValue: 2.0,
-		Filters:      []Filter{Namespace},
-	},
-	ShardDistributorLoadBalancingGreedyMoveBudgetProportion: {
-		KeyName:      "shardDistributor.loadBalancingGreedy.moveBudgetProportion",
-		Description:  "ShardDistributorLoadBalancingGreedyMoveBudgetProportion is the fraction of total shards that may be moved per greedy load-balance pass",
-		DefaultValue: 0.01,
-		Filters:      []Filter{Namespace},
-	},
-	ShardDistributorLoadBalancingGreedyHysteresisUpperBand: {
-		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisUpperBand",
-		Description:  "ShardDistributorLoadBalancingGreedyHysteresisUpperBand is the multiplier above mean load that qualifies an executor as a greedy rebalance source",
-		DefaultValue: 1.15,
-		Filters:      []Filter{Namespace},
-	},
-	ShardDistributorLoadBalancingGreedyHysteresisLowerBand: {
-		KeyName:      "shardDistributor.loadBalancingGreedy.hysteresisLowerBand",
-		Description:  "ShardDistributorLoadBalancingGreedyHysteresisLowerBand is the multiplier below mean load that qualifies an executor as a greedy rebalance destination",
-		DefaultValue: 0.90,
-		Filters:      []Filter{Namespace},
-	},
-	ShardDistributorLoadBalancingGreedySevereImbalanceRatio: {
-		KeyName:      "shardDistributor.loadBalancingGreedy.severeImbalanceRatio",
-		Description:  "ShardDistributorLoadBalancingGreedySevereImbalanceRatio allows relaxing destination selection when maxLoad/meanLoad reaches this value",
-		DefaultValue: 1.3,
-		Filters:      []Filter{Namespace},
-	},
 }
 
 var StringKeys = map[StringKey]DynamicString{
@@ -5666,17 +5492,6 @@ var StringKeys = map[StringKey]DynamicString{
 		Description:  "SerializationEncoding is the encoding type for blobs",
 		DefaultValue: string(constants.EncodingTypeThriftRW),
 	},
-	ShardDistributorMigrationMode: {
-		KeyName:      "shardDistributor.migrationMode",
-		Description:  "ShardDistributorMigrationMode is the mode the at represent the state of the migration to rely on shard distributor for the sharding mechanism",
-		DefaultValue: "onboarded",
-		Filters:      []Filter{Namespace},
-	},
-	ShardDistributorLoadBalancingMode: {
-		KeyName:      "shardDistributor.loadBalancingMode",
-		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
-		DefaultValue: "naive",
-	},
 	HistoryTaskDLQMode: {
 		KeyName:      "history.historyTaskDLQMode",
 		Description:  "HistoryTaskDLQMode is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
@@ -5685,7 +5500,7 @@ var StringKeys = map[StringKey]DynamicString{
 	},
 	TimerProcessorCachedQueueReaderMode: {
 		KeyName:      "history.timerProcessorCachedQueueReaderMode",
-		Description:  "TimerProcessorCachedQueueReaderMode controls cached queue reader mode: disabled/shadow/enabled",
+		Description:  "TimerProcessorCachedQueueReaderMode controls whether and how the cached queue reader is used: disabled/shadow/enabled",
 		DefaultValue: "disabled",
 		Filters:      []Filter{ShardID},
 	},
@@ -6223,18 +6038,6 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
-	},
-	ShardDistributorLoadBalancingGreedyPerShardCooldown: {
-		KeyName:      "shardDistributor.loadBalancingGreedy.perShardCooldown",
-		Filters:      []Filter{Namespace},
-		Description:  "ShardDistributorLoadBalancingGreedyPerShardCooldown is the minimum time between moving the same shard in greedy load balancing mode",
-		DefaultValue: time.Minute,
-	},
-	ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant: {
-		KeyName:      "shardDistributor.loadBalancingGreedy.loadSmoothingTimeConstant",
-		Filters:      []Filter{Namespace},
-		Description:  "ShardDistributorLoadBalancingGreedyLoadSmoothingTimeConstant is the time constant for exponential smoothing of shard load in greedy load balancing mode",
-		DefaultValue: time.Minute,
 	},
 	OperationalConfigStorePollInterval: {
 		KeyName:      "system.operationalConfigStorePollInterval",

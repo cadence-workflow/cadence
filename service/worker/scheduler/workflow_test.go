@@ -32,7 +32,6 @@ import (
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -467,6 +466,47 @@ func TestBuildScheduleDescription(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Describe must surface PendingBackfills as OngoingBackfills so
+			// callers can show progress; this is what fills the new
+			// ScheduleInfo.OngoingBackfills field on DescribeScheduleResponse.
+			name:  "schedule with pending backfills exposes ongoing backfills",
+			input: SchedulerWorkflowInput{ScheduleID: "sched-bf", Domain: "dev"},
+			state: SchedulerWorkflowState{
+				PendingBackfills: []BackfillRequest{
+					{
+						BackfillID:    "bf-a",
+						StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+						RunsTotal:     24,
+						RunsCompleted: 5,
+					},
+					{
+						BackfillID: "bf-b",
+						StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			want: &ScheduleDescription{
+				ScheduleID: "sched-bf",
+				Domain:     "dev",
+				OngoingBackfills: []types.BackfillInfo{
+					{
+						BackfillID:    "bf-a",
+						StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+						RunsTotal:     24,
+						RunsCompleted: 5,
+					},
+					{
+						BackfillID: "bf-b",
+						StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+						EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -530,13 +570,14 @@ func TestHandlePause(t *testing.T) {
 
 func TestHandleUnpause(t *testing.T) {
 	tests := []struct {
-		name         string
-		initial      SchedulerWorkflowState
-		sig          UnpauseSignal
-		wantPaused   bool
-		wantReason   string
-		wantPausedBy string
-		wantChanged  bool
+		name                     string
+		initial                  SchedulerWorkflowState
+		sig                      UnpauseSignal
+		wantPaused               bool
+		wantReason               string
+		wantPausedBy             string
+		wantChanged              bool
+		wantUnpauseCatchUpPolicy types.ScheduleCatchUpPolicy
 	}{
 		{
 			name:         "unpause from paused",
@@ -556,6 +597,30 @@ func TestHandleUnpause(t *testing.T) {
 			wantPausedBy: "",
 			wantChanged:  false,
 		},
+		{
+			name:                     "unpause with CatchUpPolicyOne stores override in state",
+			initial:                  SchedulerWorkflowState{Paused: true},
+			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
+			wantPaused:               false,
+			wantChanged:              true,
+			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+		},
+		{
+			name:                     "unpause with CatchUpPolicySkip stores override in state",
+			initial:                  SchedulerWorkflowState{Paused: true},
+			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+			wantPaused:               false,
+			wantChanged:              true,
+			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicySkip,
+		},
+		{
+			name:                     "unpause with Invalid policy does not set override",
+			initial:                  SchedulerWorkflowState{Paused: true},
+			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyInvalid},
+			wantPaused:               false,
+			wantChanged:              true,
+			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyInvalid,
+		},
 	}
 
 	for _, tt := range tests {
@@ -566,6 +631,7 @@ func TestHandleUnpause(t *testing.T) {
 			assert.Equal(t, tt.wantPaused, state.Paused)
 			assert.Equal(t, tt.wantReason, state.PauseReason)
 			assert.Equal(t, tt.wantPausedBy, state.PausedBy)
+			assert.Equal(t, tt.wantUnpauseCatchUpPolicy, state.UnpauseCatchUpPolicy)
 		})
 	}
 }
@@ -637,6 +703,16 @@ func TestHandleUpdate(t *testing.T) {
 			name: "invalid cron expression is rejected, spec unchanged",
 			sig: UpdateSignal{
 				Spec: &types.ScheduleSpec{CronExpression: "not-a-cron"},
+			},
+			wantCron:    "0 * * * *",
+			wantWF:      "old-workflow",
+			wantPol:     types.ScheduleOverlapPolicySkipNew,
+			wantChanged: false,
+		},
+		{
+			name: "out-of-range minute (99) is rejected, spec unchanged",
+			sig: UpdateSignal{
+				Spec: &types.ScheduleSpec{CronExpression: "99 * * * *"},
 			},
 			wantCron:    "0 * * * *",
 			wantWF:      "old-workflow",
@@ -831,6 +907,95 @@ func TestHandleBackfill(t *testing.T) {
 			assert.Equal(t, int64(1), c.Value())
 		})
 	}
+
+	t.Run("duplicate BackfillID is absorbed as idempotent retry", func(t *testing.T) {
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:    time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+					BackfillID: "bf-dup",
+				},
+			},
+		}
+		scope := tally.NewTestScope("", nil)
+		// Same BackfillID, even with a different time range, must not enqueue a
+		// second copy: BackfillSchedule is meant to be retry-safe by ID.
+		sig := BackfillSignal{
+			StartTime:  time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+			BackfillID: "bf-dup",
+		}
+		got := handleBackfill(testLogger, scope, sig, state)
+		assert.False(t, got)
+		assert.Len(t, state.PendingBackfills, 1)
+		assert.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), state.PendingBackfills[0].StartTime)
+
+		c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillRejectedCountPerDomain,
+			map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID})
+		require.True(t, ok)
+		assert.Equal(t, int64(1), c.Value())
+	})
+
+	t.Run("empty BackfillID does not collide with another empty BackfillID", func(t *testing.T) {
+		state := &SchedulerWorkflowState{
+			PendingBackfills: []BackfillRequest{
+				{
+					StartTime: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					EndTime:   time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		}
+		scope := tally.NewTestScope("", nil)
+		sig := BackfillSignal{
+			StartTime: time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(2026, 2, 2, 0, 0, 0, 0, time.UTC),
+		}
+		got := handleBackfill(testLogger, scope, sig, state)
+		assert.True(t, got)
+		assert.Len(t, state.PendingBackfills, 2)
+	})
+}
+
+func TestCountCronFires(t *testing.T) {
+	hourly := mustParseCron(t, "0 * * * *")
+	spec := types.ScheduleSpec{CronExpression: "0 * * * *"}
+
+	tests := map[string]struct {
+		start, end time.Time
+		limit      int
+		wantCount  int
+		wantTrunc  bool
+	}{
+		"hourly cron over 24h inclusive fits under cap": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second),
+			end:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			limit:     100,
+			wantCount: 25,
+			wantTrunc: false,
+		},
+		"empty range returns zero": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 30, time.UTC),
+			end:       time.Date(2026, 1, 1, 0, 30, 0, 0, time.UTC),
+			limit:     100,
+			wantCount: 0,
+			wantTrunc: false,
+		},
+		"limit truncates a long range": {
+			start:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second),
+			end:       time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+			limit:     10,
+			wantCount: 10,
+			wantTrunc: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			count, truncated := countCronFires(hourly, tt.start, tt.end, spec, tt.limit)
+			assert.Equal(t, tt.wantCount, count)
+			assert.Equal(t, tt.wantTrunc, truncated)
+		})
+	}
 }
 
 func TestEffectiveFireOverlap(t *testing.T) {
@@ -886,12 +1051,17 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 			},
 		},
 	}
-	// processBackfills should short-circuit without touching PendingBackfills
 	scope := tally.NewTestScope("", nil)
 	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
-	assert.False(t, moreWork, "paused schedule should not process backfills")
-	assert.Len(t, state.PendingBackfills, 1, "pending backfills should be preserved while paused")
-	assert.Empty(t, scope.Snapshot().Counters(), "no metrics should be emitted when paused")
+	assert.False(t, moreWork, "paused schedule should not fire backfills")
+	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
+	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
+	// RunsTotal must still be populated so DescribeSchedule does not report
+	// the queued backfill as 0/0 (which by contract means an empty range).
+	// Hourly cron over (10:00-1s, 13:00] → fires at 10, 11, 12, 13 = 4.
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+	assert.Equal(t, int32(4), state.PendingBackfills[0].RunsTotal)
+	assert.Equal(t, int32(0), state.PendingBackfills[0].RunsCompleted)
 }
 
 func TestProcessBackfillsFiredMetric(t *testing.T) {
@@ -919,6 +1089,92 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
 	require.True(t, ok, "backfill fired metric should be emitted")
 	assert.Equal(t, int64(3), c.Value(), "expected 3 fires: 10:00, 11:00, 12:00")
+}
+
+// TestProcessBackfillsTracksRunsCompleted verifies that RunsCompleted advances
+// on every fire handed off by processBackfills, and that RunsTotal is computed
+// once on the first batch and preserved across subsequent batches.
+func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Hourly cron over 24h-inclusive → 25 fires. maxBackfillFiresPerExecution
+	// is 10, so the first call processes 10 and leaves 15 behind.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-partial",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	assert.True(t, moreWork, "backfill should signal more work after hitting per-execution cap")
+	require.Len(t, state.PendingBackfills, 1, "partial backfill should remain in state")
+	assert.Equal(t, int32(maxBackfillFiresPerExecution), state.PendingBackfills[0].RunsCompleted)
+	assert.Equal(t, int32(25), state.PendingBackfills[0].RunsTotal, "RunsTotal computed lazily on first batch")
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+}
+
+// TestProcessBackfillsRunsTotalTruncated covers a range that exceeds the count
+// cap: RunsTotal is set to the cap as a lower bound, not 0.
+func TestProcessBackfillsRunsTotalTruncated(t *testing.T) {
+	// Per-minute cron over 100 days = 144000 fires, above the
+	// maxBackfillRunsTotalCount (100000) cap.
+	sched := mustParseCron(t, "* * * * *")
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC),
+				BackfillID: "bf-huge",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	_ = processBackfills(nil, testLogger, scope, sched, input, state)
+	require.Len(t, state.PendingBackfills, 1)
+	assert.Equal(t, int32(maxBackfillRunsTotalCount), state.PendingBackfills[0].RunsTotal,
+		"truncated count should report the cap as a lower bound, not 0")
+	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+}
+
+// TestProcessBackfillsLazyRunsTotalIgnoresStaleSched simulates a same-batch
+// UpdateSchedule changing the cron between backfill enqueue and processing.
+// RunsTotal must reflect the cron passed into processBackfills (the freshly
+// re-parsed one), not the cron that was in effect when handleBackfill ran.
+func TestProcessBackfillsLazyRunsTotalUsesProcessSched(t *testing.T) {
+	// Backfill enqueued with no RunsTotal computed yet. processBackfills now
+	// receives an hourly cron; we expect RunsTotal to come from that, not from
+	// some other cron a hypothetical caller might have used at enqueue time.
+	hourly := mustParseCron(t, "0 * * * *")
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{
+				StartTime:  time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
+				BackfillID: "bf-fresh-sched",
+			},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	_ = processBackfills(nil, testLogger, scope, hourly, input, state)
+	// 3 fires for hourly cron over [10:00, 12:00]: 10:00, 11:00, 12:00.
+	// Backfill drains in one call (under the per-execution cap), so it has
+	// been removed; check the firing metric reflects the count instead.
+	assert.Empty(t, state.PendingBackfills)
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(3), c.Value())
 }
 
 func TestBackfillFireComputation(t *testing.T) {
@@ -1049,6 +1305,129 @@ func TestProcessMissedRunsAtMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestProcessMissedRunsAt_NoMissedFires_ClearsOverride verifies that the UnpauseCatchUpPolicy
+// override is cleared even when there are no missed fires. Without this, a short pause that
+// produces zero missed fires would leave the override set, causing a future catch-up pass to
+// inherit a stale policy from an earlier unpause.
+func TestProcessMissedRunsAt_NoMissedFires_ClearsOverride(t *testing.T) {
+	// now == watermark: no fires were missed during the pause.
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	sched := mustParseCron(t, "* * * * *")
+	scope := tally.NewTestScope("", nil)
+	input := &SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{},
+	}
+	state := &SchedulerWorkflowState{
+		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne, // set by handleUnpause
+	}
+
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, base, base)
+
+	assert.False(t, moreMissed, "no missed fires, nothing to catch up")
+	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
+		"override must be cleared even when there are no missed fires")
+
+	// No counters should have been emitted.
+	counters := scope.Snapshot().Counters()
+	_, hasFired := findCounter(counters, SchedulerMissedFiredCountPerDomain, map[string]string{})
+	assert.False(t, hasFired, "no fires emitted when there are no missed runs")
+}
+
+// TestProcessMissedRunsAt_PauseUnpause is the primary end-to-end scenario for catch-up:
+// the schedule is paused for 5 minutes (missing 5 per-minute fires), then unpaused
+// with CatchUpPolicyOne. Exactly 1 fire (the most recent) must run; the other 4 are skipped.
+// Because all 5 fires fit in one execution (moreMissed=false), the override is cleared.
+func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	watermark := base
+	now := base.Add(5 * time.Minute) // 5 fires missed: 10:01–10:05
+
+	sched := mustParseCron(t, "* * * * *")
+	scope := tally.NewTestScope("", nil)
+	input := &SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{
+			// No CatchUpPolicy at creation (Invalid → skip all).
+			// The unpause override in state must take priority.
+		},
+		// Action.StartWorkflow intentionally nil: processScheduleFire returns
+		// before reaching ctx, so nil ctx is safe here.
+	}
+	state := &SchedulerWorkflowState{
+		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne, // set by handleUnpause
+	}
+
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now)
+
+	assert.False(t, moreMissed, "all 5 fires fit within maxCatchUpFiresPerExecution")
+
+	// Override must be consumed and cleared so the next catch-up uses the schedule's own policy.
+	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
+		"UnpauseCatchUpPolicy must be cleared after use")
+
+	counters := scope.Snapshot().Counters()
+
+	firedC, ok := findCounter(counters, SchedulerMissedFiredCountPerDomain, map[string]string{})
+	require.True(t, ok, "one fire should be recorded")
+	assert.Equal(t, int64(1), firedC.Value(), "CatchUpPolicyOne fires exactly the most recent missed run")
+
+	skippedC, ok := findCounter(counters, SchedulerMissedSkippedCountPerDomain,
+		map[string]string{CatchUpPolicyTag: types.ScheduleCatchUpPolicyOne.String()})
+	require.True(t, ok, "4 skipped fires should be recorded")
+	assert.Equal(t, int64(4), skippedC.Value(), "4 of 5 missed fires are skipped under CatchUpPolicyOne")
+}
+
+// TestProcessMissedRunsAt_PauseUnpause_MultiBatch verifies that the UnpauseCatchUpPolicy
+// override survives ContinueAsNew batching. When CatchUpPolicyAll produces more than
+// maxCatchUpFiresPerExecution (10) eligible fires, processMissedRunsAt returns moreMissed=true
+// and the override must remain in state so the next execution continues with the same policy.
+// Once the final batch completes (moreMissed=false), the override is cleared.
+func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
+	// 15 minutes → 15 fires (10:01–10:15), exceeding the cap of 10.
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	watermark := base
+	now := base.Add(15 * time.Minute)
+
+	sched := mustParseCron(t, "* * * * *")
+
+	input := &SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{
+			// No CatchUpPolicy at creation; override must supply All for both batches.
+		},
+	}
+
+	// --- First batch ---
+	scope1 := tally.NewTestScope("", nil)
+	state := &SchedulerWorkflowState{
+		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyAll,
+	}
+	moreMissed := processMissedRunsAt(nil, testLogger, scope1, sched, input, state, watermark, now)
+
+	assert.True(t, moreMissed, "first batch of 15 should report more remaining")
+	assert.Equal(t, types.ScheduleCatchUpPolicyAll, state.UnpauseCatchUpPolicy,
+		"override must survive the first batch so ContinueAsNew can continue with All policy")
+
+	firedC, ok := findCounter(scope1.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(maxCatchUpFiresPerExecution), firedC.Value(), "first batch fires exactly the cap")
+
+	// --- Second batch: resume from where the first left off ---
+	scope2 := tally.NewTestScope("", nil)
+	watermark2 := state.LastProcessedTime
+	moreMissed = processMissedRunsAt(nil, testLogger, scope2, sched, input, state, watermark2, now)
+
+	assert.False(t, moreMissed, "second batch completes the remaining fires")
+	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
+		"override must be cleared after the pass is fully done")
+
+	firedC2, ok := findCounter(scope2.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(5), firedC2.Value(), "second batch fires the remaining 5")
 }
 
 // noopChannel is a workflow.Channel whose ReceiveAsync always returns false (no pending signal).
@@ -1246,7 +1625,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name               string
-		bufferLimit        *int32
+		bufferLimit        int32
 		initialFires       []BufferedFire
 		initialSkipped     int64
 		enqueueTime        time.Time
@@ -1258,7 +1637,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 	}{
 		{
 			name:         "unlimited buffer accepts fire when bufferLimit=nil",
-			bufferLimit:  nil,
+			bufferLimit:  0,
 			initialFires: []BufferedFire{{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer}},
 			enqueueTime:  t0.Add(time.Minute),
 			trigger:      TriggerSourceSchedule,
@@ -1269,7 +1648,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:        "enqueue below limit appends to tail",
-			bufferLimit: common.Int32Ptr(3),
+			bufferLimit: 3,
 			initialFires: []BufferedFire{
 				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
@@ -1284,7 +1663,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:        "enqueue at user limit drops fire and emits user_limit metric",
-			bufferLimit: common.Int32Ptr(2),
+			bufferLimit: 2,
 			initialFires: []BufferedFire{
 				{ScheduledTime: t0, TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
 				{ScheduledTime: t0.Add(time.Minute), TriggerSource: TriggerSourceSchedule, OverlapPolicy: types.ScheduleOverlapPolicyBuffer},
@@ -1301,7 +1680,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:               "enqueue at system limit with unlimited buffer_limit attributes to system_limit",
-			bufferLimit:        nil,
+			bufferLimit:        0,
 			initialFires:       largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
 			initialSkipped:     0,
 			enqueueTime:        t0.Add(time.Hour),
@@ -1312,7 +1691,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:               "enqueue at system limit when user buffer_limit exceeds it attributes to system_limit",
-			bufferLimit:        common.Int32Ptr(int32(MaxBufferedFiresSystemLimit * 2)),
+			bufferLimit:        int32(MaxBufferedFiresSystemLimit * 2),
 			initialFires:       largeBufferedFires(MaxBufferedFiresSystemLimit, t0),
 			enqueueTime:        t0.Add(time.Hour),
 			trigger:            TriggerSourceSchedule,
@@ -1322,7 +1701,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:         "backfill trigger source is preserved",
-			bufferLimit:  nil,
+			bufferLimit:  0,
 			initialFires: nil,
 			enqueueTime:  t0,
 			trigger:      TriggerSourceBackfill,
@@ -1332,7 +1711,7 @@ func TestEnqueueBufferedFire(t *testing.T) {
 		},
 		{
 			name:              "backfill id is preserved on buffered fire",
-			bufferLimit:       nil,
+			bufferLimit:       0,
 			initialFires:      nil,
 			enqueueTime:       t0,
 			trigger:           TriggerSourceBackfill,
@@ -1552,43 +1931,43 @@ func TestDrainBufferedFiresRespectsCap(t *testing.T) {
 func TestEffectiveBufferLimit(t *testing.T) {
 	tests := []struct {
 		name       string
-		userLimit  *int32
+		userLimit  int32
 		wantLimit  int
 		wantReason string
 	}{
 		{
 			name:       "nil userLimit yields system limit",
-			userLimit:  nil,
+			userLimit:  0,
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
 		{
 			name:       "userLimit=0 (explicit unlimited) yields system limit",
-			userLimit:  common.Int32Ptr(0),
+			userLimit:  0,
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
 		{
 			name:       "negative userLimit treated as unlimited yields system limit",
-			userLimit:  common.Int32Ptr(-1),
+			userLimit:  -1,
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
 		{
 			name:       "userLimit below system limit is honored",
-			userLimit:  common.Int32Ptr(100),
+			userLimit:  100,
 			wantLimit:  100,
 			wantReason: BufferOverflowReasonUserLimit,
 		},
 		{
 			name:       "userLimit equal to system limit is honored as user_limit",
-			userLimit:  common.Int32Ptr(int32(MaxBufferedFiresSystemLimit)),
+			userLimit:  int32(MaxBufferedFiresSystemLimit),
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonUserLimit,
 		},
 		{
 			name:       "userLimit above system limit is clamped to system limit",
-			userLimit:  common.Int32Ptr(int32(MaxBufferedFiresSystemLimit * 2)),
+			userLimit:  int32(MaxBufferedFiresSystemLimit * 2),
 			wantLimit:  MaxBufferedFiresSystemLimit,
 			wantReason: BufferOverflowReasonSystemLimit,
 		},
@@ -1611,54 +1990,54 @@ func TestHandleUpdate_RunningWorkflowsClearedOnOverlapPolicyChange(t *testing.T)
 	tests := []struct {
 		name              string
 		fromOverlap       types.ScheduleOverlapPolicy
-		fromLimit         *int32
+		fromLimit         int32
 		toOverlap         types.ScheduleOverlapPolicy
-		toLimit           *int32
+		toLimit           int32
 		initialRunningWFs []RunningWorkflowInfo
 		wantNil           bool
 	}{
 		{
 			name:              "CONCURRENT(limit=2) -> SKIP_NEW clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         common.Int32Ptr(2),
+			fromLimit:         2,
 			toOverlap:         types.ScheduleOverlapPolicySkipNew,
-			toLimit:           common.Int32Ptr(0),
+			toLimit:           0,
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=0) clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         common.Int32Ptr(2),
+			fromLimit:         2,
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
-			toLimit:           common.Int32Ptr(0),
+			toLimit:           0,
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> CONCURRENT(limit=nil) clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         common.Int32Ptr(2),
+			fromLimit:         2,
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
-			toLimit:           nil,
+			toLimit:           0,
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=2) -> BUFFER clears running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         common.Int32Ptr(2),
+			fromLimit:         2,
 			toOverlap:         types.ScheduleOverlapPolicyBuffer,
-			toLimit:           common.Int32Ptr(0),
+			toLimit:           0,
 			initialRunningWFs: runningWFs,
 			wantNil:           true,
 		},
 		{
 			name:              "CONCURRENT(limit=5) -> CONCURRENT(limit=2) preserves running workflows",
 			fromOverlap:       types.ScheduleOverlapPolicyConcurrent,
-			fromLimit:         common.Int32Ptr(5),
+			fromLimit:         5,
 			toOverlap:         types.ScheduleOverlapPolicyConcurrent,
-			toLimit:           common.Int32Ptr(2),
+			toLimit:           2,
 			initialRunningWFs: runningWFs,
 			wantNil:           false,
 		},

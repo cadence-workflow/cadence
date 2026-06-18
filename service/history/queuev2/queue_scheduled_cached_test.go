@@ -193,6 +193,53 @@ func TestCachedScheduledQueue_EvictionHookWired(t *testing.T) {
 	csq.scheduledQueue.base.updateQueueStateFn(context.Background())
 }
 
+func TestCachedScheduledQueue_UpdateQueueStateFn_PropagatesReadLevel(t *testing.T) {
+	now := time.Now()
+	sliceReadLevel := persistence.NewHistoryTaskKey(now, 100)
+	ackLevel := persistence.NewHistoryTaskKey(now.Add(-time.Minute), 50)
+
+	tests := []struct {
+		name          string
+		minReadLevel  persistence.HistoryTaskKey
+		expectedLevel persistence.HistoryTaskKey
+	}{
+		{
+			name:          "slices exist - use min read level",
+			minReadLevel:  sliceReadLevel,
+			expectedLevel: sliceReadLevel,
+		},
+		{
+			name:          "no slices - fall back to ack level",
+			minReadLevel:  persistence.MaximumHistoryTaskKey,
+			expectedLevel: ackLevel,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockReader := NewMockCachedQueueReader(ctrl)
+			mockVQM := NewMockVirtualQueueManager(ctrl)
+
+			inner := &scheduledQueue{
+				base: &queueBase{
+					metricsScope:        metrics.NoopScope,
+					virtualQueueManager: mockVQM,
+					exclusiveAckLevel:   ackLevel,
+				},
+				newTimerCh: make(chan struct{}, 1),
+			}
+			inner.base.updateQueueStateFn = func(ctx context.Context) {}
+
+			mockVQM.EXPECT().GetMinReadLevel().Return(tt.minReadLevel)
+			mockReader.EXPECT().UpdateReadLevel(tt.expectedLevel)
+
+			q := newCachedScheduledQueue(inner, mockReader)
+			q.(*cachedScheduledQueue).scheduledQueue.base.updateQueueStateFn(context.Background())
+		})
+	}
+}
+
 func testScheduledQueueOptions() *Options {
 	return &Options{
 		DeleteBatchSize:                      dynamicproperties.GetIntPropertyFn(100),

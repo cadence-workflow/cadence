@@ -55,6 +55,7 @@ func (e *historyEngineImpl) TerminateWorkflowExecution(
 		e.logger,
 		e.executionCache,
 		e.executionManager,
+		e.shard.GetShardID(),
 		domainID,
 		e.shard.GetDomainCache(),
 		workflowExecution,
