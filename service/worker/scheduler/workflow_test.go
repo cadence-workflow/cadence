@@ -1083,7 +1083,7 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 	}
 	scope := tally.NewTestScope("", nil)
 	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	assert.False(t, moreWork, "paused schedule should not fire backfills")
 	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
 	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
@@ -1114,7 +1114,7 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 	}
 	scope := tally.NewTestScope("", nil)
 	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	assert.False(t, moreWork)
 	assert.Empty(t, state.PendingBackfills, "completed backfill should be removed")
 
@@ -1143,7 +1143,7 @@ func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
 	}
 	scope := tally.NewTestScope("", nil)
 	budget := maxActivitiesPerExecution
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	assert.False(t, moreWork, "all fires in range processed")
 	assert.Empty(t, state.PendingBackfills, "backfill should be removed when complete")
 	// RunsCompleted must match the 3 fires dispatched.
@@ -1171,7 +1171,7 @@ func TestProcessBackfillsBudgetExhaustion(t *testing.T) {
 	}
 	scope := tally.NewTestScope("", nil)
 	budget := 2
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 
 	assert.True(t, moreWork, "should signal CAN when budget exhausted mid-range")
 	require.Len(t, state.PendingBackfills, 1, "partially-drained backfill must remain")
@@ -1205,7 +1205,7 @@ func TestProcessBackfillsRunsTotalTruncated(t *testing.T) {
 	}
 	scope := tally.NewTestScope("", nil)
 	budget := maxActivitiesPerExecution
-	_ = processBackfills(nil, testLogger, scope, sched, input, state, &budget, nil)
+	_ = processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	require.Len(t, state.PendingBackfills, 1)
 	assert.Equal(t, int32(maxBackfillRunsTotalCount), state.PendingBackfills[0].RunsTotal,
 		"truncated count should report the cap as a lower bound, not 0")
@@ -1235,7 +1235,7 @@ func TestProcessBackfillsLazyRunsTotalUsesProcessSched(t *testing.T) {
 	}
 	scope := tally.NewTestScope("", nil)
 	budget := maxActivitiesPerExecution
-	_ = processBackfills(nil, testLogger, scope, hourly, input, state, &budget, nil)
+	_ = processBackfills(nil, testLogger, scope, hourly, input, state, &budget)
 	// 3 fires for hourly cron over [10:00, 12:00]: 10:00, 11:00, 12:00.
 	// Backfill drains in one call (within the activity budget), so it has
 	// been removed; check the firing metric reflects the count instead.
@@ -1350,7 +1350,7 @@ func TestProcessMissedRunsAtMetrics(t *testing.T) {
 			state := &SchedulerWorkflowState{}
 
 			budget := maxActivitiesPerExecution
-			processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget, nil)
+			processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
 
 			counters := scope.Snapshot().Counters()
 
@@ -1395,7 +1395,7 @@ func TestProcessMissedRunsAt_NoMissedFires_ClearsOverride(t *testing.T) {
 	}
 
 	budget := maxActivitiesPerExecution
-	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, base, base, &budget, nil)
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, base, base, &budget)
 
 	assert.False(t, moreMissed, "no missed fires, nothing to catch up")
 	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
@@ -1432,7 +1432,7 @@ func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
 	}
 
 	budget := maxActivitiesPerExecution
-	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget, nil)
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
 
 	assert.False(t, moreMissed, "all 5 fires fit within the activity budget")
 
@@ -1478,7 +1478,7 @@ func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
 		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyAll,
 	}
 	budget1 := 10
-	moreMissed := processMissedRunsAt(nil, testLogger, scope1, sched, input, state, watermark, now, &budget1, nil)
+	moreMissed := processMissedRunsAt(nil, testLogger, scope1, sched, input, state, watermark, now, &budget1)
 
 	assert.True(t, moreMissed, "first batch of 15 should report more remaining")
 	assert.Equal(t, types.ScheduleCatchUpPolicyAll, state.UnpauseCatchUpPolicy,
@@ -1492,7 +1492,7 @@ func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
 	scope2 := tally.NewTestScope("", nil)
 	watermark2 := state.LastProcessedTime
 	budget2 := maxActivitiesPerExecution
-	moreMissed = processMissedRunsAt(nil, testLogger, scope2, sched, input, state, watermark2, now, &budget2, nil)
+	moreMissed = processMissedRunsAt(nil, testLogger, scope2, sched, input, state, watermark2, now, &budget2)
 
 	assert.False(t, moreMissed, "second batch completes the remaining fires")
 	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
@@ -1532,7 +1532,7 @@ func TestProcessMissedRunsAtZeroBudgetNoPanic(t *testing.T) {
 
 	scope := tally.NewTestScope("", nil)
 	budget := 0
-	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget, nil)
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
 
 	assert.True(t, moreMissed, "exhausted budget with missed fires must signal ContinueAsNew")
 	_, ok := findCounter(scope.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
@@ -1883,7 +1883,7 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 	}
 
 	budget := maxActivitiesPerExecution
-	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget, nil)
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget)
 
 	assert.False(t, headBlocked, "queue should fully drain with no head block")
 	assert.Equal(t, 3, drained, "should dispatch all three fires")
@@ -1906,7 +1906,7 @@ func TestDrainBufferedFiresBudgetExhaustion(t *testing.T) {
 	}
 
 	budget := 2
-	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget, nil)
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget)
 
 	assert.Equal(t, 2, drained, "should stop at budget boundary")
 	assert.False(t, headBlocked, "budget exhaustion is not a head-block")
@@ -1944,7 +1944,7 @@ func TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty(t *testing.T) {
 	// nil ctx is safe because the BUFFER+non-empty-queue branch returns before
 	// touching workflow.ExecuteLocalActivity. If the fast path were ever
 	// removed, this call would panic — which is the property we want to lock in.
-	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer, "", nil)
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceSchedule, types.ScheduleOverlapPolicyBuffer, "")
 
 	require.Len(t, state.BufferedFires, 2, "live fire should be enqueued at the tail")
 	assert.Equal(t, t0, state.BufferedFires[0].ScheduledTime, "older queued fire stays at head")
@@ -1974,7 +1974,7 @@ func TestProcessScheduleFireBufferPreservesBackfillID(t *testing.T) {
 	scope := tally.NewTestScope("", nil)
 	liveFire := t0.Add(2 * time.Minute)
 
-	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceBackfill, types.ScheduleOverlapPolicyBuffer, "bf-fast", nil)
+	processScheduleFire(nil, testLogger, scope, input, state, liveFire, TriggerSourceBackfill, types.ScheduleOverlapPolicyBuffer, "bf-fast")
 
 	require.Len(t, state.BufferedFires, 2)
 	assert.Equal(t, "bf-fast", state.BufferedFires[1].BackfillID, "backfill id should be preserved on buffered fire")

@@ -154,6 +154,17 @@ const (
 	localActivityMaxRetries             = 3
 	localActivityRetryInitialInterval   = time.Second
 	localActivityRetryMaxInterval       = 10 * time.Second
+
+	// watcherActivityScheduleToCloseTimeout covers the full lifetime of a watched
+	// workflow. 24h is large enough for any realistic workflow while keeping the
+	// history tidy if the scheduler is terminated unexpectedly.
+	watcherActivityScheduleToCloseTimeout = 24 * time.Hour
+	// watcherActivityHeartbeatTimeout gives the activity worker 65 seconds to
+	// send a heartbeat before Cadence considers it failed and reschedules it.
+	watcherActivityHeartbeatTimeout = 65 * time.Second
+	// watcherPollInterval is how often the watcher activity re-checks the
+	// watched workflow's status.
+	watcherPollInterval = 5 * time.Second
 )
 
 // SchedulerWorkflowInput is the input to the scheduler workflow.

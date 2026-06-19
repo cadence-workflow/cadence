@@ -310,6 +310,7 @@ func (m *WorkerManager) defaultCreateWorker(domainName string) (workerHandle, er
 		BackgroundActivityContext: actCtx,
 	})
 	w.RegisterWorkflowWithOptions(SchedulerWorkflow, workflow.RegisterOptions{Name: WorkflowTypeName})
+	w.RegisterActivity(watchWorkflowActivity)
 
 	if err := w.Start(); err != nil {
 		return nil, err

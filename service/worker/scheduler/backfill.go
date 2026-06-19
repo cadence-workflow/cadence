@@ -120,7 +120,7 @@ func countCronFires(sched cron.Schedule, start, end time.Time, spec types.Schedu
 // cron fire times for each request's time range and executing them.
 // Returns true when more backfill work remains (budget exhausted or scan cap
 // reached), signalling the caller to ContinueAsNew.
-func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int, fireSem workflow.Channel) bool {
+func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int) bool {
 	if len(state.PendingBackfills) == 0 {
 		return false
 	}
@@ -171,7 +171,7 @@ func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scop
 				return true
 			}
 			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
-			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID, fireSem)
+			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
 			fired++
 			// Count any fire handed off to processScheduleFire, whether it
 			// started, was skipped under the overlap policy, or was queued

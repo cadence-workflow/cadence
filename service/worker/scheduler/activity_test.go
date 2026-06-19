@@ -1107,3 +1107,63 @@ func TestEffectiveConcurrencyLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchWorkflowActivity(t *testing.T) {
+	completedStatus := types.WorkflowExecutionCloseStatusCompleted
+	closed := &types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &completedStatus},
+	}
+	describeErr := &types.InternalServiceError{Message: "desc error"}
+
+	tests := []struct {
+		name      string
+		setup     func(*frontend.MockClient)
+		noContext bool
+		wantErr   string
+	}{
+		{
+			name: "workflow already closed returns nil",
+			setup: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(closed, nil)
+			},
+		},
+		{
+			name: "describe error propagated",
+			setup: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, describeErr)
+			},
+			wantErr: "failed to describe workflow",
+		},
+		{
+			name:      "missing scheduler context returns error",
+			noContext: true,
+			setup:     func(_ *frontend.MockClient) {},
+			wantErr:   "scheduler context not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := frontend.NewMockClient(ctrl)
+			tc.setup(mockClient)
+
+			var ctx context.Context
+			if tc.noContext {
+				ctx = context.Background()
+			} else {
+				ctx = context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+					FrontendClient: mockClient,
+				})
+			}
+
+			err := watchWorkflowActivity(ctx, "test-domain", "wf-id", "run-id")
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
