@@ -357,7 +357,7 @@ func (q *cachedQueueReader) fallbackIfRangeIDChanged() bool {
 		// Same host reacquired the shard. Cache still valid.
 		q.logger.Info("rangeID changed on same host, cache not cleared",
 			tag.Dynamic("previousRangeID", prevRangeID),
-			tag.Dynamic("currentRangeID", newRangeID),
+			tag.Dynamic("newRangeID", newRangeID),
 		)
 		return false
 	}
@@ -365,7 +365,7 @@ func (q *cachedQueueReader) fallbackIfRangeIDChanged() bool {
 	// rangeID changed by more than 1: possible stale cache.
 	q.logger.Info("rangeID changed, clearing cache",
 		tag.Dynamic("previousRangeID", prevRangeID),
-		tag.Dynamic("currentRangeID", newRangeID),
+		tag.Dynamic("newRangeID", newRangeID),
 	)
 	q.clearLocked()
 	return true
