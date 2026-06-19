@@ -1892,6 +1892,29 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime)
 }
 
+func TestDrainBufferedFiresBudgetExhaustion(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	queue := make([]BufferedFire, 5)
+	for i := range queue {
+		queue[i] = BufferedFire{ScheduledTime: t0.Add(time.Duration(i) * time.Minute), TriggerSource: TriggerSourceSchedule}
+	}
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: append([]BufferedFire(nil), queue...),
+	}
+
+	budget := 2
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget, nil)
+
+	assert.Equal(t, 2, drained, "should stop at budget boundary")
+	assert.False(t, headBlocked, "budget exhaustion is not a head-block")
+	assert.Len(t, state.BufferedFires, 3, "3 fires remain after budget exhaustion")
+	assert.Equal(t, 0, budget, "budget should reach zero")
+	assert.Equal(t, t0.Add(time.Minute), state.LastRunTime, "last run time reflects last dispatched fire")
+}
+
 // TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty verifies the
 // FIFO-preserving fast path: under BUFFER, if the queue already has waiters,
 // a new live fire is appended directly without invoking the scheduler
