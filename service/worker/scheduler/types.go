@@ -156,8 +156,8 @@ const (
 	localActivityRetryMaxInterval       = 10 * time.Second
 
 	// watcherActivityScheduleToCloseTimeout bounds the watcher activity lifetime.
-	// 24h covers workflows that run for many hours; the activity restarts cleanly
-	// across worker restarts via heartbeat.
+	// 24h covers workflows that run for many hours; transient describe errors are
+	// retried within the activity rather than surfaced to the workflow.
 	watcherActivityScheduleToCloseTimeout = 24 * time.Hour
 	// watcherActivityHeartbeatTimeout must exceed watcherPollInterval by enough
 	// margin that a single slow poll does not look like a dead worker.

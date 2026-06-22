@@ -268,9 +268,7 @@ func applyAllInputs(
 	}
 	if watcherFuture != nil {
 		selector.AddFuture(watcherFuture, func(f workflow.Future) {
-			if err := f.Get(ctx, nil); err != nil {
-				logger.Warn("watcher activity failed", zap.Error(err))
-			}
+			_ = f.Get(ctx, nil)
 			watcherDone = true
 		})
 	}

@@ -283,10 +283,14 @@ func watchWorkflowActivity(ctx context.Context, domain, workflowID, runID string
 	wf := &RunningWorkflowInfo{WorkflowID: workflowID, RunID: runID}
 	for {
 		running, err := isWorkflowRunning(ctx, sc.FrontendClient, domain, wf)
-		if err != nil || !running {
-			return err
+		if err == nil && !running {
+			return nil
 		}
-		activity.RecordHeartbeat(ctx, nil)
+		// On a transient describe error, continue polling rather than returning;
+		// aborting would cause the main loop to restart the watcher in a spin.
+		if err == nil {
+			activity.RecordHeartbeat(ctx, nil)
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

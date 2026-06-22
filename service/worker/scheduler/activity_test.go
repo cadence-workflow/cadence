@@ -1115,12 +1115,13 @@ func TestWatchWorkflowActivity(t *testing.T) {
 	}
 	describeErr := &types.InternalServiceError{Message: "desc error"}
 
-	// "polls until closed" requires activity.RecordHeartbeat which panics outside a
-	// Cadence activity context. That path is exercised by the E2E test instead.
+	// The still-running poll path requires activity.RecordHeartbeat which panics
+	// outside a Cadence activity context. That path is exercised by the E2E test.
 	tests := []struct {
 		name      string
 		setup     func(*frontend.MockClient)
 		noContext bool
+		cancelCtx bool
 		wantErr   string
 	}{
 		{
@@ -1130,11 +1131,12 @@ func TestWatchWorkflowActivity(t *testing.T) {
 			},
 		},
 		{
-			name: "describe error propagated",
+			name: "describe error retried, exits on context cancel",
 			setup: func(m *frontend.MockClient) {
 				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, describeErr)
 			},
-			wantErr: "failed to describe workflow",
+			cancelCtx: true,
+			wantErr:   "context canceled",
 		},
 		{
 			name:      "missing scheduler context returns error",
@@ -1157,6 +1159,11 @@ func TestWatchWorkflowActivity(t *testing.T) {
 				ctx = context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
 					FrontendClient: mockClient,
 				})
+			}
+			if tc.cancelCtx {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
 			}
 
 			err := watchWorkflowActivity(ctx, "test-domain", "wf-id", "run-id")
