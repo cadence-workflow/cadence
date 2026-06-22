@@ -197,7 +197,7 @@ func (h *apiHandler) DescribeTaskList(ctx context.Context, dp1 *types.DescribeTa
 
 	dp2, err = h.handler.DescribeTaskList(ctx, dp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return dp2, err
 }
@@ -445,7 +445,7 @@ func (h *apiHandler) ListTaskListPartitions(ctx context.Context, lp1 *types.List
 
 	lp2, err = h.handler.ListTaskListPartitions(ctx, lp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return lp2, err
 }
@@ -507,7 +507,7 @@ func (h *apiHandler) PollForActivityTask(ctx context.Context, pp1 *types.PollFor
 
 	pp2, err = h.handler.PollForActivityTask(ctx, pp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return pp2, err
 }
@@ -535,7 +535,7 @@ func (h *apiHandler) PollForDecisionTask(ctx context.Context, pp1 *types.PollFor
 
 	pp2, err = h.handler.PollForDecisionTask(ctx, pp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return pp2, err
 }
@@ -941,7 +941,7 @@ func (h *apiHandler) SignalWithStartWorkflowExecution(ctx context.Context, sp1 *
 
 	sp2, err = h.handler.SignalWithStartWorkflowExecution(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
@@ -969,7 +969,7 @@ func (h *apiHandler) SignalWithStartWorkflowExecutionAsync(ctx context.Context, 
 
 	sp2, err = h.handler.SignalWithStartWorkflowExecutionAsync(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
@@ -1015,7 +1015,7 @@ func (h *apiHandler) StartWorkflowExecution(ctx context.Context, sp1 *types.Star
 
 	sp2, err = h.handler.StartWorkflowExecution(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
@@ -1043,7 +1043,7 @@ func (h *apiHandler) StartWorkflowExecutionAsync(ctx context.Context, sp1 *types
 
 	sp2, err = h.handler.StartWorkflowExecutionAsync(ctx, sp1)
 	if err != nil {
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, scopePerDomain, logger)
 	}
 	return sp2, err
 }
