@@ -26,12 +26,17 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	p8s "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	tallyp8s "github.com/uber-go/tally/prometheus"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc/yarpcerrors"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -42,6 +47,94 @@ import (
 	"github.com/uber/cadence/service/frontend/api"
 	"github.com/uber/cadence/service/frontend/config"
 )
+
+func TestCadenceMetricsLabelConsistency(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockHandler := api.NewMockHandler(ctrl)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
+	var registrationErrors []error
+	promCfg := &tallyp8s.Configuration{
+		OnError:   "none",
+		TimerType: "histogram",
+	}
+	reporter, err := promCfg.NewReporter(tallyp8s.ConfigurationOptions{
+		Registry: p8s.NewRegistry(),
+		OnError: func(err error) {
+			registrationErrors = append(registrationErrors, err)
+		},
+	})
+	require.NoError(t, err)
+	rootScope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Tags: map[string]string{
+			metrics.CadenceServiceTagName: "frontend",
+		},
+		CachedReporter: reporter,
+		Separator:      tallyp8s.DefaultSeparator,
+	}, time.Second)
+
+	metricsClient := metrics.NewClient(rootScope, metrics.Frontend, metrics.MigrationConfig{
+		Histogram: metrics.HistogramMigration{Default: "histogram"},
+	})
+	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, nil)
+	ctx := context.Background()
+	taskListKind := types.TaskListKindNormal
+	describeRequest := &types.DescribeWorkflowExecutionRequest{
+		Domain: "test-domain",
+		Execution: &types.WorkflowExecution{
+			WorkflowID: "test-workflow-id",
+			RunID:      "test-run-id",
+		},
+	}
+	pollRequest := &types.PollForActivityTaskRequest{
+		Domain: "test-domain",
+		TaskList: &types.TaskList{
+			Name: "test-task-list",
+			Kind: &taskListKind,
+		},
+	}
+
+	taskListScope := common.NewPerTaskListScope(
+		"test-domain",
+		"test-task-list",
+		taskListKind,
+		metricsClient,
+		metrics.FrontendPollForActivityTaskScope,
+	)
+	taskListScope.IncCounter(metrics.CadenceRequestsPerTaskList)
+	taskListScope.IncCounter(metrics.CadenceFailuresPerTaskList)
+	taskListScope.IncCounter(metrics.CadenceErrBadRequestPerTaskListCounter)
+
+	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+		Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
+	_, err = handler.DescribeWorkflowExecution(ctx, describeRequest)
+	require.NoError(t, err)
+
+	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+		Return(nil, &types.InternalServiceError{Message: "internal error"}).Times(1)
+	_, err = handler.DescribeWorkflowExecution(ctx, describeRequest)
+	require.Error(t, err)
+
+	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+		Return(nil, &types.BadRequestError{Message: "bad request"}).Times(1)
+	_, err = handler.DescribeWorkflowExecution(ctx, describeRequest)
+	require.Error(t, err)
+
+	mockHandler.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).
+		Return(&types.PollForActivityTaskResponse{}, nil).Times(1)
+	_, err = handler.PollForActivityTask(ctx, pollRequest)
+	require.NoError(t, err)
+
+	mockHandler.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).
+		Return(nil, &types.BadRequestError{Message: "bad request"}).Times(1)
+	_, err = handler.PollForActivityTask(ctx, pollRequest)
+	require.Error(t, err)
+
+	// Force registration against the Prometheus registry before asserting.
+	require.NoError(t, closer.Close())
+
+	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
+}
 
 func TestContextMetricsTags(t *testing.T) {
 	ctrl := gomock.NewController(t)

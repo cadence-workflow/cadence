@@ -3428,82 +3428,82 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		// per task list common metrics
 		CadenceRequestsPerTaskList: {
-			metricName: "cadence_requests_per_tl", metricRollupName: "cadence_requests", metricType: Counter,
+			metricName: "cadence_requests_per_tl", metricRollupName: "cadence_requests_rollup", metricType: Counter,
 		},
 		CadenceRequestsPerTaskListWithoutRollup: {
 			metricName: "cadence_requests_per_tl", metricType: Counter,
 		},
 		CadenceFailuresPerTaskList: {
-			metricName: "cadence_errors_per_tl", metricRollupName: "cadence_errors", metricType: Counter,
+			metricName: "cadence_errors_per_tl", metricRollupName: "cadence_errors_rollup", metricType: Counter,
 		},
 		CadenceLatencyPerTaskList: {
-			metricName: "cadence_latency_per_tl", metricRollupName: "cadence_latency", metricType: Timer,
+			metricName: "cadence_latency_per_tl", metricRollupName: "cadence_latency_rollup", metricType: Timer,
 		},
 		CadenceLatencyPerTaskListHistogram: {
-			metricName: "cadence_latency_per_tl_ns", metricRollupName: "cadence_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s,
+			metricName: "cadence_latency_per_tl_ns", metricRollupName: "cadence_latency_ns_rollup", metricType: Histogram, exponentialBuckets: Low1ms100s,
 		},
 		CadenceErrBadRequestPerTaskListCounter: {
-			metricName: "cadence_errors_bad_request_per_tl", metricRollupName: "cadence_errors_bad_request", metricType: Counter,
+			metricName: "cadence_errors_bad_request_per_tl", metricRollupName: "cadence_errors_bad_request_rollup", metricType: Counter,
 		},
 		CadenceErrDomainNotActivePerTaskListCounter: {
-			metricName: "cadence_errors_domain_not_active_per_tl", metricRollupName: "cadence_errors_domain_not_active", metricType: Counter,
+			metricName: "cadence_errors_domain_not_active_per_tl", metricRollupName: "cadence_errors_domain_not_active_rollup", metricType: Counter,
 		},
 		CadenceErrServiceBusyPerTaskListCounter: {
-			metricName: "cadence_errors_service_busy_per_tl", metricRollupName: "cadence_errors_service_busy", metricType: Counter,
+			metricName: "cadence_errors_service_busy_per_tl", metricRollupName: "cadence_errors_service_busy_rollup", metricType: Counter,
 		},
 		CadenceErrEntityNotExistsPerTaskListCounter: {
-			metricName: "cadence_errors_entity_not_exists_per_tl", metricRollupName: "cadence_errors_entity_not_exists", metricType: Counter,
+			metricName: "cadence_errors_entity_not_exists_per_tl", metricRollupName: "cadence_errors_entity_not_exists_rollup", metricType: Counter,
 		},
 		CadenceErrExecutionAlreadyStartedPerTaskListCounter: {
-			metricName: "cadence_errors_execution_already_started_per_tl", metricRollupName: "cadence_errors_execution_already_started", metricType: Counter,
+			metricName: "cadence_errors_execution_already_started_per_tl", metricRollupName: "cadence_errors_execution_already_started_rollup", metricType: Counter,
 		},
 		CadenceErrDomainAlreadyExistsPerTaskListCounter: {
-			metricName: "cadence_errors_domain_already_exists_per_tl", metricRollupName: "cadence_errors_domain_already_exists", metricType: Counter,
+			metricName: "cadence_errors_domain_already_exists_per_tl", metricRollupName: "cadence_errors_domain_already_exists_rollup", metricType: Counter,
 		},
 		CadenceErrCancellationAlreadyRequestedPerTaskListCounter: {
-			metricName: "cadence_errors_cancellation_already_requested_per_tl", metricRollupName: "cadence_errors_cancellation_already_requested", metricType: Counter,
+			metricName: "cadence_errors_cancellation_already_requested_per_tl", metricRollupName: "cadence_errors_cancellation_already_requested_rollup", metricType: Counter,
 		},
 		CadenceErrQueryFailedPerTaskListCounter: {
-			metricName: "cadence_errors_query_failed_per_tl", metricRollupName: "cadence_errors_query_failed", metricType: Counter,
+			metricName: "cadence_errors_query_failed_per_tl", metricRollupName: "cadence_errors_query_failed_rollup", metricType: Counter,
 		},
 		CadenceErrLimitExceededPerTaskListCounter: {
-			metricName: "cadence_errors_limit_exceeded_per_tl", metricRollupName: "cadence_errors_limit_exceeded", metricType: Counter,
+			metricName: "cadence_errors_limit_exceeded_per_tl", metricRollupName: "cadence_errors_limit_exceeded_rollup", metricType: Counter,
 		},
 		CadenceErrContextTimeoutPerTaskListCounter: {
-			metricName: "cadence_errors_context_timeout_per_tl", metricRollupName: "cadence_errors_context_timeout", metricType: Counter,
+			metricName: "cadence_errors_context_timeout_per_tl", metricRollupName: "cadence_errors_context_timeout_rollup", metricType: Counter,
 		},
 		CadenceErrRetryTaskPerTaskListCounter: {
-			metricName: "cadence_errors_retry_task_per_tl", metricRollupName: "cadence_errors_retry_task", metricType: Counter,
+			metricName: "cadence_errors_retry_task_per_tl", metricRollupName: "cadence_errors_retry_task_rollup", metricType: Counter,
 		},
 		CadenceErrBadBinaryPerTaskListCounter: {
-			metricName: "cadence_errors_bad_binary_per_tl", metricRollupName: "cadence_errors_bad_binary", metricType: Counter,
+			metricName: "cadence_errors_bad_binary_per_tl", metricRollupName: "cadence_errors_bad_binary_rollup", metricType: Counter,
 		},
 		CadenceErrClientVersionNotSupportedPerTaskListCounter: {
-			metricName: "cadence_errors_client_version_not_supported_per_tl", metricRollupName: "cadence_errors_client_version_not_supported", metricType: Counter,
+			metricName: "cadence_errors_client_version_not_supported_per_tl", metricRollupName: "cadence_errors_client_version_not_supported_rollup", metricType: Counter,
 		},
 		CadenceErrIncompleteHistoryPerTaskListCounter: {
-			metricName: "cadence_errors_incomplete_history_per_tl", metricRollupName: "cadence_errors_incomplete_history", metricType: Counter,
+			metricName: "cadence_errors_incomplete_history_per_tl", metricRollupName: "cadence_errors_incomplete_history_rollup", metricType: Counter,
 		},
 		CadenceErrNonDeterministicPerTaskListCounter: {
-			metricName: "cadence_errors_nondeterministic_per_tl", metricRollupName: "cadence_errors_nondeterministic", metricType: Counter,
+			metricName: "cadence_errors_nondeterministic_per_tl", metricRollupName: "cadence_errors_nondeterministic_rollup", metricType: Counter,
 		},
 		CadenceErrUnauthorizedPerTaskListCounter: {
-			metricName: "cadence_errors_unauthorized_per_tl", metricRollupName: "cadence_errors_unauthorized", metricType: Counter,
+			metricName: "cadence_errors_unauthorized_per_tl", metricRollupName: "cadence_errors_unauthorized_rollup", metricType: Counter,
 		},
 		CadenceErrAuthorizeFailedPerTaskListCounter: {
-			metricName: "cadence_errors_authorize_failed_per_tl", metricRollupName: "cadence_errors_authorize_failed", metricType: Counter,
+			metricName: "cadence_errors_authorize_failed_per_tl", metricRollupName: "cadence_errors_authorize_failed_rollup", metricType: Counter,
 		},
 		CadenceErrRemoteSyncMatchFailedPerTaskListCounter: {
-			metricName: "cadence_errors_remote_syncmatch_failed_per_tl", metricRollupName: "cadence_errors_remote_syncmatch_failed", metricType: Counter,
+			metricName: "cadence_errors_remote_syncmatch_failed_per_tl", metricRollupName: "cadence_errors_remote_syncmatch_failed_rollup", metricType: Counter,
 		},
 		CadenceErrStickyWorkerUnavailablePerTaskListCounter: {
-			metricName: "cadence_errors_sticky_worker_unavailable_per_tl", metricRollupName: "cadence_errors_sticky_worker_unavailable_per_tl", metricType: Counter,
+			metricName: "cadence_errors_sticky_worker_unavailable_per_tl", metricRollupName: "cadence_errors_sticky_worker_unavailable_rollup", metricType: Counter,
 		},
 		CadenceErrReadOnlyPartitionPerTaskListCounter: {
-			metricName: "cadence_errors_read_only_partition_per_tl", metricRollupName: "cadence_errors_read_only_partition", metricType: Counter,
+			metricName: "cadence_errors_read_only_partition_per_tl", metricRollupName: "cadence_errors_read_only_partition_rollup", metricType: Counter,
 		},
 		CadenceErrTaskListNotOwnedByHostPerTaskListCounter: {
-			metricName: "cadence_errors_task_list_not_owned_by_host_per_tl", metricRollupName: "cadence_errors_task_list_not_owned_by_host", metricType: Counter,
+			metricName: "cadence_errors_task_list_not_owned_by_host_per_tl", metricRollupName: "cadence_errors_task_list_not_owned_by_host_rollup", metricType: Counter,
 		},
 		CadenceShardSuccessGauge:             {metricName: "cadence_shard_success", metricType: Gauge},
 		CadenceShardFailureGauge:             {metricName: "cadence_shard_failure", metricType: Gauge},
