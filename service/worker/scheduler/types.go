@@ -132,7 +132,7 @@ const (
 
 	maxIterationsBeforeContinueAsNew = 500
 	// maxActivitiesPerExecution is the per-execution ceiling for local-activity
-	// dispatches. processMissedRuns, processBackfills, and the drain coroutine
+	// dispatches. processMissedRuns, processBackfills, and drainBufferedFires
 	// all decrement the same counter, so the total fires per execution is
 	// bounded by this value before ContinueAsNew.
 	maxActivitiesPerExecution = 500
@@ -155,17 +155,18 @@ const (
 	localActivityRetryInitialInterval   = time.Second
 	localActivityRetryMaxInterval       = 10 * time.Second
 
-	// watcherActivityScheduleToCloseTimeout covers the full lifetime of a watched
-	// workflow. 24h is large enough for any realistic workflow while keeping the
-	// history tidy if the scheduler is terminated unexpectedly.
+	// watcherActivityScheduleToCloseTimeout bounds the watcher activity lifetime.
+	// 24h covers workflows that run for many hours; the activity restarts cleanly
+	// across worker restarts via heartbeat.
 	watcherActivityScheduleToCloseTimeout = 24 * time.Hour
-	// watcherActivityHeartbeatTimeout gives the activity worker 65 seconds to
-	// send a heartbeat before Cadence considers it failed and reschedules it.
+	// watcherActivityHeartbeatTimeout must exceed watcherPollInterval by enough
+	// margin that a single slow poll does not look like a dead worker.
 	watcherActivityHeartbeatTimeout = 65 * time.Second
-	// watcherPollInterval is how often the watcher activity re-checks the
-	// watched workflow's status.
-	watcherPollInterval = 5 * time.Second
 )
+
+// watcherPollInterval controls how often the watcher activity calls
+// DescribeWorkflowExecution. 5s balances drain latency against RPC load.
+var watcherPollInterval = 5 * time.Second
 
 // SchedulerWorkflowInput is the input to the scheduler workflow.
 // It carries the schedule definition and any prior state (for ContinueAsNew).

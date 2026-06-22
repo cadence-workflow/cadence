@@ -1115,6 +1115,8 @@ func TestWatchWorkflowActivity(t *testing.T) {
 	}
 	describeErr := &types.InternalServiceError{Message: "desc error"}
 
+	// "polls until closed" requires activity.RecordHeartbeat which panics outside a
+	// Cadence activity context. That path is exercised by the E2E test instead.
 	tests := []struct {
 		name      string
 		setup     func(*frontend.MockClient)
