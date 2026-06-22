@@ -121,7 +121,7 @@ func (c *meteredExecutionManager) CreateFailoverMarkerTasks(ctx context.Context,
 	return
 }
 
-func (c *meteredExecutionManager) CreateHistoryTasks(ctx context.Context, request *persistence.CreateHistoryTasksRequest) (err error) {
+func (c *meteredExecutionManager) CreateHistoryTasks(ctx context.Context, request *_sourcePersistence.CreateHistoryTasksRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.CreateHistoryTasks(ctx, request)
 		return err

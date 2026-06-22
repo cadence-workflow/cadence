@@ -87,7 +87,7 @@ func (c *injectorExecutionManager) CreateFailoverMarkerTasks(ctx context.Context
 	return
 }
 
-func (c *injectorExecutionManager) CreateHistoryTasks(ctx context.Context, request *persistence.CreateHistoryTasksRequest) (err error) {
+func (c *injectorExecutionManager) CreateHistoryTasks(ctx context.Context, request *_sourcePersistence.CreateHistoryTasksRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
 	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
