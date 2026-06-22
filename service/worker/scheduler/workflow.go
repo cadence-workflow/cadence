@@ -223,6 +223,10 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			return nil
 		}
 
+		// Timer fires are not bounded by activityBudget; each tick dispatches at
+		// most one local activity and the iteration cap (maxIterationsBeforeContinueAsNew)
+		// is the effective ceiling. The budget covers only the high-throughput pre-loop
+		// paths (backfill and drain) where many fires occur in a tight loop.
 		if timerFired && !state.Paused {
 			processScheduleFire(ctx, logger, scope, &input, state, state.NextRunTime, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		}
