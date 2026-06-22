@@ -32,12 +32,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -62,9 +65,6 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
-	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -190,6 +190,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockMatchingClient,
 		config,
 		s.logger,
+		zap.NewNop(),
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		tally.NoopScope,
 		s.mockDomainCache,
@@ -1434,7 +1435,6 @@ func defaultSDExecutorConfig() clientcommon.Config {
 		Namespaces: []clientcommon.NamespaceConfig{{
 			Namespace:         "cadence-matching",
 			HeartBeatInterval: 1 * time.Second,
-			MigrationMode:     sdconfig.MigrationModeONBOARDED,
 			TTLShard:          5 * time.Minute,
 			TTLReport:         1 * time.Minute,
 		}},

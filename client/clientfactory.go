@@ -24,6 +24,10 @@ import (
 	"fmt"
 	"time"
 
+	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
+	smgrpc "github.com/cadence-workflow/shard-manager/client/wrappers/grpc"
+	smtimeoutwrapper "github.com/cadence-workflow/shard-manager/client/wrappers/timeout"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	adminv1 "github.com/uber/cadence-idl/go/proto/admin/v1"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/yarpc/api/transport"
@@ -34,12 +38,10 @@ import (
 	"github.com/uber/cadence/.gen/go/matching/matchingserviceclient"
 	historyv1 "github.com/uber/cadence/.gen/proto/history/v1"
 	matchingv1 "github.com/uber/cadence/.gen/proto/matching/v1"
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/errorinjectors"
 	"github.com/uber/cadence/client/wrappers/grpc"
 	"github.com/uber/cadence/client/wrappers/metered"
@@ -52,7 +54,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -67,8 +68,6 @@ type (
 		NewAdminClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, largeTimeout time.Duration) (admin.Client, error)
 		NewFrontendClientWithTimeoutAndConfig(config transport.ClientConfig, timeout time.Duration, longPollTimeout time.Duration) (frontend.Client, error)
 
-		NewShardDistributorClient() (sharddistributor.Client, error)
-		NewShardDistributorClientWithTimeout(timeout time.Duration) (sharddistributor.Client, error)
 		NewShardDistributorExecutorClient() (executorclient.Client, error)
 	}
 
@@ -240,43 +239,8 @@ func (cf *rpcClientFactory) NewFrontendClientWithTimeoutAndConfig(
 	return client, nil
 }
 
-func (cf *rpcClientFactory) NewShardDistributorClient() (sharddistributor.Client, error) {
-	return cf.NewShardDistributorClientWithTimeout(timeoutwrapper.ShardDistributorDefaultTimeout)
-}
-
-func (cf *rpcClientFactory) NewShardDistributorClientWithTimeout(
-	timeout time.Duration,
-) (sharddistributor.Client, error) {
-	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
-	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
-	// break existing configs.
-	if !ok {
-		return nil, nil
-	}
-
-	if !rpc.IsGRPCOutbound(outboundConfig) {
-		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
-	}
-
-	client := grpc.NewShardDistributorClient(
-		sharddistributorv1.NewShardDistributorAPIYARPCClient(outboundConfig),
-	)
-
-	client = timeoutwrapper.NewShardDistributorClient(client, timeout)
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
-		client = errorinjectors.NewShardDistributorClient(client, errorRate, cf.logger)
-	}
-	if cf.metricsClient != nil {
-		client = metered.NewShardDistributorClient(client, cf.metricsClient)
-	}
-
-	return client, nil
-}
-
 func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (executorclient.Client, error) {
 	outboundConfig, ok := cf.rpcFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
-	// If no outbound config is found, it means the service is not enabled, we just return nil as we don't want to
-	// break existing configs.
 	if !ok {
 		return nil, nil
 	}
@@ -285,13 +249,8 @@ func (cf *rpcClientFactory) NewShardDistributorExecutorClient() (executorclient.
 		return nil, fmt.Errorf("shard distributor client does not support non-GRPC outbound")
 	}
 
-	client := grpc.NewShardDistributorExecutorClient(sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(outboundConfig))
-	if errorRate := cf.dynConfig.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
-		client = errorinjectors.NewShardDistributorExecutorClient(client, errorRate, cf.logger)
-	}
-	if cf.metricsClient != nil {
-		client = metered.NewShardDistributorExecutorClient(client, cf.metricsClient)
-	}
+	client := smgrpc.NewShardDistributorExecutorClient(sharddistributorv1.NewShardDistributorExecutorAPIYARPCClient(outboundConfig))
+	client = smtimeoutwrapper.NewShardDistributorExecutorClient(client, smtimeoutwrapper.ShardDistributorExecutorDefaultTimeout)
 
 	return client, nil
 }

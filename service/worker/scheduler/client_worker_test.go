@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/cache"
@@ -182,6 +183,7 @@ func TestRefreshWorkers(t *testing.T) {
 				membershipResolver: mockResolver,
 				hostInfo:           selfHost,
 				activeWorkers:      make(map[string]workerHandle),
+				redundancyFactor:   dynamicproperties.GetIntPropertyFilteredByDomain(workerRedundancyFactor),
 				ctx:                ctx,
 				createWorker: func(domainName string) (workerHandle, error) {
 					started[domainName] = true
@@ -248,6 +250,7 @@ func TestRefreshWorkers_StopsWorkerWhenDomainDisabled(t *testing.T) {
 		membershipResolver: mockResolver,
 		hostInfo:           selfHost,
 		activeWorkers:      make(map[string]workerHandle),
+		redundancyFactor:   dynamicproperties.GetIntPropertyFilteredByDomain(workerRedundancyFactor),
 		ctx:                ctx,
 		createWorker: func(domainName string) (workerHandle, error) {
 			t.Fatal("should not start a worker for a disabled domain")
@@ -291,6 +294,7 @@ func TestRefreshWorkersHandlesCreateWorkerError(t *testing.T) {
 		membershipResolver: mockResolver,
 		hostInfo:           selfHost,
 		activeWorkers:      make(map[string]workerHandle),
+		redundancyFactor:   dynamicproperties.GetIntPropertyFilteredByDomain(workerRedundancyFactor),
 		ctx:                ctx,
 		createWorker: func(domainName string) (workerHandle, error) {
 			return nil, fmt.Errorf("connection refused")
@@ -300,6 +304,68 @@ func TestRefreshWorkersHandlesCreateWorkerError(t *testing.T) {
 	wm.refreshWorkers()
 
 	assert.Empty(t, wm.activeWorkers, "worker should not be added on creation error")
+}
+
+func TestRefreshWorkers_HonorsPerDomainRedundancyFactor(t *testing.T) {
+	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
+	otherHost := membership.NewDetailedHostInfo("10.0.0.2:7933", "other", nil)
+
+	domains := map[string]*cache.DomainCacheEntry{
+		"domain-bumped":   cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Name: "domain-bumped"}, nil, false, nil, 0, nil, 0, 0, 0),
+		"domain-shrunk":   cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Name: "domain-shrunk"}, nil, false, nil, 0, nil, 0, 0, 0),
+		"domain-fallback": cache.NewDomainCacheEntryForTest(&persistence.DomainInfo{Name: "domain-fallback"}, nil, false, nil, 0, nil, 0, 0, 0),
+	}
+
+	// Per-domain override map. domain-fallback is set to 0 to exercise the
+	// non-positive guard rail that falls back to the in-process default.
+	redundancyByDomain := map[string]int{
+		"domain-bumped":   5,
+		"domain-shrunk":   1,
+		"domain-fallback": 0,
+	}
+	wantLookupN := map[string]int{
+		"domain-bumped":   5,
+		"domain-shrunk":   1,
+		"domain-fallback": workerRedundancyFactor,
+	}
+
+	ctrl := gomock.NewController(t)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetAllDomain().Return(domains)
+
+	mockResolver := membership.NewMockResolver(ctrl)
+	for domainName, want := range wantLookupN {
+		mockResolver.EXPECT().
+			LookupN(service.Worker, domainName, want).
+			Return([]membership.HostInfo{selfHost, otherHost}, nil)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	wm := &WorkerManager{
+		enabledFn:          dynamicproperties.GetBoolPropertyFnFilteredByDomain(true),
+		metricsClient:      metrics.NewNoopMetricsClient(),
+		logger:             testlogger.New(t),
+		domainCache:        mockDomainCache,
+		membershipResolver: mockResolver,
+		hostInfo:           selfHost,
+		activeWorkers:      make(map[string]workerHandle),
+		redundancyFactor:   func(domain string) int { return redundancyByDomain[domain] },
+		ctx:                ctx,
+		createWorker: func(domainName string) (workerHandle, error) {
+			return &fakeWorker{}, nil
+		},
+	}
+
+	wm.refreshWorkers()
+
+	// Mock expectations are the contract: if the per-domain redundancy
+	// wasn't piped through, the gomock controller would fail with an
+	// unexpected/missing call. The active-worker assertion just sanity-
+	// checks that we did successfully claim all three domains.
+	assert.Len(t, wm.activeWorkers, len(domains),
+		"all domains should have an active worker on this host")
 }
 
 func TestStopAllWorkers(t *testing.T) {
@@ -385,6 +451,43 @@ func TestMembershipChangeTriggersRefresh(t *testing.T) {
 		t.Fatal("timed out waiting for membership change to trigger refresh")
 	}
 
+	wm.Stop()
+}
+
+// TestWorkerManager_StartStop_NoGoroutineLeak verifies that the manager's
+// Start/Stop pair leaves no leaked goroutines: the background run loop must
+// observe context cancellation, the membership subscription must be released,
+// and Stop must drain the wait group before returning.
+func TestWorkerManager_StartStop_NoGoroutineLeak(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	ctrl := gomock.NewController(t)
+
+	// Empty domain cache so refreshWorkers does not spawn any per-domain
+	// SDK workers (which would pull in real Cadence client goroutines that
+	// goleak isn't the right tool to police).
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetAllDomain().Return(map[string]*cache.DomainCacheEntry{}).AnyTimes()
+
+	mockResolver := membership.NewMockResolver(ctrl)
+	mockResolver.EXPECT().
+		Subscribe(service.Worker, membershipSubscriberName, gomock.Any()).
+		Return(nil)
+	mockResolver.EXPECT().
+		Unsubscribe(service.Worker, membershipSubscriberName).
+		Return(nil)
+
+	selfHost := membership.NewDetailedHostInfo("10.0.0.1:7933", "self", nil)
+
+	wm := NewWorkerManager(&BootstrapParams{
+		Logger:             testlogger.New(t),
+		MetricsClient:      metrics.NewNoopMetricsClient(),
+		DomainCache:        mockDomainCache,
+		MembershipResolver: mockResolver,
+		HostInfo:           selfHost,
+	}, dynamicproperties.GetBoolPropertyFnFilteredByDomain(false))
+
+	wm.Start()
 	wm.Stop()
 }
 
@@ -540,6 +643,7 @@ func TestRefreshWorkersMetrics(t *testing.T) {
 				membershipResolver: mockResolver,
 				hostInfo:           selfHost,
 				activeWorkers:      make(map[string]workerHandle),
+				redundancyFactor:   dynamicproperties.GetIntPropertyFilteredByDomain(workerRedundancyFactor),
 				ctx:                ctx,
 				createWorker: func(domainName string) (workerHandle, error) {
 					if tc.workerStartErr != nil {

@@ -23,9 +23,11 @@
 package resource
 
 import (
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
@@ -53,7 +55,6 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type ResourceFactory interface {
@@ -122,6 +123,7 @@ type Resource interface {
 	// loggers
 	GetLogger() log.Logger
 	GetThrottledLogger() log.Logger
+	GetZapLogger() *zap.Logger
 
 	// for registering handlers
 	GetDispatcher() *yarpc.Dispatcher

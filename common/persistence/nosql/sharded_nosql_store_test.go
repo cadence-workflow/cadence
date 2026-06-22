@@ -31,6 +31,7 @@ import (
 	. "github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
@@ -103,7 +104,7 @@ func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForHistoryShard() {
 	defer store.Close()
 
 	s.Equal(1, len(store.connectedShards))
-	s.True(mockDB1 == store.defaultShard.db)
+	s.True(mockDB1 == store.connectedShards["shard-1"].db)
 
 	// Shard 0 is same default shard in this test, so connectedShards shouldn't change
 	storeShard1, err := store.GetStoreShardByHistoryShard(0)
@@ -153,7 +154,7 @@ func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForHistoryShard() {
 func (s *shardedNosqlStoreTestSuite) newShardedStoreForTest() *shardedNosqlStoreImpl {
 	cfg := getValidShardedNoSQLConfig()
 	logger := log.NewNoop()
-	storeInterface, err := newShardedNosqlStore(cfg, logger, metrics.NewNoopMetricsClient(), nil)
+	storeInterface, err := newShardedNosqlStore(cfg, logger, metrics.NewNoopMetricsClient(), nil, false)
 	s.NoError(err)
 	s.Equal("shardedNosql", storeInterface.GetName())
 	s.Equal(logger, storeInterface.GetLogger())
@@ -219,6 +220,61 @@ func (s *shardedNosqlStoreTestSuite) TestStoreSelectionForTasklist() {
 	s.NoError(err)
 	s.Equal(2, len(store.connectedShards))
 	s.True(mockDB2 == storeShard2.db)
+}
+
+func (s *shardedNosqlStoreTestSuite) TestEagerConnectConnectsAllShards() {
+	mockDB1 := nosqlplugin.NewMockDB(s.mockController)
+	mockDB1.EXPECT().Close().Times(1)
+	mockDB2 := nosqlplugin.NewMockDB(s.mockController)
+	mockDB2.EXPECT().Close().Times(1)
+
+	mockPlugin := nosqlplugin.NewMockPlugin(s.mockController)
+	mockPlugin.EXPECT().
+		CreateDB(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(cfg *NoSQL, _ log.Logger, _ *persistence.DynamicConfiguration) (nosqlplugin.DB, error) {
+			if cfg.Port == 1234 {
+				return mockDB1, nil
+			}
+			return mockDB2, nil
+		}).Times(2)
+	delete(supportedPlugins, "cassandra")
+	RegisterPlugin("cassandra", mockPlugin)
+
+	cfg := getValidShardedNoSQLConfig()
+	logger := log.NewNoop()
+	storeInterface, err := newShardedNosqlStore(cfg, logger, metrics.NewNoopMetricsClient(), nil, true)
+	s.NoError(err)
+	s.Equal("shardedNosql", storeInterface.GetName())
+	s.Equal(logger, storeInterface.GetLogger())
+	defer storeInterface.Close()
+
+	store := storeInterface.(*shardedNosqlStoreImpl)
+	s.Equal(2, len(store.connectedShards))
+	s.True(mockDB1 == store.connectedShards["shard-1"].db)
+	s.True(mockDB2 == store.connectedShards["shard-2"].db)
+	s.Equal(store.GetDefaultShard(), store.defaultShard)
+	s.Equal(store.connectedShards["shard-1"], store.defaultShard)
+}
+
+func (s *shardedNosqlStoreTestSuite) TestEagerConnectFailsIfOneShardFails() {
+	mockDB := nosqlplugin.NewMockDB(s.mockController)
+	mockDB.EXPECT().Close().Times(1)
+
+	mockPlugin := nosqlplugin.NewMockPlugin(s.mockController)
+	mockPlugin.EXPECT().
+		CreateDB(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(cfg *NoSQL, _ log.Logger, _ *persistence.DynamicConfiguration) (nosqlplugin.DB, error) {
+			if cfg.Port == 1234 {
+				return mockDB, nil
+			}
+			return nil, errors.New("failed to connect to shard-2")
+		}).Times(2)
+	delete(supportedPlugins, "cassandra")
+	RegisterPlugin("cassandra", mockPlugin)
+
+	_, err := newShardedNosqlStore(getValidShardedNoSQLConfig(), log.NewNoop(), metrics.NewNoopMetricsClient(), nil, true)
+	s.Error(err)
+	s.ErrorContains(err, "failed to connect to shard-2")
 }
 
 func getValidShardedNoSQLConfig() ShardedNoSQL {

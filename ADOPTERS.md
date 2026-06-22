@@ -33,6 +33,15 @@ NetApp is the intelligent data infrastructure company, providing solutions to ma
 DoorDash uses Cadence across a wide range of product and infrastructure use cases, including ETA, Fulfillment, Order Management, Storage, Catalog, Photos, Ads and more.
 DoorDash’ use cases take advantage of Cadence’s orchestration for long running, fault tolerant workflows.
 
+### Cloudera
+
+At Cloudera, Cadence serves as a key component of our control plane architecture, providing reliable execution, fault tolerance, and observability for long-running, business-critical workflows. We use Cadence to orchestrate complex, distributed operations such as infrastructure provisioning, service deployments, and automated backup and restore processes. Leveraging Cadence's orchestration capabilities to manage these long-running tasks has helped us seamlessly scale our platform and significantly improve both the performance and reliability of our core data services, including Cloudera Data Warehouse.
+
+![using.png](./logos/Cloudera-logo.jpg)
+
+
+The Cloudera logo is protected under U.S. trademark law and is used here with the permission of Cloudera, Inc. For more information, go to [cloudera.com](http://www.cloudera.com).
+
 ## Evaluating / Early Adopters
 
 ## How to Add Your Organization

@@ -64,6 +64,7 @@ require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/apache/thrift v0.17.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

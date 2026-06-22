@@ -41,7 +41,7 @@ const (
 var ListWithRing = []string{Frontend, History, Matching, Worker}
 
 // List contains the list of all cadence services
-var List = []string{Frontend, History, Matching, Worker, ShardDistributor}
+var List = []string{Frontend, History, Matching, Worker}
 
 // ShortName returns cadence service name without "cadence-" prefix
 func ShortName(name string) string {

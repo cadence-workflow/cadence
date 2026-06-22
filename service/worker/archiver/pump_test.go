@@ -60,6 +60,12 @@ func (s *pumpSuite) SetupSuite() {
 func (s *pumpSuite) SetupTest() {
 	pumpTestMetrics = &mmocks.Client{}
 	pumpTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch()).Once()
+	// pump dual-emits CadenceLatency timer + CadenceLatencyHistogram via
+	// metricsClient.Scope(...).ExponentialHistogram(...). Wire a permissive scope mock
+	// so we don't have to repeat the expectation in every test.
+	pumpScopeMock := &mmocks.Scope{}
+	pumpScopeMock.On("ExponentialHistogram", metrics.CadenceLatencyHistogram, mock.Anything).Maybe()
+	pumpTestMetrics.On("Scope", metrics.ArchiverPumpScope).Return(pumpScopeMock).Maybe()
 	pumpTestLogger = log.NewMockLogger(gomock.NewController(s.T()))
 }
 

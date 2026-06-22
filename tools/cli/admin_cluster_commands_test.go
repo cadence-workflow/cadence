@@ -254,6 +254,25 @@ func TestAdminRebalanceStart(t *testing.T) {
 	}
 }
 
+func TestAdminRebalanceStartV2_WhenV2FlagIsSetItStartsTheV2RebalanceWorkflow(t *testing.T) {
+	td := newCLITestData(t)
+	td.mockFrontendClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ interface{}, req *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+			assert.Equal(t, failovermanager.RebalanceWorkflowV2ID, req.WorkflowID)
+			assert.Equal(t, failovermanager.RebalanceWorkflowV2TypeName, req.WorkflowType.GetName())
+			assert.JSONEq(t, `{"BatchSize":100,"WaitBetweenBatchSeconds":10}`, string(req.Input))
+			return &types.StartWorkflowExecutionResponse{RunID: "test-run-id"}, nil
+		}).Times(1)
+
+	cliCtx := clitest.NewCLIContext(t, td.app,
+		clitest.StringArgument(FlagDomain, testDomain),
+		clitest.BoolArgument(FlagFailoverV2, true),
+	)
+	err := AdminRebalanceStart(cliCtx)
+	assert.NoError(t, err)
+	assert.Contains(t, td.consoleOutput(), "wid: "+failovermanager.RebalanceWorkflowV2ID)
+}
+
 func TestIntValTypeToString(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -7,14 +7,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	smtypes "github.com/cadence-workflow/shard-manager/common/types"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/canary/latencykind"
 	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // This is a small shard processor, the only thing it currently does it
@@ -36,7 +36,7 @@ func NewShardProcessor(shardID string, timeSource clock.TimeSource, logger *zap.
 		metricsScope: scope,
 		stopChan:     make(chan struct{}),
 	}
-	p.status.Store(int32(types.ShardStatusREADY))
+	p.status.Store(int32(smtypes.ShardStatusREADY))
 	return p
 }
 
@@ -60,8 +60,8 @@ var _ executorclient.ShardProcessor = (*ShardProcessor)(nil)
 // GetShardReport implements executorclient.ShardProcessor.
 func (p *ShardProcessor) GetShardReport() executorclient.ShardReport {
 	return executorclient.ShardReport{
-		ShardLoad: p.shardLoad,                        // We return a load from shardID
-		Status:    types.ShardStatus(p.status.Load()), // Report the shard as ready since it's actively processing
+		ShardLoad: p.shardLoad,                          // We return a load from shardID
+		Status:    smtypes.ShardStatus(p.status.Load()), // Report the shard as ready since it's actively processing
 	}
 }
 
@@ -106,7 +106,7 @@ func (p *ShardProcessor) Stop() {
 	p.goRoutineWg.Wait()
 }
 
-func (p *ShardProcessor) SetShardStatus(status types.ShardStatus) {
+func (p *ShardProcessor) SetShardStatus(status smtypes.ShardStatus) {
 	p.status.Store(int32(status))
 }
 

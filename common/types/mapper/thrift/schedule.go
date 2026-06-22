@@ -139,8 +139,8 @@ func FromSchedulePolicies(t *types.SchedulePolicies) *shared.SchedulePolicies {
 		CatchUpPolicy:          FromScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindowInSeconds: durationToSeconds(t.CatchUpWindow),
 		PauseOnFailure:         common.BoolPtr(t.PauseOnFailure),
-		BufferLimit:            t.BufferLimit,
-		ConcurrencyLimit:       t.ConcurrencyLimit,
+		BufferLimit:            common.Int32Ptr(t.BufferLimit),
+		ConcurrencyLimit:       common.Int32Ptr(t.ConcurrencyLimit),
 	}
 }
 
@@ -153,8 +153,8 @@ func ToSchedulePolicies(t *shared.SchedulePolicies) *types.SchedulePolicies {
 		CatchUpPolicy:    ToScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    secondsToDuration(t.CatchUpWindowInSeconds),
 		PauseOnFailure:   t.GetPauseOnFailure(),
-		BufferLimit:      t.BufferLimit,
-		ConcurrencyLimit: t.ConcurrencyLimit,
+		BufferLimit:      t.GetBufferLimit(),
+		ConcurrencyLimit: t.GetConcurrencyLimit(),
 	}
 }
 
@@ -234,6 +234,8 @@ func FromScheduleInfo(t *types.ScheduleInfo) *shared.ScheduleInfo {
 		LastRunTimeNano:    timeValToNano(t.LastRunTime),
 		NextRunTimeNano:    timeValToNano(t.NextRunTime),
 		TotalRuns:          common.Int64Ptr(t.TotalRuns),
+		MissedRuns:         common.Int64Ptr(t.MissedRuns),
+		SkippedRuns:        common.Int64Ptr(t.SkippedRuns),
 		CreateTimeNano:     timeValToNano(t.CreateTime),
 		LastUpdateTimeNano: timeValToNano(t.LastUpdateTime),
 		OngoingBackfills:   fromBackfillInfoSlice(t.OngoingBackfills),
@@ -248,6 +250,8 @@ func ToScheduleInfo(t *shared.ScheduleInfo) *types.ScheduleInfo {
 		LastRunTime:      nanoToTimeVal(t.LastRunTimeNano),
 		NextRunTime:      nanoToTimeVal(t.NextRunTimeNano),
 		TotalRuns:        t.GetTotalRuns(),
+		MissedRuns:       t.GetMissedRuns(),
+		SkippedRuns:      t.GetSkippedRuns(),
 		CreateTime:       nanoToTimeVal(t.CreateTimeNano),
 		LastUpdateTime:   nanoToTimeVal(t.LastUpdateTimeNano),
 		OngoingBackfills: toBackfillInfoSlice(t.OngoingBackfills),

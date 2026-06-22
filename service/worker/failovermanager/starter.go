@@ -102,6 +102,14 @@ func (s *FailoverManager) Start() error {
 	failoverWorker.RegisterActivityWithOptions(FailoverActivity, activity.RegisterOptions{Name: failoverActivityName})
 	failoverWorker.RegisterActivityWithOptions(GetDomainsActivity, activity.RegisterOptions{Name: getDomainsActivityName})
 	failoverWorker.RegisterActivityWithOptions(GetDomainsForRebalanceActivity, activity.RegisterOptions{Name: getRebalanceDomainsActivityName})
+
+	// V2 failover/rebalance workflows. These share a single apply activity (FailoverActivityV2) and
+	// differ only in how they collect domains. They run alongside the V1 workflows during migration.
+	failoverWorker.RegisterWorkflowWithOptions(FailoverWorkflowV2, workflow.RegisterOptions{Name: FailoverWorkflowV2TypeName})
+	failoverWorker.RegisterWorkflowWithOptions(RebalanceWorkflowV2, workflow.RegisterOptions{Name: RebalanceWorkflowV2TypeName})
+	failoverWorker.RegisterActivityWithOptions(FailoverActivityV2, activity.RegisterOptions{Name: failoverActivityV2Name})
+	failoverWorker.RegisterActivityWithOptions(GetDomainsForFailoverV2Activity, activity.RegisterOptions{Name: getDomainsForFailoverV2ActivityName})
+	failoverWorker.RegisterActivityWithOptions(GetDomainsForRebalanceV2Activity, activity.RegisterOptions{Name: getDomainsForRebalanceV2ActivityName})
 	s.worker = failoverWorker
 	return failoverWorker.Start()
 }

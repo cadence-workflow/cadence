@@ -157,7 +157,7 @@ func newExecutionStoreFactory(
 	taskSerializer serialization.TaskSerializer,
 	dc *persistence.DynamicConfiguration,
 ) (*executionStoreFactory, error) {
-	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, true)
 	if err != nil {
 		return nil, err
 	}

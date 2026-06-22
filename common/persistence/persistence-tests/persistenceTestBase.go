@@ -519,6 +519,7 @@ func (s *TestBase) GetWorkflowExecutionInfoWithStats(ctx context.Context, domain
 	response, err := s.ExecutionManager.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
 		DomainID:  domainID,
 		Execution: workflowExecution,
+		ShardID:   common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:   s.ShardInfo.RangeID,
 	})
 	if err != nil {
@@ -534,6 +535,7 @@ func (s *TestBase) GetWorkflowExecutionInfo(ctx context.Context, domainID string
 	response, err := s.ExecutionManager.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
 		DomainID:  domainID,
 		Execution: workflowExecution,
+		ShardID:   common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:   s.ShardInfo.RangeID,
 	})
 	if err != nil {
@@ -547,6 +549,7 @@ func (s *TestBase) GetCurrentWorkflowRunID(ctx context.Context, domainID, workfl
 	response, err := s.ExecutionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
 		DomainID:   domainID,
 		WorkflowID: workflowID,
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 	})
 
 	if err != nil {
@@ -1432,6 +1435,7 @@ func (s *TestBase) DeleteWorkflowExecution(ctx context.Context, info *persistenc
 		DomainID:   info.DomainID,
 		WorkflowID: info.WorkflowID,
 		RunID:      info.RunID,
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 	})
 }
 
@@ -1441,6 +1445,7 @@ func (s *TestBase) DeleteCurrentWorkflowExecution(ctx context.Context, info *per
 		DomainID:   info.DomainID,
 		WorkflowID: info.WorkflowID,
 		RunID:      info.RunID,
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 	})
 }
 

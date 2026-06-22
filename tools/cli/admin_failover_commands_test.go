@@ -303,6 +303,122 @@ func TestAdminFailoverStart(t *testing.T) {
 	}
 }
 
+func TestAdminFailoverStartV2_WhenV2FlagIsSetItStartsTheV2WorkflowWithoutDrillSignal(t *testing.T) {
+	oldUUIDFn := uuidFn
+	uuidFn = func() string { return "test-uuid" }
+	oldGetOperatorFn := getOperatorFn
+	getOperatorFn = func() (string, error) { return "test-user", nil }
+	defer func() {
+		uuidFn = oldUUIDFn
+		getOperatorFn = oldGetOperatorFn
+	}()
+
+	ctrl := gomock.NewController(t)
+	frontendCl := frontend.NewMockClient(ctrl)
+
+	// V2 start must NOT signal any drill workflow, and must start the V2 workflow type.
+	wantReq := &types.StartWorkflowExecutionRequest{
+		Domain:                              constants.SystemLocalDomainName,
+		RequestID:                           "test-uuid",
+		WorkflowID:                          failovermanager.FailoverWorkflowV2ID,
+		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
+		Input:                               []byte(`{"SourceClusters":["cluster1"],"TargetCluster":"cluster2","BatchSize":10,"WaitBetweenBatchSeconds":120,"Domains":["domain1","domain2"],"ClusterAttributes":null}`),
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
+		Memo: mustGetWorkflowMemo(t, map[string]interface{}{
+			constants.MemoKeyForOperator: "test-user",
+		}),
+		WorkflowType: &types.WorkflowType{Name: failovermanager.FailoverWorkflowV2TypeName},
+	}
+	frontendCl.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, gotReq *types.StartWorkflowExecutionRequest, opts ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
+			if diff := cmp.Diff(wantReq, gotReq); diff != "" {
+				t.Fatalf("Request mismatch (-want +got):\n%s", diff)
+			}
+			return &types.StartWorkflowExecutionResponse{}, nil
+		}).Times(1)
+
+	app := NewCliApp(&clientFactoryMock{serverFrontendClient: frontendCl})
+	err := app.Run([]string{"", "admin", "cluster", "failover", "start",
+		"--v2",
+		"--sc", "cluster1",
+		"--tc", "cluster2",
+		"--failover_batch_size", "10",
+		"--failover_wait_time_second", "120",
+		"--execution_timeout", "600",
+		"--domains", "domain1,domain2",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAdminFailoverStartV2_WhenClusterAttributesJSONIsSetItIncludesThemInTheWorkflowInput(t *testing.T) {
+	oldUUIDFn := uuidFn
+	uuidFn = func() string { return "test-uuid" }
+	oldGetOperatorFn := getOperatorFn
+	getOperatorFn = func() (string, error) { return "test-user", nil }
+	defer func() {
+		uuidFn = oldUUIDFn
+		getOperatorFn = oldGetOperatorFn
+	}()
+
+	ctrl := gomock.NewController(t)
+	frontendCl := frontend.NewMockClient(ctrl)
+
+	// The specified cluster attributes must be carried through to the V2 workflow input so
+	// the workflow can scope the failover to only those attributes.
+	wantReq := &types.StartWorkflowExecutionRequest{
+		Domain:                              constants.SystemLocalDomainName,
+		RequestID:                           "test-uuid",
+		WorkflowID:                          failovermanager.FailoverWorkflowV2ID,
+		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
+		Input:                               []byte(`{"SourceClusters":["cluster1"],"TargetCluster":"cluster2","BatchSize":10,"WaitBetweenBatchSeconds":120,"Domains":null,"ClusterAttributes":[{"scope":"cluster","name":"cluster0"}]}`),
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(600),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
+		Memo: mustGetWorkflowMemo(t, map[string]interface{}{
+			constants.MemoKeyForOperator: "test-user",
+		}),
+		WorkflowType: &types.WorkflowType{Name: failovermanager.FailoverWorkflowV2TypeName},
+	}
+	frontendCl.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, gotReq *types.StartWorkflowExecutionRequest, opts ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
+			if diff := cmp.Diff(wantReq, gotReq); diff != "" {
+				t.Fatalf("Request mismatch (-want +got):\n%s", diff)
+			}
+			return &types.StartWorkflowExecutionResponse{}, nil
+		}).Times(1)
+
+	app := NewCliApp(&clientFactoryMock{serverFrontendClient: frontendCl})
+	err := app.Run([]string{"", "admin", "cluster", "failover", "start",
+		"--v2",
+		"--sc", "cluster1",
+		"--tc", "cluster2",
+		"--failover_batch_size", "10",
+		"--failover_wait_time_second", "120",
+		"--execution_timeout", "600",
+		"--cluster_attributes_json", `[{"scope":"cluster","name":"cluster0"}]`,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAdminFailoverStartV2_WhenClusterAttributesJSONIsInvalidItErrors(t *testing.T) {
+	app := NewCliApp(&clientFactoryMock{serverFrontendClient: frontend.NewMockClient(gomock.NewController(t))})
+	err := app.Run([]string{"", "admin", "cluster", "failover", "start",
+		"--v2",
+		"--sc", "cluster1",
+		"--tc", "cluster2",
+		"--cluster_attributes_json", `not-json`,
+	})
+	if err == nil {
+		t.Fatal("expected an error for invalid cluster_attributes_json, got nil")
+	}
+}
+
 func TestAdminFailoverPauseResume(t *testing.T) {
 	tests := []struct {
 		desc          string

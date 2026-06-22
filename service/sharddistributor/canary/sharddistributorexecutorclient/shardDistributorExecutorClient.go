@@ -1,24 +1,21 @@
 package sharddistributorexecutorclient
 
 import (
+	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
+	smgrpc "github.com/cadence-workflow/shard-manager/client/wrappers/grpc"
+	smtimeoutwrapper "github.com/cadence-workflow/shard-manager/client/wrappers/timeout"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"go.uber.org/fx"
-
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
-	"github.com/uber/cadence/client/wrappers/grpc"
-	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
-// Params contains the dependencies needed to create a shard distributor client
 type Params struct {
 	fx.In
 
 	YarpcClient sharddistributorv1.ShardDistributorExecutorAPIYARPCClient
 }
 
-// NewShardDistributorExecutorClient creates a new shard distributor executor client with GRPC and timeout wrappers
 func NewShardDistributorExecutorClient(p Params) (executorclient.Client, error) {
-	shardDistributorExecutorClient := grpc.NewShardDistributorExecutorClient(p.YarpcClient)
-	shardDistributorExecutorClient = timeoutwrapper.NewShardDistributorExecutorClient(shardDistributorExecutorClient, timeoutwrapper.ShardDistributorExecutorDefaultTimeout)
-	return shardDistributorExecutorClient, nil
+	client := smgrpc.NewShardDistributorExecutorClient(p.YarpcClient)
+	client = smtimeoutwrapper.NewShardDistributorExecutorClient(client, smtimeoutwrapper.ShardDistributorExecutorDefaultTimeout)
+	return client, nil
 }

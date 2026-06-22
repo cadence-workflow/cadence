@@ -36,7 +36,6 @@ import (
 	"go.uber.org/yarpc/yarpcerrors"
 
 	"github.com/uber/cadence/client/history"
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/constants"
@@ -150,6 +149,15 @@ func TestCreateSchedule(t *testing.T) {
 				Domain:     testDomain,
 				ScheduleID: "s1",
 				Spec:       &types.ScheduleSpec{CronExpression: "not-a-cron"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"out-of-range minute in cron expression": {
+			request: &types.CreateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "99 * * * *"},
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
@@ -287,7 +295,7 @@ func TestCreateSchedule(t *testing.T) {
 				},
 				Policies: &types.SchedulePolicies{
 					OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-					BufferLimit:   common.Int32Ptr(int32(scheduler.MaxBufferedFiresSystemLimit * 2)),
+					BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
 				},
 			},
 			mockFn: func(f *scheduleTestFixture) {
@@ -349,6 +357,23 @@ func TestCreateSchedule(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		"recreate after delete succeeds (AllowDuplicate reuse policy)": {
+			// Deleting a schedule terminates the scheduler workflow but the closed run stays
+			// within the retention window. With RejectDuplicate the server would reject a new
+			// StartWorkflowExecution for the same workflow ID; AllowDuplicate lets it through.
+			// This test verifies both that the policy sent to history is AllowDuplicate and that
+			// the handler succeeds when history accepts the start (as it does for closed runs).
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, req *types.HistoryStartWorkflowExecutionRequest, _ ...yarpc.CallOption) (*types.StartWorkflowExecutionResponse, error) {
+						assert.Equal(t, types.WorkflowIDReusePolicyAllowDuplicate, *req.StartRequest.WorkflowIDReusePolicy)
+						return &types.StartWorkflowExecutionResponse{RunID: "new-run-id"}, nil
+					})
+			},
+			wantErr: false,
+		},
 		"memo forwarded into workflow input": {
 			request: &types.CreateScheduleRequest{
 				Domain:     testDomain,
@@ -406,6 +431,8 @@ func TestDescribeSchedule(t *testing.T) {
 		PauseReason: "maintenance",
 		PausedBy:    "admin",
 		TotalRuns:   42,
+		MissedRuns:  5,
+		SkippedRuns: 3,
 		Memo:        &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
 		SearchAttributes: &types.SearchAttributes{
 			IndexedFields: map[string][]byte{"CustomIntField": []byte(`7`)},
@@ -548,8 +575,7 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the close status stays CONTINUED_AS_NEW past the retry budget, the
-		// scheduler is likely stuck mid-transition; surface that as not operational
-		// so an operator can investigate.
+		// scheduler is stuck mid-transition; return CodeUnavailable so clients retry.
 		"scheduler mid-ContinueAsNew - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -563,9 +589,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				var internalErr *types.InternalServiceError
-				assert.ErrorAs(t, err, &internalErr)
-				assert.Contains(t, internalErr.Message, "CONTINUED_AS_NEW")
+				assert.True(t, yarpcerrors.IsStatus(err))
+				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
 			},
 		},
 		// A freshly started scheduler run has not yet processed its first decision
@@ -714,6 +740,32 @@ func TestDescribeSchedule(t *testing.T) {
 				assert.Contains(t, internalErr.Message, "FAILED")
 			},
 		},
+		// If the scheduler does ContinueAsNew between the DWE probe and the query,
+		// the query is rejected with CONTINUED_AS_NEW. Return CodeUnavailable so
+		// the client retries — the new run will be queryable momentarily.
+		"scheduler ContinueAsNew between DWE and Query - return Unavailable": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil)
+				closeStatus := types.WorkflowExecutionCloseStatusContinuedAsNew
+				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+					Return(&types.HistoryQueryWorkflowResponse{
+						Response: &types.QueryWorkflowResponse{
+							QueryRejected: &types.QueryRejected{CloseStatus: &closeStatus},
+						},
+					}, nil)
+			},
+			wantErr: true,
+			checkErr: func(t *testing.T, err error) {
+				assert.True(t, yarpcerrors.IsStatus(err))
+				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
+				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
+			},
+		},
 		"success": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -748,6 +800,8 @@ func TestDescribeSchedule(t *testing.T) {
 				assert.Equal(t, "maintenance", resp.State.PauseInfo.Reason)
 				assert.Equal(t, "admin", resp.State.PauseInfo.PausedBy)
 				assert.Equal(t, int64(42), resp.Info.TotalRuns)
+				assert.Equal(t, int64(5), resp.Info.MissedRuns)
+				assert.Equal(t, int64(3), resp.Info.SkippedRuns)
 				require.NotNil(t, resp.Memo)
 				assert.Equal(t, []byte(`"sm"`), resp.Memo.Fields["schedMemo"])
 				require.NotNil(t, resp.SearchAttributes)
@@ -952,6 +1006,15 @@ func TestUpdateSchedule(t *testing.T) {
 				Domain:     testDomain,
 				ScheduleID: "s1",
 				Spec:       &types.ScheduleSpec{CronExpression: "not-a-cron"},
+			},
+			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"out-of-range minute in cron expression rejects update": {
+			request: &types.UpdateScheduleRequest{
+				Domain:     testDomain,
+				ScheduleID: "s1",
+				Spec:       &types.ScheduleSpec{CronExpression: "99 * * * *"},
 			},
 			mockFn:  func(f *scheduleTestFixture) {},
 			wantErr: true,
@@ -1554,6 +1617,40 @@ func TestValidateSchedulePolicies(t *testing.T) {
 	}
 }
 
+func TestOngoingBackfillsForResponse(t *testing.T) {
+	t.Run("nil input returns nil", func(t *testing.T) {
+		assert.Nil(t, ongoingBackfillsForResponse(nil))
+	})
+	t.Run("empty input returns nil", func(t *testing.T) {
+		assert.Nil(t, ongoingBackfillsForResponse([]types.BackfillInfo{}))
+	})
+	t.Run("non-empty input is mapped one-to-one and copies each entry", func(t *testing.T) {
+		in := []types.BackfillInfo{
+			{
+				BackfillID:    "bf-a",
+				StartTime:     time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:       time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC),
+				RunsTotal:     24,
+				RunsCompleted: 5,
+			},
+			{
+				BackfillID: "bf-b",
+				StartTime:  time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC),
+			},
+		}
+		out := ongoingBackfillsForResponse(in)
+		require.Len(t, out, 2)
+		assert.Equal(t, in[0], *out[0])
+		assert.Equal(t, in[1], *out[1])
+
+		// Each pointer must refer to an independent copy so a later mutation
+		// of the response slice does not race against scheduler-workflow state.
+		out[0].RunsCompleted = 99
+		assert.Equal(t, int32(5), in[0].RunsCompleted, "mutating out must not affect in")
+	})
+}
+
 // TestValidateUserSearchAttributes verifies that user-supplied search attribute
 // keys colliding with the scheduler-reserved "CadenceSchedule" prefix are
 // rejected, while other keys (including a lowercase near-miss) are allowed. The
@@ -1635,24 +1732,24 @@ func TestWarnIfBufferLimitExceedsSystemLimit_NilSafe(t *testing.T) {
 	}{
 		{name: "nil policies", policies: nil},
 		{
-			name: "Buffer policy with nil BufferLimit",
+			name: "Buffer policy with zero BufferLimit",
 			policies: &types.SchedulePolicies{
 				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-				BufferLimit:   nil,
+				BufferLimit:   0,
 			},
 		},
 		{
 			name: "non-Buffer policy with BufferLimit set",
 			policies: &types.SchedulePolicies{
 				OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
-				BufferLimit:   common.Int32Ptr(int32(scheduler.MaxBufferedFiresSystemLimit * 2)),
+				BufferLimit:   int32(scheduler.MaxBufferedFiresSystemLimit * 2),
 			},
 		},
 		{
 			name: "Buffer policy with BufferLimit under system limit",
 			policies: &types.SchedulePolicies{
 				OverlapPolicy: types.ScheduleOverlapPolicyBuffer,
-				BufferLimit:   common.Int32Ptr(1),
+				BufferLimit:   1,
 			},
 		},
 	}

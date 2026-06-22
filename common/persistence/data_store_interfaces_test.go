@@ -24,8 +24,10 @@ package persistence
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
@@ -186,5 +188,102 @@ func TestDataBlob(t *testing.T) {
 				})
 			}, "should panic when decoding from unhandled encoding %q", unknownType)
 		})
+	})
+}
+
+func TestInternalReplicationTaskInfo_ToTask(t *testing.T) {
+	creationTime := time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC)
+	base := InternalReplicationTaskInfo{
+		DomainID:     "domain-id",
+		WorkflowID:   "wf-id",
+		RunID:        "run-id",
+		TaskID:       42,
+		Version:      7,
+		CreationTime: creationTime,
+	}
+
+	cases := []struct {
+		name     string
+		mutate   func(i *InternalReplicationTaskInfo)
+		expected Task
+	}{
+		{
+			name: "history replication task",
+			mutate: func(i *InternalReplicationTaskInfo) {
+				i.TaskType = ReplicationTaskTypeHistory
+				i.FirstEventID = 1
+				i.NextEventID = 5
+				i.BranchToken = []byte("branch")
+				i.NewRunBranchToken = []byte("new-run")
+			},
+			expected: &HistoryReplicationTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "run-id",
+				},
+				TaskData: TaskData{
+					Version:             7,
+					TaskID:              42,
+					VisibilityTimestamp: creationTime,
+				},
+				FirstEventID:      1,
+				NextEventID:       5,
+				BranchToken:       []byte("branch"),
+				NewRunBranchToken: []byte("new-run"),
+			},
+		},
+		{
+			name: "sync activity task",
+			mutate: func(i *InternalReplicationTaskInfo) {
+				i.TaskType = ReplicationTaskTypeSyncActivity
+				i.ScheduledID = 99
+			},
+			expected: &SyncActivityTask{
+				WorkflowIdentifier: WorkflowIdentifier{
+					DomainID:   "domain-id",
+					WorkflowID: "wf-id",
+					RunID:      "run-id",
+				},
+				TaskData: TaskData{
+					Version:             7,
+					TaskID:              42,
+					VisibilityTimestamp: creationTime,
+				},
+				ScheduledID: 99,
+			},
+		},
+		{
+			name: "failover marker task",
+			mutate: func(i *InternalReplicationTaskInfo) {
+				i.TaskType = ReplicationTaskTypeFailoverMarker
+			},
+			expected: &FailoverMarkerTask{
+				TaskData: TaskData{
+					Version:             7,
+					TaskID:              42,
+					VisibilityTimestamp: creationTime,
+				},
+				DomainID: "domain-id",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			info := base
+			tc.mutate(&info)
+			task, err := info.ToTask()
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, task)
+		})
+	}
+
+	t.Run("unknown task type returns error", func(t *testing.T) {
+		info := base
+		info.TaskType = -1
+		task, err := info.ToTask()
+		assert.Nil(t, task)
+		assert.Error(t, err)
 	})
 }

@@ -134,6 +134,7 @@ func (r *simpleQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest
 		InclusiveMinTaskKey: req.InclusiveMinTaskKey,
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(maxTime, 0),
 		PageSize:            1,
+		ShardID:             common.Ptr(r.shard.GetShardID()),
 	})
 	if err != nil {
 		return nil, err

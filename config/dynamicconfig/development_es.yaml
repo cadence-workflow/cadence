@@ -43,11 +43,21 @@ frontend.validSearchAttributes:
       ExecutionStatus: 2
       CronSchedule: 1
       ScheduledExecutionTime: 2
+      CadenceScheduleID: 1
+      CadenceScheduleTime: 5
+      CadenceScheduleIsBackfill: 4
+      CadenceScheduleState: 1
+      CadenceScheduleCron: 1
+      CadenceScheduleWorkflowType: 1
+      CadenceScheduleBackfillID: 1
 system.minRetentionDays:
     - value: 0
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}
 frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+- value: true
+  constraints: {}
+worker.enableScheduler:
 - value: true
   constraints: {}

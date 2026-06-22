@@ -9,6 +9,7 @@ require (
 	github.com/VividCortex/mysqlerr v1.0.0
 	github.com/aws/aws-sdk-go v1.54.12
 	github.com/cactus/go-statsd-client/statsd v0.0.0-20191106001114-12b4e2b38748
+	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802
 	github.com/cch123/elasticsql v0.0.0-20190321073543-a1a440758eb9
 	github.com/dave/dst v0.26.2
 	github.com/davecgh/go-spew v1.1.1
@@ -37,16 +38,15 @@ require (
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20260528181009-11ac3616875d
+	github.com/uber/cadence-idl v0.0.0-20260609034356-3ee08a98cf70
 	github.com/uber/ringpop-go v0.10.0
 	github.com/uber/tchannel-go v1.34.4
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/valyala/fastjson v1.4.1
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
-	go.etcd.io/etcd/client/v3 v3.5.5
 	go.mongodb.org/mongo-driver v1.7.3
 	go.uber.org/atomic v1.11.0
 	go.uber.org/cadence v1.3.0
@@ -76,13 +76,10 @@ require (
 	github.com/ncruces/go-sqlite3 v0.23.3
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0
 	github.com/robfig/cron/v3 v3.0.1
-	go.etcd.io/etcd/api/v3 v3.5.5
 	go.uber.org/mock v0.6.0
 )
 
 require (
-	github.com/coreos/go-semver v0.3.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
@@ -91,10 +88,8 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
 )
 
 require (

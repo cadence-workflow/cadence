@@ -1,0 +1,21 @@
+enablearchival: false
+clusterno: 0
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+  simulationconfig:
+    numworkflows: 1000
+    sleepbetweenworkflowstarts: 100ms
+    numworkflowsleeps: 10
+matchingconfig:
+  nummatchinghosts: 1
+workerconfig:
+  enableasyncwfconsumer: false
+  enablearchiver: false
+  enablereplicator: false
+  enableindexer: false
+dynamicclientconfig:
+  filepath: "dynamicconfig/queuev2_scheduled_cache_shadow.yaml"
+  pollInterval: "10s"

@@ -173,6 +173,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 				select {
 				case err := <-task.ResponseC:
 					tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+					tm.scope.ExponentialHistogram(metrics.SyncMatchLocalPollLatencyPerTaskListHistogram, time.Since(startT))
 					if err != nil {
 						return false, err
 					}
@@ -200,6 +201,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 			select {
 			case err := <-task.ResponseC:
 				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+				tm.scope.ExponentialHistogram(metrics.SyncMatchLocalPollLatencyPerTaskListHistogram, time.Since(startT))
 				if err != nil {
 					return false, err
 				}
@@ -222,6 +224,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 			if err == nil {
 				// task was remotely sync matched on the parent partition
 				tm.scope.RecordTimer(metrics.SyncMatchForwardPollLatencyPerTaskList, time.Since(startT))
+				tm.scope.ExponentialHistogram(metrics.SyncMatchForwardPollLatencyPerTaskListHistogram, time.Since(startT))
 				return true, nil
 			}
 			if errors.Is(err, ErrForwarderSlowDown) {
@@ -260,6 +263,7 @@ func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time,
 			select {
 			case err := <-task.ResponseC:
 				tm.scope.RecordTimer(metrics.SyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+				tm.scope.ExponentialHistogram(metrics.SyncMatchLocalPollLatencyPerTaskListHistogram, time.Since(startT))
 				return true, err
 			case <-ctx.Done():
 				return false, nil
@@ -334,6 +338,7 @@ func (tm *taskMatcherImpl) MustOffer(ctx context.Context, task *InternalTask) er
 		cancel()
 		tm.scope.IncCounter(metrics.AsyncMatchLocalPollCounterPerTaskList)
 		tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+		tm.scope.ExponentialHistogram(metrics.AsyncMatchLocalPollLatencyPerTaskListHistogram, time.Since(startT))
 		e.EventName = "Dispatched to Local Poller"
 		event.Log(e)
 		return nil
@@ -362,6 +367,7 @@ forLoop:
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAttemptPerTaskList, time.Duration(attempt))
 			tm.scope.IntExponentialHistogram(metrics.AsyncMatchLocalPollAttemptPerTaskListHistogram, attempt)
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
+			tm.scope.ExponentialHistogram(metrics.AsyncMatchLocalPollLatencyPerTaskListHistogram, time.Since(startT))
 			return nil
 		case token := <-tm.fwdrAddReqTokenC():
 			e.EventName = "Attempting to Forward Task"
@@ -394,6 +400,7 @@ forLoop:
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList, time.Duration(attempt))
 					tm.scope.IntExponentialHistogram(metrics.AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskListHistogram, attempt)
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList, time.Since(startT))
+					tm.scope.ExponentialHistogram(metrics.AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskListHistogram, time.Since(startT))
 					return nil
 				case <-childCtx.Done():
 					attempt++
@@ -409,6 +416,7 @@ forLoop:
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollAttemptPerTaskList, time.Duration(attempt))
 			tm.scope.IntExponentialHistogram(metrics.AsyncMatchForwardPollAttemptPerTaskListHistogram, attempt)
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollLatencyPerTaskList, time.Since(startT))
+			tm.scope.ExponentialHistogram(metrics.AsyncMatchForwardPollLatencyPerTaskListHistogram, time.Since(startT))
 
 			// at this point, we forwarded the task to a parent partition which
 			// in turn dispatched the task to a poller. Make sure we delete the

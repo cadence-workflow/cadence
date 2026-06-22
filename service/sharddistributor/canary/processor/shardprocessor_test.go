@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	smtypes "github.com/cadence-workflow/shard-manager/common/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -13,7 +14,6 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/sharddistributor/canary/testhelper"
 )
 
@@ -37,7 +37,7 @@ func TestShardProcessor_GetShardReport(t *testing.T) {
 	report := processor.GetShardReport()
 	// the simple implementation just returns 1.0 for load and READY status
 	assert.Equal(t, 1.0, report.ShardLoad)
-	assert.Equal(t, types.ShardStatusREADY, report.Status)
+	assert.Equal(t, smtypes.ShardStatusREADY, report.Status)
 }
 
 func TestShardProcessor_Start_Process_Stop(t *testing.T) {

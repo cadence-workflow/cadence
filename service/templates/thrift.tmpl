@@ -1,14 +1,5 @@
 import (
-	"context"
-
-	"go.uber.org/yarpc"
-
-	"github.com/uber/cadence/.gen/go/admin"
-	"github.com/uber/cadence/.gen/go/history"
-	"github.com/uber/cadence/.gen/go/matching"
-	"github.com/uber/cadence/.gen/go/replicator"
-	"github.com/uber/cadence/.gen/go/shared"
-	"github.com/uber/cadence/common/types/mapper/thrift"
+	mapper "github.com/uber/cadence/common/types/mapper/thrift"
 )
 
 {{$prefix := (index .Vars "prefix")}}
@@ -28,19 +19,19 @@ func (g {{$Decorator}}) {{$method.Declaration}} {
 	{{- else}}
 	{{- if eq (len $method.Results) 1}}
 	{{- if or (eq $method.Name "AddDecisionTask") (eq $method.Name "AddActivityTask")}}
-	_, {{(index $method.Results 0).Name}} = g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
+	_, {{(index $method.Results 0).Name}} = g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, mapper.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
 	{{- else}}
-	{{(index $method.Results 0).Name}} = g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
+	{{(index $method.Results 0).Name}} = g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, mapper.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
 	{{- end}}
 	{{- else}}
-	response, {{(index $method.Results 1).Name}} := g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, thrift.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
+	response, {{(index $method.Results 1).Name}} := g.h.{{$method.Name}}({{(index $method.Params 0).Name}}, mapper.To{{$prefix}}{{$Request}}({{(index $method.Params 1).Name}}))
 	{{- end}}
 	{{- end}}
 
 	{{- if eq (len $method.Results) 1}}
-	return thrift.FromError({{(index $method.Results 0).Name}})
+	return mapper.FromError({{(index $method.Results 0).Name}})
 	{{- else}}
-	return thrift.From{{$prefix}}{{$Response}}(response), thrift.FromError({{(index $method.Results 1).Name}})
+	return mapper.From{{$prefix}}{{$Response}}(response), mapper.FromError({{(index $method.Results 1).Name}})
 	{{- end}}
 }
 {{end}}

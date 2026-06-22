@@ -89,11 +89,6 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"replication_task_latency":    {},
 	"replication_task_latency_ns": {},
 
-	"replication_tasks_returned":             {},
-	"replication_tasks_returned_counts":      {},
-	"replication_tasks_returned_diff":        {},
-	"replication_tasks_returned_diff_counts": {},
-
 	"replication_tasks_fetched":        {},
 	"replication_tasks_fetched_counts": {},
 	"replication_tasks_lag_raw":        {},
@@ -305,17 +300,28 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"decision_task_query_latency":    {},
 	"decision_task_query_latency_ns": {},
 
-	"syncmatch_latency_per_tl":     {},
-	"syncmatch_latency_per_tl_ns":  {},
-	"asyncmatch_latency_per_tl":    {},
-	"asyncmatch_latency_per_tl_ns": {},
+	"syncmatch_latency_per_tl":                 {},
+	"syncmatch_latency_per_tl_ns":              {},
+	"syncmatch_local_poll_latency_per_tl":      {},
+	"syncmatch_local_poll_latency_per_tl_ns":   {},
+	"syncmatch_forward_poll_latency_per_tl":    {},
+	"syncmatch_forward_poll_latency_per_tl_ns": {},
+	"asyncmatch_latency_per_tl":                {},
+	"asyncmatch_latency_per_tl_ns":             {},
+
+	"asyncmatch_local_poll_latency_per_tl":    {},
+	"asyncmatch_local_poll_latency_per_tl_ns": {},
 
 	"asyncmatch_local_poll_attempt_per_tl":                             {},
 	"asyncmatch_local_poll_attempt_per_tl_counts":                      {},
 	"asyncmatch_forward_poll_attempt_per_tl":                           {},
 	"asyncmatch_forward_poll_attempt_per_tl_counts":                    {},
+	"asyncmatch_forward_poll_latency_per_tl":                           {},
+	"asyncmatch_forward_poll_latency_per_tl_ns":                        {},
 	"asyncmatch_local_poll_after_forward_failed_attempt_per_tl":        {},
 	"asyncmatch_local_poll_after_forward_failed_attempt_per_tl_counts": {},
+	"asyncmatch_local_poll_after_forward_failed_latency_per_tl":        {},
+	"asyncmatch_local_poll_after_forward_failed_latency_per_tl_ns":     {},
 
 	"poll_local_match_latency_per_tl":                         {},
 	"poll_local_match_latency_per_tl_ns":                      {},
@@ -323,6 +329,13 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"poll_forward_match_latency_per_tl_ns":                    {},
 	"poll_local_match_after_forward_failed_latency_per_tl":    {},
 	"poll_local_match_after_forward_failed_latency_per_tl_ns": {},
+
+	"forward_task_latency_per_tl":     {},
+	"forward_task_latency_per_tl_ns":  {},
+	"forward_query_latency_per_tl":    {},
+	"forward_query_latency_per_tl_ns": {},
+	"forward_poll_latency_per_tl":     {},
+	"forward_poll_latency_per_tl_ns":  {},
 
 	"es_processor_process_msg_latency":       {},
 	"es_processor_process_msg_latency_ns":    {},
@@ -333,9 +346,6 @@ var HistogramMigrationMetrics = map[string]struct{}{
 	"async_workflow_process_msg_latency_ns":     {},
 	"diagnostics_workflow_execution_latency":    {},
 	"diagnostics_workflow_execution_latency_ns": {},
-
-	"shard_distributor_latency":    {},
-	"shard_distributor_latency_ns": {},
 
 	"global_ratelimiter_update_latency":    {},
 	"global_ratelimiter_update_latency_ns": {},
@@ -455,6 +465,11 @@ var GaugeMigrationMetrics = map[string]struct{}{
 	"cache_size_gauge":                {},
 	"replication_tasks_lag_gauge":     {},
 	"replication_tasks_lag_raw_gauge": {},
+
+	"replication_tasks_returned":            {},
+	"replication_tasks_returned_gauge":      {},
+	"replication_tasks_returned_diff":       {},
+	"replication_tasks_returned_diff_gauge": {},
 }
 
 func (g GaugeMigration) EmitTimer(name string) bool {

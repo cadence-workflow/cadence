@@ -29,10 +29,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
+
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
-	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 type shardDistributorResolver struct {

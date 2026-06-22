@@ -61,6 +61,7 @@ type Reporter struct {
 type dbLoadCloser struct {
 	ctx              *cli.Context
 	executionManager persistence.ExecutionManager
+	shardID          int
 }
 
 type fileLoadCloser struct {
@@ -90,6 +91,7 @@ func NewDBLoadCloser(c *cli.Context) (LoadCloser, error) {
 	return &dbLoadCloser{
 		ctx:              c,
 		executionManager: executionManager,
+		shardID:          shardID,
 	}, nil
 }
 
@@ -266,6 +268,7 @@ func (cl *dbLoadCloser) Load() ([]*persistence.TimerTaskInfo, error) {
 	for isFirstIteration || len(token) != 0 {
 		isFirstIteration = false
 		req := persistence.GetHistoryTasksRequest{
+			ShardID:             common.Ptr(cl.shardID),
 			TaskCategory:        persistence.HistoryTaskCategoryTimer,
 			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(st, 0),
 			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(et, 0),

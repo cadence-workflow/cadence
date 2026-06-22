@@ -171,8 +171,8 @@ func FromSchedulePolicies(t *types.SchedulePolicies) *apiv1.SchedulePolicies {
 		CatchUpPolicy:    FromScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    durationToDurationProto(t.CatchUpWindow),
 		PauseOnFailure:   t.PauseOnFailure,
-		BufferLimit:      fromInt32Value(t.BufferLimit),
-		ConcurrencyLimit: fromInt32Value(t.ConcurrencyLimit),
+		BufferLimit:      t.BufferLimit,
+		ConcurrencyLimit: t.ConcurrencyLimit,
 	}
 }
 
@@ -185,8 +185,8 @@ func ToSchedulePolicies(t *apiv1.SchedulePolicies) *types.SchedulePolicies {
 		CatchUpPolicy:    ToScheduleCatchUpPolicy(t.CatchUpPolicy),
 		CatchUpWindow:    durationProtoToDuration(t.CatchUpWindow),
 		PauseOnFailure:   t.PauseOnFailure,
-		BufferLimit:      toInt32Value(t.BufferLimit),
-		ConcurrencyLimit: toInt32Value(t.ConcurrencyLimit),
+		BufferLimit:      t.GetBufferLimit(),
+		ConcurrencyLimit: t.GetConcurrencyLimit(),
 	}
 }
 
@@ -290,6 +290,8 @@ func FromScheduleInfo(t *types.ScheduleInfo) *apiv1.ScheduleInfo {
 		LastRunTime:      timeToTimestamp(&t.LastRunTime),
 		NextRunTime:      timeToTimestamp(&t.NextRunTime),
 		TotalRuns:        t.TotalRuns,
+		MissedRuns:       t.MissedRuns,
+		SkippedRuns:      t.SkippedRuns,
 		CreateTime:       timeToTimestamp(&t.CreateTime),
 		LastUpdateTime:   timeToTimestamp(&t.LastUpdateTime),
 		OngoingBackfills: FromBackfillInfoArray(t.OngoingBackfills),
@@ -304,6 +306,8 @@ func ToScheduleInfo(t *apiv1.ScheduleInfo) *types.ScheduleInfo {
 		LastRunTime:      timestampToTimeVal(t.LastRunTime),
 		NextRunTime:      timestampToTimeVal(t.NextRunTime),
 		TotalRuns:        t.TotalRuns,
+		MissedRuns:       t.MissedRuns,
+		SkippedRuns:      t.SkippedRuns,
 		CreateTime:       timestampToTimeVal(t.CreateTime),
 		LastUpdateTime:   timestampToTimeVal(t.LastUpdateTime),
 		OngoingBackfills: ToBackfillInfoArray(t.OngoingBackfills),

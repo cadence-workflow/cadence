@@ -23,6 +23,8 @@ package resource
 import (
 	"testing"
 
+	"github.com/cadence-workflow/shard-manager/client/sharddistributorexecutor"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	oldgomock "github.com/golang/mock/gomock" // client library cannot change from the old gomock
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
@@ -30,13 +32,13 @@ import (
 	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -59,7 +61,6 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/taskvalidator"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -374,6 +375,10 @@ func (s *Test) GetHistoryClient() history.Client {
 
 func (s *Test) GetShardDistributorExecutorClient() executorclient.Client {
 	return s.ShardDistributorExecutorClient
+}
+
+func (s *Test) GetZapLogger() *zap.Logger {
+	return zap.NewNop()
 }
 
 // GetRemoteAdminClient for testing

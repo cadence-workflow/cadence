@@ -206,8 +206,8 @@ func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
 			CatchUpPolicy:    types.ScheduleCatchUpPolicyOne,
 			CatchUpWindow:    time.Hour,
 			PauseOnFailure:   true,
-			BufferLimit:      common.Int32Ptr(5),
-			ConcurrencyLimit: common.Int32Ptr(0),
+			BufferLimit:      5,
+			ConcurrencyLimit: 0,
 		},
 		Memo: &types.Memo{Fields: map[string][]byte{"schedMemo": []byte(`"sm"`)}},
 		SearchAttributes: &types.SearchAttributes{
@@ -284,10 +284,8 @@ func (s *IntegrationSuite) TestScheduleFullCreateRoundTrip() {
 	s.Equal(types.ScheduleCatchUpPolicyOne, pol.GetCatchUpPolicy())
 	s.Equal(time.Hour, pol.GetCatchUpWindow())
 	s.True(pol.GetPauseOnFailure())
-	s.Require().NotNil(pol.GetBufferLimit())
-	s.Equal(int32(5), *pol.GetBufferLimit())
-	s.Require().NotNil(pol.GetConcurrencyLimit())
-	s.Equal(int32(0), *pol.GetConcurrencyLimit())
+	s.Equal(int32(5), pol.GetBufferLimit())
+	s.Equal(int32(0), pol.GetConcurrencyLimit())
 
 	// Schedule-level Memo and SearchAttributes round-trip.
 	s.Require().NotNil(desc.GetMemo())

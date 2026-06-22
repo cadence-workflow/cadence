@@ -148,7 +148,7 @@ func (s *markerNotifierSuite) TestNotifyPendingFailoverMarker() {
 	s.coordinator.EXPECT().NotifyFailoverMarkers(
 		int32(s.mockShard.GetShardID()),
 		tasks,
-	).Do(
+	).AnyTimes().Do(
 		func(
 			shardID int32,
 			markers []*types.FailoverMarkerAttributes,

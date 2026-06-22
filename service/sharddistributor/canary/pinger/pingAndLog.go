@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
+	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/yarpc"
 	"go.uber.org/zap"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	"github.com/uber/cadence/service/sharddistributor/canary/latencykind"
 	canarymetrics "github.com/uber/cadence/service/sharddistributor/canary/metrics"
-	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 const (

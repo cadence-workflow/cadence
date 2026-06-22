@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/multierr"
+
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -57,32 +59,67 @@ type shardedNosqlStoreImpl struct {
 	shardingPolicy  shardingPolicy
 }
 
-func newShardedNosqlStore(cfg config.ShardedNoSQL, logger log.Logger, metricsClient metrics.Client, dc *persistence.DynamicConfiguration) (shardedNosqlStore, error) {
+func newShardedNosqlStore(cfg config.ShardedNoSQL, logger log.Logger, metricsClient metrics.Client, dc *persistence.DynamicConfiguration, eagerConnect bool) (_ shardedNosqlStore, retErr error) {
 	sn := shardedNosqlStoreImpl{
-		config:        cfg,
-		dc:            dc,
-		logger:        logger,
-		metricsClient: metricsClient,
+		config:          cfg,
+		dc:              dc,
+		logger:          logger,
+		metricsClient:   metricsClient,
+		connectedShards: make(map[string]nosqlStore),
 	}
 
-	// Connect to the default shard
-	defaultShardName := cfg.DefaultShard
-	store, err := sn.connectToShard(defaultShardName)
-	if err != nil {
-		return nil, err
-	}
-	sn.defaultShard = *store
-	sn.connectedShards = map[string]nosqlStore{
-		defaultShardName: sn.defaultShard,
+	defer func() {
+		if retErr != nil {
+			sn.Close()
+		}
+	}()
+
+	if eagerConnect {
+		// Connect to all shards in parallel.
+		type result struct {
+			name  string
+			store *nosqlStore
+			err   error
+		}
+		results := make(chan result, len(cfg.Connections))
+		for shardName := range cfg.Connections {
+			go func(shardName string) {
+				store, err := sn.connectToShard(shardName)
+				results <- result{name: shardName, store: store, err: err}
+			}(shardName)
+		}
+		var combinedErr error
+		for range cfg.Connections {
+			r := <-results
+			if r.err != nil {
+				combinedErr = multierr.Append(combinedErr, r.err)
+				continue
+			}
+			sn.connectedShards[r.name] = *r.store
+		}
+		if combinedErr != nil {
+			retErr = combinedErr
+			return nil, retErr
+		}
+		sn.defaultShard = sn.connectedShards[cfg.DefaultShard]
+	} else {
+		// Connect to the default shard
+		defaultShardName := cfg.DefaultShard
+		store, err := sn.connectToShard(defaultShardName)
+		if err != nil {
+			return nil, err
+		}
+		sn.defaultShard = *store
+		sn.connectedShards[defaultShardName] = *store
 	}
 
 	// Parse & validate the sharding policy
-	sn.shardingPolicy, err = newShardingPolicy(logger, cfg)
-	if err != nil {
-		return nil, err
+	sn.shardingPolicy, retErr = newShardingPolicy(logger, cfg)
+	if retErr != nil {
+		return nil, retErr
 	}
 
-	return &sn, nil
+	return &sn, retErr
 }
 
 func (sn *shardedNosqlStoreImpl) GetStoreShardByHistoryShard(shardID int) (*nosqlStore, error) {

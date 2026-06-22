@@ -99,6 +99,19 @@ func (m *metricsScope) StartTimer(id MetricIdx) Stopwatch {
 	return Stopwatch{} // noop
 }
 
+// StartTimerWithExponentialHistogram dual-emits to the named timer and the
+// named exponential histogram when Stop is called on the returned Stopwatch.
+// The histogram emission goes through the same path as ExponentialHistogram so
+// it picks up exponential bucket definitions, rollups, and migration-config
+// gating. The histogram metric must be defined with exponentialBuckets in
+// defs.go.
+func (m *metricsScope) StartTimerWithExponentialHistogram(timerID MetricIdx, histogramID MetricIdx) Stopwatch {
+	sw := m.StartTimer(timerID)
+	return newStopwatchWithCallback(sw.timers, func(d time.Duration) {
+		m.ExponentialHistogram(histogramID, d)
+	})
+}
+
 func (m *metricsScope) RecordTimer(id MetricIdx, d time.Duration) {
 	def := m.defs[id]
 	if m.migrationConfig.EmitTimer(def.metricName.String()) {

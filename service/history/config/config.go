@@ -158,7 +158,6 @@ type Config struct {
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
 	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
-	TimerProcessorEnableCachedScheduledQueue          dynamicproperties.BoolPropertyFn
 	TimerProcessorCachedQueueReaderMode               dynamicproperties.StringPropertyFn
 	TimerProcessorCacheMaxSize                        dynamicproperties.IntPropertyFn
 	TimerProcessorCachePrefetchTriggerWindow          dynamicproperties.DurationPropertyFn
@@ -478,7 +477,6 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
-		TimerProcessorEnableCachedScheduledQueue:             dc.GetBoolProperty(dynamicproperties.TimerProcessorEnableCachedScheduledQueue),
 		TimerProcessorCachedQueueReaderMode:                  dc.GetStringProperty(dynamicproperties.TimerProcessorCachedQueueReaderMode),
 		TimerProcessorCacheMaxSize:                           dc.GetIntProperty(dynamicproperties.TimerProcessorCacheMaxSize),
 		TimerProcessorCachePrefetchTriggerWindow:             dc.GetDurationProperty(dynamicproperties.TimerProcessorCachePrefetchTriggerWindow),

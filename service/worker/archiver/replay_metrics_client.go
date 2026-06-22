@@ -134,6 +134,14 @@ func (r *replayMetricsScope) StartTimer(timer metrics.MetricIdx) metrics.Stopwat
 	return r.scope.StartTimer(timer)
 }
 
+// StartTimerWithExponentialHistogram starts a stopwatch that records to both a timer and an exponential histogram on Stop.
+func (r *replayMetricsScope) StartTimerWithExponentialHistogram(timer metrics.MetricIdx, histogram metrics.MetricIdx) metrics.Stopwatch {
+	if workflow.IsReplaying(r.ctx) {
+		return metrics.NewTestStopwatch()
+	}
+	return r.scope.StartTimerWithExponentialHistogram(timer, histogram)
+}
+
 // RecordTimer starts a timer for the given metric name
 func (r *replayMetricsScope) RecordTimer(timer metrics.MetricIdx, d time.Duration) {
 	if workflow.IsReplaying(r.ctx) {

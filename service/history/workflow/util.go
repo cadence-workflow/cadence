@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -85,6 +86,7 @@ func Load(
 	ctx context.Context,
 	cache execution.Cache,
 	executionManager persistence.ExecutionManager,
+	shardID int,
 	domainID string,
 	domainName string,
 	workflowID string,
@@ -110,6 +112,7 @@ func Load(
 		resp, err := executionManager.GetCurrentExecution(
 			ctx,
 			&persistence.GetCurrentExecutionRequest{
+				ShardID:    common.Ptr(shardID),
 				DomainID:   domainID,
 				WorkflowID: workflowID,
 				DomainName: domainName,
@@ -161,6 +164,7 @@ func UpdateCurrentWithActionFunc(
 	logger log.Logger,
 	cache execution.Cache,
 	executionManager persistence.ExecutionManager,
+	shardID int,
 	domainID string,
 	domainCache cache.DomainCache,
 	execution types.WorkflowExecution,
@@ -172,7 +176,7 @@ func UpdateCurrentWithActionFunc(
 	if err != nil {
 		return nil
 	}
-	workflowContext, err := Load(ctx, cache, executionManager, domainID, domainName, execution.GetWorkflowID(), execution.GetRunID())
+	workflowContext, err := Load(ctx, cache, executionManager, shardID, domainID, domainName, execution.GetWorkflowID(), execution.GetRunID())
 	if err != nil {
 		return err
 	}

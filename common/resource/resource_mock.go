@@ -12,10 +12,12 @@ package resource
 import (
 	reflect "reflect"
 
+	executorclient "github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	tally "github.com/uber-go/tally"
 	workflowserviceclient "go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	gomock "go.uber.org/mock/gomock"
 	yarpc "go.uber.org/yarpc"
+	zap "go.uber.org/zap"
 
 	client "github.com/uber/cadence/client"
 	admin "github.com/uber/cadence/client/admin"
@@ -42,7 +44,6 @@ import (
 	client0 "github.com/uber/cadence/common/persistence/client"
 	rpc "github.com/uber/cadence/common/quotas/global/rpc"
 	service "github.com/uber/cadence/common/service"
-	executorclient "github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // MockResourceFactory is a mock of ResourceFactory interface.
@@ -753,6 +754,20 @@ func (m *MockResource) GetVisibilityManager() persistence.VisibilityManager {
 func (mr *MockResourceMockRecorder) GetVisibilityManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVisibilityManager", reflect.TypeOf((*MockResource)(nil).GetVisibilityManager))
+}
+
+// GetZapLogger mocks base method.
+func (m *MockResource) GetZapLogger() *zap.Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetZapLogger")
+	ret0, _ := ret[0].(*zap.Logger)
+	return ret0
+}
+
+// GetZapLogger indicates an expected call of GetZapLogger.
+func (mr *MockResourceMockRecorder) GetZapLogger() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetZapLogger", reflect.TypeOf((*MockResource)(nil).GetZapLogger))
 }
 
 // Start mocks base method.
