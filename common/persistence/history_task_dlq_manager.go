@@ -134,14 +134,16 @@ func (m *historyTaskDLQManagerImpl) GetHistoryDLQTasks(
 	}
 
 	tasks := make([]Task, 0, len(resp.Tasks))
+	pageSizeBytes := 0
 	for _, raw := range resp.Tasks {
+		pageSizeBytes += len(raw.TaskPayload.GetData())
 		task, err := m.taskSerializer.DeserializeTask(request.TaskCategory, raw.TaskPayload)
 		if err != nil {
 			return HistoryDLQGetTasksResponse{}, fmt.Errorf("failed to deserialize history DLQ task: %w", err)
 		}
 		tasks = append(tasks, task)
 	}
-	return HistoryDLQGetTasksResponse{Tasks: tasks, NextPageToken: resp.NextPageToken}, nil
+	return HistoryDLQGetTasksResponse{Tasks: tasks, NextPageToken: resp.NextPageToken, PageSizeBytes: pageSizeBytes}, nil
 }
 
 // UpdateHistoryDLQAckLevel persists the new ack level for a partition.

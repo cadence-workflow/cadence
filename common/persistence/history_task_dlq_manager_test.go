@@ -323,11 +323,12 @@ func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 	deserializedTask := &ActivityTask{TaskData: TaskData{TaskID: 15}}
 
 	tests := []struct {
-		name      string
-		request   HistoryDLQGetTasksRequest
-		mockSetup func(*MockHistoryDLQTaskStore, *MockHistoryTaskSerializer)
-		wantTasks []Task
-		wantErr   string
+		name              string
+		request           HistoryDLQGetTasksRequest
+		mockSetup         func(*MockHistoryDLQTaskStore, *MockHistoryTaskSerializer)
+		wantTasks         []Task
+		wantPageSizeBytes int
+		wantErr           string
 	}{
 		{
 			name: "converts keys and deserializes tasks",
@@ -357,7 +358,8 @@ func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 					DeserializeTask(HistoryTaskCategoryTransfer, taskBlob).
 					Return(deserializedTask, nil)
 			},
-			wantTasks: []Task{deserializedTask},
+			wantTasks:         []Task{deserializedTask},
+			wantPageSizeBytes: len(taskBlob.Data),
 		},
 		{
 			name: "deserialization error surfaces",
@@ -405,6 +407,7 @@ func TestHistoryTaskDLQManager_GetHistoryDLQTasks(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.wantTasks, resp.Tasks)
+				assert.Equal(t, tc.wantPageSizeBytes, resp.PageSizeBytes)
 			}
 		})
 	}
