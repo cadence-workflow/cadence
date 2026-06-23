@@ -53,6 +53,7 @@ const (
 	updateDomainRetryCoefficient     = 2.0
 	updateDomainMaxRetry             = 2
 	notifyFailoverMarkerMinInterval  = 500 * time.Millisecond
+	notifyRemoteCoordinatorTimeout   = 5 * time.Second
 )
 
 var (
@@ -436,8 +437,10 @@ func (c *coordinatorImpl) notifyRemoteCoordinator(
 			})
 		}
 
+		rpcCtx, cancel := ctx.WithTimeout(ctx.Background(), notifyRemoteCoordinatorTimeout)
+		defer cancel()
 		err := c.historyClient.NotifyFailoverMarkers(
-			ctx.Background(),
+			rpcCtx,
 			&types.NotifyFailoverMarkersRequest{
 				FailoverMarkerTokens: tokens,
 			},
