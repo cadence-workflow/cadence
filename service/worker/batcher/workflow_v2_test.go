@@ -280,6 +280,8 @@ func TestBatchActivityV2_UsesProgress(t *testing.T) {
 	assert.Equal(t, 3, result.SuccessCount, "should add new success to progress")
 	assert.Equal(t, 2, result.CurrentPage, "should increment from progress page")
 	assert.Equal(t, int64(4), result.TotalEstimate, "should preserve TotalEstimate from progress")
+	assert.Equal(t, 5, result.RPS, "should surface the active RPS in heartbeat details")
+	assert.Equal(t, 5, result.Concurrency, "should surface the active Concurrency in heartbeat details")
 }
 
 func TestBatchActivityV2_EmptyPageDoesNotIncrementCurrentPage(t *testing.T) {
