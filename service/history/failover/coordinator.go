@@ -184,6 +184,11 @@ func (c *coordinatorImpl) ReceiveFailoverMarkers(
 	marker *types.FailoverMarkerAttributes,
 ) {
 
+	c.logger.Info("Failover marker received from notify RPC",
+		tag.WorkflowDomainID(marker.GetDomainID()),
+		tag.FailoverVersion(marker.GetFailoverVersion()),
+		tag.Number(int64(len(shardIDs))),
+	)
 	c.receiveChan <- &receiveRequest{
 		shardIDs: shardIDs,
 		marker:   marker,
@@ -244,7 +249,20 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 		if len(requestByMarker) == 0 {
 			return
 		}
-		if err := c.notifyRemoteCoordinator(requestByMarker); err == nil {
+		markerCount := len(requestByMarker)
+		var shardCount int
+		for _, req := range requestByMarker {
+			shardCount += len(req.shardIDs)
+		}
+		flushStart := c.timeSource.Now()
+		err := c.notifyRemoteCoordinator(requestByMarker)
+		flushDuration := c.timeSource.Now().Sub(flushStart)
+		if err == nil {
+			c.logger.Info("Flushed pending failover markers to active coordinator",
+				tag.Number(int64(markerCount)),
+				tag.Counter(shardCount),
+				tag.Dynamic("flush-duration", flushDuration),
+			)
 			requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
 			lastFlush = c.timeSource.Now()
 		}
@@ -312,6 +330,12 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		// if the local failover version is larger than the failover version in the marker,
 		// ignore the incoming marker
 		if record.failoverVersion > marker.GetFailoverVersion() {
+			c.logger.Info("Dropped failover marker: local failover version is greater than marker version",
+				tag.WorkflowDomainID(domainID),
+				tag.Number(record.failoverVersion),
+				tag.NextNumber(marker.GetFailoverVersion()),
+			)
+			c.scope.IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
 			return
 		}
 	}
@@ -408,6 +432,13 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		).UpdateGauge(
 			metrics.FailoverMarkerCount,
 			float64(len(record.shards)),
+		)
+		c.logger.Info("Accumulated failover marker shards",
+			tag.WorkflowDomainName(domainName),
+			tag.WorkflowDomainID(domainID),
+			tag.FailoverVersion(marker.GetFailoverVersion()),
+			tag.Counter(len(record.shards)),
+			tag.Number(int64(c.config.NumberOfShards)),
 		)
 	}
 }
