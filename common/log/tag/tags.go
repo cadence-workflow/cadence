@@ -307,14 +307,6 @@ func WorkflowResetNextEventID(resetNextEventID int64) Tag {
 	return newInt64("wf-reset-next-event-id", resetNextEventID)
 }
 
-func WorkflowExternalEntityType(externalEntityType string) Tag {
-	return newStringTag("wf-external-entity-type", externalEntityType)
-}
-
-func WorkflowExternalEntityKey(externalEntityKey string) Tag {
-	return newStringTag("wf-external-entity-key", externalEntityKey)
-}
-
 // history tree
 
 // WorkflowTreeID returns tag for WorkflowTreeID
@@ -376,6 +368,11 @@ func WorkflowHistorySize(historySize int) Tag {
 	return newInt("wf-history-size", historySize)
 }
 
+// WorkflowHistorySizeLimit returns tag for HistorySizeLimit
+func WorkflowHistorySizeLimit(historySize int) Tag {
+	return newInt("wf-history-size-limit", historySize)
+}
+
 // WorkflowHistorySizeBytes returns tag for HistorySizeBytes
 func WorkflowHistorySizeBytes(historySizeBytes int) Tag {
 	return newInt("wf-history-size-bytes", historySizeBytes)
@@ -384,6 +381,11 @@ func WorkflowHistorySizeBytes(historySizeBytes int) Tag {
 // WorkflowEventCount returns tag for EventCount
 func WorkflowEventCount(eventCount int) Tag {
 	return newInt("wf-event-count", eventCount)
+}
+
+// WorkflowEventCountLimit returns tag for EventCountLimit
+func WorkflowEventCountLimit(eventCount int) Tag {
+	return newInt("wf-event-count-limit", eventCount)
 }
 
 func WorkflowEventType(eventType string) Tag {
@@ -1178,29 +1180,6 @@ func ActivityTaskState(state int32) Tag {
 	return newInt32("activity-task-state", state)
 }
 
-func ShardNamespace(name string) Tag {
-	return newStringTag("shard-namespace", name)
-}
-
-func ShardExecutor(ID string) Tag {
-	return newStringTag("shard-executor", ID)
-}
-
-func ShardExecutors(executorIDs []string) Tag {
-	return newStringsTag("shard-executors", executorIDs)
-}
-
-func ShardKey(shardKey string) Tag {
-	return newStringTag("shard-key", shardKey)
-}
-
-func ShardStatus(status string) Tag {
-	return newStringTag("shard-status", status)
-}
-func ShardLoad(load string) Tag {
-	return newStringTag("shard-load", load)
-}
-
 func ElectionDelay(t time.Duration) Tag {
 	return newDurationTag("election-delay", t)
 }
@@ -1216,10 +1195,6 @@ func DynamicConfigLinearIteratorSpec(spec interface{}) Tag {
 
 func HashRingResult(addr string) Tag {
 	return newStringTag("hashring-result", addr)
-}
-
-func ShardDistributorResult(addr string) Tag {
-	return newStringTag("shard-distributor-result", addr)
 }
 
 // PeerHostname returns a tag for peer hostname

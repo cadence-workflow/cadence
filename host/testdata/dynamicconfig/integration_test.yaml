@@ -7,3 +7,9 @@ frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 worker.schedulerRefreshInterval:
 - value: "2s"
   constraints: {}
+worker.enableScheduler:
+- value: true
+  constraints: {}
+system.minRetentionDays:
+- value: 0
+  constraints: {}

@@ -69,6 +69,20 @@ func (mr *MockVirtualSliceMockRecorder) GetPendingTaskCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingTaskCount", reflect.TypeOf((*MockVirtualSlice)(nil).GetPendingTaskCount))
 }
 
+// GetReadLevel mocks base method.
+func (m *MockVirtualSlice) GetReadLevel() persistence.HistoryTaskKey {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReadLevel")
+	ret0, _ := ret[0].(persistence.HistoryTaskKey)
+	return ret0
+}
+
+// GetReadLevel indicates an expected call of GetReadLevel.
+func (mr *MockVirtualSliceMockRecorder) GetReadLevel() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReadLevel", reflect.TypeOf((*MockVirtualSlice)(nil).GetReadLevel))
+}
+
 // GetState mocks base method.
 func (m *MockVirtualSlice) GetState() VirtualSliceState {
 	m.ctrl.T.Helper()

@@ -94,6 +94,10 @@ var (
 			Usage:   "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value:   &flag.StringMap{},
 		},
+		&flag.RepeatedStringFlag{
+			Name:  FlagDomainDataEntry,
+			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g. --domain_data_entry 'cluster=dca' --domain_data_entry 'instance=cadence'",
+		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
 			Aliases: []string{"st"},
@@ -145,7 +149,12 @@ var (
 		&cli.StringSliceFlag{
 			Name:    FlagActiveClusters,
 			Aliases: []string{"acs"},
-			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+			Usage:   "Active clusters by cluster attribute in the format '<attr-scope>.<attr-name>:<cluster_name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+		},
+		&cli.StringFlag{
+			Name:    FlagActiveClustersJSON,
+			Aliases: []string{"acs-json"},
+			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"<attr-scope>":{"clusterAttributes":{"<attr-name>":{"activeClusterName":"<cluster_name>"}}}}}`,
 		},
 		&cli.StringSliceFlag{
 			Name:    FlagClusters,
@@ -156,6 +165,10 @@ var (
 			Name:  FlagDomainData,
 			Usage: "Domain data of key value pairs (must be in key1=value1,key2=value2,...,keyN=valueN format, e.g. cluster=dca or cluster=dca,instance=cadence)",
 			Value: &flag.StringMap{},
+		},
+		&flag.RepeatedStringFlag{
+			Name:  FlagDomainDataEntry,
+			Usage: "A domain-data key=value entry whose value may contain commas (e.g. JSON). Can be repeated to set multiple entries, e.g. --domain_data_entry 'cluster=dca' --domain_data_entry 'instance=cadence'",
 		},
 		&cli.StringFlag{
 			Name:    FlagSecurityToken,
@@ -273,17 +286,22 @@ var (
 		&cli.StringSliceFlag{
 			Name:    FlagActiveClusters,
 			Aliases: []string{"acs"},
-			Usage:   "Active clusters by cluster attribute in the format '<cluster-attr>.<scope>:<name> ie: region.manilla:cluster0,region.newyork:cluster1'",
+			Usage:   "Active clusters by cluster attribute in the format '<attr-scope>.<attr-name>:<cluster_name> ie: region.manilla:cluster0,region.newyork:cluster1'",
 		},
 		&cli.StringFlag{
 			Name:    FlagActiveClustersJSON,
 			Aliases: []string{"acs-json"},
-			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"region-us-east1":{"clusterAttributes":{"new-york":{"activeClusterName":"cluster1"}}}}}`,
+			Usage:   `Active clusters by cluster attribute in JSON format. Eg {"attributeScopes":{"<attr-scope>":{"clusterAttributes":{"<attr-name>":{"activeClusterName":"<cluster_name>"}}}}}`,
 		},
 		&cli.StringFlag{
 			Name:    FlagFailoverReason,
 			Aliases: []string{"r"},
 			Usage:   "Reason for failover (for tracking and transparency)",
+		},
+		&cli.IntFlag{
+			Name:    FlagFailoverTimeout,
+			Aliases: []string{"fts"},
+			Usage:   "[Optional] Graceful failover timeout in seconds. When set, the incoming active cluster waits up to this duration for pending replication tasks to drain before taking over",
 		},
 	}
 

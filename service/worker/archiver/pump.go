@@ -84,7 +84,12 @@ func NewPump(
 // Returns a PumpResult which contains a summary of what was pumped.
 // Upon returning request channel is closed.
 func (p *pump) Run() PumpResult {
+	pumpLatencyStart := workflow.Now(p.ctx)
 	sw := p.metricsClient.StartTimer(metrics.ArchiverPumpScope, metrics.CadenceLatency)
+	stopTimers := func() {
+		sw.Stop()
+		p.metricsClient.Scope(metrics.ArchiverPumpScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, workflow.Now(p.ctx).Sub(pumpLatencyStart))
+	}
 
 	carryoverBoundIndex := len(p.carryover)
 	if carryoverBoundIndex > p.requestLimit {
@@ -104,7 +109,7 @@ func (p *pump) Run() PumpResult {
 		pumpResult.PumpedHashes = append(pumpResult.PumpedHashes, hash(request))
 	}
 	if len(pumpResult.PumpedHashes) == p.requestLimit {
-		sw.Stop()
+		stopTimers()
 		p.requestCh.Close()
 		return pumpResult
 	}
@@ -137,7 +142,7 @@ func (p *pump) Run() PumpResult {
 	for !finished {
 		selector.Select(p.ctx)
 	}
-	sw.Stop()
+	stopTimers()
 	p.requestCh.Close()
 	return pumpResult
 }

@@ -682,7 +682,7 @@ func (c *DefaultDomainCache) triggerDomainChangePrepareCallbackLocked() {
 	sw := c.scope.StartTimer(metrics.DomainCachePrepareCallbacksLatency)
 	defer func() {
 		sw.Stop()
-		c.scope.RecordHistogramDuration(metrics.DomainCachePrepareCallbacksLatencyHistogram, time.Since(start))
+		c.scope.ExponentialHistogram(metrics.DomainCachePrepareCallbacksLatencyHistogram, time.Since(start))
 	}()
 
 	for _, prepareCallback := range c.prepareCallbacks {
@@ -695,7 +695,7 @@ func (c *DefaultDomainCache) triggerDomainChangeCallbackLocked(nextDomains []*Do
 	sw := c.scope.StartTimer(metrics.DomainCacheCallbacksLatency)
 	defer func() {
 		sw.Stop()
-		c.scope.RecordHistogramDuration(metrics.DomainCacheCallbacksLatencyHistogram, time.Since(start))
+		c.scope.ExponentialHistogram(metrics.DomainCacheCallbacksLatencyHistogram, time.Since(start))
 	}()
 
 	c.logger.Debug("Domain change callbacks are going to triggered", tag.Number(int64(len(nextDomains))))
@@ -896,7 +896,7 @@ func (entry *DomainCacheEntry) NewDomainNotActiveError(currentCluster, activeClu
 	}
 }
 
-// IsActive return whether the domain is active in the current cluster,
+// IsActiveIn return whether the domain is active in the current cluster,
 // - for local domain, it is always active
 // - for global domain, it is active if it is not pending active and the domain's active cluster is the current cluster or if the domain is active-active and the active cluster of one of the cluster attributes is the current cluster
 // TODO(active-active): for active-active domains, we should review this logic because now workflows can be active in different clusters based on the cluster attribute.

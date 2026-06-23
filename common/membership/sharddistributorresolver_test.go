@@ -25,12 +25,12 @@ package membership
 import (
 	"testing"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 )
 
 func TestShardDistributorResolver_Lookup(t *testing.T) {
@@ -54,7 +54,9 @@ func TestShardDistributorResolver_Lookup(t *testing.T) {
 func TestShardDistributorResolver_Lookup_ExcludedFallsBackToHashRing(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	// Set percentage to 0 so all task lists are excluded
-	resolver.percentageOnboarded = dynamicproperties.GetIntPropertyFn(0)
+	pct := NewMockPercentageOnboarded(gomock.NewController(t))
+	pct.EXPECT().Value().Return(0).AnyTimes()
+	resolver.percentageOnboarded = pct
 
 	ring.EXPECT().Lookup("test-key").Return(HostInfo{addr: "test-addr"}, nil)
 
@@ -67,11 +69,13 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	ctrl := gomock.NewController(t)
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
+	pct := NewMockPercentageOnboarded(ctrl)
+	pct.EXPECT().Value().Return(100).AnyTimes()
 
 	resolver := NewShardDistributorResolver(
 		nil, // nil spectator
 		dynamicproperties.GetBoolPropertyFn(false),
-		dynamicproperties.GetIntPropertyFn(100),
+		pct,
 		ring,
 		logger,
 	).(*shardDistributorResolver)
@@ -83,8 +87,6 @@ func TestShardDistributorResolver_Lookup_NilSpectatorFallsBackToHashRing(t *test
 	assert.Equal(t, "hash-ring-addr", host.addr)
 }
 
-/* Test all the simple proxies
- */
 func TestShardDistributorResolver_Start(t *testing.T) {
 	resolver, ring, _ := newShardDistributorResolver(t)
 	ring.EXPECT().Start().Times(1)
@@ -166,11 +168,13 @@ func TestShardDistributorResolver_Lookup_ExcludeShortLivedTaskLists(t *testing.T
 			spectator := spectatorclient.NewMockSpectator(ctrl)
 			ring := NewMockSingleProvider(ctrl)
 			logger := log.NewNoop()
+			pct := NewMockPercentageOnboarded(ctrl)
+			pct.EXPECT().Value().Return(100).AnyTimes()
 
 			resolver := NewShardDistributorResolver(
 				spectator,
 				dynamicproperties.GetBoolPropertyFn(tc.excludeShortLivedTaskLists),
-				dynamicproperties.GetIntPropertyFn(100),
+				pct,
 				ring,
 				logger,
 			).(*shardDistributorResolver)
@@ -205,7 +209,8 @@ func newShardDistributorResolver(t *testing.T) (*shardDistributorResolver, *Mock
 	ctrl := gomock.NewController(t)
 	spectator := spectatorclient.NewMockSpectator(ctrl)
 	excludeShortLivedTaskLists := dynamicproperties.GetBoolPropertyFn(false)
-	percentageOnboarded := dynamicproperties.GetIntPropertyFn(100)
+	percentageOnboarded := NewMockPercentageOnboarded(ctrl)
+	percentageOnboarded.EXPECT().Value().Return(100).AnyTimes()
 	ring := NewMockSingleProvider(ctrl)
 	logger := log.NewNoop()
 

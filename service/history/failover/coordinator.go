@@ -52,6 +52,7 @@ const (
 	updateDomainRetryInitialInterval = 50 * time.Millisecond
 	updateDomainRetryCoefficient     = 2.0
 	updateDomainMaxRetry             = 2
+	notifyFailoverMarkerMinInterval  = 500 * time.Millisecond
 )
 
 var (
@@ -101,6 +102,7 @@ type (
 		failoverVersion int64
 		shards          map[int32]struct{}
 		lastUpdatedTime time.Time
+		firstSeenTime   time.Time
 	}
 )
 
@@ -236,19 +238,53 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 	))
 	defer timer.Stop()
 	requestByMarker := make(map[types.FailoverMarkerAttributes]*receiveRequest)
+	var lastFlush time.Time
+
+	flush := func() {
+		if len(requestByMarker) == 0 {
+			return
+		}
+		if err := c.notifyRemoteCoordinator(requestByMarker); err == nil {
+			requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
+			lastFlush = c.timeSource.Now()
+		}
+	}
+
+	resetTimer := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(backoff.JitDuration(
+			c.config.NotifyFailoverMarkerInterval(),
+			c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
+		))
+	}
 
 	for {
 		select {
 		case <-c.shutdownChan:
 			return
 		case notificationReq := <-c.notificationChan:
-			// if there is a shard movement happen, it is fine to have duplicate shard ID in the request
+			// if a shard movement happens, it is fine to have duplicated shard IDs in the request
 			// The receiver side will de-dup the shard IDs. See: handleFailoverMarkers
 			aggregateNotificationRequests(notificationReq, requestByMarker)
-		case <-timer.C:
-			if err := c.notifyRemoteCoordinator(requestByMarker); err == nil {
-				requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
+			if c.timeSource.Now().Sub(lastFlush) >= notifyFailoverMarkerMinInterval {
+				flush()
+				resetTimer()
+			} else {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(notifyFailoverMarkerMinInterval - c.timeSource.Now().Sub(lastFlush))
 			}
+		case <-timer.C:
+			flush()
 			timer.Reset(backoff.JitDuration(
 				c.config.NotifyFailoverMarkerInterval(),
 				c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
@@ -267,36 +303,38 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	marker := request.marker
 	domainID := marker.GetDomainID()
 	if record, ok := c.recorder[domainID]; ok {
-		// if the local failover version is smaller than the new received marker,
-		// it means there is another failover happened and the local one should be invalid.
+		// if the local failover version is less than the failover version in the marker,
+		// it means that another failover happened for this domain and the local one should be invalidated
 		if record.failoverVersion < marker.GetFailoverVersion() {
 			delete(c.recorder, domainID)
 		}
 
-		// if the local failover version is larger than the new received marker,
+		// if the local failover version is larger than the failover version in the marker,
 		// ignore the incoming marker
 		if record.failoverVersion > marker.GetFailoverVersion() {
 			return
 		}
 	}
 
+	now := c.timeSource.Now()
 	if _, ok := c.recorder[domainID]; !ok {
 		// initialize the failover record
 		c.recorder[marker.GetDomainID()] = &failoverRecord{
 			failoverVersion: marker.GetFailoverVersion(),
 			shards:          make(map[int32]struct{}),
+			firstSeenTime:   now,
 		}
 	}
 
 	record := c.recorder[domainID]
-	record.lastUpdatedTime = c.timeSource.Now()
+	record.lastUpdatedTime = now
 	for _, shardID := range request.shardIDs {
 		record.shards[shardID] = struct{}{}
 	}
 
 	domainName, err := c.domainCache.GetDomainName(domainID)
 	if err != nil {
-		c.logger.Error("Coordinator failed to get domain after receiving all failover markers",
+		c.logger.Error("Coordinator failed to get domain name while recording failover markers from request",
 			tag.WorkflowDomainID(domainID),
 			tag.Error(err),
 		)
@@ -306,43 +344,70 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	}
 
 	if len(record.shards) == c.config.NumberOfShards {
-		if err := domain.CleanPendingActiveState(
+		cleanStart := c.timeSource.Now()
+		updated, err := domain.CleanPendingActiveState(
 			c.domainManager,
 			domainID,
 			record.failoverVersion,
 			c.retryPolicy,
-		); err != nil {
-			c.logger.Error("Coordinator failed to update domain after receiving all failover markers",
+		)
+		cleanDuration := c.timeSource.Now().Sub(cleanStart)
+		if err != nil {
+			c.logger.Error("Coordinator failed to update domain after receiving failover markers from all shards",
 				tag.WorkflowDomainID(domainID),
 				tag.Error(err),
 			)
 			c.scope.IncCounter(metrics.CadenceFailures)
 			return
 		}
+		firstSeenTime := record.firstSeenTime
 		delete(c.recorder, domainID)
+		// reset the gauge so it reflects the current (empty) pending state for this domain
+		// rather than the last partial-count value, which would otherwise linger forever
+		c.scope.Tagged(
+			metrics.DomainTag(domainName),
+		).UpdateGauge(
+			metrics.FailoverMarkerCount,
+			0,
+		)
+
+		if !updated {
+			// another path already cleared the pending-active state — avoid the
+			// misleading "Updated domain from pending-active to active" log and
+			// the bogus GracefulFailoverLatency (which would otherwise report
+			// now - marker.CreationTime on a long-stale marker)
+			return
+		}
+
 		now := c.timeSource.Now()
+		// use the last marker to calculate the failover duration
+		failoverDuration := now.Sub(time.Unix(0, marker.GetCreationTime()))
+		markerPipelineDuration := now.Sub(firstSeenTime)
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
 		).RecordTimer(
 			metrics.GracefulFailoverLatency,
-			now.Sub(time.Unix(0, marker.GetCreationTime())),
+			failoverDuration,
 		)
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
 		).RecordHistogramDuration(
 			metrics.GracefulFailoverLatencyHistogram,
-			now.Sub(time.Unix(0, marker.GetCreationTime())),
+			failoverDuration,
 		)
 		c.logger.Info("Updated domain from pending-active to active",
 			tag.WorkflowDomainName(domainName),
 			tag.FailoverVersion(marker.FailoverVersion),
+			tag.Duration(failoverDuration),
+			tag.Dynamic("marker-pipeline-duration", markerPipelineDuration),
+			tag.Dynamic("clean-pending-active-duration", cleanDuration),
 		)
 	} else {
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
-		).RecordTimer(
+		).UpdateGauge(
 			metrics.FailoverMarkerCount,
-			time.Duration(len(record.shards)),
+			float64(len(record.shards)),
 		)
 	}
 }

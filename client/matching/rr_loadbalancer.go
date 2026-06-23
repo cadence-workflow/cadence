@@ -57,7 +57,7 @@ func NewRoundRobinLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope),
+			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope).Tagged(metrics.NonShardTag()),
 			Logger:          provider.GetLogger(),
 		}),
 		writeCache: cache.New(&cache.Options{
@@ -66,7 +66,7 @@ func NewRoundRobinLoadBalancer(
 			Pin:             false,
 			MaxCount:        3000,
 			ActivelyEvict:   false,
-			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope),
+			MetricsScope:    provider.GetMetricsClient().Scope(metrics.LoadBalancerScope).Tagged(metrics.NonShardTag()),
 			Logger:          provider.GetLogger(),
 		}),
 		pickPartitionFn: pickPartition,

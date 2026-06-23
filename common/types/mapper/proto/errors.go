@@ -25,7 +25,6 @@ import (
 	"go.uber.org/yarpc/encoding/protobuf"
 	"go.uber.org/yarpc/yarpcerrors"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
 	sharedv1 "github.com/uber/cadence/.gen/proto/shared/v1"
 	cadence_errors "github.com/uber/cadence/common/errors"
 	"github.com/uber/cadence/common/types"
@@ -87,10 +86,6 @@ func FromError(err error) error {
 		return typedErr
 	} else if ok, typedErr = errorutils.ConvertError(err, fromReadOnlyPartitionErr); ok {
 		return typedErr
-	} else if ok, typedErr = errorutils.ConvertError(err, fromNamespaceNotFoundErr); ok {
-		return typedErr
-	} else if ok, typedErr = errorutils.ConvertError(err, fromShardNotFoundErr); ok {
-		return typedErr
 	}
 
 	return protobuf.NewError(yarpcerrors.CodeUnknown, err.Error())
@@ -128,19 +123,6 @@ func ToError(err error) error {
 		case *apiv1.WorkflowExecutionAlreadyCompletedError:
 			return &types.WorkflowExecutionAlreadyCompletedError{
 				Message: status.Message(),
-			}
-		case *sharddistributorv1.NamespaceNotFoundError:
-			if details != nil {
-				return &types.NamespaceNotFoundError{
-					Namespace: details.Namespace,
-				}
-			}
-		case *sharddistributorv1.ShardNotFoundError:
-			if details != nil {
-				return &types.ShardNotFoundError{
-					Namespace: details.Namespace,
-					ShardKey:  details.ShardKey,
-				}
 			}
 		}
 	case yarpcerrors.CodeInvalidArgument:
@@ -413,17 +395,4 @@ func fromStickyWorkerUnavailableErr(e *types.StickyWorkerUnavailableError) error
 
 func fromReadOnlyPartitionErr(e *types.ReadOnlyPartitionError) error {
 	return protobuf.NewError(yarpcerrors.CodeAborted, e.Message, protobuf.WithErrorDetails(&apiv1.ReadOnlyPartitionError{}))
-}
-
-func fromNamespaceNotFoundErr(e *types.NamespaceNotFoundError) error {
-	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.NamespaceNotFoundError{
-		Namespace: e.Namespace,
-	}))
-}
-
-func fromShardNotFoundErr(e *types.ShardNotFoundError) error {
-	return protobuf.NewError(yarpcerrors.CodeNotFound, e.Error(), protobuf.WithErrorDetails(&sharddistributorv1.ShardNotFoundError{
-		Namespace: e.Namespace,
-		ShardKey:  e.ShardKey,
-	}))
 }

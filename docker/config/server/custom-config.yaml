@@ -1,0 +1,139 @@
+# Example custom Cadence configuration file
+# This demonstrates a manually constructed config without template variables
+# You can customize this for your specific deployment needs
+
+log:
+  stdout: true
+  level: debug
+
+persistence:
+  numHistoryShards: 4
+  defaultStore: default
+  visibilityStore: visibility
+  datastores:
+    default:
+      nosql:
+        pluginName: "cassandra"
+        hosts: "cassandra"
+        keyspace: "cadence"
+        user: "cassandra"
+        password: "cassandra"
+        protoVersion: 4
+    visibility:
+      nosql:
+        pluginName: "cassandra"
+        hosts: "cassandra"
+        keyspace: "cadence_visibility"
+        user: "cassandra"
+        password: "cassandra"
+        protoVersion: 4
+
+ringpop:
+  name: cadence
+  broadcastAddress: ""
+  bootstrapMode: hosts
+  bootstrapHosts:
+    - "${HOST_IP}:${FRONTEND_PORT:7933}"
+    - "${HOST_IP}:${HISTORY_PORT:7934}"
+    - "${HOST_IP}:${MATCHING_PORT:7935}"
+    - "${HOST_IP}:${WORKER_PORT:7939}"
+  maxJoinDuration: 30s
+
+services:
+  frontend:
+    rpc:
+      port: "${FRONTEND_PORT:7933}"
+      grpcPort: "${GRPC_FRONTEND_PORT:7833}"
+      bindOnIP: "${BIND_ON_IP:0.0.0.0}"
+    metrics:
+      prometheus:
+        timerType: "histogram"
+        listenAddress: "${PROMETHEUS_ENDPOINT_0:0.0.0.0:8000}"
+    pprof:
+      port: "${FRONTEND_PPROF_PORT:7936}"
+      host: "${BIND_ON_IP:0.0.0.0}"
+
+  matching:
+    rpc:
+      port: "${MATCHING_PORT:7935}"
+      grpcPort: "${GRPC_MATCHING_PORT:7835}"
+      bindOnIP: "${BIND_ON_IP:0.0.0.0}"
+    metrics:
+      prometheus:
+        timerType: "histogram"
+        listenAddress: "${PROMETHEUS_ENDPOINT_1:0.0.0.0:8001}"
+
+  history:
+    rpc:
+      port: "${HISTORY_PORT:7934}"
+      grpcPort: "${GRPC_HISTORY_PORT:7834}"
+      bindOnIP: "${BIND_ON_IP:0.0.0.0}"
+    metrics:
+      prometheus:
+        timerType: "histogram"
+        listenAddress: "${PROMETHEUS_ENDPOINT_2:0.0.0.0:8002}"
+
+  worker:
+    rpc:
+      port: "${WORKER_PORT:7939}"
+      bindOnIP: "${BIND_ON_IP:0.0.0.0}"
+    metrics:
+      prometheus:
+        timerType: "histogram"
+        listenAddress: "${PROMETHEUS_ENDPOINT_3:0.0.0.0:8003}"
+
+clusterGroupMetadata:
+  clusterRedirectionPolicy:
+    policy: "all-domain-apis-forwarding"
+  failoverVersionIncrement: 10
+  primaryClusterName: "cluster0"
+  currentClusterName: "cluster0"
+  clusterGroup:
+    cluster0:
+      enabled: true
+      initialFailoverVersion: 0
+      rpcName: "cadence-frontend"
+      rpcAddress: "cadence:7833"
+      rpcTransport: "grpc"
+      authorizationProvider:
+        enable: "${ENABLE_OAUTH:false}"
+        type: "OAuthAuthorization"
+        privateKey: "${OAUTH_PRIVATE_KEY:}"
+
+archival:
+  history:
+    status: "disabled"
+    enableRead: false
+  visibility:
+    status: "disabled"
+    enableRead: false
+
+domainDefaults:
+  archival:
+    history:
+      status: "disabled"
+      URI: ""
+    visibility:
+      status: "disabled"
+      URI: ""
+
+publicClient:
+  hostPort: "cadence:7833"
+
+dynamicconfig:
+  client: filebased
+  filebased:
+    filepath: "/etc/cadence/config/dynamicconfig/development.yaml"
+    pollInterval: "60s"
+
+authorization:
+  oauthAuthorizer:
+    enable: false
+    maxJwtTTL: 86400
+
+shard-distributor-matching:
+  namespaces:
+    - namespace: "cadence-matching"
+      heartbeat_interval: "1s"
+      ttl_shard: "5m"
+      ttl_report: "1m"

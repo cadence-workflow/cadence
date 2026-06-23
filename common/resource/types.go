@@ -23,9 +23,11 @@
 package resource
 
 import (
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
@@ -42,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -52,7 +55,6 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	qrpc "github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type ResourceFactory interface {
@@ -111,6 +113,7 @@ type Resource interface {
 	GetVisibilityManager() persistence.VisibilityManager
 	GetShardManager() persistence.ShardManager
 	GetHistoryManager() persistence.HistoryManager
+	GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
 	GetExecutionManager(int) (persistence.ExecutionManager, error)
 	GetPersistenceBean() persistenceClient.Bean
 
@@ -120,6 +123,7 @@ type Resource interface {
 	// loggers
 	GetLogger() log.Logger
 	GetThrottledLogger() log.Logger
+	GetZapLogger() *zap.Logger
 
 	// for registering handlers
 	GetDispatcher() *yarpc.Dispatcher
@@ -127,6 +131,8 @@ type Resource interface {
 	// GetIsolationGroupState returns the isolationGroupState
 	GetIsolationGroupState() isolationgroup.State
 	GetIsolationGroupStore() configstore.Client
+	GetOperationalConfigStore() configstore.Client
+	GetOperationalDynamicConfig() *dynamicconfig.Collection
 
 	GetAsyncWorkflowQueueProvider() queue.Provider
 

@@ -550,6 +550,18 @@ func (s *taskExecutorSuite) TestProcess_FailoverReplicationTask() {
 	s.NoError(err)
 }
 
+func (s *taskExecutorSuite) TestProcess_FailoverReplicationTask_NilAttributes() {
+	task := &types.ReplicationTask{
+		TaskType:                 types.ReplicationTaskTypeFailoverMarker.Ptr(),
+		FailoverMarkerAttributes: nil,
+		CreationTime:             common.Ptr(int64(222)),
+	}
+
+	_, err := s.taskHandler.execute(task, true)
+	s.Error(err)
+	s.ErrorIs(err, ErrEmptyFailoverMarkerAttributes)
+}
+
 func (s *taskExecutorSuite) TestProcess_UnknownTask() {
 	task := &types.ReplicationTask{
 		TaskType: common.Ptr(types.ReplicationTaskType(-100)),

@@ -37,6 +37,7 @@ We also provide several other compose files for different features/modes:
 * docker-compose-postgres.yml uses PostgreSQL as persistence storage
 * docker-compose-statsd.yaml runs with Statsd+Graphite
 * docker-compose-multiclusters.yaml runs with 2 cadence clusters
+* docker-compose-custom-config.yml uses a custom configuration file instead of the template
 
 For example:
 ```
@@ -44,6 +45,36 @@ docker compose -f docker-compose-mysql.yml up
 ```
 
 Also feel free to make your own to combine the above features.
+
+Using a custom configuration file
+-----------------------
+By default, the Cadence server uses `config_template.yaml` which is processed by `dockerize` to substitute environment variables. If you need more control over the configuration, you can provide a fully custom config file.
+
+To use a custom configuration:
+
+1. Create your custom config file based on `config_template.yaml` or `config/server/custom-config.yaml` (example provided)
+2. Mount it into the container
+3. Set the `CADENCE_CONFIG_FILE` environment variable to point to your custom config
+
+Example using docker-compose:
+```yaml
+services:
+  cadence:
+    image: ubercadence/server:master-auto-setup
+    environment:
+      - "CADENCE_CONFIG_FILE=/etc/cadence/config/custom.yaml"
+    volumes:
+      - ./config/server/custom-config.yaml:/etc/cadence/config/custom.yaml:ro
+```
+
+Or with docker run:
+```bash
+docker run -v $(pwd)/config/server/custom-config.yaml:/etc/cadence/config/custom.yaml \
+  -e CADENCE_CONFIG_FILE=/etc/cadence/config/custom.yaml \
+  ubercadence/server:master-auto-setup
+```
+
+See `docker-compose-custom-config.yml` and `config/server/custom-config.yaml` for a complete example.
 
 Run canary and bench(load test)
 -----------------------

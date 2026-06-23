@@ -77,6 +77,10 @@ func (n *noopScopeImpl) StartTimer(timer MetricIdx) Stopwatch {
 	return NewTestStopwatch()
 }
 
+func (n *noopScopeImpl) StartTimerWithExponentialHistogram(timer MetricIdx, histogram MetricIdx) Stopwatch {
+	return NewTestStopwatch()
+}
+
 func (n *noopScopeImpl) RecordTimer(timer MetricIdx, d time.Duration) {}
 
 func (n *noopScopeImpl) RecordHistogramDuration(timer MetricIdx, d time.Duration) {}

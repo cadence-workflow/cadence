@@ -25,16 +25,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	smretryable "github.com/cadence-workflow/shard-manager/client/wrappers/retryable"
+	smcommon "github.com/cadence-workflow/shard-manager/common"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributor"
 	"github.com/uber/cadence/client/wrappers/retryable"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/activecluster"
@@ -63,7 +66,6 @@ import (
 	"github.com/uber/cadence/common/quotas/permember"
 	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 func NewResourceFactory() ResourceFactory {
@@ -112,18 +114,15 @@ type Impl struct {
 
 	// internal services clients
 
-	sdkClient                         workflowserviceclient.Interface
-	frontendRawClient                 frontend.Client
-	frontendClient                    frontend.Client
-	matchingRawClient                 matching.Client
-	matchingClient                    matching.Client
-	historyRawClient                  history.Client
-	historyClient                     history.Client
-	shardDistributorRawClient         sharddistributor.Client
-	shardDistributorClient            sharddistributor.Client
-	shardDistributorExecutorRawClient executorclient.Client
-	shardDistributorExecutorClient    executorclient.Client
-	clientBean                        client.Bean
+	sdkClient                      workflowserviceclient.Interface
+	frontendRawClient              frontend.Client
+	frontendClient                 frontend.Client
+	matchingRawClient              matching.Client
+	matchingClient                 matching.Client
+	historyRawClient               history.Client
+	historyClient                  history.Client
+	shardDistributorExecutorClient executorclient.Client
+	clientBean                     client.Bean
 
 	// persistence clients
 	persistenceBean persistenceClient.Bean
@@ -131,6 +130,7 @@ type Impl struct {
 	// loggers
 	logger          log.Logger
 	throttledLogger log.Logger
+	zapLogger       *zap.Logger
 	hostName        string
 
 	// for registering handlers
@@ -144,6 +144,8 @@ type Impl struct {
 
 	isolationGroups           isolationgroup.State
 	isolationGroupConfigStore configstore.Client
+	operationalConfigStore    configstore.Client
+	operationalDynamicConfig  *dynamicconfig.Collection
 
 	asyncWorkflowQueueProvider queue.Provider
 
@@ -199,7 +201,7 @@ func New(
 
 	params.PersistenceConfig.HostName = hostname
 
-	persistenceBean, err := newPersistenceBeanFn(persistenceClient.NewFactory(
+	persistenceFactory := persistenceClient.NewFactory(
 		&params.PersistenceConfig,
 		func() float64 {
 			return permember.PerMember(
@@ -213,7 +215,8 @@ func New(
 		params.MetricsClient,
 		logger,
 		persistence.NewDynamicConfiguration(dynamicCollection),
-	), &persistenceClient.Params{
+	)
+	persistenceBean, err := newPersistenceBeanFn(persistenceFactory, &persistenceClient.Params{
 		PersistenceConfig: params.PersistenceConfig,
 		MetricsClient:     params.MetricsClient,
 		MessagingClient:   params.MessagingClient,
@@ -272,31 +275,15 @@ func New(
 		serviceConfig.IsErrorRetryableFunction,
 	)
 
-	shardDistributorRawClient := clientBean.GetShardDistributorClient()
-
-	// If the raw client is nil, then the client bean is not configured to provide a shard distributor client, so we
-	// do not wrap and provide a retryable client
-	var shardDistributorClient sharddistributor.Client
-	if shardDistributorRawClient == nil {
-		shardDistributorClient = nil
-	} else {
-		shardDistributorClient = retryable.NewShardDistributorClient(
-			shardDistributorRawClient,
-			common.CreateShardDistributorServiceRetryPolicy(),
-			serviceConfig.IsErrorRetryableFunction,
-		)
-	}
-
 	shardDistributorExecutorRawClient := clientBean.GetShardDistributorExecutorClient()
 	var shardDistributorExecutorClient executorclient.Client
-	if shardDistributorExecutorRawClient == nil {
-		shardDistributorExecutorClient = nil
-	} else {
-		shardDistributorExecutorClient = retryable.NewShardDistributorExecutorClient(
+	if shardDistributorExecutorRawClient != nil {
+		retryableClient := smretryable.NewShardDistributorExecutorClient(
 			shardDistributorExecutorRawClient,
-			common.CreateShardDistributorServiceRetryPolicy(),
-			serviceConfig.IsErrorRetryableFunction,
+			smcommon.CreateShardDistributorServiceRetryPolicy(),
+			smcommon.IsServiceTransientError,
 		)
+		shardDistributorExecutorClient = executorclient.NewMeteredShardDistributorExecutorClient(retryableClient, params.MetricScope)
 	}
 
 	var historyRawClient history.Client
@@ -335,6 +322,11 @@ func New(
 	}
 
 	isolationGroupStore := createConfigStoreOrDefault(params, dynamicCollection)
+	operationalDynamicConfig := dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		logger,
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+	)
 
 	isolationGroupState, err := ensureIsolationGroupStateHandlerOrDefault(
 		params,
@@ -382,18 +374,15 @@ func New(
 
 		// internal services clients
 
-		sdkClient:                         params.PublicClient,
-		frontendRawClient:                 frontendRawClient,
-		frontendClient:                    frontendClient,
-		matchingRawClient:                 matchingRawClient,
-		matchingClient:                    matchingClient,
-		historyRawClient:                  historyRawClient,
-		historyClient:                     historyClient,
-		shardDistributorRawClient:         shardDistributorRawClient,
-		shardDistributorClient:            shardDistributorClient,
-		shardDistributorExecutorRawClient: shardDistributorExecutorRawClient,
-		shardDistributorExecutorClient:    shardDistributorExecutorClient,
-		clientBean:                        clientBean,
+		sdkClient:                      params.PublicClient,
+		frontendRawClient:              frontendRawClient,
+		frontendClient:                 frontendClient,
+		matchingRawClient:              matchingRawClient,
+		matchingClient:                 matchingClient,
+		historyRawClient:               historyRawClient,
+		historyClient:                  historyClient,
+		shardDistributorExecutorClient: shardDistributorExecutorClient,
+		clientBean:                     clientBean,
 
 		// persistence clients
 		persistenceBean: persistenceBean,
@@ -401,6 +390,7 @@ func New(
 		// loggers
 		logger:          logger,
 		throttledLogger: throttledLogger,
+		zapLogger:       params.ZapLogger,
 		hostName:        hostname,
 
 		// for registering handlers
@@ -417,6 +407,8 @@ func New(
 		rpcFactory:                params.RPCFactory,
 		isolationGroups:           isolationGroupState,
 		isolationGroupConfigStore: isolationGroupStore, // can be nil where persistence is not available
+		operationalConfigStore:    params.OperationalConfigStore,
+		operationalDynamicConfig:  operationalDynamicConfig,
 
 		asyncWorkflowQueueProvider: params.AsyncWorkflowQueueProvider,
 
@@ -462,6 +454,7 @@ func (h *Impl) Start() {
 	if h.isolationGroupConfigStore != nil {
 		h.isolationGroupConfigStore.Start()
 	}
+	h.operationalConfigStore.Start()
 	// The service is now started up
 	h.logger.Info("service started")
 	// seed the random generator once for this service
@@ -492,6 +485,7 @@ func (h *Impl) Stop() {
 	if h.isolationGroupConfigStore != nil {
 		h.isolationGroupConfigStore.Stop()
 	}
+	h.operationalConfigStore.Stop()
 	h.isolationGroups.Stop()
 }
 
@@ -609,14 +603,9 @@ func (h *Impl) GetHistoryClient() history.Client {
 	return h.historyClient
 }
 
-// GetShardDistributorExecutorRawClient return client for sharddistributor executor
-func (h *Impl) GetShardDistributorExecutorRawClient() executorclient.Client {
-	return h.shardDistributorExecutorRawClient
-}
-
 // GetShardDistributorExecutorClient return client for sharddistributor executor
 func (h *Impl) GetShardDistributorExecutorClient() executorclient.Client {
-	return h.shardDistributorExecutorRawClient
+	return h.shardDistributorExecutorClient
 }
 
 func (h *Impl) GetRatelimiterAggregatorsClient() qrpc.Client {
@@ -676,6 +665,11 @@ func (h *Impl) GetHistoryManager() persistence.HistoryManager {
 	return h.persistenceBean.GetHistoryManager()
 }
 
+// GetHistoryTaskDLQManager returns the history task DLQ manager.
+func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return h.persistenceBean.GetHistoryTaskDLQManager()
+}
+
 // GetExecutionManager return execution manager for given shard ID
 func (h *Impl) GetExecutionManager(shardID int) (persistence.ExecutionManager, error) {
 
@@ -703,6 +697,10 @@ func (h *Impl) GetThrottledLogger() log.Logger {
 	return h.throttledLogger
 }
 
+func (h *Impl) GetZapLogger() *zap.Logger {
+	return h.zapLogger
+}
+
 // GetDispatcher return YARPC dispatcher, used for registering handlers
 func (h *Impl) GetDispatcher() *yarpc.Dispatcher {
 	return h.dispatcher
@@ -716,6 +714,19 @@ func (h *Impl) GetIsolationGroupState() isolationgroup.State {
 // GetIsolationGroupStore returns the isolation group configuration store or nil
 func (h *Impl) GetIsolationGroupStore() configstore.Client {
 	return h.isolationGroupConfigStore
+}
+
+// GetOperationalConfigStore returns the operational dynamic config store (always non-nil; NopClient when unsupported).
+func (h *Impl) GetOperationalConfigStore() configstore.Client {
+	return h.operationalConfigStore
+}
+
+// GetOperationalDynamicConfig returns a Collection wrapping the operational
+// dynamic config store. It is always non-nil: when the underlying store is
+// unavailable, the Collection is backed by a no-op client that returns
+// default values, so callers can read operational values unconditionally.
+func (h *Impl) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	return h.operationalDynamicConfig
 }
 
 // GetAsyncWorkflowQueueProvider returns the async workflow queue provider

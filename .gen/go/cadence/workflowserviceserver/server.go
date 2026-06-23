@@ -18,15 +18,30 @@ import (
 
 // Interface is the server-side interface for the WorkflowService service.
 type Interface interface {
+	BackfillSchedule(
+		ctx context.Context,
+		Request *shared.BackfillScheduleRequest,
+	) (*shared.BackfillScheduleResponse, error)
+
 	CountWorkflowExecutions(
 		ctx context.Context,
 		CountRequest *shared.CountWorkflowExecutionsRequest,
 	) (*shared.CountWorkflowExecutionsResponse, error)
 
+	CreateSchedule(
+		ctx context.Context,
+		Request *shared.CreateScheduleRequest,
+	) (*shared.CreateScheduleResponse, error)
+
 	DeleteDomain(
 		ctx context.Context,
 		DeleteRequest *shared.DeleteDomainRequest,
 	) error
+
+	DeleteSchedule(
+		ctx context.Context,
+		Request *shared.DeleteScheduleRequest,
+	) (*shared.DeleteScheduleResponse, error)
 
 	DeprecateDomain(
 		ctx context.Context,
@@ -37,6 +52,11 @@ type Interface interface {
 		ctx context.Context,
 		DescribeRequest *shared.DescribeDomainRequest,
 	) (*shared.DescribeDomainResponse, error)
+
+	DescribeSchedule(
+		ctx context.Context,
+		Request *shared.DescribeScheduleRequest,
+	) (*shared.DescribeScheduleResponse, error)
 
 	DescribeTaskList(
 		ctx context.Context,
@@ -101,6 +121,11 @@ type Interface interface {
 		ListRequest *shared.ListOpenWorkflowExecutionsRequest,
 	) (*shared.ListOpenWorkflowExecutionsResponse, error)
 
+	ListSchedules(
+		ctx context.Context,
+		Request *shared.ListSchedulesRequest,
+	) (*shared.ListSchedulesResponse, error)
+
 	ListTaskListPartitions(
 		ctx context.Context,
 		Request *shared.ListTaskListPartitionsRequest,
@@ -110,6 +135,11 @@ type Interface interface {
 		ctx context.Context,
 		ListRequest *shared.ListWorkflowExecutionsRequest,
 	) (*shared.ListWorkflowExecutionsResponse, error)
+
+	PauseSchedule(
+		ctx context.Context,
+		Request *shared.PauseScheduleRequest,
+	) (*shared.PauseScheduleResponse, error)
 
 	PollForActivityTask(
 		ctx context.Context,
@@ -246,10 +276,20 @@ type Interface interface {
 		TerminateRequest *shared.TerminateWorkflowExecutionRequest,
 	) error
 
+	UnpauseSchedule(
+		ctx context.Context,
+		Request *shared.UnpauseScheduleRequest,
+	) (*shared.UnpauseScheduleResponse, error)
+
 	UpdateDomain(
 		ctx context.Context,
 		UpdateRequest *shared.UpdateDomainRequest,
 	) (*shared.UpdateDomainResponse, error)
+
+	UpdateSchedule(
+		ctx context.Context,
+		Request *shared.UpdateScheduleRequest,
+	) (*shared.UpdateScheduleResponse, error)
 }
 
 // New prepares an implementation of the WorkflowService service for
@@ -264,6 +304,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 		Methods: []thrift.Method{
 
 			thrift.Method{
+				Name: "BackfillSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.BackfillSchedule),
+					NoWire: backfillschedule_NoWireHandler{impl},
+				},
+				Signature:    "BackfillSchedule(Request *shared.BackfillScheduleRequest) (*shared.BackfillScheduleResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
 				Name: "CountWorkflowExecutions",
 				HandlerSpec: thrift.HandlerSpec{
 
@@ -276,6 +328,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 			},
 
 			thrift.Method{
+				Name: "CreateSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.CreateSchedule),
+					NoWire: createschedule_NoWireHandler{impl},
+				},
+				Signature:    "CreateSchedule(Request *shared.CreateScheduleRequest) (*shared.CreateScheduleResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
 				Name: "DeleteDomain",
 				HandlerSpec: thrift.HandlerSpec{
 
@@ -284,6 +348,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 					NoWire: deletedomain_NoWireHandler{impl},
 				},
 				Signature:    "DeleteDomain(DeleteRequest *shared.DeleteDomainRequest)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
+				Name: "DeleteSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.DeleteSchedule),
+					NoWire: deleteschedule_NoWireHandler{impl},
+				},
+				Signature:    "DeleteSchedule(Request *shared.DeleteScheduleRequest) (*shared.DeleteScheduleResponse)",
 				ThriftModule: cadence.ThriftModule,
 			},
 
@@ -308,6 +384,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 					NoWire: describedomain_NoWireHandler{impl},
 				},
 				Signature:    "DescribeDomain(DescribeRequest *shared.DescribeDomainRequest) (*shared.DescribeDomainResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
+				Name: "DescribeSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.DescribeSchedule),
+					NoWire: describeschedule_NoWireHandler{impl},
+				},
+				Signature:    "DescribeSchedule(Request *shared.DescribeScheduleRequest) (*shared.DescribeScheduleResponse)",
 				ThriftModule: cadence.ThriftModule,
 			},
 
@@ -468,6 +556,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 			},
 
 			thrift.Method{
+				Name: "ListSchedules",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.ListSchedules),
+					NoWire: listschedules_NoWireHandler{impl},
+				},
+				Signature:    "ListSchedules(Request *shared.ListSchedulesRequest) (*shared.ListSchedulesResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
 				Name: "ListTaskListPartitions",
 				HandlerSpec: thrift.HandlerSpec{
 
@@ -488,6 +588,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 					NoWire: listworkflowexecutions_NoWireHandler{impl},
 				},
 				Signature:    "ListWorkflowExecutions(ListRequest *shared.ListWorkflowExecutionsRequest) (*shared.ListWorkflowExecutionsResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
+				Name: "PauseSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.PauseSchedule),
+					NoWire: pauseschedule_NoWireHandler{impl},
+				},
+				Signature:    "PauseSchedule(Request *shared.PauseScheduleRequest) (*shared.PauseScheduleResponse)",
 				ThriftModule: cadence.ThriftModule,
 			},
 
@@ -816,6 +928,18 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 			},
 
 			thrift.Method{
+				Name: "UnpauseSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.UnpauseSchedule),
+					NoWire: unpauseschedule_NoWireHandler{impl},
+				},
+				Signature:    "UnpauseSchedule(Request *shared.UnpauseScheduleRequest) (*shared.UnpauseScheduleResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
+
+			thrift.Method{
 				Name: "UpdateDomain",
 				HandlerSpec: thrift.HandlerSpec{
 
@@ -826,10 +950,22 @@ func New(impl Interface, opts ...thrift.RegisterOption) []transport.Procedure {
 				Signature:    "UpdateDomain(UpdateRequest *shared.UpdateDomainRequest) (*shared.UpdateDomainResponse)",
 				ThriftModule: cadence.ThriftModule,
 			},
+
+			thrift.Method{
+				Name: "UpdateSchedule",
+				HandlerSpec: thrift.HandlerSpec{
+
+					Type:   transport.Unary,
+					Unary:  thrift.UnaryHandler(h.UpdateSchedule),
+					NoWire: updateschedule_NoWireHandler{impl},
+				},
+				Signature:    "UpdateSchedule(Request *shared.UpdateScheduleRequest) (*shared.UpdateScheduleResponse)",
+				ThriftModule: cadence.ThriftModule,
+			},
 		},
 	}
 
-	procedures := make([]transport.Procedure, 0, 47)
+	procedures := make([]transport.Procedure, 0, 55)
 	procedures = append(procedures, thrift.BuildProcedures(service, opts...)...)
 	return procedures
 }
@@ -839,6 +975,36 @@ type handler struct{ impl Interface }
 type yarpcErrorNamer interface{ YARPCErrorName() string }
 
 type yarpcErrorCoder interface{ YARPCErrorCode() *yarpcerrors.Code }
+
+func (h handler) BackfillSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_BackfillSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'BackfillSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.BackfillSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_BackfillSchedule_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
 
 func (h handler) CountWorkflowExecutions(ctx context.Context, body wire.Value) (thrift.Response, error) {
 	var args cadence.WorkflowService_CountWorkflowExecutions_Args
@@ -870,6 +1036,36 @@ func (h handler) CountWorkflowExecutions(ctx context.Context, body wire.Value) (
 	return response, err
 }
 
+func (h handler) CreateSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_CreateSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'CreateSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.CreateSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_CreateSchedule_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
 func (h handler) DeleteDomain(ctx context.Context, body wire.Value) (thrift.Response, error) {
 	var args cadence.WorkflowService_DeleteDomain_Args
 	if err := args.FromWire(body); err != nil {
@@ -881,6 +1077,36 @@ func (h handler) DeleteDomain(ctx context.Context, body wire.Value) (thrift.Resp
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_DeleteDomain_Helper.WrapResponse(appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+func (h handler) DeleteSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_DeleteSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'DeleteSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.DeleteSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_DeleteSchedule_Helper.WrapResponse(success, appErr)
 
 	var response thrift.Response
 	if err == nil {
@@ -941,6 +1167,36 @@ func (h handler) DescribeDomain(ctx context.Context, body wire.Value) (thrift.Re
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_DescribeDomain_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+func (h handler) DescribeSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_DescribeSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'DescribeSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.DescribeSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_DescribeSchedule_Helper.WrapResponse(success, appErr)
 
 	var response thrift.Response
 	if err == nil {
@@ -1350,6 +1606,36 @@ func (h handler) ListOpenWorkflowExecutions(ctx context.Context, body wire.Value
 	return response, err
 }
 
+func (h handler) ListSchedules(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_ListSchedules_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'ListSchedules': %w", err)
+	}
+
+	success, appErr := h.impl.ListSchedules(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_ListSchedules_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
 func (h handler) ListTaskListPartitions(ctx context.Context, body wire.Value) (thrift.Response, error) {
 	var args cadence.WorkflowService_ListTaskListPartitions_Args
 	if err := args.FromWire(body); err != nil {
@@ -1391,6 +1677,36 @@ func (h handler) ListWorkflowExecutions(ctx context.Context, body wire.Value) (t
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_ListWorkflowExecutions_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+func (h handler) PauseSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_PauseSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'PauseSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.PauseSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_PauseSchedule_Helper.WrapResponse(success, appErr)
 
 	var response thrift.Response
 	if err == nil {
@@ -2220,6 +2536,36 @@ func (h handler) TerminateWorkflowExecution(ctx context.Context, body wire.Value
 	return response, err
 }
 
+func (h handler) UnpauseSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_UnpauseSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'UnpauseSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.UnpauseSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_UnpauseSchedule_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
 func (h handler) UpdateDomain(ctx context.Context, body wire.Value) (thrift.Response, error) {
 	var args cadence.WorkflowService_UpdateDomain_Args
 	if err := args.FromWire(body); err != nil {
@@ -2248,6 +2594,73 @@ func (h handler) UpdateDomain(ctx context.Context, body wire.Value) (thrift.Resp
 	}
 
 	return response, err
+}
+
+func (h handler) UpdateSchedule(ctx context.Context, body wire.Value) (thrift.Response, error) {
+	var args cadence.WorkflowService_UpdateSchedule_Args
+	if err := args.FromWire(body); err != nil {
+		return thrift.Response{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode Thrift request for service 'WorkflowService' procedure 'UpdateSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.UpdateSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_UpdateSchedule_Helper.WrapResponse(success, appErr)
+
+	var response thrift.Response
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+
+	return response, err
+}
+
+type backfillschedule_NoWireHandler struct{ impl Interface }
+
+func (h backfillschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_BackfillSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'BackfillSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.BackfillSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_BackfillSchedule_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
 }
 
 type countworkflowexecutions_NoWireHandler struct{ impl Interface }
@@ -2287,6 +2700,43 @@ func (h countworkflowexecutions_NoWireHandler) HandleNoWire(ctx context.Context,
 
 }
 
+type createschedule_NoWireHandler struct{ impl Interface }
+
+func (h createschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_CreateSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'CreateSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.CreateSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_CreateSchedule_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
 type deletedomain_NoWireHandler struct{ impl Interface }
 
 func (h deletedomain_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
@@ -2306,6 +2756,43 @@ func (h deletedomain_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrif
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_DeleteDomain_Helper.WrapResponse(appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type deleteschedule_NoWireHandler struct{ impl Interface }
+
+func (h deleteschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_DeleteSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'DeleteSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.DeleteSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_DeleteSchedule_Helper.WrapResponse(success, appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError
@@ -2380,6 +2867,43 @@ func (h describedomain_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thr
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_DescribeDomain_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type describeschedule_NoWireHandler struct{ impl Interface }
+
+func (h describeschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_DescribeSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'DescribeSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.DescribeSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_DescribeSchedule_Helper.WrapResponse(success, appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError
@@ -2879,6 +3403,43 @@ func (h listopenworkflowexecutions_NoWireHandler) HandleNoWire(ctx context.Conte
 
 }
 
+type listschedules_NoWireHandler struct{ impl Interface }
+
+func (h listschedules_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_ListSchedules_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'ListSchedules': %w", err)
+	}
+
+	success, appErr := h.impl.ListSchedules(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_ListSchedules_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
 type listtasklistpartitions_NoWireHandler struct{ impl Interface }
 
 func (h listtasklistpartitions_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
@@ -2935,6 +3496,43 @@ func (h listworkflowexecutions_NoWireHandler) HandleNoWire(ctx context.Context, 
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_ListWorkflowExecutions_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type pauseschedule_NoWireHandler struct{ impl Interface }
+
+func (h pauseschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_PauseSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'PauseSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.PauseSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_PauseSchedule_Helper.WrapResponse(success, appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError
@@ -3952,6 +4550,43 @@ func (h terminateworkflowexecution_NoWireHandler) HandleNoWire(ctx context.Conte
 
 }
 
+type unpauseschedule_NoWireHandler struct{ impl Interface }
+
+func (h unpauseschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_UnpauseSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'UnpauseSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.UnpauseSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_UnpauseSchedule_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
 type updatedomain_NoWireHandler struct{ impl Interface }
 
 func (h updatedomain_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
@@ -3971,6 +4606,43 @@ func (h updatedomain_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrif
 
 	hadError := appErr != nil
 	result, err := cadence.WorkflowService_UpdateDomain_Helper.WrapResponse(success, appErr)
+	response := thrift.NoWireResponse{ResponseWriter: rw}
+	if err == nil {
+		response.IsApplicationError = hadError
+		response.Body = result
+		if namer, ok := appErr.(yarpcErrorNamer); ok {
+			response.ApplicationErrorName = namer.YARPCErrorName()
+		}
+		if extractor, ok := appErr.(yarpcErrorCoder); ok {
+			response.ApplicationErrorCode = extractor.YARPCErrorCode()
+		}
+		if appErr != nil {
+			response.ApplicationErrorDetails = appErr.Error()
+		}
+	}
+	return response, err
+
+}
+
+type updateschedule_NoWireHandler struct{ impl Interface }
+
+func (h updateschedule_NoWireHandler) HandleNoWire(ctx context.Context, nwc *thrift.NoWireCall) (thrift.NoWireResponse, error) {
+	var (
+		args cadence.WorkflowService_UpdateSchedule_Args
+		rw   stream.ResponseWriter
+		err  error
+	)
+
+	rw, err = nwc.RequestReader.ReadRequest(ctx, nwc.EnvelopeType, nwc.Reader, &args)
+	if err != nil {
+		return thrift.NoWireResponse{}, yarpcerrors.InvalidArgumentErrorf(
+			"could not decode (via no wire) Thrift request for service 'WorkflowService' procedure 'UpdateSchedule': %w", err)
+	}
+
+	success, appErr := h.impl.UpdateSchedule(ctx, args.Request)
+
+	hadError := appErr != nil
+	result, err := cadence.WorkflowService_UpdateSchedule_Helper.WrapResponse(success, appErr)
 	response := thrift.NoWireResponse{ResponseWriter: rw}
 	if err == nil {
 		response.IsApplicationError = hadError

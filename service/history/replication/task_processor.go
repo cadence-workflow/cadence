@@ -63,6 +63,8 @@ const (
 var (
 	// ErrUnknownReplicationTask is the error to indicate unknown replication task type
 	ErrUnknownReplicationTask = &types.BadRequestError{Message: "unknown replication task"}
+	// ErrEmptyFailoverMarkerAttributes is the error returned when a failover marker replication task has nil attributes
+	ErrEmptyFailoverMarkerAttributes = &types.BadRequestError{Message: "empty failover marker attributes"}
 )
 
 type (
@@ -229,7 +231,7 @@ Loop:
 				tag.Counter(len(response.GetReplicationTasks())),
 			)
 
-			p.taskProcessingStartWait()
+			p.taskProcessingStartWait(response.GetReplicationTasks())
 			p.processResponse(response)
 		case <-p.done:
 			return
@@ -323,9 +325,25 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 	batchRequestStartTime := time.Now()
 	ctx := context.Background()
 	for _, replicationTask := range response.ReplicationTasks {
-		// TODO: move to MultiStageRateLimiter
-		_ = p.hostRateLimiter.Wait(ctx)
-		_ = p.shardRateLimiter.Wait(ctx)
+		isFailoverMarker := replicationTask.GetTaskType() == types.ReplicationTaskTypeFailoverMarker
+		if isFailoverMarker {
+			if attr := replicationTask.GetFailoverMarkerAttributes(); attr != nil {
+				p.logger.Info("Failover marker arrived at standby replication processor",
+					tag.ShardID(p.shard.GetShardID()),
+					tag.WorkflowDomainID(attr.GetDomainID()),
+					tag.FailoverVersion(attr.GetFailoverVersion()),
+					tag.Dynamic("arrival-lag", time.Since(time.Unix(0, replicationTask.GetCreationTime()))),
+				)
+			}
+		} else {
+			// failover markers bypass rate limiting: bounded volume (one per shard
+			// per failover), shard-level (no workflow lock), and cheap to execute.
+			// throttling them behind history replication needlessly delays the
+			// completion of graceful failover.
+			// TODO: move to MultiStageRateLimiter
+			_ = p.hostRateLimiter.Wait(ctx)
+			_ = p.shardRateLimiter.Wait(ctx)
+		}
 		err := p.processSingleTask(replicationTask)
 		if err != nil {
 			// Encounter error and skip updating ack levels
@@ -587,6 +605,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				TaskType:    persistence.ReplicationTaskTypeSyncActivity,
 				ScheduledID: taskAttributes.GetScheduledID(),
 			},
+			Task:       replicationTask,
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
@@ -620,6 +639,7 @@ func (p *taskProcessorImpl) generateDLQRequest(
 				NextEventID:  events[len(events)-1].ID + 1,
 				Version:      events[0].Version,
 			},
+			Task:       replicationTask,
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
@@ -742,10 +762,21 @@ func (p *taskProcessorImpl) updateFailureMetric(scope metrics.ScopeIdx, err erro
 	}
 }
 
-func (p *taskProcessorImpl) taskProcessingStartWait() {
+func (p *taskProcessorImpl) taskProcessingStartWait(tasks []*types.ReplicationTask) {
 	shardID := p.shard.GetShardID()
+	wait := p.config.ReplicationTaskProcessorStartWait(shardID)
+	if wait <= 0 {
+		return
+	}
+	// failover markers gate graceful-failover completion — skip the per-batch
+	// wait when one is in flight to minimize tail latency.
+	for _, task := range tasks {
+		if task.GetTaskType() == types.ReplicationTaskTypeFailoverMarker {
+			return
+		}
+	}
 	time.Sleep(backoff.JitDuration(
-		p.config.ReplicationTaskProcessorStartWait(shardID),
+		wait,
 		p.config.ReplicationTaskProcessorStartWaitJitterCoefficient(shardID),
 	))
 }

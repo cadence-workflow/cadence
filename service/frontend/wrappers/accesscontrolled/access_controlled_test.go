@@ -26,17 +26,72 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	p8s "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+	tallyp8s "github.com/uber-go/tally/prometheus"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/authorization"
+	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/mocks"
+	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/admin"
+	"github.com/uber/cadence/service/frontend/api"
 )
+
+func TestAuthorizationMetricsLabelConsistency(t *testing.T) {
+	var registrationErrors []error
+	promCfg := &tallyp8s.Configuration{
+		OnError:   "none",
+		TimerType: "histogram",
+	}
+	reporter, err := promCfg.NewReporter(tallyp8s.ConfigurationOptions{
+		Registry: p8s.NewRegistry(),
+		OnError: func(err error) {
+			registrationErrors = append(registrationErrors, err)
+		},
+	})
+	require.NoError(t, err)
+
+	rootScope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Tags: map[string]string{
+			metrics.CadenceServiceTagName: "frontend",
+		},
+		CachedReporter: reporter,
+		Separator:      tallyp8s.DefaultSeparator,
+	}, time.Second)
+	defer closer.Close()
+
+	frontendMetrics := metrics.NewClient(rootScope, metrics.Frontend, metrics.MigrationConfig{})
+
+	ctrl := gomock.NewController(t)
+	mockResource := resource.NewMockResource(ctrl)
+	mockResource.EXPECT().GetMetricsClient().Return(frontendMetrics).AnyTimes()
+
+	mockAuthorizer := authorization.NewMockAuthorizer(ctrl)
+	mockAuthorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil).Times(2)
+
+	mockHandler := api.NewMockHandler(ctrl)
+	mockHandler.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
+
+	handler := NewAPIHandler(mockHandler, mockResource, mockAuthorizer, config.Authorization{})
+
+	ctx := context.Background()
+	_, err = handler.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{Domain: "my-domain"})
+	require.NoError(t, err)
+	err = handler.RegisterDomain(ctx, &types.RegisterDomainRequest{Name: "my-name"})
+	require.NoError(t, err)
+
+	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
+}
 
 func TestIsAuthorized(t *testing.T) {
 	testCases := []struct {
@@ -50,7 +105,7 @@ func TestIsAuthorized(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionAllow}, nil)
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
-				scope.On("RecordHistogramDuration", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
+				scope.On("ExponentialHistogram", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
 			},
 			isAuthorized: true,
 			wantErr:      false,
@@ -60,7 +115,7 @@ func TestIsAuthorized(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{Decision: authorization.DecisionDeny}, nil)
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
-				scope.On("RecordHistogramDuration", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
+				scope.On("ExponentialHistogram", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
 				scope.On("IncCounter", metrics.CadenceErrUnauthorizedCounter).Return().Once()
 			},
 			isAuthorized: false,
@@ -71,7 +126,7 @@ func TestIsAuthorized(t *testing.T) {
 			mockSetup: func(authorizer *authorization.MockAuthorizer, scope *mocks.Scope) {
 				authorizer.EXPECT().Authorize(gomock.Any(), gomock.Any()).Return(authorization.Result{}, errors.New("some random error"))
 				scope.On("StartTimer", metrics.CadenceAuthorizationLatency).Return(metrics.NewTestStopwatch()).Once()
-				scope.On("RecordHistogramDuration", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
+				scope.On("ExponentialHistogram", metrics.CadenceAuthorizationLatencyHistogram, mock.AnythingOfType("time.Duration")).Return().Once()
 				scope.On("IncCounter", metrics.CadenceErrAuthorizeFailedCounter).Return().Once()
 			},
 			isAuthorized: false,

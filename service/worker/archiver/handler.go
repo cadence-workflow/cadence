@@ -134,7 +134,8 @@ func (h *handler) handleRequest(ctx workflow.Context, request *ArchiveRequest) {
 }
 
 func (h *handler) handleHistoryRequest(ctx workflow.Context, request *ArchiveRequest) {
-	sw := h.metricsClient.StartTimer(metrics.ArchiverScope, metrics.ArchiverHandleHistoryRequestLatency)
+	scope := h.metricsClient.Scope(metrics.ArchiverScope)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.ArchiverHandleHistoryRequestLatency, metrics.ArchiverHandleHistoryRequestLatencyHistogram)
 	logger := tagLoggerWithHistoryRequest(h.logger, request)
 	ao := workflow.ActivityOptions{
 		ScheduleToStartTimeout: 1 * time.Minute,
@@ -147,7 +148,7 @@ func (h *handler) handleHistoryRequest(ctx workflow.Context, request *ArchiveReq
 		},
 	}
 	actCtx := workflow.WithActivityOptions(ctx, ao)
-	uploadSW := h.metricsClient.StartTimer(metrics.ArchiverScope, metrics.ArchiverUploadWithRetriesLatency)
+	uploadSW := scope.StartTimerWithExponentialHistogram(metrics.ArchiverUploadWithRetriesLatency, metrics.ArchiverUploadWithRetriesLatencyHistogram)
 	err := workflow.ExecuteActivity(actCtx, uploadHistoryActivityFnName, *request).Get(actCtx, nil)
 	if err != nil {
 		logger.Error("failed to archive history, will move on to deleting history without archiving", tag.Error(err))
@@ -166,7 +167,7 @@ func (h *handler) handleHistoryRequest(ctx workflow.Context, request *ArchiveReq
 			NonRetriableErrorReasons: deleteHistoryActivityNonRetryableErrors,
 		},
 	}
-	deleteSW := h.metricsClient.StartTimer(metrics.ArchiverScope, metrics.ArchiverDeleteWithRetriesLatency)
+	deleteSW := scope.StartTimerWithExponentialHistogram(metrics.ArchiverDeleteWithRetriesLatency, metrics.ArchiverDeleteWithRetriesLatencyHistogram)
 	localActCtx := workflow.WithLocalActivityOptions(ctx, lao)
 	err = workflow.ExecuteLocalActivity(localActCtx, deleteHistoryActivity, *request).Get(localActCtx, nil)
 	if err != nil {
@@ -180,7 +181,8 @@ func (h *handler) handleHistoryRequest(ctx workflow.Context, request *ArchiveReq
 }
 
 func (h *handler) handleVisibilityRequest(ctx workflow.Context, request *ArchiveRequest) {
-	sw := h.metricsClient.StartTimer(metrics.ArchiverScope, metrics.ArchiverHandleVisibilityRequestLatency)
+	scope := h.metricsClient.Scope(metrics.ArchiverScope)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.ArchiverHandleVisibilityRequestLatency, metrics.ArchiverHandleVisibilityRequestLatencyHistogram)
 	logger := tagLoggerWithVisibilityRequest(h.logger, request)
 	ao := workflow.ActivityOptions{
 		ScheduleToStartTimeout: 1 * time.Minute,

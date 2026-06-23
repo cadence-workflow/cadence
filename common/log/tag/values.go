@@ -106,6 +106,7 @@ var (
 	ComponentTransferQueueV2                  = component("transfer-queue-processor-v2")
 	ComponentTimerQueue                       = component("timer-queue-processor")
 	ComponentTimerQueueV2                     = component("timer-queue-processor-v2")
+	ComponentCachedQueueReader                = component("cached-queue-reader")
 	ComponentTimerBuilder                     = component("timer-builder")
 	ComponentReplicatorQueue                  = component("replicator-queue-processor")
 	ComponentShardController                  = component("shard-controller")
@@ -238,6 +239,7 @@ var (
 	StoreOperationRangeCompleteHistoryTask           = storeOperation("range-complete-history-task")
 	StoreOperationGetActiveClusterSelectionPolicy    = storeOperation("get-active-cluster-selection-policy")
 	StoreOperationDeleteActiveClusterSelectionPolicy = storeOperation("delete-active-cluster-selection-policy")
+	StoreOperationFetchWorkflowTimerTasksForCleanup  = storeOperation("fetch-workflow-timer-tasks-for-cleanup")
 
 	StoreOperationCreateTasks           = storeOperation("create-tasks")
 	StoreOperationGetTasks              = storeOperation("get-tasks")
@@ -333,6 +335,10 @@ var (
 	AdminClientOperationUpdateDynamicConfig                   = clientOperation("admin-update-dynamic-config")
 	AdminClientOperationRestoreDynamicConfig                  = clientOperation("admin-restore-dynamic-config")
 	AdminClientOperationListDynamicConfig                     = clientOperation("admin-list-dynamic-config")
+	AdminClientOperationGetOperationalDynamicConfig           = clientOperation("admin-get-operational-dynamic-config")
+	AdminClientOperationUpdateOperationalDynamicConfig        = clientOperation("admin-update-operational-dynamic-config")
+	AdminClientOperationRestoreOperationalDynamicConfig       = clientOperation("admin-restore-operational-dynamic-config")
+	AdminClientOperationListOperationalDynamicConfig          = clientOperation("admin-list-operational-dynamic-config")
 	AdminClientOperationMaintainCorruptWorkflow               = clientOperation("admin-maintain-corrupt-workflow")
 	AdminClientOperationUpdateGlobalIsolationGroups           = clientOperation("admin-update-global-isolation-groups")
 	AdminClientOperationGetGlobalIsolationGroups              = clientOperation("admin-get-global-isolation-groups")
@@ -463,10 +469,6 @@ var (
 	MatchingClientOperationRespondQueryTaskCompleted      = clientOperation("matching-respond-query-task-completed")
 	MatchingClientOperationUpdateTaskListPartitionConfig  = clientOperation("matching-update-task-list-partition-config")
 	MatchingClientOperationRefreshTaskListPartitionConfig = clientOperation("matching-refresh-task-list-partition-config")
-
-	ShardDistributorClientOperationGetShardOwner       = clientOperation("shard-distributor-get-shard-owner")
-	ShardDistributorClientOperationWatchNamespaceState = clientOperation("shard-distributor-watch-namespace-state")
-	ShardDistributorExecutorClientOperationHeartbeat   = clientOperation("shard-distributor-executor-heartbeat")
 )
 
 // Pre-defined values for TagIDType

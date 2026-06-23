@@ -185,9 +185,24 @@ func TestBatchWorkflowV2_TuneSignal(t *testing.T) {
 	// activity has confirmed it is running. This avoids relying on the test
 	// framework's 0ms timer mechanism (which uses a wall-clock AfterFunc path
 	// when runningCount > 0 and can occasionally miss the 3-second deadline).
+	//
+	// stopSig is closed by t.Cleanup (registered after firstActivityDone's cleanup,
+	// so it runs first in LIFO order): the goroutine exits via the stopSig arm,
+	// closes sigDone, then firstActivityDone is closed to unblock the activity mock.
+	stopSig := make(chan struct{})
+	sigDone := make(chan struct{})
+	t.Cleanup(func() {
+		close(stopSig) // unblock the goroutine if still waiting
+		<-sigDone      // wait for it to exit before firstActivityDone is closed
+	})
 	go func() {
-		<-firstActivityStarted
-		env.SignalWorkflow(SignalNameTune, TuneSignal{RPS: 20, Concurrency: 5})
+		defer close(sigDone)
+		select {
+		case <-firstActivityStarted:
+			env.SignalWorkflow(SignalNameTune, TuneSignal{RPS: 20, Concurrency: 5})
+		case <-stopSig:
+			// workflow ended before first activity started — nothing to signal
+		}
 	}()
 
 	params := createParams(BatchTypeCancel)
@@ -265,6 +280,8 @@ func TestBatchActivityV2_UsesProgress(t *testing.T) {
 	assert.Equal(t, 3, result.SuccessCount, "should add new success to progress")
 	assert.Equal(t, 2, result.CurrentPage, "should increment from progress page")
 	assert.Equal(t, int64(4), result.TotalEstimate, "should preserve TotalEstimate from progress")
+	assert.Equal(t, 5, result.RPS, "should surface the active RPS in heartbeat details")
+	assert.Equal(t, 5, result.Concurrency, "should surface the active Concurrency in heartbeat details")
 }
 
 func TestBatchActivityV2_EmptyPageDoesNotIncrementCurrentPage(t *testing.T) {

@@ -307,6 +307,33 @@ type ListDynamicConfigResponse struct {
 	Entries []*DynamicConfigEntry `json:"entries,omitempty"`
 }
 
+type GetOperationalDynamicConfigRequest struct {
+	ConfigName string                 `json:"configName,omitempty"`
+	Filters    []*DynamicConfigFilter `json:"filters,omitempty"`
+}
+
+type GetOperationalDynamicConfigResponse struct {
+	Value *DataBlob `json:"value,omitempty"`
+}
+
+type UpdateOperationalDynamicConfigRequest struct {
+	ConfigName   string                `json:"configName,omitempty"`
+	ConfigValues []*DynamicConfigValue `json:"configValues,omitempty"`
+}
+
+type RestoreOperationalDynamicConfigRequest struct {
+	ConfigName string                 `json:"configName,omitempty"`
+	Filters    []*DynamicConfigFilter `json:"filters,omitempty"`
+}
+
+type ListOperationalDynamicConfigRequest struct {
+	ConfigName string `json:"configName,omitempty"`
+}
+
+type ListOperationalDynamicConfigResponse struct {
+	Entries []*DynamicConfigEntry `json:"entries,omitempty"`
+}
+
 type IsolationGroupState int
 
 const (

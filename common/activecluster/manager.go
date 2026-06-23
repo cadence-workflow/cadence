@@ -82,7 +82,7 @@ func NewManager(
 			MaxCount:      workflowPolicyCacheMaxCount,
 			ActivelyEvict: true,
 			Pin:           false,
-			MetricsScope:  metricsCl.Scope(metrics.ActiveClusterManagerWorkflowCacheScope),
+			MetricsScope:  metricsCl.Scope(metrics.ActiveClusterManagerWorkflowCacheScope).Tagged(metrics.NonShardTag()),
 			Logger:        logger,
 		}),
 	}
@@ -100,6 +100,7 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 	}
 	if rID == "" {
 		execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+			ShardID:    common.Ptr(shardID),
 			DomainID:   domainID,
 			WorkflowID: wfID,
 		})
@@ -122,6 +123,7 @@ func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, w
 	}
 
 	plcy, err := executionManager.GetActiveClusterSelectionPolicy(ctx, &persistence.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.Ptr(shardID),
 		DomainID:   domainID,
 		WorkflowID: wfID,
 		RunID:      rID,
@@ -302,6 +304,7 @@ func (m *managerImpl) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx cont
 		return nil, false, err
 	}
 	execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
+		ShardID:    common.Ptr(shardID),
 		DomainID:   domainID,
 		WorkflowID: wfID,
 	})

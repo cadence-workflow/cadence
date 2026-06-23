@@ -123,13 +123,6 @@ var (
 		MyIdentity:      HostName2,
 		TasklistName:    TaskListName,
 	}
-	NamespaceNotFoundError = types.NamespaceNotFoundError{
-		Namespace: Namespace,
-	}
-	ShardNotFoundError = types.ShardNotFoundError{
-		Namespace: Namespace,
-		ShardKey:  ShardKey,
-	}
 )
 
 var Errors = []error{
@@ -156,6 +149,4 @@ var Errors = []error{
 	&StickyWorkerUnavailableError,
 	&ReadOnlyPartitionError,
 	&TaskListNotOwnedByHostError,
-	&NamespaceNotFoundError,
-	&ShardNotFoundError,
 }

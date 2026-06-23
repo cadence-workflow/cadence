@@ -91,4 +91,14 @@ type (
 		*require.Assertions
 		*IntegrationBase
 	}
+
+	WorkflowTimerTaskCleanupSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
+
+	WorkflowTimerTaskCleanupDisabledSuite struct {
+		*require.Assertions
+		*IntegrationBase
+	}
 )

@@ -986,6 +986,45 @@ func updateTimerInfos(
 	return nil
 }
 
+// workflowTimerTaskTuple is the Cassandra tuple<timestamp, bigint> representation
+// for entries in the workflow_timer_tasks set column.
+type workflowTimerTaskTuple struct {
+	VisibilityTimestamp time.Time
+	TaskID              int64
+}
+
+// appendWorkflowTimerTasks adds timer task entries to the workflow_timer_tasks set using
+// native Cassandra set addition — no read required. Each element is a (visibilityTs, taskID) tuple.
+// timerTasks is a slice rather than a set; Cassandra's set semantics dedupe identical
+// elements on insert, so any duplicates in the input are harmless.
+func appendWorkflowTimerTasks(
+	batch gocql.Batch,
+	shardID int,
+	domainID string,
+	workflowID string,
+	runID string,
+	timerTasks []persistence.HistoryTaskKey,
+	timeStamp time.Time,
+) {
+	if len(timerTasks) == 0 {
+		return
+	}
+	tuples := make([]workflowTimerTaskTuple, 0, len(timerTasks))
+	for _, key := range timerTasks {
+		tuples = append(tuples, workflowTimerTaskTuple{VisibilityTimestamp: key.GetScheduledTime(), TaskID: key.GetTaskID()})
+	}
+	batch.Query(templateAppendWorkflowTimerTaskQuery,
+		tuples,
+		timeStamp,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID)
+}
+
 func resetActivityInfos(
 	batch gocql.Batch,
 	shardID int,
@@ -1171,6 +1210,7 @@ func createWorkflowExecutionWithMergeMaps(
 	if err != nil {
 		return err
 	}
+	appendWorkflowTimerTasks(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTasks, timeStamp)
 	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, nil, timeStamp)
 	if err != nil {
 		return err
@@ -1221,6 +1261,7 @@ func resetWorkflowExecutionAndMapsAndEventBuffer(
 	if err != nil {
 		return err
 	}
+	appendWorkflowTimerTasks(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTasks, timeStamp)
 	err = resetChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, timeStamp)
 	if err != nil {
 		return err
@@ -1322,6 +1363,7 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	if err != nil {
 		return err
 	}
+	appendWorkflowTimerTasks(batch, shardID, domainID, workflowID, execution.RunID, execution.WorkflowTimerTasks, timeStamp)
 	err = updateChildExecutionInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ChildWorkflowInfos, execution.ChildWorkflowInfoKeysToDelete, timeStamp)
 	if err != nil {
 		return err

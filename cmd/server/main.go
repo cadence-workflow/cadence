@@ -34,7 +34,6 @@ import (
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"                      // needed to load mysql plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"                   // needed to load postgres plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"                     // needed to load sqlite plugin
-	_ "github.com/uber/cadence/service/sharddistributor/store/etcd"                         // needed for shard distributor shard/heartbeat and leader election
 )
 
 // main entry point for the cadence server

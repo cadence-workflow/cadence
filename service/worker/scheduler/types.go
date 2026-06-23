@@ -23,6 +23,7 @@ package scheduler
 import (
 	"time"
 
+	"github.com/uber/cadence/common/definition"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -43,7 +44,11 @@ const (
 	SchedulerMissedFiredCountPerDomain    = "scheduler_missed_fired_count_per_domain"
 	SchedulerMissedSkippedCountPerDomain  = "scheduler_missed_skipped_count_per_domain"
 	SchedulerBackfillFiredCountPerDomain  = "scheduler_backfill_fired_count_per_domain"
-	SchedulerContinueAsNewCountPerDomain  = "scheduler_continue_as_new_count_per_domain"
+	// SchedulerBackfillRejectedCountPerDomain counts backfill signals dropped by
+	// the workflow after the RPC has already returned success. Tagged with the
+	// rejection reason (invalid_range, queue_full).
+	SchedulerBackfillRejectedCountPerDomain = "scheduler_backfill_rejected_count_per_domain"
+	SchedulerContinueAsNewCountPerDomain    = "scheduler_continue_as_new_count_per_domain"
 	// SchedulerBufferOverflowCountPerDomain measures fires dropped because the
 	// BUFFER overlap policy queue is full. Tagged with the drop reason so
 	// operators can distinguish drops driven by the user's buffer_limit
@@ -69,6 +74,15 @@ const (
 	BufferOverflowReasonUserLimit   = "user_limit"
 	BufferOverflowReasonSystemLimit = "system_limit"
 
+	// Reason tag values for scheduler_backfill_rejected_count_per_domain.
+	BackfillRejectedReasonInvalidRange = "invalid_range"
+	BackfillRejectedReasonQueueFull    = "queue_full"
+	// BackfillRejectedReasonDuplicateID is emitted when a backfill signal
+	// arrives with a non-empty BackfillID that matches an already-pending
+	// backfill. The signal is absorbed for idempotent-retry safety rather
+	// than enqueued a second time.
+	BackfillRejectedReasonDuplicateID = "duplicate_id"
+
 	// MaxBufferedFiresSystemLimit caps the BUFFER overlap policy queue regardless
 	// of buffer_limit (including buffer_limit=0 meaning unlimited). It bounds the
 	// ContinueAsNew payload size: each BufferedFire is ~50 bytes JSON, so 1000
@@ -91,9 +105,12 @@ const (
 	signalTypeTagDelete   = "delete"
 
 	// Search attribute keys set on target workflows started by the scheduler.
-	SearchAttrScheduleID   = "CadenceScheduleID"
-	SearchAttrScheduleTime = "CadenceScheduleTime"
-	SearchAttrIsBackfill   = "CadenceScheduleIsBackfill"
+	// The string values are defined in common/definition to make them part of
+	// the default indexed keys for all visibility backends.
+	SearchAttrScheduleID   = definition.CadenceScheduleID
+	SearchAttrScheduleTime = definition.CadenceScheduleTime
+	SearchAttrIsBackfill   = definition.CadenceScheduleIsBackfill
+	SearchAttrBackfillID   = definition.CadenceScheduleBackfillID
 
 	// Search attribute keys set on the scheduler workflow itself for ListSchedules.
 	// CadenceScheduleState is a Keyword SA holding the current lifecycle state
@@ -101,39 +118,67 @@ const (
 	// be extended to additional states (e.g. "expired") without introducing new
 	// search attributes. "Deleted" is not a value because a deleted schedule's
 	// workflow is closed and filtered by workflow status instead.
-	SearchAttrScheduleState = "CadenceScheduleState"
+	SearchAttrScheduleState = definition.CadenceScheduleState
 	// CadenceScheduleCron holds the current cron expression so ListSchedules
 	// can display it without querying each scheduler workflow. Refreshed on
 	// workflow start (including after ContinueAsNew triggered by UpdateSchedule).
-	SearchAttrScheduleCron = "CadenceScheduleCron"
+	SearchAttrScheduleCron = definition.CadenceScheduleCron
 	// CadenceScheduleWorkflowType holds the target workflow type name that the
 	// schedule starts on each fire. Same refresh semantics as the cron SA.
-	SearchAttrScheduleWorkflowType = "CadenceScheduleWorkflowType"
+	SearchAttrScheduleWorkflowType = definition.CadenceScheduleWorkflowType
 
 	ScheduleStateActive = "active"
 	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
-	maxCatchUpFiresPerExecution      = 10
-	maxBackfillFiresPerExecution     = 10
-	maxDrainFiresPerExecution        = 10
-	maxPendingBackfills              = 10
+	// maxActivitiesPerExecution is the per-execution ceiling for local-activity
+	// dispatches. processMissedRuns, processBackfills, and drainBufferedFires
+	// all decrement the same counter, so the total fires per execution is
+	// bounded by this value before ContinueAsNew.
+	maxActivitiesPerExecution = 500
+	maxPendingBackfills       = 10
+
+	// maxBackfillRunsTotalCount caps the cron walk that populates
+	// BackfillRequest.RunsTotal. When a backfill range produces more fires
+	// than this, RunsTotal is set to the cap as a lower bound.
+	maxBackfillRunsTotalCount = 100000
+
+	// defaultCatchUpWindow is applied to CatchUpWindow when the field is unset
+	// (zero) and the catch-up policy consults the window (ONE or ALL).
+	// One year is large enough to cover most outage scenarios while still
+	// bounding catch-up so a long-dormant schedule doesn't fire thousands of
+	// times on restart.
+	defaultCatchUpWindow = 365 * 24 * time.Hour
 
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
 	localActivityRetryInitialInterval   = time.Second
 	localActivityRetryMaxInterval       = 10 * time.Second
+
+	// watcherActivityScheduleToCloseTimeout bounds the watcher activity lifetime.
+	// 24h covers workflows that run for many hours; transient describe errors are
+	// retried within the activity rather than surfaced to the workflow.
+	watcherActivityScheduleToCloseTimeout = 24 * time.Hour
+	// watcherActivityHeartbeatTimeout must exceed watcherPollInterval by enough
+	// margin that a single slow poll does not look like a dead worker.
+	watcherActivityHeartbeatTimeout = 65 * time.Second
 )
+
+// watcherPollInterval controls how often the watcher activity calls
+// DescribeWorkflowExecution. 5s balances drain latency against RPC load.
+var watcherPollInterval = 5 * time.Second
 
 // SchedulerWorkflowInput is the input to the scheduler workflow.
 // It carries the schedule definition and any prior state (for ContinueAsNew).
 type SchedulerWorkflowInput struct {
-	Domain     string                 `json:"domain"`
-	ScheduleID string                 `json:"scheduleId"`
-	Spec       types.ScheduleSpec     `json:"spec"`
-	Action     types.ScheduleAction   `json:"action"`
-	Policies   types.SchedulePolicies `json:"policies"`
-	State      SchedulerWorkflowState `json:"state"`
+	Domain           string                  `json:"domain"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	Memo             *types.Memo             `json:"memo,omitempty"`
+	State            SchedulerWorkflowState  `json:"state"`
 }
 
 // SchedulerWorkflowState is the mutable runtime state that survives ContinueAsNew.
@@ -163,6 +208,19 @@ type SchedulerWorkflowState struct {
 	// RunningWorkflows holds in-flight target workflows under bounded CONCURRENT
 	// (ConcurrencyLimit > 0); completed entries are pruned by the activity on each fire.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
+	// UnpauseCatchUpPolicy is a one-shot override set by UnpauseSignal.CatchUpPolicy.
+	// processMissedRunsAt prefers this over input.Policies.CatchUpPolicy for the first
+	// catch-up pass after an unpause, then clears it. Invalid (zero) means no override.
+	UnpauseCatchUpPolicy types.ScheduleCatchUpPolicy `json:"unpauseCatchUpPolicy,omitempty"`
+	// CreateTime is the wall-clock time when the schedule was first created.
+	// Set once on the first workflow execution and preserved across ContinueAsNew.
+	CreateTime time.Time `json:"createTime,omitempty"`
+	// LastUpdateTime is the wall-clock time of the most recent UpdateSchedule that
+	// changed at least one field. Also set to CreateTime at schedule creation.
+	LastUpdateTime time.Time `json:"lastUpdateTime,omitempty"`
+	// PausedAt is the wall-clock time when the schedule was most recently paused.
+	// Zero when the schedule is not paused (or was never paused).
+	PausedAt time.Time `json:"pausedAt,omitempty"`
 }
 
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER
@@ -175,6 +233,8 @@ type BufferedFire struct {
 	ScheduledTime time.Time                   `json:"scheduledTime"`
 	TriggerSource TriggerSource               `json:"triggerSource"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy,omitempty"`
+	// BackfillID is set when TriggerSource is backfill so BUFFER drains stamp the same SA.
+	BackfillID string `json:"backfillId,omitempty"`
 }
 
 // RunningWorkflowInfo identifies a target workflow started by the scheduler,
@@ -190,6 +250,22 @@ type BackfillRequest struct {
 	EndTime       time.Time                   `json:"endTime"`
 	OverlapPolicy types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	BackfillID    string                      `json:"backfillId,omitempty"`
+	// RunsTotal is the number of cron fires within (StartTime, EndTime] at the
+	// time the backfill was first processed. Populated lazily by processBackfills
+	// using the workflow's currently parsed cron. When the range exceeds
+	// maxBackfillRunsTotalCount, RunsTotal is set to that cap as a lower bound;
+	// consumers may observe RunsCompleted approach or exceed RunsTotal before
+	// the backfill finishes draining.
+	RunsTotal int32 `json:"runsTotal,omitempty"`
+	// RunsCompleted is the number of fires from this backfill that
+	// processBackfills has handed off to processScheduleFire — counted whether
+	// the fire started, was skipped under the overlap policy, or was deferred
+	// into the BUFFER queue.
+	RunsCompleted int32 `json:"runsCompleted,omitempty"`
+	// RunsTotalComputed records whether RunsTotal has been populated, so
+	// processBackfills does not re-walk the cron on every batch and an empty
+	// range (RunsTotal == 0) is not confused with "not yet computed".
+	RunsTotalComputed bool `json:"runsTotalComputed,omitempty"`
 }
 
 // PauseSignal is the payload sent with a pause signal.
@@ -206,9 +282,10 @@ type UnpauseSignal struct {
 
 // UpdateSignal is the payload sent with an update signal.
 type UpdateSignal struct {
-	Spec     *types.ScheduleSpec     `json:"spec,omitempty"`
-	Action   *types.ScheduleAction   `json:"action,omitempty"`
-	Policies *types.SchedulePolicies `json:"policies,omitempty"`
+	Spec             *types.ScheduleSpec     `json:"spec,omitempty"`
+	Action           *types.ScheduleAction   `json:"action,omitempty"`
+	Policies         *types.SchedulePolicies `json:"policies,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 // BackfillSignal is the payload sent with a backfill signal.
@@ -222,19 +299,27 @@ type BackfillSignal struct {
 // ScheduleDescription is the query result returned by the describe query handler.
 // It provides a snapshot of the schedule's current configuration and runtime state.
 type ScheduleDescription struct {
-	ScheduleID  string                 `json:"scheduleId"`
-	Domain      string                 `json:"domain"`
-	Spec        types.ScheduleSpec     `json:"spec"`
-	Action      types.ScheduleAction   `json:"action"`
-	Policies    types.SchedulePolicies `json:"policies"`
-	Paused      bool                   `json:"paused"`
-	PauseReason string                 `json:"pauseReason,omitempty"`
-	PausedBy    string                 `json:"pausedBy,omitempty"`
-	LastRunTime time.Time              `json:"lastRunTime,omitempty"`
-	NextRunTime time.Time              `json:"nextRunTime,omitempty"`
-	TotalRuns   int64                  `json:"totalRuns"`
-	MissedRuns  int64                  `json:"missedRuns"`
-	SkippedRuns int64                  `json:"skippedRuns"`
+	ScheduleID       string                  `json:"scheduleId"`
+	Domain           string                  `json:"domain"`
+	Spec             types.ScheduleSpec      `json:"spec"`
+	Action           types.ScheduleAction    `json:"action"`
+	Policies         types.SchedulePolicies  `json:"policies"`
+	Paused           bool                    `json:"paused"`
+	PauseReason      string                  `json:"pauseReason,omitempty"`
+	PausedBy         string                  `json:"pausedBy,omitempty"`
+	PausedAt         time.Time               `json:"pausedAt,omitempty"`
+	LastRunTime      time.Time               `json:"lastRunTime,omitempty"`
+	NextRunTime      time.Time               `json:"nextRunTime,omitempty"`
+	TotalRuns        int64                   `json:"totalRuns"`
+	MissedRuns       int64                   `json:"missedRuns"`
+	SkippedRuns      int64                   `json:"skippedRuns"`
+	CreateTime       time.Time               `json:"createTime,omitempty"`
+	LastUpdateTime   time.Time               `json:"lastUpdateTime,omitempty"`
+	Memo             *types.Memo             `json:"memo,omitempty"`
+	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
+	// OngoingBackfills mirrors SchedulerWorkflowState.PendingBackfills at the
+	// time of the describe query.
+	OngoingBackfills []types.BackfillInfo `json:"ongoingBackfills,omitempty"`
 }
 
 // TriggerSource identifies what caused a schedule fire, used to differentiate
@@ -274,11 +359,15 @@ type ProcessFireRequest struct {
 	TriggerSource       TriggerSource               `json:"triggerSource"`
 	OverlapPolicy       types.ScheduleOverlapPolicy `json:"overlapPolicy"`
 	LastStartedWorkflow *RunningWorkflowInfo        `json:"lastStartedWorkflow,omitempty"`
-	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit; 0 = unlimited.
+	// ConcurrencyLimit mirrors SchedulePolicies.ConcurrencyLimit:
+	//   0 = unlimited (use server default)
+	//   N = capped at N concurrent runs
 	ConcurrencyLimit int32 `json:"concurrencyLimit,omitempty"`
 	// RunningWorkflows is the current in-flight set from workflow state; used
 	// only when OverlapPolicy==CONCURRENT and ConcurrencyLimit > 0.
 	RunningWorkflows []RunningWorkflowInfo `json:"runningWorkflows,omitempty"`
+	// BackfillID is non-empty only for fires driven by a schedule backfill (matches RPC BackfillID).
+	BackfillID string `json:"backfillId,omitempty"`
 }
 
 // ProcessFireResult is the output of processScheduleFireActivity. The workflow

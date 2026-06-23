@@ -190,6 +190,133 @@ func (s *cliAppSuite) TestDomainRegister() {
 			"failed to parse",
 			nil,
 		},
+		{
+			"when domain_data_entry value contains commas, it should preserve them verbatim",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k=v1,v2,v3'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k": "v1,v2,v3",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry value contains equals signs, it should preserve them via SplitN",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k=YWJj=='",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k": "YWJj==",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when both domain_data and domain_data_entry are set, it should merge them into one map",
+			"cadence --do test-domain domain register --global_domain true --domain_data 'k1=v1' --domain_data_entry 'k2=v2,extra'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k1": "v1",
+						"k2": "v2,extra",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry key duplicates a domain_data key, it should return an error",
+			"cadence --do test-domain domain register --global_domain true --domain_data 'k1=v1' --domain_data_entry 'k1=v2'",
+			"Invalid domain data",
+			nil,
+		},
+		{
+			"when domain_data_entry value has no equals sign, it should return a format error",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'noequals'",
+			"Invalid domain data",
+			nil,
+		},
+		{
+			"when domain_data_entry value is a JSON array, it should store it verbatim in RegisterDomain",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k=[{\"scope\":\"cluster\",\"name\":\"c0\",\"preferredCluster\":\"c0\"}]'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k": "[{\"scope\":\"cluster\",\"name\":\"c0\",\"preferredCluster\":\"c0\"}]",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data and domain_data_entry are combined on register, it should merge both into Data",
+			"cadence --do test-domain domain register --global_domain true --domain_data 'k1=v1' --domain_data_entry 'k2=[{\"scope\":\"cluster\",\"name\":\"c0\",\"preferredCluster\":\"c0\"}]'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k1": "v1",
+						"k2": "[{\"scope\":\"cluster\",\"name\":\"c0\",\"preferredCluster\":\"c0\"}]",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated, all values should be captured",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=v1,v2' --domain_data_entry 'k2=v3'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k1": "v1,v2",
+						"k2": "v3",
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated with JSON values it should capture all values",
+			`cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=[1,2,3]' --domain_data_entry 'k2={"a":"b"}'`,
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().RegisterDomain(gomock.Any(), &types.RegisterDomainRequest{
+					Name:                                   "test-domain",
+					WorkflowExecutionRetentionPeriodInDays: 3,
+					IsGlobalDomain:                         true,
+					Data: map[string]string{
+						"k1": "[1,2,3]",
+						"k2": `{"a":"b"}`,
+					},
+				}).Return(nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated with a duplicate key, it should return an error",
+			"cadence --do test-domain domain register --global_domain true --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
+			"Invalid domain data",
+			nil,
+		},
 	}
 
 	for _, tt := range testCases {
@@ -315,6 +442,32 @@ func (s *cliAppSuite) TestDomainUpdate() {
 			},
 		},
 		{
+			"active-active domain failover via JSON",
+			`cadence --do test-domain domain update --active_clusters_json '{"attributeScopes":{"region":{"clusterAttributes":{"region1":{"activeClusterName":"c1"},"region2":{"activeClusterName":"c2"}}}}}'`,
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
+					Name: "test-domain",
+					ActiveClusters: &types.ActiveClusters{
+						AttributeScopes: map[string]types.ClusterAttributeScope{
+							"region": {
+								ClusterAttributes: map[string]types.ActiveClusterInfo{
+									"region1": {ActiveClusterName: "c1"},
+									"region2": {ActiveClusterName: "c2"},
+								},
+							},
+						},
+					},
+				}).Return(&types.UpdateDomainResponse{}, nil)
+			},
+		},
+		{
+			"active-active domain failover with both --active_clusters and --active_clusters_json errors",
+			`cadence --do test-domain domain update --active_clusters region.region1:c1 --active_clusters_json '{"attributeScopes":{}}'`,
+			"Cannot use both",
+			func() {},
+		},
+		{
 			"domain not exist",
 			"cadence --do test-domain domain update --desc new-description",
 			"does not exist",
@@ -354,6 +507,75 @@ func (s *cliAppSuite) TestDomainUpdate() {
 					ActiveClusterName:                      nil,
 					Clusters:                               nil,
 				}).Return(nil, fmt.Errorf("update error"))
+			},
+		},
+		{
+			"when domain_data_entry value is a JSON array, it should store it verbatim in UpdateDomain",
+			`cadence --do test-domain domain update --domain_data_entry 'ClusterAttributePreferences=[{"scope":"cluster","name":"c0","preferredCluster":"c0"},{"scope":"cluster","name":"c1","preferredCluster":"c1"}]'`,
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
+					Name: common.StringPtr("test-domain"),
+				}).Return(describeResponse, nil)
+				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
+					Name:        "test-domain",
+					Description: common.StringPtr("a test domain"),
+					OwnerEmail:  common.StringPtr("test@cadence.io"),
+					Data: map[string]string{
+						"ClusterAttributePreferences": `[{"scope":"cluster","name":"c0","preferredCluster":"c0"},{"scope":"cluster","name":"c1","preferredCluster":"c1"}]`,
+					},
+					WorkflowExecutionRetentionPeriodInDays: common.Int32Ptr(3),
+					EmitMetric:                             common.BoolPtr(false),
+					HistoryArchivalURI:                     common.StringPtr(""),
+					VisibilityArchivalURI:                  common.StringPtr(""),
+					ActiveClusterName:                      nil,
+					Clusters:                               nil,
+				}).Return(&types.UpdateDomainResponse{}, nil)
+			},
+		},
+		{
+			"when domain_data_entry key duplicates a domain_data key on update, it should return an error",
+			"cadence --do test-domain domain update --domain_data 'k1=v1' --domain_data_entry 'k1=v2'",
+			"Invalid domain data",
+			func() {
+				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
+					Name: common.StringPtr("test-domain"),
+				}).Return(describeResponse, nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated on update, all values should be captured",
+			"cadence --do test-domain domain update --domain_data_entry 'k1=v1,v2' --domain_data_entry 'k2=v3'",
+			"",
+			func() {
+				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
+					Name: common.StringPtr("test-domain"),
+				}).Return(describeResponse, nil)
+				s.serverFrontendClient.EXPECT().UpdateDomain(gomock.Any(), &types.UpdateDomainRequest{
+					Name:        "test-domain",
+					Description: common.StringPtr("a test domain"),
+					OwnerEmail:  common.StringPtr("test@cadence.io"),
+					Data: map[string]string{
+						"k1": "v1,v2",
+						"k2": "v3",
+					},
+					WorkflowExecutionRetentionPeriodInDays: common.Int32Ptr(3),
+					EmitMetric:                             common.BoolPtr(false),
+					HistoryArchivalURI:                     common.StringPtr(""),
+					VisibilityArchivalURI:                  common.StringPtr(""),
+					ActiveClusterName:                      nil,
+					Clusters:                               nil,
+				}).Return(&types.UpdateDomainResponse{}, nil)
+			},
+		},
+		{
+			"when domain_data_entry is repeated on update with a duplicate key, it should return an error",
+			"cadence --do test-domain domain update --domain_data_entry 'k1=v1' --domain_data_entry 'k1=v2'",
+			"Invalid domain data",
+			func() {
+				s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{
+					Name: common.StringPtr("test-domain"),
+				}).Return(describeResponse, nil)
 			},
 		},
 	}

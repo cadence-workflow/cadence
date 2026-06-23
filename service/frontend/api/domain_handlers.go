@@ -27,6 +27,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/frontend/validate"
@@ -105,7 +106,13 @@ func (wh *WorkflowHandler) UpdateDomain(
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
+
+	isGraceFailover := updateRequest != nil && isGraceFailoverRequest(updateRequest)
+	emitInitiationFailure := wh.gracefulFailoverInitiationFailureEmitter(
+		metrics.FrontendUpdateDomainScope, updateRequest.GetName(), isGraceFailover)
+
 	if err := wh.requestValidator.ValidateUpdateDomainRequest(ctx, updateRequest); err != nil {
+		emitInitiationFailure("validation")
 		return nil, err
 	}
 
@@ -115,7 +122,6 @@ func (wh *WorkflowHandler) UpdateDomain(
 		tag.OperationName("DomainUpdate"))
 
 	isFailover := isFailoverRequest(updateRequest)
-	isGraceFailover := isGraceFailoverRequest(updateRequest)
 	logger.Info(fmt.Sprintf(
 		"Domain Update requested. isFailover: %v, isGraceFailover: %v, Request: %#v.",
 		isFailover,
@@ -127,8 +133,9 @@ func (wh *WorkflowHandler) UpdateDomain(
 			ctx,
 			&updateRequest.Name,
 		); err != nil {
-			logger.Error("Graceful domain failover request failed. Not able to check ongoing failovers.",
+			logger.Error("Rejecting graceful failover: ongoing failover check failed.",
 				tag.Error(err))
+			emitInitiationFailure("ongoing_failover_check")
 			return nil, err
 		}
 	}
@@ -138,8 +145,17 @@ func (wh *WorkflowHandler) UpdateDomain(
 	if err != nil {
 		logger.Error("Domain update operation failed.",
 			tag.Error(err))
+		emitInitiationFailure("handler")
 		return nil, err
 	}
+
+	if isGraceFailover {
+		wh.GetMetricsClient().Scope(
+			metrics.FrontendUpdateDomainScope,
+			metrics.DomainTag(domainName),
+		).IncCounter(metrics.GracefulFailoverInitiationSuccess)
+	}
+
 	logger.Info("Domain update operation succeeded.")
 	return resp, nil
 }
@@ -198,7 +214,13 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 	if wh.isShuttingDown() {
 		return nil, validate.ErrShuttingDown
 	}
+
+	isGraceful := failoverRequest != nil && failoverRequest.FailoverTimeoutInSeconds != nil
+	emitInitiationFailure := wh.gracefulFailoverInitiationFailureEmitter(
+		metrics.FrontendFailoverDomainScope, failoverRequest.GetDomainName(), isGraceful)
+
 	if err := wh.requestValidator.ValidateFailoverDomainRequest(ctx, failoverRequest); err != nil {
+		emitInitiationFailure("validation")
 		return nil, err
 	}
 
@@ -210,14 +232,32 @@ func (wh *WorkflowHandler) FailoverDomain(ctx context.Context, failoverRequest *
 	logger.Info("Failover domain request started",
 		tag.ActiveClusterName(failoverRequest.GetDomainActiveClusterName()),
 		tag.Dynamic("active-clusters-by-cluster-attribute", failoverRequest.ActiveClusters),
+		tag.Dynamic("failover-timeout-seconds", failoverRequest.FailoverTimeoutInSeconds),
 	)
+
+	if isGraceful {
+		if err := wh.checkOngoingFailover(ctx, &failoverRequest.DomainName); err != nil {
+			logger.Error("Rejecting graceful failover: ongoing failover check failed.",
+				tag.Error(err))
+			emitInitiationFailure("ongoing_failover_check")
+			return nil, err
+		}
+	}
 
 	failoverResp, err := wh.domainHandler.FailoverDomain(ctx, failoverRequest)
 	if err != nil {
 		logger.Error("Failover domain request failed",
 			tag.ActiveClusterName(failoverRequest.GetDomainActiveClusterName()),
 			tag.Error(err))
+		emitInitiationFailure("handler")
 		return nil, err
+	}
+
+	if isGraceful {
+		wh.GetMetricsClient().Scope(
+			metrics.FrontendFailoverDomainScope,
+			metrics.DomainTag(domainName),
+		).IncCounter(metrics.GracefulFailoverInitiationSuccess)
 	}
 
 	logger.Info("Failover domain request succeeded",
@@ -275,4 +315,17 @@ func (wh *WorkflowHandler) ListFailoverHistory(ctx context.Context, request *typ
 		FailoverEvents: failoverEvents,
 		NextPageToken:  auditLogsResp.NextPageToken,
 	}, nil
+}
+
+func (wh *WorkflowHandler) gracefulFailoverInitiationFailureEmitter(scope metrics.ScopeIdx, domainName string, isGraceful bool) func(reason string) {
+	return func(reason string) {
+		if !isGraceful {
+			return
+		}
+		wh.GetMetricsClient().Scope(
+			scope,
+			metrics.DomainTag(domainName),
+			metrics.ReasonTag(reason),
+		).IncCounter(metrics.GracefulFailoverInitiationFailure)
+	}
 }

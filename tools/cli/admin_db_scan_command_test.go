@@ -299,7 +299,6 @@ func expectWorkFlow(td *cliTestData, workflowID string) {
 			State: persistence.WorkflowStateCompleted,
 		}, nil).
 		Times(1)
-	mockExecutionManager.EXPECT().GetShardID().Return(shardID1).Times(1)
 	mockExecutionManager.EXPECT().IsWorkflowExecutionExists(gomock.Any(), gomock.Any()).
 		Return(&persistence.IsWorkflowExecutionExistsResponse{
 			Exists: true,

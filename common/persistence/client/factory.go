@@ -23,8 +23,6 @@
 package client
 
 import (
-	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -125,8 +123,6 @@ type (
 
 	storeType int
 )
-
-var errDatastoreNotSupported = errors.New("datastore not supported")
 
 const (
 	storeTypeHistory storeType = iota + 1
@@ -283,15 +279,16 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 	if err != nil {
 		return nil, err
 	}
-	if store == nil {
-		return nil, errors.Join(errDatastoreNotSupported, fmt.Errorf("history DLQ task store is not supported for datastore"))
-	}
 	parser, err := serialization.NewParser(f.dc)
 	if err != nil {
 		return nil, err
 	}
 	taskSerializer := serialization.NewTaskSerializer(parser)
-	return p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger), nil
+	result := p.NewHistoryTaskDLQManager(store, taskSerializer, f.logger)
+	if f.metricsClient != nil {
+		result = metered.NewHistoryTaskDLQManager(result, f.metricsClient, f.logger, f.config)
+	}
+	return result, nil
 }
 
 // NewExecutionManager returns a new execution manager for a given shardID

@@ -1,12 +1,12 @@
 package factory
 
 import (
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/uber-go/tally"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/clock"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 // ShardProcessorFactory is a generic factory for creating ShardProcessor instances.

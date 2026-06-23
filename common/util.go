@@ -55,9 +55,9 @@ const (
 	historyServiceOperationMaxInterval        = 10 * time.Second
 	historyServiceOperationExpirationInterval = 30 * time.Second
 
-	recordTaskStartedInitialInterval    = 50 * time.Millisecond
-	recordTaskStartedMaxInterval        = 1 * time.Second
-	recordTaskStartedExpirationInterval = 3 * time.Second
+	recordTaskStartedInitialInterval = 250 * time.Millisecond
+	recordTaskStartedMaxInterval     = 1 * time.Second
+	recordTaskStartedMaxAttempts     = 5
 
 	matchingServiceOperationInitialInterval    = 1000 * time.Millisecond
 	matchingServiceOperationMaxInterval        = 10 * time.Second
@@ -66,10 +66,6 @@ const (
 	frontendServiceOperationInitialInterval    = 200 * time.Millisecond
 	frontendServiceOperationMaxInterval        = 5 * time.Second
 	frontendServiceOperationExpirationInterval = 15 * time.Second
-
-	shardDistributorServiceOperationInitialInterval    = 200 * time.Millisecond
-	shardDistributorServiceOperationMaxInterval        = 10 * time.Second
-	shardDistributorServiceOperationExpirationInterval = 15 * time.Second
 
 	adminServiceOperationInitialInterval    = 200 * time.Millisecond
 	adminServiceOperationMaxInterval        = 5 * time.Second
@@ -170,7 +166,8 @@ func CreateHistoryServiceRetryPolicy() backoff.RetryPolicy {
 func CreateRecordTaskStartedRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(recordTaskStartedInitialInterval)
 	policy.SetMaximumInterval(recordTaskStartedMaxInterval)
-	policy.SetExpirationInterval(recordTaskStartedExpirationInterval)
+	policy.SetMaximumAttempts(recordTaskStartedMaxAttempts)
+	policy.SetExpirationInterval(backoff.NoInterval)
 
 	return policy
 }
@@ -189,14 +186,6 @@ func CreateFrontendServiceRetryPolicy() backoff.RetryPolicy {
 	policy := backoff.NewExponentialRetryPolicy(frontendServiceOperationInitialInterval)
 	policy.SetMaximumInterval(frontendServiceOperationMaxInterval)
 	policy.SetExpirationInterval(frontendServiceOperationExpirationInterval)
-
-	return policy
-}
-
-func CreateShardDistributorServiceRetryPolicy() backoff.RetryPolicy {
-	policy := backoff.NewExponentialRetryPolicy(shardDistributorServiceOperationInitialInterval)
-	policy.SetMaximumInterval(shardDistributorServiceOperationMaxInterval)
-	policy.SetExpirationInterval(shardDistributorServiceOperationExpirationInterval)
 
 	return policy
 }

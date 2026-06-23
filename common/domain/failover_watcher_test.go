@@ -141,8 +141,9 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 	}, nil).Times(1)
 
 	// does not have failover end time
-	err := CleanPendingActiveState(s.mockMetadataMgr, domainName, 1, s.watcher.retryPolicy)
+	updated, err := CleanPendingActiveState(s.mockMetadataMgr, domainName, 1, s.watcher.retryPolicy)
 	s.NoError(err)
+	s.False(updated, "no failover end time → no update")
 
 	s.mockMetadataMgr.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
 		ID: domainName,
@@ -159,8 +160,9 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 	}, nil).Times(1)
 
 	// does not match failover versions
-	err = CleanPendingActiveState(s.mockMetadataMgr, domainName, 5, s.watcher.retryPolicy)
+	updated, err = CleanPendingActiveState(s.mockMetadataMgr, domainName, 5, s.watcher.retryPolicy)
 	s.NoError(err)
+	s.False(updated, "failover version mismatch → no update")
 
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, &persistence.UpdateDomainRequest{
 		Info:                        info,
@@ -186,8 +188,9 @@ func (s *failoverWatcherSuite) TestCleanPendingActiveState() {
 		NotificationVersion:         1,
 	}, nil).Times(1)
 
-	err = CleanPendingActiveState(s.mockMetadataMgr, domainName, 2, s.watcher.retryPolicy)
+	updated, err = CleanPendingActiveState(s.mockMetadataMgr, domainName, 2, s.watcher.retryPolicy)
 	s.NoError(err)
+	s.True(updated, "happy path actually updates the domain")
 }
 
 func (s *failoverWatcherSuite) TestHandleFailoverTimeout() {

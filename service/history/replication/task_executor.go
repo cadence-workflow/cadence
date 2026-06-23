@@ -22,6 +22,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/uber/cadence/common"
@@ -58,7 +59,7 @@ type (
 
 var _ TaskExecutor = (*taskExecutorImpl)(nil)
 
-// NewTaskExecutor creates an replication task executor
+// NewTaskExecutor creates a replication task executor
 // The executor uses by 1) DLQ replication task handler 2) history replication task processor
 func NewTaskExecutor(
 	sourceCluster string,
@@ -135,7 +136,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.SyncActivityTaskScope, metrics.CadenceLatency)
 	defer func() {
 		replicationStopWatch.Stop()
-		e.metricsClient.Scope(metrics.SyncActivityTaskScope).RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(replicationLatencyStart))
+		e.metricsClient.Scope(metrics.SyncActivityTaskScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(replicationLatencyStart))
 	}()
 	request := &types.SyncActivityRequest{
 		DomainID:           attr.DomainID,
@@ -180,7 +181,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	stopwatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByActivityReplicationScope, metrics.CadenceClientLatency)
 	defer func() {
 		stopwatch.Stop()
-		e.metricsClient.Scope(metrics.HistoryRereplicationByActivityReplicationScope).RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(activityResendLatencyStart))
+		e.metricsClient.Scope(metrics.HistoryRereplicationByActivityReplicationScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(activityResendLatencyStart))
 	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
@@ -196,7 +197,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 	switch {
 	case resendErr == nil:
 		break
-	case resendErr == ndc.ErrSkipTask:
+	case errors.Is(resendErr, ndc.ErrSkipTask):
 		e.logger.Error(
 			"skip replication sync activity task",
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
@@ -215,7 +216,7 @@ func (e *taskExecutorImpl) handleActivityTask(
 		// should return the replication error, not the resending error
 		return err
 	}
-	// should try again after back fill the history
+	// should try again after backfill the history
 	return syncActivityAction()
 }
 
@@ -247,7 +248,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	replicationStopWatch := e.metricsClient.StartTimer(metrics.HistoryReplicationV2TaskScope, metrics.CadenceLatency)
 	defer func() {
 		replicationStopWatch.Stop()
-		e.metricsClient.Scope(metrics.HistoryReplicationV2TaskScope).RecordHistogramDuration(metrics.CadenceLatencyHistogram, time.Since(replicationV2LatencyStart))
+		e.metricsClient.Scope(metrics.HistoryReplicationV2TaskScope).ExponentialHistogram(metrics.CadenceLatencyHistogram, time.Since(replicationV2LatencyStart))
 	}()
 	request := &types.ReplicateEventsV2Request{
 		DomainUUID: attr.DomainID,
@@ -285,7 +286,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	resendStopWatch := e.metricsClient.StartTimer(metrics.HistoryRereplicationByHistoryReplicationScope, metrics.CadenceClientLatency)
 	defer func() {
 		resendStopWatch.Stop()
-		e.metricsClient.Scope(metrics.HistoryRereplicationByHistoryReplicationScope).RecordHistogramDuration(metrics.CadenceClientLatencyHistogram, time.Since(historyResendLatencyStart))
+		e.metricsClient.Scope(metrics.HistoryRereplicationByHistoryReplicationScope).ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(historyResendLatencyStart))
 	}()
 
 	resendErr := e.historyResender.SendSingleWorkflowHistory(
@@ -301,7 +302,7 @@ func (e *taskExecutorImpl) handleHistoryReplicationTaskV2(
 	switch {
 	case resendErr == nil:
 		break
-	case resendErr == ndc.ErrSkipTask:
+	case errors.Is(resendErr, ndc.ErrSkipTask):
 		e.logger.Error(
 			"skip replication history task",
 			tag.WorkflowDomainID(retryErr.GetDomainID()),
@@ -332,7 +333,17 @@ func (e *taskExecutorImpl) handleFailoverReplicationTask(
 	task *types.ReplicationTask,
 ) error {
 	failoverAttributes := task.GetFailoverMarkerAttributes()
+	if failoverAttributes == nil {
+		e.logger.Error("FailoverMarker replication task with nil attributes")
+		return ErrEmptyFailoverMarkerAttributes
+	}
 	failoverAttributes.CreationTime = task.CreationTime
+	e.logger.Info("Failover marker handed to standby executor",
+		tag.ShardID(e.shard.GetShardID()),
+		tag.WorkflowDomainID(failoverAttributes.GetDomainID()),
+		tag.FailoverVersion(failoverAttributes.GetFailoverVersion()),
+		tag.Dynamic("execute-lag", time.Since(time.Unix(0, task.GetCreationTime()))),
+	)
 	return e.shard.AddingPendingFailoverMarker(failoverAttributes)
 }
 
@@ -358,6 +369,7 @@ func (e *taskExecutorImpl) filterTask(
 }
 
 func toRetryTaskV2Error(err error) (*types.RetryTaskV2Error, bool) {
-	retError, ok := err.(*types.RetryTaskV2Error)
+	var retError *types.RetryTaskV2Error
+	ok := errors.As(err, &retError)
 	return retError, ok
 }

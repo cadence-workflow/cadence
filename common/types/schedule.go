@@ -178,16 +178,19 @@ func (v *ScheduleSpec) GetJitter() (o time.Duration) {
 }
 
 // StartWorkflowAction defines a workflow to start when the schedule triggers.
+// Input, Memo, and SearchAttributes must JSON-round-trip: the scheduler workflow
+// encodes types.ScheduleAction with encoding/json (create input, update signals,
+// ContinueAsNew, local-activity payloads).
 type StartWorkflowAction struct {
 	WorkflowType                        *WorkflowType     `json:"workflowType,omitempty"`
 	TaskList                            *TaskList         `json:"taskList,omitempty"`
-	Input                               []byte            `json:"-"` // Potential PII
+	Input                               []byte            `json:"input,omitempty"`
 	WorkflowIDPrefix                    string            `json:"workflowIdPrefix,omitempty"`
 	ExecutionStartToCloseTimeoutSeconds *int32            `json:"executionStartToCloseTimeoutSeconds,omitempty"`
 	TaskStartToCloseTimeoutSeconds      *int32            `json:"taskStartToCloseTimeoutSeconds,omitempty"`
 	RetryPolicy                         *RetryPolicy      `json:"retryPolicy,omitempty"`
-	Memo                                *Memo             `json:"-"` // Filtering PII
-	SearchAttributes                    *SearchAttributes `json:"-"` // Filtering PII
+	Memo                                *Memo             `json:"memo,omitempty"`
+	SearchAttributes                    *SearchAttributes `json:"searchAttributes,omitempty"`
 }
 
 func (v *StartWorkflowAction) GetWorkflowType() *WorkflowType {
@@ -276,18 +279,18 @@ func (v *SchedulePolicies) GetPauseOnFailure() (o bool) {
 	return
 }
 
-func (v *SchedulePolicies) GetBufferLimit() (o int32) {
+func (v *SchedulePolicies) GetBufferLimit() int32 {
 	if v != nil {
 		return v.BufferLimit
 	}
-	return
+	return 0
 }
 
-func (v *SchedulePolicies) GetConcurrencyLimit() (o int32) {
+func (v *SchedulePolicies) GetConcurrencyLimit() int32 {
 	if v != nil {
 		return v.ConcurrencyLimit
 	}
-	return
+	return 0
 }
 
 // SchedulePauseInfo captures the state of a paused schedule (response-only, server-populated).
@@ -387,6 +390,8 @@ type ScheduleInfo struct {
 	LastRunTime      time.Time       `json:"lastRunTime,omitempty"`
 	NextRunTime      time.Time       `json:"nextRunTime,omitempty"`
 	TotalRuns        int64           `json:"totalRuns,omitempty"`
+	MissedRuns       int64           `json:"missedRuns,omitempty"`
+	SkippedRuns      int64           `json:"skippedRuns,omitempty"`
 	CreateTime       time.Time       `json:"createTime,omitempty"`
 	LastUpdateTime   time.Time       `json:"lastUpdateTime,omitempty"`
 	OngoingBackfills []*BackfillInfo `json:"ongoingBackfills,omitempty"`
@@ -409,6 +414,20 @@ func (v *ScheduleInfo) GetNextRunTime() (o time.Time) {
 func (v *ScheduleInfo) GetTotalRuns() (o int64) {
 	if v != nil {
 		return v.TotalRuns
+	}
+	return
+}
+
+func (v *ScheduleInfo) GetMissedRuns() (o int64) {
+	if v != nil {
+		return v.MissedRuns
+	}
+	return
+}
+
+func (v *ScheduleInfo) GetSkippedRuns() (o int64) {
+	if v != nil {
+		return v.SkippedRuns
 	}
 	return
 }

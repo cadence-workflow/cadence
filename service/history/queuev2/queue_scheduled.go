@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -57,7 +56,7 @@ type (
 	}
 )
 
-func NewScheduledQueue(
+func newScheduledQueue(
 	shard shard.Context,
 	category persistence.HistoryTaskCategory,
 	taskProcessor task.Processor,
@@ -65,8 +64,9 @@ func NewScheduledQueue(
 	logger log.Logger,
 	metricsClient metrics.Client,
 	metricsScope metrics.Scope,
+	queueReader QueueReader,
 	options *Options,
-) Queue {
+) *scheduledQueue {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &scheduledQueue{
 		base: newQueueBase(
@@ -77,6 +77,7 @@ func NewScheduledQueue(
 			metricsScope,
 			category,
 			taskExecutor,
+			queueReader,
 			options,
 		),
 		timerGate:  clock.NewTimerGate(shard.GetTimeSource()),
@@ -85,6 +86,21 @@ func NewScheduledQueue(
 		cancel:     cancel,
 		status:     common.DaemonStatusInitialized,
 	}
+}
+
+func NewScheduledQueue(
+	shard shard.Context,
+	category persistence.HistoryTaskCategory,
+	taskProcessor task.Processor,
+	taskExecutor task.Executor,
+	logger log.Logger,
+	metricsClient metrics.Client,
+	metricsScope metrics.Scope,
+	queueReader QueueReader,
+	options *Options,
+) Queue {
+	return newScheduledQueue(shard, category, taskProcessor, taskExecutor,
+		logger, metricsClient, metricsScope, queueReader, options)
 }
 
 func (q *scheduledQueue) Start() {
@@ -188,7 +204,7 @@ func (q *scheduledQueue) processEventLoop() {
 			q.base.processNewTasks()
 			q.lookAheadTask()
 		case <-q.base.updateQueueStateTimer.Chan():
-			q.base.updateQueueState(q.ctx)
+			q.base.updateQueueStateFn(q.ctx)
 		case alert := <-q.base.alertCh:
 			q.base.handleAlert(q.ctx, alert)
 		case <-q.ctx.Done():
@@ -197,34 +213,27 @@ func (q *scheduledQueue) processEventLoop() {
 	}
 }
 
+// lookAheadTask asks the queue reader for the next scheduled task and updates the
+// timer gate accordingly. It is called after processNewTasks on each timer-gate
+// expiry so the gate is re-armed to the earliest pending task.
 func (q *scheduledQueue) lookAheadTask() {
-	lookAheadMinTime := q.base.newVirtualSliceState.Range.InclusiveMinTaskKey.GetScheduledTime()
-	lookAheadMaxTime := lookAheadMinTime.Add(backoff.JitDuration(
-		q.base.options.MaxPollInterval(),
-		q.base.options.MaxPollIntervalJitterCoefficient(),
-	))
-
-	resp, err := q.base.queueReader.GetTask(q.ctx, &GetTaskRequest{
-		Progress: &GetTaskProgress{
-			Range: Range{
-				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(lookAheadMinTime, 0),
-				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(lookAheadMaxTime, 0),
-			},
-			NextTaskKey: persistence.NewHistoryTaskKey(lookAheadMaxTime, 0),
-		},
-		Predicate: NewUniversalPredicate(),
-		PageSize:  1,
+	resp, err := q.base.queueReader.LookAHead(q.ctx, &LookAHeadRequest{
+		InclusiveMinTaskKey: q.base.newVirtualSliceState.Range.InclusiveMinTaskKey,
 	})
 	if err != nil {
-		q.timerGate.Update(lookAheadMinTime)
+		q.timerGate.Update(q.base.newVirtualSliceState.Range.InclusiveMinTaskKey.GetScheduledTime())
 		q.base.logger.Error("Failed to look ahead task", tag.Error(err))
 		return
 	}
-
-	if len(resp.Tasks) == 0 {
-		q.timerGate.Update(lookAheadMaxTime)
+	if resp.Task != nil {
+		q.base.logger.Debug("look ahead found next task",
+			tag.Dynamic("nextTaskTime", resp.Task.GetVisibilityTimestamp()),
+		)
+		q.timerGate.Update(resp.Task.GetVisibilityTimestamp())
 		return
 	}
-
-	q.timerGate.Update(resp.Tasks[0].GetVisibilityTimestamp())
+	q.base.logger.Debug("look ahead: no task in window, scheduling until look-ahead max time",
+		tag.Dynamic("lookAheadMaxTime", resp.LookAheadMaxTime),
+	)
+	q.timerGate.Update(resp.LookAheadMaxTime)
 }

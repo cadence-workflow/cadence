@@ -46,6 +46,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	esmock "github.com/uber/cadence/common/elasticsearch/mocks"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -2951,4 +2952,146 @@ func TestUpdateTaskListPartitionConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newOperationalConfigAdminHandler(t *testing.T, store configstore.Client) adminHandlerImpl {
+	t.Helper()
+	res := &resource.Test{
+		Logger:                 testlogger.New(t),
+		MetricsClient:          metrics.NewNoopMetricsClient(),
+		OperationalConfigStore: store,
+	}
+	return adminHandlerImpl{
+		Resource: res,
+		params:   &resource.Params{},
+	}
+}
+
+func TestUpdateOperationalDynamicConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Run("nil request errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		assert.Error(t, h.UpdateOperationalDynamicConfig(context.Background(), nil))
+	})
+	t.Run("store unavailable errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		err := h.UpdateOperationalDynamicConfig(context.Background(), &types.UpdateOperationalDynamicConfigRequest{
+			ConfigName: "testGetIntPropertyKey",
+		})
+		var bad *types.BadRequestError
+		require.ErrorAs(t, err, &bad)
+	})
+	t.Run("invalid config name errors", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		h := newOperationalConfigAdminHandler(t, store)
+		assert.Error(t, h.UpdateOperationalDynamicConfig(context.Background(), &types.UpdateOperationalDynamicConfigRequest{ConfigName: "no-such-key"}))
+	})
+	t.Run("forwards to store", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		store.EXPECT().UpdateValue(gomock.Any(), gomock.Any()).Return(nil)
+		h := newOperationalConfigAdminHandler(t, store)
+		err := h.UpdateOperationalDynamicConfig(context.Background(), &types.UpdateOperationalDynamicConfigRequest{
+			ConfigName:   "testGetIntPropertyKey",
+			ConfigValues: nil,
+		})
+		assert.NoError(t, err)
+	})
+}
+
+func TestGetOperationalDynamicConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Run("nil request errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		_, err := h.GetOperationalDynamicConfig(context.Background(), nil)
+		require.Error(t, err)
+	})
+	t.Run("store unavailable errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		_, err := h.GetOperationalDynamicConfig(context.Background(), &types.GetOperationalDynamicConfigRequest{ConfigName: "testGetIntPropertyKey"})
+		require.Error(t, err)
+	})
+	t.Run("invalid config name errors", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		h := newOperationalConfigAdminHandler(t, store)
+		_, err := h.GetOperationalDynamicConfig(context.Background(), &types.GetOperationalDynamicConfigRequest{ConfigName: "no-such-key"})
+		require.Error(t, err)
+	})
+	t.Run("forwards to store and returns value", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		store.EXPECT().GetValue(gomock.Any()).Return(42, nil)
+		h := newOperationalConfigAdminHandler(t, store)
+		resp, err := h.GetOperationalDynamicConfig(context.Background(), &types.GetOperationalDynamicConfigRequest{ConfigName: "testGetIntPropertyKey"})
+		require.NoError(t, err)
+		require.NotNil(t, resp.Value)
+		assert.Equal(t, []byte("42"), resp.Value.Data)
+	})
+	t.Run("with filters", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		store.EXPECT().GetValueWithFilters(gomock.Any(), gomock.Any()).Return(7, nil)
+		h := newOperationalConfigAdminHandler(t, store)
+		resp, err := h.GetOperationalDynamicConfig(context.Background(), &types.GetOperationalDynamicConfigRequest{
+			ConfigName: "testGetIntPropertyKey",
+			Filters: []*types.DynamicConfigFilter{{
+				Name:  "domainName",
+				Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: []byte("\"some-domain\"")},
+			}},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []byte("7"), resp.Value.Data)
+	})
+}
+
+func TestRestoreOperationalDynamicConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Run("nil request errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		assert.Error(t, h.RestoreOperationalDynamicConfig(context.Background(), nil))
+	})
+	t.Run("store unavailable errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		assert.Error(t, h.RestoreOperationalDynamicConfig(context.Background(), &types.RestoreOperationalDynamicConfigRequest{ConfigName: "testGetIntPropertyKey"}))
+	})
+	t.Run("invalid config name errors", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		h := newOperationalConfigAdminHandler(t, store)
+		assert.Error(t, h.RestoreOperationalDynamicConfig(context.Background(), &types.RestoreOperationalDynamicConfigRequest{ConfigName: "no-such-key"}))
+	})
+	t.Run("forwards to store", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		store.EXPECT().RestoreValue(gomock.Any(), nil).Return(nil)
+		h := newOperationalConfigAdminHandler(t, store)
+		err := h.RestoreOperationalDynamicConfig(context.Background(), &types.RestoreOperationalDynamicConfigRequest{ConfigName: "testGetIntPropertyKey"})
+		assert.NoError(t, err)
+	})
+}
+
+func TestListOperationalDynamicConfig(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Run("nil request errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		_, err := h.ListOperationalDynamicConfig(context.Background(), nil)
+		require.Error(t, err)
+	})
+	t.Run("store unavailable errors", func(t *testing.T) {
+		h := newOperationalConfigAdminHandler(t, nil)
+		_, err := h.ListOperationalDynamicConfig(context.Background(), &types.ListOperationalDynamicConfigRequest{})
+		require.Error(t, err)
+	})
+	t.Run("empty config name lists all", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		store.EXPECT().ListValue(nil).Return([]*types.DynamicConfigEntry{{Name: "foo"}}, nil)
+		h := newOperationalConfigAdminHandler(t, store)
+		resp, err := h.ListOperationalDynamicConfig(context.Background(), &types.ListOperationalDynamicConfigRequest{})
+		require.NoError(t, err)
+		require.Len(t, resp.Entries, 1)
+		assert.Equal(t, "foo", resp.Entries[0].Name)
+	})
+	t.Run("named config returns just that entry", func(t *testing.T) {
+		store := configstore.NewMockClient(ctrl)
+		store.EXPECT().ListValue(gomock.Any()).Return([]*types.DynamicConfigEntry{{Name: "testGetIntPropertyKey"}}, nil)
+		h := newOperationalConfigAdminHandler(t, store)
+		resp, err := h.ListOperationalDynamicConfig(context.Background(), &types.ListOperationalDynamicConfigRequest{ConfigName: "testGetIntPropertyKey"})
+		require.NoError(t, err)
+		assert.Equal(t, "testGetIntPropertyKey", resp.Entries[0].Name)
+	})
 }

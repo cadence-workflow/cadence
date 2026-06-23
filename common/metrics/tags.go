@@ -119,11 +119,35 @@ func ShardIDTag(shardIDVal int) Tag {
 	return metricWithUnknown(shardID, strconv.Itoa(shardIDVal))
 }
 
+// NonShardTag is used for metrics that need a stable shard_id label but are not scoped to a real shard.
+func NonShardTag() Tag {
+	return ShardIDTag(-1)
+}
+
+// CacheTypeTag returns a tag for cache metric category.
+func CacheTypeTag(value string) Tag {
+	return metricWithUnknown(CacheTypeTagName, value)
+}
+
+// WithCacheScopeLabels returns a scope tagged with the cache metric labels required for consistent Prometheus registration.
+func WithCacheScopeLabels(scope Scope, shardTag Tag, sourceClusterVal string, cacheTypeVal string) Scope {
+	return scope.Tagged(
+		CacheTypeTag(cacheTypeVal),
+		SourceClusterTag(sourceClusterVal),
+		shardTag,
+	)
+}
+
 // DomainTag returns a new domain tag. For timers, this also ensures that we
 // dual emit the metric with the all tag. If a blank domain is provided then
 // this converts that to an unknown domain.
 func DomainTag(value string) Tag {
 	return metricWithUnknown(domain, value)
+}
+
+// NonDomainTag is used for metrics that need a stable domain label but are not scoped to a real domain.
+func NonDomainTag() Tag {
+	return DomainTag("-1")
 }
 
 // DomainTypeTag returns a tag for domain type.
@@ -354,26 +378,6 @@ func IsRetryTag(retry bool) Tag {
 	return simpleMetric{key: isRetry, value: strconv.FormatBool(retry)}
 }
 
-func NamespaceTag(namespace string) Tag {
-	return metricWithUnknown("namespace", namespace)
-}
-
-func NamespaceTypeTag(namespaceType string) Tag {
-	return metricWithUnknown("namespace_type", namespaceType)
-}
-
-func HandoverTypeTag(handoverType string) Tag {
-	return metricWithUnknown("handover_type", handoverType)
-}
-
-func ExecutorStatusTag(status string) Tag {
-	return metricWithUnknown("executor_status", status)
-}
-
-func ShardDistributorWatchTypeTag(watchType string) Tag {
-	return metricWithUnknown("watch_type", watchType)
-}
-
 func TaskCategoryTag(category string) Tag {
 	return metricWithUnknown("task_category", category)
 }
@@ -391,11 +395,6 @@ func DecisionTag(decision string) Tag {
 // ActiveClusterLookupFnTag returns a new active cluster lookup function tag.
 func ActiveClusterLookupFnTag(fn string) Tag {
 	return metricWithUnknown("fn", fn)
-}
-
-// ActiveClusterSelectionStrategyTag returns a new active cluster selection strategy tag.
-func ActiveClusterSelectionStrategyTag(strategy string) Tag {
-	return metricWithUnknown("strategy", strategy)
 }
 
 // OverlapPolicyTag returns a new overlap_policy tag for scheduler metrics.

@@ -161,13 +161,18 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 	if domain.IsDomainPendingActive() && p.timeSource.Now().After(time.Unix(0, *failoverEndTime)) {
 		domainID := domain.GetInfo().ID
 		// force failover the domain without setting the failover timeout
-		if err := CleanPendingActiveState(
+		updated, err := CleanPendingActiveState(
 			p.domainManager,
 			domainID,
 			domain.GetFailoverVersion(),
 			p.retryPolicy,
-		); err != nil {
+		)
+		if err != nil {
 			p.logger.Error("Failed to update pending-active domain to active", tag.WorkflowDomainID(domainID), tag.WorkflowDomainName(domain.GetInfo().Name), tag.Error(err))
+			return
+		}
+		if !updated {
+			// another path already cleared the pending-active state — nothing to announce
 			return
 		}
 		sourceCluster, err := p.clusterMetadata.ClusterNameForFailoverVersion(domain.GetPreviousFailoverVersion())
@@ -175,23 +180,28 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 			p.logger.Error("Failed to resolve source cluster for graceful failover", tag.WorkflowDomainID(domainID), tag.WorkflowDomainName(domain.GetInfo().Name), tag.Error(err))
 			sourceCluster = "unknown"
 		}
-		p.logger.Info("Graceful failover completed",
+		p.logger.Warn("Graceful failover force-completed by watcher: failover timeout exceeded before all shards reported",
 			tag.WorkflowDomainID(domainID),
 			tag.WorkflowDomainName(domain.GetInfo().Name),
 			tag.PrevActiveCluster(sourceCluster),
 			tag.ActiveClusterName(domain.GetReplicationConfig().ActiveClusterName),
+			tag.Dynamic("failover-end-time", time.Unix(0, *failoverEndTime)),
 		)
 		p.scope.Tagged(metrics.DomainTag(domain.GetInfo().Name)).IncCounter(metrics.GracefulFailoverFailure)
 	}
 }
 
-// CleanPendingActiveState removes the pending active state from the domain
+// CleanPendingActiveState removes the pending active state from the domain.
+// Returns (updated, err) where updated is true only when the domain row was
+// actually modified. When the domain is no longer pending-active or the
+// failover version no longer matches, the call is a no-op and returns
+// (false, nil) so callers can avoid emitting misleading "completed" signals.
 func CleanPendingActiveState(
 	domainManager persistence.DomainManager,
 	domainID string,
 	failoverVersion int64,
 	policy backoff.RetryPolicy,
-) error {
+) (bool, error) {
 
 	// must get the metadata (notificationVersion) first
 	// this version can be regarded as the lock on the v2 domain table
@@ -199,26 +209,26 @@ func CleanPendingActiveState(
 	// this call has to be made
 	metadata, err := domainManager.GetMetadata(context.Background())
 	if err != nil {
-		return fmt.Errorf("getting metadata: %w", err)
+		return false, fmt.Errorf("getting metadata: %w", err)
 	}
 
-	getResponse, err := domainManager.GetDomain(context.Background(), &persistence.GetDomainRequest{ID: domainID})
+	domainResponse, err := domainManager.GetDomain(context.Background(), &persistence.GetDomainRequest{ID: domainID})
 	if err != nil {
-		return fmt.Errorf("getting domain: %w", err)
+		return false, fmt.Errorf("getting domain: %w", err)
 	}
-	localFailoverVersion := getResponse.FailoverVersion
-	isGlobalDomain := getResponse.IsGlobalDomain
-	gracefulFailoverEndTime := getResponse.FailoverEndTime
+	localFailoverVersion := domainResponse.FailoverVersion
+	isGlobalDomain := domainResponse.IsGlobalDomain
+	gracefulFailoverEndTime := domainResponse.FailoverEndTime
 
+	// if the domain is still pending active and the failover versions are the same, clean the state
 	if isGlobalDomain && gracefulFailoverEndTime != nil && failoverVersion == localFailoverVersion {
-		// if the domain is still pending active and the failover versions are the same, clean the state
 		updateReq := &persistence.UpdateDomainRequest{
-			Info:                        getResponse.Info,
-			Config:                      getResponse.Config,
-			ReplicationConfig:           getResponse.ReplicationConfig,
-			ConfigVersion:               getResponse.ConfigVersion,
+			Info:                        domainResponse.Info,
+			Config:                      domainResponse.Config,
+			ReplicationConfig:           domainResponse.ReplicationConfig,
+			ConfigVersion:               domainResponse.ConfigVersion,
 			FailoverVersion:             localFailoverVersion,
-			FailoverNotificationVersion: getResponse.FailoverNotificationVersion,
+			FailoverNotificationVersion: domainResponse.FailoverNotificationVersion,
 			FailoverEndTime:             nil,
 			NotificationVersion:         metadata.NotificationVersion,
 		}
@@ -230,14 +240,15 @@ func CleanPendingActiveState(
 			backoff.WithRetryableError(isUpdateDomainRetryable),
 		)
 		if err := throttleRetry.Do(context.Background(), op); err != nil {
-			return err
+			return false, err
 		}
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func isUpdateDomainRetryable(
-	err error,
+	_ error,
 ) bool {
 	return true
 }

@@ -49,7 +49,7 @@ func newNoSQLQueueStore(
 	queueType persistence.QueueType,
 	dc *persistence.DynamicConfiguration,
 ) (persistence.QueueStore, error) {
-	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc)
+	shardedStore, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, false)
 	if err != nil {
 		return nil, err
 	}

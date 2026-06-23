@@ -151,9 +151,30 @@ func TestHistogramValues(t *testing.T) {
 [524288]
 `)
 	})
+	t.Run("mid_to_50k_ints", func(t *testing.T) {
+		checkHistogram(t, Mid1To50k, `
+[0]
+[8 9 11 13]
+[16 19 22 26]
+[32 38 45 53]
+[64 76 90 107]
+[128 152 181 215]
+[256 304 362 430]
+[512 608 724 861]
+[1024 1217 1448 1722]
+[2048 2435 2896 3444]
+[4096 4870 5792 6888]
+[8192 9741 11585 13777]
+[16384 19483 23170 27554]
+[32768 38967 46340 55108]
+[65536 77935 92681 110217]
+[131072 155871 185363 220435]
+[262144 311743 370727 440871]
+[524288 623487 741455 881743]
+[1048576]
+`)
+	})
 }
-
-// most histograms should pass this check, but fuzzy comparison is fine if needed for extreme cases.
 func checkHistogram[T any](t *testing.T, h histogrammy[T], expected string) {
 	var buf strings.Builder
 	h.print(func(s string, a ...any) {

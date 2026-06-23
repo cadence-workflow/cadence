@@ -118,13 +118,14 @@ func TestNewConfig(t *testing.T) {
 		"GlobalTaskListAsyncRPS":                            {dynamicproperties.FrontendGlobalTaskListAsyncRPS, 46},
 	}
 	domainFields := map[string]configTestCase{
-		"MaxBadBinaryCount":        {dynamicproperties.FrontendMaxBadBinaries, 40},
-		"MinRetentionDays":         {dynamicproperties.MinRetentionDays, 41},
-		"MaxRetentionDays":         {dynamicproperties.MaxRetentionDays, 42},
-		"FailoverCoolDown":         {dynamicproperties.FrontendFailoverCoolDown, time.Duration(43)},
-		"RequiredDomainDataKeys":   {dynamicproperties.RequiredDomainDataKeys, map[string]interface{}{"bar": "baz"}},
-		"FailoverHistoryMaxSize":   {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
-		"EnableDomainAuditLogging": {dynamicproperties.EnableDomainAuditLogging, true},
+		"MaxBadBinaryCount":           {dynamicproperties.FrontendMaxBadBinaries, 40},
+		"MinRetentionDays":            {dynamicproperties.MinRetentionDays, 41},
+		"MaxRetentionDays":            {dynamicproperties.MaxRetentionDays, 42},
+		"FailoverCoolDown":            {dynamicproperties.FrontendFailoverCoolDown, time.Duration(43)},
+		"RequiredDomainDataKeys":      {dynamicproperties.RequiredDomainDataKeys, map[string]interface{}{"bar": "baz"}},
+		"FailoverHistoryMaxSize":      {dynamicproperties.FrontendFailoverHistoryMaxSize, 44},
+		"MaxFailoverTimeoutInSeconds": {dynamicproperties.FrontendMaxFailoverTimeoutInSeconds, 45},
+		"EnableDomainAuditLogging":    {dynamicproperties.EnableDomainAuditLogging, true},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	logger := testlogger.New(t)
@@ -193,6 +194,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn()
 		case dynamicproperties.IntPropertyFnWithTaskListInfoFilters:
 			return fn("domain", "taskList", 0)
+		case dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter:
+			return fn("domain", "taskList")
 		default:
 			panic("Unable to handle type: " + f.Type().Name())
 		}

@@ -182,6 +182,11 @@ func batchActivityV2(ctx context.Context, params BatchParams) (HeartBeatDetails,
 		hbd.TotalEstimate = resp.GetCount()
 	}
 
+	// Reflect the params in effect for this activity invocation so the
+	// signal-tuned RPS/Concurrency are surfaced in every heartbeat.
+	hbd.RPS = params.RPS
+	hbd.Concurrency = params.Concurrency
+
 	rateLimiter := rate.NewLimiter(rate.Limit(params.RPS), params.RPS)
 	taskCh := make(chan taskDetail, params.PageSize)
 	respCh := make(chan error, params.PageSize)

@@ -61,6 +61,8 @@ type (
 		GetActiveClusterManager() activecluster.Manager
 		GetClusterMetadata() cluster.Metadata
 		GetConfig() *config.Config
+		// GetRangeID returns the shard's current rangeID, read atomically.
+		GetRangeID() int64
 		GetEventsCache() events.Cache
 		// GetLogger returns a logger tagged with this shard (history item includes shard-id).
 		// Prefer it for work scoped to a shard so logs remain attributable when downstream adds tags.
@@ -577,10 +579,10 @@ func (s *contextImpl) DeleteFailoverLevel(category persistence.HistoryTaskCatego
 			switch category {
 			case persistence.HistoryTaskCategoryTransfer:
 				s.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTransferFailoverLatencyTimer, time.Since(level.StartTime))
-				s.GetMetricsClient().Scope(metrics.ShardInfoScope).RecordHistogramDuration(metrics.ShardInfoTransferFailoverLatencyHistogram, time.Since(level.StartTime))
+				s.GetMetricsClient().Scope(metrics.ShardInfoScope).ExponentialHistogram(metrics.ShardInfoTransferFailoverLatencyHistogram, time.Since(level.StartTime))
 			case persistence.HistoryTaskCategoryTimer:
 				s.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardInfoTimerFailoverLatencyTimer, time.Since(level.StartTime))
-				s.GetMetricsClient().Scope(metrics.ShardInfoScope).RecordHistogramDuration(metrics.ShardInfoTimerFailoverLatencyHistogram, time.Since(level.StartTime))
+				s.GetMetricsClient().Scope(metrics.ShardInfoScope).ExponentialHistogram(metrics.ShardInfoTimerFailoverLatencyHistogram, time.Since(level.StartTime))
 			}
 			return nil
 		}
@@ -643,7 +645,6 @@ func (s *contextImpl) CreateWorkflowExecution(
 	}
 
 	domainID := request.NewWorkflowSnapshot.ExecutionInfo.DomainID
-	workflowID := request.NewWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	// do not try to get domain cache within shard lock
 	domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
@@ -653,6 +654,18 @@ func (s *contextImpl) CreateWorkflowExecution(
 
 	s.Lock()
 	defer s.Unlock()
+
+	resp, err := s.createWorkflowExecutionLocked(ctx, request, domainEntry)
+	s.notifyTasksFromCreateWorkflowExecution(request, err)
+	return resp, err
+}
+
+func (s *contextImpl) createWorkflowExecutionLocked(
+	ctx context.Context,
+	request *persistence.CreateWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+) (*persistence.CreateWorkflowExecutionResponse, error) {
+	workflowID := request.NewWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	immediateTaskMaxReadLevel := int64(0)
 	if err := s.allocateTaskIDsLocked(
@@ -738,7 +751,6 @@ func (s *contextImpl) UpdateWorkflowExecution(
 	}
 
 	domainID := request.UpdateWorkflowMutation.ExecutionInfo.DomainID
-	workflowID := request.UpdateWorkflowMutation.ExecutionInfo.WorkflowID
 
 	// do not try to get domain cache within shard lock
 	domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
@@ -749,6 +761,18 @@ func (s *contextImpl) UpdateWorkflowExecution(
 
 	s.Lock()
 	defer s.Unlock()
+
+	resp, err := s.updateWorkflowExecutionLocked(ctx, request, domainEntry)
+	s.notifyTasksFromUpdateWorkflowExecution(request, err)
+	return resp, err
+}
+
+func (s *contextImpl) updateWorkflowExecutionLocked(
+	ctx context.Context,
+	request *persistence.UpdateWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+) (*persistence.UpdateWorkflowExecutionResponse, error) {
+	workflowID := request.UpdateWorkflowMutation.ExecutionInfo.WorkflowID
 
 	immediateTaskMaxReadLevel := int64(0)
 	if err := s.allocateTaskIDsLocked(
@@ -839,7 +863,6 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 	}
 
 	domainID := request.ResetWorkflowSnapshot.ExecutionInfo.DomainID
-	workflowID := request.ResetWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	// do not try to get domain cache within shard lock
 	domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
@@ -851,6 +874,18 @@ func (s *contextImpl) ConflictResolveWorkflowExecution(
 
 	s.Lock()
 	defer s.Unlock()
+
+	resp, err := s.conflictResolveWorkflowExecutionLocked(ctx, request, domainEntry)
+	s.notifyTasksFromConflictResolveWorkflowExecution(request, err)
+	return resp, err
+}
+
+func (s *contextImpl) conflictResolveWorkflowExecutionLocked(
+	ctx context.Context,
+	request *persistence.ConflictResolveWorkflowExecutionRequest,
+	domainEntry *cache.DomainCacheEntry,
+) (*persistence.ConflictResolveWorkflowExecutionResponse, error) {
+	workflowID := request.ResetWorkflowSnapshot.ExecutionInfo.WorkflowID
 
 	immediateTaskMaxReadLevel := int64(0)
 	if request.CurrentWorkflowMutation != nil {
@@ -1027,6 +1062,10 @@ func (s *contextImpl) GetReplicationBudgetManager() cache.Manager {
 
 func (s *contextImpl) getRangeID() int64 {
 	return s.shardInfo.RangeID
+}
+
+func (s *contextImpl) GetRangeID() int64 {
+	return atomic.LoadInt64(&s.rangeID)
 }
 
 func (s *contextImpl) closedError() error {
@@ -1244,7 +1283,7 @@ func (s *contextImpl) emitShardInfoMetricsLogsLocked() {
 	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferDiffHistogram, int(diffTransferLevel))
 
 	metricsScope.RecordTimer(metrics.ShardInfoTimerDiffTimer, diffTimerLevel)
-	metricsScope.RecordHistogramDuration(metrics.ShardInfoTimerDiffHistogram, diffTimerLevel)
+	metricsScope.ExponentialHistogram(metrics.ShardInfoTimerDiffHistogram, diffTimerLevel)
 
 	metricsScope.RecordTimer(metrics.ShardInfoReplicationLagTimer, time.Duration(replicationLag))
 	metricsScope.IntExponentialHistogram(metrics.ShardInfoReplicationLagHistogram, int(replicationLag))
@@ -1253,7 +1292,7 @@ func (s *contextImpl) emitShardInfoMetricsLogsLocked() {
 	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferLagHistogram, int(transferLag))
 
 	metricsScope.RecordTimer(metrics.ShardInfoTimerLagTimer, timerLag)
-	metricsScope.RecordHistogramDuration(metrics.ShardInfoTimerLagHistogram, timerLag)
+	metricsScope.ExponentialHistogram(metrics.ShardInfoTimerLagHistogram, timerLag)
 
 	metricsScope.RecordTimer(metrics.ShardInfoTransferFailoverInProgressTimer, time.Duration(transferFailoverInProgress))
 	metricsScope.IntExponentialHistogram(metrics.ShardInfoTransferFailoverInProgressHistogram, transferFailoverInProgress)
@@ -1422,6 +1461,11 @@ func (s *contextImpl) SetCurrentTime(cluster string, currentTime time.Time) {
 func (s *contextImpl) GetCurrentTime(cluster string) time.Time {
 	s.RLock()
 	defer s.RUnlock()
+	return s.getCurrentTimeLocked(cluster)
+}
+
+// getCurrentTimeLocked returns the current time for a cluster without acquiring the shard lock.
+func (s *contextImpl) getCurrentTimeLocked(cluster string) time.Time {
 	if cluster != s.GetClusterMetadata().GetCurrentClusterName() {
 		return s.remoteClusterCurrentTime[cluster]
 	}
@@ -1498,10 +1542,28 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	if err != nil {
 		return err
 	}
-	// domain is active, the marker is expired
+	// if the domain is active the marker is expired
 	isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
-	if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() {
-		s.logger.Info("Skipped out-of-date failover marker", tag.WorkflowDomainName(domainEntry.GetInfo().Name))
+	domainStatus := domainEntry.GetInfo().Status
+	// if the domain is no longer pending-active and the marker belongs to that completed failover,
+	// the marker is stale and should be dropped to avoid an infinite re-notify loop
+	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
+
+	// markerVersion > domainVersion violates the monotonic-version
+	// invariant. Always drop; only alert on the to-be-active cluster
+	// (where graceful-failover ordering guarantees the invariant). On
+	// passive replicas a transient regression can be a benign race
+	// between independent domain and marker replication queues.
+	if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
+		s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Skipped pending failover marker: marker version is greater than domain version")
+		return nil
+	}
+
+	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
+		s.logger.Info("Skipped pending failover marker",
+			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+			tag.Reason(failoverMarkerSkipReason(isActive, failoverCompleted, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
+		)
 		return nil
 	}
 
@@ -1512,30 +1574,101 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	return s.forceUpdateShardInfoLocked()
 }
 
+func failoverMarkerSkipReason(isActive, failoverCompleted bool, domainFailoverVersion, markerFailoverVersion int64, domainStatus int) string {
+	switch {
+	case domainStatus == persistence.DomainStatusDeprecated:
+		return "domain is deprecated"
+	case isActive:
+		return "domain is active in current cluster"
+	case domainFailoverVersion > markerFailoverVersion:
+		return "domain failover version is newer than marker"
+	case failoverCompleted:
+		return "domain failover already completed"
+	default:
+		return "unknown"
+	}
+}
+
+// logMarkerRegressionIfOnActiveCluster emits an Error log + counter only when
+// the local cluster is the active for the domain — i.e. the cluster where
+// graceful-failover ordering guarantees the monotonic-version invariant must
+// hold. On passive replicas a transient regression can be a benign race
+// between the independent domain and marker replication queues, so we drop
+// the marker silently there. This is in-memory only by design: the caller
+// may be holding the shard RLock, and we must not perform I/O under it.
+func (s *contextImpl) logMarkerRegressionIfOnActiveCluster(
+	domainEntry *cache.DomainCacheEntry,
+	marker *types.FailoverMarkerAttributes,
+	logMessage string,
+) {
+	repl := domainEntry.GetReplicationConfig()
+	if repl == nil || repl.ActiveClusterName != s.GetClusterMetadata().GetCurrentClusterName() {
+		return
+	}
+	s.logger.Error(logMessage,
+		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+		tag.WorkflowDomainID(marker.GetDomainID()),
+		tag.Number(domainEntry.GetFailoverVersion()),
+		tag.NextNumber(marker.GetFailoverVersion()),
+	)
+	s.GetMetricsClient().Scope(metrics.FailoverMarkerScope, metrics.DomainTag(domainEntry.GetInfo().Name)).IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
+}
+
 func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error) {
 
 	completedFailoverMarkers := make(map[*types.FailoverMarkerAttributes]struct{})
 	var pendingMarkers []*types.FailoverMarkerAttributes
 
 	s.RLock()
-	// Get a copy of pending markers while holding read lock
+	// get a copy of pending markers while holding read lock
 	pendingMarkers = make([]*types.FailoverMarkerAttributes, len(s.shardInfo.PendingFailoverMarkers))
 	copy(pendingMarkers, s.shardInfo.PendingFailoverMarkers)
 
 	for _, marker := range s.shardInfo.PendingFailoverMarkers {
 		domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 		if err != nil {
+			// if the domain no longer exists, drop the marker so it does not
+			// stay stuck in PendingFailoverMarkers forever — otherwise this
+			// one orphan marker would also bail the loop and prevent cleanup
+			// of every other marker in the slice
+			var notExists *types.EntityNotExistsError
+			if errors.As(err, &notExists) {
+				s.logger.Info("Dropped pending failover marker",
+					tag.WorkflowDomainID(marker.GetDomainID()),
+					tag.Reason("domain no longer exists"),
+				)
+				completedFailoverMarkers[marker] = struct{}{}
+				continue
+			}
 			s.RUnlock()
 			return nil, err
 		}
 
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
+		failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
-		// Drop failover markers if domain is already active in the currentCluster
+		// markerVersion > domainVersion violates the monotonic-version
+		// invariant: a marker's FailoverVersion is set from the domain's
+		// FailoverVersion at the moment the marker is written. Always
+		// drop so it doesn't ship every 5s forever and falsely advertise
+		// an in-flight graceful failover; only alert on the to-be-active
+		// cluster where the ordering invariant must hold.
+		if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
+			s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Dropped pending failover marker: marker version is greater than domain version")
+			completedFailoverMarkers[marker] = struct{}{}
+			continue
+		}
+
+		// Drop failover markers if domain is deprecated
+		// or domain is already active in the currentCluster
 		// or domain have been failed over
-		// or domain is deprecated
-		if isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || domainStatus == persistence.DomainStatusDeprecated {
+		// or the failover this marker belongs to has already completed (no longer pending-active)
+		if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
+			s.logger.Info("Dropped pending failover marker",
+				tag.WorkflowDomainName(domainEntry.GetInfo().Name),
+				tag.Reason(failoverMarkerSkipReason(isActive, failoverCompleted, domainEntry.GetFailoverVersion(), marker.GetFailoverVersion(), domainStatus)),
+			)
 			completedFailoverMarkers[marker] = struct{}{}
 		}
 	}
@@ -1763,4 +1896,21 @@ func (s *contextImpl) logConflictResolveWorkflowExecutionEvents(request *persist
 	simulation.LogEvents(events...)
 	events = s.getEventsFromWorkflowSnapshot(request.NewWorkflowSnapshot)
 	simulation.LogEvents(events...)
+}
+
+// fetchClusterCurrentTimesLocked returns current times for all standby clusters referenced by timerTasks.
+// Caller must hold s.Lock() or s.RLock().
+func (s *contextImpl) fetchClusterCurrentTimesLocked(timerTasks []persistence.Task) map[string]time.Time {
+	currentCluster := s.GetClusterMetadata().GetCurrentClusterName()
+	clusterTimes := make(map[string]time.Time)
+	for _, task := range timerTasks {
+		clusterName, err := s.GetClusterMetadata().ClusterNameForFailoverVersion(task.GetVersion())
+		if err != nil || clusterName == currentCluster {
+			continue
+		}
+		if _, exists := clusterTimes[clusterName]; !exists {
+			clusterTimes[clusterName] = s.getCurrentTimeLocked(clusterName)
+		}
+	}
+	return clusterTimes
 }

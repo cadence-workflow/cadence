@@ -107,13 +107,14 @@ type (
 
 	// Config is the domain config for domain handler
 	Config struct {
-		MinRetentionDays         dynamicproperties.IntPropertyFn
-		MaxRetentionDays         dynamicproperties.IntPropertyFn
-		RequiredDomainDataKeys   dynamicproperties.MapPropertyFn
-		MaxBadBinaryCount        dynamicproperties.IntPropertyFnWithDomainFilter
-		FailoverCoolDown         dynamicproperties.DurationPropertyFnWithDomainFilter
-		FailoverHistoryMaxSize   dynamicproperties.IntPropertyFnWithDomainFilter
-		EnableDomainAuditLogging dynamicproperties.BoolPropertyFn
+		MinRetentionDays            dynamicproperties.IntPropertyFn
+		MaxRetentionDays            dynamicproperties.IntPropertyFn
+		RequiredDomainDataKeys      dynamicproperties.MapPropertyFn
+		MaxBadBinaryCount           dynamicproperties.IntPropertyFnWithDomainFilter
+		FailoverCoolDown            dynamicproperties.DurationPropertyFnWithDomainFilter
+		FailoverHistoryMaxSize      dynamicproperties.IntPropertyFnWithDomainFilter
+		MaxFailoverTimeoutInSeconds dynamicproperties.IntPropertyFnWithDomainFilter
+		EnableDomainAuditLogging    dynamicproperties.BoolPropertyFn
 	}
 
 	// FailoverEvent is the failover information to be stored for each failover event in domain data
@@ -429,12 +430,11 @@ func (d *handlerImpl) DescribeDomain(
 	return response, nil
 }
 
-// UpdateDomain update the domain
+// UpdateDomain updates the domain
 func (d *handlerImpl) UpdateDomain(
 	ctx context.Context,
 	updateRequest *types.UpdateDomainRequest,
 ) (*types.UpdateDomainResponse, error) {
-
 	// must get the metadata (notificationVersion) first
 	// this version can be regarded as the lock on the v2 domain table
 	// and since we do not know which table will return the domain afterwards
@@ -453,6 +453,10 @@ func (d *handlerImpl) UpdateDomain(
 
 	if !isGlobalDomain {
 		return d.updateLocalDomain(ctx, updateRequest, currentDomainState, notificationVersion)
+	}
+
+	if updateRequest.IsAConfigUpdateRequest() && updateRequest.IsAFailoverRequest() {
+		return nil, errCannotDoDomainFailoverAndUpdate
 	}
 
 	if updateRequest.IsAFailoverRequest() {
@@ -515,7 +519,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	// by default, we assume a force failover and that any preexisting graceful failover state is invalidated
 	// if there's a duration of failover time to occur (such as in graceful failover) this will be re-set.
 	// But if there's an existing graceful failover and a subsequent force
-	// we want to ensure that it'll be ended immmediately.
+	// we want to ensure that it'll be ended immediately.
 	intendedDomainState.FailoverEndTime = nil
 
 	// Update replication config
@@ -540,21 +544,18 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 	// if the failover 'graceful' - as indicated as having a FailoverTimeoutInSeconds,
 	// then we set some additional parameters for the graceful failover
 	if updateRequest.FailoverTimeoutInSeconds != nil {
-		gracefulFailoverEndTime, previousFailoverVersion, err := d.handleGracefulFailover(
-			updateRequest,
+		if err := d.validateGracefulFailover(
 			intendedDomainState.ReplicationConfig,
 			currentActiveCluster,
 			currentState.FailoverEndTime,
-			currentState.FailoverVersion,
 			activeClusterChanged,
 			isGlobalDomain,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 		failoverType = constants.FailoverTypeGrace
-		intendedDomainState.FailoverEndTime = gracefulFailoverEndTime
-		intendedDomainState.PreviousFailoverVersion = previousFailoverVersion
+		intendedDomainState.FailoverEndTime = d.computeGracefulFailoverEndTime(updateRequest.GetFailoverTimeoutInSeconds())
+		intendedDomainState.PreviousFailoverVersion = currentState.FailoverVersion
 	}
 
 	// replication config is a subset of config,
@@ -596,7 +597,7 @@ func (d *handlerImpl) handleFailoverRequest(ctx context.Context,
 		//
 		// The reason for this is caution and simplicity at the time of writing:
 		// It's harmless to bump and this simplifies thinking about failover events
-		// through out the rest of the Cadence codebase. We can reliably assume that every failover
+		// throughout the rest of the Cadence codebase. We can reliably assume that every failover
 		// event that has meaningful changes only needs to subscribe to this fencing token.
 		// to detect changes.
 		//
@@ -999,12 +1000,12 @@ func (d *handlerImpl) updateLocalDomain(ctx context.Context,
 	return response, nil
 }
 
-// FailoverDomain handles failover of the domain to a different cluster
+// FailoverDomain is used to change the active cluster of a domain or a domain's cluster attributes.
+// Returns an error if the domain does not exist, the failover request is invalid, or the domain is currently in cooldown.
 func (d *handlerImpl) FailoverDomain(
 	ctx context.Context,
 	failoverRequest *types.FailoverDomainRequest,
 ) (*types.FailoverDomainResponse, error) {
-
 	metadata, err := d.domainManager.GetMetadata(ctx)
 	if err != nil {
 		return nil, err
@@ -1713,34 +1714,31 @@ func (d *handlerImpl) updateReplicationConfig(
 	return config, replicationConfigChanged, activeClusterChanged, nil
 }
 
-func (d *handlerImpl) handleGracefulFailover(
-	updateRequest *types.UpdateDomainRequest,
+func (d *handlerImpl) validateGracefulFailover(
 	replicationConfig *persistence.DomainReplicationConfig,
 	currentActiveCluster string,
 	gracefulFailoverEndTime *int64,
-	failoverVersion int64,
 	activeClusterChanged bool,
 	isGlobalDomain bool,
-) (*int64, int64, error) {
-	// must update active cluster on a global domain
+) error {
 	if !activeClusterChanged || !isGlobalDomain || replicationConfig.IsActiveActive() {
-		return nil, 0, errInvalidGracefulFailover
+		return errInvalidGracefulFailover
 	}
-	// must start with the passive -> active cluster
 	if replicationConfig.ActiveClusterName != d.clusterMetadata.GetCurrentClusterName() {
-		return nil, 0, errCannotDoGracefulFailoverFromCluster
+		return errCannotDoGracefulFailoverFromCluster
 	}
 	if replicationConfig.ActiveClusterName == currentActiveCluster {
-		return nil, 0, errGracefulFailoverInActiveCluster
+		return errGracefulFailoverInActiveCluster
 	}
-	// cannot have concurrent failover
 	if gracefulFailoverEndTime != nil {
-		return nil, 0, errOngoingGracefulFailover
+		return errOngoingGracefulFailover
 	}
-	endTime := d.timeSource.Now().Add(time.Duration(updateRequest.GetFailoverTimeoutInSeconds()) * time.Second).UnixNano()
-	previousFailoverVersion := failoverVersion
+	return nil
+}
 
-	return &endTime, previousFailoverVersion, nil
+func (d *handlerImpl) computeGracefulFailoverEndTime(failoverTimeoutInSeconds int32) *int64 {
+	endTime := d.timeSource.Now().Add(time.Duration(failoverTimeoutInSeconds) * time.Second).UnixNano()
+	return &endTime
 }
 
 func (d *handlerImpl) validateGlobalDomainReplicationConfigForUpdateDomain(
@@ -1780,8 +1778,12 @@ func (d *handlerImpl) validateDomainFailoverRequest(
 		return &types.BadRequestError{Message: "DomainName cannot be empty"}
 	}
 
-	if !currentDomainState.IsGlobalDomain {
+	if !currentDomainState.IsGlobalDomain || currentDomainState.ReplicationConfig == nil {
 		return errLocalDomainsCannotFailover
+	}
+
+	if request.ActiveClusters != nil && currentDomainState.ReplicationConfig.ActiveClusters == nil {
+		return errCannotPromoteToActiveActiveViaFailover
 	}
 
 	if request.ActiveClusters == nil && request.DomainActiveClusterName == nil {

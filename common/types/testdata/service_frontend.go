@@ -83,15 +83,19 @@ var (
 		FailoverTimeoutInSeconds:               &Duration1,
 	}
 	FailoverDomainRequest = types.FailoverDomainRequest{
-		DomainName:              DomainName,
-		DomainActiveClusterName: common.StringPtr(ClusterName1),
-		ActiveClusters:          &ActiveClusters,
+		DomainName:               DomainName,
+		DomainActiveClusterName:  common.StringPtr(ClusterName1),
+		ActiveClusters:           &ActiveClusters,
+		Reason:                   common.StringPtr(Reason),
+		FailoverTimeoutInSeconds: &Duration1,
 	}
 	FailoverDomainRequest_OnlyActiveClusters = types.FailoverDomainRequest{
 		DomainName: DomainName,
 		// Explicitly set to nil to test ActiveActive failovers
-		DomainActiveClusterName: nil,
-		ActiveClusters:          &ActiveClusters,
+		DomainActiveClusterName:  nil,
+		ActiveClusters:           &ActiveClusters,
+		Reason:                   common.StringPtr(Reason),
+		FailoverTimeoutInSeconds: &Duration1,
 	}
 	ActiveClusters = types.ActiveClusters{
 		AttributeScopes: map[string]types.ClusterAttributeScope{
@@ -357,7 +361,7 @@ var (
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimeStamp:                 &Timestamp1,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyExternalEntity,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 	StartWorkflowExecutionResponse = types.StartWorkflowExecutionResponse{
 		RunID: RunID,
@@ -396,7 +400,7 @@ var (
 		SearchAttributes:                    &SearchAttributes,
 		Header:                              &Header,
 		FirstRunAtTimestamp:                 &Timestamp1,
-		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyRegionSticky,
+		ActiveClusterSelectionPolicy:        &ActiveClusterSelectionPolicyWithClusterAttribute,
 	}
 	SignalWithStartWorkflowExecutionAsyncRequest = types.SignalWithStartWorkflowExecutionAsyncRequest{
 		SignalWithStartWorkflowExecutionRequest: &SignalWithStartWorkflowExecutionRequest,

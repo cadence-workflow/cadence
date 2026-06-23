@@ -222,7 +222,7 @@ func (c *controller) GetEngineForShard(shardID int) (engine.Engine, error) {
 	sw := c.metricsScope.StartTimer(metrics.GetEngineForShardLatency)
 	defer func() {
 		sw.Stop()
-		c.metricsScope.RecordHistogramDuration(metrics.GetEngineForShardLatencyHistogram, time.Since(getEngineStart))
+		c.metricsScope.ExponentialHistogram(metrics.GetEngineForShardLatencyHistogram, time.Since(getEngineStart))
 	}()
 	item, err := c.getOrCreateHistoryShardItem(shardID)
 	if err != nil {
@@ -260,7 +260,7 @@ func (c *controller) removeEngineForShard(shardID int, shardItem *historyShardsI
 	sw := c.metricsScope.StartTimer(metrics.RemoveEngineForShardLatency)
 	defer func() {
 		sw.Stop()
-		c.metricsScope.RecordHistogramDuration(metrics.RemoveEngineForShardLatencyHistogram, time.Since(removeEngineStart))
+		c.metricsScope.ExponentialHistogram(metrics.RemoveEngineForShardLatencyHistogram, time.Since(removeEngineStart))
 	}()
 	c.logger.Info("removeEngineForShard called", tag.ShardID(shardID))
 	defer c.logger.Info("removeEngineForShard completed", tag.ShardID(shardID))
@@ -436,7 +436,7 @@ func (c *controller) acquireShards() {
 	sw := c.metricsScope.StartTimer(metrics.AcquireShardsLatency)
 	defer func() {
 		sw.Stop()
-		c.metricsScope.RecordHistogramDuration(metrics.AcquireShardsLatencyHistogram, time.Since(acquireStart))
+		c.metricsScope.ExponentialHistogram(metrics.AcquireShardsLatencyHistogram, time.Since(acquireStart))
 	}()
 
 	numShards := c.config.NumberOfShards
@@ -520,7 +520,7 @@ func (i *historyShardsItem) getOrCreateEngine(
 		if context.PreviousShardOwnerWasDifferent() {
 			acquisitionLatency := context.GetCurrentTime(i.GetClusterMetadata().GetCurrentClusterName()).Sub(context.GetLastUpdatedTime())
 			i.GetMetricsClient().RecordTimer(metrics.ShardInfoScope, metrics.ShardItemAcquisitionLatency, acquisitionLatency)
-			i.GetMetricsClient().Scope(metrics.ShardInfoScope).RecordHistogramDuration(metrics.ShardItemAcquisitionLatencyHistogram, acquisitionLatency)
+			i.GetMetricsClient().Scope(metrics.ShardInfoScope).ExponentialHistogram(metrics.ShardItemAcquisitionLatencyHistogram, acquisitionLatency)
 		}
 		i.engine = i.engineFactory.CreateEngine(context)
 		i.engine.Start()

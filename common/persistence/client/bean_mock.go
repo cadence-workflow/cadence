@@ -138,6 +138,20 @@ func (mr *MockBeanMockRecorder) GetHistoryManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryManager", reflect.TypeOf((*MockBean)(nil).GetHistoryManager))
 }
 
+// GetHistoryTaskDLQManager mocks base method.
+func (m *MockBean) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQManager")
+	ret0, _ := ret[0].(persistence.HistoryTaskDLQManager)
+	return ret0
+}
+
+// GetHistoryTaskDLQManager indicates an expected call of GetHistoryTaskDLQManager.
+func (mr *MockBeanMockRecorder) GetHistoryTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQManager", reflect.TypeOf((*MockBean)(nil).GetHistoryTaskDLQManager))
+}
+
 // GetShardManager mocks base method.
 func (m *MockBean) GetShardManager() persistence.ShardManager {
 	m.ctrl.T.Helper()
@@ -250,6 +264,18 @@ func (m *MockBean) SetHistoryManager(arg0 persistence.HistoryManager) {
 func (mr *MockBeanMockRecorder) SetHistoryManager(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHistoryManager", reflect.TypeOf((*MockBean)(nil).SetHistoryManager), arg0)
+}
+
+// SetHistoryTaskDLQManager mocks base method.
+func (m *MockBean) SetHistoryTaskDLQManager(arg0 persistence.HistoryTaskDLQManager) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetHistoryTaskDLQManager", arg0)
+}
+
+// SetHistoryTaskDLQManager indicates an expected call of SetHistoryTaskDLQManager.
+func (mr *MockBeanMockRecorder) SetHistoryTaskDLQManager(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHistoryTaskDLQManager", reflect.TypeOf((*MockBean)(nil).SetHistoryTaskDLQManager), arg0)
 }
 
 // SetShardManager mocks base method.

@@ -388,6 +388,33 @@ func TestExponentialHistogramRollup(t *testing.T) {
 		"rollup IntExponentialHistogram metric should be emitted on rootScope")
 }
 
+func TestIntExponentialHistogramBucketLabelsAreNumeric(t *testing.T) {
+	// Regression test: IntExponentialHistogram used to call RecordDuration on
+	// tally.DurationBuckets, which produced bucket labels formatted as duration
+	// strings (e.g. "13µs") that Grafana could not parse as numeric bucket
+	// boundaries. The fix uses tally.ValueBuckets + RecordValue so labels render
+	// as plain numbers like "1024".
+	ts := tally.NewTestScope("", nil)
+	c := NewClient(ts, History, MigrationConfig{
+		Histogram: HistogramMigration{Default: "histogram"},
+	})
+
+	scope := c.Scope(HistoryDescribeQueueScope, DomainTag("test-domain"))
+	scope.IntExponentialHistogram(HistorySizeHistogram, 12345)
+
+	def := MetricDefs[Common][HistorySizeHistogram]
+	for _, h := range ts.Snapshot().Histograms() {
+		if h.Name() != def.metricName.String() {
+			continue
+		}
+		// ValueBuckets are emitted; DurationBuckets would be empty.
+		assert.NotEmpty(t, h.Values(), "histogram should record value buckets, not duration buckets")
+		assert.Empty(t, h.Durations(), "histogram should NOT record duration buckets")
+		return
+	}
+	t.Fatalf("histogram %q not found in snapshot", def.metricName.String())
+}
+
 func TestGaugeRollupUsesRootScope(t *testing.T) {
 	rootScope := tally.NewTestScope("", nil)
 	childScope := tally.NewTestScope("", nil)

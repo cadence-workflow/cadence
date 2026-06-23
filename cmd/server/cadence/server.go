@@ -26,19 +26,22 @@ import (
 	"os"
 	"time"
 
+	sharddistributorv1 "github.com/cadence-workflow/shard-manager/.gen/proto/sharddistributor/v1"
+	"github.com/cadence-workflow/shard-manager/client/sharddistributor"
+	smgrpc "github.com/cadence-workflow/shard-manager/client/wrappers/grpc"
+	smmetered "github.com/cadence-workflow/shard-manager/client/wrappers/metered"
+	smretryable "github.com/cadence-workflow/shard-manager/client/wrappers/retryable"
+	smtimeoutwrapper "github.com/cadence-workflow/shard-manager/client/wrappers/timeout"
+	smcommon "github.com/cadence-workflow/shard-manager/common"
+	smmetrics "github.com/cadence-workflow/shard-manager/common/metrics"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/spectatorclient"
 	"github.com/startreedata/pinot-client-go/pinot"
 	"github.com/uber-go/tally"
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/compatibility"
+	"go.uber.org/zap"
 
-	sharddistributorv1 "github.com/uber/cadence/.gen/proto/sharddistributor/v1"
-	sharddistributorClient "github.com/uber/cadence/client/sharddistributor"
-	"github.com/uber/cadence/client/wrappers/errorinjectors"
-	"github.com/uber/cadence/client/wrappers/grpc"
-	"github.com/uber/cadence/client/wrappers/metered"
-	"github.com/uber/cadence/client/wrappers/retryable"
-	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -49,6 +52,8 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
+	csc "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -58,6 +63,7 @@ import (
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
+	"github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -65,7 +71,6 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
-	"github.com/uber/cadence/service/sharddistributor/client/spectatorclient"
 	"github.com/uber/cadence/service/worker"
 	diagnosticsInvariant "github.com/uber/cadence/service/worker/diagnostics/invariant"
 	"github.com/uber/cadence/service/worker/diagnostics/invariant/failure"
@@ -78,6 +83,7 @@ type (
 		name             string
 		cfg              config.Config
 		logger           log.Logger
+		zapLogger        *zap.Logger
 		doneC            chan struct{}
 		daemon           common.Daemon
 		dynamicCfgClient dynamicconfig.Client
@@ -88,12 +94,13 @@ type (
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
 	return &server{
 		cfg:              cfg,
 		name:             service,
 		doneC:            make(chan struct{}),
 		logger:           logger,
+		zapLogger:        zapLogger,
 		dynamicCfgClient: dynamicCfgClient,
 		scope:            scope,
 		metricsClient:    metricsClient,
@@ -153,6 +160,18 @@ func (s *server) startService() common.Daemon {
 
 	params.MetricScope = s.scope
 	params.MetricsClient = s.metricsClient
+	params.ZapLogger = s.zapLogger
+
+	params.OperationalConfigStore = resolveOperationalConfigStore(&params, dc)
+	operationalDC := dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		params.Logger,
+		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
+	)
+	params.PercentageOnboarded = membership.NewPercentageOnboarded(
+		params.MetricsClient,
+		operationalDC.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+	)
 
 	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, dc, params.Logger, params.MetricsClient)
 	if err != nil {
@@ -180,22 +199,22 @@ func (s *server) startService() common.Daemon {
 		s.logger.Fatal("ringpop provider failed", tag.Error(err))
 	}
 
-	shardDistributorClient := s.createShardDistributorClient(params, dc)
+	shardDistributorClient := s.createShardDistributorClient(params)
 	var spectator spectatorclient.Spectator
 	if shardDistributorClient != nil && len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 0 {
 		if len(s.cfg.ShardDistributorMatchingConfig.Namespaces) > 1 {
 			s.logger.Fatal("spectator does not support multiple namespaces", tag.Value(s.cfg.ShardDistributorMatchingConfig.Namespaces))
 		}
-		matchingPercentageOnboarded := dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager)
+		matchingPercentageOnboarded := params.PercentageOnboarded
 
 		spectatorParams := spectatorclient.Params{
 			Client:       shardDistributorClient,
 			MetricsScope: params.MetricScope,
-			Logger:       params.Logger,
+			Logger:       params.ZapLogger,
 			Config:       s.cfg.ShardDistributorMatchingConfig,
-			TimeSource:   clock.NewRealTimeSource(),
+			TimeSource:   clock.NewSMTimeSourceAdapter(clock.NewRealTimeSource()),
 			Enabled: func() bool {
-				return matchingPercentageOnboarded() > 0
+				return matchingPercentageOnboarded.Value() > 0
 			},
 		}
 		namespace := s.cfg.ShardDistributorMatchingConfig.Namespaces[0].Namespace
@@ -220,7 +239,7 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, dc, params.Logger)
+	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, operationalDC, params.PercentageOnboarded, params.Logger)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -327,14 +346,15 @@ func (s *server) startService() common.Daemon {
 func (*server) wrapHashRingsWithShardDistributor(
 	hashRings map[string]membership.SingleProvider,
 	spectator spectatorclient.Spectator,
-	dc *dynamicconfig.Collection,
+	operationalDC *dynamicconfig.Collection,
+	percentageOnboarded membership.PercentageOnboarded,
 	logger log.Logger,
 ) map[string]membership.SingleProvider {
 	if _, ok := hashRings[service.Matching]; ok {
 		hashRings[service.Matching] = membership.NewShardDistributorResolver(
 			spectator,
-			dc.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
-			dc.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+			operationalDC.GetBoolProperty(dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager),
+			percentageOnboarded,
 			hashRings[service.Matching],
 			logger,
 		)
@@ -344,36 +364,33 @@ func (*server) wrapHashRingsWithShardDistributor(
 
 func (*server) createShardDistributorClient(
 	params resource.Params,
-	dc *dynamicconfig.Collection,
-) sharddistributorClient.Client {
+) sharddistributor.Client {
 	shardDistributorClientConfig, ok := params.RPCFactory.GetDispatcher().OutboundConfig(service.ShardDistributor)
-	var shardDistributorClient sharddistributorClient.Client
-	if ok {
-		if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
-			params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
-			return nil
-		}
-		if shardDistributorClientConfig.Outbounds.Stream == nil {
-			params.Logger.Error("shard distributor client does not support stream outbound will fail back to hashring")
-			return nil
-		}
 
-		shardDistributorClient = grpc.NewShardDistributorClient(
-			sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
-		)
+	if !ok {
+		return nil
+	}
+	if !rpc.IsGRPCOutbound(shardDistributorClientConfig) {
+		params.Logger.Error("shard distributor client does not support non-GRPC outbound will fail back to hashring")
+		return nil
+	}
+	if shardDistributorClientConfig.Outbounds.Stream == nil {
+		params.Logger.Error("shard distributor client does not support stream outbound will fail back to hashring")
+		return nil
+	}
 
-		shardDistributorClient = timeoutwrapper.NewShardDistributorClient(shardDistributorClient, timeoutwrapper.ShardDistributorDefaultTimeout)
-		shardDistributorClient = retryable.NewShardDistributorClient(
-			shardDistributorClient,
-			common.CreateShardDistributorServiceRetryPolicy(),
-			common.IsServiceTransientError,
-		)
-		if errorRate := dc.GetFloat64Property(dynamicproperties.ShardDistributorErrorInjectionRate)(); errorRate != 0 {
-			shardDistributorClient = errorinjectors.NewShardDistributorClient(shardDistributorClient, errorRate, params.Logger)
-		}
-		if params.MetricsClient != nil {
-			shardDistributorClient = metered.NewShardDistributorClient(shardDistributorClient, params.MetricsClient)
-		}
+	shardDistributorClient := smgrpc.NewShardDistributorClient(
+		sharddistributorv1.NewShardDistributorAPIYARPCClient(shardDistributorClientConfig),
+	)
+	shardDistributorClient = smtimeoutwrapper.NewShardDistributorClient(shardDistributorClient, smtimeoutwrapper.ShardDistributorDefaultTimeout)
+	shardDistributorClient = smretryable.NewShardDistributorClient(
+		shardDistributorClient,
+		smcommon.CreateShardDistributorServiceRetryPolicy(),
+		smcommon.IsServiceTransientError,
+	)
+	if params.MetricScope != nil {
+		metricsClient := smmetrics.NewClient(params.MetricScope, smmetrics.ShardDistributor, smmetrics.MigrationConfig{})
+		shardDistributorClient = smmetered.NewShardDistributorClient(shardDistributorClient, metricsClient)
 	}
 	return shardDistributorClient
 }
@@ -486,4 +503,23 @@ func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) 
 		}
 		return res
 	}
+}
+
+// resolveOperationalConfigStore returns the primary persistence-backed configstore.Client, or a no-op when persistence doesn't support one.
+func resolveOperationalConfigStore(params *resource.Params, dc *dynamicconfig.Collection) configstore.Client {
+	cscConfig := &csc.ClientConfig{
+		PollInterval:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStorePollInterval)(),
+		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.OperationalConfigStoreUpdateRetryAttempts)(),
+		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreFetchTimeout)(),
+		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreUpdateTimeout)(),
+	}
+	client, err := configstore.NewConfigStoreClient(
+		cscConfig, &params.PersistenceConfig, params.Logger, params.MetricsClient,
+		persistence.OperationalDynamicConfig,
+	)
+	if err != nil {
+		params.Logger.Warn("not instantiating operational dynamic config store, this feature will not be enabled", tag.Error(err))
+		return configstore.NewNopClient()
+	}
+	return client
 }

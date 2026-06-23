@@ -140,6 +140,7 @@ const (
 	FlagFailoverReason                 = "reason"
 	FlagIsGlobalDomain                 = "global_domain" // active-passive domain
 	FlagDomainData                     = "domain_data"
+	FlagDomainDataEntry                = "domain_data_entry"
 	FlagEventID                        = "event_id"
 	FlagActivityID                     = "activity_id"
 	FlagMaxFieldLength                 = "max_field_length"
@@ -204,6 +205,7 @@ const (
 	FlagFailoverDomains                = "domains"
 	FlagFailoverDrillWaitTime          = "failover_drill_wait_second"
 	FlagFailoverDrill                  = "failover_drill"
+	FlagFailoverV2                     = "v2"
 	FlagRetryInterval                  = "retry_interval"
 	FlagRetryAttempts                  = "retry_attempts"
 	FlagMaxActivityRetries             = "max_activity_retries"
@@ -238,6 +240,7 @@ const (
 	FlagCronOverlapPolicy              = "cron_overlap_policy"
 	FlagClusterAttributeScope          = "cluster_attribute_scope"
 	FlagClusterAttributeName           = "cluster_attribute_name"
+	FlagClusterAttributesJSON          = "cluster_attributes_json"
 	FlagBatchV2                        = "v2"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"

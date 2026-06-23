@@ -1779,10 +1779,11 @@ func (v *DescribeDomainResponse) GetFailoverInfo() (o *FailoverInfo) {
 
 // FailoverDomainRequest is an internal type (TBD...)
 type FailoverDomainRequest struct {
-	DomainName              string          `json:"domainName,omitempty"`
-	DomainActiveClusterName *string         `json:"domainActiveClusterName,omitempty"`
-	ActiveClusters          *ActiveClusters `json:"activeClusters,omitempty"`
-	Reason                  *string         `json:"reason,omitempty"`
+	DomainName               string          `json:"domainName,omitempty"`
+	DomainActiveClusterName  *string         `json:"domainActiveClusterName,omitempty"`
+	ActiveClusters           *ActiveClusters `json:"activeClusters,omitempty"`
+	Reason                   *string         `json:"reason,omitempty"`
+	FailoverTimeoutInSeconds *int32          `json:"failoverTimeoutInSeconds,omitempty"`
 }
 
 func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
@@ -1790,10 +1791,11 @@ func (v *FailoverDomainRequest) ToUpdateDomainRequest() *UpdateDomainRequest {
 		return nil
 	}
 	return &UpdateDomainRequest{
-		Name:              v.DomainName,
-		ActiveClusterName: v.DomainActiveClusterName,
-		ActiveClusters:    v.ActiveClusters,
-		FailoverReason:    v.Reason,
+		Name:                     v.DomainName,
+		ActiveClusterName:        v.DomainActiveClusterName,
+		ActiveClusters:           v.ActiveClusters,
+		FailoverReason:           v.Reason,
+		FailoverTimeoutInSeconds: v.FailoverTimeoutInSeconds,
 	}
 }
 
@@ -1817,6 +1819,21 @@ func (v *FailoverDomainRequest) GetDomainActiveClusterName() (o string) {
 func (v *FailoverDomainRequest) GetDomain() (o string) {
 	if v != nil {
 		return v.DomainName
+	}
+	return
+}
+
+// GetReason is an internal getter
+func (v *FailoverDomainRequest) GetReason() (o string) {
+	if v != nil && v.Reason != nil {
+		return *v.Reason
+	}
+	return
+}
+
+func (v *FailoverDomainRequest) GetFailoverTimeoutInSeconds() (o int32) {
+	if v != nil && v.FailoverTimeoutInSeconds != nil {
+		return *v.FailoverTimeoutInSeconds
 	}
 	return
 }
@@ -2795,22 +2812,7 @@ func (c *ClusterAttribute) Equals(other *ClusterAttribute) bool {
 	return c.Scope == other.Scope && c.Name == other.Name
 }
 
-type ActiveClusterSelectionStrategy int32
-
-const (
-	ActiveClusterSelectionStrategyRegionSticky ActiveClusterSelectionStrategy = iota
-	ActiveClusterSelectionStrategyExternalEntity
-)
-
 type ActiveClusterSelectionPolicy struct {
-	ActiveClusterSelectionStrategy *ActiveClusterSelectionStrategy `json:"activeClusterSelectionStrategy,omitempty"`
-
-	StickyRegion string `json:"stickyRegion,omitempty"`
-
-	ExternalEntityType string `json:"externalEntityType,omitempty"`
-	ExternalEntityKey  string `json:"externalEntityKey,omitempty"`
-
-	// TODO(active-active): Remove the fields above
 	ClusterAttribute *ClusterAttribute `json:"clusterAttribute,omitempty" yaml:"clusterAttribute,omitempty"`
 }
 
@@ -2830,43 +2832,6 @@ func (p *ActiveClusterSelectionPolicy) Equals(other *ActiveClusterSelectionPolic
 	}
 
 	return p.ClusterAttribute.Equals(other.ClusterAttribute)
-}
-
-func (e ActiveClusterSelectionStrategy) Ptr() *ActiveClusterSelectionStrategy {
-	return &e
-}
-
-func (e ActiveClusterSelectionStrategy) String() string {
-	switch e {
-	case ActiveClusterSelectionStrategyRegionSticky:
-		return "REGION_STICKY"
-	case ActiveClusterSelectionStrategyExternalEntity:
-		return "EXTERNAL_ENTITY"
-	}
-
-	return fmt.Sprintf("ActiveClusterSelectionStrategy(%d)", e)
-}
-
-func (e ActiveClusterSelectionStrategy) MarshalText() ([]byte, error) {
-	return []byte(e.String()), nil
-}
-
-func (e *ActiveClusterSelectionStrategy) UnmarshalText(value []byte) error {
-	switch s := strings.ToUpper(string(value)); s {
-	case "REGION_STICKY":
-		*e = ActiveClusterSelectionStrategyRegionSticky
-		return nil
-	case "EXTERNAL_ENTITY":
-		*e = ActiveClusterSelectionStrategyExternalEntity
-		return nil
-	default:
-		val, err := strconv.ParseInt(s, 10, 32)
-		if err != nil {
-			return fmt.Errorf("unknown enum value %q for %q: %v", s, "ActiveClusterSelectionStrategy", err)
-		}
-		*e = ActiveClusterSelectionStrategy(val)
-		return nil
-	}
 }
 
 // DomainStatus is an internal type (TBD...)
@@ -8085,8 +8050,8 @@ type UpdateDomainRequest struct {
 // and if so, will return true
 // this includes:
 //
-// - an active cluster change  (force failver)
-// - any failvoer timeout values (for graceful failover)
+// - an active cluster change (force failover)
+// - any failover timeout values (for graceful failover)
 // - or a change to one of the domain's cluster-attribute fields (active-active failover)
 //
 // this is not a validation function
@@ -8095,6 +8060,24 @@ func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
 	return v.ActiveClusterName != nil ||
 		(v.FailoverTimeoutInSeconds != nil && *v.FailoverTimeoutInSeconds > 0) ||
 		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
+}
+
+// IsAConfigUpdateRequest returns true if the request contains any non-failover
+// domain configuration changes (description, owner, data, archival, retention, bad-binaries).
+// Used together with IsAFailoverRequest to reject requests that mix failover and config changes,
+// since the failover path does not process config fields and would silently drop them.
+func (v *UpdateDomainRequest) IsAConfigUpdateRequest() bool {
+	return v.Description != nil ||
+		v.OwnerEmail != nil ||
+		v.Data != nil ||
+		v.EmitMetric != nil ||
+		v.WorkflowExecutionRetentionPeriodInDays != nil ||
+		v.BadBinaries != nil ||
+		v.HistoryArchivalStatus != nil ||
+		v.HistoryArchivalURI != nil ||
+		v.VisibilityArchivalStatus != nil ||
+		v.VisibilityArchivalURI != nil ||
+		v.DeleteBadBinary != nil
 }
 
 // GetName is an internal getter (TBD...)

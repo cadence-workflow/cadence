@@ -110,6 +110,7 @@ type Config struct {
 	ResurrectionCheckMinDelay                         dynamicproperties.DurationPropertyFnWithDomainFilter
 	EnableHierarchicalWeightedRoundRobinTaskScheduler dynamicproperties.BoolPropertyFn
 	EnableTaskListAwareTaskSchedulerByDomain          dynamicproperties.BoolPropertyFnWithDomainFilter
+	TaskListNiceValue                                 dynamicproperties.IntPropertyFnWithDomainAndTaskListFilter
 
 	// History Queue (v2) settings
 	EnableTimerQueueV2                         dynamicproperties.BoolPropertyFnWithShardIDFilter
@@ -157,6 +158,11 @@ type Config struct {
 	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
 	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
 	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
+	TimerProcessorCachedQueueReaderMode               dynamicproperties.StringPropertyFn
+	TimerProcessorCacheMaxSize                        dynamicproperties.IntPropertyFn
+	TimerProcessorCachePrefetchTriggerWindow          dynamicproperties.DurationPropertyFn
+	TimerProcessorCacheTimeEvictionWindow             dynamicproperties.DurationPropertyFn
+	TimerProcessorCacheMinPrefetchInterval            dynamicproperties.DurationPropertyFn
 
 	// TransferQueueProcessor settings
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
@@ -296,6 +302,8 @@ type Config struct {
 	EnableConsistentQueryByDomain dynamicproperties.BoolPropertyFnWithDomainFilter
 	MaxBufferedQueryCount         dynamicproperties.IntPropertyFn
 
+	EnableWorkflowTimerTaskCleanup dynamicproperties.BoolPropertyFn
+
 	// EnableContextHeaderInVisibility whether to enable indexing context header in visibility
 	EnableContextHeaderInVisibility dynamicproperties.BoolPropertyFnWithDomainFilter
 
@@ -424,6 +432,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ResurrectionCheckMinDelay:                         dc.GetDurationPropertyFilteredByDomain(dynamicproperties.ResurrectionCheckMinDelay),
 		EnableHierarchicalWeightedRoundRobinTaskScheduler: dc.GetBoolProperty(dynamicproperties.EnableHierarchicalWeightedRoundRobinTaskScheduler),
 		EnableTaskListAwareTaskSchedulerByDomain:          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTaskListAwareTaskSchedulerByDomain),
+		TaskListNiceValue:                                 dc.GetIntPropertyFilteredByDomainAndTaskList(dynamicproperties.HistoryTaskListNiceValue),
 
 		EnableTimerQueueV2:                         dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTimerQueueV2),
 		EnableTransferQueueV2:                      dc.GetBoolPropertyFilteredByShardID(dynamicproperties.EnableTransferQueueV2),
@@ -468,6 +477,11 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
+		TimerProcessorCachedQueueReaderMode:                  dc.GetStringProperty(dynamicproperties.TimerProcessorCachedQueueReaderMode),
+		TimerProcessorCacheMaxSize:                           dc.GetIntProperty(dynamicproperties.TimerProcessorCacheMaxSize),
+		TimerProcessorCachePrefetchTriggerWindow:             dc.GetDurationProperty(dynamicproperties.TimerProcessorCachePrefetchTriggerWindow),
+		TimerProcessorCacheTimeEvictionWindow:                dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheTimeEvictionWindow),
+		TimerProcessorCacheMinPrefetchInterval:               dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheMinPrefetchInterval),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),
@@ -584,6 +598,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		MutableStateChecksumGenProbability:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumGenProbability),
 		MutableStateChecksumVerifyProbability: dc.GetIntPropertyFilteredByDomain(dynamicproperties.MutableStateChecksumVerifyProbability),
 		MutableStateChecksumInvalidateBefore:  dc.GetFloat64Property(dynamicproperties.MutableStateChecksumInvalidateBefore),
+		EnableWorkflowTimerTaskCleanup:        dc.GetBoolProperty(dynamicproperties.EnableWorkflowTimerTaskCleanup),
 
 		EnableCorruptionAutoRepair:             dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableCorruptionAutoRepair),
 		CorruptionRepairTimeout:                dc.GetDurationPropertyFilteredByDomain(dynamicproperties.CorruptionRepairTimeout),

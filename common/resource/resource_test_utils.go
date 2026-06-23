@@ -23,6 +23,8 @@ package resource
 import (
 	"testing"
 
+	"github.com/cadence-workflow/shard-manager/client/sharddistributorexecutor"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	oldgomock "github.com/golang/mock/gomock" // client library cannot change from the old gomock
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/tally"
@@ -30,13 +32,13 @@ import (
 	publicservicetest "go.uber.org/cadence/.gen/go/cadence/workflowservicetest"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client"
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
-	"github.com/uber/cadence/client/sharddistributorexecutor"
 	"github.com/uber/cadence/common/activecluster"
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -46,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/domain"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
@@ -58,7 +61,6 @@ import (
 	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/taskvalidator"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
 )
 
 type (
@@ -106,11 +108,12 @@ type (
 		ExecutionMgr    *mocks.ExecutionManager
 		PersistenceBean *persistenceClient.MockBean
 
-		IsolationGroups     *isolationgroup.MockState
-		IsolationGroupStore *configstore.MockClient
-		HostName            string
-		Logger              log.Logger
-		taskvalidator       taskvalidator.Checker
+		IsolationGroups        *isolationgroup.MockState
+		IsolationGroupStore    configstore.Client
+		OperationalConfigStore configstore.Client
+		HostName               string
+		Logger                 log.Logger
+		taskvalidator          taskvalidator.Checker
 
 		AsyncWorkflowQueueProvider *queue.MockProvider
 
@@ -167,6 +170,7 @@ func NewTest(
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
 	persistenceBean.EXPECT().GetExecutionManager(gomock.Any()).Return(executionMgr, nil).AnyTimes()
+	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(controller)).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
@@ -222,6 +226,7 @@ func NewTest(
 		ExecutionMgr:    executionMgr,
 		PersistenceBean: persistenceBean,
 		IsolationGroups: isolationGroupMock,
+
 		// logger
 
 		Logger: logger,
@@ -372,6 +377,10 @@ func (s *Test) GetShardDistributorExecutorClient() executorclient.Client {
 	return s.ShardDistributorExecutorClient
 }
 
+func (s *Test) GetZapLogger() *zap.Logger {
+	return zap.NewNop()
+}
+
 // GetRemoteAdminClient for testing
 func (s *Test) GetRemoteAdminClient(
 	cluster string,
@@ -425,6 +434,11 @@ func (s *Test) GetHistoryManager() persistence.HistoryManager {
 	return s.HistoryMgr
 }
 
+// GetHistoryTaskDLQManager for testing
+func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
+	return s.PersistenceBean.GetHistoryTaskDLQManager()
+}
+
 // GetExecutionManager for testing
 func (s *Test) GetExecutionManager(
 	shardID int,
@@ -469,6 +483,16 @@ func (s *Test) GetIsolationGroupState() isolationgroup.State {
 // isolation-group stores
 func (s *Test) GetIsolationGroupStore() configstore.Client {
 	return s.IsolationGroupStore
+}
+
+// GetOperationalConfigStore returns the operational dynamic config store
+func (s *Test) GetOperationalConfigStore() configstore.Client {
+	return s.OperationalConfigStore
+}
+
+// GetOperationalDynamicConfig returns a Collection backed by a no-op client for tests.
+func (s *Test) GetOperationalDynamicConfig() *dynamicconfig.Collection {
+	return dynamicconfig.NewCollection(dynamicconfig.NewNopClient(), s.Logger)
 }
 
 func (s *Test) GetAsyncWorkflowQueueProvider() queue.Provider {

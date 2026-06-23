@@ -1109,6 +1109,15 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional cron schedule on failover drill. Please specify failover drill wait time " +
 						"if this field is specific",
 				},
+				&cli.StringFlag{
+					Name: FlagClusterAttributesJSON,
+					Usage: "Optional cluster attributes to restrict active-active failover scope, in JSON format. " +
+						`Example: [{"scope":"region","name":"us-west"},{"scope":"region","name":"us-east"}]`,
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Use the V2 failover workflow, which fails all managed domains out of --source_cluster onto --target_cluster (N-region safe, records a restore snapshot)",
+				},
 			},
 			Action: AdminFailoverStart,
 		},
@@ -1127,6 +1136,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Aliases: []string{"fd"},
 					Usage: "Optional to pause failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
 				},
 			},
 
@@ -1148,6 +1161,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional to resume failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
 				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
+				},
 			},
 			Action: AdminFailoverResume,
 		},
@@ -1166,6 +1183,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Name:    FlagRunID,
 					Aliases: []string{"rid", "r"},
 					Usage:   "Optional Failover workflow runID, default is latest runID",
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
 				},
 			},
 			Action: AdminFailoverQuery,
@@ -1190,6 +1211,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Aliases: []string{"fd"},
 					Usage: "Optional to abort failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
+				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow (use this to stop a running V2 failover)",
 				},
 			},
 			Action: AdminFailoverAbort,
@@ -1257,6 +1282,10 @@ func newAdminFailoverCommands() []*cli.Command {
 					Usage: "Optional to query failover workflow or failover drill workflow." +
 						" The default is normal failover workflow",
 				},
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Target the V2 failover workflow",
+				},
 			},
 			Action: AdminFailoverList,
 		},
@@ -1269,8 +1298,13 @@ func newAdminRebalanceCommands() []*cli.Command {
 			Name:    "start",
 			Aliases: []string{"s"},
 			Usage:   "start rebalance workflow",
-			Flags:   []cli.Flag{},
-			Action:  AdminRebalanceStart,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:  FlagFailoverV2,
+					Usage: "Use the V2 rebalance workflow, which corrects domain-level and cluster-attribute drift from stored preferences",
+				},
+			},
+			Action: AdminRebalanceStart,
 		},
 		{
 			Name:    "list",
@@ -1361,6 +1395,65 @@ func newAdminConfigStoreCommands() []*cli.Command {
 			Usage:   "List all available configuration keys",
 			Flags:   []cli.Flag{getFormatFlag()},
 			Action:  AdminListConfigKeys,
+		},
+		{
+			Name:    "operational-get",
+			Aliases: []string{"og"},
+			Usage:   "Get Operational Dynamic Config Value (cassandra-backed store)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     FlagDynamicConfigName,
+					Usage:    "Name of Dynamic Config parameter to get value of",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigFilter,
+					Usage: fmt.Sprintf(`Optional filter map keyed by the config's filter dimensions (e.g. domainName, shardID). ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+				},
+			},
+			Action: AdminGetOperationalDynamicConfig,
+		},
+		{
+			Name:    "operational-update",
+			Aliases: []string{"ou"},
+			Usage:   "Update Operational Dynamic Config Value (cassandra-backed store)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     FlagDynamicConfigName,
+					Usage:    "Name of Dynamic Config parameter to update value of",
+					Required: true,
+				},
+				&cli.StringSliceFlag{
+					Name:     FlagDynamicConfigValue,
+					Usage:    fmt.Sprintf(`Can be specified multiple times for multiple values. ex: --%s '{"Value":true,"Filters":[]}'`, FlagDynamicConfigValue),
+					Required: true,
+				},
+			},
+			Action: AdminUpdateOperationalDynamicConfig,
+		},
+		{
+			Name:    "operational-restore",
+			Aliases: []string{"or"},
+			Usage:   "Restore Operational Dynamic Config Value (cassandra-backed store)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     FlagDynamicConfigName,
+					Usage:    "Name of Dynamic Config parameter to restore",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:  FlagDynamicConfigFilter,
+					Usage: fmt.Sprintf(`Optional filter map keyed by the config's filter dimensions (e.g. domainName, shardID). ex: --%s '{"domainName":"global-samples-domain", "shardID":1, "isEnabled": true}'`, FlagDynamicConfigFilter),
+				},
+			},
+			Action: AdminRestoreOperationalDynamicConfig,
+		},
+		{
+			Name:    "operational-list",
+			Aliases: []string{"ol"},
+			Usage:   "List Operational Dynamic Config Value (cassandra-backed store)",
+			Flags:   []cli.Flag{},
+			Action:  AdminListOperationalDynamicConfig,
 		},
 	}
 }

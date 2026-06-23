@@ -130,11 +130,11 @@ func TestGetRemoteClusterName(t *testing.T) {
 
 // mockDLQWriter is a simple in-process test double for TaskDLQWriter.
 type mockDLQWriter struct {
-	calls []taskdlq.AddTaskRequest
+	calls []persistence.CreateHistoryDLQTaskRequest
 	err   error
 }
 
-func (m *mockDLQWriter) AddTask(_ context.Context, req taskdlq.AddTaskRequest) error {
+func (m *mockDLQWriter) CreateHistoryDLQTask(_ context.Context, req persistence.CreateHistoryDLQTaskRequest) error {
 	m.calls = append(m.calls, req)
 	return m.err
 }
@@ -170,6 +170,7 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("my-domain-name", nil)
 
 	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
 	mockActiveClusterMgr.EXPECT().
@@ -180,7 +181,7 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(7)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
@@ -193,6 +194,7 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	req := writer.calls[0]
 	assert.Equal(t, 7, req.ShardID)
 	assert.Equal(t, "domain-1", req.DomainID)
+	assert.Equal(t, "my-domain-name", req.DomainName)
 	assert.Equal(t, "my-scope", req.ClusterAttributeScope)
 	assert.Equal(t, "my-name", req.ClusterAttributeName)
 	assert.Equal(t, mockTask, req.Task)
@@ -215,6 +217,7 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("d").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("d").Return("d", nil)
 
 	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
 	mockActiveClusterMgr.EXPECT().
@@ -225,7 +228,7 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
@@ -234,29 +237,6 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
 
 	assert.ErrorIs(t, err, sentinel)
-}
-
-func TestStandbyTaskPostActionWriteToDLQ_NilWriter_FallsBackToDiscard(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockTask := persistence.NewMockTask(ctrl)
-	mockTask.EXPECT().GetDomainID().Return("d").AnyTimes()
-	mockTask.EXPECT().GetWorkflowID().Return("w").AnyTimes()
-	mockTask.EXPECT().GetRunID().Return("r").AnyTimes()
-	mockTask.EXPECT().GetTaskID().Return(int64(1)).AnyTimes()
-	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
-	mockTask.EXPECT().GetVersion().Return(int64(1)).AnyTimes()
-	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
-
-	// nil writer returns standbyTaskPostActionTaskDiscarded before GetShardID is called
-	mockShard := shard.NewMockContext(ctrl)
-	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
-
-	fn := standbyTaskPostActionWriteToDLQ(nil, mockShard, enabled)
-	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
-
-	assert.ErrorIs(t, err, ErrTaskDiscarded)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *testing.T) {
@@ -275,10 +255,11 @@ func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *test
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("domain-1", nil)
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeDisabled }
 
@@ -305,6 +286,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("my-domain-name", nil)
 
 	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
 	mockActiveClusterMgr.EXPECT().
@@ -315,7 +297,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(7)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeShadow }
@@ -325,6 +307,8 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 
 	assert.ErrorIs(t, err, ErrTaskDiscarded)
 	assert.Len(t, writer.calls, 1)
+	assert.Equal(t, "domain-1", writer.calls[0].DomainID)
+	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttributes(t *testing.T) {
@@ -343,10 +327,11 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("my-domain-name", nil)
 
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
-	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -355,6 +340,8 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 
 	assert.NoError(t, err)
 	assert.Len(t, writer.calls, 1)
+	assert.Equal(t, "domain-1", writer.calls[0].DomainID)
+	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.calls[0].ClusterAttributeScope)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.calls[0].ClusterAttributeName)
 }

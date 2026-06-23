@@ -311,7 +311,7 @@ publicClient:
 dynamicconfig:
   client: filebased
   filebased:
-    filepath: {{ default .Env.DYNAMIC_CONFIG_FILE_PATH "/etc/cadence/config/dynamicconfig/development.yaml" }}
+    filepath: {{ default .Env.DYNAMIC_CONFIG_FILE_PATH "/etc/cadence/dynamicconfig/development.yaml" }}
     pollInterval: "60s"
 
 blobstore:
@@ -341,6 +341,5 @@ shard-distributor-matching:
   namespaces:
     - namespace: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_NAMESPACE "cadence-matching" }}
       heartbeat_interval: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_HEARTBEAT_INTERVAL "1s" }}
-      migration_mode: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_MIGRATION_MODE "local_pass" }}
       ttl_shard: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_SHARD "5m" }}
       ttl_report: {{ default .Env.SHARD_DISTRIBUTOR_MATCHING_TTL_REPORT "1m" }}

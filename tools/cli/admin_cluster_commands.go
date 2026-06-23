@@ -117,12 +117,23 @@ func AdminRebalanceStart(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Context not created:", err)
 	}
+	useV2 := c.Bool(FlagFailoverV2)
 	workflowID := failovermanager.RebalanceWorkflowID
-	rbParams := &failovermanager.RebalanceParams{
-		BatchFailoverSize:              100,
-		BatchFailoverWaitTimeInSeconds: 10,
+	workflowType := failovermanager.RebalanceWorkflowTypeName
+	var input []byte
+	if useV2 {
+		workflowID = failovermanager.RebalanceWorkflowV2ID
+		workflowType = failovermanager.RebalanceWorkflowV2TypeName
+		input, err = json.Marshal(&failovermanager.RebalanceV2Params{
+			BatchSize:               100,
+			WaitBetweenBatchSeconds: 10,
+		})
+	} else {
+		input, err = json.Marshal(&failovermanager.RebalanceParams{
+			BatchFailoverSize:              100,
+			BatchFailoverWaitTimeInSeconds: 10,
+		})
 	}
-	input, err := json.Marshal(rbParams)
 	if err != nil {
 		return commoncli.Problem("Failed to serialize params for failover workflow", err)
 	}
@@ -150,7 +161,7 @@ func AdminRebalanceStart(c *cli.Context) error {
 		},
 		Memo: memo,
 		WorkflowType: &types.WorkflowType{
-			Name: failovermanager.RebalanceWorkflowTypeName,
+			Name: workflowType,
 		},
 	}
 

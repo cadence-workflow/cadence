@@ -25,6 +25,7 @@ package failover
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,19 +103,31 @@ func (s *coordinatorSuite) TestNotifyFailoverMarkers() {
 		FailoverVersion: 1,
 		CreationTime:    common.Int64Ptr(1),
 	}
+
+	var mu sync.Mutex
+	seenShards := make(map[int32]struct{})
 	s.historyClient.EXPECT().NotifyFailoverMarkers(
-		context.Background(), &types.NotifyFailoverMarkersRequest{
-			FailoverMarkerTokens: []*types.FailoverMarkerToken{
-				{
-					ShardIDs:       []int32{1, 2},
-					FailoverMarker: attributes,
-				},
-			},
-		},
-	).DoAndReturn(func(ctx context.Context, request *types.NotifyFailoverMarkersRequest, opts ...yarpc.CallOption) error {
-		close(doneCh)
+		context.Background(), gomock.Any(),
+	).DoAndReturn(func(_ context.Context, request *types.NotifyFailoverMarkersRequest, _ ...yarpc.CallOption) error {
+		mu.Lock()
+		defer mu.Unlock()
+		s.Len(request.FailoverMarkerTokens, 1)
+		token := request.FailoverMarkerTokens[0]
+		s.Equal(attributes, token.FailoverMarker)
+		for _, shardID := range token.ShardIDs {
+			seenShards[shardID] = struct{}{}
+		}
+		if _, ok := seenShards[1]; ok {
+			if _, ok := seenShards[2]; ok {
+				select {
+				case <-doneCh:
+				default:
+					close(doneCh)
+				}
+			}
+		}
 		return nil
-	}).Times(1)
+	}).MinTimes(1)
 
 	s.coordinator.NotifyFailoverMarkers(
 		1,
@@ -126,6 +139,50 @@ func (s *coordinatorSuite) TestNotifyFailoverMarkers() {
 	)
 	s.coordinator.Start()
 	<-doneCh
+}
+
+func (s *coordinatorSuite) TestNotifyFailoverMarkers_EagerFlush() {
+	s.config.NotifyFailoverMarkerInterval = dynamicproperties.GetDurationPropertyFn(time.Hour)
+	s.coordinator = NewCoordinator(
+		s.mockMetadataManager,
+		s.historyClient,
+		s.mockResource.GetTimeSource(),
+		s.mockResource.GetDomainCache(),
+		s.config,
+		s.mockResource.GetMetricsClient(),
+		s.mockResource.GetLogger(),
+	).(*coordinatorImpl)
+
+	doneCh := make(chan struct{})
+	attributes := &types.FailoverMarkerAttributes{
+		DomainID:        uuid.New(),
+		FailoverVersion: 1,
+		CreationTime:    common.Int64Ptr(1),
+	}
+	s.historyClient.EXPECT().NotifyFailoverMarkers(
+		context.Background(), &types.NotifyFailoverMarkersRequest{
+			FailoverMarkerTokens: []*types.FailoverMarkerToken{
+				{
+					ShardIDs:       []int32{1},
+					FailoverMarker: attributes,
+				},
+			},
+		},
+	).DoAndReturn(func(_ context.Context, _ *types.NotifyFailoverMarkersRequest, _ ...yarpc.CallOption) error {
+		close(doneCh)
+		return nil
+	}).Times(1)
+
+	s.coordinator.Start()
+	s.coordinator.NotifyFailoverMarkers(
+		1,
+		[]*types.FailoverMarkerAttributes{attributes},
+	)
+	select {
+	case <-doneCh:
+	case <-time.After(5 * time.Second):
+		s.Fail("eager-flush did not fire within timeout")
+	}
 }
 
 func (s *coordinatorSuite) TestNotifyRemoteCoordinator_Empty() {
@@ -419,6 +476,69 @@ func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_Err
 	s.coordinator.handleFailoverMarkers(request1)
 	s.coordinator.handleFailoverMarkers(request2)
 	s.Equal(1, len(s.coordinator.recorder))
+}
+
+func (s *coordinatorSuite) TestHandleFailoverMarkers_CleanPendingActiveState_NoOp() {
+	domainID := uuid.New()
+	attributes1 := &types.FailoverMarkerAttributes{
+		DomainID:        domainID,
+		FailoverVersion: 2,
+		CreationTime:    common.Int64Ptr(1),
+	}
+	attributes2 := &types.FailoverMarkerAttributes{
+		DomainID:        domainID,
+		FailoverVersion: 2,
+		CreationTime:    common.Int64Ptr(1),
+	}
+	request1 := &receiveRequest{
+		shardIDs: []int32{1},
+		marker:   attributes1,
+	}
+	request2 := &receiveRequest{
+		shardIDs: []int32{2},
+		marker:   attributes2,
+	}
+	info := &persistence.DomainInfo{
+		ID:          domainID,
+		Name:        uuid.New(),
+		Status:      persistence.DomainStatusRegistered,
+		Description: "some random description",
+		OwnerEmail:  "some random email",
+		Data:        nil,
+	}
+	domainConfig := &persistence.DomainConfig{
+		Retention:  1,
+		EmitMetric: true,
+	}
+	replicationConfig := &persistence.DomainReplicationConfig{
+		ActiveClusterName: "active",
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: "active"},
+		},
+	}
+
+	s.mockMetadataManager.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{
+		NotificationVersion: 1,
+	}, nil)
+	// FailoverEndTime is nil → CleanPendingActiveState is a no-op, no UpdateDomain expected.
+	s.mockMetadataManager.On("GetDomain", mock.Anything, &persistence.GetDomainRequest{
+		ID: domainID,
+	}).Return(&persistence.GetDomainResponse{
+		Info:                        info,
+		Config:                      domainConfig,
+		ReplicationConfig:           replicationConfig,
+		IsGlobalDomain:              true,
+		ConfigVersion:               1,
+		FailoverVersion:             2,
+		FailoverNotificationVersion: 2,
+		FailoverEndTime:             nil,
+		NotificationVersion:         1,
+	}, nil).Times(1)
+
+	s.coordinator.handleFailoverMarkers(request1)
+	s.coordinator.handleFailoverMarkers(request2)
+	s.Equal(0, len(s.coordinator.recorder), "recorder entry should be cleared even when CleanPendingActiveState is a no-op")
+	s.mockMetadataManager.AssertNotCalled(s.T(), "UpdateDomain", mock.Anything, mock.Anything)
 }
 
 func (s *coordinatorSuite) TestGetFailoverInfo_Success() {

@@ -188,6 +188,63 @@ func TestProcessScheduleFireActivity(t *testing.T) {
 			},
 		},
 		{
+			name: "backfill start stamps CadenceScheduleBackfillID on StartWorkflow",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.TriggerSource = TriggerSourceBackfill
+				r.BackfillID = "bf-coverage"
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, swReq *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.NotNil(t, swReq.SearchAttributes)
+						require.Contains(t, swReq.SearchAttributes.IndexedFields, SearchAttrBackfillID)
+						var got string
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrBackfillID], &got))
+						assert.Equal(t, "bf-coverage", got)
+						var isBF bool
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrIsBackfill], &isBF))
+						assert.True(t, isBF)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-bf"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-bf"},
+			},
+		},
+		{
+			name: "BUFFER backfill start when previous closed stamps CadenceScheduleBackfillID",
+			req: func() ProcessFireRequest {
+				r := baseReq
+				r.OverlapPolicy = types.ScheduleOverlapPolicyBuffer
+				r.LastStartedWorkflow = &RunningWorkflowInfo{WorkflowID: "old-wf", RunID: "old-run"}
+				r.TriggerSource = TriggerSourceBackfill
+				r.BackfillID = "bf-buf-start"
+				return r
+			}(),
+			setupMock: func(m *frontend.MockClient) {
+				status := types.WorkflowExecutionCloseStatusCompleted
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &status},
+					}, nil)
+				m.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, swReq *types.StartWorkflowExecutionRequest, _ ...interface{}) (*types.StartWorkflowExecutionResponse, error) {
+						require.Contains(t, swReq.SearchAttributes.IndexedFields, SearchAttrBackfillID)
+						var got string
+						require.NoError(t, json.Unmarshal(swReq.SearchAttributes.IndexedFields[SearchAttrBackfillID], &got))
+						assert.Equal(t, "bf-buf-start", got)
+						return &types.StartWorkflowExecutionResponse{RunID: "run-buf"}, nil
+					})
+			},
+			wantResult: &ProcessFireResult{
+				TotalDelta:      1,
+				StartedWorkflow: &RunningWorkflowInfo{WorkflowID: expectedWfID, RunID: "run-buf"},
+			},
+		},
+		{
 			name: "SKIP_NEW skips when previous is running",
 			req: func() ProcessFireRequest {
 				r := baseReq
@@ -647,6 +704,8 @@ func TestBuildSearchAttributes(t *testing.T) {
 		assert.False(t, isBackfill)
 
 		assert.Contains(t, sa.IndexedFields, SearchAttrScheduleTime)
+		_, hasBackfillID := sa.IndexedFields[SearchAttrBackfillID]
+		assert.False(t, hasBackfillID, "non-backfill runs should not set backfill id SA")
 	})
 
 	t.Run("backfill trigger sets isBackfill true", func(t *testing.T) {
@@ -660,6 +719,21 @@ func TestBuildSearchAttributes(t *testing.T) {
 		var isBackfill bool
 		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrIsBackfill], &isBackfill))
 		assert.True(t, isBackfill)
+		_, hasBackfillID := sa.IndexedFields[SearchAttrBackfillID]
+		assert.False(t, hasBackfillID, "empty backfill id should omit SA")
+	})
+
+	t.Run("backfill trigger with id sets backfill id SA", func(t *testing.T) {
+		req := ProcessFireRequest{
+			ScheduleID:    "sched-1",
+			ScheduledTime: scheduledTime,
+			TriggerSource: TriggerSourceBackfill,
+			BackfillID:    "bf-123",
+		}
+		sa := buildSearchAttributes(req)
+		var got string
+		require.NoError(t, json.Unmarshal(sa.IndexedFields[SearchAttrBackfillID], &got))
+		assert.Equal(t, "bf-123", got)
 	})
 
 	t.Run("preserves user search attributes", func(t *testing.T) {
@@ -1030,6 +1104,75 @@ func TestEffectiveConcurrencyLimit(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.want, effectiveConcurrencyLimit(tc.userLimit))
+		})
+	}
+}
+
+func TestWatchWorkflowActivity(t *testing.T) {
+	completedStatus := types.WorkflowExecutionCloseStatusCompleted
+	closed := &types.DescribeWorkflowExecutionResponse{
+		WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &completedStatus},
+	}
+	describeErr := &types.InternalServiceError{Message: "desc error"}
+
+	// The still-running poll path requires activity.RecordHeartbeat which panics
+	// outside a Cadence activity context. That path is exercised by the E2E test.
+	tests := []struct {
+		name      string
+		setup     func(*frontend.MockClient)
+		noContext bool
+		cancelCtx bool
+		wantErr   string
+	}{
+		{
+			name: "workflow already closed returns nil",
+			setup: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(closed, nil)
+			},
+		},
+		{
+			name: "describe error retried, exits on context cancel",
+			setup: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil, describeErr)
+			},
+			cancelCtx: true,
+			wantErr:   "context canceled",
+		},
+		{
+			name:      "missing scheduler context returns error",
+			noContext: true,
+			setup:     func(_ *frontend.MockClient) {},
+			wantErr:   "scheduler context not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := frontend.NewMockClient(ctrl)
+			tc.setup(mockClient)
+
+			var ctx context.Context
+			if tc.noContext {
+				ctx = context.Background()
+			} else {
+				ctx = context.WithValue(context.Background(), schedulerContextKey, schedulerContext{
+					FrontendClient: mockClient,
+				})
+			}
+			if tc.cancelCtx {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+
+			err := watchWorkflowActivity(ctx, "test-domain", "wf-id", "run-id")
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

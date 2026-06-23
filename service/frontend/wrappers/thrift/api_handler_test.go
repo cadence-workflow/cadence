@@ -266,4 +266,52 @@ func TestThriftHandler(t *testing.T) {
 		assert.Equal(t, shared.UpdateDomainResponse{IsGlobalDomain: common.BoolPtr(false), FailoverVersion: common.Int64Ptr(0)}, *resp)
 		assert.Equal(t, expectedErr, err)
 	})
+	t.Run("CreateSchedule", func(t *testing.T) {
+		h.EXPECT().CreateSchedule(ctx, &types.CreateScheduleRequest{}).Return(&types.CreateScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.CreateSchedule(ctx, &shared.CreateScheduleRequest{})
+		assert.Equal(t, shared.CreateScheduleResponse{ScheduleId: common.StringPtr("")}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("DescribeSchedule", func(t *testing.T) {
+		h.EXPECT().DescribeSchedule(ctx, &types.DescribeScheduleRequest{}).Return(&types.DescribeScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.DescribeSchedule(ctx, &shared.DescribeScheduleRequest{})
+		assert.Equal(t, shared.DescribeScheduleResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("UpdateSchedule", func(t *testing.T) {
+		h.EXPECT().UpdateSchedule(ctx, &types.UpdateScheduleRequest{}).Return(&types.UpdateScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.UpdateSchedule(ctx, &shared.UpdateScheduleRequest{})
+		assert.Equal(t, shared.UpdateScheduleResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("DeleteSchedule", func(t *testing.T) {
+		h.EXPECT().DeleteSchedule(ctx, &types.DeleteScheduleRequest{}).Return(&types.DeleteScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.DeleteSchedule(ctx, &shared.DeleteScheduleRequest{})
+		assert.Equal(t, shared.DeleteScheduleResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("PauseSchedule", func(t *testing.T) {
+		h.EXPECT().PauseSchedule(ctx, &types.PauseScheduleRequest{}).Return(&types.PauseScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.PauseSchedule(ctx, &shared.PauseScheduleRequest{})
+		assert.Equal(t, shared.PauseScheduleResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("UnpauseSchedule", func(t *testing.T) {
+		h.EXPECT().UnpauseSchedule(ctx, &types.UnpauseScheduleRequest{}).Return(&types.UnpauseScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.UnpauseSchedule(ctx, &shared.UnpauseScheduleRequest{})
+		assert.Equal(t, shared.UnpauseScheduleResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("BackfillSchedule", func(t *testing.T) {
+		h.EXPECT().BackfillSchedule(ctx, &types.BackfillScheduleRequest{}).Return(&types.BackfillScheduleResponse{}, internalErr).Times(1)
+		resp, err := th.BackfillSchedule(ctx, &shared.BackfillScheduleRequest{})
+		assert.Equal(t, shared.BackfillScheduleResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
+	t.Run("ListSchedules", func(t *testing.T) {
+		h.EXPECT().ListSchedules(ctx, &types.ListSchedulesRequest{}).Return(&types.ListSchedulesResponse{}, internalErr).Times(1)
+		resp, err := th.ListSchedules(ctx, &shared.ListSchedulesRequest{})
+		assert.Equal(t, shared.ListSchedulesResponse{}, *resp)
+		assert.Equal(t, expectedErr, err)
+	})
 }

@@ -518,6 +518,7 @@ func TestNewQueueBase(t *testing.T) {
 		metrics.NoopScope,
 		persistence.HistoryTaskCategoryTransfer,
 		nil,
+		NewMockQueueReader(ctrl),
 		&Options{
 			DeleteBatchSize:    dynamicproperties.GetIntPropertyFn(100),
 			RedispatchInterval: dynamicproperties.GetDurationPropertyFn(time.Second * 10),

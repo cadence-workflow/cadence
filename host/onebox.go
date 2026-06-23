@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 	"github.com/pborman/uuid"
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/prometheus"
@@ -35,6 +36,7 @@ import (
 	"go.uber.org/cadence/compatibility"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/transport"
+	"go.uber.org/zap"
 
 	adminClient "github.com/uber/cadence/client/admin"
 	frontendClient "github.com/uber/cadence/client/frontend"
@@ -53,6 +55,7 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -71,8 +74,6 @@ import (
 	"github.com/uber/cadence/service/frontend"
 	"github.com/uber/cadence/service/history"
 	"github.com/uber/cadence/service/matching"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 	"github.com/uber/cadence/service/worker"
 	"github.com/uber/cadence/service/worker/archiver"
 	"github.com/uber/cadence/service/worker/asyncworkflow"
@@ -105,6 +106,7 @@ type (
 		historyClient                 historyClient.Client
 		matchingClients               []matchingClient.Client
 		logger                        log.Logger
+		zapLogger                     *zap.Logger
 		clusterMetadata               cluster.Metadata
 		persistenceConfig             config.Persistence
 		messagingClient               messaging.Client
@@ -313,6 +315,7 @@ type (
 		ExecutionMgrFactory           persistence.ExecutionManagerFactory
 		DomainReplicationQueue        domain.ReplicationQueue
 		Logger                        log.Logger
+		ZapLogger                     *zap.Logger
 		ClusterNo                     int
 		ArchiverMetadata              carchiver.ArchivalMetadata
 		ArchiverProvider              provider.ArchiverProvider
@@ -342,6 +345,7 @@ type (
 func NewCadence(params *CadenceParams) Cadence {
 	return &cadenceImpl{
 		logger:                        params.Logger,
+		zapLogger:                     params.ZapLogger,
 		clusterMetadata:               params.ClusterMetadata,
 		persistenceConfig:             params.PersistenceConfig,
 		messagingClient:               params.MessagingClient,
@@ -666,11 +670,18 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 	return c.matchingClients
 }
 
+func setOperationalDefaults(params *resource.Params) {
+	params.OperationalConfigStore = configstore.NewNopClient()
+	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
+}
+
 func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, startWG *sync.WaitGroup) {
 	params := new(resource.Params)
+	setOperationalDefaults(params)
 	params.ClusterRedirectionPolicy = &config.ClusterRedirectionPolicy{}
 	params.Name = service.Frontend
 	params.Logger = c.logger
+	params.ZapLogger = c.zapLogger
 	params.ThrottledLogger = c.logger
 	params.TimeSource = c.timeSource
 	params.PProfInitializer = newPProfInitializerImpl(c.logger, c.FrontendPProfPort())
@@ -752,8 +763,10 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 	historyHosts := c.HistoryHosts()
 	for i, hostport := range historyHosts {
 		params := new(resource.Params)
+		setOperationalDefaults(params)
 		params.Name = service.History
 		params.Logger = c.logger
+		params.ZapLogger = c.zapLogger
 		params.ThrottledLogger = c.logger
 		params.TimeSource = c.timeSource
 		params.PProfInitializer = newPProfInitializerImpl(c.logger, pprofPorts[i])
@@ -834,8 +847,10 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		hostport.Identity()
 		matchingHost := fmt.Sprintf("matching-host-%d:%s", i, hostport.Identity())
 		params := new(resource.Params)
+		setOperationalDefaults(params)
 		params.Name = service.Matching
 		params.Logger = c.logger.WithTags(tag.Dynamic("matching-host", matchingHost))
+		params.ZapLogger = c.zapLogger
 		params.ThrottledLogger = c.logger
 		params.TimeSource = c.timeSource
 		params.PProfInitializer = newPProfInitializerImpl(c.logger, pprofPorts[i])
@@ -872,7 +887,6 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 			Namespaces: []clientcommon.NamespaceConfig{{
 				Namespace:         "cadence-matching-integration",
 				HeartBeatInterval: 1 * time.Second,
-				MigrationMode:     sdconfig.MigrationModeLOCALPASSTHROUGH,
 				TTLShard:          5 * time.Minute,
 				TTLReport:         1 * time.Minute,
 			}},
@@ -912,8 +926,10 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	defer c.shutdownWG.Done()
 
 	params := new(resource.Params)
+	setOperationalDefaults(params)
 	params.Name = service.Worker
 	params.Logger = c.logger
+	params.ZapLogger = c.zapLogger
 	params.ThrottledLogger = c.logger
 	params.TimeSource = c.timeSource
 	params.PProfInitializer = newPProfInitializerImpl(c.logger, c.WorkerPProfPort())

@@ -48,13 +48,13 @@ func TestPublish(t *testing.T) {
 				metricsClient := &mocks.Client{}
 				metricsScope := &mocks.Scope{}
 				metricsClient.
-					On("Scope", metrics.MessagingClientPublishScope, metrics.TopicTag("test-topic-1")).
+					On("Scope", metrics.MessagingClientPublishScope, []metrics.Tag{metrics.TopicTag("test-topic-1")}).
 					Return(metricsScope).
 					Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
 
 				sw := metrics.NoopScope.StartTimer(-1)
-				metricsScope.On("StartTimer", metrics.CadenceClientLatency).Return(sw).Once()
+				metricsScope.On("StartTimerWithExponentialHistogram", metrics.CadenceClientLatency, metrics.CadenceClientLatencyHistogram).Return(sw).Once()
 				return metricsClient
 			},
 		},
@@ -68,14 +68,14 @@ func TestPublish(t *testing.T) {
 				metricsClient := &mocks.Client{}
 				metricsScope := &mocks.Scope{}
 				metricsClient.
-					On("Scope", metrics.MessagingClientPublishScope, metrics.TopicTag("test-topic-2")).
+					On("Scope", metrics.MessagingClientPublishScope, []metrics.Tag{metrics.TopicTag("test-topic-2")}).
 					Return(metricsScope).
 					Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientRequests).Once()
 				metricsScope.On("IncCounter", metrics.CadenceClientFailures).Once()
 
 				sw := metrics.NoopScope.StartTimer(-1)
-				metricsScope.On("StartTimer", metrics.CadenceClientLatency).Return(sw).Once()
+				metricsScope.On("StartTimerWithExponentialHistogram", metrics.CadenceClientLatency, metrics.CadenceClientLatencyHistogram).Return(sw).Once()
 				return metricsClient
 			},
 		},

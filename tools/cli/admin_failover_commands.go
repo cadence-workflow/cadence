@@ -23,6 +23,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/user"
 	"time"
@@ -60,6 +61,7 @@ type startParams struct {
 	domains                        []string
 	drillWaitTime                  int
 	cron                           string
+	clusterAttributes              []types.ClusterAttribute
 }
 
 // AdminFailoverStart start failover workflow
@@ -72,6 +74,9 @@ func AdminFailoverStart(c *cli.Context) error {
 	if err != nil {
 		return commoncli.Problem("Required flag not found: ", err)
 	}
+	if c.Bool(FlagFailoverV2) {
+		return failoverStartV2(c, sc, tc)
+	}
 	params := &startParams{
 		targetCluster:                  tc,
 		sourceCluster:                  sc,
@@ -82,6 +87,13 @@ func AdminFailoverStart(c *cli.Context) error {
 		domains:                        c.StringSlice(FlagFailoverDomains),
 		drillWaitTime:                  c.Int(FlagFailoverDrillWaitTime),
 		cron:                           c.String(FlagCronSchedule),
+	}
+	if raw := c.String(FlagClusterAttributesJSON); raw != "" {
+		attrs, parseErr := parseClusterAttributesJSON(raw)
+		if parseErr != nil {
+			return commoncli.Problem("Invalid cluster_attributes_json", parseErr)
+		}
+		params.clusterAttributes = attrs
 	}
 	return failoverStart(c, params)
 }
@@ -372,6 +384,7 @@ func failoverStart(c *cli.Context, params *startParams) error {
 		Domains:                          domains,
 		DrillWaitTime:                    drillWaitTime,
 		GracefulFailoverTimeoutInSeconds: gracefulFailoverTimeoutInSeconds,
+		ClusterAttributes:                params.clusterAttributes,
 	}
 	input, err := json.Marshal(foParams)
 	if err != nil {
@@ -388,7 +401,78 @@ func failoverStart(c *cli.Context, params *startParams) error {
 	return nil
 }
 
+// failoverStartV2 starts the V2 failover workflow, which fails all managed domains out of
+// sourceCluster onto targetCluster. It records a per-domain restore snapshot in the workflow result.
+func failoverStartV2(c *cli.Context, sourceCluster, targetCluster string) error {
+	if sourceCluster == targetCluster {
+		return commoncli.Problem("Invalid input parameters", errors.New("targetCluster is same as sourceCluster"))
+	}
+	client, err := getCadenceClient(c)
+	if err != nil {
+		return err
+	}
+	tcCtx, cancel, err := newContext(c)
+	defer cancel()
+	if err != nil {
+		return commoncli.Problem("Error in creating context: ", err)
+	}
+	op, err := getOperatorFn()
+	if err != nil {
+		return commoncli.Problem("Error in getting operator: ", err)
+	}
+	memo, err := getWorkflowMemo(map[string]interface{}{
+		constants.MemoKeyForOperator: op,
+	})
+	if err != nil {
+		return commoncli.Problem("Failed to serialize memo", err)
+	}
+
+	foParams := failovermanager.FailoverV2Params{
+		SourceClusters:          []string{sourceCluster},
+		TargetCluster:           targetCluster,
+		BatchSize:               c.Int(FlagFailoverBatchSize),
+		WaitBetweenBatchSeconds: c.Int(FlagFailoverWaitTime),
+		Domains:                 c.StringSlice(FlagFailoverDomains),
+	}
+	if raw := c.String(FlagClusterAttributesJSON); raw != "" {
+		attrs, parseErr := parseClusterAttributesJSON(raw)
+		if parseErr != nil {
+			return commoncli.Problem("Invalid cluster_attributes_json", parseErr)
+		}
+		foParams.ClusterAttributes = attrs
+	}
+	input, err := json.Marshal(foParams)
+	if err != nil {
+		return commoncli.Problem("Failed to serialize Failover Params", err)
+	}
+
+	workflowID := failovermanager.FailoverWorkflowV2ID
+	request := &types.StartWorkflowExecutionRequest{
+		Domain:                              constants.SystemLocalDomainName,
+		RequestID:                           uuidFn(),
+		WorkflowID:                          workflowID,
+		WorkflowIDReusePolicy:               types.WorkflowIDReusePolicyAllowDuplicate.Ptr(),
+		TaskList:                            &types.TaskList{Name: failovermanager.TaskListName},
+		ExecutionStartToCloseTimeoutSeconds: common.Int32Ptr(int32(c.Int(FlagExecutionTimeout))),
+		TaskStartToCloseTimeoutSeconds:      common.Int32Ptr(defaultDecisionTimeoutInSeconds),
+		Memo:                                memo,
+		WorkflowType:                        &types.WorkflowType{Name: failovermanager.FailoverWorkflowV2TypeName},
+		Input:                               input,
+	}
+	wf, err := client.StartWorkflowExecution(tcCtx, request)
+	if err != nil {
+		return commoncli.Problem("Failed to start failover workflow", err)
+	}
+	fmt.Println("Failover V2 workflow started")
+	fmt.Println("wid: " + workflowID)
+	fmt.Println("rid: " + wf.GetRunID())
+	return nil
+}
+
 func getFailoverWorkflowID(c *cli.Context) string {
+	if c.Bool(FlagFailoverV2) {
+		return failovermanager.FailoverWorkflowV2ID
+	}
 	if c.Bool(FlagFailoverDrill) {
 		return failovermanager.DrillWorkflowID
 	}
@@ -459,4 +543,12 @@ func validateStartParams(params *startParams) error {
 		params.failoverWorkflowTimeout = defaultFailoverWorkflowTimeoutInSeconds
 	}
 	return nil
+}
+
+func parseClusterAttributesJSON(s string) ([]types.ClusterAttribute, error) {
+	var attrs []types.ClusterAttribute
+	if err := json.Unmarshal([]byte(s), &attrs); err != nil {
+		return nil, fmt.Errorf("couldn't parse JSON: %w. Got: %s", err, s)
+	}
+	return attrs, nil
 }

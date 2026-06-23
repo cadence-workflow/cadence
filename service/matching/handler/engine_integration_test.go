@@ -32,12 +32,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
+	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/executorclient"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/client/matching"
@@ -62,9 +65,6 @@ import (
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/matching/config"
 	"github.com/uber/cadence/service/matching/tasklist"
-	"github.com/uber/cadence/service/sharddistributor/client/clientcommon"
-	"github.com/uber/cadence/service/sharddistributor/client/executorclient"
-	sdconfig "github.com/uber/cadence/service/sharddistributor/config"
 )
 
 type (
@@ -181,6 +181,8 @@ func (s *matchingEngineSuite) TearDownTest() {
 func (s *matchingEngineSuite) newMatchingEngine(
 	config *config.Config, taskMgr persistence.TaskManager,
 ) *matchingEngineImpl {
+	pct := membership.NewMockPercentageOnboarded(s.controller)
+	pct.EXPECT().Value().Return(0).AnyTimes()
 	e := NewEngine(
 		taskMgr,
 		cluster.GetTestClusterMetadata(true),
@@ -188,6 +190,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockMatchingClient,
 		config,
 		s.logger,
+		zap.NewNop(),
 		metrics.NewClient(tally.NoopScope, metrics.Matching, metrics.MigrationConfig{}),
 		tally.NoopScope,
 		s.mockDomainCache,
@@ -197,6 +200,7 @@ func (s *matchingEngineSuite) newMatchingEngine(
 		s.mockShardExecutorClient,
 		defaultSDExecutorConfig(),
 		nil,
+		pct,
 	).(*matchingEngineImpl)
 	// Replace the real executor with a mock that behaves as a fully onboarded SD executor.
 	mockExec := executorclient.NewMockExecutor[tasklist.ShardProcessor](s.controller)
@@ -1416,14 +1420,13 @@ func validateTimeRange(t time.Time, expectedDuration time.Duration) bool {
 }
 
 func defaultTestConfig() *config.Config {
-	config := config.NewConfig(dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationGroupsHelper)
+	config := config.NewConfig(dynamicconfig.NewNopCollection(), dynamicconfig.NewNopCollection(), "some random hostname", commonConfig.RPC{}, getIsolationGroupsHelper)
 	config.LongPollExpirationInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(100 * time.Millisecond)
 	config.MaxTaskDeleteBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(1)
 	config.ReadRangeSize = dynamicproperties.GetIntPropertyFn(50000)
 	config.GetTasksBatchSize = dynamicproperties.GetIntPropertyFilteredByTaskListInfo(10)
 	config.AsyncTaskDispatchTimeout = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 	config.MaxTimeBetweenTaskDeletes = time.Duration(0)
-	config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool { return true }
 	return config
 }
 
@@ -1432,7 +1435,6 @@ func defaultSDExecutorConfig() clientcommon.Config {
 		Namespaces: []clientcommon.NamespaceConfig{{
 			Namespace:         "cadence-matching",
 			HeartBeatInterval: 1 * time.Second,
-			MigrationMode:     sdconfig.MigrationModeONBOARDED,
 			TTLShard:          5 * time.Minute,
 			TTLReport:         1 * time.Minute,
 		}},

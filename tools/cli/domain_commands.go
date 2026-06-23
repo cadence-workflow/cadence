@@ -92,6 +92,31 @@ func newDomainCLI(
 	return d, nil
 }
 
+func getDomainDataFromFlags(c *cli.Context) (map[string]string, error) {
+	data := map[string]string{}
+	if c.IsSet(FlagDomainData) {
+		for k, v := range c.Generic(FlagDomainData).(*flag.StringMap).Value() {
+			data[k] = v
+		}
+	}
+	if c.IsSet(FlagDomainDataEntry) {
+		for _, entry := range c.Generic(FlagDomainDataEntry).(*flag.StringSlice).Value() {
+			kv := strings.SplitN(entry, "=", 2)
+			if len(kv) != 2 {
+				return nil, fmt.Errorf("%s value %q must be in key=value format", FlagDomainDataEntry, entry)
+			}
+			if _, dup := data[kv[0]]; dup {
+				return nil, fmt.Errorf("domain data key %q specified more than once", kv[0])
+			}
+			data[kv[0]] = kv[1]
+		}
+	}
+	if len(data) == 0 {
+		return nil, nil
+	}
+	return data, nil
+}
+
 // RegisterDomain register a domain
 func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 	domainName, err := getRequiredOption(c, FlagDomain)
@@ -115,12 +140,12 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		}
 	}
 
-	var domainData *flag.StringMap
-	if c.IsSet(FlagDomainData) {
-		domainData = c.Generic(FlagDomainData).(*flag.StringMap)
+	domainData, err := getDomainDataFromFlags(c)
+	if err != nil {
+		return commoncli.Problem("Invalid domain data.", err)
 	}
 	if len(requiredDomainDataKeys) > 0 {
-		err = checkRequiredDomainDataKVs(domainData.Value())
+		err = checkRequiredDomainDataKVs(domainData)
 		if err != nil {
 			return commoncli.Problem("Domain data missed required data.", err)
 		}
@@ -162,7 +187,7 @@ func (d *domainCLIImpl) RegisterDomain(c *cli.Context) error {
 		Name:                                   domainName,
 		Description:                            description,
 		OwnerEmail:                             ownerEmail,
-		Data:                                   domainData.Value(),
+		Data:                                   domainData,
 		WorkflowExecutionRetentionPeriodInDays: int32(retentionDays),
 		Clusters:                               clusters,
 		ActiveClusterName:                      activeClusterName,
@@ -218,6 +243,8 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusterName:        common.StringPtr(activeCluster),
 			FailoverTimeoutInSeconds: failoverTimeout,
 		}
+	} else if c.IsSet(FlagActiveClusters) && c.IsSet(FlagActiveClustersJSON) {
+		return commoncli.Problem("Cannot use both --active_clusters and --active_clusters_json flags.", nil)
 	} else if c.IsSet(FlagActiveClusters) { // active-active domain failover
 		activeClusters, err := parseActiveClustersByClusterAttribute(c.String(FlagActiveClusters))
 		if err != nil {
@@ -229,6 +256,16 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			ActiveClusters: &types.ActiveClusters{
 				AttributeScopes: activeClusters.AttributeScopes,
 			},
+		}
+	} else if c.IsSet(FlagActiveClustersJSON) { // active-active domain failover via JSON
+		activeClusters, err := parseActiveClustersByClusterAttributeFromJSON(c.String(FlagActiveClustersJSON))
+		if err != nil {
+			return err
+		}
+
+		updateRequest = &types.UpdateDomainRequest{
+			Name:           domainName,
+			ActiveClusters: &activeClusters,
 		}
 	} else {
 		resp, err := d.describeDomain(ctx, &types.DescribeDomainRequest{
@@ -253,9 +290,10 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 		if c.IsSet(FlagOwnerEmail) {
 			ownerEmail = c.String(FlagOwnerEmail)
 		}
-		var domainData *flag.StringMap
-		if c.IsSet(FlagDomainData) {
-			domainData = c.Generic(FlagDomainData).(*flag.StringMap)
+		var domainData map[string]string
+		domainData, err = getDomainDataFromFlags(c)
+		if err != nil {
+			return commoncli.Problem("Invalid domain data.", err)
 		}
 		if c.IsSet(FlagRetentionDays) {
 			retentionDays = int32(c.Int(FlagRetentionDays))
@@ -304,7 +342,7 @@ func (d *domainCLIImpl) UpdateDomain(c *cli.Context) error {
 			Name:                                   domainName,
 			Description:                            common.StringPtr(description),
 			OwnerEmail:                             common.StringPtr(ownerEmail),
-			Data:                                   domainData.Value(),
+			Data:                                   domainData,
 			WorkflowExecutionRetentionPeriodInDays: common.Int32Ptr(retentionDays),
 			EmitMetric:                             common.BoolPtr(emitMetric),
 			HistoryArchivalStatus:                  has,
@@ -499,6 +537,10 @@ func (d *domainCLIImpl) FailoverDomain(c *cli.Context) error {
 	reason := c.String(FlagFailoverReason)
 	if reason != "" {
 		failoverRequest.Reason = common.StringPtr(reason)
+	}
+
+	if c.IsSet(FlagFailoverTimeout) {
+		failoverRequest.FailoverTimeoutInSeconds = common.Int32Ptr(int32(c.Int(FlagFailoverTimeout)))
 	}
 
 	_, err = d.failoverDomain(ctx, failoverRequest)

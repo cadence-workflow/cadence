@@ -199,7 +199,7 @@ func (i *Indexer) messageProcessLoop(workerWG *sync.WaitGroup) {
 		sw := i.scope.StartTimer(metrics.IndexProcessorProcessMsgLatency)
 		err := i.process(msg)
 		sw.Stop()
-		i.scope.RecordHistogramDuration(metrics.IndexProcessorProcessMsgLatencyHistogram, time.Since(indexProcessStart))
+		i.scope.ExponentialHistogram(metrics.IndexProcessorProcessMsgLatencyHistogram, time.Since(indexProcessStart))
 		if err != nil {
 			msg.Nack() //nolint:errcheck
 		}

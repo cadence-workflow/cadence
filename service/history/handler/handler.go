@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -31,7 +32,6 @@ import (
 
 	"github.com/pborman/uuid"
 	"go.uber.org/yarpc/yarpcerrors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/uber/cadence/common"
@@ -774,19 +774,19 @@ func (h *handlerImpl) RemoveTask(
 	case commonconstants.TaskTypeTransfer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTransfer,
-			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(request.GetTaskID())},
 			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	case commonconstants.TaskTypeTimer:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryTimer,
-			TaskKey:      persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(0, request.GetVisibilityTimestamp()), request.GetTaskID())},
 			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	case commonconstants.TaskTypeReplication:
 		return executionMgr.CompleteHistoryTask(ctx, &persistence.CompleteHistoryTaskRequest{
 			TaskCategory: persistence.HistoryTaskCategoryReplication,
-			TaskKey:      persistence.NewImmediateTaskKey(request.GetTaskID()),
+			TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(request.GetTaskID())},
 			ShardID:      common.Ptr(int(request.GetShardID())),
 		})
 	default:
@@ -2115,7 +2115,7 @@ func (h *handlerImpl) RatelimitUpdate(
 	//
 	// "_" is ignoring "used RPS" data here.  it is likely useful for being friendlier
 	// to brief, bursty-but-within-limits load, but that has not yet been built.
-	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, maps.Keys(arg.Load))
+	weights, err := h.ratelimitAggregator.HostUsage(arg.ID, slices.Collect(maps.Keys(arg.Load)))
 	if err != nil {
 		return nil, h.error(fmt.Errorf("failed to retrieve updated weights: %w", err), scope, "", "", "")
 	}
@@ -2273,7 +2273,7 @@ func (h *handlerImpl) emitInfoOrDebugLog(
 func (h *handlerImpl) startRequestProfile(ctx context.Context, scope metrics.ScopeIdx) (metrics.Scope, metrics.Stopwatch) {
 	metricsScope := h.GetMetricsClient().Scope(scope, metrics.GetContextTags(ctx)...)
 	metricsScope.IncCounter(metrics.CadenceRequests)
-	sw := metricsScope.StartTimer(metrics.CadenceLatency)
+	sw := metricsScope.StartTimerWithExponentialHistogram(metrics.CadenceLatency, metrics.CadenceLatencyHistogram)
 	return metricsScope, sw
 }
 

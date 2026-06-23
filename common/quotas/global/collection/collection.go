@@ -411,7 +411,7 @@ func (c *Collection) backgroundUpdateLoop() {
 				sw := c.scope.StartTimer(metrics.GlobalRatelimiterUpdateLatency)
 				c.doUpdate(now.Sub(lastGatherTime), usage)
 				sw.Stop()
-				c.scope.RecordHistogramDuration(metrics.GlobalRatelimiterUpdateLatencyHistogram, time.Since(ratelimiterUpdateStart))
+				c.scope.ExponentialHistogram(metrics.GlobalRatelimiterUpdateLatencyHistogram, time.Since(ratelimiterUpdateStart))
 			}
 
 			<-localMetricsDone // should be much faster than doUpdate, unless it's no-opped

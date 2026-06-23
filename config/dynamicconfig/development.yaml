@@ -37,6 +37,7 @@ frontend.validSearchAttributes:
     CadenceScheduleState: 1
     CadenceScheduleCron: 1
     CadenceScheduleWorkflowType: 1
+    CadenceScheduleBackfillID: 1
     CloseStatus: 2
     CloseTime: 2
     CustomBoolField: 4
@@ -85,17 +86,14 @@ frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
 history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 - value: true
-shardDistributor.migrationMode:
-  - value: "onboarded"
-  - value: "local_pass"
-    constraints:
-      namespace: "test-local-passthrough"
-  - value: "local_pass_shadow"
-    constraints:
-      namespace: "test-local-passthrough-shadow"
-  - value: "distributed_pass"
-    constraints:
-      namespace: "test-distributed-passthrough"
-  - value: "distributed_pass"
-    constraints:
-      namespace: "test-external-assignment"
+system.workflowDeletionJitterRange:
+- value: 1
+  constraints: {}
+system.enableWorkflowTimerTaskCleanup:
+- value: true
+worker.enableScheduler:
+- value: true
+  constraints: {}
+frontend.failoverCoolDown:
+- value: 1s
+  constraints: {}

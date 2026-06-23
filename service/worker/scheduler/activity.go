@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/cadence/activity"
 
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common/metrics"
@@ -270,6 +271,34 @@ func terminateWorkflow(ctx context.Context, client frontend.Client, domain strin
 	return true, nil
 }
 
+// watchWorkflowActivity polls until the target workflow is no longer running,
+// then returns so the scheduler can immediately drain the next buffered fire.
+// It heartbeats on every poll so the worker can cancel it (e.g. when the
+// buffer is cleared by a policy update or ContinueAsNew).
+func watchWorkflowActivity(ctx context.Context, domain, workflowID, runID string) error {
+	sc, ok := ctx.Value(schedulerContextKey).(schedulerContext)
+	if !ok {
+		return fmt.Errorf("scheduler context not found in activity context")
+	}
+	wf := &RunningWorkflowInfo{WorkflowID: workflowID, RunID: runID}
+	for {
+		running, err := isWorkflowRunning(ctx, sc.FrontendClient, domain, wf)
+		if err == nil && !running {
+			return nil
+		}
+		// On a transient describe error, continue polling rather than returning;
+		// aborting would cause the main loop to restart the watcher in a spin.
+		if err == nil {
+			activity.RecordHeartbeat(ctx, nil)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(watcherPollInterval):
+		}
+	}
+}
+
 func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
 	fields := make(map[string][]byte)
 
@@ -289,6 +318,11 @@ func buildSearchAttributes(req ProcessFireRequest) *types.SearchAttributes {
 	}
 	if v, err := json.Marshal(req.TriggerSource == TriggerSourceBackfill); err == nil {
 		fields[SearchAttrIsBackfill] = v
+	}
+	if req.TriggerSource == TriggerSourceBackfill && req.BackfillID != "" {
+		if v, err := json.Marshal(req.BackfillID); err == nil {
+			fields[SearchAttrBackfillID] = v
+		}
 	}
 
 	return &types.SearchAttributes{IndexedFields: fields}
