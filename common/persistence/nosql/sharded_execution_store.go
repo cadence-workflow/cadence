@@ -54,8 +54,10 @@ func (d *shardedExecutionStore) GetName() string {
 	return d.store.GetName()
 }
 
-// Close is a no-op; the underlying shardedNosqlStore is owned and closed by executionStoreFactory.
-func (d *shardedExecutionStore) Close() {}
+// Close releases the underlying store's database connections.
+func (d *shardedExecutionStore) Close() {
+	d.store.Close()
+}
 
 func (d *shardedExecutionStore) executionStore(requestShardID *int, operation string) (persistence.ExecutionStore, error) {
 	if requestShardID == nil {
