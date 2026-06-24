@@ -1002,6 +1002,11 @@ func newDBCommands() []*cli.Command {
 			Name:  "clean",
 			Usage: "clean up corrupted workflows",
 			Flags: append(getDBFlags(),
+				&cli.IntFlag{
+					Name:     FlagNumberOfShards,
+					Usage:    "NumberOfShards for the cadence cluster (see config for numHistoryShards)",
+					Required: true,
+				},
 				scanFlag,
 				collectionsFlag,
 				&cli.StringFlag{

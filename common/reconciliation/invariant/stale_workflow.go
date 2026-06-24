@@ -31,6 +31,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
@@ -72,9 +73,10 @@ var (
 )
 
 type staleWorkflowCheck struct {
-	pr  persistence.Retryer
-	dc  cache.DomainCache
-	log *zap.Logger
+	pr        persistence.Retryer
+	dc        cache.DomainCache
+	log       *zap.Logger
+	numShards int
 }
 
 // NewStaleWorkflow checks to see if a workflow has out-lived its retention window.
@@ -84,11 +86,13 @@ func NewStaleWorkflow(
 	pr persistence.Retryer,
 	dc cache.DomainCache,
 	log *zap.Logger,
+	numShards int,
 ) Invariant {
 	return &staleWorkflowCheck{
-		pr:  pr,
-		dc:  dc,
-		log: log,
+		pr:        pr,
+		dc:        dc,
+		log:       log,
+		numShards: numShards,
 	}
 }
 
@@ -185,12 +189,10 @@ func (c *staleWorkflowCheck) Name() Name {
 }
 
 // CheckAge checks whether a workflow has exceeded its retention window.
-// It derives the shard ID from the request context; use check() for reconciliation
-// paths that have a concrete execution with a known shard ID.
 func (c *staleWorkflowCheck) CheckAge(workflow *persistence.GetWorkflowExecutionResponse) (pastExpiration bool, result CheckResult) {
-	// shardID is unknown in this code path; use 0 as a sentinel.
-	// Callers that have shard context should use the internal checkAge helper via check().
-	return c.checkAge(workflow, 0)
+	shardID := common.WorkflowIDToHistoryShard(
+		workflow.State.ExecutionInfo.WorkflowID, c.numShards)
+	return c.checkAge(workflow, shardID)
 }
 
 func (c *staleWorkflowCheck) checkAge(workflow *persistence.GetWorkflowExecutionResponse, shardID int) (pastExpiration bool, result CheckResult) {

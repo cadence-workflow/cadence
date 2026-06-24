@@ -681,6 +681,11 @@ func (h *Impl) GetPersistenceBean() persistenceClient.Bean {
 	return h.persistenceBean
 }
 
+// GetNumShards returns the number of history shards
+func (h *Impl) GetNumShards() int {
+	return h.numShards
+}
+
 func (h *Impl) GetHostName() string {
 	return h.hostName
 }

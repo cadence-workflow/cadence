@@ -68,6 +68,7 @@ type (
 	Test struct {
 		MetricsScope    tally.TestScope
 		ClusterMetadata cluster.Metadata
+		numShards       int
 
 		// other common resources
 
@@ -234,6 +235,7 @@ func NewTest(
 		AsyncWorkflowQueueProvider: asyncWorkflowQueueProvider,
 
 		RatelimiterAggregatorClient: nil, // TODO: not currently used
+		numShards:                   1024,
 	}
 }
 
@@ -448,6 +450,11 @@ func (s *Test) GetExecutionManager() (persistence.ExecutionManager, error) {
 // GetPersistenceBean for testing
 func (s *Test) GetPersistenceBean() persistenceClient.Bean {
 	return s.PersistenceBean
+}
+
+// GetNumShards for testing
+func (s *Test) GetNumShards() int {
+	return s.numShards
 }
 
 // GetHostName for testing
