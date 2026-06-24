@@ -57,6 +57,9 @@ const (
 	// implying a failed cleanup / lost timers / etc of some kind.
 	StaleWorkflow Name = "stale_workflow"
 
+	// TimerInvalid checks for timers scheduled for non-existent or closed workflows
+	TimerInvalid Name = "TimerInvalid"
+
 	// CollectionMutableState is the collection of invariants relating to mutable state
 	CollectionMutableState Collection = 0
 	// CollectionHistory is the collection  of invariants relating to history
