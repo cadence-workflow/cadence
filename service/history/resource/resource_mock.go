@@ -535,6 +535,20 @@ func (mr *MockResourceMockRecorder) GetMetricsScope() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsScope", reflect.TypeOf((*MockResource)(nil).GetMetricsScope))
 }
 
+// GetNumShards mocks base method.
+func (m *MockResource) GetNumShards() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNumShards")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetNumShards indicates an expected call of GetNumShards.
+func (mr *MockResourceMockRecorder) GetNumShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNumShards", reflect.TypeOf((*MockResource)(nil).GetNumShards))
+}
+
 // GetOperationalConfigStore mocks base method.
 func (m *MockResource) GetOperationalConfigStore() configstore.Client {
 	m.ctrl.T.Helper()

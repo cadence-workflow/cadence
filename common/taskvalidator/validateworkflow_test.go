@@ -71,7 +71,7 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 			mockExecutionManager := persistence.NewMockExecutionManager(mockCtrl)
 			mockHistoryManager := persistence.NewMockHistoryManager(mockCtrl)
 
-			checker, err := NewWfChecker(mockLogger, mockMetricsClient, mockDomainCache, mockExecutionManager, mockHistoryManager)
+			checker, err := NewWfChecker(mockLogger, mockMetricsClient, mockDomainCache, mockExecutionManager, mockHistoryManager, 4)
 			assert.NoError(t, err, "Failed to create checker")
 
 			mockDomainCache.EXPECT().GetDomainByID(tc.domainID).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()

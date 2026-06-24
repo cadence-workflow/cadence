@@ -119,8 +119,13 @@ func concreteExecutionScannerManager(
 
 	collections := ParseCollections(params.ScannerConfig)
 
+	var numShards int
+	if scannerContext, err := shardscanner.GetScannerContext(ctx); err == nil {
+		numShards = scannerContext.Resource.GetNumShards()
+	}
+
 	var ivs []invariant.Invariant
-	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop()) {
+	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop(), numShards) {
 		ivs = append(ivs, fn(pr, domainCache))
 	}
 
@@ -144,7 +149,7 @@ func concreteExecutionFixerIterator(ctx context.Context, client blobstore.Client
 }
 
 // concreteExecutionFixerManager provides invariant manager for concrete execution fixer.
-func concreteExecutionFixerManager(_ context.Context, pr persistence.Retryer, params shardscanner.FixShardActivityParams, domainCache cache.DomainCache) invariant.Manager {
+func concreteExecutionFixerManager(ctx context.Context, pr persistence.Retryer, params shardscanner.FixShardActivityParams, domainCache cache.DomainCache) invariant.Manager {
 	// convert to invariants.
 	// this may produce an empty list if it all fixers are intentionally disabled,
 	// or if the list came from a previous version of the server which lacked this config.
@@ -159,8 +164,13 @@ func concreteExecutionFixerManager(_ context.Context, pr persistence.Retryer, pa
 		}
 	}
 
+	var numShards int
+	if fixerContext, err := shardscanner.GetFixerContext(ctx); err == nil {
+		numShards = fixerContext.Resource.GetNumShards()
+	}
+
 	var ivs []invariant.Invariant
-	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop()) {
+	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop(), numShards) {
 		ivs = append(ivs, fn(pr, domainCache))
 	}
 	return invariant.NewInvariantManager(ivs)
