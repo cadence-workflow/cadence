@@ -27,7 +27,8 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
+
+	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/clock"
@@ -37,7 +38,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/constants"
-	"go.uber.org/multierr"
 )
 
 type (
@@ -245,8 +245,8 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-	// TODO(c-warren): Pass in max read level from the shard context
-	maxKey := persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), 0)
+	// TODO(c-warren): Pass in max read level from the shard context.
+	maxKey := persistence.MaximumHistoryTaskKey
 
 	for {
 		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{

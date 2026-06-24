@@ -13,8 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	persistence "github.com/uber/cadence/common/persistence"
 	gomock "go.uber.org/mock/gomock"
+
+	persistence "github.com/uber/cadence/common/persistence"
 )
 
 // MockTaskReinjector is a mock of TaskReinjector interface.
