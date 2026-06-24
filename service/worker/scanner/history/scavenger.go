@@ -261,8 +261,8 @@ func (s *Scavenger) startTaskProcessor(
 						continue
 					}
 					domainName, err := s.domainCache.GetDomainName(task.domainID)
-					 // we can safely delete history branch if domain does not exist anymore,
-					 // domain name in the deleteHistoryBranchRequest is only used for reporting
+					// we can safely delete history branch if domain does not exist anymore,
+					// domain name in the deleteHistoryBranchRequest is only used for reporting
 					if err != nil && !common.IsEntityNotExistsError(err) {
 						respCh <- err
 						s.logger.Error("Unexpected: Encountered error while fetching domain name",
