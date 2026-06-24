@@ -197,6 +197,11 @@ func AdminGetDLQMessages(c *cli.Context) error {
 
 			replicationTasks := map[int64]*types.ReplicationTask{}
 			for _, task := range resp.ReplicationTasks {
+				if task == nil {
+					// The history service returns nil entries for DLQ tasks that
+					// could not be hydrated (e.g. the source workflow was deleted).
+					continue
+				}
 				replicationTasks[task.SourceTaskID] = task
 			}
 
