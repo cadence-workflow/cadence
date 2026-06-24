@@ -151,10 +151,17 @@ func (c *meteredExecutionManager) CreateHistoryTasks(ctx context.Context, reques
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence CreateHistoryTasks called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}

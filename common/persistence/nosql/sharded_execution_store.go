@@ -188,6 +188,14 @@ func (d *shardedExecutionStore) CreateFailoverMarkerTasks(ctx context.Context, r
 	return store.CreateFailoverMarkerTasks(ctx, request)
 }
 
+func (d *shardedExecutionStore) CreateHistoryTasks(ctx context.Context, request *persistence.CreateHistoryTasksRequest) error {
+	store, err := d.executionStore(request.ShardID, "CreateHistoryTasks")
+	if err != nil {
+		return err
+	}
+	return store.CreateHistoryTasks(ctx, request)
+}
+
 func (d *shardedExecutionStore) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (*persistence.GetHistoryTasksResponse, error) {
 	store, err := d.executionStore(request.ShardID, "GetHistoryTasks")
 	if err != nil {
