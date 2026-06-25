@@ -292,17 +292,18 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	if _, ok := c.recorder[domainID]; !ok {
 		// initialize the failover record
 		c.recorder[marker.GetDomainID()] = &failoverRecord{
-			failoverVersion:         marker.GetFailoverVersion(),
-			shards:                  make(map[int32]struct{}),
-			firstSeenTime:           c.timeSource.Now(),
-			firstMarkerCreationTime: marker.GetCreationTime(),
+			failoverVersion: marker.GetFailoverVersion(),
+			shards:          make(map[int32]struct{}),
+			firstSeenTime:   c.timeSource.Now(),
 		}
 	}
 
 	record := c.recorder[domainID]
 	record.lastUpdatedTime = c.timeSource.Now()
-	if marker.GetCreationTime() < record.firstMarkerCreationTime {
-		record.firstMarkerCreationTime = marker.GetCreationTime()
+	// track the earliest valid CreationTime across all markers for accurate latency;
+	// skip non-positive values so a single bad marker can't poison the minimum
+	if ct := marker.GetCreationTime(); ct > 0 && (record.firstMarkerCreationTime == 0 || ct < record.firstMarkerCreationTime) {
+		record.firstMarkerCreationTime = ct
 	}
 	for _, shardID := range request.shardIDs {
 		record.shards[shardID] = struct{}{}
