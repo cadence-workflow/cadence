@@ -350,6 +350,21 @@ func (t *timerQueueProcessor) FailoverDomain(domainIDs map[string]struct{}) {
 }
 
 func (t *timerQueueProcessor) HandleAction(ctx context.Context, clusterName string, action *Action) (*ActionResult, error) {
+	// External callers abort if the processor is shutting down so they don't block
+	// indefinitely once the processing pumps stop accepting work.
+	return t.handleAction(ctx, clusterName, action, t.shutdownChan)
+}
+
+// handleAction routes the action to the proper queue processor and waits for the result.
+// abortCh, when non-nil, makes the call return errProcessorShutdown if it is signaled
+// before the result arrives.
+//
+// The drain path passes a nil abortCh so the action is awaited to completion: during
+// graceful shutdown the queue processors are intentionally kept running until drain
+// returns, so the result is guaranteed to arrive (bounded by ctx). This avoids racing
+// the already-closed shutdownChan, which would otherwise nondeterministically abort the
+// completeTimer issued during drain.
+func (t *timerQueueProcessor) handleAction(ctx context.Context, clusterName string, action *Action, abortCh <-chan struct{}) (*ActionResult, error) {
 	var resultNotificationCh chan actionResultNotification
 	var added bool
 	if clusterName == t.currentClusterName {
@@ -379,7 +394,7 @@ func (t *timerQueueProcessor) HandleAction(ctx context.Context, clusterName stri
 	select {
 	case resultNotification := <-resultNotificationCh:
 		return resultNotification.result, resultNotification.err
-	case <-t.shutdownChan:
+	case <-abortCh:
 		return nil, errProcessorShutdown
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -398,16 +413,20 @@ func (t *timerQueueProcessor) UnlockTaskProcessing() {
 
 func (t *timerQueueProcessor) drain() {
 	if !t.shard.GetConfig().QueueProcessorEnableGracefulSyncShutdown() {
-		if err := t.completeTimer(context.Background()); err != nil {
+		// non-graceful: pumps are already stopped, so completeTimer returns early
+		if err := t.completeTimer(context.Background(), nil); err != nil {
 			t.logger.Error("Failed to complete timer task during drain", tag.Error(err))
 		}
 		return
 	}
 
-	// when graceful shutdown is enabled for queue processor, use a context with timeout
+	// When graceful shutdown is enabled the queue processors are still running at this
+	// point (they are stopped only after drain returns), so pass a nil abort channel to
+	// deterministically wait for the GetState results instead of racing the already-closed
+	// shutdownChan. The timeout context bounds the wait in case a pump is unresponsive.
 	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 	defer cancel()
-	if err := t.completeTimer(ctx); err != nil {
+	if err := t.completeTimer(ctx, nil); err != nil {
 		t.logger.Error("Failed to complete timer task during drain", tag.Error(err))
 	}
 }
@@ -435,7 +454,8 @@ func (t *timerQueueProcessor) completeTimerLoop() {
 			return
 		case <-completeTimer.C:
 			for attempt := 0; attempt < t.config.TimerProcessorCompleteTimerFailureRetryCount(); attempt++ {
-				err := t.completeTimer(context.Background())
+				// periodic completion aborts promptly if a shutdown is signaled
+				err := t.completeTimer(context.Background(), t.shutdownChan)
 				if err == nil {
 					break
 				}
@@ -470,9 +490,9 @@ func (t *timerQueueProcessor) completeTimerLoop() {
 	}
 }
 
-func (t *timerQueueProcessor) completeTimer(ctx context.Context) error {
+func (t *timerQueueProcessor) completeTimer(ctx context.Context, abortCh <-chan struct{}) error {
 	newAckLevel := maximumTimerTaskKey
-	actionResult, err := t.HandleAction(ctx, t.currentClusterName, NewGetStateAction())
+	actionResult, err := t.handleAction(ctx, t.currentClusterName, NewGetStateAction(), abortCh)
 	if err != nil {
 		return err
 	}
@@ -481,7 +501,7 @@ func (t *timerQueueProcessor) completeTimer(ctx context.Context) error {
 	}
 
 	for standbyClusterName := range t.standbyQueueProcessors {
-		actionResult, err := t.HandleAction(ctx, standbyClusterName, NewGetStateAction())
+		actionResult, err := t.handleAction(ctx, standbyClusterName, NewGetStateAction(), abortCh)
 		if err != nil {
 			return err
 		}

@@ -319,6 +319,26 @@ func (t *transferQueueProcessor) HandleAction(
 	clusterName string,
 	action *Action,
 ) (*ActionResult, error) {
+	// External callers abort if the processor is shutting down so they don't block
+	// indefinitely once the processing pumps stop accepting work.
+	return t.handleAction(ctx, clusterName, action, t.shutdownChan)
+}
+
+// handleAction routes the action to the proper queue processor and waits for the result.
+// abortCh, when non-nil, makes the call return errProcessorShutdown if it is signaled
+// before the result arrives.
+//
+// The drain path passes a nil abortCh so the action is awaited to completion: during
+// graceful shutdown the queue processors are intentionally kept running until drain
+// returns, so the result is guaranteed to arrive (bounded by ctx). This avoids racing
+// the already-closed shutdownChan, which would otherwise nondeterministically abort the
+// completeTransfer issued during drain.
+func (t *transferQueueProcessor) handleAction(
+	ctx context.Context,
+	clusterName string,
+	action *Action,
+	abortCh <-chan struct{},
+) (*ActionResult, error) {
 	var resultNotificationCh chan actionResultNotification
 	var added bool
 	if clusterName == t.currentClusterName {
@@ -348,7 +368,7 @@ func (t *transferQueueProcessor) HandleAction(
 	select {
 	case resultNotification := <-resultNotificationCh:
 		return resultNotification.result, resultNotification.err
-	case <-t.shutdownChan:
+	case <-abortCh:
 		return nil, errProcessorShutdown
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -366,8 +386,16 @@ func (t *transferQueueProcessor) UnlockTaskProcessing() {
 }
 
 func (t *transferQueueProcessor) drain() {
-	// before shutdown, make sure the ack level is up to date
-	if err := t.completeTransfer(); err != nil {
+	// Before shutdown, make sure the ack level is up to date.
+	//
+	// The active/standby queue processors are still running at this point (they are
+	// stopped only after drain returns), so pass a nil abort channel to deterministically
+	// wait for the GetState results instead of racing the already-closed shutdownChan.
+	// The timeout context bounds the wait in case a pump is unresponsive. In the
+	// non-graceful path the pumps are already stopped, so completeTransfer returns early.
+	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
+	defer cancel()
+	if err := t.completeTransfer(ctx, nil); err != nil {
 		t.logger.Error("Failed to complete transfer task during shutdown", tag.Error(err))
 	}
 }
@@ -396,7 +424,8 @@ func (t *transferQueueProcessor) completeTransferLoop() {
 			return
 		case <-completeTimer.C:
 			for attempt := 0; attempt < t.config.TransferProcessorCompleteTransferFailureRetryCount(); attempt++ {
-				err := t.completeTransfer()
+				// periodic completion aborts promptly if a shutdown is signaled
+				err := t.completeTransfer(context.Background(), t.shutdownChan)
 				if err == nil {
 					break
 				}
@@ -431,9 +460,9 @@ func (t *transferQueueProcessor) completeTransferLoop() {
 	}
 }
 
-func (t *transferQueueProcessor) completeTransfer() error {
+func (t *transferQueueProcessor) completeTransfer(ctx context.Context, abortCh <-chan struct{}) error {
 	newAckLevel := maximumTransferTaskKey
-	actionResult, err := t.HandleAction(context.Background(), t.currentClusterName, NewGetStateAction())
+	actionResult, err := t.handleAction(ctx, t.currentClusterName, NewGetStateAction(), abortCh)
 	if err != nil {
 		return err
 	}
@@ -442,7 +471,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 	}
 
 	for standbyClusterName := range t.standbyQueueProcessors {
-		actionResult, err := t.HandleAction(context.Background(), standbyClusterName, NewGetStateAction())
+		actionResult, err := t.handleAction(ctx, standbyClusterName, NewGetStateAction(), abortCh)
 		if err != nil {
 			return err
 		}
@@ -479,7 +508,7 @@ func (t *transferQueueProcessor) completeTransfer() error {
 		// we're switching from exclusive begin/end to inclusive min/exclusive max,
 		// so we need to adjust the taskID, for example, if the original range is (1, 10],
 		// the new range should be [2, 11), so we add 1 to both the min and max taskID
-		resp, err := t.shard.GetExecutionManager().RangeCompleteHistoryTask(context.Background(), &persistence.RangeCompleteHistoryTaskRequest{
+		resp, err := t.shard.GetExecutionManager().RangeCompleteHistoryTask(ctx, &persistence.RangeCompleteHistoryTaskRequest{
 			TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 			InclusiveMinTaskKey: persistence.NewImmediateTaskKey(t.ackLevel + 1),
 			ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(newAckLevelTaskID + 1),
