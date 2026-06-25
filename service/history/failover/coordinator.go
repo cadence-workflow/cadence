@@ -99,10 +99,11 @@ type (
 	}
 
 	failoverRecord struct {
-		failoverVersion int64
-		shards          map[int32]struct{}
-		lastUpdatedTime time.Time
-		firstSeenTime   time.Time
+		failoverVersion         int64
+		shards                  map[int32]struct{}
+		lastUpdatedTime         time.Time
+		firstSeenTime           time.Time
+		firstMarkerCreationTime int64
 	}
 )
 
@@ -291,14 +292,18 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	if _, ok := c.recorder[domainID]; !ok {
 		// initialize the failover record
 		c.recorder[marker.GetDomainID()] = &failoverRecord{
-			failoverVersion: marker.GetFailoverVersion(),
-			shards:          make(map[int32]struct{}),
-			firstSeenTime:   c.timeSource.Now(),
+			failoverVersion:         marker.GetFailoverVersion(),
+			shards:                  make(map[int32]struct{}),
+			firstSeenTime:           c.timeSource.Now(),
+			firstMarkerCreationTime: marker.GetCreationTime(),
 		}
 	}
 
 	record := c.recorder[domainID]
 	record.lastUpdatedTime = c.timeSource.Now()
+	if marker.GetCreationTime() < record.firstMarkerCreationTime {
+		record.firstMarkerCreationTime = marker.GetCreationTime()
+	}
 	for _, shardID := range request.shardIDs {
 		record.shards[shardID] = struct{}{}
 	}
@@ -316,6 +321,7 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 
 	if len(record.shards) == c.config.NumberOfShards {
 		firstSeenTime := record.firstSeenTime
+		firstMarkerCreationTime := record.firstMarkerCreationTime
 		cleanStart := c.timeSource.Now()
 		updated, err := domain.CleanPendingActiveState(
 			c.domainManager,
@@ -351,8 +357,9 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		}
 
 		now := c.timeSource.Now()
-		// use the last marker to calculate the failover duration
-		failoverDuration := now.Sub(time.Unix(0, marker.GetCreationTime()))
+		// use the earliest marker creation time across all shards to capture the
+		// full failover duration; the last marker would systematically undercount
+		failoverDuration := now.Sub(time.Unix(0, firstMarkerCreationTime))
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
 		).RecordTimer(
@@ -368,9 +375,9 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		c.logger.Info("Updated domain from pending-active to active",
 			tag.WorkflowDomainName(domainName),
 			tag.FailoverVersion(marker.FailoverVersion),
-			tag.Duration(failoverDuration),
-			tag.Dynamic("marker-pipeline-duration", now.Sub(firstSeenTime)),
-			tag.Dynamic("clean-pending-active-duration", cleanDuration),
+			tag.Dynamic("failover-duration-seconds", failoverDuration.Seconds()),
+			tag.Dynamic("marker-pipeline-duration-seconds", now.Sub(firstSeenTime).Seconds()),
+			tag.Dynamic("clean-pending-active-duration-seconds", cleanDuration.Seconds()),
 		)
 	} else {
 		c.scope.Tagged(
