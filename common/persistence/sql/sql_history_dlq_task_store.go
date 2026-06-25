@@ -53,3 +53,7 @@ func (s *sqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(_ context.Context, _ p.H
 func (s *sqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(_ context.Context, _ p.InternalUpdateHistoryDLQAckLevelRequest) error {
 	return errHistoryDLQNotImplemented
 }
+
+func (s *sqlHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(_ context.Context, _ p.InternalHistoryDLQAckLevel) error {
+	return errHistoryDLQNotImplemented
+}
