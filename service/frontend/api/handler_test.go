@@ -1585,10 +1585,10 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
 
 	updateReq := updateFailoverRequest(
-		common.StringPtr(testHistoryArchivalURI),
-		types.ArchivalStatusEnabled.Ptr(),
-		common.StringPtr(testVisibilityArchivalURI),
-		types.ArchivalStatusEnabled.Ptr(),
+		nil,
+		nil,
+		nil,
+		nil,
 		common.Int32Ptr(1),
 		common.StringPtr(cluster.TestAlternativeClusterName),
 	)
@@ -1598,6 +1598,31 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Success_FailOver() {
 	s.NotNil(result)
 	s.NotNil(result.Configuration)
 	s.Equal(result.ReplicationConfiguration.ActiveClusterName, cluster.TestAlternativeClusterName)
+}
+
+func (s *workflowHandlerSuite) TestUpdateDomain_Failure_FailoverAndConfigUpdate() {
+	s.mockMetadataMgr.On("GetMetadata", mock.Anything).Return(&persistence.GetMetadataResponse{
+		NotificationVersion: int64(0),
+	}, nil)
+	getDomainResp := persistenceGetDomainResponseForFailoverTest(
+		&domain.ArchivalState{Status: types.ArchivalStatusDisabled, URI: ""},
+		&domain.ArchivalState{Status: types.ArchivalStatusDisabled, URI: ""},
+	)
+	s.mockMetadataMgr.On("GetDomain", mock.Anything, mock.Anything).Return(getDomainResp, nil)
+
+	wh := s.getWorkflowHandler(s.newConfig(dc.NewInMemoryClient()))
+
+	updateReq := updateFailoverRequest(
+		common.StringPtr(testHistoryArchivalURI),
+		nil,
+		nil,
+		nil,
+		nil,
+		common.StringPtr(cluster.TestAlternativeClusterName),
+	)
+	resp, err := wh.UpdateDomain(context.Background(), updateReq)
+	s.Nil(resp)
+	s.Equal(&types.BadRequestError{Message: "Cannot set active cluster to current cluster when other parameters are set."}, err)
 }
 
 func (s *workflowHandlerSuite) TestUpdateDomain_Failure_FailoverLockdown() {
@@ -1617,7 +1642,7 @@ func (s *workflowHandlerSuite) TestUpdateDomain_Failure_FailoverLockdown() {
 	)
 	resp, err := wh.UpdateDomain(context.Background(), updateReq)
 	s.Nil(resp)
-	s.Error(err)
+	s.Equal(validate.ErrDomainInLockdown, err)
 }
 
 func (s *workflowHandlerSuite) TestHistoryArchived() {

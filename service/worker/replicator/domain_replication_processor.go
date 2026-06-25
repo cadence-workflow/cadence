@@ -215,7 +215,8 @@ func (p *domainReplicationProcessor) handleDomainReplicationTask(
 	task *types.ReplicationTask,
 ) error {
 	p.metricsClient.IncCounter(metrics.DomainReplicationTaskScope, metrics.ReplicatorMessages)
-	sw := p.metricsClient.StartTimer(metrics.DomainReplicationTaskScope, metrics.ReplicatorLatency)
+	scope := p.metricsClient.Scope(metrics.DomainReplicationTaskScope)
+	sw := scope.StartTimerWithExponentialHistogram(metrics.ReplicatorLatency, metrics.ReplicatorLatencyHistogram)
 	defer sw.Stop()
 
 	err := p.taskExecutor.Execute(task.DomainTaskAttributes)

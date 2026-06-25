@@ -327,7 +327,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		tag.WorkflowDomainID(taskList.GetDomainID()),
 	)
 
-	logger.Debug("Task list manager state changed", tag.LifeCycleStarting)
+	logger.Info("Task list manager state changed", tag.LifeCycleStarting)
 	params := tasklist.ManagerParams{
 		DomainCache:     e.domainCache,
 		Logger:          e.logger,
@@ -360,7 +360,7 @@ func (e *matchingEngineImpl) getOrCreateTaskListManager(ctx context.Context, tas
 		return nil, err
 	}
 
-	logger.Debug("Task list manager state changed", tag.LifeCycleStarted)
+	logger.Info("Task list manager state changed", tag.LifeCycleStarted)
 	event.Log(event.E{
 		TaskListName: taskList.GetName(),
 		TaskListKind: &taskListKind,

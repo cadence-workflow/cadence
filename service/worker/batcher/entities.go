@@ -110,6 +110,13 @@ type HeartBeatDetails struct {
 	SuccessCount int
 	// Number of workflows that give up due to errors.
 	ErrorCount int
+	// RPS is the rate limit currently in effect for the running activity.
+	// Surfaced in the heartbeat so the UI can display the live, signal-tuned value.
+	RPS int
+	// Concurrency is the number of task processors currently in effect for the
+	// running activity. Surfaced in the heartbeat so the UI can display the
+	// live, signal-tuned value.
+	Concurrency int
 }
 
 type taskDetail struct {

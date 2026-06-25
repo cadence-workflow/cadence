@@ -8062,6 +8062,24 @@ func (v *UpdateDomainRequest) IsAFailoverRequest() bool {
 		(v.ActiveClusters != nil && len(v.ActiveClusters.AttributeScopes) > 0)
 }
 
+// IsAConfigUpdateRequest returns true if the request contains any non-failover
+// domain configuration changes (description, owner, data, archival, retention, bad-binaries).
+// Used together with IsAFailoverRequest to reject requests that mix failover and config changes,
+// since the failover path does not process config fields and would silently drop them.
+func (v *UpdateDomainRequest) IsAConfigUpdateRequest() bool {
+	return v.Description != nil ||
+		v.OwnerEmail != nil ||
+		v.Data != nil ||
+		v.EmitMetric != nil ||
+		v.WorkflowExecutionRetentionPeriodInDays != nil ||
+		v.BadBinaries != nil ||
+		v.HistoryArchivalStatus != nil ||
+		v.HistoryArchivalURI != nil ||
+		v.VisibilityArchivalStatus != nil ||
+		v.VisibilityArchivalURI != nil ||
+		v.DeleteBadBinary != nil
+}
+
 // GetName is an internal getter (TBD...)
 func (v *UpdateDomainRequest) GetName() (o string) {
 	if v != nil {

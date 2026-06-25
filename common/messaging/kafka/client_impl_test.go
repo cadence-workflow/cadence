@@ -25,6 +25,7 @@ package kafka
 import (
 	"testing"
 
+	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber-go/tally"
 
@@ -32,6 +33,12 @@ import (
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
 )
+
+func TestDefaultKafkaVersion(t *testing.T) {
+	// Verify the default Kafka version constant is a valid, parseable version.
+	_, err := sarama.ParseKafkaVersion(defaultKafkaVersion)
+	assert.NoError(t, err, "defaultKafkaVersion %q must be parseable by sarama", defaultKafkaVersion)
+}
 
 func TestNewKafkaClient(t *testing.T) {
 	metricsClient := metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{})

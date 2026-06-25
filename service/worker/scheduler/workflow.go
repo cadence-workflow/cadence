@@ -65,6 +65,15 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 
 	state := &input.State
 
+	if state.CreateTime.IsZero() {
+		// First-ever execution: apply policy defaults for brand-new schedules only.
+		// On ContinueAsNew the stored state already reflects the user's intent
+		// (including CatchUpWindow=0 meaning "unlimited"), so we must not overwrite.
+		ensurePolicyDefaults(&input.Policies)
+		state.CreateTime = workflow.Now(ctx)
+		state.LastUpdateTime = state.CreateTime
+	}
+
 	err := workflow.SetQueryHandler(ctx, QueryTypeDescribe, func() (*ScheduleDescription, error) {
 		return buildScheduleDescription(&input, state), nil
 	})
@@ -95,34 +104,71 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		return fmt.Errorf("invalid cron expression %q: %w", input.Spec.CronExpression, err)
 	}
 
-	// Drain fires buffered by the BUFFER overlap policy in the previous
-	// execution before processing missed runs. Buffered fires are older than
-	// anything processMissedRuns can compute, so draining them first preserves
-	// FIFO order across ContinueAsNew. If the queue is large, drain in batches
-	// (at most maxDrainFiresPerExecution per execution) so a single decision
-	// task doesn't time out.
-	if !state.Paused {
-		if moreToDrain := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
-			return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
-		}
-	}
+	// activityBudget is the per-execution ceiling for local-activity dispatches.
+	// processMissedRuns, processBackfills, and drainBufferedFires all decrement
+	// the same counter so total fires stay bounded before ContinueAsNew.
+	activityBudget := maxActivitiesPerExecution
+
+	// watcherFuture is a non-nil regular-activity future while the scheduler is
+	// watching a running workflow that is blocking the head of BufferedFires.
+	// When it completes (the watched workflow closed), the main loop immediately
+	// retries the drain instead of waiting for the next cron timer tick.
+	var watcherFuture workflow.Future
+	var watcherCtx workflow.Context
+	var watcherCancel func()
 
 	// On the first iteration (after ContinueAsNew or fresh start), check for
 	// fires that were missed during the transition gap or prior pause period.
-	// Subsequent iterations don't need this because the timer handles fire times.
-	// If more missed fires remain beyond the per-execution cap, ContinueAsNew
-	// immediately so each batch runs in its own decision task.
-	if moreMissed := processMissedRuns(ctx, logger, scope, sched, &input, state); moreMissed {
+	// If more missed fires remain beyond the budget, ContinueAsNew so each
+	// batch runs in its own decision task.
+	if moreMissed := processMissedRuns(ctx, logger, scope, sched, &input, state, &activityBudget); moreMissed {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonMissedRun, chs.delete, input, state)
 	}
 
 	// Process any pending backfill requests carried over from a previous execution.
-	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state); moreBackfills {
+	if moreBackfills := processBackfills(ctx, logger, scope, sched, &input, state, &activityBudget); moreBackfills {
 		return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBackfill, chs.delete, input, state)
 	}
 
 	for {
 		state.Iterations++
+
+		// Drain buffered fires at the top of every iteration. If the budget is
+		// exhausted with work remaining, ContinueAsNew immediately rather than
+		// entering the blocking selector.
+		if !state.Paused {
+			_, headBlocked := drainBufferedFires(ctx, logger, &input, state, &activityBudget)
+			if activityBudget <= 0 && len(state.BufferedFires) > 0 {
+				logger.Info("activity budget exhausted draining buffered fires, continuing after ContinueAsNew",
+					zap.Int("remaining", len(state.BufferedFires)),
+				)
+				if watcherCancel != nil {
+					watcherCancel()
+				}
+				return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
+			}
+			// Start the watcher when the drain head is blocked and a running
+			// workflow is known; cancel it when the queue empties or unblocks.
+			if headBlocked && state.LastStartedWorkflow != nil && watcherFuture == nil {
+				watcherCtx, watcherCancel = workflow.WithCancel(ctx)
+				watcherFuture = workflow.ExecuteActivity(
+					workflow.WithActivityOptions(watcherCtx, workflow.ActivityOptions{
+						ScheduleToCloseTimeout: watcherActivityScheduleToCloseTimeout,
+						HeartbeatTimeout:       watcherActivityHeartbeatTimeout,
+					}),
+					watchWorkflowActivity,
+					input.Domain,
+					state.LastStartedWorkflow.WorkflowID,
+					state.LastStartedWorkflow.RunID,
+				)
+			} else if !headBlocked || len(state.BufferedFires) == 0 {
+				if watcherCancel != nil {
+					watcherCancel()
+					watcherFuture = nil
+					watcherCancel = nil
+				}
+			}
+		}
 
 		// Set up timer only when not paused. When paused, applyAllInputs
 		// blocks on signals alone until an unpause or delete arrives.
@@ -147,10 +193,14 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 		}
 
 		previousPaused := state.Paused
-		changed, timerFired := applyAllInputs(ctx, logger, scope, timerFuture, chs, state, &input)
+		changed, timerFired, watcherDone := applyAllInputs(ctx, logger, scope, timerFuture, watcherFuture, chs, state, &input)
 
 		if timerCancel != nil {
 			timerCancel()
+		}
+		if watcherDone {
+			watcherFuture = nil
+			watcherCancel = nil
 		}
 
 		if state.Paused != previousPaused {
@@ -173,15 +223,10 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			return nil
 		}
 
-		// Drain BUFFER-overlap fires before handling the current fire so the
-		// queue is processed in FIFO order. If the cap is hit, ContinueAsNew
-		// so the next batch runs in a fresh decision task.
-		if !state.Paused {
-			if moreToDrain := drainBufferedFires(ctx, logger, &input, state); moreToDrain {
-				return safeContinueAsNew(ctx, logger, scope, ContinueAsNewReasonBufferDrain, chs.delete, input, state)
-			}
-		}
-
+		// Timer fires are not bounded by activityBudget; each tick dispatches at
+		// most one local activity and the iteration cap (maxIterationsBeforeContinueAsNew)
+		// is the effective ceiling. The budget covers only the high-throughput pre-loop
+		// paths (backfill and drain) where many fires occur in a tight loop.
 		if timerFired && !state.Paused {
 			processScheduleFire(ctx, logger, scope, &input, state, state.NextRunTime, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		}
@@ -191,31 +236,32 @@ func SchedulerWorkflow(ctx workflow.Context, input SchedulerWorkflowInput) error
 			if !changed {
 				reason = ContinueAsNewReasonIterationCap
 			}
+			if watcherCancel != nil {
+				watcherCancel()
+			}
 			return safeContinueAsNew(ctx, logger, scope, reason, chs.delete, input, state)
 		}
 	}
 }
 
-// applyAllInputs blocks until at least one input (signal or timer) arrives,
-// processes it, then drains any remaining buffered signals.
+// applyAllInputs blocks until at least one input (timer, signal, or watcher
+// completion) arrives, processes it, then drains any remaining buffered signals.
 // Signals and the timer are treated uniformly: each mutates state without
 // triggering side effects (no timer cancellation, no ContinueAsNew).
-// Returns (stateChanged, timerFired): stateChanged is true if a state-changing
-// signal (pause, unpause, update) was received; timerFired is true if the timer
-// completed successfully.
+// Returns (stateChanged, timerFired, watcherDone): stateChanged is true if a
+// state-changing signal was received; timerFired is true if the timer fired;
+// watcherDone is true if the watcher activity returned (blocking workflow closed).
 func applyAllInputs(
 	ctx workflow.Context,
 	logger *zap.Logger,
 	scope tally.Scope,
 	timerFuture workflow.Future,
+	watcherFuture workflow.Future,
 	chs signalChannels,
 	state *SchedulerWorkflowState,
 	input *SchedulerWorkflowInput,
-) (bool, bool) {
+) (stateChanged, timerFired, watcherDone bool) {
 	selector := workflow.NewSelector(ctx)
-	stateChanged := false
-
-	timerFired := false
 	if timerFuture != nil {
 		selector.AddFuture(timerFuture, func(f workflow.Future) {
 			if f.Get(ctx, nil) != nil {
@@ -224,12 +270,18 @@ func applyAllInputs(
 			timerFired = true
 		})
 	}
+	if watcherFuture != nil {
+		selector.AddFuture(watcherFuture, func(f workflow.Future) {
+			_ = f.Get(ctx, nil)
+			watcherDone = true
+		})
+	}
 
 	selector.AddReceive(chs.pause, func(c workflow.Channel, more bool) {
 		var sig PauseSignal
 		c.Receive(ctx, &sig)
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagPause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handlePause(logger, sig, state) {
+		if handlePause(logger, sig, state, workflow.Now(ctx)) {
 			stateChanged = true
 		}
 	})
@@ -248,6 +300,7 @@ func applyAllInputs(
 		c.Receive(ctx, &sig)
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUpdate}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handleUpdate(logger, sig, input, state) {
+			state.LastUpdateTime = workflow.Now(ctx)
 			stateChanged = true
 		}
 	})
@@ -269,11 +322,12 @@ func applyAllInputs(
 
 	selector.Select(ctx)
 
-	if drainBufferedSignals(logger, scope, chs, state, input) {
+	now := workflow.Now(ctx)
+	if drainBufferedSignals(logger, scope, now, chs, state, input) {
 		stateChanged = true
 	}
 
-	return stateChanged, timerFired
+	return stateChanged, timerFired, watcherDone
 }
 
 // drainBufferedSignals processes any remaining buffered signals without blocking.
@@ -282,6 +336,7 @@ func applyAllInputs(
 func drainBufferedSignals(
 	logger *zap.Logger,
 	scope tally.Scope,
+	now time.Time,
 	chs signalChannels,
 	state *SchedulerWorkflowState,
 	input *SchedulerWorkflowInput,
@@ -299,7 +354,7 @@ func drainBufferedSignals(
 			break
 		}
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagPause}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
-		if handlePause(logger, sig, state) {
+		if handlePause(logger, sig, state, now) {
 			stateChanged = true
 		}
 	}
@@ -320,6 +375,7 @@ func drainBufferedSignals(
 		}
 		scope.Tagged(map[string]string{SignalTypeTag: signalTypeTagUpdate}).Counter(SchedulerSignalReceivedCountPerDomain).Inc(1)
 		if handleUpdate(logger, sig, input, state) {
+			state.LastUpdateTime = now
 			stateChanged = true
 		}
 	}
@@ -372,7 +428,7 @@ func buildScheduleSearchAttributes(input *SchedulerWorkflowInput, state *Schedul
 	return sa
 }
 
-func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState) bool {
+func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowState, now time.Time) bool {
 	if state.Paused {
 		logger.Info("ignoring pause signal, schedule is already paused")
 		return false
@@ -380,6 +436,7 @@ func handlePause(logger *zap.Logger, sig PauseSignal, state *SchedulerWorkflowSt
 	state.Paused = true
 	state.PauseReason = sig.Reason
 	state.PausedBy = sig.PausedBy
+	state.PausedAt = now
 	logger.Info("schedule paused", zap.String("reason", sig.Reason), zap.String("pausedBy", sig.PausedBy))
 	return true
 }
@@ -392,6 +449,7 @@ func handleUnpause(logger *zap.Logger, sig UnpauseSignal, state *SchedulerWorkfl
 	state.Paused = false
 	state.PauseReason = ""
 	state.PausedBy = ""
+	state.PausedAt = time.Time{}
 	if sig.CatchUpPolicy != types.ScheduleCatchUpPolicyInvalid {
 		state.UnpauseCatchUpPolicy = sig.CatchUpPolicy
 	}
@@ -425,7 +483,14 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 	}
 	if sig.Policies != nil {
 		previousOverlap := input.Policies.OverlapPolicy
+		prevWindow := input.Policies.CatchUpWindow
 		input.Policies = *sig.Policies
+		// Treat CatchUpWindow=0 in the update as "no change": a zero value in a
+		// Go struct is indistinguishable from "field omitted", so we preserve the
+		// existing window rather than silently resetting it to unlimited.
+		if input.Policies.CatchUpWindow <= 0 && prevWindow > 0 {
+			input.Policies.CatchUpWindow = prevWindow
+		}
 		changed = true
 		// Drop buffered fires if the overlap policy is no longer BUFFER:
 		// draining a queue under non-BUFFER semantics is ill-defined.
@@ -463,74 +528,6 @@ func handleUpdate(logger *zap.Logger, sig UpdateSignal, input *SchedulerWorkflow
 		logger.Info("schedule updated")
 	}
 	return changed
-}
-
-func handleBackfill(logger *zap.Logger, scope tally.Scope, sig BackfillSignal, state *SchedulerWorkflowState) bool {
-	if !sig.EndTime.After(sig.StartTime) {
-		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonInvalidRange}).
-			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
-		logger.Warn("ignoring backfill with invalid time range",
-			zap.Time("startTime", sig.StartTime),
-			zap.Time("endTime", sig.EndTime),
-		)
-		return false
-	}
-	if len(state.PendingBackfills) >= maxPendingBackfills {
-		scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonQueueFull}).
-			Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
-		logger.Warn("ignoring backfill: pending backfill queue is full",
-			zap.String("backfillId", sig.BackfillID),
-			zap.Int("queueSize", len(state.PendingBackfills)),
-			zap.Int("maxPendingBackfills", maxPendingBackfills),
-		)
-		return false
-	}
-	for _, existing := range state.PendingBackfills {
-		if sig.BackfillID != "" && existing.BackfillID == sig.BackfillID {
-			// Drop the duplicate: BackfillID already matches a pending
-			// request, so a second copy would fire the range twice. Match is
-			// only checked against state.PendingBackfills, so a retry that
-			// lands after the original has drained is not detected here.
-			scope.Tagged(map[string]string{ReasonTag: BackfillRejectedReasonDuplicateID}).
-				Counter(SchedulerBackfillRejectedCountPerDomain).Inc(1)
-			logger.Info("ignoring duplicate backfill: BackfillID matches a pending request",
-				zap.String("backfillId", sig.BackfillID),
-			)
-			return false
-		}
-		if sig.StartTime.Before(existing.EndTime) && sig.EndTime.After(existing.StartTime) {
-			logger.Warn("backfill window overlaps with pending backfill, fires for overlapping times will be deduplicated",
-				zap.String("newBackfillId", sig.BackfillID),
-				zap.String("existingBackfillId", existing.BackfillID),
-				zap.Time("overlapStart", maxTime(sig.StartTime, existing.StartTime)),
-				zap.Time("overlapEnd", minTime(sig.EndTime, existing.EndTime)),
-			)
-		}
-	}
-	state.PendingBackfills = append(state.PendingBackfills, BackfillRequest{
-		StartTime:     sig.StartTime,
-		EndTime:       sig.EndTime,
-		OverlapPolicy: sig.OverlapPolicy,
-		BackfillID:    sig.BackfillID,
-	})
-	logger.Info("backfill queued",
-		zap.Time("startTime", sig.StartTime),
-		zap.Time("endTime", sig.EndTime),
-		zap.String("overlapPolicy", sig.OverlapPolicy.String()),
-		zap.String("backfillId", sig.BackfillID),
-		zap.Int("pendingCount", len(state.PendingBackfills)),
-	)
-	return true
-}
-
-// effectiveFireOverlap returns the overlap policy applied to a single fire.
-// For backfill, BackfillSignal.overlap_policy may be INVALID (0) to inherit the
-// schedule's configured policy; any other value overrides for that backfill only.
-func effectiveFireOverlap(trigger TriggerSource, backfillOverlap, scheduleOverlap types.ScheduleOverlapPolicy) types.ScheduleOverlapPolicy {
-	if trigger == TriggerSourceBackfill && backfillOverlap != types.ScheduleOverlapPolicyInvalid {
-		return backfillOverlap
-	}
-	return scheduleOverlap
 }
 
 // processScheduleFire executes the configured action for a single schedule fire.
@@ -695,22 +692,14 @@ func effectiveConcurrencyLimit(userLimit int32) int32 {
 }
 
 // drainBufferedFires executes queued fires in FIFO order, stopping as soon as
-// one re-buffers (previous target workflow still running) or
-// maxDrainFiresPerExecution fires have been processed. Returns true when more
-// queued work remains and the caller should ContinueAsNew so the next batch
-// runs in a fresh decision task (mirrors processMissedRuns / processBackfills).
-//
-// Retries are safe because the activity derives WorkflowID and RequestID from
+// the budget is exhausted or one re-buffers (previous target workflow still running).
+// Returns the number of fires dispatched and whether the head is blocked.
+// Retries are safe: the activity derives WorkflowID and RequestID from
 // scheduledTime and triggerSource, so the server de-duplicates on replay.
-func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
-	drained := 0
+func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int) (drained int, headBlocked bool) {
 	for len(state.BufferedFires) > 0 {
-		if drained >= maxDrainFiresPerExecution {
-			logger.Info("buffer drain cap reached, continuing after ContinueAsNew",
-				zap.Int("drainedThisBatch", drained),
-				zap.Int("remaining", len(state.BufferedFires)),
-			)
-			return true
+		if *budget <= 0 {
+			return drained, false
 		}
 		head := state.BufferedFires[0]
 		headOverlap := head.OverlapPolicy
@@ -721,12 +710,26 @@ func drainBufferedFires(ctx workflow.Context, logger *zap.Logger, input *Schedul
 			headOverlap = input.Policies.OverlapPolicy
 		}
 		if tryStartFire(ctx, logger, input, state, head.ScheduledTime, head.TriggerSource, headOverlap, head.BackfillID) == fireOutcomeBuffered {
-			return false
+			return drained, true
 		}
 		state.BufferedFires = state.BufferedFires[1:]
 		drained++
+		*budget--
 	}
-	return false
+	return drained, false
+}
+
+// ensurePolicyDefaults fills in server-defined defaults for SchedulePolicies
+// fields whose zero value is ambiguous. Called only on the very first workflow
+// execution so that new schedules get a sensible CatchUpWindow. ContinueAsNew
+// executions must not call this: a stored CatchUpWindow=0 means "unlimited"
+// (the upstream semantic) and must not be silently overwritten.
+func ensurePolicyDefaults(p *types.SchedulePolicies) {
+	usesWindow := p.CatchUpPolicy == types.ScheduleCatchUpPolicyOne ||
+		p.CatchUpPolicy == types.ScheduleCatchUpPolicyAll
+	if usesWindow && p.CatchUpWindow <= 0 {
+		p.CatchUpWindow = defaultCatchUpWindow
+	}
 }
 
 // defaultActivityOptions returns the standard local activity options used by
@@ -781,23 +784,6 @@ func computeMissedFireTimes(sched cron.Schedule, lastRun, now time.Time, spec ty
 	return missedFiresResult{times: missed, truncated: true}
 }
 
-// countCronFires returns the number of cron fire times in (start, end] without
-// materializing them, capped at limit. The second return value is true when
-// the range would have produced more fires than the cap.
-func countCronFires(sched cron.Schedule, start, end time.Time, spec types.ScheduleSpec, limit int) (int, bool) {
-	count := 0
-	t := start
-	for count < limit {
-		next := computeNextRunTime(sched, t, spec)
-		if next.IsZero() || next.After(end) {
-			return count, false
-		}
-		count++
-		t = next
-	}
-	return count, true
-}
-
 // missedRunPolicyResult is the output of applyMissedRunPolicy.
 type missedRunPolicyResult struct {
 	toFire  []time.Time // fire times to execute, in order
@@ -847,15 +833,15 @@ func applyMissedRunPolicy(policy types.ScheduleCatchUpPolicy, window time.Durati
 //   - One: only the most recent eligible fire (within CatchUpWindow) is executed
 //   - All: all eligible fires within the CatchUpWindow are executed
 //
-// To avoid exceeding the decision task timeout, at most maxCatchUpFiresPerExecution
-// fires are executed per workflow execution. Returns true if there are more missed
-// fires remaining, signalling the caller to ContinueAsNew for the next batch.
-func processMissedRuns(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
+// The shared activity budget prevents unbounded work within a single execution.
+// Returns true if there are more missed fires remaining, signalling the caller
+// to ContinueAsNew for the next batch.
+func processMissedRuns(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, budget *int) bool {
 	watermark := catchUpWatermark(state)
 	if state.Paused || watermark.IsZero() {
 		return false
 	}
-	return processMissedRunsAt(ctx, logger, scope, sched, input, state, watermark, workflow.Now(ctx))
+	return processMissedRunsAt(ctx, logger, scope, sched, input, state, watermark, workflow.Now(ctx), budget)
 }
 
 // catchUpWatermark returns the high-water mark for catch-up fire computation:
@@ -876,13 +862,22 @@ func catchUpWatermark(state *SchedulerWorkflowState) time.Time {
 
 // processMissedRunsAt is the testable core of processMissedRuns, accepting an explicit now
 // so the caller can inject a deterministic time without needing a workflow environment.
-func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, watermark, now time.Time) bool {
+func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState, watermark, now time.Time, budget *int) bool {
 	fires := computeMissedFireTimes(sched, watermark, now, input.Spec)
 	if len(fires.times) == 0 {
 		// No missed fires: consume the one-shot override so it does not bleed
 		// into a future catch-up pass triggered by a subsequent unpause.
 		state.UnpauseCatchUpPolicy = types.ScheduleCatchUpPolicyInvalid
 		return false
+	}
+
+	if *budget <= 0 {
+		// Activity budget exhausted by a prior consumer (drain) in this execution.
+		// Return true so the caller ContinueAsNews and the next execution processes
+		// missed fires with a fresh budget. Do not run the policy logic here:
+		// advancing the watermark or counting skips would be incorrect since nothing
+		// was actually processed.
+		return true
 	}
 
 	if fires.truncated {
@@ -906,11 +901,12 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 
 	fired := 0
 	for _, t := range result.toFire {
-		if fired >= maxCatchUpFiresPerExecution {
+		if *budget <= 0 {
 			break
 		}
 		processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceSchedule, input.Policies.OverlapPolicy, "")
 		fired++
+		*budget--
 	}
 	unfired := int64(len(result.toFire) - fired)
 
@@ -932,7 +928,7 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 
 	// Advance watermark past all fires we've fully processed (fired or
 	// skipped) to avoid re-discovering them after ContinueAsNew.
-	// If we capped fires via maxCatchUpFiresPerExecution, only advance
+	// If the budget was exhausted before all fires were processed, only advance
 	// to the last one we actually fired so the rest are retried.
 	if unfired > 0 {
 		state.LastProcessedTime = result.toFire[fired-1]
@@ -948,101 +944,6 @@ func processMissedRunsAt(ctx workflow.Context, logger *zap.Logger, scope tally.S
 		state.UnpauseCatchUpPolicy = types.ScheduleCatchUpPolicyInvalid
 	}
 	return moreMissed
-}
-
-// processBackfills drains pending backfill requests from state, computing
-// cron fire times for each request's time range and executing them.
-// Like processMissedRuns, it caps fires per execution and returns true
-// if more work remains (signalling the caller to ContinueAsNew).
-func processBackfills(ctx workflow.Context, logger *zap.Logger, scope tally.Scope, sched cron.Schedule, input *SchedulerWorkflowInput, state *SchedulerWorkflowState) bool {
-	if len(state.PendingBackfills) == 0 {
-		return false
-	}
-
-	// Populate RunsTotal for any queued backfill that hasn't been counted
-	// yet. Done outside the pause short-circuit so DescribeSchedule reports
-	// accurate progress for queued work on a paused schedule instead of 0/0.
-	// Uses the cron parsed at the top of this workflow execution, so a
-	// same-batch UpdateSchedule that changed the cron does not leave us
-	// counting against the stale expression.
-	for i := range state.PendingBackfills {
-		bf := &state.PendingBackfills[i]
-		if bf.RunsTotalComputed {
-			continue
-		}
-		total, truncated := countCronFires(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec, maxBackfillRunsTotalCount)
-		if truncated {
-			// Range exceeds the count cap; report the cap as a lower bound
-			// rather than overload 0 as "unknown".
-			bf.RunsTotal = int32(maxBackfillRunsTotalCount)
-		} else {
-			bf.RunsTotal = int32(total)
-		}
-		bf.RunsTotalComputed = true
-	}
-
-	// Backfills respect the pause state: an explicit user request to replay
-	// a time range should not fire workflows while the schedule is paused.
-	// The pending backfills are preserved and will execute on unpause.
-	if state.Paused {
-		return false
-	}
-
-	fired := 0
-	for len(state.PendingBackfills) > 0 {
-		bf := &state.PendingBackfills[0]
-
-		fires := computeMissedFireTimes(sched, bf.StartTime.Add(-time.Second), bf.EndTime, input.Spec)
-
-		for _, t := range fires.times {
-			if fired >= maxBackfillFiresPerExecution {
-				bf.StartTime = t
-				logger.Info("backfill batch cap reached, continuing after ContinueAsNew",
-					zap.String("backfillId", bf.BackfillID),
-					zap.Time("resumeFrom", t),
-					zap.Int("firedThisBatch", fired),
-				)
-				scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
-				return true
-			}
-			overlap := effectiveFireOverlap(TriggerSourceBackfill, bf.OverlapPolicy, input.Policies.OverlapPolicy)
-			processScheduleFire(ctx, logger, scope, input, state, t, TriggerSourceBackfill, overlap, bf.BackfillID)
-			fired++
-			// Count any fire handed off to processScheduleFire, whether it
-			// started, was skipped under the overlap policy, or was queued
-			// into the BUFFER. Counting only "started" would pin a
-			// BUFFER-deferred backfill in OngoingBackfills indefinitely.
-			bf.RunsCompleted++
-		}
-
-		if fires.truncated {
-			// More fires exist beyond the 1000-fire scan cap.
-			// Advance start past the last processed fire so it isn't replayed.
-			if len(fires.times) > 0 {
-				bf.StartTime = fires.times[len(fires.times)-1].Add(time.Second)
-			}
-			logger.Info("backfill range has more fires beyond scan cap, continuing after ContinueAsNew",
-				zap.String("backfillId", bf.BackfillID),
-				zap.Int("firedThisBatch", fired),
-			)
-			scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
-			return true
-		}
-
-		logger.Info("backfill completed",
-			zap.String("backfillId", bf.BackfillID),
-			zap.Int("firedTotal", fired),
-			zap.Int32("runsCompleted", bf.RunsCompleted),
-			zap.Int32("runsTotal", bf.RunsTotal),
-		)
-		state.PendingBackfills = state.PendingBackfills[1:]
-	}
-
-	if fired > 0 {
-		scope.Counter(SchedulerBackfillFiredCountPerDomain).Inc(int64(fired))
-	}
-
-	return false
 }
 
 // buildScheduleDescription creates a snapshot of the current schedule
@@ -1070,11 +971,14 @@ func buildScheduleDescription(input *SchedulerWorkflowInput, state *SchedulerWor
 		Paused:           state.Paused,
 		PauseReason:      state.PauseReason,
 		PausedBy:         state.PausedBy,
+		PausedAt:         state.PausedAt,
 		LastRunTime:      state.LastRunTime,
 		NextRunTime:      state.NextRunTime,
 		TotalRuns:        state.TotalRuns,
 		MissedRuns:       state.MissedRuns,
 		SkippedRuns:      state.SkippedRuns,
+		CreateTime:       state.CreateTime,
+		LastUpdateTime:   state.LastUpdateTime,
 		Memo:             input.Memo,
 		SearchAttributes: input.SearchAttributes,
 		OngoingBackfills: ongoing,

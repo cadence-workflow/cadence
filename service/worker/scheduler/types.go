@@ -131,21 +131,42 @@ const (
 	ScheduleStatePaused = "paused"
 
 	maxIterationsBeforeContinueAsNew = 500
-	maxCatchUpFiresPerExecution      = 10
-	maxBackfillFiresPerExecution     = 10
-	maxDrainFiresPerExecution        = 10
-	maxPendingBackfills              = 10
+	// maxActivitiesPerExecution is the per-execution ceiling for local-activity
+	// dispatches. processMissedRuns, processBackfills, and drainBufferedFires
+	// all decrement the same counter, so the total fires per execution is
+	// bounded by this value before ContinueAsNew.
+	maxActivitiesPerExecution = 500
+	maxPendingBackfills       = 10
 
 	// maxBackfillRunsTotalCount caps the cron walk that populates
 	// BackfillRequest.RunsTotal. When a backfill range produces more fires
 	// than this, RunsTotal is set to the cap as a lower bound.
 	maxBackfillRunsTotalCount = 100000
 
+	// defaultCatchUpWindow is applied to CatchUpWindow when the field is unset
+	// (zero) and the catch-up policy consults the window (ONE or ALL).
+	// One year is large enough to cover most outage scenarios while still
+	// bounding catch-up so a long-dormant schedule doesn't fire thousands of
+	// times on restart.
+	defaultCatchUpWindow = 365 * 24 * time.Hour
+
 	localActivityScheduleToCloseTimeout = 60 * time.Second
 	localActivityMaxRetries             = 3
 	localActivityRetryInitialInterval   = time.Second
 	localActivityRetryMaxInterval       = 10 * time.Second
+
+	// watcherActivityScheduleToCloseTimeout bounds the watcher activity lifetime.
+	// 24h covers workflows that run for many hours; transient describe errors are
+	// retried within the activity rather than surfaced to the workflow.
+	watcherActivityScheduleToCloseTimeout = 24 * time.Hour
+	// watcherActivityHeartbeatTimeout must exceed watcherPollInterval by enough
+	// margin that a single slow poll does not look like a dead worker.
+	watcherActivityHeartbeatTimeout = 65 * time.Second
 )
+
+// watcherPollInterval controls how often the watcher activity calls
+// DescribeWorkflowExecution. 5s balances drain latency against RPC load.
+var watcherPollInterval = 5 * time.Second
 
 // SchedulerWorkflowInput is the input to the scheduler workflow.
 // It carries the schedule definition and any prior state (for ContinueAsNew).
@@ -191,6 +212,15 @@ type SchedulerWorkflowState struct {
 	// processMissedRunsAt prefers this over input.Policies.CatchUpPolicy for the first
 	// catch-up pass after an unpause, then clears it. Invalid (zero) means no override.
 	UnpauseCatchUpPolicy types.ScheduleCatchUpPolicy `json:"unpauseCatchUpPolicy,omitempty"`
+	// CreateTime is the wall-clock time when the schedule was first created.
+	// Set once on the first workflow execution and preserved across ContinueAsNew.
+	CreateTime time.Time `json:"createTime,omitempty"`
+	// LastUpdateTime is the wall-clock time of the most recent UpdateSchedule that
+	// changed at least one field. Also set to CreateTime at schedule creation.
+	LastUpdateTime time.Time `json:"lastUpdateTime,omitempty"`
+	// PausedAt is the wall-clock time when the schedule was most recently paused.
+	// Zero when the schedule is not paused (or was never paused).
+	PausedAt time.Time `json:"pausedAt,omitempty"`
 }
 
 // BufferedFire is a schedule fire queued for sequential execution by the BUFFER
@@ -277,11 +307,14 @@ type ScheduleDescription struct {
 	Paused           bool                    `json:"paused"`
 	PauseReason      string                  `json:"pauseReason,omitempty"`
 	PausedBy         string                  `json:"pausedBy,omitempty"`
+	PausedAt         time.Time               `json:"pausedAt,omitempty"`
 	LastRunTime      time.Time               `json:"lastRunTime,omitempty"`
 	NextRunTime      time.Time               `json:"nextRunTime,omitempty"`
 	TotalRuns        int64                   `json:"totalRuns"`
 	MissedRuns       int64                   `json:"missedRuns"`
 	SkippedRuns      int64                   `json:"skippedRuns"`
+	CreateTime       time.Time               `json:"createTime,omitempty"`
+	LastUpdateTime   time.Time               `json:"lastUpdateTime,omitempty"`
 	Memo             *types.Memo             `json:"memo,omitempty"`
 	SearchAttributes *types.SearchAttributes `json:"searchAttributes,omitempty"`
 	// OngoingBackfills mirrors SchedulerWorkflowState.PendingBackfills at the

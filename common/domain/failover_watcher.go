@@ -180,11 +180,12 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 			p.logger.Error("Failed to resolve source cluster for graceful failover", tag.WorkflowDomainID(domainID), tag.WorkflowDomainName(domain.GetInfo().Name), tag.Error(err))
 			sourceCluster = "unknown"
 		}
-		p.logger.Info("Graceful failover completed",
+		p.logger.Warn("Graceful failover force-completed by watcher: failover timeout exceeded before all shards reported",
 			tag.WorkflowDomainID(domainID),
 			tag.WorkflowDomainName(domain.GetInfo().Name),
 			tag.PrevActiveCluster(sourceCluster),
 			tag.ActiveClusterName(domain.GetReplicationConfig().ActiveClusterName),
+			tag.Dynamic("failover-end-time", time.Unix(0, *failoverEndTime)),
 		)
 		p.scope.Tagged(metrics.DomainTag(domain.GetInfo().Name)).IncCounter(metrics.GracefulFailoverFailure)
 	}

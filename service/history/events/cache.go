@@ -154,6 +154,8 @@ func newCacheWithOption(
 	opts.MetricsScope = metricsClient.Scope(metrics.EventsCacheGetEventScope)
 	if shardID != nil {
 		opts.MetricsScope = opts.MetricsScope.Tagged(metrics.ShardIDTag(*shardID))
+	} else {
+		opts.MetricsScope = opts.MetricsScope.Tagged(metrics.NonShardTag())
 	}
 
 	opts.MaxSize = maxSize
@@ -169,6 +171,20 @@ func newCacheWithOption(
 		metricsClient:  metricsClient,
 		shardID:        shardID,
 	}
+}
+
+func (e *cacheImpl) cacheMetricsScope(scope metrics.ScopeIdx) metrics.Scope {
+	shardTag := metrics.NonShardTag()
+	if e.shardID != nil {
+		shardTag = metrics.ShardIDTag(*e.shardID)
+	}
+
+	return metrics.WithCacheScopeLabels(
+		e.metricsClient.Scope(scope),
+		shardTag,
+		metrics.SourceClusterNoneTagValue,
+		metrics.EventsCacheTypeTagValue,
+	)
 }
 
 func newEventKey(
@@ -195,8 +211,9 @@ func (e *cacheImpl) GetEvent(
 	eventID int64,
 	branchToken []byte,
 ) (*types.HistoryEvent, error) {
-	e.metricsClient.IncCounter(metrics.EventsCacheGetEventScope, metrics.CacheRequests)
-	sw := e.metricsClient.StartTimer(metrics.EventsCacheGetEventScope, metrics.CacheLatency)
+	metricsScope := e.cacheMetricsScope(metrics.EventsCacheGetEventScope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	key := newEventKey(domainID, workflowID, runID, eventID)
@@ -208,11 +225,11 @@ func (e *cacheImpl) GetEvent(
 		}
 	}
 
-	e.metricsClient.IncCounter(metrics.EventsCacheGetEventScope, metrics.CacheMissCounter)
+	metricsScope.IncCounter(metrics.CacheMissCounter)
 	event, err := e.getHistoryEventFromStore(ctx, firstEventID, eventID, branchToken, shardID, domainID)
 
 	if err != nil {
-		e.metricsClient.IncCounter(metrics.EventsCacheGetEventScope, metrics.CacheFailures)
+		metricsScope.IncCounter(metrics.CacheFailures)
 		logTags := []tag.Tag{
 			tag.ShardID(shardID),
 			tag.Error(err),
@@ -235,8 +252,9 @@ func (e *cacheImpl) PutEvent(
 	eventID int64,
 	event *types.HistoryEvent,
 ) {
-	e.metricsClient.IncCounter(metrics.EventsCachePutEventScope, metrics.CacheRequests)
-	sw := e.metricsClient.StartTimer(metrics.EventsCachePutEventScope, metrics.CacheLatency)
+	metricsScope := e.cacheMetricsScope(metrics.EventsCachePutEventScope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	key := newEventKey(domainID, workflowID, runID, eventID)
@@ -251,8 +269,9 @@ func (e *cacheImpl) getHistoryEventFromStore(
 	shardID int,
 	domainID string,
 ) (*types.HistoryEvent, error) {
-	e.metricsClient.IncCounter(metrics.EventsCacheGetFromStoreScope, metrics.CacheRequests)
-	sw := e.metricsClient.StartTimer(metrics.EventsCacheGetFromStoreScope, metrics.CacheLatency)
+	metricsScope := e.cacheMetricsScope(metrics.EventsCacheGetFromStoreScope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	var historyEvents []*types.HistoryEvent
@@ -271,7 +290,7 @@ func (e *cacheImpl) getHistoryEventFromStore(
 	})
 
 	if err != nil {
-		e.metricsClient.IncCounter(metrics.EventsCacheGetFromStoreScope, metrics.CacheFailures)
+		metricsScope.IncCounter(metrics.CacheFailures)
 		return nil, err
 	}
 
