@@ -5860,7 +5860,7 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 	NotifyFailoverMarkerInterval: {
 		KeyName:      "history.NotifyFailoverMarkerInterval",
 		Description:  "NotifyFailoverMarkerInterval is determines the frequency to notify failover marker",
-		DefaultValue: time.Second,
+		DefaultValue: time.Second * 5,
 	},
 	ActivityMaxScheduleToStartTimeoutForRetry: {
 		KeyName:      "history.activityMaxScheduleToStartTimeoutForRetry",
