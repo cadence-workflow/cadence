@@ -102,7 +102,7 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			},
 			historyErrs: []error{nil},
 			expectedResult: CheckResult{
-				CheckResultType: CheckResultTypeFailed,
+				CheckResultType: CheckResultTypeCorrupted,
 				InvariantName:   HistoryInvalid,
 				Info:            "empty history",
 				InfoDetails:     "no history events found for workflow",
@@ -124,8 +124,8 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			},
 		},
 		{
-			name:      "event count mismatch",
-			execution: getOpenConcreteExecution(),
+			name:      "event count mismatch on closed workflow",
+			execution: getClosedConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{
 				{HistoryEvents: []*types.HistoryEvent{{ID: 1}, {ID: 2}}},
 			},
@@ -133,6 +133,7 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			wfExecResp: &persistence.GetWorkflowExecutionResponse{
 				State: &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State:       closedState,
 						NextEventID: 10,
 					},
 				},
@@ -145,8 +146,28 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			},
 		},
 		{
-			name:      "healthy single page",
+			name:      "open workflow skips event count check",
 			execution: getOpenConcreteExecution(),
+			historyResps: []*persistence.ReadHistoryBranchResponse{
+				{HistoryEvents: []*types.HistoryEvent{{ID: 1}, {ID: 2}}},
+			},
+			historyErrs: []error{nil},
+			wfExecResp: &persistence.GetWorkflowExecutionResponse{
+				State: &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State:       openState,
+						NextEventID: 10,
+					},
+				},
+			},
+			expectedResult: CheckResult{
+				CheckResultType: CheckResultTypeHealthy,
+				InvariantName:   HistoryInvalid,
+			},
+		},
+		{
+			name:      "healthy single page",
+			execution: getClosedConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{
 				{HistoryEvents: []*types.HistoryEvent{{ID: 1}}},
 			},
@@ -154,6 +175,7 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			wfExecResp: &persistence.GetWorkflowExecutionResponse{
 				State: &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State:       closedState,
 						NextEventID: 2,
 					},
 				},
@@ -165,7 +187,7 @@ func TestHistoryInvalid_Check(t *testing.T) {
 		},
 		{
 			name:      "healthy multi page",
-			execution: getOpenConcreteExecution(),
+			execution: getClosedConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{
 				{
 					HistoryEvents: []*types.HistoryEvent{{ID: 1}},
@@ -180,6 +202,7 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			wfExecResp: &persistence.GetWorkflowExecutionResponse{
 				State: &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State:       closedState,
 						NextEventID: 4,
 					},
 				},
@@ -251,7 +274,7 @@ func TestHistoryInvalid_Fix(t *testing.T) {
 	}{
 		{
 			name:      "fix skipped because healthy",
-			execution: getOpenConcreteExecution(),
+			execution: getClosedConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{
 				{HistoryEvents: []*types.HistoryEvent{{ID: 1}}},
 			},
@@ -259,6 +282,7 @@ func TestHistoryInvalid_Fix(t *testing.T) {
 			wfExecResp: &persistence.GetWorkflowExecutionResponse{
 				State: &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State:       closedState,
 						NextEventID: 2,
 					},
 				},
@@ -291,7 +315,7 @@ func TestHistoryInvalid_Fix(t *testing.T) {
 		},
 		{
 			name:      "fix succeeds for event count mismatch",
-			execution: getOpenConcreteExecution(),
+			execution: getClosedConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{
 				{HistoryEvents: []*types.HistoryEvent{{ID: 1}, {ID: 2}}},
 			},
@@ -299,6 +323,7 @@ func TestHistoryInvalid_Fix(t *testing.T) {
 			wfExecResp: &persistence.GetWorkflowExecutionResponse{
 				State: &persistence.WorkflowMutableState{
 					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						State:       closedState,
 						NextEventID: 10,
 					},
 				},

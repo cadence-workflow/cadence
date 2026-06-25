@@ -94,9 +94,29 @@ func TestMismatchedRecords_Check(t *testing.T) {
 			},
 		},
 		{
+			name:      "different run ID is healthy",
+			execution: getClosedConcreteExecution(),
+			currentExecResp: &persistence.GetCurrentExecutionResponse{
+				RunID:       "different-run-id",
+				CloseStatus: persistence.WorkflowCloseStatusCompleted,
+			},
+			workflowExecResp: &persistence.GetWorkflowExecutionResponse{
+				State: &persistence.WorkflowMutableState{
+					ExecutionInfo: &persistence.WorkflowExecutionInfo{
+						CloseStatus: persistence.WorkflowCloseStatusTerminated,
+					},
+				},
+			},
+			expectedResult: CheckResult{
+				CheckResultType: CheckResultTypeHealthy,
+				InvariantName:   MismatchedRecords,
+			},
+		},
+		{
 			name:      "mismatched close status",
 			execution: getClosedConcreteExecution(),
 			currentExecResp: &persistence.GetCurrentExecutionResponse{
+				RunID:       runID,
 				CloseStatus: persistence.WorkflowCloseStatusCompleted,
 			},
 			workflowExecResp: &persistence.GetWorkflowExecutionResponse{
@@ -117,6 +137,7 @@ func TestMismatchedRecords_Check(t *testing.T) {
 			name:      "matching close status",
 			execution: getClosedConcreteExecution(),
 			currentExecResp: &persistence.GetCurrentExecutionResponse{
+				RunID:       runID,
 				CloseStatus: persistence.WorkflowCloseStatusCompleted,
 			},
 			workflowExecResp: &persistence.GetWorkflowExecutionResponse{
@@ -170,6 +191,7 @@ func TestMismatchedRecords_Fix(t *testing.T) {
 			name:      "fix skipped because healthy",
 			execution: getClosedConcreteExecution(),
 			currentExecResp: &persistence.GetCurrentExecutionResponse{
+				RunID:       runID,
 				CloseStatus: persistence.WorkflowCloseStatusCompleted,
 			},
 			workflowExecResp: &persistence.GetWorkflowExecutionResponse{
@@ -193,6 +215,7 @@ func TestMismatchedRecords_Fix(t *testing.T) {
 			name:      "fix succeeds for mismatched records",
 			execution: getClosedConcreteExecution(),
 			currentExecResp: &persistence.GetCurrentExecutionResponse{
+				RunID:       runID,
 				CloseStatus: persistence.WorkflowCloseStatusCompleted,
 			},
 			workflowExecResp: &persistence.GetWorkflowExecutionResponse{
@@ -217,6 +240,7 @@ func TestMismatchedRecords_Fix(t *testing.T) {
 			name:      "fix fails on delete error",
 			execution: getClosedConcreteExecution(),
 			currentExecResp: &persistence.GetCurrentExecutionResponse{
+				RunID:       runID,
 				CloseStatus: persistence.WorkflowCloseStatusCompleted,
 			},
 			workflowExecResp: &persistence.GetWorkflowExecutionResponse{

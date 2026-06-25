@@ -120,7 +120,7 @@ func (h *historyInvalid) Check(
 
 	if lastEventID == 0 {
 		return CheckResult{
-			CheckResultType: CheckResultTypeFailed,
+			CheckResultType: CheckResultTypeCorrupted,
 			InvariantName:   h.Name(),
 			Info:            "empty history",
 			InfoDetails:     "no history events found for workflow",
@@ -145,7 +145,7 @@ func (h *historyInvalid) Check(
 	}
 
 	expectedLastEventID := wfResp.State.ExecutionInfo.NextEventID - 1
-	if lastEventID != expectedLastEventID {
+	if !Open(wfResp.State.ExecutionInfo.State) && lastEventID != expectedLastEventID {
 		return CheckResult{
 			CheckResultType: CheckResultTypeCorrupted,
 			InvariantName:   h.Name(),

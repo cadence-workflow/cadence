@@ -107,6 +107,13 @@ func (m *mismatchedRecords) Check(
 		}
 	}
 
+	if currentExec.RunID != concreteExecution.RunID {
+		return CheckResult{
+			CheckResultType: CheckResultTypeHealthy,
+			InvariantName:   m.Name(),
+		}
+	}
+
 	if concreteWorkflow.State.ExecutionInfo.CloseStatus != currentExec.CloseStatus {
 		return CheckResult{
 			CheckResultType: CheckResultTypeCorrupted,
