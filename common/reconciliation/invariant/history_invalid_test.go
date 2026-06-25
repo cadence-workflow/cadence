@@ -71,8 +71,8 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			},
 		},
 		{
-			name:      "corrupted history",
-			execution: getOpenConcreteExecution(),
+			name:         "corrupted history",
+			execution:    getOpenConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{nil},
 			historyErrs:  []error{persistence.ErrCorruptedHistory},
 			expectedResult: CheckResult{
@@ -83,8 +83,8 @@ func TestHistoryInvalid_Check(t *testing.T) {
 			},
 		},
 		{
-			name:      "read error",
-			execution: getOpenConcreteExecution(),
+			name:         "read error",
+			execution:    getOpenConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{nil},
 			historyErrs:  []error{errors.New("db connection failed")},
 			expectedResult: CheckResult{
@@ -298,8 +298,8 @@ func TestHistoryInvalid_Fix(t *testing.T) {
 			},
 		},
 		{
-			name:      "fix succeeds for corrupted history",
-			execution: getOpenConcreteExecution(),
+			name:         "fix succeeds for corrupted history",
+			execution:    getOpenConcreteExecution(),
 			historyResps: []*persistence.ReadHistoryBranchResponse{nil},
 			historyErrs:  []error{persistence.ErrCorruptedHistory},
 			expectedResult: FixResult{
@@ -340,10 +340,10 @@ func TestHistoryInvalid_Fix(t *testing.T) {
 			},
 		},
 		{
-			name:      "fix fails on delete error",
-			execution: getOpenConcreteExecution(),
-			historyResps: []*persistence.ReadHistoryBranchResponse{nil},
-			historyErrs:  []error{persistence.ErrCorruptedHistory},
+			name:          "fix fails on delete error",
+			execution:     getOpenConcreteExecution(),
+			historyResps:  []*persistence.ReadHistoryBranchResponse{nil},
+			historyErrs:   []error{persistence.ErrCorruptedHistory},
 			deleteExecErr: errors.New("delete failed"),
 			expectedResult: FixResult{
 				FixResultType: FixResultTypeFailed,
