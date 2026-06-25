@@ -128,6 +128,10 @@ func (a *App) verifySchema(ctx context.Context) error {
 	if err := cassandra.VerifyCompatibleVersion(a.cfg.Persistence, gocql.Quorum); err != nil {
 		return fmt.Errorf("cassandra schema version compatibility check failed: %w", err)
 	}
+	// auto-setup SQLite stores that have autoSetup enabled
+	if err := sql.MaybeAutoSetupSQLiteSchema(a.cfg.Persistence); err != nil {
+		return fmt.Errorf("sqlite auto-setup failed: %w", err)
+	}
 	// sql schema version validation
 	if err := sql.VerifyCompatibleVersion(a.cfg.Persistence); err != nil {
 		return fmt.Errorf("sql schema version compatibility check failed: %w", err)

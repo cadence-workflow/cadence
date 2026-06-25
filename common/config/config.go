@@ -374,6 +374,9 @@ type (
 		// Required when UseMultipleDatabases is true
 		// the length of the list should be exactly the same as NumShards
 		MultipleDatabasesConfig []MultipleDatabasesConfigEntry `yaml:"multipleDatabasesConfig"`
+		// AutoSetup, when true, automatically creates and migrates the schema on server startup.
+		// Only supported for SQLite; intended for development use.
+		AutoSetup bool `yaml:"autoSetup"`
 	}
 
 	// MultipleDatabasesConfigEntry is an entry for MultipleDatabasesConfig to connect to a single SQL database
