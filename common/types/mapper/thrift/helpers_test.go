@@ -24,7 +24,10 @@ import (
 	"testing"
 	"time"
 
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/cadence/common/types/mapper/testutils"
 )
 
 func TestTimeToNano(t *testing.T) {
@@ -90,4 +93,24 @@ func TestSecondsI32ToDuration(t *testing.T) {
 func TestSecondsI32ToDurationNil(t *testing.T) {
 	result := secondsToDuration(nil)
 	assert.Equal(t, time.Duration(0), result)
+}
+
+func SafeNanoFuzzer(n *int64, c fuzz.Continue) {
+	*n = c.Int63n(int64(testutils.MaxSafeTimestampSeconds) * int64(testutils.NanosecondsPerSecond))
+}
+
+func LocalTimeFuzzer(t *time.Time, c fuzz.Continue) {
+	*t = time.Unix(c.Int63n(testutils.MaxSafeTimestampSeconds), c.Int63n(int64(testutils.NanosecondsPerSecond)))
+}
+
+func TestTimeToNanoFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, timeToNano, nanoToTime,
+		testutils.WithCustomFuncs(LocalTimeFuzzer),
+	)
+}
+
+func TestNanoToTimeFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, nanoToTime, timeToNano,
+		testutils.WithCustomFuncs(SafeNanoFuzzer),
+	)
 }
