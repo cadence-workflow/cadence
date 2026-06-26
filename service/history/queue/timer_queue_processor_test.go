@@ -27,8 +27,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	hcommon "github.com/uber/cadence/service/history/common"
@@ -39,6 +42,55 @@ import (
 	"github.com/uber/cadence/service/history/task"
 	"github.com/uber/cadence/service/worker/archiver"
 )
+
+func TestTimerQueueProcessor_StartStop_DrainCompletesTimer(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ackTime := time.Now().Truncate(time.Millisecond)
+	clusterAckTime := ackTime.Add(time.Hour)
+
+	mockShard := shard.NewTestContext(
+		t,
+		ctrl,
+		&persistence.ShardInfo{
+			ShardID:       10,
+			RangeID:       1,
+			TimerAckLevel: ackTime,
+			// per-cluster ack levels are ahead of the processor's initial ackLevel
+			// (TimerAckLevel), so the graceful-shutdown drain deterministically advances
+			// the ack level once.
+			ClusterTimerAckLevel: map[string]time.Time{
+				constants.TestClusterMetadata.GetCurrentClusterName(): clusterAckTime,
+				"standby": clusterAckTime,
+			},
+		},
+		config.NewForTest(),
+	)
+
+	processor := NewTimerQueueProcessor(
+		mockShard,
+		task.NewMockProcessor(ctrl),
+		execution.NewCache(mockShard),
+		archiver.NewMockClient(ctrl),
+		invariant.NewMockInvariant(ctrl),
+	).(*timerQueueProcessor)
+
+	mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Once()
+	mockShard.GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).
+		Return(nil).Once()
+
+	assert.Equal(t, common.DaemonStatusInitialized, processor.status)
+	processor.Start()
+	assert.Equal(t, common.DaemonStatusStarted, processor.status)
+
+	processor.Stop()
+	assert.Equal(t, common.DaemonStatusStopped, processor.status)
+
+	mockShard.Resource.ExecutionMgr.AssertExpectations(t)
+	mockShard.Resource.ShardMgr.AssertExpectations(t)
+}
 
 func setupTimerQueueProcessor(t *testing.T) (*gomock.Controller, *timerQueueProcessor) {
 	t.Helper()

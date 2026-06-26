@@ -79,9 +79,32 @@ func setupTransferQueueProcessor(t *testing.T, cfg *config.Config) (*gomock.Cont
 	).(*transferQueueProcessor)
 }
 
+// expectGracefulDrainCompletesTransfer registers (and asserts) the persistence
+// expectations for the completeTransfer that the processor deterministically runs when
+// it drains on graceful shutdown.
+//
+// The test shard sets ClusterTransferAckLevel to {current: 3, standby: 2} while a
+// freshly constructed processor starts with ackLevel 0, so completeTransfer computes a
+// newAckLevelTaskID of 2 and advances the ack level exactly once: one RangeCompleteHistoryTask
+// (a single page, since TasksCompleted is 0) followed by one UpdateShard. During graceful
+// shutdown the queue processors stay running until drain returns, so this is deterministic.
+func expectGracefulDrainCompletesTransfer(t *testing.T, mockShard *shard.TestContext) {
+	mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Once()
+	mockShard.GetShardManager().(*mocks.ShardManager).On("UpdateShard", mock.Anything, mock.Anything).
+		Return(nil).Once()
+	t.Cleanup(func() {
+		mockShard.Resource.ExecutionMgr.AssertExpectations(t)
+		mockShard.Resource.ShardMgr.AssertExpectations(t)
+	})
+}
+
 func TestTransferQueueProcessor_StartStop(t *testing.T) {
 	ctrl, processor := setupTransferQueueProcessor(t, nil)
 	defer ctrl.Finish()
+
+	// graceful Stop drains the processor, which deterministically completes the transfer
+	expectGracefulDrainCompletesTransfer(t, processor.shard.(*shard.TestContext))
 
 	assert.Equal(t, common.DaemonStatusInitialized, processor.status)
 
@@ -104,6 +127,10 @@ func TestTransferQueueProcessor_StartNotGracefulStop(t *testing.T) {
 
 	ctrl, processor := setupTransferQueueProcessor(t, cfg)
 	defer ctrl.Finish()
+
+	// non-graceful Stop stops the pumps before draining, so completeTransfer returns
+	// early and issues no persistence calls. No RangeCompleteHistoryTask/UpdateShard
+	// mocks are registered, so any such call would fail the test.
 
 	assert.Equal(t, common.DaemonStatusInitialized, processor.status)
 	processor.Start()
@@ -264,6 +291,9 @@ func TestTransferQueueProcessor_HandleAction(t *testing.T) {
 			ctrl, processor := setupTransferQueueProcessor(t, nil)
 			defer ctrl.Finish()
 
+			// graceful Stop drains the processor, which deterministically completes the transfer
+			expectGracefulDrainCompletesTransfer(t, processor.shard.(*shard.TestContext))
+
 			defer processor.Stop()
 			processor.Start()
 
@@ -325,8 +355,10 @@ func TestTransferQueueProcessor_completeTransfer(t *testing.T) {
 		"error - ackLevel < newAckLevelTaskID - RangeCompleteTransferTask error": {
 			ackLevel: 1,
 			mockSetup: func(mockShard *shard.TestContext) {
+				// ackLevel stays below the target after the error, so the deferred graceful
+				// Stop drains and calls completeTransfer again; allow both invocations.
 				mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
-					Return(&persistence.RangeCompleteHistoryTaskResponse{}, assert.AnError).Once()
+					Return(&persistence.RangeCompleteHistoryTaskResponse{}, assert.AnError)
 			},
 			err: assert.AnError,
 		},
@@ -352,7 +384,7 @@ func TestTransferQueueProcessor_completeTransfer(t *testing.T) {
 			defer processor.Stop()
 			processor.Start()
 
-			err := processor.completeTransfer()
+			err := processor.completeTransfer(context.Background(), nil)
 
 			if tt.err != nil {
 				assert.Error(t, err)
