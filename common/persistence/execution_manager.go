@@ -1120,7 +1120,7 @@ func (m *executionManagerImpl) FetchWorkflowTimerTasksForCleanup(
 	minTTL := m.dc.WorkflowTimerTaskCleanupMinTTL()
 	now := time.Now()
 	trackedKeys, err := m.persistence.SelectWorkflowTimerTasks(ctx, &SelectWorkflowTimerTasksRequest{
-		ShardID:    *request.ShardID,
+		ShardID:    request.ShardID,
 		DomainID:   request.DomainID,
 		WorkflowID: request.WorkflowID,
 		RunID:      request.RunID,

@@ -1135,7 +1135,7 @@ type (
 
 	// SelectWorkflowTimerTasksRequest is used to read the workflow_timer_tasks tracking column
 	SelectWorkflowTimerTasksRequest struct {
-		ShardID    int
+		ShardID    ShardID
 		DomainID   string
 		WorkflowID string
 		RunID      string

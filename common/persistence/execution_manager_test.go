@@ -2122,7 +2122,7 @@ func TestFetchWorkflowTimerTasksForCleanup_FiltersCorrectly(t *testing.T) {
 
 	shardID := 0
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
-		ShardID:    shardID,
+		ShardID:    common.Ptr(shardID),
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
@@ -2156,7 +2156,7 @@ func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
 
 	shardID := 0
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
-		ShardID:    shardID,
+		ShardID:    common.Ptr(shardID),
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,

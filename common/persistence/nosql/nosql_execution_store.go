@@ -1105,7 +1105,7 @@ func (d *nosqlExecutionStore) SelectWorkflowTimerTasks(
 	ctx context.Context,
 	request *persistence.SelectWorkflowTimerTasksRequest,
 ) ([]persistence.HistoryTaskKey, error) {
-	result, err := d.db.SelectWorkflowTimerTasks(ctx, request.ShardID, request.DomainID, request.WorkflowID, request.RunID)
+	result, err := d.db.SelectWorkflowTimerTasks(ctx, d.shardID, request.DomainID, request.WorkflowID, request.RunID)
 	if err != nil {
 		return nil, convertCommonErrors(d.db, "SelectWorkflowTimerTasks", err)
 	}
