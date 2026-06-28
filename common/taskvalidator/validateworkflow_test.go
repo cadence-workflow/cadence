@@ -31,18 +31,20 @@ import (
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/service/history/constants"
 )
 
-type mockStaleChecker struct {
-	CheckAgeFunc func(response *persistence.GetWorkflowExecutionResponse) (bool, error)
+type fakeStaleChecker struct {
+	stale bool
 }
 
-func (m *mockStaleChecker) CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, error) {
-	return m.CheckAgeFunc(response)
+func (f *fakeStaleChecker) CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, invariant.CheckResult) {
+	return f.stale, invariant.CheckResult{CheckResultType: invariant.CheckResultTypeHealthy}
 }
 
 func TestWorkflowCheckforValidation(t *testing.T) {
@@ -69,13 +71,9 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 			mockMetricsClient := metrics.NewNoopMetricsClient()
 			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
 			mockExecutionManager := persistence.NewMockExecutionManager(mockCtrl)
-			mockHistoryManager := persistence.NewMockHistoryManager(mockCtrl)
 
-			checker, err := NewWfChecker(mockLogger, mockMetricsClient, mockDomainCache, mockExecutionManager, mockHistoryManager, 4)
-			assert.NoError(t, err, "Failed to create checker")
-
-			mockDomainCache.EXPECT().GetDomainByID(tc.domainID).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
-			mockDomainCache.EXPECT().GetDomainName(tc.domainID).Return(tc.domainName, nil).AnyTimes()
+			mockDomainCache.EXPECT().GetDomainByID(gomock.Any()).Return(constants.TestGlobalDomainEntry, nil).AnyTimes()
+			mockDomainCache.EXPECT().GetDomainName(gomock.Any()).Return(tc.domainName, nil).AnyTimes()
 
 			if tc.isStale {
 				mockExecutionManager.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -96,8 +94,16 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 				}, nil
 			}).AnyTimes()
 
+			checker := &checkerImpl{
+				logger:        mockLogger,
+				metricsClient: mockMetricsClient,
+				dc:            mockDomainCache,
+				pr:            persistence.NewPersistenceRetryer(mockExecutionManager, nil, backoff.NewExponentialRetryPolicy(0)),
+				staleCheck:    &fakeStaleChecker{stale: tc.isStale},
+			}
+
 			ctx := context.Background()
-			err = checker.WorkflowCheckforValidation(ctx, tc.workflowID, tc.domainID, tc.domainName, tc.runID)
+			err := checker.WorkflowCheckforValidation(ctx, tc.workflowID, tc.domainID, tc.domainName, tc.runID)
 
 			if tc.simulateError {
 				assert.Error(t, err, "Expected error when GetWorkflowExecution fails")

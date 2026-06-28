@@ -84,7 +84,7 @@ func NewDBLoadCloser(c *cli.Context) (LoadCloser, error) {
 		return nil, fmt.Errorf("error in NewDBLoadCloser: failed to get shard ID: %w", err)
 	}
 
-	executionManager, err := getDeps(c).initializeExecutionManager(c, shardID)
+	executionManager, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
 		return nil, fmt.Errorf("error in NewDBLoadCloser: failed to initialize execution store: %w", err)
 	}

@@ -59,7 +59,7 @@ func TestDefaultManagerFactory(t *testing.T) {
 				return mockExecutionManager
 			},
 			methodToTest: func(f *defaultManagerFactory, ctx *cli.Context) (interface{}, error) {
-				return f.initializeExecutionManager(ctx, 1)
+				return f.initializeExecutionManager(ctx)
 			},
 			expectError: false,
 		},
@@ -70,7 +70,7 @@ func TestDefaultManagerFactory(t *testing.T) {
 				return nil
 			},
 			methodToTest: func(f *defaultManagerFactory, ctx *cli.Context) (interface{}, error) {
-				return f.initializeExecutionManager(ctx, 1)
+				return f.initializeExecutionManager(ctx)
 			},
 			expectError: true,
 		},

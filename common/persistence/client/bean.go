@@ -431,7 +431,9 @@ func (s *BeanImpl) Close() {
 	s.domainReplicationQueueManager.Close()
 	s.shardManager.Close()
 	s.historyManager.Close()
-	s.executionManagerFactory.Close()
+	if s.executionManagerFactory != nil {
+		s.executionManagerFactory.Close()
+	}
 	s.configStoreManager.Close()
 	if s.executionManager != nil {
 		s.executionManager.Close()

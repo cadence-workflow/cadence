@@ -46,7 +46,7 @@ type Checker interface {
 
 // staleChecker interface definition.
 type staleChecker interface {
-	CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, error)
+	CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, invariant.CheckResult)
 }
 
 // checkerImpl is the implementation of the Checker interface.
@@ -148,10 +148,10 @@ func (w *checkerImpl) staleWorkflowCheck(workflowResp *persistence.GetWorkflowEx
 		w.logger.Error("Invalid workflow execution response received")
 		return false, errors.New("invalid workflow execution response")
 	}
-	pastExpiration, err := w.staleCheck.CheckAge(workflowResp)
-	if err != nil {
-		w.logger.Error("Error during stale workflow check", zap.Error(err))
-		return false, err
+	pastExpiration, result := w.staleCheck.CheckAge(workflowResp)
+	if result.CheckResultType == invariant.CheckResultTypeFailed {
+		w.logger.Error("Error during stale workflow check", zap.String("details", result.InfoDetails))
+		return false, errors.New(result.Info)
 	}
 	return pastExpiration, nil
 }

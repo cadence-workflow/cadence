@@ -221,7 +221,7 @@ func (d *shardedExecutionStore) RangeCompleteHistoryTask(ctx context.Context, re
 }
 
 func (d *shardedExecutionStore) SelectWorkflowTimerTasks(ctx context.Context, request *persistence.SelectWorkflowTimerTasksRequest) ([]persistence.HistoryTaskKey, error) {
-	store, err := d.executionStore(&request.ShardID, "SelectWorkflowTimerTasks")
+	store, err := d.executionStore(request.ShardID, "SelectWorkflowTimerTasks")
 	if err != nil {
 		return nil, err
 	}

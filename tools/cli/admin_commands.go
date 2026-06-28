@@ -310,7 +310,7 @@ func AdminDeleteWorkflow(c *cli.Context) error {
 		return commoncli.Problem("Unable to initialize history manager"+remoteHint, err)
 	}
 	defer histV2.Close()
-	exeStore, err := getDeps(c).initializeExecutionManager(c, shardIDInt)
+	exeStore, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
 		return commoncli.Problem("Unable to initialize execution manager"+remoteHint, err)
 	}
