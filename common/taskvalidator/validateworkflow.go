@@ -30,6 +30,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/metrics"
@@ -56,6 +57,7 @@ type checkerImpl struct {
 	dc            cache.DomainCache
 	pr            persistence.Retryer
 	staleCheck    staleChecker
+	numShards     int
 }
 
 // NewWfChecker creates a new instance of a workflow validation checker.
@@ -77,6 +79,7 @@ func NewWfChecker(logger *zap.Logger, metrics metrics.Client, domainCache cache.
 		dc:            domainCache,
 		pr:            pr,
 		staleCheck:    staleCheck,
+		numShards:     numShards,
 	}, nil
 }
 
@@ -88,7 +91,9 @@ func (w *checkerImpl) WorkflowCheckforValidation(ctx context.Context, workflowID
 		zap.String("DomainID", domainID),
 		zap.String("DomainName", domainName))
 
+	shardID := common.WorkflowIDToHistoryShard(workflowID, w.numShards)
 	workflowResp, err := w.pr.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
+		ShardID:    &shardID,
 		DomainID:   domainID,
 		DomainName: domainName,
 		Execution: types.WorkflowExecution{
@@ -149,9 +154,11 @@ func (w *checkerImpl) staleWorkflowCheck(workflowResp *persistence.GetWorkflowEx
 		return false, errors.New("invalid workflow execution response")
 	}
 	pastExpiration, result := w.staleCheck.CheckAge(workflowResp)
-	if result.CheckResultType == invariant.CheckResultTypeFailed {
+	switch result.CheckResultType {
+	case invariant.CheckResultTypeHealthy, invariant.CheckResultTypeCorrupted:
+		return pastExpiration, nil
+	default:
 		w.logger.Error("Error during stale workflow check", zap.String("details", result.InfoDetails))
 		return false, errors.New(result.Info)
 	}
-	return pastExpiration, nil
 }

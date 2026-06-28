@@ -119,10 +119,11 @@ func concreteExecutionScannerManager(
 
 	collections := ParseCollections(params.ScannerConfig)
 
-	var numShards int
-	if scannerContext, err := shardscanner.GetScannerContext(ctx); err == nil {
-		numShards = scannerContext.Resource.GetNumShards()
+	scannerContext, err := shardscanner.GetScannerContext(ctx)
+	if err != nil {
+		return invariant.NewInvariantManager(nil)
 	}
+	numShards := scannerContext.Resource.GetNumShards()
 
 	var ivs []invariant.Invariant
 	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop(), numShards) {
@@ -164,10 +165,11 @@ func concreteExecutionFixerManager(ctx context.Context, pr persistence.Retryer, 
 		}
 	}
 
-	var numShards int
-	if fixerContext, err := shardscanner.GetFixerContext(ctx); err == nil {
-		numShards = fixerContext.Resource.GetNumShards()
+	fixerContext, err := shardscanner.GetFixerContext(ctx)
+	if err != nil {
+		return invariant.NewInvariantManager(nil)
 	}
+	numShards := fixerContext.Resource.GetNumShards()
 
 	var ivs []invariant.Invariant
 	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop(), numShards) {
