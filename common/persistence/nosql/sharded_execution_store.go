@@ -22,6 +22,7 @@ package nosql
 
 import (
 	"context"
+	"sync"
 
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -34,6 +35,9 @@ type shardedExecutionStore struct {
 	logger         log.Logger
 	store          shardedNosqlStore
 	taskSerializer serialization.TaskSerializer
+
+	shardStoreMu sync.Mutex
+	shardStores  map[int]persistence.ExecutionStore
 }
 
 var _ persistence.ExecutionStore = (*shardedExecutionStore)(nil)
@@ -47,6 +51,7 @@ func NewShardedExecutionStore(
 		logger:         logger,
 		store:          store,
 		taskSerializer: taskSerializer,
+		shardStores:    make(map[int]persistence.ExecutionStore),
 	}
 }
 
@@ -69,11 +74,32 @@ func (d *shardedExecutionStore) executionStore(requestShardID *int, operation st
 		}
 		return nil, err
 	}
-	storeShard, err := d.store.GetStoreShardByHistoryShard(*requestShardID)
+	shardID := *requestShardID
+
+	d.shardStoreMu.Lock()
+	if s, ok := d.shardStores[shardID]; ok {
+		d.shardStoreMu.Unlock()
+		return s, nil
+	}
+	d.shardStoreMu.Unlock()
+
+	storeShard, err := d.store.GetStoreShardByHistoryShard(shardID)
 	if err != nil {
 		return nil, err
 	}
-	return NewExecutionStore(*requestShardID, storeShard.db, d.logger, d.taskSerializer, storeShard.dc)
+	s, err := NewExecutionStore(shardID, storeShard.db, d.logger, d.taskSerializer, storeShard.dc)
+	if err != nil {
+		return nil, err
+	}
+
+	d.shardStoreMu.Lock()
+	if existing, ok := d.shardStores[shardID]; ok {
+		d.shardStoreMu.Unlock()
+		return existing, nil
+	}
+	d.shardStores[shardID] = s
+	d.shardStoreMu.Unlock()
+	return s, nil
 }
 
 func (d *shardedExecutionStore) CreateWorkflowExecution(ctx context.Context, request *persistence.InternalCreateWorkflowExecutionRequest) (*persistence.CreateWorkflowExecutionResponse, error) {

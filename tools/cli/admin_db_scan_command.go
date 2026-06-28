@@ -210,7 +210,7 @@ func listExecutionsByShardID(
 
 	client, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
-		commoncli.Problem("initialize execution manager:", err)
+		return commoncli.Problem("initialize execution manager:", err)
 	}
 	defer client.Close()
 	paginationFunc := func(paginationToken []byte) ([]interface{}, []byte, error) {
@@ -220,6 +220,7 @@ func listExecutionsByShardID(
 		resp, err := client.ListConcreteExecutions(
 			ctx,
 			&persistence.ListConcreteExecutionsRequest{
+				ShardID:   &shardID,
 				PageSize:  1000,
 				PageToken: paginationToken,
 			},
