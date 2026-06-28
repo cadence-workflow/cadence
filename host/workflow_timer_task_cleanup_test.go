@@ -127,7 +127,7 @@ func (s *WorkflowTimerTaskCleanupSuite) TestTimerCleanupAtRetention() {
 		"expected workflow execution to be deleted after retention")
 
 	// By this point retention-time cleanup deleted the timer.
-	s.True(s.isTimerTaskDeletedForRun(runID),
+	s.True(s.isTimerTaskDeletedForRun(id, runID),
 		"expected 48h workflow timeout timer task to be deleted after full lifecycle")
 }
 
@@ -160,15 +160,17 @@ func (s *WorkflowTimerTaskCleanupSuite) newCompleteImmediatelyPoller(taskList, i
 // isTimerTaskDeletedForRun polls until no long-lived timer task (above the cleanup threshold)
 // for the given runID exists in the queue. Short-lived timers below the threshold are ignored
 // since the feature deliberately skips them.
-func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) bool {
+func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(workflowID, runID string) bool {
 	execMgr := s.newExecutionManager()
 	defer execMgr.Close()
 	threshold := time.Hour // matches WorkflowTimerTaskCleanupMinTTL in the test config
+	shardID := common.WorkflowIDToHistoryShard(workflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
 
 	for i := 0; i < 20; i++ {
 		now := time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 		resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+			ShardID:             common.IntPtr(shardID),
 			TaskCategory:        persistence.HistoryTaskCategoryTimer,
 			InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
 			ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
@@ -195,7 +197,9 @@ func (s *WorkflowTimerTaskCleanupSuite) isTimerTaskDeletedForRun(runID string) b
 // isWorkflowDeleted polls until GetWorkflowExecution returns EntityNotExistsError,
 // indicating the retention-based deletion has completed.
 func (s *WorkflowTimerTaskCleanupSuite) isWorkflowDeleted(domainID string, execution *types.WorkflowExecution) bool {
+	shardID := common.WorkflowIDToHistoryShard(execution.WorkflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
 	request := &persistence.GetWorkflowExecutionRequest{
+		ShardID:   common.IntPtr(shardID),
 		DomainID:  domainID,
 		Execution: *execution,
 	}
@@ -316,7 +320,7 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) TestTimerNotCleanedWhenDisabled(
 		"expected workflow execution to be deleted after retention")
 
 	// Flag is off: deletion never runs, so the 48h timer task should still be present.
-	s.False(s.isTimerTaskDeletedForRun(runID),
+	s.False(s.isTimerTaskDeletedForRun(id, runID),
 		"expected 48h timer task to remain when feature flag is disabled")
 }
 
@@ -344,16 +348,18 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) newCompleteImmediatelyPoller(tas
 	}
 }
 
-func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID string) bool {
+func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(workflowID, runID string) bool {
 	execMgr := s.newExecutionManager()
 	defer execMgr.Close()
 	threshold := time.Hour // matches WorkflowTimerTaskCleanupMinTTL in the test config
+	shardID := common.WorkflowIDToHistoryShard(workflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
 	now := time.Now()
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
 	defer cancel()
 
 	resp, err := execMgr.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		ShardID:             common.IntPtr(shardID),
 		TaskCategory:        persistence.HistoryTaskCategoryTimer,
 		InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
 		ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, math.MaxInt64), 0),
@@ -370,7 +376,9 @@ func (s *WorkflowTimerTaskCleanupDisabledSuite) isTimerTaskDeletedForRun(runID s
 }
 
 func (s *WorkflowTimerTaskCleanupDisabledSuite) isWorkflowDeleted(domainID string, execution *types.WorkflowExecution) bool {
+	shardID := common.WorkflowIDToHistoryShard(execution.WorkflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
 	request := &persistence.GetWorkflowExecutionRequest{
+		ShardID:   common.IntPtr(shardID),
 		DomainID:  domainID,
 		Execution: *execution,
 	}

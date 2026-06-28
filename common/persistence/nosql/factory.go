@@ -176,15 +176,3 @@ func (f *executionStoreFactory) close() {
 func (f *executionStoreFactory) new() (persistence.ExecutionStore, error) {
 	return NewShardedExecutionStore(f.shardedNosqlStore, f.logger, f.taskSerializer), nil
 }
-
-func (f *executionStoreFactory) newForShard(shardID int) (persistence.ExecutionStore, error) {
-	storeShard, err := f.shardedNosqlStore.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return nil, err
-	}
-	pmgr, err := NewExecutionStore(shardID, storeShard.db, f.logger, f.taskSerializer, storeShard.dc)
-	if err != nil {
-		return nil, err
-	}
-	return pmgr, nil
-}
