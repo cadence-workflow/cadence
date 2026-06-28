@@ -100,6 +100,7 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 				dc:            mockDomainCache,
 				pr:            persistence.NewPersistenceRetryer(mockExecutionManager, nil, backoff.NewExponentialRetryPolicy(0)),
 				staleCheck:    &fakeStaleChecker{stale: tc.isStale},
+				numShards:     4,
 			}
 
 			ctx := context.Background()
