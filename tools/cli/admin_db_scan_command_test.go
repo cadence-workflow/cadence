@@ -332,6 +332,7 @@ func expectShard(td *cliTestData, shardID int) {
 	// Return 2 executions in the first call and a page token
 	mockExecutionManager.EXPECT().ListConcreteExecutions(gomock.Any(),
 		&persistence.ListConcreteExecutionsRequest{
+			ShardID:   &shardID,
 			PageSize:  1000,
 			PageToken: nil,
 		},
@@ -347,6 +348,7 @@ func expectShard(td *cliTestData, shardID int) {
 	// Return 1 execution in the second call and no page token
 	mockExecutionManager.EXPECT().ListConcreteExecutions(gomock.Any(),
 		&persistence.ListConcreteExecutionsRequest{
+			ShardID:   &shardID,
 			PageSize:  1000,
 			PageToken: []byte("some-next-page-token"),
 		},
