@@ -169,9 +169,11 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 		var pendingShards []int32
 		var completedShardCount int32
 		if p.historyClient != nil {
-			failoverInfo, infoErr := p.historyClient.GetFailoverInfo(context.Background(), &types.GetFailoverInfoRequest{
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			failoverInfo, infoErr := p.historyClient.GetFailoverInfo(ctx, &types.GetFailoverInfoRequest{
 				DomainID: domainID,
 			})
+			cancel()
 			if infoErr != nil {
 				p.logger.Error("Failed to get failover info before force-completing",
 					tag.WorkflowDomainID(domainID),
