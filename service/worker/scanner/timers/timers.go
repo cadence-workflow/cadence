@@ -109,7 +109,7 @@ func timerCustomConfig(_ shardscanner.FixerContext) shardscanner.CustomScannerCo
 	// currently this is not read anywhere because "fixer enabled"
 	// means "run this one invariant's fixes".
 	return map[string]string{
-		invariant.TimerInvalidName: "true",
+		string(invariant.TimerInvalid): "true",
 	}
 }
 

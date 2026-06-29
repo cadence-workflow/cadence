@@ -400,7 +400,7 @@ func TestStillRunning(t *testing.T) {
 		// should be cleaned up because it's simply too old to reasonably exist
 		t.Logf("result: %#v", result)
 		assert.Equal(t, CheckResultTypeCorrupted, result.CheckResultType, "result should be corrupted, as it has expired")
-		assert.True(t, pastExpiration, "workflow should be past expiration, created: %v, retention days: %v + %v safety, now: %v", created.Format(dateOnly), testRetentionDays, retentionSafetyMargin, time.Now().Format(dateOnly))
+		assert.True(t, pastExpiration, "workflow should be past expiration, created: %v, retention days: %v + %v safety, now: %v", created.Format(time.DateOnly), testRetentionDays, retentionSafetyMargin, time.Now().Format(time.DateOnly))
 	})
 	t.Run("bad-running-and-backoff-and-corrupt", func(t *testing.T) {
 		// created 2 days before retention margin
@@ -414,7 +414,7 @@ func TestStillRunning(t *testing.T) {
 		// should be cleaned up because it's simply too old to reasonably exist
 		t.Logf("result: %#v", result)
 		assert.Equal(t, CheckResultTypeCorrupted, result.CheckResultType, "result should be corrupted, as it has expired")
-		assert.True(t, pastExpiration, "workflow should be past expiration, created: %v, backoff: %v, retention days: %v + %v safety, now: %v", created.Format(dateOnly), oneDay, testRetentionDays, retentionSafetyMargin, time.Now().Format(dateOnly))
+		assert.True(t, pastExpiration, "workflow should be past expiration, created: %v, backoff: %v, retention days: %v + %v safety, now: %v", created.Format(time.DateOnly), oneDay, testRetentionDays, retentionSafetyMargin, time.Now().Format(time.DateOnly))
 
 	})
 }

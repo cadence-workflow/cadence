@@ -52,7 +52,6 @@ const (
 	updateDomainRetryInitialInterval = 50 * time.Millisecond
 	updateDomainRetryCoefficient     = 2.0
 	updateDomainMaxRetry             = 2
-	notifyFailoverMarkerMinInterval  = 500 * time.Millisecond
 	notifyRemoteCoordinatorTimeout   = 5 * time.Second
 )
 
@@ -100,10 +99,11 @@ type (
 	}
 
 	failoverRecord struct {
-		failoverVersion int64
-		shards          map[int32]struct{}
-		lastUpdatedTime time.Time
-		firstSeenTime   time.Time
+		failoverVersion         int64
+		shards                  map[int32]struct{}
+		lastUpdatedTime         time.Time
+		firstSeenTime           time.Time
+		firstMarkerCreationTime int64
 	}
 )
 
@@ -185,11 +185,6 @@ func (c *coordinatorImpl) ReceiveFailoverMarkers(
 	marker *types.FailoverMarkerAttributes,
 ) {
 
-	c.logger.Info("Failover marker received from notify RPC",
-		tag.WorkflowDomainID(marker.GetDomainID()),
-		tag.FailoverVersion(marker.GetFailoverVersion()),
-		tag.Number(int64(len(shardIDs))),
-	)
 	c.receiveChan <- &receiveRequest{
 		shardIDs: shardIDs,
 		marker:   marker,
@@ -244,43 +239,6 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 	))
 	defer timer.Stop()
 	requestByMarker := make(map[types.FailoverMarkerAttributes]*receiveRequest)
-	var lastFlush time.Time
-
-	flush := func() {
-		if len(requestByMarker) == 0 {
-			return
-		}
-		markerCount := len(requestByMarker)
-		var shardCount int
-		for _, req := range requestByMarker {
-			shardCount += len(req.shardIDs)
-		}
-		flushStart := c.timeSource.Now()
-		err := c.notifyRemoteCoordinator(requestByMarker)
-		flushDuration := c.timeSource.Now().Sub(flushStart)
-		if err == nil {
-			c.logger.Info("Flushed pending failover markers to active coordinator",
-				tag.Number(int64(markerCount)),
-				tag.Counter(shardCount),
-				tag.Dynamic("flush-duration", flushDuration),
-			)
-			requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
-			lastFlush = c.timeSource.Now()
-		}
-	}
-
-	resetTimer := func() {
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-		timer.Reset(backoff.JitDuration(
-			c.config.NotifyFailoverMarkerInterval(),
-			c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
-		))
-	}
 
 	for {
 		select {
@@ -290,20 +248,10 @@ func (c *coordinatorImpl) notifyFailoverMarkerLoop() {
 			// if a shard movement happens, it is fine to have duplicated shard IDs in the request
 			// The receiver side will de-dup the shard IDs. See: handleFailoverMarkers
 			aggregateNotificationRequests(notificationReq, requestByMarker)
-			if c.timeSource.Now().Sub(lastFlush) >= notifyFailoverMarkerMinInterval {
-				flush()
-				resetTimer()
-			} else {
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				timer.Reset(notifyFailoverMarkerMinInterval - c.timeSource.Now().Sub(lastFlush))
-			}
 		case <-timer.C:
-			flush()
+			if err := c.notifyRemoteCoordinator(requestByMarker); err == nil {
+				requestByMarker = make(map[types.FailoverMarkerAttributes]*receiveRequest)
+			}
 			timer.Reset(backoff.JitDuration(
 				c.config.NotifyFailoverMarkerInterval(),
 				c.config.NotifyFailoverMarkerTimerJitterCoefficient(),
@@ -341,18 +289,22 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		}
 	}
 
-	now := c.timeSource.Now()
 	if _, ok := c.recorder[domainID]; !ok {
 		// initialize the failover record
 		c.recorder[marker.GetDomainID()] = &failoverRecord{
 			failoverVersion: marker.GetFailoverVersion(),
 			shards:          make(map[int32]struct{}),
-			firstSeenTime:   now,
+			firstSeenTime:   c.timeSource.Now(),
 		}
 	}
 
 	record := c.recorder[domainID]
-	record.lastUpdatedTime = now
+	record.lastUpdatedTime = c.timeSource.Now()
+	// track the earliest valid CreationTime across all markers for accurate latency;
+	// skip non-positive values so a single bad marker can't poison the minimum
+	if ct := marker.GetCreationTime(); ct > 0 && (record.firstMarkerCreationTime == 0 || ct < record.firstMarkerCreationTime) {
+		record.firstMarkerCreationTime = ct
+	}
 	for _, shardID := range request.shardIDs {
 		record.shards[shardID] = struct{}{}
 	}
@@ -369,6 +321,8 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 	}
 
 	if len(record.shards) == c.config.NumberOfShards {
+		firstSeenTime := record.firstSeenTime
+		firstMarkerCreationTime := record.firstMarkerCreationTime
 		cleanStart := c.timeSource.Now()
 		updated, err := domain.CleanPendingActiveState(
 			c.domainManager,
@@ -385,7 +339,6 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 			c.scope.IncCounter(metrics.CadenceFailures)
 			return
 		}
-		firstSeenTime := record.firstSeenTime
 		delete(c.recorder, domainID)
 		// reset the gauge so it reflects the current (empty) pending state for this domain
 		// rather than the last partial-count value, which would otherwise linger forever
@@ -405,9 +358,9 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		}
 
 		now := c.timeSource.Now()
-		// use the last marker to calculate the failover duration
-		failoverDuration := now.Sub(time.Unix(0, marker.GetCreationTime()))
-		markerPipelineDuration := now.Sub(firstSeenTime)
+		// use the earliest marker creation time across all shards to capture the
+		// full failover duration; the last marker would systematically undercount
+		failoverDuration := now.Sub(time.Unix(0, firstMarkerCreationTime))
 		c.scope.Tagged(
 			metrics.DomainTag(domainName),
 		).RecordTimer(
@@ -423,9 +376,9 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		c.logger.Info("Updated domain from pending-active to active",
 			tag.WorkflowDomainName(domainName),
 			tag.FailoverVersion(marker.FailoverVersion),
-			tag.Duration(failoverDuration),
-			tag.Dynamic("marker-pipeline-duration", markerPipelineDuration),
-			tag.Dynamic("clean-pending-active-duration", cleanDuration),
+			tag.Dynamic("failover-duration-seconds", failoverDuration.Seconds()),
+			tag.Dynamic("marker-pipeline-duration-seconds", now.Sub(firstSeenTime).Seconds()),
+			tag.Dynamic("clean-pending-active-duration-seconds", cleanDuration.Seconds()),
 		)
 	} else {
 		c.scope.Tagged(
@@ -433,13 +386,6 @@ func (c *coordinatorImpl) handleFailoverMarkers(
 		).UpdateGauge(
 			metrics.FailoverMarkerCount,
 			float64(len(record.shards)),
-		)
-		c.logger.Info("Accumulated failover marker shards",
-			tag.WorkflowDomainName(domainName),
-			tag.WorkflowDomainID(domainID),
-			tag.FailoverVersion(marker.GetFailoverVersion()),
-			tag.Counter(len(record.shards)),
-			tag.Number(int64(c.config.NumberOfShards)),
 		)
 	}
 }

@@ -155,7 +155,9 @@ func (ts *TimerInvalidTest) TestCheck() {
 			)
 			ctx := context.Background()
 			if tc.ctxExpired {
-				ctx, _ = context.WithDeadline(ctx, time.Now())
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, time.Now())
+				defer cancel()
 			}
 			result := i.Check(ctx, tc.entity)
 			ts.Equal(tc.expectedResult, result)
@@ -283,7 +285,9 @@ func (ts *TimerInvalidTest) TestFix() {
 			)
 			ctx := context.Background()
 			if tc.ctxExpired {
-				ctx, _ = context.WithDeadline(ctx, time.Now())
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, time.Now())
+				defer cancel()
 			}
 			result := i.Fix(ctx, tc.entity)
 			ts.Equal(tc.expectedResult, result)

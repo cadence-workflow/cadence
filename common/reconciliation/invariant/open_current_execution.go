@@ -165,7 +165,7 @@ func ExecutionStillOpen(
 ) (bool, error) {
 	domainName, err := dc.GetDomainName(exec.DomainID)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	req := &persistence.GetWorkflowExecutionRequest{
 		DomainID: exec.DomainID,
