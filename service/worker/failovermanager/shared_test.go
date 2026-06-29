@@ -33,6 +33,7 @@ import (
 	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/yarpc"
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
@@ -292,4 +293,77 @@ func TestFailoverActivityV2_WhenADomainFailsItIsReportedFailedWithTheError(t *te
 	require.Len(t, result.FailedDomains, 1)
 	assert.Equal(t, "d1", result.FailedDomains[0].DomainName)
 	assert.Contains(t, result.FailedDomains[0].Error, "boom")
+}
+
+func TestGetFailoverTimeoutSeconds(t *testing.T) {
+	tests := []struct {
+		name string
+		data map[string]string
+		want int32
+	}{
+		{"missing key", nil, 0},
+		{"empty value", map[string]string{"fts": ""}, 0},
+		{"zero", map[string]string{"fts": "0"}, 0},
+		{"negative", map[string]string{"fts": "-5"}, 0},
+		{"non-numeric", map[string]string{"fts": "abc"}, 0},
+		{"valid", map[string]string{"fts": "300"}, 300},
+		{"valid small", map[string]string{"fts": "1"}, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			domain := createDomainResponse(createDomainResponseParams{
+				name:              "test",
+				activeClusterName: "cluster0",
+				isManaged:         true,
+				isGlobal:          true,
+				data:              tc.data,
+			})
+			assert.Equal(t, tc.want, getFailoverTimeoutSeconds(domain))
+		})
+	}
+}
+
+func TestFailoverActivityV2_WhenDomainHasTimeoutItPassesGracefulFailover(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	var capturedReq *types.FailoverDomainRequest
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			capturedReq = req
+			return nil, nil
+		})
+
+	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{
+			{DomainName: "d1", TargetCluster: "cluster1", FailoverTimeoutSeconds: 300},
+		},
+	})
+	require.NoError(t, err)
+	var result FailoverActivityV2Result
+	require.NoError(t, val.Get(&result))
+	assert.Len(t, result.SuccessDomains, 1)
+	require.NotNil(t, capturedReq.FailoverTimeoutInSeconds)
+	assert.Equal(t, int32(300), *capturedReq.FailoverTimeoutInSeconds)
+}
+
+func TestFailoverActivityV2_WhenDomainHasNoTimeoutItUsesForceFailover(t *testing.T) {
+	env, mockResource := newFailoverV2ActivityEnv(t)
+
+	var capturedReq *types.FailoverDomainRequest
+	mockResource.FrontendClient.EXPECT().FailoverDomain(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req *types.FailoverDomainRequest, _ ...yarpc.CallOption) (*types.FailoverDomainResponse, error) {
+			capturedReq = req
+			return nil, nil
+		})
+
+	val, err := env.ExecuteActivity(FailoverActivityV2, &FailoverActivityV2Params{
+		DomainPreferences: []DomainFailoverPreferences{
+			{DomainName: "d1", TargetCluster: "cluster1"},
+		},
+	})
+	require.NoError(t, err)
+	var result FailoverActivityV2Result
+	require.NoError(t, val.Get(&result))
+	assert.Len(t, result.SuccessDomains, 1)
+	assert.Nil(t, capturedReq.FailoverTimeoutInSeconds)
 }
