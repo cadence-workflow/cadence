@@ -61,6 +61,13 @@ type Task interface {
 	ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error)
 }
 
+// HistoryTasksByCategory groups history tasks by their category. It is the canonical shape for a
+// batch of tasks spanning multiple categories that are created together in a single persistence
+// write.
+//
+// TODO(c-warren): Use this alias across the existing map[HistoryTaskCategory][]Task definitions.
+type HistoryTasksByCategory = map[HistoryTaskCategory][]Task
+
 var (
 	MinimumHistoryTaskKey = HistoryTaskKey{
 		scheduledTime: time.Time{},
