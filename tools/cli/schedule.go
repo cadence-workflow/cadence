@@ -169,7 +169,7 @@ var (
 		&cli.StringFlag{
 			Name:    FlagCronExpression,
 			Aliases: []string{"ce"},
-			Usage:   "New cron expression",
+			Usage:   "New cron expression (required when updating the schedule spec)",
 		},
 		// spec extras
 		&cli.StringFlag{
@@ -185,53 +185,6 @@ var (
 		&cli.StringFlag{
 			Name:  FlagJitter,
 			Usage: "New jitter (e.g. '30s', '5m')",
-		},
-		// action extras
-		&cli.StringFlag{
-			Name:  FlagWorkflowIDPrefix,
-			Usage: "New prefix for generated target workflow IDs",
-		},
-		&cli.StringFlag{
-			Name:  FlagMemoKey,
-			Usage: "Memo key(s), space-separated",
-		},
-		&cli.StringFlag{
-			Name:  FlagMemo,
-			Usage: "Memo value(s) as JSON, space-separated",
-		},
-		&cli.StringFlag{
-			Name:  FlagMemoFile,
-			Usage: "Path to file containing memo values as JSON",
-		},
-		&cli.StringFlag{
-			Name:  FlagSearchAttributesKey,
-			Usage: "Search attribute key(s), pipe-separated",
-		},
-		&cli.StringFlag{
-			Name:  FlagSearchAttributesVal,
-			Usage: "Search attribute value(s), pipe-separated",
-		},
-		&cli.IntFlag{
-			Name:  FlagRetryAttempts,
-			Usage: "New max retry attempts (0 = unlimited)",
-		},
-		&cli.IntFlag{
-			Name:  FlagRetryInterval,
-			Usage: "New initial retry interval in seconds",
-			Value: 1,
-		},
-		&cli.IntFlag{
-			Name:  FlagRetryExpiration,
-			Usage: "New max total retry time in seconds",
-		},
-		&cli.Float64Flag{
-			Name:  FlagRetryBackoff,
-			Usage: "New retry backoff coefficient",
-			Value: 2.0,
-		},
-		&cli.IntFlag{
-			Name:  FlagRetryMaxInterval,
-			Usage: "New max retry interval in seconds",
 		},
 		// policy flags
 		&cli.StringFlag{

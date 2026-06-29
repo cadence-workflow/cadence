@@ -89,7 +89,7 @@ func (sc *scheduleCLIImpl) CreateSchedule(c *cli.Context) error {
 	} else if len(saFields) > 0 {
 		action.SearchAttributes = &types.SearchAttributes{IndexedFields: saFields}
 	}
-	if c.IsSet(FlagRetryAttempts) || c.IsSet(FlagRetryExpiration) {
+	if c.IsSet(FlagRetryAttempts) || c.IsSet(FlagRetryExpiration) || c.IsSet(FlagRetryInterval) || c.IsSet(FlagRetryBackoff) || c.IsSet(FlagRetryMaxInterval) {
 		action.RetryPolicy = &types.RetryPolicy{
 			InitialIntervalInSeconds: int32(c.Int(FlagRetryInterval)),
 			BackoffCoefficient:       c.Float64(FlagRetryBackoff),
@@ -221,10 +221,10 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 		}
 	}
 	if specSet {
-		spec := &types.ScheduleSpec{}
-		if c.IsSet(FlagCronExpression) {
-			spec.CronExpression = c.String(FlagCronExpression)
+		if !c.IsSet(FlagCronExpression) {
+			return commoncli.Problem("--cron_expression is required when updating the schedule spec", nil)
 		}
+		spec := &types.ScheduleSpec{CronExpression: c.String(FlagCronExpression)}
 		if c.IsSet(FlagStartTime) {
 			t, err := time.Parse(time.RFC3339, c.String(FlagStartTime))
 			if err != nil {
@@ -249,48 +249,6 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 		request.Spec = spec
 	}
 
-	// Build action if any action flag is set
-	actionFlags := []string{FlagWorkflowIDPrefix, FlagMemoKey, FlagMemo, FlagMemoFile, FlagSearchAttributesKey, FlagSearchAttributesVal, FlagRetryAttempts, FlagRetryExpiration}
-	actionSet := false
-	for _, f := range actionFlags {
-		if c.IsSet(f) {
-			actionSet = true
-			break
-		}
-	}
-	if actionSet {
-		action := &types.StartWorkflowAction{}
-		if c.IsSet(FlagWorkflowIDPrefix) {
-			action.WorkflowIDPrefix = c.String(FlagWorkflowIDPrefix)
-		}
-		if memoFields, err := processMemo(c); err != nil {
-			return err
-		} else if len(memoFields) > 0 {
-			action.Memo = &types.Memo{Fields: memoFields}
-		}
-		if saFields, err := processSearchAttr(c); err != nil {
-			return err
-		} else if len(saFields) > 0 {
-			action.SearchAttributes = &types.SearchAttributes{IndexedFields: saFields}
-		}
-		if c.IsSet(FlagRetryAttempts) || c.IsSet(FlagRetryExpiration) {
-			action.RetryPolicy = &types.RetryPolicy{
-				InitialIntervalInSeconds: int32(c.Int(FlagRetryInterval)),
-				BackoffCoefficient:       c.Float64(FlagRetryBackoff),
-			}
-			if c.IsSet(FlagRetryAttempts) {
-				action.RetryPolicy.MaximumAttempts = int32(c.Int(FlagRetryAttempts))
-			}
-			if c.IsSet(FlagRetryExpiration) {
-				action.RetryPolicy.ExpirationIntervalInSeconds = int32(c.Int(FlagRetryExpiration))
-			}
-			if c.IsSet(FlagRetryMaxInterval) {
-				action.RetryPolicy.MaximumIntervalInSeconds = int32(c.Int(FlagRetryMaxInterval))
-			}
-		}
-		request.Action = &types.ScheduleAction{StartWorkflow: action}
-	}
-
 	policies, err := buildPoliciesFromFlags(c)
 	if err != nil {
 		return err
@@ -305,7 +263,7 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 	}
 	request.Policies = policies
 
-	if request.Spec == nil && request.Policies == nil && request.Action == nil {
+	if request.Spec == nil && request.Policies == nil {
 		return commoncli.Problem("At least one flag must be set to update the schedule", nil)
 	}
 

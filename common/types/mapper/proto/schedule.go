@@ -287,16 +287,14 @@ func FromScheduleInfo(t *types.ScheduleInfo) *apiv1.ScheduleInfo {
 		return nil
 	}
 	return &apiv1.ScheduleInfo{
-		LastRunTime:          timeToTimestamp(&t.LastRunTime),
-		NextRunTime:          timeToTimestamp(&t.NextRunTime),
-		TotalRuns:            t.TotalRuns,
-		MissedRuns:           t.MissedRuns,
-		SkippedRuns:          t.SkippedRuns,
-		CreateTime:           timeToTimestamp(&t.CreateTime),
-		LastUpdateTime:       timeToTimestamp(&t.LastUpdateTime),
-		OngoingBackfills:     FromBackfillInfoArray(t.OngoingBackfills),
-		BufferedFireCount:    t.BufferedFireCount,
-		RunningWorkflowCount: t.RunningWorkflowCount,
+		LastRunTime:      timeToTimestamp(&t.LastRunTime),
+		NextRunTime:      timeToTimestamp(&t.NextRunTime),
+		TotalRuns:        t.TotalRuns,
+		MissedRuns:       t.MissedRuns,
+		SkippedRuns:      t.SkippedRuns,
+		CreateTime:       timeToTimestamp(&t.CreateTime),
+		LastUpdateTime:   timeToTimestamp(&t.LastUpdateTime),
+		OngoingBackfills: FromBackfillInfoArray(t.OngoingBackfills),
 	}
 }
 
@@ -305,16 +303,14 @@ func ToScheduleInfo(t *apiv1.ScheduleInfo) *types.ScheduleInfo {
 		return nil
 	}
 	return &types.ScheduleInfo{
-		LastRunTime:          timestampToTimeVal(t.LastRunTime),
-		NextRunTime:          timestampToTimeVal(t.NextRunTime),
-		TotalRuns:            t.TotalRuns,
-		MissedRuns:           t.MissedRuns,
-		SkippedRuns:          t.SkippedRuns,
-		CreateTime:           timestampToTimeVal(t.CreateTime),
-		LastUpdateTime:       timestampToTimeVal(t.LastUpdateTime),
-		OngoingBackfills:     ToBackfillInfoArray(t.OngoingBackfills),
-		BufferedFireCount:    t.BufferedFireCount,
-		RunningWorkflowCount: t.RunningWorkflowCount,
+		LastRunTime:      timestampToTimeVal(t.LastRunTime),
+		NextRunTime:      timestampToTimeVal(t.NextRunTime),
+		TotalRuns:        t.TotalRuns,
+		MissedRuns:       t.MissedRuns,
+		SkippedRuns:      t.SkippedRuns,
+		CreateTime:       timestampToTimeVal(t.CreateTime),
+		LastUpdateTime:   timestampToTimeVal(t.LastUpdateTime),
+		OngoingBackfills: ToBackfillInfoArray(t.OngoingBackfills),
 	}
 }
 

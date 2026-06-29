@@ -876,10 +876,8 @@ func TestScheduleCLI_UpdateSchedule_AllFields(t *testing.T) {
 			assert.Equal(t, "0 * * * *", req.Spec.CronExpression)
 			assert.Equal(t, 30*time.Second, req.Spec.Jitter)
 
-			// action
-			assert.NotNil(t, req.Action)
-			sw := req.Action.StartWorkflow
-			assert.Equal(t, "new-prefix-", sw.WorkflowIDPrefix)
+			// no action update — action changes require delete+recreate
+			assert.Nil(t, req.Action)
 
 			// policies
 			assert.NotNil(t, req.Policies)
@@ -895,23 +893,14 @@ func TestScheduleCLI_UpdateSchedule_AllFields(t *testing.T) {
 	set.String(FlagScheduleID, "", "")
 	set.String(FlagCronExpression, "", "")
 	set.String(FlagJitter, "", "")
-	set.String(FlagWorkflowIDPrefix, "", "")
 	set.String(FlagCatchUpWindow, "", "")
 	set.Bool(FlagPauseOnFailure, false, "")
-	set.String(FlagMemoKey, "", "")
-	set.String(FlagMemo, "", "")
-	set.String(FlagSearchAttributesKey, "", "")
-	set.String(FlagSearchAttributesVal, "", "")
-	set.Int(FlagRetryAttempts, 0, "")
-	set.Int(FlagRetryInterval, 0, "")
-	set.Float64(FlagRetryBackoff, 0, "")
 	_ = set.Parse([]string{
 		"--" + FlagDomain, "test-domain",
 		"--" + FlagTransport, grpcTransport,
 		"--" + FlagScheduleID, "sched-full",
 		"--" + FlagCronExpression, "0 * * * *",
 		"--" + FlagJitter, "30s",
-		"--" + FlagWorkflowIDPrefix, "new-prefix-",
 		"--" + FlagCatchUpWindow, "1h",
 		"--" + FlagPauseOnFailure,
 	})
@@ -919,6 +908,29 @@ func TestScheduleCLI_UpdateSchedule_AllFields(t *testing.T) {
 	sc := &scheduleCLIImpl{frontendClient: mockClient}
 	err := sc.UpdateSchedule(c)
 	assert.NoError(t, err)
+}
+
+func TestScheduleCLI_UpdateSchedule_SpecWithoutCron(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := frontend.NewMockClient(mockCtrl)
+	app := newScheduleTestApp(t, mockClient)
+
+	set := flag.NewFlagSet("test", 0)
+	set.String(FlagDomain, "", "")
+	set.String(FlagTransport, "", "")
+	set.String(FlagScheduleID, "", "")
+	set.String(FlagJitter, "", "")
+	_ = set.Parse([]string{
+		"--" + FlagDomain, "test-domain",
+		"--" + FlagTransport, grpcTransport,
+		"--" + FlagScheduleID, "s",
+		"--" + FlagJitter, "30s",
+	})
+	c := cli.NewContext(app, set, nil)
+	sc := &scheduleCLIImpl{frontendClient: mockClient}
+	err := sc.UpdateSchedule(c)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--cron_expression is required")
 }
 
 func TestScheduleCLI_BuildPoliciesFromFlags_WithNewFields(t *testing.T) {
