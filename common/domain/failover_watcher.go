@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/cache"
@@ -38,6 +39,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 const (
@@ -62,6 +64,7 @@ type (
 		clusterMetadata cluster.Metadata
 		domainManager   persistence.DomainManager
 		domainCache     cache.DomainCache
+		historyClient   history.Client
 		timeSource      clock.TimeSource
 		scope           metrics.Scope
 		logger          log.Logger
@@ -75,6 +78,7 @@ func NewFailoverWatcher(
 	domainCache cache.DomainCache,
 	domainManager persistence.DomainManager,
 	clusterMetadata cluster.Metadata,
+	historyClient history.Client,
 	timeSource clock.TimeSource,
 	refreshInterval dynamicproperties.DurationPropertyFn,
 	refreshJitter dynamicproperties.FloatPropertyFn,
@@ -96,6 +100,7 @@ func NewFailoverWatcher(
 		clusterMetadata: clusterMetadata,
 		domainCache:     domainCache,
 		domainManager:   domainManager,
+		historyClient:   historyClient,
 		timeSource:      timeSource,
 		scope:           metricsClient.Scope(metrics.DomainFailoverScope),
 		logger:          logger,
@@ -160,6 +165,25 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 	failoverEndTime := domain.GetFailoverEndTime()
 	if domain.IsDomainPendingActive() && p.timeSource.Now().After(time.Unix(0, *failoverEndTime)) {
 		domainID := domain.GetInfo().ID
+
+		var pendingShards []int32
+		var completedShardCount int32
+		if p.historyClient != nil {
+			failoverInfo, infoErr := p.historyClient.GetFailoverInfo(context.Background(), &types.GetFailoverInfoRequest{
+				DomainID: domainID,
+			})
+			if infoErr != nil {
+				p.logger.Error("Failed to get failover info before force-completing",
+					tag.WorkflowDomainID(domainID),
+					tag.WorkflowDomainName(domain.GetInfo().Name),
+					tag.Error(infoErr),
+				)
+			} else {
+				pendingShards = failoverInfo.GetPendingShards()
+				completedShardCount = failoverInfo.GetCompletedShardCount()
+			}
+		}
+
 		// force failover the domain without setting the failover timeout
 		updated, err := CleanPendingActiveState(
 			p.domainManager,
@@ -186,6 +210,9 @@ func (p *failoverWatcherImpl) handleFailoverTimeout(
 			tag.PrevActiveCluster(sourceCluster),
 			tag.ActiveClusterName(domain.GetReplicationConfig().ActiveClusterName),
 			tag.Dynamic("failover-end-time", time.Unix(0, *failoverEndTime)),
+			tag.Dynamic("completed-shard-count", completedShardCount),
+			tag.Dynamic("pending-shard-count", len(pendingShards)),
+			tag.Dynamic("pending-shards", pendingShards),
 		)
 		p.scope.Tagged(metrics.DomainTag(domain.GetInfo().Name)).IncCounter(metrics.GracefulFailoverFailure)
 	}
