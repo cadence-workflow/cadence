@@ -67,7 +67,7 @@ var (
 	activityOptions = workflow.ActivityOptions{
 		ScheduleToStartTimeout: 5 * time.Minute,
 		StartToCloseTimeout:    5 * time.Minute,
-		HeartbeatTimeout:       5 * time.Minute,
+		HeartbeatTimeout:       30 * time.Second,
 		RetryPolicy:            &retryPolicy,
 	}
 )
