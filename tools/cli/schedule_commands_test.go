@@ -955,18 +955,18 @@ func TestScheduleCLI_BuildPoliciesFromFlags_WithNewFields(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name: "catch_up_window set",
-			args: []string{"--" + FlagCatchUpWindow, "2h"},
+			name:       "catch_up_window set",
+			args:       []string{"--" + FlagCatchUpWindow, "2h"},
 			wantResult: &types.SchedulePolicies{CatchUpWindow: 2 * time.Hour},
 		},
 		{
-			name: "pause_on_failure set",
-			args: []string{"--" + FlagPauseOnFailure},
+			name:       "pause_on_failure set",
+			args:       []string{"--" + FlagPauseOnFailure},
 			wantResult: &types.SchedulePolicies{PauseOnFailure: true},
 		},
 		{
-			name: "buffer_limit set",
-			args: []string{"--" + FlagBufferLimit, "5"},
+			name:       "buffer_limit set",
+			args:       []string{"--" + FlagBufferLimit, "5"},
 			wantResult: &types.SchedulePolicies{BufferLimit: 5},
 		},
 		{
