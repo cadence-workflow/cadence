@@ -36,6 +36,8 @@ import (
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"
 )
 
+var errExec = errors.New("boom")
+
 func newTestDB(mockDriver sqldriver.Driver) *DB {
 	return &DB{
 		DB:          mysql.NewDBWithDriver(nil, mockDriver, 1, nil),
@@ -52,10 +54,10 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 		name      string
 		row       *sqlplugin.ActiveClusterSelectionPolicyRow
 		mockSetup func(*sqldriver.MockDriver)
-		wantErr   bool
+		wantErr   error
 	}{
 		{
-			name: "successful insert",
+			name: "valid row is inserted without error",
 			row: &sqlplugin.ActiveClusterSelectionPolicyRow{
 				ShardID:      7,
 				DomainID:     domainID,
@@ -94,9 +96,9 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 					gomock.Any(),
 					insertActiveClusterSelectionPolicyQuery,
 					gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-				).Return(nil, errors.New("boom"))
+				).Return(nil, errExec)
 			},
-			wantErr: true,
+			wantErr: errExec,
 		},
 	}
 
@@ -110,8 +112,8 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 
 			mdb := newTestDB(mockDriver)
 			_, err := mdb.InsertIntoActiveClusterSelectionPolicy(context.Background(), tc.row)
-			if tc.wantErr {
-				assert.Error(t, err)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
 				return
 			}
 			assert.NoError(t, err)
@@ -131,7 +133,7 @@ func TestSelectFromActiveClusterSelectionPolicy(t *testing.T) {
 		wantErr   error
 	}{
 		{
-			name: "row found",
+			name: "matching row exists, returns the row",
 			filter: &sqlplugin.ActiveClusterSelectionPolicyFilter{
 				ShardID: 7, DomainID: domainID, WorkflowID: "wf-1", RunID: runID,
 			},
@@ -163,7 +165,7 @@ func TestSelectFromActiveClusterSelectionPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "no rows found propagates sql.ErrNoRows",
+			name: "no matching row, returns sql.ErrNoRows",
 			filter: &sqlplugin.ActiveClusterSelectionPolicyFilter{
 				ShardID: 1, DomainID: domainID, WorkflowID: "wf-1", RunID: runID,
 			},
@@ -206,10 +208,10 @@ func TestDeleteFromActiveClusterSelectionPolicy(t *testing.T) {
 		name      string
 		filter    *sqlplugin.ActiveClusterSelectionPolicyFilter
 		mockSetup func(*sqldriver.MockDriver)
-		wantErr   bool
+		wantErr   error
 	}{
 		{
-			name: "successful delete",
+			name: "matching row is deleted without error",
 			filter: &sqlplugin.ActiveClusterSelectionPolicyFilter{
 				ShardID: 7, DomainID: domainID, WorkflowID: "wf-1", RunID: runID,
 			},
@@ -232,9 +234,9 @@ func TestDeleteFromActiveClusterSelectionPolicy(t *testing.T) {
 					gomock.Any(), gomock.Any(),
 					deleteActiveClusterSelectionPolicyQuery,
 					gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-				).Return(nil, errors.New("boom"))
+				).Return(nil, errExec)
 			},
-			wantErr: true,
+			wantErr: errExec,
 		},
 	}
 
@@ -248,8 +250,8 @@ func TestDeleteFromActiveClusterSelectionPolicy(t *testing.T) {
 
 			mdb := newTestDB(mockDriver)
 			_, err := mdb.DeleteFromActiveClusterSelectionPolicy(context.Background(), tc.filter)
-			if tc.wantErr {
-				assert.Error(t, err)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
 				return
 			}
 			assert.NoError(t, err)
