@@ -330,13 +330,17 @@ func failedDomainNames(failures []DomainFailoverFailure) []string {
 	return names
 }
 
-func getFailoverTimeoutSeconds(domain *types.DescribeDomainResponse) int32 {
+func getFailoverTimeoutSeconds(domain *types.DescribeDomainResponse, logger *zap.Logger) int32 {
 	raw := domain.GetDomainInfo().GetData()[constants.DomainDataKeyForFailoverTimeoutSeconds]
 	if raw == "" {
 		return 0
 	}
 	v, err := strconv.Atoi(raw)
 	if err != nil || v <= 0 || v > math.MaxInt32 {
+		logger.Warn("ignoring invalid failover timeout seconds in domain data",
+			zap.String("domain", domain.GetDomainInfo().GetName()),
+			zap.String("failoverTimeoutInSeconds", raw),
+		)
 		return 0
 	}
 	return int32(v)

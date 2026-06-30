@@ -29,6 +29,7 @@ import (
 
 	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/workflow"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/types"
 )
@@ -206,7 +207,7 @@ func GetDomainsForFailoverV2Activity(ctx context.Context, params *GetDomainsForF
 		if !isEligibleForFailover(domain) {
 			continue
 		}
-		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceClusters, params.TargetCluster, params.ClusterAttributes)
+		prefs, snapshot, ok := failoverPreferencesForDomain(domain, params.SourceClusters, params.TargetCluster, params.ClusterAttributes, logger)
 		if !ok {
 			continue
 		}
@@ -224,6 +225,7 @@ func failoverPreferencesForDomain(
 	sourceClusters []string,
 	targetCluster string,
 	clusterAttributeFilter []types.ClusterAttribute,
+	logger *zap.Logger,
 ) (DomainFailoverPreferences, DomainSnapshot, bool) {
 	name := domain.GetDomainInfo().GetName()
 	prefs := DomainFailoverPreferences{DomainName: name}
@@ -264,7 +266,7 @@ func failoverPreferencesForDomain(
 	if prefs.TargetCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
 		return DomainFailoverPreferences{}, DomainSnapshot{}, false
 	}
-	prefs.FailoverTimeoutSeconds = getFailoverTimeoutSeconds(domain)
+	prefs.FailoverTimeoutSeconds = getFailoverTimeoutSeconds(domain, logger)
 	return prefs, snapshot, true
 }
 

@@ -34,6 +34,7 @@ import (
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/metrics"
@@ -302,12 +303,12 @@ func TestGetFailoverTimeoutSeconds(t *testing.T) {
 		want int32
 	}{
 		{"missing key", nil, 0},
-		{"empty value", map[string]string{"fts": ""}, 0},
-		{"zero", map[string]string{"fts": "0"}, 0},
-		{"negative", map[string]string{"fts": "-5"}, 0},
-		{"non-numeric", map[string]string{"fts": "abc"}, 0},
-		{"valid", map[string]string{"fts": "300"}, 300},
-		{"valid small", map[string]string{"fts": "1"}, 1},
+		{"empty value", map[string]string{constants.DomainDataKeyForFailoverTimeoutSeconds: ""}, 0},
+		{"zero", map[string]string{constants.DomainDataKeyForFailoverTimeoutSeconds: "0"}, 0},
+		{"negative", map[string]string{constants.DomainDataKeyForFailoverTimeoutSeconds: "-5"}, 0},
+		{"non-numeric", map[string]string{constants.DomainDataKeyForFailoverTimeoutSeconds: "abc"}, 0},
+		{"valid", map[string]string{constants.DomainDataKeyForFailoverTimeoutSeconds: "300"}, 300},
+		{"valid small", map[string]string{constants.DomainDataKeyForFailoverTimeoutSeconds: "1"}, 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -318,7 +319,7 @@ func TestGetFailoverTimeoutSeconds(t *testing.T) {
 				isGlobal:          true,
 				data:              tc.data,
 			})
-			assert.Equal(t, tc.want, getFailoverTimeoutSeconds(domain))
+			assert.Equal(t, tc.want, getFailoverTimeoutSeconds(domain, zap.NewNop()))
 		})
 	}
 }
