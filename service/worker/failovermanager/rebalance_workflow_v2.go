@@ -144,7 +144,6 @@ func GetDomainsForRebalanceV2Activity(ctx context.Context) ([]DomainFailoverPref
 				zap.String("domain", domain.GetDomainInfo().GetName()), zap.Error(err))
 			continue
 		}
-		prefs.FailoverTimeoutSeconds = getFailoverTimeoutSeconds(domain)
 		warnIfMissingPollers(ctx, logger, prefs)
 		res = append(res, prefs)
 	}
@@ -178,6 +177,7 @@ func rebalancePreferencesForDomain(domain *types.DescribeDomainResponse) (Domain
 	if prefs.TargetCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
 		return DomainFailoverPreferences{}, errNoRebalanceRequiredV2
 	}
+	prefs.FailoverTimeoutSeconds = getFailoverTimeoutSeconds(domain)
 	return prefs, nil
 }
 
