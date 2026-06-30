@@ -373,6 +373,9 @@ func TestApplyMissedRunPolicy(t *testing.T) {
 func TestBuildScheduleDescription(t *testing.T) {
 	lastRun := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	nextRun := time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC)
+	createTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	updateTime := time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC)
+	pauseTime := time.Date(2026, 1, 12, 9, 30, 0, 0, time.UTC)
 
 	tests := []struct {
 		name  string
@@ -394,11 +397,13 @@ func TestBuildScheduleDescription(t *testing.T) {
 				Policies: types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicySkipNew},
 			},
 			state: SchedulerWorkflowState{
-				LastRunTime: lastRun,
-				NextRunTime: nextRun,
-				TotalRuns:   42,
-				MissedRuns:  1,
-				SkippedRuns: 3,
+				LastRunTime:    lastRun,
+				NextRunTime:    nextRun,
+				TotalRuns:      42,
+				MissedRuns:     1,
+				SkippedRuns:    3,
+				CreateTime:     createTime,
+				LastUpdateTime: updateTime,
 			},
 			want: &ScheduleDescription{
 				ScheduleID: "sched-1",
@@ -409,12 +414,14 @@ func TestBuildScheduleDescription(t *testing.T) {
 						WorkflowType: &types.WorkflowType{Name: "my-wf"},
 					},
 				},
-				Policies:    types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicySkipNew},
-				LastRunTime: lastRun,
-				NextRunTime: nextRun,
-				TotalRuns:   42,
-				MissedRuns:  1,
-				SkippedRuns: 3,
+				Policies:       types.SchedulePolicies{OverlapPolicy: types.ScheduleOverlapPolicySkipNew},
+				LastRunTime:    lastRun,
+				NextRunTime:    nextRun,
+				TotalRuns:      42,
+				MissedRuns:     1,
+				SkippedRuns:    3,
+				CreateTime:     createTime,
+				LastUpdateTime: updateTime,
 			},
 		},
 		{
@@ -428,6 +435,7 @@ func TestBuildScheduleDescription(t *testing.T) {
 				Paused:      true,
 				PauseReason: "maintenance",
 				PausedBy:    "admin@test.com",
+				PausedAt:    pauseTime,
 				TotalRuns:   10,
 			},
 			want: &ScheduleDescription{
@@ -437,6 +445,7 @@ func TestBuildScheduleDescription(t *testing.T) {
 				Paused:      true,
 				PauseReason: "maintenance",
 				PausedBy:    "admin@test.com",
+				PausedAt:    pauseTime,
 				TotalRuns:   10,
 			},
 		},
@@ -518,40 +527,50 @@ func TestBuildScheduleDescription(t *testing.T) {
 }
 
 func TestHandlePause(t *testing.T) {
+	fixedNow := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+
 	tests := []struct {
 		name         string
 		initial      SchedulerWorkflowState
 		sig          PauseSignal
+		now          time.Time
 		wantPaused   bool
 		wantReason   string
 		wantPausedBy string
+		wantPausedAt time.Time
 		wantChanged  bool
 	}{
 		{
 			name:         "pause from running",
 			initial:      SchedulerWorkflowState{},
 			sig:          PauseSignal{Reason: "maintenance", PausedBy: "admin@test.com"},
+			now:          fixedNow,
 			wantPaused:   true,
 			wantReason:   "maintenance",
 			wantPausedBy: "admin@test.com",
+			wantPausedAt: fixedNow,
 			wantChanged:  true,
 		},
 		{
 			name:         "pause when already paused is a no-op",
 			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "old", PausedBy: "old-user"},
 			sig:          PauseSignal{Reason: "new reason", PausedBy: "new-user"},
+			now:          fixedNow,
 			wantPaused:   true,
 			wantReason:   "old",
 			wantPausedBy: "old-user",
+			wantPausedAt: time.Time{},
 			wantChanged:  false,
 		},
 		{
 			name:         "pause with empty reason",
 			initial:      SchedulerWorkflowState{},
 			sig:          PauseSignal{},
+			now:          fixedNow,
 			wantPaused:   true,
 			wantReason:   "",
 			wantPausedBy: "",
+			wantPausedAt: fixedNow,
 			wantChanged:  true,
 		},
 	}
@@ -559,16 +578,19 @@ func TestHandlePause(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			state := tt.initial
-			changed := handlePause(testLogger, tt.sig, &state)
+			changed := handlePause(testLogger, tt.sig, &state, tt.now)
 			assert.Equal(t, tt.wantChanged, changed)
 			assert.Equal(t, tt.wantPaused, state.Paused)
 			assert.Equal(t, tt.wantReason, state.PauseReason)
 			assert.Equal(t, tt.wantPausedBy, state.PausedBy)
+			assert.Equal(t, tt.wantPausedAt, state.PausedAt)
 		})
 	}
 }
 
 func TestHandleUnpause(t *testing.T) {
+	pausedAt := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+
 	tests := []struct {
 		name                     string
 		initial                  SchedulerWorkflowState
@@ -578,15 +600,17 @@ func TestHandleUnpause(t *testing.T) {
 		wantPausedBy             string
 		wantChanged              bool
 		wantUnpauseCatchUpPolicy types.ScheduleCatchUpPolicy
+		wantPausedAtCleared      bool
 	}{
 		{
-			name:         "unpause from paused",
-			initial:      SchedulerWorkflowState{Paused: true, PauseReason: "maintenance", PausedBy: "admin"},
-			sig:          UnpauseSignal{Reason: "maintenance done"},
-			wantPaused:   false,
-			wantReason:   "",
-			wantPausedBy: "",
-			wantChanged:  true,
+			name:                "unpause from paused",
+			initial:             SchedulerWorkflowState{Paused: true, PauseReason: "maintenance", PausedBy: "admin", PausedAt: pausedAt},
+			sig:                 UnpauseSignal{Reason: "maintenance done"},
+			wantPaused:          false,
+			wantReason:          "",
+			wantPausedBy:        "",
+			wantChanged:         true,
+			wantPausedAtCleared: true,
 		},
 		{
 			name:         "unpause when not paused is a no-op",
@@ -599,27 +623,30 @@ func TestHandleUnpause(t *testing.T) {
 		},
 		{
 			name:                     "unpause with CatchUpPolicyOne stores override in state",
-			initial:                  SchedulerWorkflowState{Paused: true},
+			initial:                  SchedulerWorkflowState{Paused: true, PausedAt: pausedAt},
 			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
 			wantPaused:               false,
 			wantChanged:              true,
 			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+			wantPausedAtCleared:      true,
 		},
 		{
 			name:                     "unpause with CatchUpPolicySkip stores override in state",
-			initial:                  SchedulerWorkflowState{Paused: true},
+			initial:                  SchedulerWorkflowState{Paused: true, PausedAt: pausedAt},
 			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
 			wantPaused:               false,
 			wantChanged:              true,
 			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicySkip,
+			wantPausedAtCleared:      true,
 		},
 		{
 			name:                     "unpause with Invalid policy does not set override",
-			initial:                  SchedulerWorkflowState{Paused: true},
+			initial:                  SchedulerWorkflowState{Paused: true, PausedAt: pausedAt},
 			sig:                      UnpauseSignal{Reason: "resume", CatchUpPolicy: types.ScheduleCatchUpPolicyInvalid},
 			wantPaused:               false,
 			wantChanged:              true,
 			wantUnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyInvalid,
+			wantPausedAtCleared:      true,
 		},
 	}
 
@@ -632,6 +659,9 @@ func TestHandleUnpause(t *testing.T) {
 			assert.Equal(t, tt.wantReason, state.PauseReason)
 			assert.Equal(t, tt.wantPausedBy, state.PausedBy)
 			assert.Equal(t, tt.wantUnpauseCatchUpPolicy, state.UnpauseCatchUpPolicy)
+			if tt.wantPausedAtCleared {
+				assert.True(t, state.PausedAt.IsZero(), "PausedAt should be cleared on unpause")
+			}
 		})
 	}
 }
@@ -1052,7 +1082,8 @@ func TestProcessBackfillsRespectsPause(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	budget := maxActivitiesPerExecution
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	assert.False(t, moreWork, "paused schedule should not fire backfills")
 	require.Len(t, state.PendingBackfills, 1, "pending backfills preserved while paused")
 	assert.Empty(t, scope.Snapshot().Counters(), "no fire metrics emitted when paused")
@@ -1082,7 +1113,8 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
+	budget := maxActivitiesPerExecution
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	assert.False(t, moreWork)
 	assert.Empty(t, state.PendingBackfills, "completed backfill should be removed")
 
@@ -1093,30 +1125,64 @@ func TestProcessBackfillsFiredMetric(t *testing.T) {
 
 // TestProcessBackfillsTracksRunsCompleted verifies that RunsCompleted advances
 // on every fire handed off by processBackfills, and that RunsTotal is computed
-// once on the first batch and preserved across subsequent batches.
+// once on the first call and preserved.
 func TestProcessBackfillsTracksRunsCompleted(t *testing.T) {
 	sched := mustParseCron(t, "0 * * * *")
-	// Hourly cron over 24h-inclusive → 25 fires. maxBackfillFiresPerExecution
-	// is 10, so the first call processes 10 and leaves 15 behind.
+	// Hourly cron over 3h window → 3 fires (10:00, 11:00, 12:00).
 	input := &SchedulerWorkflowInput{
 		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
 	}
 	state := &SchedulerWorkflowState{
 		PendingBackfills: []BackfillRequest{
 			{
-				StartTime:  time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC),
-				EndTime:    time.Date(2026, 1, 16, 0, 0, 0, 0, time.UTC),
+				StartTime:  time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC),
+				EndTime:    time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC),
 				BackfillID: "bf-partial",
 			},
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	moreWork := processBackfills(nil, testLogger, scope, sched, input, state)
-	assert.True(t, moreWork, "backfill should signal more work after hitting per-execution cap")
-	require.Len(t, state.PendingBackfills, 1, "partial backfill should remain in state")
-	assert.Equal(t, int32(maxBackfillFiresPerExecution), state.PendingBackfills[0].RunsCompleted)
-	assert.Equal(t, int32(25), state.PendingBackfills[0].RunsTotal, "RunsTotal computed lazily on first batch")
-	assert.True(t, state.PendingBackfills[0].RunsTotalComputed)
+	budget := maxActivitiesPerExecution
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
+	assert.False(t, moreWork, "all fires in range processed")
+	assert.Empty(t, state.PendingBackfills, "backfill should be removed when complete")
+	// RunsCompleted must match the 3 fires dispatched.
+	// Backfill was already removed from PendingBackfills so verify via fired metric.
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok, "backfill fired metric should be emitted")
+	assert.Equal(t, int64(3), c.Value(), "RunsCompleted advances on every processScheduleFire call")
+}
+
+// TestProcessBackfillsBudgetExhaustion verifies that processBackfills honours
+// the shared activity budget: when the budget hits zero mid-range it sets
+// bf.StartTime to the first unprocessed fire and returns true (CAN).
+func TestProcessBackfillsBudgetExhaustion(t *testing.T) {
+	sched := mustParseCron(t, "0 * * * *")
+	// Hourly cron [10:00, 13:00] → 4 fires: 10, 11, 12, 13.
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+	}
+	start := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 1, 15, 13, 0, 0, 0, time.UTC)
+	state := &SchedulerWorkflowState{
+		PendingBackfills: []BackfillRequest{
+			{StartTime: start, EndTime: end, BackfillID: "bf-budget"},
+		},
+	}
+	scope := tally.NewTestScope("", nil)
+	budget := 2
+	moreWork := processBackfills(nil, testLogger, scope, sched, input, state, &budget)
+
+	assert.True(t, moreWork, "should signal CAN when budget exhausted mid-range")
+	require.Len(t, state.PendingBackfills, 1, "partially-drained backfill must remain")
+	// Two fires processed (10:00, 11:00); resume point is the third (12:00).
+	assert.Equal(t, time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC), state.PendingBackfills[0].StartTime,
+		"StartTime must advance to the first unprocessed fire")
+	assert.Equal(t, 0, budget, "budget should be exactly zero after 2 fires")
+
+	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
+	require.True(t, ok)
+	assert.Equal(t, int64(2), c.Value(), "metric should reflect only the fires dispatched this execution")
 }
 
 // TestProcessBackfillsRunsTotalTruncated covers a range that exceeds the count
@@ -1138,7 +1204,8 @@ func TestProcessBackfillsRunsTotalTruncated(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	_ = processBackfills(nil, testLogger, scope, sched, input, state)
+	budget := maxActivitiesPerExecution
+	_ = processBackfills(nil, testLogger, scope, sched, input, state, &budget)
 	require.Len(t, state.PendingBackfills, 1)
 	assert.Equal(t, int32(maxBackfillRunsTotalCount), state.PendingBackfills[0].RunsTotal,
 		"truncated count should report the cap as a lower bound, not 0")
@@ -1167,9 +1234,10 @@ func TestProcessBackfillsLazyRunsTotalUsesProcessSched(t *testing.T) {
 		},
 	}
 	scope := tally.NewTestScope("", nil)
-	_ = processBackfills(nil, testLogger, scope, hourly, input, state)
+	budget := maxActivitiesPerExecution
+	_ = processBackfills(nil, testLogger, scope, hourly, input, state, &budget)
 	// 3 fires for hourly cron over [10:00, 12:00]: 10:00, 11:00, 12:00.
-	// Backfill drains in one call (under the per-execution cap), so it has
+	// Backfill drains in one call (within the activity budget), so it has
 	// been removed; check the firing metric reflects the count instead.
 	assert.Empty(t, state.PendingBackfills)
 	c, ok := findCounter(scope.Snapshot().Counters(), SchedulerBackfillFiredCountPerDomain, map[string]string{})
@@ -1281,7 +1349,8 @@ func TestProcessMissedRunsAtMetrics(t *testing.T) {
 			}
 			state := &SchedulerWorkflowState{}
 
-			processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now)
+			budget := maxActivitiesPerExecution
+			processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
 
 			counters := scope.Snapshot().Counters()
 
@@ -1325,7 +1394,8 @@ func TestProcessMissedRunsAt_NoMissedFires_ClearsOverride(t *testing.T) {
 		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne, // set by handleUnpause
 	}
 
-	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, base, base)
+	budget := maxActivitiesPerExecution
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, base, base, &budget)
 
 	assert.False(t, moreMissed, "no missed fires, nothing to catch up")
 	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
@@ -1361,9 +1431,10 @@ func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
 		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyOne, // set by handleUnpause
 	}
 
-	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now)
+	budget := maxActivitiesPerExecution
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
 
-	assert.False(t, moreMissed, "all 5 fires fit within maxCatchUpFiresPerExecution")
+	assert.False(t, moreMissed, "all 5 fires fit within the activity budget")
 
 	// Override must be consumed and cleared so the next catch-up uses the schedule's own policy.
 	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
@@ -1382,12 +1453,12 @@ func TestProcessMissedRunsAt_PauseUnpause(t *testing.T) {
 }
 
 // TestProcessMissedRunsAt_PauseUnpause_MultiBatch verifies that the UnpauseCatchUpPolicy
-// override survives ContinueAsNew batching. When CatchUpPolicyAll produces more than
-// maxCatchUpFiresPerExecution (10) eligible fires, processMissedRunsAt returns moreMissed=true
-// and the override must remain in state so the next execution continues with the same policy.
+// override survives ContinueAsNew batching. When CatchUpPolicyAll produces more fires
+// than the shared activity budget, processMissedRunsAt returns moreMissed=true and the
+// override must remain in state so the next execution continues with the same policy.
 // Once the final batch completes (moreMissed=false), the override is cleared.
 func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
-	// 15 minutes → 15 fires (10:01–10:15), exceeding the cap of 10.
+	// 15 minutes → 15 fires (10:01–10:15), split across two executions of 10 each.
 	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
 	watermark := base
 	now := base.Add(15 * time.Minute)
@@ -1401,12 +1472,13 @@ func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
 		},
 	}
 
-	// --- First batch ---
+	// --- First batch: budget of 10 out of 15 fires ---
 	scope1 := tally.NewTestScope("", nil)
 	state := &SchedulerWorkflowState{
 		UnpauseCatchUpPolicy: types.ScheduleCatchUpPolicyAll,
 	}
-	moreMissed := processMissedRunsAt(nil, testLogger, scope1, sched, input, state, watermark, now)
+	budget1 := 10
+	moreMissed := processMissedRunsAt(nil, testLogger, scope1, sched, input, state, watermark, now, &budget1)
 
 	assert.True(t, moreMissed, "first batch of 15 should report more remaining")
 	assert.Equal(t, types.ScheduleCatchUpPolicyAll, state.UnpauseCatchUpPolicy,
@@ -1414,12 +1486,13 @@ func TestProcessMissedRunsAt_PauseUnpause_MultiBatch(t *testing.T) {
 
 	firedC, ok := findCounter(scope1.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
 	require.True(t, ok)
-	assert.Equal(t, int64(maxCatchUpFiresPerExecution), firedC.Value(), "first batch fires exactly the cap")
+	assert.Equal(t, int64(10), firedC.Value(), "first batch fires exactly the budget")
 
 	// --- Second batch: resume from where the first left off ---
 	scope2 := tally.NewTestScope("", nil)
 	watermark2 := state.LastProcessedTime
-	moreMissed = processMissedRunsAt(nil, testLogger, scope2, sched, input, state, watermark2, now)
+	budget2 := maxActivitiesPerExecution
+	moreMissed = processMissedRunsAt(nil, testLogger, scope2, sched, input, state, watermark2, now, &budget2)
 
 	assert.False(t, moreMissed, "second batch completes the remaining fires")
 	assert.Equal(t, types.ScheduleCatchUpPolicyInvalid, state.UnpauseCatchUpPolicy,
@@ -1439,6 +1512,33 @@ func (c *noopChannel) ReceiveAsyncWithMoreFlag(_ interface{}) (bool, bool) { ret
 func (c *noopChannel) Send(_ workflow.Context, _ interface{})              {}
 func (c *noopChannel) SendAsync(_ interface{}) bool                        { return false }
 func (c *noopChannel) Close()                                              {}
+
+// TestProcessMissedRunsAtZeroBudgetNoPanic guards against the index-out-of-bounds
+// panic in processMissedRunsAt when budget is 0 on entry. This can happen when
+// processMissedRuns exhausts its per-execution budget across multiple calls.
+// Before the fix, the fire loop broke immediately leaving fired=0, then
+// result.toFire[fired-1] = toFire[-1] panicked.
+func TestProcessMissedRunsAtZeroBudgetNoPanic(t *testing.T) {
+	sched := mustParseCron(t, "* * * * *")
+	base := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	watermark := base
+	now := base.Add(5 * time.Minute) // 5 missed fires: 10:01–10:05
+
+	input := &SchedulerWorkflowInput{
+		Spec:     types.ScheduleSpec{CronExpression: "* * * * *"},
+		Policies: types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyAll},
+	}
+	state := &SchedulerWorkflowState{}
+
+	scope := tally.NewTestScope("", nil)
+	budget := 0
+	moreMissed := processMissedRunsAt(nil, testLogger, scope, sched, input, state, watermark, now, &budget)
+
+	assert.True(t, moreMissed, "exhausted budget with missed fires must signal ContinueAsNew")
+	_, ok := findCounter(scope.Snapshot().Counters(), SchedulerMissedFiredCountPerDomain, map[string]string{})
+	assert.False(t, ok, "no fires emitted when budget is zero")
+	assert.Equal(t, state.LastProcessedTime, time.Time{}, "watermark must not advance when nothing was processed")
+}
 
 func TestSafeContinueAsNewMetric(t *testing.T) {
 	tests := []struct {
@@ -1782,12 +1882,37 @@ func TestDrainBufferedFiresFIFO(t *testing.T) {
 		BufferedFires: append([]BufferedFire(nil), queue...),
 	}
 
-	moreToDrain := drainBufferedFires(nil, testLogger, input, state)
+	budget := maxActivitiesPerExecution
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget)
 
-	assert.False(t, moreToDrain, "queue smaller than cap should fully drain")
+	assert.False(t, headBlocked, "queue should fully drain with no head block")
+	assert.Equal(t, 3, drained, "should dispatch all three fires")
 	assert.Empty(t, state.BufferedFires)
 	assert.Equal(t, int64(3), state.MissedRuns)
 	assert.Equal(t, t0.Add(2*time.Minute), state.LastRunTime)
+}
+
+func TestDrainBufferedFiresBudgetExhaustion(t *testing.T) {
+	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	queue := make([]BufferedFire, 5)
+	for i := range queue {
+		queue[i] = BufferedFire{ScheduledTime: t0.Add(time.Duration(i) * time.Minute), TriggerSource: TriggerSourceSchedule}
+	}
+	input := &SchedulerWorkflowInput{
+		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
+	}
+	state := &SchedulerWorkflowState{
+		BufferedFires: append([]BufferedFire(nil), queue...),
+	}
+
+	budget := 2
+	drained, headBlocked := drainBufferedFires(nil, testLogger, input, state, &budget)
+
+	assert.Equal(t, 2, drained, "should stop at budget boundary")
+	assert.False(t, headBlocked, "budget exhaustion is not a head-block")
+	assert.Len(t, state.BufferedFires, 3, "3 fires remain after budget exhaustion")
+	assert.Equal(t, 0, budget, "budget should reach zero")
+	assert.Equal(t, t0.Add(time.Minute), state.LastRunTime, "last run time reflects last dispatched fire")
 }
 
 // TestProcessScheduleFireBufferEnqueuesWhenQueueNonEmpty verifies the
@@ -1907,27 +2032,6 @@ func TestCatchUpWatermark(t *testing.T) {
 	}
 }
 
-// TestDrainBufferedFiresRespectsCap verifies drainBufferedFires processes at
-// most maxDrainFiresPerExecution fires per call and signals more remaining
-// work via the bool return so the caller ContinueAsNews. Mirrors the
-// existing per-execution caps on processMissedRuns and processBackfills.
-func TestDrainBufferedFiresRespectsCap(t *testing.T) {
-	t0 := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
-	queue := largeBufferedFires(maxDrainFiresPerExecution+5, t0)
-	input := &SchedulerWorkflowInput{
-		Spec: types.ScheduleSpec{CronExpression: "* * * * *"},
-	}
-	state := &SchedulerWorkflowState{
-		BufferedFires: append([]BufferedFire(nil), queue...),
-	}
-
-	moreToDrain := drainBufferedFires(nil, testLogger, input, state)
-
-	assert.True(t, moreToDrain, "should signal more work when queue exceeds the cap")
-	assert.Len(t, state.BufferedFires, 5, "should leave the unprocessed remainder on the queue")
-	assert.Equal(t, int64(maxDrainFiresPerExecution), state.MissedRuns, "should consume exactly the cap on this execution")
-}
-
 func TestEffectiveBufferLimit(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -1977,6 +2081,57 @@ func TestEffectiveBufferLimit(t *testing.T) {
 			gotLimit, gotReason := effectiveBufferLimit(tt.userLimit)
 			assert.Equal(t, tt.wantLimit, gotLimit)
 			assert.Equal(t, tt.wantReason, gotReason)
+		})
+	}
+}
+
+func TestHandleUpdate_CatchUpWindowPreservation(t *testing.T) {
+	tests := []struct {
+		name       string
+		existing   time.Duration
+		updateWith time.Duration
+		want       time.Duration
+	}{
+		{
+			name:       "zero update preserves existing non-zero window",
+			existing:   365 * 24 * time.Hour,
+			updateWith: 0,
+			want:       365 * 24 * time.Hour,
+		},
+		{
+			name:       "explicit window in update overrides existing",
+			existing:   365 * 24 * time.Hour,
+			updateWith: 90 * time.Minute,
+			want:       90 * time.Minute,
+		},
+		{
+			name:       "zero update leaves zero window unchanged",
+			existing:   0,
+			updateWith: 0,
+			want:       0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := SchedulerWorkflowInput{
+				Spec: types.ScheduleSpec{CronExpression: "0 * * * *"},
+				Policies: types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+					CatchUpWindow: tt.existing,
+				},
+			}
+			state := &SchedulerWorkflowState{}
+			sig := UpdateSignal{
+				Policies: &types.SchedulePolicies{
+					OverlapPolicy: types.ScheduleOverlapPolicySkipNew,
+					CatchUpPolicy: types.ScheduleCatchUpPolicyOne,
+					CatchUpWindow: tt.updateWith,
+				},
+			}
+			changed := handleUpdate(testLogger, sig, &input, state)
+			assert.True(t, changed)
+			assert.Equal(t, tt.want, input.Policies.CatchUpWindow)
 		})
 	}
 }
@@ -2140,6 +2295,41 @@ func TestHandleUpdate_BufferedFiresClearedOnOverlapPolicyChange(t *testing.T) {
 			assert.Equal(t, tt.toOverlap, input.Policies.OverlapPolicy)
 			assert.Len(t, state.BufferedFires, tt.wantFiresLen)
 			assert.Equal(t, tt.wantSkippedRuns, state.SkippedRuns)
+		})
+	}
+}
+
+func TestEnsurePolicyDefaults(t *testing.T) {
+	tests := map[string]struct {
+		input      types.SchedulePolicies
+		wantWindow time.Duration
+	}{
+		"ONE with unset window gets default": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyOne},
+			wantWindow: defaultCatchUpWindow,
+		},
+		"ALL with unset window gets default": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyAll},
+			wantWindow: defaultCatchUpWindow,
+		},
+		"explicit window is preserved": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicyAll, CatchUpWindow: 30 * time.Minute},
+			wantWindow: 30 * time.Minute,
+		},
+		"SKIP does not set window": {
+			input:      types.SchedulePolicies{CatchUpPolicy: types.ScheduleCatchUpPolicySkip},
+			wantWindow: 0,
+		},
+		"zero policy does not set window": {
+			input:      types.SchedulePolicies{},
+			wantWindow: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := tt.input
+			ensurePolicyDefaults(&p)
+			assert.Equal(t, tt.wantWindow, p.CatchUpWindow)
 		})
 	}
 }

@@ -1543,47 +1543,49 @@ func (s *contextImpl) ReinjectHistoryTasks(
 		return err
 	}
 
-	// Group by category. Only transfer + timer are produced by the standby DLQ write path.
-	tasksByCategory := make(map[persistence.HistoryTaskCategory][]persistence.Task)
+	// Group tasks by execution to allow allocateTaskIDsLocked to allocate IDs on a per-execution basis.
+	type executionKey struct {
+		domainID   string
+		workflowID string
+	}
+	tasksByExecution := make(map[executionKey]persistence.HistoryTasksByCategory)
 	for _, task := range tasks {
-		tasksByCategory[task.GetTaskCategory()] = append(tasksByCategory[task.GetTaskCategory()], task)
+		key := executionKey{domainID: task.GetDomainID(), workflowID: task.GetWorkflowID()}
+		if tasksByExecution[key] == nil {
+			tasksByExecution[key] = make(persistence.HistoryTasksByCategory)
+		}
+		category := task.GetTaskCategory()
+		tasksByExecution[key][category] = append(tasksByExecution[key][category], task)
 	}
 
 	s.Lock()
 	defer s.Unlock()
 
 	immediateTaskMaxReadLevel := int64(0)
-
-	// Transfer task IDs are shard-global (a single shared sequence) and the transfer queue orders by
-	// task ID alone, so a single allocation pass over the whole slice is correct regardless of which
-	// domains the tasks span — no per-domain handling needed.
-	if transferTasks := tasksByCategory[persistence.HistoryTaskCategoryTransfer]; len(transferTasks) > 0 {
-		if err := s.allocateTransferIDsLocked(transferTasks, &immediateTaskMaxReadLevel); err != nil {
-			return err
-		}
-	}
-
-	// Timer tasks also get a shard-global ID, but the scheduled queue's read cursor is per-cluster, and
-	// allocateTimerIDsLocked needs the per-domain domainEntry to determine the task's active
-	// cluster/version and bump its visibility timestamp above that cluster's cursor so the queue re-reads
-	// it (workflowID is logging-only). So group by domain and look the entry up once per domain.
-	if timerTasks := tasksByCategory[persistence.HistoryTaskCategoryTimer]; len(timerTasks) > 0 {
-		timerTasksByDomain := make(map[string][]persistence.Task)
-		for _, task := range timerTasks {
-			timerTasksByDomain[task.GetDomainID()] = append(timerTasksByDomain[task.GetDomainID()], task)
-		}
-		for domainID, domainTimerTasks := range timerTasksByDomain {
-			domainEntry, err := s.GetDomainCache().GetDomainByID(domainID)
+	// Cache domain entries so a domain spanning many workflows is looked up only once.
+	domainEntries := make(map[string]*cache.DomainCacheEntry)
+	// tasksByCategory is built after allocation of taskIDs. It is used to build the persistence request.
+	tasksByCategory := make(persistence.HistoryTasksByCategory)
+	for key, executionTasks := range tasksByExecution {
+		domainEntry, ok := domainEntries[key.domainID]
+		if !ok {
+			var err error
+			domainEntry, err = s.GetDomainCache().GetDomainByID(key.domainID)
 			if err != nil {
 				return err
 			}
-			if err := s.allocateTimerIDsLocked(
-				domainEntry,
-				domainTimerTasks[0].GetWorkflowID(),
-				domainTimerTasks,
-			); err != nil {
-				return err
-			}
+			domainEntries[key.domainID] = domainEntry
+		}
+		if err := s.allocateTaskIDsLocked(
+			domainEntry,
+			key.workflowID,
+			executionTasks,
+			&immediateTaskMaxReadLevel,
+		); err != nil {
+			return err
+		}
+		for category, categoryTasks := range executionTasks {
+			tasksByCategory[category] = append(tasksByCategory[category], categoryTasks...)
 		}
 	}
 
@@ -1598,8 +1600,6 @@ func (s *contextImpl) ReinjectHistoryTasks(
 			TasksByCategory: tasksByCategory,
 		},
 	)
-	// errors.As (rather than a type switch or errors.Is): ShardOwnershipLostError is a struct error with
-	// no Is() method, so errors.Is would only do pointer equality. errors.As matches by type and unwraps.
 	if err == nil {
 		// Update MaxReadLevel if write to DB succeeds
 		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)

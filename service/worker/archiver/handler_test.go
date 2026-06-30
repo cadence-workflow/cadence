@@ -62,7 +62,8 @@ func (s *handlerSuite) SetupSuite() {
 
 func (s *handlerSuite) SetupTest() {
 	handlerTestMetrics = &mmocks.Client{}
-	handlerTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch())
+	handlerTestMetrics.On("StartTimer", mock.Anything, mock.Anything).Return(metrics.NopStopwatch()).Maybe()
+	handlerTestMetrics.On("Scope", mock.Anything, mock.Anything).Return(metrics.NoopScope).Maybe()
 	handlerTestLogger = log.NewMockLogger(gomock.NewController(s.T()))
 	handlerTestLogger.EXPECT().WithTags(gomock.Any()).Return(handlerTestLogger).AnyTimes()
 }

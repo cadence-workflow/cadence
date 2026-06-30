@@ -529,3 +529,95 @@ func TestBadBinariesDeepCopy(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAConfigUpdateRequest(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	int32Ptr := func(i int32) *int32 { return &i }
+	archivalStatusPtr := func(s ArchivalStatus) *ArchivalStatus { return &s }
+
+	tests := []struct {
+		name     string
+		request  *UpdateDomainRequest
+		expected bool
+	}{
+		{
+			name:     "when the request is empty it should return false",
+			request:  &UpdateDomainRequest{},
+			expected: false,
+		},
+		{
+			name:     "when only failover fields are set it should return false",
+			request:  &UpdateDomainRequest{ActiveClusterName: strPtr("cluster-b")},
+			expected: false,
+		},
+		{
+			name:     "when Description is set it should return true",
+			request:  &UpdateDomainRequest{Description: strPtr("new desc")},
+			expected: true,
+		},
+		{
+			name:     "when OwnerEmail is set it should return true",
+			request:  &UpdateDomainRequest{OwnerEmail: strPtr("owner@example.com")},
+			expected: true,
+		},
+		{
+			name:     "when Data is set it should return true",
+			request:  &UpdateDomainRequest{Data: map[string]string{"k": "v"}},
+			expected: true,
+		},
+		{
+			name:     "when EmitMetric is set it should return true",
+			request:  &UpdateDomainRequest{EmitMetric: func() *bool { b := true; return &b }()},
+			expected: true,
+		},
+		{
+			name:     "when WorkflowExecutionRetentionPeriodInDays is set it should return true",
+			request:  &UpdateDomainRequest{WorkflowExecutionRetentionPeriodInDays: int32Ptr(7)},
+			expected: true,
+		},
+		{
+			name:     "when BadBinaries is set it should return true",
+			request:  &UpdateDomainRequest{BadBinaries: &BadBinaries{}},
+			expected: true,
+		},
+		{
+			name:     "when HistoryArchivalStatus is set it should return true",
+			request:  &UpdateDomainRequest{HistoryArchivalStatus: archivalStatusPtr(ArchivalStatusEnabled)},
+			expected: true,
+		},
+		{
+			name:     "when HistoryArchivalURI is set it should return true",
+			request:  &UpdateDomainRequest{HistoryArchivalURI: strPtr("s3://bucket/history")},
+			expected: true,
+		},
+		{
+			name:     "when VisibilityArchivalStatus is set it should return true",
+			request:  &UpdateDomainRequest{VisibilityArchivalStatus: archivalStatusPtr(ArchivalStatusEnabled)},
+			expected: true,
+		},
+		{
+			name:     "when VisibilityArchivalURI is set it should return true",
+			request:  &UpdateDomainRequest{VisibilityArchivalURI: strPtr("s3://bucket/visibility")},
+			expected: true,
+		},
+		{
+			name:     "when DeleteBadBinary is set it should return true",
+			request:  &UpdateDomainRequest{DeleteBadBinary: strPtr("checksum")},
+			expected: true,
+		},
+		{
+			name: "when both a failover field and Data are set it should return true",
+			request: &UpdateDomainRequest{
+				ActiveClusterName: strPtr("cluster-b"),
+				Data:              map[string]string{"k": "v"},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.request.IsAConfigUpdateRequest())
+		})
+	}
+}

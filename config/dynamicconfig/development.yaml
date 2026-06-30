@@ -94,3 +94,6 @@ system.enableWorkflowTimerTaskCleanup:
 worker.enableScheduler:
 - value: true
   constraints: {}
+frontend.failoverCoolDown:
+- value: 1s
+  constraints: {}
