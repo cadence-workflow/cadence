@@ -143,6 +143,55 @@ func TestProcessShard_WhenPageSucceeds_AdvancesAckLevelToLastTaskKey(t *testing.
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
+// TestProcessShard_AdvancesUsingOriginalKey_WhenReinjectionMutatesTaskID guards against
+// reading the ack-level cursor from a task whose ID was rewritten by reinjection.
+// ReinjectHistoryTasks allocates fresh shard-global IDs and calls SetTaskID in place; if
+// the processor captured GetTaskKey() after reinjection it would advance the ack level
+// (and delete) using the huge fresh ID instead of the original DLQ row position.
+func TestProcessShard_AdvancesUsingOriginalKey_WhenReinjectionMutatesTaskID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+
+	const originalID = int64(7)
+	const freshID = int64(1_000_000) // simulates a monotonically increasing shard-global ID
+	// Real task type whose GetTaskKey() reads the same mutable TaskID that SetTaskID writes.
+	task := &persistence.ActivityTask{TaskData: persistence.TaskData{TaskID: originalID}}
+	tasks := []persistence.Task{task}
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: tasks}, nil)
+	// Reinjection rewrites the task ID in place, as the real shard implementation does.
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), tasks).DoAndReturn(
+		func(_ context.Context, ts []persistence.Task) error {
+			ts[len(ts)-1].SetTaskID(freshID)
+			return nil
+		},
+	)
+	// Ack level must advance to the original key, not the mutated one.
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
+		ShardID:                   al.ShardID,
+		DomainID:                  al.DomainID,
+		ClusterAttributeScope:     al.ClusterAttributeScope,
+		ClusterAttributeName:      al.ClusterAttributeName,
+		TaskCategory:              al.TaskCategory,
+		UpdatedInclusiveReadLevel: persistence.NewImmediateTaskKey(originalID),
+	}).Return(nil)
+	// Delete must bound on the original key, not delete the whole partition via the huge fresh ID.
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), persistence.HistoryDLQDeleteTasksRequest{
+		ShardID:               al.ShardID,
+		DomainID:              al.DomainID,
+		ClusterAttributeScope: al.ClusterAttributeScope,
+		ClusterAttributeName:  al.ClusterAttributeName,
+		TaskCategory:          al.TaskCategory,
+		ExclusiveMaxTaskKey:   persistence.NewImmediateTaskKey(originalID).Next(),
+	}).Return(nil)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
 func TestProcessShard_WhenTasksSpanMultiplePages_ReinjectsEachPageAndAdvances(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -214,7 +263,7 @@ func TestProcessShard_WhenFirstPageReinjectFails_DoesNotAdvanceAckLevel(t *testi
 
 	proc, mgr, reinjector := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
-	task0 := persistence.NewMockTask(ctrl) // GetTaskKey never called: page never succeeds
+	task0 := newMockTask(ctrl, 0) // key captured before reinjection, but ack level must not advance
 	page0 := []persistence.Task{task0}
 	reinjectErr := errors.New("reinject failed")
 

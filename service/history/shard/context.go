@@ -1604,7 +1604,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 		// Update MaxReadLevel if write to DB succeeds
 		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
 	} else if errors.As(err, new(*persistence.ShardOwnershipLostError)) {
-		// do not retry on ShardOwnershipLostError
+		// If Shard ownership has been lost, close the shard and return the error.
 		s.logger.Warn(
 			"Closing shard: ReinjectHistoryTasks failed due to stolen shard.",
 			tag.Error(err),

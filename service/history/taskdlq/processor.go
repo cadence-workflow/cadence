@@ -267,12 +267,12 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 
 		if len(resp.Tasks) > 0 {
 			scope.RecordHistogramValue(metrics.HistoryTaskDLQPageSizeBytes, float64(resp.PageSizeBytes))
+			k := resp.Tasks[len(resp.Tasks)-1].GetTaskKey()
 			if err := p.reinjector.ReinjectHistoryTasks(ctx, resp.Tasks); err != nil {
 				scope.IncCounter(metrics.HistoryTaskDLQReinjectFailuresCounter)
 				firstErr = err
 				break
 			}
-			k := resp.Tasks[len(resp.Tasks)-1].GetTaskKey()
 			lastGoodKey = &k
 		}
 
