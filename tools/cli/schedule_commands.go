@@ -135,7 +135,7 @@ func (sc *scheduleCLIImpl) CreateSchedule(c *cli.Context) error {
 		Action:     &types.ScheduleAction{StartWorkflow: action},
 	}
 
-	policies, err := buildPoliciesFromFlags(c)
+	policies, err := buildPoliciesFromFlags(c, nil)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,6 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 		ScheduleID: scheduleID,
 	}
 
-	// Build spec if any spec flag is set
 	specFlags := []string{FlagCronExpression, FlagStartTime, FlagEndTime, FlagJitter}
 	specSet := false
 	for _, f := range specFlags {
@@ -220,11 +219,47 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 			break
 		}
 	}
-	if specSet {
-		if !c.IsSet(FlagCronExpression) {
-			return commoncli.Problem("--cron_expression is required when updating the schedule spec", nil)
+	policyFlags := []string{FlagOverlapPolicy, FlagCatchUpPolicy, FlagConcurrencyLimit, FlagCatchUpWindow, FlagPauseOnFailure, FlagBufferLimit}
+	policySet := false
+	for _, f := range policyFlags {
+		if c.IsSet(f) {
+			policySet = true
+			break
 		}
-		spec := &types.ScheduleSpec{CronExpression: c.String(FlagCronExpression)}
+	}
+
+	if !specSet && !policySet {
+		return commoncli.Problem("At least one flag must be set to update the schedule", nil)
+	}
+
+	// The scheduler workflow replaces Spec/Policies wholesale on update
+	// (handleUpdate in service/worker/scheduler/workflow.go), so any field
+	// not set here would reset to its zero value. Fetch the current
+	// schedule and merge the flags on top of it instead.
+	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error creating context", err)
+	}
+	current, err := sc.frontendClient.DescribeSchedule(ctx, &types.DescribeScheduleRequest{
+		Domain:     domain,
+		ScheduleID: scheduleID,
+	})
+	cancel()
+	if err != nil {
+		return commoncli.Problem("Failed to fetch current schedule for update", err)
+	}
+
+	if specSet {
+		spec := &types.ScheduleSpec{}
+		if current.GetSpec() != nil {
+			*spec = *current.GetSpec()
+		}
+		if c.IsSet(FlagCronExpression) {
+			spec.CronExpression = c.String(FlagCronExpression)
+		}
+		if spec.CronExpression == "" {
+			return commoncli.Problem("--cron_expression is required: the existing schedule has no cron expression set", nil)
+		}
 		if c.IsSet(FlagStartTime) {
 			t, err := time.Parse(time.RFC3339, c.String(FlagStartTime))
 			if err != nil {
@@ -249,25 +284,21 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 		request.Spec = spec
 	}
 
-	policies, err := buildPoliciesFromFlags(c)
-	if err != nil {
-		return err
-	}
-	if policies != nil {
+	if policySet {
+		policies, err := buildPoliciesFromFlags(c, current.GetPolicies())
+		if err != nil {
+			return err
+		}
 		if policies.ConcurrencyLimit > 0 && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
 			return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
 		}
 		if policies.BufferLimit > 0 && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer {
 			return commoncli.Problem("--buffer_limit requires --overlap_policy buffer", nil)
 		}
-	}
-	request.Policies = policies
-
-	if request.Spec == nil && request.Policies == nil {
-		return commoncli.Problem("At least one flag must be set to update the schedule", nil)
+		request.Policies = policies
 	}
 
-	ctx, cancel, err := newContext(c)
+	ctx, cancel, err = newContext(c)
 	if err != nil {
 		return commoncli.Problem("Error creating context", err)
 	}
@@ -464,7 +495,10 @@ func (sc *scheduleCLIImpl) ListSchedules(c *cli.Context) error {
 	return nil
 }
 
-func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
+// buildPoliciesFromFlags builds SchedulePolicies from CLI flags, starting
+// from base (nil for create, current policies for update) so unset flags
+// keep their existing value instead of resetting to zero.
+func buildPoliciesFromFlags(c *cli.Context, base *types.SchedulePolicies) (*types.SchedulePolicies, error) {
 	hasOverlap := c.IsSet(FlagOverlapPolicy)
 	hasCatchUp := c.IsSet(FlagCatchUpPolicy)
 	hasLimit := c.IsSet(FlagConcurrencyLimit)
@@ -472,10 +506,17 @@ func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
 	hasPauseOnFailure := c.IsSet(FlagPauseOnFailure)
 	hasBufferLimit := c.IsSet(FlagBufferLimit)
 	if !hasOverlap && !hasCatchUp && !hasLimit && !hasCatchUpWindow && !hasPauseOnFailure && !hasBufferLimit {
+		if base != nil {
+			cloned := *base
+			return &cloned, nil
+		}
 		return nil, nil
 	}
 
 	policies := &types.SchedulePolicies{}
+	if base != nil {
+		*policies = *base
+	}
 	if hasOverlap {
 		p, err := parseOverlapPolicy(c.String(FlagOverlapPolicy))
 		if err != nil {
@@ -658,18 +699,6 @@ func printDescribeSchedule(resp *types.DescribeScheduleResponse) {
 		}
 		if !info.LastUpdateTime.IsZero() {
 			fmt.Printf("  Last Updated:       %s\n", info.LastUpdateTime.UTC().Format(time.RFC3339))
-		}
-		for _, bf := range info.OngoingBackfills {
-			if bf == nil {
-				continue
-			}
-			fmt.Printf("  Active Backfill:    %s: %s → %s, %d/%d done\n",
-				bf.BackfillID,
-				bf.StartTime.UTC().Format("2006-01-02"),
-				bf.EndTime.UTC().Format("2006-01-02"),
-				bf.RunsCompleted,
-				bf.RunsTotal,
-			)
 		}
 		if len(info.OngoingBackfills) > 0 {
 			fmt.Printf("  Ongoing Backfills:\n")

@@ -327,6 +327,8 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			name:      "only concurrency_limit succeeds",
 			extraArgs: []string{"--" + FlagConcurrencyLimit, "3"},
 			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeScheduleResponse{Policies: &types.SchedulePolicies{}}, nil)
 				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 						assert.Nil(t, req.Spec)
@@ -340,6 +342,8 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			name:      "concurrency_limit 0 removes the cap",
 			extraArgs: []string{"--" + FlagConcurrencyLimit, "0"},
 			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeScheduleResponse{Policies: &types.SchedulePolicies{ConcurrencyLimit: 7}}, nil)
 				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 						assert.NotNil(t, req.Policies)
@@ -352,6 +356,8 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			name:      "concurrent policy with limit succeeds",
 			extraArgs: []string{"--" + FlagOverlapPolicy, "concurrent", "--" + FlagConcurrencyLimit, "5"},
 			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeScheduleResponse{Policies: &types.SchedulePolicies{}}, nil)
 				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 					DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 						assert.Equal(t, types.ScheduleOverlapPolicyConcurrent, req.Policies.OverlapPolicy)
@@ -361,8 +367,12 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			},
 		},
 		{
-			name:        "concurrency_limit with non-concurrent overlap policy returns error",
-			extraArgs:   []string{"--" + FlagOverlapPolicy, "skipnew", "--" + FlagConcurrencyLimit, "3"},
+			name:      "concurrency_limit with non-concurrent overlap policy returns error",
+			extraArgs: []string{"--" + FlagOverlapPolicy, "skipnew", "--" + FlagConcurrencyLimit, "3"},
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeScheduleResponse{Policies: &types.SchedulePolicies{}}, nil)
+			},
 			wantErr:     true,
 			errContains: "--concurrency_limit requires --overlap_policy concurrent",
 		},
@@ -419,6 +429,8 @@ func TestScheduleCLI_UpdateSchedule(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockClient := frontend.NewMockClient(mockCtrl)
 
+	mockClient.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+		Return(&types.DescribeScheduleResponse{}, nil)
 	mockClient.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 			assert.Equal(t, "test-domain", req.Domain)
@@ -696,7 +708,7 @@ func TestScheduleCLI_BuildPoliciesFromFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := makeCtx(tt.args)
-			got, err := buildPoliciesFromFlags(c)
+			got, err := buildPoliciesFromFlags(c, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -866,6 +878,8 @@ func TestScheduleCLI_UpdateSchedule_AllFields(t *testing.T) {
 	mockClient := frontend.NewMockClient(mockCtrl)
 	app := newScheduleTestApp(t, mockClient)
 
+	mockClient.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+		Return(&types.DescribeScheduleResponse{}, nil)
 	mockClient.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
 			assert.Equal(t, "test-domain", req.Domain)
@@ -915,6 +929,9 @@ func TestScheduleCLI_UpdateSchedule_SpecWithoutCron(t *testing.T) {
 	mockClient := frontend.NewMockClient(mockCtrl)
 	app := newScheduleTestApp(t, mockClient)
 
+	mockClient.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+		Return(&types.DescribeScheduleResponse{}, nil)
+
 	set := flag.NewFlagSet("test", 0)
 	set.String(FlagDomain, "", "")
 	set.String(FlagTransport, "", "")
@@ -931,6 +948,73 @@ func TestScheduleCLI_UpdateSchedule_SpecWithoutCron(t *testing.T) {
 	err := sc.UpdateSchedule(c)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "--cron_expression is required")
+}
+
+// TestScheduleCLI_UpdateSchedule_PartialUpdatePreservesUnsetFields verifies that
+// updating a subset of Spec/Policies fields preserves the rest, rather than
+// resetting them to zero values.
+func TestScheduleCLI_UpdateSchedule_PartialUpdatePreservesUnsetFields(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockClient := frontend.NewMockClient(mockCtrl)
+	app := newScheduleTestApp(t, mockClient)
+
+	existingStart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	existingEnd := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	mockClient.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+		Return(&types.DescribeScheduleResponse{
+			Spec: &types.ScheduleSpec{
+				CronExpression: "*/5 * * * *",
+				StartTime:      existingStart,
+				EndTime:        existingEnd,
+				Jitter:         20 * time.Second,
+			},
+			Policies: &types.SchedulePolicies{
+				OverlapPolicy:  types.ScheduleOverlapPolicyBuffer,
+				CatchUpPolicy:  types.ScheduleCatchUpPolicyAll,
+				CatchUpWindow:  3 * time.Hour,
+				PauseOnFailure: true,
+				BufferLimit:    9,
+			},
+		}, nil)
+
+	mockClient.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ interface{}, req *types.UpdateScheduleRequest, _ ...interface{}) (*types.UpdateScheduleResponse, error) {
+			// Only --jitter and --catch_up_window were passed; everything else
+			// must carry over from the existing schedule.
+			require.NotNil(t, req.Spec)
+			assert.Equal(t, "*/5 * * * *", req.Spec.CronExpression)
+			assert.True(t, existingStart.Equal(req.Spec.StartTime))
+			assert.True(t, existingEnd.Equal(req.Spec.EndTime))
+			assert.Equal(t, 45*time.Second, req.Spec.Jitter)
+
+			require.NotNil(t, req.Policies)
+			assert.Equal(t, types.ScheduleOverlapPolicyBuffer, req.Policies.OverlapPolicy)
+			assert.Equal(t, types.ScheduleCatchUpPolicyAll, req.Policies.CatchUpPolicy)
+			assert.Equal(t, time.Hour, req.Policies.CatchUpWindow)
+			assert.True(t, req.Policies.PauseOnFailure)
+			assert.Equal(t, int32(9), req.Policies.BufferLimit)
+
+			return &types.UpdateScheduleResponse{}, nil
+		})
+
+	set := flag.NewFlagSet("test", 0)
+	set.String(FlagDomain, "", "")
+	set.String(FlagTransport, "", "")
+	set.String(FlagScheduleID, "", "")
+	set.String(FlagJitter, "", "")
+	set.String(FlagCatchUpWindow, "", "")
+	_ = set.Parse([]string{
+		"--" + FlagDomain, "test-domain",
+		"--" + FlagTransport, grpcTransport,
+		"--" + FlagScheduleID, "sched-partial",
+		"--" + FlagJitter, "45s",
+		"--" + FlagCatchUpWindow, "1h",
+	})
+	c := cli.NewContext(app, set, nil)
+	sc := &scheduleCLIImpl{frontendClient: mockClient}
+	err := sc.UpdateSchedule(c)
+	assert.NoError(t, err)
 }
 
 func TestScheduleCLI_BuildPoliciesFromFlags_WithNewFields(t *testing.T) {
@@ -997,7 +1081,7 @@ func TestScheduleCLI_BuildPoliciesFromFlags_WithNewFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := makeCtx(tt.args)
-			got, err := buildPoliciesFromFlags(c)
+			got, err := buildPoliciesFromFlags(c, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
