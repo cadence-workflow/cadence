@@ -26,6 +26,7 @@ package failovermanager
 
 import (
 	"context"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -335,7 +336,7 @@ func getFailoverTimeoutSeconds(domain *types.DescribeDomainResponse) int32 {
 		return 0
 	}
 	v, err := strconv.Atoi(raw)
-	if err != nil || v <= 0 {
+	if err != nil || v <= 0 || v > math.MaxInt32 {
 		return 0
 	}
 	return int32(v)
