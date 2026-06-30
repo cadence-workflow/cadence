@@ -139,6 +139,11 @@ type cachedQueueReader struct {
 	// senders never block; duplicate signals are dropped, the loop reads current
 	// state on each wake.
 	prefetchCh chan struct{}
+
+	// lastRangeID is the shard rangeID observed when the cache was last valid.
+	// A change means the shard was re-acquired and the cache may be stale.
+	// Protected by mu.
+	lastRangeID int64
 }
 
 func newCachedQueueReader(
@@ -190,6 +195,7 @@ func newCachedQueueReaderWithOptions(
 		inclusiveLowerBound: persistence.MinimumHistoryTaskKey,
 		exclusiveUpperBound: persistence.MinimumHistoryTaskKey,
 		prefetchCh:          make(chan struct{}, 1),
+		lastRangeID:         shard.GetRangeID(),
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
@@ -292,6 +298,20 @@ func (q *cachedQueueReader) isDisabled() bool {
 	return isCachedQueueReaderDisabled(q.options.Mode())
 }
 
+// IsEmpty reports whether the cache queue reader is empty
+func (q *cachedQueueReader) IsEmpty() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.exclusiveUpperBound.Equal(persistence.MinimumHistoryTaskKey)
+}
+
+// clearIfNotEmpty clears cached state only when the cache has data
+func (q *cachedQueueReader) clearIfNotEmpty() {
+	if !q.IsEmpty() {
+		q.Clear()
+	}
+}
+
 // Clear wipes all cached state and triggers a fresh prefetch from the DB.
 func (q *cachedQueueReader) Clear() {
 	q.mu.Lock()
@@ -301,6 +321,11 @@ func (q *cachedQueueReader) Clear() {
 		tag.Dynamic("cacheState", q.getState()),
 	)
 
+	q.clearLocked()
+}
+
+// clearLocked wipes all cached state. Caller must hold q.mu for writing.
+func (q *cachedQueueReader) clearLocked() {
 	q.queue.Clear()
 	q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
 	q.prefetchTargetUpper = persistence.MinimumHistoryTaskKey
@@ -308,11 +333,66 @@ func (q *cachedQueueReader) Clear() {
 	q.updateExclusiveUpperBound(persistence.MinimumHistoryTaskKey)
 }
 
+// isRangeIDChangedLocked reports whether the shard's current rangeID differs
+// from the last observed value. Caller must hold q.mu (read or write).
+func (q *cachedQueueReader) isRangeIDChangedLocked() bool {
+	return q.shard.GetRangeID() != q.lastRangeID
+}
+
+// isRangeIDChanged reports whether the shard's current rangeID differs
+// from the last observed value.
+func (q *cachedQueueReader) isRangeIDChanged() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
+	return q.isRangeIDChangedLocked()
+}
+
+// fallbackIfRangeIDChanged clears cache if rangeID changed by more than 1
+// (shard moved away and was re-acquired). A change of exactly 1 means the same
+// host reacquired the shard — cache remains valid.
+// Returns true if cache was cleared.
+func (q *cachedQueueReader) fallbackIfRangeIDChanged() bool {
+	if !q.isRangeIDChanged() {
+		return false
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if !q.isRangeIDChangedLocked() {
+		return false
+	}
+
+	newRangeID := q.shard.GetRangeID()
+	prevRangeID := q.lastRangeID
+	q.lastRangeID = newRangeID
+
+	if newRangeID == prevRangeID+1 {
+		// Same host reacquired the shard. Cache still valid.
+		q.logger.Info("rangeID changed on same host, cache not cleared",
+			tag.Dynamic("previousRangeID", prevRangeID),
+			tag.Dynamic("newRangeID", newRangeID),
+		)
+		return false
+	}
+
+	// rangeID changed by more than 1: possible stale cache.
+	q.logger.Info("rangeID changed, clearing cache",
+		tag.Dynamic("previousRangeID", prevRangeID),
+		tag.Dynamic("newRangeID", newRangeID),
+	)
+	q.clearLocked()
+	return true
+}
+
 // prefetch fetches one page of tasks into the look-ahead window. Returns nil
 // on success (including no-op cases); non-nil on any failure. The caller
 // (prefetchLoop) schedules the next attempt.
 func (q *cachedQueueReader) prefetch() error {
 	if q.isDisabled() {
+		// Clear stale cache so re-enabling starts with a fresh prefetch
+		// instead of serving outdated boundaries that cause cache misses.
+		q.clearIfNotEmpty()
 		q.logger.Debug("prefetch skipped, cache disabled")
 		return nil
 	}
@@ -374,6 +454,12 @@ func (q *cachedQueueReader) prefetch() error {
 	if err != nil {
 		q.logger.Error("prefetch failed", tag.Error(err))
 		return fmt.Errorf("prefetch failed: %w", err)
+	}
+
+	if q.isDisabled() {
+		q.logger.Info("prefetch result discarded, mode switched to disabled during prefetch")
+		q.pendingInjectBuffer = q.pendingInjectBuffer[:0]
+		return nil
 	}
 
 	// Upper bound changed while we held the lock (e.g. a concurrent Inject
@@ -566,6 +652,9 @@ func (q *cachedQueueReader) UpdateReadLevel(readLevel persistence.HistoryTaskKey
 // tasks are dropped. No-op when the cache is off.
 func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 	if q.isDisabled() {
+		// Clear stale cache so re-enabling starts with a fresh prefetch
+		// instead of serving outdated boundaries that cause cache misses.
+		q.clearIfNotEmpty()
 		return
 	}
 
@@ -626,6 +715,11 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 // Disabled mode bypasses the cache entirely.
 func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*GetTaskResponse, error) {
 	if q.isDisabled() {
+		return q.base.GetTask(ctx, req)
+	}
+
+	if q.fallbackIfRangeIDChanged() {
+		q.logger.Info("GetTask falling back to base reader after rangeID change")
 		return q.base.GetTask(ctx, req)
 	}
 
@@ -693,7 +787,11 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 // inject notifications make cache/DB comparison unreliable for look-ahead.
 func (q *cachedQueueReader) LookAHead(ctx context.Context, req *LookAHeadRequest) (*LookAHeadResponse, error) {
 	if q.isDisabled() || q.isShadow() {
-		q.logger.Debug("fail back to original look-ahead, cache is disabled or shadow mode")
+		return q.base.LookAHead(ctx, req)
+	}
+
+	if q.fallbackIfRangeIDChanged() {
+		q.logger.Info("LookAHead falling back to base reader after rangeID change")
 		return q.base.LookAHead(ctx, req)
 	}
 
@@ -835,6 +933,13 @@ func (q *cachedQueueReader) getTaskRangeID(taskID int64) int64 {
 // reportShadowComparison logs the result of a shadow comparison.
 func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadowResult, logTags []tag.Tag) {
 
+	// Compute min ownerChangedRangeID before capping for logging, so the
+	// Info-vs-Warn decision uses the full set rather than a truncated slice.
+	var minOwnerChangedRangeID int64
+	if len(result.OwnerChangedRangeIDs) > 0 {
+		minOwnerChangedRangeID = slices.Min(result.OwnerChangedRangeIDs)
+	}
+
 	// Cap the number of mismatched task keys logged to avoid excessively large logs
 	result.MissedInCacheTasks = capShadowMismatchSlice(result.MissedInCacheTasks)
 	result.IncorrectTimeTasks = capShadowMismatchSlice(result.IncorrectTimeTasks)
@@ -845,7 +950,14 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 	logTags = append(logTags, tag.Dynamic("shadowMismatch", result))
 
 	if len(result.OwnerChangedTasks) > 0 {
-		q.logger.Warn("possible shard ownership change, missed tasks are created in another range", logTags...)
+		// When currentRangeID is less than all ownerChangedRangeIDs, the tasks were created
+		// by a newer shard owner. This host has already lost ownership and will be stopped soon,
+		// so it's expected to see tasks from the new owner that aren't in its cache.
+		if result.CurrentRangeID < minOwnerChangedRangeID {
+			q.logger.Info("shard ownership already transferred, new owner created tasks not in cache", logTags...)
+		} else {
+			q.logger.Warn("possible shard ownership change, missed tasks are created in another range", logTags...)
+		}
 	}
 	if !result.HasMismatches {
 		q.logger.Debug("shadow comparison matched", logTags...)

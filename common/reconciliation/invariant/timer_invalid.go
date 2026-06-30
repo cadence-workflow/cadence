@@ -31,25 +31,23 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-const TimerInvalidName = "TimerInvalid"
-
-type TimerInvalid struct {
+type timerInvalid struct {
 	pr    persistence.Retryer
 	cache cache.DomainCache
 }
 
-// NewTimerInvalid returns a new history exists invariant
+// NewTimerInvalid returns a new timer invalid invariant
 func NewTimerInvalid(
 	pr persistence.Retryer, cache cache.DomainCache,
 ) Invariant {
-	return &TimerInvalid{
+	return &timerInvalid{
 		pr:    pr,
 		cache: cache,
 	}
 }
 
 // Check checks if timer is scheduled for open execution
-func (h *TimerInvalid) Check(
+func (h *timerInvalid) Check(
 	ctx context.Context,
 	e interface{},
 ) CheckResult {
@@ -118,7 +116,7 @@ func (h *TimerInvalid) Check(
 }
 
 // Fix will delete invalid timer
-func (h *TimerInvalid) Fix(
+func (h *timerInvalid) Fix(
 	ctx context.Context,
 	e interface{},
 ) FixResult {
@@ -167,6 +165,6 @@ func (h *TimerInvalid) Fix(
 	}
 }
 
-func (h *TimerInvalid) Name() Name {
-	return TimerInvalidName
+func (h *timerInvalid) Name() Name {
+	return TimerInvalid
 }

@@ -326,16 +326,7 @@ func (p *taskProcessorImpl) processResponse(response *types.ReplicationMessages)
 	ctx := context.Background()
 	for _, replicationTask := range response.ReplicationTasks {
 		isFailoverMarker := replicationTask.GetTaskType() == types.ReplicationTaskTypeFailoverMarker
-		if isFailoverMarker {
-			if attr := replicationTask.GetFailoverMarkerAttributes(); attr != nil {
-				p.logger.Info("Failover marker arrived at standby replication processor",
-					tag.ShardID(p.shard.GetShardID()),
-					tag.WorkflowDomainID(attr.GetDomainID()),
-					tag.FailoverVersion(attr.GetFailoverVersion()),
-					tag.Dynamic("arrival-lag", time.Since(time.Unix(0, replicationTask.GetCreationTime()))),
-				)
-			}
-		} else {
+		if !isFailoverMarker {
 			// failover markers bypass rate limiting: bounded volume (one per shard
 			// per failover), shard-level (no workflow lock), and cheap to execute.
 			// throttling them behind history replication needlessly delays the

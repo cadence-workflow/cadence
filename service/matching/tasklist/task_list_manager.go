@@ -332,7 +332,7 @@ func (c *taskListManagerImpl) Stop() {
 	c.taskReader.Stop()
 	c.matcher.DisconnectBlockedPollers()
 	c.stopWG.Wait()
-	c.logger.Debug("Task list manager state changed", tag.LifeCycleStopped)
+	c.logger.Info("Task list manager state changed", tag.LifeCycleStopped)
 }
 
 func (c *taskListManagerImpl) handleErr(err error) error {

@@ -67,10 +67,7 @@ func (s *contextImpl) notifyTasksFromCreateWorkflowExecution(
 		s.notifyTasksFromSnapshot(&request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logger.Info("notify tasks dropped due to persistence error",
-		tag.Error(err),
-		tag.Dynamic("droppedTaskIDs", taskIDsFromSnapshot(&request.NewWorkflowSnapshot)),
-	)
+	s.logNotifyTaskDroppedOnPersistenceError(err, taskIDsFromSnapshot(&request.NewWorkflowSnapshot))
 }
 
 // notifyTasksFromUpdateWorkflowExecution sends task notifications for an UpdateWorkflowExecution operation.
@@ -84,13 +81,10 @@ func (s *contextImpl) notifyTasksFromUpdateWorkflowExecution(
 		s.notifyTasksFromSnapshot(request.NewWorkflowSnapshot, persistenceError)
 		return
 	}
-	s.logger.Info("notify tasks dropped due to persistence error",
-		tag.Error(err),
-		tag.Dynamic("droppedTaskIDs", slices.Concat(
-			taskIDsFromMutation(&request.UpdateWorkflowMutation),
-			taskIDsFromSnapshot(request.NewWorkflowSnapshot),
-		)),
-	)
+	s.logNotifyTaskDroppedOnPersistenceError(err, slices.Concat(
+		taskIDsFromMutation(&request.UpdateWorkflowMutation),
+		taskIDsFromSnapshot(request.NewWorkflowSnapshot),
+	))
 }
 
 // notifyTasksFromConflictResolveWorkflowExecution sends task notifications for a ConflictResolveWorkflowExecution operation.
@@ -105,13 +99,23 @@ func (s *contextImpl) notifyTasksFromConflictResolveWorkflowExecution(
 		s.notifyTasksFromMutation(request.CurrentWorkflowMutation, persistenceError)
 		return
 	}
+	s.logNotifyTaskDroppedOnPersistenceError(err, slices.Concat(
+		taskIDsFromSnapshot(&request.ResetWorkflowSnapshot),
+		taskIDsFromSnapshot(request.NewWorkflowSnapshot),
+		taskIDsFromMutation(request.CurrentWorkflowMutation),
+	))
+}
+
+// logNotifyTaskDroppedOnPersistenceError logs dropped task IDs when the cached queue reader
+// is in shadow mode. In shadow mode the cache is validated against the DB, so dropped tasks
+// produce observable mismatches that are worth tracking. In other modes the log is noise.
+func (s *contextImpl) logNotifyTaskDroppedOnPersistenceError(err error, droppedTaskIDs []int64) {
+	if s.config.TimerProcessorCachedQueueReaderMode() != "shadow" {
+		return
+	}
 	s.logger.Info("notify tasks dropped due to persistence error",
 		tag.Error(err),
-		tag.Dynamic("droppedTaskIDs", slices.Concat(
-			taskIDsFromSnapshot(&request.ResetWorkflowSnapshot),
-			taskIDsFromSnapshot(request.NewWorkflowSnapshot),
-			taskIDsFromMutation(request.CurrentWorkflowMutation),
-		)),
+		tag.Dynamic("droppedTaskIDs", droppedTaskIDs),
 	)
 }
 

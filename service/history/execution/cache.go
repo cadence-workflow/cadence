@@ -131,6 +131,15 @@ func NewCache(shard shard.Context) Cache {
 	}
 }
 
+func (c *cacheImpl) cacheMetricsScope(scope metrics.ScopeIdx) metrics.Scope {
+	return metrics.WithCacheScopeLabels(
+		c.metricsClient.Scope(scope),
+		metrics.ShardIDTag(c.shard.GetShardID()),
+		metrics.SourceClusterNoneTagValue,
+		metrics.MutableStateCacheTypeTagValue,
+	)
+}
+
 // GetOrCreateCurrentWorkflowExecution gets or creates workflow execution context for the current run
 func (c *cacheImpl) GetOrCreateCurrentWorkflowExecution(
 	ctx context.Context,
@@ -139,8 +148,9 @@ func (c *cacheImpl) GetOrCreateCurrentWorkflowExecution(
 ) (Context, ReleaseFunc, error) {
 
 	scope := metrics.HistoryCacheGetOrCreateCurrentScope
-	c.metricsClient.IncCounter(scope, metrics.CacheRequests)
-	sw := c.metricsClient.StartTimer(scope, metrics.CacheLatency)
+	metricsScope := c.cacheMetricsScope(scope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	// using empty run ID as current workflow run ID
@@ -168,12 +178,13 @@ func (c *cacheImpl) GetAndCreateWorkflowExecution(
 ) (Context, Context, ReleaseFunc, bool, error) {
 
 	scope := metrics.HistoryCacheGetAndCreateScope
-	c.metricsClient.IncCounter(scope, metrics.CacheRequests)
-	sw := c.metricsClient.StartTimer(scope, metrics.CacheLatency)
+	metricsScope := c.cacheMetricsScope(scope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	if err := c.validateWorkflowExecutionInfo(ctx, domainID, &execution); err != nil {
-		c.metricsClient.IncCounter(scope, metrics.CacheFailures)
+		metricsScope.IncCounter(metrics.CacheFailures)
 		return nil, nil, nil, false, err
 	}
 
@@ -187,13 +198,13 @@ func (c *cacheImpl) GetAndCreateWorkflowExecution(
 		if err := contextFromCache.Lock(ctx); err != nil {
 			// ctx is done before lock can be acquired
 			c.Release(key)
-			c.metricsClient.IncCounter(metrics.HistoryCacheGetAndCreateScope, metrics.CacheFailures)
+			metricsScope.IncCounter(metrics.CacheFailures)
 			c.metricsClient.IncCounter(metrics.HistoryCacheGetAndCreateScope, metrics.AcquireLockFailedCounter)
 			return nil, nil, nil, false, err
 		}
 		releaseFunc = c.makeReleaseFunc(key, contextFromCache, false)
 	} else {
-		c.metricsClient.IncCounter(metrics.HistoryCacheGetAndCreateScope, metrics.CacheMissCounter)
+		metricsScope.IncCounter(metrics.CacheMissCounter)
 	}
 
 	// Note, the one loaded from DB is not put into cache and don't affect any behavior
@@ -232,12 +243,13 @@ func (c *cacheImpl) GetOrCreateWorkflowExecution(
 ) (Context, ReleaseFunc, error) {
 
 	scope := metrics.HistoryCacheGetOrCreateScope
-	c.metricsClient.IncCounter(scope, metrics.CacheRequests)
-	sw := c.metricsClient.StartTimer(scope, metrics.CacheLatency)
+	metricsScope := c.cacheMetricsScope(scope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	if err := c.validateWorkflowExecutionInfo(ctx, domainID, &execution); err != nil {
-		c.metricsClient.IncCounter(scope, metrics.CacheFailures)
+		metricsScope.IncCounter(metrics.CacheFailures)
 		return nil, nil, err
 	}
 
@@ -266,12 +278,13 @@ func (c *cacheImpl) getOrCreateWorkflowExecutionInternal(
 	key := definition.NewWorkflowIdentifier(domainID, execution.GetWorkflowID(), execution.GetRunID())
 	workflowCtx, cacheHit := c.Get(key).(Context)
 	if !cacheHit {
-		c.metricsClient.IncCounter(scope, metrics.CacheMissCounter)
+		metricsScope := c.cacheMetricsScope(scope)
+		metricsScope.IncCounter(metrics.CacheMissCounter)
 		// Let's create the workflow execution workflowCtx
 		workflowCtx = NewContext(domainID, execution, c.shard, c.executionManager, c.logger)
 		elem, err := c.PutIfNotExist(key, workflowCtx)
 		if err != nil {
-			c.metricsClient.IncCounter(scope, metrics.CacheFailures)
+			metricsScope.IncCounter(metrics.CacheFailures)
 			return nil, nil, err
 		}
 		workflowCtx = elem.(Context)
@@ -284,7 +297,7 @@ func (c *cacheImpl) getOrCreateWorkflowExecutionInternal(
 	if err := workflowCtx.Lock(ctx); err != nil {
 		// ctx is done before lock can be acquired
 		c.Release(key)
-		c.metricsClient.IncCounter(scope, metrics.CacheFailures)
+		c.cacheMetricsScope(scope).IncCounter(metrics.CacheFailures)
 		c.metricsClient.IncCounter(scope, metrics.AcquireLockFailedCounter)
 		return nil, nil, err
 	}
@@ -357,8 +370,9 @@ func (c *cacheImpl) getCurrentExecutionWithRetry(
 	request *persistence.GetCurrentExecutionRequest,
 ) (*persistence.GetCurrentExecutionResponse, error) {
 
-	c.metricsClient.IncCounter(metrics.HistoryCacheGetCurrentExecutionScope, metrics.CacheRequests)
-	sw := c.metricsClient.StartTimer(metrics.HistoryCacheGetCurrentExecutionScope, metrics.CacheLatency)
+	metricsScope := c.cacheMetricsScope(metrics.HistoryCacheGetCurrentExecutionScope)
+	metricsScope.IncCounter(metrics.CacheRequests)
+	sw := metricsScope.StartTimer(metrics.CacheLatency)
 	defer sw.Stop()
 
 	var response *persistence.GetCurrentExecutionResponse
@@ -375,7 +389,7 @@ func (c *cacheImpl) getCurrentExecutionWithRetry(
 	)
 	err := throttleRetry.Do(ctx, op)
 	if err != nil {
-		c.metricsClient.IncCounter(metrics.HistoryCacheGetCurrentExecutionScope, metrics.CacheFailures)
+		metricsScope.IncCounter(metrics.CacheFailures)
 		return nil, err
 	}
 

@@ -2654,6 +2654,90 @@ func TestHandler_UpdateDomain(t *testing.T) {
 			},
 			err: errors.New("handle-transmission-task-error"),
 		},
+		{
+			name: "when a failover request also contains domain Data on a non-AA domain it should return errCannotDoDomainFailoverAndUpdate",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, _ *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, _ *MockReplicator) {
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
+					Return(&persistence.GetDomainResponse{
+						ReplicationConfig: &persistence.DomainReplicationConfig{
+							ActiveClusterName: cluster.TestCurrentClusterName,
+							Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+						},
+						Config:          &persistence.DomainConfig{Retention: 1},
+						Info:            &persistence.DomainInfo{Name: constants.TestDomainName},
+						IsGlobalDomain:  true,
+						LastUpdatedTime: timeSource.Now().UnixNano(),
+					}, nil).Times(1)
+			},
+			request: &types.UpdateDomainRequest{
+				Name:              constants.TestDomainName,
+				ActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
+				Data:              map[string]string{"key": "value"},
+			},
+			err: errCannotDoDomainFailoverAndUpdate,
+		},
+		{
+			name: "when a failover request also contains Description on a non-AA domain it should return errCannotDoDomainFailoverAndUpdate",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, _ *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, _ *MockReplicator) {
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
+					Return(&persistence.GetDomainResponse{
+						ReplicationConfig: &persistence.DomainReplicationConfig{
+							ActiveClusterName: cluster.TestCurrentClusterName,
+							Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+						},
+						Config:          &persistence.DomainConfig{Retention: 1},
+						Info:            &persistence.DomainInfo{Name: constants.TestDomainName},
+						IsGlobalDomain:  true,
+						LastUpdatedTime: timeSource.Now().UnixNano(),
+					}, nil).Times(1)
+			},
+			request: &types.UpdateDomainRequest{
+				Name:              constants.TestDomainName,
+				ActiveClusterName: common.Ptr(cluster.TestAlternativeClusterName),
+				Description:       common.Ptr("new description"),
+			},
+			err: errCannotDoDomainFailoverAndUpdate,
+		},
+		{
+			name: "when a failover request also contains domain Data on an AA domain it should return errCannotDoDomainFailoverAndUpdate",
+			setupMock: func(domainManager *persistence.MockDomainManager, updateRequest *types.UpdateDomainRequest, _ *archiver.MockArchivalMetadata, timeSource clock.MockedTimeSource, _ *MockReplicator) {
+				domainManager.EXPECT().GetMetadata(ctx).Return(&persistence.GetMetadataResponse{}, nil).Times(1)
+				domainManager.EXPECT().GetDomain(ctx, &persistence.GetDomainRequest{Name: updateRequest.GetName()}).
+					Return(&persistence.GetDomainResponse{
+						ReplicationConfig: &persistence.DomainReplicationConfig{
+							ActiveClusterName: cluster.TestCurrentClusterName,
+							Clusters:          []*persistence.ClusterReplicationConfig{{ClusterName: cluster.TestCurrentClusterName}, {ClusterName: cluster.TestAlternativeClusterName}},
+							ActiveClusters: &types.ActiveClusters{
+								AttributeScopes: map[string]types.ClusterAttributeScope{
+									"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+										cluster.TestRegion1: {ActiveClusterName: cluster.TestCurrentClusterName},
+										cluster.TestRegion2: {ActiveClusterName: cluster.TestAlternativeClusterName},
+									}},
+								},
+							},
+						},
+						Config:          &persistence.DomainConfig{Retention: 1},
+						Info:            &persistence.DomainInfo{Name: constants.TestDomainName},
+						IsGlobalDomain:  true,
+						LastUpdatedTime: timeSource.Now().UnixNano(),
+					}, nil).Times(1)
+			},
+			request: &types.UpdateDomainRequest{
+				Name: constants.TestDomainName,
+				ActiveClusters: &types.ActiveClusters{
+					AttributeScopes: map[string]types.ClusterAttributeScope{
+						"region": {ClusterAttributes: map[string]types.ActiveClusterInfo{
+							cluster.TestRegion1: {ActiveClusterName: cluster.TestAlternativeClusterName},
+							cluster.TestRegion2: {ActiveClusterName: cluster.TestCurrentClusterName},
+						}},
+					},
+				},
+				Data: map[string]string{"key": "value"},
+			},
+			err: errCannotDoDomainFailoverAndUpdate,
+		},
 	}
 
 	for _, tc := range testCases {

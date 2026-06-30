@@ -524,9 +524,18 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 			},
 		}
 	}
+	newTransferTaskForWorkflow := func(workflowID string) *persistence.DecisionTask {
+		return &persistence.DecisionTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   testDomainID,
+				WorkflowID: workflowID,
+			},
+		}
+	}
 
 	s.Run("transfer tasks get fresh, strictly-increasing IDs", func() {
 		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		task1, task2 := newTransferTask(), newTransferTask()
 		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.MatchedBy(func(req *persistence.CreateHistoryTasksRequest) bool {
 			return req.ShardID != nil && *req.ShardID == testShardID &&
@@ -559,8 +568,24 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 		s.NotZero(timerTask.GetTaskID())
 	})
 
+	s.Run("multiple workflows in one domain share a single domain lookup", func() {
+		s.SetupTest()
+		// Two executions in the same domain must resolve the domain entry exactly once.
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil).Times(1)
+		task1, task2 := newTransferTaskForWorkflow("workflow-1"), newTransferTaskForWorkflow("workflow-2")
+		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.MatchedBy(func(req *persistence.CreateHistoryTasksRequest) bool {
+			return len(req.TasksByCategory[persistence.HistoryTaskCategoryTransfer]) == 2
+		})).Once().Return(nil)
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{task1, task2})
+		s.NoError(err)
+		s.NotZero(task1.GetTaskID())
+		s.NotZero(task2.GetTaskID())
+	})
+
 	s.Run("shard ownership lost closes the shard", func() {
 		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).Once().Return(&persistence.ShardOwnershipLostError{})
 
 		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{newTransferTask()})
@@ -570,6 +595,7 @@ func (s *contextTestSuite) TestReinjectHistoryTasks() {
 
 	s.Run("other errors are propagated without closing the shard", func() {
 		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
 		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).Once().Return(assert.AnError)
 
 		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{newTransferTask()})
