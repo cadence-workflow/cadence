@@ -192,12 +192,16 @@ var (
 	}
 
 	ScheduleInfo = types.ScheduleInfo{
-		LastRunTime:      scheduleTime2,
-		NextRunTime:      scheduleTime3,
-		TotalRuns:        42,
-		CreateTime:       scheduleTime5,
-		LastUpdateTime:   scheduleTime2,
-		OngoingBackfills: []*types.BackfillInfo{&ScheduleBackfillInfo, &ScheduleBackfillInfo2},
+		LastRunTime:          scheduleTime2,
+		NextRunTime:          scheduleTime3,
+		TotalRuns:            42,
+		MissedRuns:           3,
+		SkippedRuns:          1,
+		CreateTime:           scheduleTime5,
+		LastUpdateTime:       scheduleTime2,
+		OngoingBackfills:     []*types.BackfillInfo{&ScheduleBackfillInfo, &ScheduleBackfillInfo2},
+		BufferedFireCount:    5,
+		RunningWorkflowCount: 2,
 	}
 
 	ScheduleListEntry = types.ScheduleListEntry{

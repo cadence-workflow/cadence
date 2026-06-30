@@ -130,7 +130,6 @@ func TestBackfillInfoFuzz(t *testing.T) {
 func TestScheduleInfoFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromScheduleInfo, ToScheduleInfo,
 		WithScheduleEnumFuzzers(),
-		testutils.WithExcludedFields("BufferedFireCount", "RunningWorkflowCount"),
 	)
 }
 
