@@ -1558,26 +1558,28 @@ func (s *contextImpl) ReinjectHistoryTasks(
 		tasksByExecution[key][category] = append(tasksByExecution[key][category], task)
 	}
 
+	// Resolve domain entries before taking the shard lock to minimize the time spent holding the lock.
+	domainEntries := make(map[string]*cache.DomainCacheEntry)
+	for key := range tasksByExecution {
+		if _, ok := domainEntries[key.domainID]; ok {
+			continue
+		}
+		domainEntry, err := s.GetDomainCache().GetDomainByID(key.domainID)
+		if err != nil {
+			return err
+		}
+		domainEntries[key.domainID] = domainEntry
+	}
+
 	s.Lock()
 	defer s.Unlock()
 
 	immediateTaskMaxReadLevel := int64(0)
-	// Cache domain entries so a domain spanning many workflows is looked up only once.
-	domainEntries := make(map[string]*cache.DomainCacheEntry)
 	// tasksByCategory is built after allocation of taskIDs. It is used to build the persistence request.
 	tasksByCategory := make(persistence.HistoryTasksByCategory)
 	for key, executionTasks := range tasksByExecution {
-		domainEntry, ok := domainEntries[key.domainID]
-		if !ok {
-			var err error
-			domainEntry, err = s.GetDomainCache().GetDomainByID(key.domainID)
-			if err != nil {
-				return err
-			}
-			domainEntries[key.domainID] = domainEntry
-		}
 		if err := s.allocateTaskIDsLocked(
-			domainEntry,
+			domainEntries[key.domainID],
 			key.workflowID,
 			executionTasks,
 			&immediateTaskMaxReadLevel,
