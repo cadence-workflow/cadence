@@ -34,6 +34,7 @@ import (
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
@@ -43,6 +44,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 )
 
 type (
@@ -52,10 +54,11 @@ type (
 		*require.Assertions
 		controller *gomock.Controller
 
-		mockDomainCache *cache.MockDomainCache
-		timeSource      clock.TimeSource
-		mockMetadataMgr *mocks.MetadataManager
-		watcher         *failoverWatcherImpl
+		mockDomainCache   *cache.MockDomainCache
+		mockHistoryClient *history.MockClient
+		timeSource        clock.TimeSource
+		mockMetadataMgr   *mocks.MetadataManager
+		watcher           *failoverWatcherImpl
 	}
 )
 
@@ -78,6 +81,7 @@ func (s *failoverWatcherSuite) SetupTest() {
 	s.controller = gomock.NewController(s.T())
 
 	s.mockDomainCache = cache.NewMockDomainCache(s.controller)
+	s.mockHistoryClient = history.NewMockClient(s.controller)
 	s.timeSource = clock.NewMockedTimeSource()
 	s.mockMetadataMgr = &mocks.MetadataManager{}
 
@@ -92,6 +96,7 @@ func (s *failoverWatcherSuite) SetupTest() {
 		s.mockDomainCache,
 		s.mockMetadataMgr,
 		cluster.GetTestClusterMetadata(true),
+		s.mockHistoryClient,
 		s.timeSource,
 		dynamicproperties.GetDurationPropertyFn(10*time.Second),
 		dynamicproperties.GetFloatPropertyFn(0.2),
@@ -239,6 +244,13 @@ func (s *failoverWatcherSuite) TestHandleFailoverTimeout() {
 		NotificationVersion:         1,
 	}).Return(nil).Times(1)
 
+	s.mockHistoryClient.EXPECT().GetFailoverInfo(gomock.Any(), &types.GetFailoverInfoRequest{
+		DomainID: domainName,
+	}).Return(&types.GetFailoverInfoResponse{
+		CompletedShardCount: 1,
+		PendingShards:       []int32{1},
+	}, nil).Times(1)
+
 	domainEntry := cache.NewDomainCacheEntryForTest(
 		info,
 		domainConfig,
@@ -310,6 +322,11 @@ func (s *failoverWatcherSuite) TestRefreshDomainLoop() {
 	}, nil).Once()
 
 	s.mockMetadataMgr.On("UpdateDomain", mock.Anything, mock.Anything).Return(nil).Once()
+
+	s.mockHistoryClient.EXPECT().GetFailoverInfo(gomock.Any(), gomock.Any()).Return(&types.GetFailoverInfoResponse{
+		CompletedShardCount: 0,
+		PendingShards:       []int32{0, 1},
+	}, nil).AnyTimes()
 
 	s.watcher.Start()
 

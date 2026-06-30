@@ -545,8 +545,9 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision() {
 	s.Logger.Info("foreign PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
-	err = foreignPoller.PollAndProcessActivityTask(false)
-	s.Logger.Info("foreign PollAndProcessActivityTask", tag.Error(err))
+	// Run the activity in the original workflow. Its completion triggers the next decision, which signals the foreign workflow.
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
 	// Signal the foreign workflow with this decision request.
@@ -556,7 +557,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision() {
 
 	// in source workflow
 	signalSent := false
-	intiatedEventID := 10
+	intiatedEventID := 11
 CheckHistoryLoopForSignalSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
@@ -852,8 +853,9 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_WithoutRunID() {
 	s.Logger.Info("foreign PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
-	err = foreignPoller.PollAndProcessActivityTask(false)
-	s.Logger.Info("foreign PollAndProcessActivityTask", tag.Error(err))
+	// Complete the activity so the next decision is scheduled
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
 	// Signal the foreign workflow with this decision request.
@@ -863,7 +865,7 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_WithoutRunID() {
 
 	// in source workflow
 	signalSent := false
-	intiatedEventID := 10
+	intiatedEventID := 11
 CheckHistoryLoopForSignalSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
@@ -1000,13 +1002,18 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_UnKnownTarget() {
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
+	// Complete the activity so the next decision is scheduled
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
+	s.Nil(err)
+
 	// Signal the foreign workflow with this decision request.
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
 	signalSentFailed := false
-	intiatedEventID := 10
+	intiatedEventID := 11
 CheckHistoryLoopForCancelSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
@@ -1131,13 +1138,18 @@ func (s *IntegrationSuite) TestSignalExternalWorkflowDecision_SignalSelf() {
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
+	// Complete the activity so the next decision is scheduled
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
+	s.Nil(err)
+
 	// Signal the foreign workflow with this decision request.
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
 	signalSentFailed := false
-	intiatedEventID := 10
+	intiatedEventID := 11
 CheckHistoryLoopForCancelSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
@@ -1546,6 +1558,11 @@ func (s *IntegrationSuite) TestSignalWithStartWorkflow_IDReusePolicy() {
 	_, err := poller.PollAndProcessDecisionTask(false, false)
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
+	// Run the activity instead of waiting for it to time out
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
+	s.Nil(err)
+
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)

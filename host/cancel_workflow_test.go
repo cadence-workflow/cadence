@@ -327,8 +327,9 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	s.Logger.Info("foreign PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
-	err = foreignPoller.PollAndProcessActivityTask(false)
-	s.Logger.Info("foreign PollAndProcessActivityTask", tag.Error(err))
+	// Complete the activity so the next decision is scheduled
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 	s.Nil(err)
 
 	// Cancel the foreign workflow with this decision request.
@@ -337,7 +338,7 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution() {
 	s.Nil(err)
 
 	cancellationSent := false
-	intiatedEventID := 10
+	intiatedEventID := 11
 CheckHistoryLoopForCancelSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()
@@ -505,13 +506,18 @@ func (s *IntegrationSuite) TestRequestCancelWorkflowDecisionExecution_UnKnownTar
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
+	// Complete the activity so the next decision is scheduled
+	err = poller.PollAndProcessActivityTask(false)
+	s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
+	s.Nil(err)
+
 	// Cancel the foreign workflow with this decision request.
 	_, err = poller.PollAndProcessDecisionTask(false, false)
 	s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 	s.Nil(err)
 
 	cancellationSentFailed := false
-	intiatedEventID := 10
+	intiatedEventID := 11
 CheckHistoryLoopForCancelSent:
 	for i := 1; i < 10; i++ {
 		ctx, cancel := createContext()

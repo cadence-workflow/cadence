@@ -2263,7 +2263,7 @@ func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.Hi
 		startedEventID   int64
 	}
 
-	activityTaskUniqueEvents := make(map[eventUniquenessParams]struct{})
+	bufferedUniqueEvents := make(map[eventUniquenessParams]struct{})
 
 	checkEventUniqueness := func(event *types.HistoryEvent) bool {
 		var uniqueEventParams eventUniquenessParams
@@ -2340,11 +2340,48 @@ func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.Hi
 				scheduledEventID: scheduledEventID,
 				startedEventID:   event.ChildWorkflowExecutionCanceledEventAttributes.StartedEventID,
 			}
+		case types.EventTypeChildWorkflowExecutionTerminated:
+			scheduledEventID = event.ChildWorkflowExecutionTerminatedEventAttributes.GetInitiatedEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+				startedEventID:   event.ChildWorkflowExecutionTerminatedEventAttributes.StartedEventID,
+			}
+		case types.EventTypeStartChildWorkflowExecutionFailed:
+			scheduledEventID = event.StartChildWorkflowExecutionFailedEventAttributes.GetInitiatedEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeExternalWorkflowExecutionCancelRequested:
+			scheduledEventID = event.ExternalWorkflowExecutionCancelRequestedEventAttributes.GetInitiatedEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeRequestCancelExternalWorkflowExecutionFailed:
+			scheduledEventID = event.RequestCancelExternalWorkflowExecutionFailedEventAttributes.GetInitiatedEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeExternalWorkflowExecutionSignaled:
+			scheduledEventID = event.ExternalWorkflowExecutionSignaledEventAttributes.GetInitiatedEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
+		case types.EventTypeSignalExternalWorkflowExecutionFailed:
+			scheduledEventID = event.SignalExternalWorkflowExecutionFailedEventAttributes.GetInitiatedEventID()
+			uniqueEventParams = eventUniquenessParams{
+				eventType:        event.GetEventType(),
+				scheduledEventID: scheduledEventID,
+			}
 		default:
 			return true
 		}
 
-		if _, ok := activityTaskUniqueEvents[uniqueEventParams]; ok {
+		if _, ok := bufferedUniqueEvents[uniqueEventParams]; ok {
 			e.logger.Error("Duplicate event found",
 				tag.WorkflowDomainName(e.GetDomainEntry().GetInfo().Name),
 				tag.WorkflowID(e.GetExecutionInfo().WorkflowID),
@@ -2354,10 +2391,10 @@ func (e *mutableStateBuilder) reorderAndFilterDuplicateEvents(events []*types.Hi
 				tag.Dynamic("duplication-source", source),
 			)
 
-			e.metricsClient.IncCounter(metrics.HistoryFlushBufferedEventsScope, metrics.DuplicateActivityTaskEventCounter)
+			e.metricsClient.IncCounter(metrics.HistoryFlushBufferedEventsScope, metrics.DuplicateBufferedEventCounter)
 			return false
 		}
-		activityTaskUniqueEvents[uniqueEventParams] = struct{}{}
+		bufferedUniqueEvents[uniqueEventParams] = struct{}{}
 		return true
 	}
 

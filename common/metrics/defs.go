@@ -2578,6 +2578,13 @@ const (
 	// cluster forwarding policy metrics
 	ClusterForwardingPolicyRequests
 
+	// cluster metadata metrics
+	ClusterMetadataFailureToResolveCounter
+	ClusterMetadataGettingMinFailoverVersionCounter
+	ClusterMetadataGettingFailoverVersionCounter
+	ClusterMetadataResolvingFailoverVersionCounter
+	ClusterMetadataResolvingMinFailoverVersionCounter
+
 	RingResolverError
 
 	// WorkflowExecutionHistoryAccess tracks the access to the workflow history
@@ -2677,12 +2684,6 @@ const (
 	QueueValidatorValidationCounter
 	QueueValidatorValidationFailure
 
-	ClusterMetadataFailureToResolveCounter
-	ClusterMetadataGettingMinFailoverVersionCounter
-	ClusterMetadataGettingFailoverVersionCounter
-	ClusterMetadataResolvingFailoverVersionCounter
-	ClusterMetadataResolvingMinFailoverVersionCounter
-
 	ActivityE2ELatency
 	ActivityE2ELatencyHistogram
 	ActivityLostCounter
@@ -2709,7 +2710,7 @@ const (
 	DecisionRetriesExceededCounter
 	StaleMutableStateCounter
 	DataInconsistentCounter
-	DuplicateActivityTaskEventCounter
+	DuplicateBufferedEventCounter
 	TimerResurrectionCounter
 	TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading
 	TimerProcessingDeletionTimerNoopDueToWFRunning
@@ -3557,6 +3558,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		ClusterForwardingPolicyRequests: {metricName: "cluster_forwarding_policy_requests", metricType: Counter},
 
+		ClusterMetadataFailureToResolveCounter:            {metricName: "failed_to_resolve_failover_version", metricType: Counter},
+		ClusterMetadataGettingMinFailoverVersionCounter:   {metricName: "getting_min_failover_version_counter", metricType: Counter},
+		ClusterMetadataGettingFailoverVersionCounter:      {metricName: "getting_failover_version_counter", metricType: Counter},
+		ClusterMetadataResolvingFailoverVersionCounter:    {metricName: "resolving_failover_version_counter", metricType: Counter},
+		ClusterMetadataResolvingMinFailoverVersionCounter: {metricName: "resolving_min_failover_version_counter", metricType: Counter},
+
 		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
 
 		WorkflowExecutionHistoryAccess: {metricName: "workflow_execution_history_access", metricType: Gauge},
@@ -3659,11 +3666,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		QueueValidatorInvalidLoadCounter:                              {metricName: "queue_validator_invalid_load_counter", metricType: Counter},
 		QueueValidatorValidationCounter:                               {metricName: "queue_validator_validation_counter", metricType: Counter},
 		QueueValidatorValidationFailure:                               {metricName: "queue_validator_validation_error", metricType: Counter},
-		ClusterMetadataFailureToResolveCounter:                        {metricName: "failed_to_resolve_failover_version", metricType: Counter},
-		ClusterMetadataGettingMinFailoverVersionCounter:               {metricName: "getting_min_failover_version_counter", metricType: Counter},
-		ClusterMetadataGettingFailoverVersionCounter:                  {metricName: "getting_failover_version_counter", metricType: Counter},
-		ClusterMetadataResolvingFailoverVersionCounter:                {metricName: "resolving_failover_version_counter", metricType: Counter},
-		ClusterMetadataResolvingMinFailoverVersionCounter:             {metricName: "resolving_min_failover_version_counter", metricType: Counter},
 		ActivityE2ELatency:                                            {metricName: "activity_end_to_end_latency", metricType: Timer},
 		ActivityE2ELatencyHistogram:                                   {metricName: "activity_end_to_end_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		ActivityLostCounter:                                           {metricName: "activity_lost", metricType: Counter},
@@ -3690,7 +3692,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DecisionRetriesExceededCounter:                                {metricName: "decision_retries_exceeded", metricType: Counter},
 		StaleMutableStateCounter:                                      {metricName: "stale_mutable_state", metricType: Counter},
 		DataInconsistentCounter:                                       {metricName: "data_inconsistent", metricType: Counter},
-		DuplicateActivityTaskEventCounter:                             {metricName: "duplicate_activity_task_event", metricType: Counter},
+		DuplicateBufferedEventCounter:                                 {metricName: "duplicate_buffered_event", metricType: Counter},
 		TimerResurrectionCounter:                                      {metricName: "timer_resurrection", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading:   {metricName: "timer_processing_skipping_deletion_due_to_missing_mutable_state", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToWFRunning:                {metricName: "timer_processing_skipping_deletion_due_to_running", metricType: Counter},

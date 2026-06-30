@@ -1635,16 +1635,6 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	// the marker is stale and should be dropped to avoid an infinite re-notify loop
 	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
 
-	// markerVersion > domainVersion violates the monotonic-version
-	// invariant. Always drop; only alert on the to-be-active cluster
-	// (where graceful-failover ordering guarantees the invariant). On
-	// passive replicas a transient regression can be a benign race
-	// between independent domain and marker replication queues.
-	if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
-		s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Skipped pending failover marker: marker version is greater than domain version")
-		return nil
-	}
-
 	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
 		s.logger.Info("Skipped pending failover marker",
 			tag.WorkflowDomainName(domainEntry.GetInfo().Name),
@@ -1673,31 +1663,6 @@ func failoverMarkerSkipReason(isActive, failoverCompleted bool, domainFailoverVe
 	default:
 		return "unknown"
 	}
-}
-
-// logMarkerRegressionIfOnActiveCluster emits an Error log + counter only when
-// the local cluster is the active for the domain — i.e. the cluster where
-// graceful-failover ordering guarantees the monotonic-version invariant must
-// hold. On passive replicas a transient regression can be a benign race
-// between the independent domain and marker replication queues, so we drop
-// the marker silently there. This is in-memory only by design: the caller
-// may be holding the shard RLock, and we must not perform I/O under it.
-func (s *contextImpl) logMarkerRegressionIfOnActiveCluster(
-	domainEntry *cache.DomainCacheEntry,
-	marker *types.FailoverMarkerAttributes,
-	logMessage string,
-) {
-	repl := domainEntry.GetReplicationConfig()
-	if repl == nil || repl.ActiveClusterName != s.GetClusterMetadata().GetCurrentClusterName() {
-		return
-	}
-	s.logger.Error(logMessage,
-		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
-		tag.WorkflowDomainID(marker.GetDomainID()),
-		tag.Number(domainEntry.GetFailoverVersion()),
-		tag.NextNumber(marker.GetFailoverVersion()),
-	)
-	s.GetMetricsClient().Scope(metrics.FailoverMarkerScope, metrics.DomainTag(domainEntry.GetInfo().Name)).IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
 }
 
 func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error) {
@@ -1733,18 +1698,6 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
 		failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
-
-		// markerVersion > domainVersion violates the monotonic-version
-		// invariant: a marker's FailoverVersion is set from the domain's
-		// FailoverVersion at the moment the marker is written. Always
-		// drop so it doesn't ship every 5s forever and falsely advertise
-		// an in-flight graceful failover; only alert on the to-be-active
-		// cluster where the ordering invariant must hold.
-		if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
-			s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Dropped pending failover marker: marker version is greater than domain version")
-			completedFailoverMarkers[marker] = struct{}{}
-			continue
-		}
 
 		// Drop failover markers if domain is deprecated
 		// or domain is already active in the currentCluster

@@ -427,6 +427,15 @@ func (c *cadenceImpl) Stop() {
 	if c.enableWorker() {
 		serviceCount++
 	}
+	if c.workerConfig.EnableReplicator {
+		c.replicator.Stop()
+	}
+	if c.workerConfig.EnableArchiver {
+		c.clientWorker.Stop()
+	}
+	if c.workerConfig.EnableScheduler {
+		c.schedulerWorkerManager.Stop()
+	}
 
 	c.shutdownWG.Add(serviceCount)
 	c.frontendService.Stop()
@@ -437,12 +446,6 @@ func (c *cadenceImpl) Stop() {
 		matchingService.Stop()
 	}
 
-	if c.workerConfig.EnableReplicator {
-		c.replicator.Stop()
-	}
-	if c.workerConfig.EnableArchiver {
-		c.clientWorker.Stop()
-	}
 	close(c.shutdownCh)
 	c.shutdownWG.Wait()
 }
@@ -1010,7 +1013,6 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	var schedulerDomainCache cache.DomainCache
 	if c.workerConfig.EnableScheduler {
 		schedulerDomainCache = c.startSchedulerWorkerManager(params, service)
-		defer c.schedulerWorkerManager.Stop()
 		defer schedulerDomainCache.Stop()
 	}
 
