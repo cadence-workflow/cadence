@@ -567,3 +567,38 @@ CREATE TABLE domain_audit_log (
   AND COMPACTION = {
       'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
   };
+
+
+CREATE TABLE history_task_dlq (
+    shard_id                  int,
+    domain_id                 text,
+    cluster_attribute_scope   text,
+    cluster_attribute_name    text,
+    task_type                 int,
+    visibility_ts             timestamp,
+    task_id                   bigint,
+    workflow_id               text,
+    run_id                    text,
+    task_payload              blob,
+    encoding_type             text,
+    version                   bigint,
+    created_at                timestamp,
+    PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_type, visibility_ts, task_id)
+) WITH CLUSTERING ORDER BY (task_type ASC, visibility_ts ASC, task_id ASC)
+    AND compaction = {
+        'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+    };
+
+CREATE TABLE history_task_dlq_ack_level (
+    shard_id                  int,
+    domain_id                 text,
+    cluster_attribute_scope   text,
+    cluster_attribute_name    text,
+    task_type                 int,
+    ack_level_visibility_ts   timestamp,
+    ack_level_task_id         bigint,
+    last_updated_at           timestamp,
+    PRIMARY KEY ((shard_id), domain_id, cluster_attribute_scope, cluster_attribute_name, task_type)
+) WITH compaction = {
+    'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
+};
