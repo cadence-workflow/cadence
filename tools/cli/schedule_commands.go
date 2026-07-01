@@ -289,10 +289,10 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		if policies.ConcurrencyLimit > 0 && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
+		if c.IsSet(FlagConcurrencyLimit) && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
 			return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
 		}
-		if policies.BufferLimit > 0 && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer {
+		if c.IsSet(FlagBufferLimit) && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer {
 			return commoncli.Problem("--buffer_limit requires --overlap_policy buffer", nil)
 		}
 		request.Policies = policies

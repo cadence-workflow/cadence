@@ -377,6 +377,21 @@ func TestScheduleCLI_UpdateSchedule_ConcurrencyLimit(t *testing.T) {
 			errContains: "--concurrency_limit requires --overlap_policy concurrent",
 		},
 		{
+			// Switching overlap policy on a schedule with an inherited ConcurrencyLimit
+			// must not falsely reject the update: the inherited limit is harmless when
+			// the user did not explicitly pass --concurrency_limit.
+			name:      "overlap policy switch with inherited concurrency_limit succeeds",
+			extraArgs: []string{"--" + FlagOverlapPolicy, "skipnew"},
+			setupMock: func(m *frontend.MockClient) {
+				m.EXPECT().DescribeSchedule(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeScheduleResponse{Policies: &types.SchedulePolicies{
+						OverlapPolicy:    types.ScheduleOverlapPolicyConcurrent,
+						ConcurrencyLimit: 5,
+					}}, nil)
+				m.EXPECT().UpdateSchedule(gomock.Any(), gomock.Any()).Return(&types.UpdateScheduleResponse{}, nil)
+			},
+		},
+		{
 			name:    "no flags returns error",
 			wantErr: true,
 		},
