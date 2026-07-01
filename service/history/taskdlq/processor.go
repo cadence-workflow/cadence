@@ -236,6 +236,17 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 		return nil
 	}
 
+	// Reinjection only supports transfer and timer tasks (see ExecutionManager.CreateHistoryTasks).
+	// Skip any other category (e.g. replication) so an ack level cannot block processing.
+	if id := al.TaskCategory.ID(); id != persistence.HistoryTaskCategoryIDTransfer &&
+		id != persistence.HistoryTaskCategoryIDTimer {
+		p.logger.Debug("Skipping DLQ ack level for unsupported task category",
+			tag.ShardID(p.shardID),
+			tag.WorkflowDomainID(al.DomainID),
+			tag.TaskType(al.TaskCategory.ID()))
+		return nil
+	}
+
 	scope := p.metricsClient.Scope(metrics.HistoryTaskDLQProcessorScope, metrics.DomainTag(al.DomainID))
 
 	var (

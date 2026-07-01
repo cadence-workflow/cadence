@@ -105,6 +105,25 @@ func TestProcessShard_WhenNoAckLevels_ReturnsNil(t *testing.T) {
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
+// TestProcessShard_WhenCategoryUnsupported_SkipsWithoutReinjecting verifies that a stray
+// replication ack level is skipped rather than paged and reinjected. Reinjection only supports
+// transfer and timer tasks; attempting to reinject replication would fail at the store, leaving
+// the ack level unadvanced and retried forever.
+func TestProcessShard_WhenCategoryUnsupported_SkipsWithoutReinjecting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, _ := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+	al.TaskCategory = persistence.HistoryTaskCategoryReplication
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	// No GetHistoryDLQTasks / ReinjectHistoryTasks / UpdateHistoryDLQAckLevel expectations:
+	// the partition must be skipped entirely.
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
 func TestProcessShard_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

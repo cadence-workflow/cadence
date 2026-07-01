@@ -83,6 +83,11 @@ func TestTransferQueueProcessor_StartStop(t *testing.T) {
 	ctrl, processor := setupTransferQueueProcessor(t, nil)
 	defer ctrl.Finish()
 
+	mockShard := processor.shard.(*shard.TestContext)
+	mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Maybe()
+	mockShard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Maybe()
+
 	assert.Equal(t, common.DaemonStatusInitialized, processor.status)
 
 	processor.Start()
@@ -104,6 +109,11 @@ func TestTransferQueueProcessor_StartNotGracefulStop(t *testing.T) {
 
 	ctrl, processor := setupTransferQueueProcessor(t, cfg)
 	defer ctrl.Finish()
+
+	mockShard := processor.shard.(*shard.TestContext)
+	mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+		Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Maybe()
+	mockShard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	assert.Equal(t, common.DaemonStatusInitialized, processor.status)
 	processor.Start()
@@ -209,6 +219,9 @@ func TestTransferQueueProcessor_FailoverDomain(t *testing.T) {
 					},
 				}
 				mockShard.GetExecutionManager().(*mocks.ExecutionManager).On("GetHistoryTasks", mock.Anything, mock.Anything).Return(response, nil).Once()
+				mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+					Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Maybe()
+				mockShard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Maybe()
 			},
 			processorStarted: true,
 		},
@@ -263,6 +276,11 @@ func TestTransferQueueProcessor_HandleAction(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl, processor := setupTransferQueueProcessor(t, nil)
 			defer ctrl.Finish()
+
+			mockShard := processor.shard.(*shard.TestContext)
+			mockShard.Resource.ExecutionMgr.On("RangeCompleteHistoryTask", mock.Anything, mock.Anything).
+				Return(&persistence.RangeCompleteHistoryTaskResponse{}, nil).Maybe()
+			mockShard.Resource.ShardMgr.On("UpdateShard", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 			defer processor.Stop()
 			processor.Start()
@@ -349,8 +367,16 @@ func TestTransferQueueProcessor_completeTransfer(t *testing.T) {
 
 			tt.mockSetup(processor.shard.(*shard.TestContext))
 
-			defer processor.Stop()
-			processor.Start()
+			processor.activeQueueProcessor.Start()
+			for _, standbyQueueProcessor := range processor.standbyQueueProcessors {
+				standbyQueueProcessor.Start()
+			}
+			defer func() {
+				processor.activeQueueProcessor.Stop()
+				for _, standbyQueueProcessor := range processor.standbyQueueProcessors {
+					standbyQueueProcessor.Stop()
+				}
+			}()
 
 			err := processor.completeTransfer()
 
