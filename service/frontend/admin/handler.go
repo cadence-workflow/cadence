@@ -142,6 +142,7 @@ func NewHandler(
 			resource.GetDomainCache(),
 			resource.GetDomainManager(),
 			resource.GetClusterMetadata(),
+			resource.GetHistoryClient(),
 			resource.GetTimeSource(),
 			config.DomainFailoverRefreshInterval,
 			config.DomainFailoverRefreshTimerJitterCoefficient,
