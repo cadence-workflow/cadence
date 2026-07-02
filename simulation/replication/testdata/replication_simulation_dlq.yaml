@@ -6,7 +6,7 @@
 # Tests the history-task DLQ fill + drain-via-failover flow:
 #   1. Many active-active workflows run active in region0 (cluster0). While they run, the standby
 #      cluster (cluster1) processes standby timer tasks; the dynamic config forces the DLQ-fill
-#      race (standbyClusterDelay ~0 + resendDelay 0s + discardDelay 1s + throttled replication),
+#      race (standbyClusterDelay ~0 + resendDelay 0s + discardDelay 0s + throttled replication),
 #      so some unverifiable standby timer tasks are written to cluster1's history-task DLQ. Heavy
 #      load raises the chance at least one task lands in the DLQ.
 #   2. validate_dlq asserts the standby DLQ (cluster1 keyspace) has filled up.
