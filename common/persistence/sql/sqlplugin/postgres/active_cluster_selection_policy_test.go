@@ -192,6 +192,8 @@ func TestSelectIntoActiveClusterSelectionPolicy(t *testing.T) {
 				assert.Equal(t, testDomainID, result.DomainID)
 				assert.Equal(t, testWorkflowID, result.WorkflowID)
 				assert.Equal(t, testRunID, result.RunID)
+				assert.Equal(t, []byte("test-data-123"), result.Data)
+				assert.Equal(t, "thriftrw", result.DataEncoding)
 			}
 		})
 	}
