@@ -1847,6 +1847,10 @@ type (
 	HistoryDLQGetTasksResponse struct {
 		Tasks         []Task
 		NextPageToken []byte
+		// PageSizeBytes is the summed serialized byte size of the raw task payloads in
+		// this page, before deserialization. Callers can use it to track
+		// batch size relative to the underlying store's batch threshold.
+		PageSizeBytes int
 	}
 
 	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.

@@ -1559,6 +1559,8 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	}
 
 	// Resolve domain entries before taking the shard lock to minimize the time spent holding the lock.
+	// TODO(c-warren): Only timer tasks require a domain entry; transfer tasks are shard-global and don't need it.
+	// Either only resolve domain entries for timer tasks or accept the additional cache hits.
 	domainEntries := make(map[string]*cache.DomainCacheEntry)
 	for key := range tasksByExecution {
 		if _, ok := domainEntries[key.domainID]; ok {
@@ -1606,7 +1608,7 @@ func (s *contextImpl) ReinjectHistoryTasks(
 		// Update MaxReadLevel if write to DB succeeds
 		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
 	} else if errors.As(err, new(*persistence.ShardOwnershipLostError)) {
-		// do not retry on ShardOwnershipLostError
+		// If Shard ownership has been lost, close the shard and return the error.
 		s.logger.Warn(
 			"Closing shard: ReinjectHistoryTasks failed due to stolen shard.",
 			tag.Error(err),

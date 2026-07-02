@@ -194,6 +194,26 @@ func (db *CDB) InsertOrUpdateHistoryDLQAckLevelRow(
 	return query.Exec()
 }
 
+// InsertHistoryDLQAckLevelIfNotExistsRow writes a sentinel ack-level row only when
+// no row for this (shard, domain, scope, name, task_type) already exists. Both
+// outcomes (created or already present) are successful — the [applied] LWT result
+// is intentionally discarded since we never want to overwrite progress.
+func (db *CDB) InsertHistoryDLQAckLevelIfNotExistsRow(
+	ctx context.Context,
+	row *nosqlplugin.HistoryDLQAckLevelRow,
+) error {
+	return db.session.Query(templateInitHistoryDLQAckLevelRowQuery,
+		row.ShardID,
+		row.DomainID,
+		row.ClusterAttributeScope,
+		row.ClusterAttributeName,
+		row.TaskType,
+		row.AckLevelVisibilityTS,
+		row.AckLevelTaskID,
+		row.LastUpdatedAt,
+	).WithContext(ctx).Exec()
+}
+
 func parseHistoryDLQAckLevelRow(shardID int, row map[string]interface{}) *nosqlplugin.HistoryDLQAckLevelRow {
 	return &nosqlplugin.HistoryDLQAckLevelRow{
 		ShardID:               shardID,
