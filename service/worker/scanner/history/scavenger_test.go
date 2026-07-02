@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
@@ -370,6 +371,62 @@ func (s *ScavengerTestSuite) TestDeletingBranchesTwoPages() {
 	s.Equal(0, hbd.ErrorCount)
 	s.Equal(2, hbd.CurrentPage)
 	s.Equal(0, len(hbd.NextPageToken))
+}
+
+func TestDeletingBranchesDomainNotExist(t *testing.T) {
+	logger := testlogger.New(t)
+	metric := metrics.NewClient(tally.NoopScope, metrics.Worker, metrics.MigrationConfig{})
+	controller := gomock.NewController(t)
+	mockCache := cache.NewMockDomainCache(controller)
+
+	db := &mocks.HistoryV2Manager{}
+	workflowClient := history.NewMockClient(controller)
+	maxWorkflowRetentionInDays := dynamicproperties.GetIntPropertyFn(dynamicproperties.MaxRetentionDays.DefaultInt())
+	scvgr := NewScavenger(db, 100, workflowClient, ScavengerHeartbeatDetails{}, metric, logger, maxWorkflowRetentionInDays, mockCache)
+	scvgr.isInTest = true
+
+	db.On("GetAllHistoryTreeBranches", mock.Anything, &p.GetAllHistoryTreeBranchesRequest{
+		PageSize: pageSize,
+	}).Return(&p.GetAllHistoryTreeBranchesResponse{
+		Branches: []p.HistoryBranchDetail{
+			{
+				TreeID:   "treeID1",
+				BranchID: "branchID1",
+				ForkTime: time.Now().Add(-getHistoryCleanupThreshold(dynamicproperties.MaxRetentionDays.DefaultInt()) * 2),
+				Info:     p.BuildHistoryGarbageCleanupInfo("domainID1", "workflowID1", "runID1"),
+			},
+		},
+	}, nil).Once()
+
+	workflowClient.EXPECT().DescribeMutableState(gomock.Any(), &types.DescribeMutableStateRequest{
+		DomainUUID: "domainID1",
+		Execution: &types.WorkflowExecution{
+			WorkflowID: "workflowID1",
+			RunID:      "runID1",
+		},
+	}).Return(nil, &types.EntityNotExistsError{})
+
+	// domain no longer exists; the scavenger should still delete the garbage history branch
+	mockCache.EXPECT().GetDomainName("domainID1").Return("", &types.EntityNotExistsError{})
+
+	branchToken1, err := p.NewHistoryBranchTokenByBranchID("treeID1", "branchID1")
+	require.NoError(t, err)
+	db.On("DeleteHistoryBranch", mock.Anything, &p.DeleteHistoryBranchRequest{
+		BranchToken: branchToken1,
+		ShardID:     common.IntPtr(1),
+		DomainName:  "",
+	}).Return(nil).Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hbd, err := scvgr.Run(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, hbd.SkipCount)
+	require.Equal(t, 1, hbd.SuccCount)
+	require.Equal(t, 0, hbd.ErrorCount)
+	require.Equal(t, 1, hbd.CurrentPage)
+	require.Equal(t, 0, len(hbd.NextPageToken))
+	db.AssertExpectations(t)
 }
 
 func (s *ScavengerTestSuite) TestMixesTwoPages() {

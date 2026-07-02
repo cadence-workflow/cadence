@@ -42,11 +42,6 @@ import (
 const (
 	// how long to allow things to be beyond when they should have been fully cleaned up, for safety purposes
 	retentionSafetyMargin = time.Hour * 24 * 10
-
-	// time.DateOnly, introduced in go1.20
-	//
-	// deprecated: use time.DateOnly when able
-	dateOnly = "2006-01-02"
 )
 
 // sane time ranges for workflows.
@@ -225,8 +220,8 @@ func (c *staleWorkflowCheck) checkAge(workflow *persistence.GetWorkflowExecution
 			zap.String("rid", info.RunID),
 			zap.String("domain_name", domainName),
 			zap.String("domain_id", info.DomainID),
-			zap.String("started_at", info.StartTimestamp.Format(dateOnly)),
-			zap.String("expected_cleanup_at", expected.Format(dateOnly)),
+			zap.String("started_at", info.StartTimestamp.Format(time.DateOnly)),
+			zap.String("expected_cleanup_at", expected.Format(time.DateOnly)),
 			zap.String("state", state), // may simplify log processing
 		)
 	}
@@ -321,7 +316,7 @@ func (c *staleWorkflowCheck) checkRunningAge(workflow *persistence.GetWorkflowEx
 			CheckResultType: CheckResultTypeCorrupted,
 			InvariantName:   c.Name(),
 			Info:            "stale running workflow",
-			InfoDetails:     fmt.Sprintf("running workflow should have timed out by %v and been cleaned up by %v, but it still exists", timesOutAt.Format(dateOnly), cleansUpAt.Format(dateOnly)),
+			InfoDetails:     fmt.Sprintf("running workflow should have timed out by %v and been cleaned up by %v, but it still exists", timesOutAt.Format(time.DateOnly), cleansUpAt.Format(time.DateOnly)),
 		}
 	}
 	return false, cleansUpAt, CheckResult{
@@ -376,7 +371,7 @@ func (c *staleWorkflowCheck) checkClosedAge(workflow *persistence.GetWorkflowExe
 			CheckResultType: CheckResultTypeCorrupted,
 			InvariantName:   c.Name(),
 			Info:            "completed workflow exists beyond retention window",
-			InfoDetails:     fmt.Sprintf("completed workflow exists beyond retention window, should have disappeared by %v", closed.Add(maxLifespan).Format(dateOnly)),
+			InfoDetails:     fmt.Sprintf("completed workflow exists beyond retention window, should have disappeared by %v", closed.Add(maxLifespan).Format(time.DateOnly)),
 		}
 	}
 
@@ -385,7 +380,7 @@ func (c *staleWorkflowCheck) checkClosedAge(workflow *persistence.GetWorkflowExe
 		CheckResultType: CheckResultTypeHealthy,
 		InvariantName:   c.Name(),
 		Info:            "completed workflow still within retention + 10-day buffer",
-		InfoDetails:     fmt.Sprintf("completed workflow still within retention + 10-day buffer, closed %v and allowed to exist until %v", closed, closed.Add(maxLifespan).Format(dateOnly)),
+		InfoDetails:     fmt.Sprintf("completed workflow still within retention + 10-day buffer, closed %v and allowed to exist until %v", closed, closed.Add(maxLifespan).Format(time.DateOnly)),
 	}
 
 }

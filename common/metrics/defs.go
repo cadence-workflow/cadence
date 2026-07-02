@@ -2706,7 +2706,7 @@ const (
 	DecisionRetriesExceededCounter
 	StaleMutableStateCounter
 	DataInconsistentCounter
-	DuplicateActivityTaskEventCounter
+	DuplicateBufferedEventCounter
 	TimerResurrectionCounter
 	TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading
 	TimerProcessingDeletionTimerNoopDueToWFRunning
@@ -3679,7 +3679,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		DecisionRetriesExceededCounter:                                {metricName: "decision_retries_exceeded", metricType: Counter},
 		StaleMutableStateCounter:                                      {metricName: "stale_mutable_state", metricType: Counter},
 		DataInconsistentCounter:                                       {metricName: "data_inconsistent", metricType: Counter},
-		DuplicateActivityTaskEventCounter:                             {metricName: "duplicate_activity_task_event", metricType: Counter},
+		DuplicateBufferedEventCounter:                                 {metricName: "duplicate_buffered_event", metricType: Counter},
 		TimerResurrectionCounter:                                      {metricName: "timer_resurrection", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading:   {metricName: "timer_processing_skipping_deletion_due_to_missing_mutable_state", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToWFRunning:                {metricName: "timer_processing_skipping_deletion_due_to_running", metricType: Counter},
