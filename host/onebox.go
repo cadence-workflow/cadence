@@ -65,6 +65,7 @@ import (
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/persistence/wrappers/metered"
 	"github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
@@ -92,7 +93,7 @@ type Cadence interface {
 	GetHistoryClient() historyClient.Client
 	GetMatchingClient() matchingClient.Client
 	GetMatchingClients() []matchingClient.Client
-	GetExecutionManagerFactory() persistence.ExecutionManagerFactory
+	GetExecutionManagerFactory() persistenceClient.Factory
 }
 
 type (
@@ -112,7 +113,7 @@ type (
 		messagingClient               messaging.Client
 		domainManager                 persistence.DomainManager
 		historyV2Mgr                  persistence.HistoryManager
-		executionMgrFactory           persistence.ExecutionManagerFactory
+		executionMgrFactory           persistenceClient.Factory
 		domainReplicationQueue        domain.ReplicationQueue
 		shutdownCh                    chan struct{}
 		shutdownWG                    sync.WaitGroup
@@ -312,7 +313,7 @@ type (
 		MessagingClient               messaging.Client
 		DomainManager                 persistence.DomainManager
 		HistoryV2Mgr                  persistence.HistoryManager
-		ExecutionMgrFactory           persistence.ExecutionManagerFactory
+		ExecutionMgrFactory           persistenceClient.Factory
 		DomainReplicationQueue        domain.ReplicationQueue
 		Logger                        log.Logger
 		ZapLogger                     *zap.Logger
@@ -1154,7 +1155,7 @@ func (c *cadenceImpl) createSystemDomain() error {
 	return nil
 }
 
-func (c *cadenceImpl) GetExecutionManagerFactory() persistence.ExecutionManagerFactory {
+func (c *cadenceImpl) GetExecutionManagerFactory() persistenceClient.Factory {
 	return c.executionMgrFactory
 }
 

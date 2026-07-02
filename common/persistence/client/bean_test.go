@@ -46,6 +46,7 @@ type beanmocks struct {
 	historyManager        *persistence.MockHistoryManager
 	configManager         *persistence.MockConfigStoreManager
 	historyTaskDLQManager *persistence.MockHistoryTaskDLQManager
+	executionManager      *persistence.MockExecutionManager
 }
 
 func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) {
@@ -61,6 +62,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		historyManager:        persistence.NewMockHistoryManager(ctrl),
 		configManager:         persistence.NewMockConfigStoreManager(ctrl),
 		historyTaskDLQManager: persistence.NewMockHistoryTaskDLQManager(ctrl),
+		executionManager:      persistence.NewMockExecutionManager(ctrl),
 	}
 	f = NewMockFactory(ctrl)
 	defaultMocks = func() {
@@ -74,6 +76,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		f.EXPECT().NewHistoryManager().Return(m.historyManager, nil).MaxTimes(1)
 		f.EXPECT().NewConfigStoreManager().Return(m.configManager, nil).MaxTimes(1)
 		f.EXPECT().NewHistoryTaskDLQManager().Return(m.historyTaskDLQManager, nil).MaxTimes(1)
+		f.EXPECT().NewExecutionManager().Return(m.executionManager, nil).MaxTimes(1)
 	}
 	return f, m, defaultMocks
 }
@@ -140,6 +143,12 @@ func TestBeanCoverage(t *testing.T) {
 					f.EXPECT().NewHistoryTaskDLQManager().Return(nil, fmt.Errorf("no history task DLQ manager"))
 				},
 				err: "no history task DLQ manager",
+			},
+			"execution manager error": {
+				mockSetup: func(t *testing.T, f *MockFactory) {
+					f.EXPECT().NewExecutionManager().Return(nil, fmt.Errorf("no execution manager"))
+				},
+				err: "no execution manager",
 			},
 		}
 		for name, test := range tests {
@@ -236,8 +245,7 @@ func TestBeanCoverage(t *testing.T) {
 		defaultMocks()
 		impl, err := NewBeanFromFactory(f, nil, nil)
 		require.NoError(t, err)
-		_, err = impl.GetExecutionManager()
-		require.NoError(t, err, "setup sanity check failed")
+		require.NotNil(t, impl.GetExecutionManager(), "setup sanity check failed")
 
 		// make the execution manager that will be set
 		ex1 := persistence.NewMockExecutionManager(m.mockCtrl)
@@ -272,8 +280,7 @@ func TestBeanCoverage(t *testing.T) {
 		require.NoError(t, err)
 
 		// seed the execution managers (could call Set instead)
-		v, err := impl.GetExecutionManager()
-		require.NoError(t, err)
+		v := impl.GetExecutionManager()
 		require.NotNil(t, v)
 
 		// ensure everything is closed
@@ -319,10 +326,9 @@ func errgroupAssertExecutionManagerEqual(t *testing.T, expected persistence.Exec
 	t.Helper()
 	return func() error {
 		t.Helper()
-		val, err := impl.GetExecutionManager()
-		assert.NoError(t, err) // cannot use require in other goroutines
+		val := impl.GetExecutionManager()
 		assertMocksEqual(t, expected, val)
-		return err
+		return nil
 	}
 }
 
@@ -332,20 +338,16 @@ func errgroupAssertSetsExecutionManager(t *testing.T, expected persistence.Execu
 		t.Helper()
 
 		// sanity check first
-		val, err := impl.GetExecutionManager()
-		if !assert.NoError(t, err, "could not do initial Get to check values") {
-			return nil
-		}
+		val := impl.GetExecutionManager()
 		if !assertMocksNotEqual(t, expected, val) {
 			return nil
 		}
 
 		impl.SetExecutionManager(expected)
 
-		val, err = impl.GetExecutionManager()
-		assert.NoError(t, err) // cannot use require in other goroutines
+		val = impl.GetExecutionManager()
 		assertMocksEqual(t, expected, val)
-		return err
+		return nil
 	}
 }
 
