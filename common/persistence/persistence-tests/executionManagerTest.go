@@ -147,6 +147,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:    s.ShardInfo.RangeID,
 		Mode:       p.CreateWorkflowModeBrandNew,
 		DomainName: domainName,
@@ -168,6 +169,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionDeDup() {
 			Condition:        nextEventID,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -234,6 +236,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithWorkflowRequestsD
 				},
 			},
 		},
+		ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:             s.ShardInfo.RangeID,
 		Mode:                p.CreateWorkflowModeBrandNew,
 		WorkflowRequestMode: p.CreateWorkflowRequestModeReplicated,
@@ -299,6 +302,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionStateCloseStatus() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -437,6 +441,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionWithZombieState() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeZombie,
 	}
@@ -540,6 +545,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 				},
 			},
 		},
+		ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:             s.ShardInfo.RangeID,
 		Mode:                p.CreateWorkflowModeBrandNew,
 		WorkflowRequestMode: p.CreateWorkflowRequestModeNew,
@@ -569,6 +575,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithWorkflowRequestsD
 				},
 			},
 		},
+		ShardID:             common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:             s.ShardInfo.RangeID,
 		Mode:                p.UpdateWorkflowModeUpdateCurrent,
 		WorkflowRequestMode: p.CreateWorkflowRequestModeNew,
@@ -640,6 +647,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -667,6 +675,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -688,6 +697,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				ExecutionStats: updatedStats,
 				Condition:      nextEventID,
 			},
+			ShardID: common.IntPtr(s.ShardInfo.ShardID),
 			RangeID: s.ShardInfo.RangeID,
 			Mode:    p.UpdateWorkflowModeUpdateCurrent,
 		})
@@ -704,6 +714,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			ExecutionStats: updatedStats,
 			Condition:      nextEventID,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -718,6 +729,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				Condition:        nextEventID,
 				VersionHistories: versionHistories,
 			},
+			ShardID: common.IntPtr(s.ShardInfo.ShardID),
 			RangeID: s.ShardInfo.RangeID,
 			Mode:    p.UpdateWorkflowModeUpdateCurrent,
 		})
@@ -756,6 +768,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 			Condition:        nextEventID,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -776,6 +789,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionStateCloseStatus() {
 				ExecutionStats: updatedStats,
 				Condition:      nextEventID,
 			},
+			ShardID: common.IntPtr(s.ShardInfo.ShardID),
 			RangeID: s.ShardInfo.RangeID,
 			Mode:    p.UpdateWorkflowModeBypassCurrent,
 		})
@@ -831,6 +845,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -856,6 +871,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Condition:      nextEventID,
 			Checksum:       csum,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -872,6 +888,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Condition:        nextEventID,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -914,6 +931,7 @@ func (s *ExecutionManagerSuite) TestUpdateWorkflowExecutionWithZombieState() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -1054,6 +1072,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionBrandNew() {
 			ExecutionStats:   &p.ExecutionStats{},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -1118,6 +1137,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.CreateWorkflowModeBrandNew,
 	}
@@ -1150,6 +1170,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -1176,6 +1197,7 @@ func (s *ExecutionManagerSuite) TestUpsertWorkflowActivity() {
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeUpdateCurrent,
 	})
@@ -1258,6 +1280,7 @@ func (s *ExecutionManagerSuite) TestCreateWorkflowExecutionRunIDReuseWithoutRepl
 			ExecutionStats:   &p.ExecutionStats{},
 			VersionHistories: versionHistories,
 		},
+		ShardID:                  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:                  s.ShardInfo.RangeID,
 		Mode:                     p.CreateWorkflowModeWorkflowIDReuse,
 		PreviousRunID:            workflowExecution.GetRunID(),
@@ -1405,6 +1428,7 @@ func (s *ExecutionManagerSuite) TestPersistenceStartWorkflow() {
 			},
 			VersionHistories: versionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID - 1,
 	})
 
@@ -1510,7 +1534,8 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
-		Mode: p.CreateWorkflowModeBrandNew,
+		Mode:    p.CreateWorkflowModeBrandNew,
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 	}
 	createReq.NewWorkflowSnapshot.ExecutionInfo.FirstExecutionRunID = createReq.NewWorkflowSnapshot.ExecutionInfo.RunID
 
@@ -1574,6 +1599,164 @@ func (s *ExecutionManagerSuite) TestGetWorkflow() {
 	s.Equal(testPartitionConfig, info.PartitionConfig)
 
 	s.assertChecksumsEqual(csum, state.Checksum)
+}
+
+// TestGetActiveClusterSelectionPolicy test
+func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowID := "get-active-cluster-selection-policy-test"
+	runID := uuid.New()
+	policy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+
+	decisionScheduleID := int64(rand.Int31())
+	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
+		{
+			EventID: decisionScheduleID,
+			Version: constants.EmptyVersion,
+		},
+	})
+	versionHistories := p.NewVersionHistories(versionHistory)
+	createReq := &p.CreateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
+		RangeID: s.ShardInfo.RangeID,
+		NewWorkflowSnapshot: p.WorkflowSnapshot{
+			ExecutionInfo: &p.WorkflowExecutionInfo{
+				CreateRequestID:              uuid.New(),
+				DomainID:                     domainID,
+				WorkflowID:                   workflowID,
+				RunID:                        runID,
+				FirstExecutionRunID:          runID,
+				TaskList:                     "tasklist",
+				WorkflowTypeName:             "wf-type",
+				WorkflowTimeout:              20,
+				DecisionStartToCloseTimeout:  13,
+				State:                        p.WorkflowStateRunning,
+				CloseStatus:                  p.WorkflowCloseStatusNone,
+				LastFirstEventID:             constants.FirstEventID,
+				NextEventID:                  3,
+				LastProcessedEvent:           0,
+				DecisionScheduleID:           decisionScheduleID,
+				DecisionStartedID:            constants.EmptyEventID,
+				DecisionTimeout:              1,
+				ActiveClusterSelectionPolicy: policy,
+			},
+			ExecutionStats:   &p.ExecutionStats{},
+			VersionHistories: versionHistories,
+		},
+		Mode: p.CreateWorkflowModeBrandNew,
+	}
+	_, err := s.ExecutionManager.CreateWorkflowExecution(ctx, createReq)
+	s.NoError(err)
+
+	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
+	s.Equal(policy, got)
+
+	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      uuid.New(),
+	})
+	s.Error(err)
+	s.IsType(&types.EntityNotExistsError{}, err)
+}
+
+// TestDeleteActiveClusterSelectionPolicy test
+func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
+	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	defer cancel()
+
+	domainID := uuid.New()
+	workflowID := "delete-active-cluster-selection-policy-test"
+	runID := uuid.New()
+	policy := &types.ActiveClusterSelectionPolicy{
+		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
+	}
+
+	decisionScheduleID := int64(rand.Int31())
+	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
+		{
+			EventID: decisionScheduleID,
+			Version: constants.EmptyVersion,
+		},
+	})
+	versionHistories := p.NewVersionHistories(versionHistory)
+	createReq := &p.CreateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
+		RangeID: s.ShardInfo.RangeID,
+		NewWorkflowSnapshot: p.WorkflowSnapshot{
+			ExecutionInfo: &p.WorkflowExecutionInfo{
+				CreateRequestID:              uuid.New(),
+				DomainID:                     domainID,
+				WorkflowID:                   workflowID,
+				RunID:                        runID,
+				FirstExecutionRunID:          runID,
+				TaskList:                     "tasklist",
+				WorkflowTypeName:             "wf-type",
+				WorkflowTimeout:              20,
+				DecisionStartToCloseTimeout:  13,
+				State:                        p.WorkflowStateRunning,
+				CloseStatus:                  p.WorkflowCloseStatusNone,
+				LastFirstEventID:             constants.FirstEventID,
+				NextEventID:                  3,
+				LastProcessedEvent:           0,
+				DecisionScheduleID:           decisionScheduleID,
+				DecisionStartedID:            constants.EmptyEventID,
+				DecisionTimeout:              1,
+				ActiveClusterSelectionPolicy: policy,
+			},
+			ExecutionStats:   &p.ExecutionStats{},
+			VersionHistories: versionHistories,
+		},
+		Mode: p.CreateWorkflowModeBrandNew,
+	}
+	_, err := s.ExecutionManager.CreateWorkflowExecution(ctx, createReq)
+	s.NoError(err)
+
+	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
+	s.Equal(policy, got)
+
+	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
+
+	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.Error(err)
+	s.IsType(&types.EntityNotExistsError{}, err)
+
+	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	})
+	s.NoError(err)
 }
 
 // TestUpdateWorkflow test
@@ -2110,6 +2293,7 @@ func (s *ExecutionManagerSuite) TestCleanupCorruptedWorkflow() {
 			Checksum:         testWorkflowChecksum,
 			VersionHistories: info0.VersionHistories,
 		},
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.UpdateWorkflowModeBypassCurrent,
 	})
@@ -2150,6 +2334,7 @@ func (s *ExecutionManagerSuite) TestGetCurrentWorkflow() {
 	s.NotNil(task0, "Expected non empty task identifier.")
 
 	response, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.GetWorkflowID(),
 	})
@@ -4970,6 +5155,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistories := p.NewVersionHistories(versionHistory)
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5008,6 +5194,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5147,6 +5334,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	newWorkflowExecutionInfo.PartitionConfig = map[string]string{"user": uuid.New()}
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5197,6 +5385,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5305,6 +5494,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistories := p.NewVersionHistories(versionHistory)
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5331,6 +5521,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5430,6 +5621,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	newWorkflowExecutionInfo.PartitionConfig = map[string]string{"zone": "dca1"}
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeBypassCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5468,6 +5660,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5595,6 +5788,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	versionHistories := p.NewVersionHistories(versionHistory)
 
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeUpdateCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5621,6 +5815,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -5742,6 +5937,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	newWorkflowExecutionInfo.CloseStatus = p.WorkflowCloseStatusNone
 	newWorkflowExecutionInfo.PartitionConfig = map[string]string{"zone": "dca1"}
 	resetReq := &p.ConflictResolveWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		Mode:    p.ConflictResolveWorkflowModeUpdateCurrent,
 		ResetWorkflowSnapshot: p.WorkflowSnapshot{
@@ -5780,6 +5976,7 @@ func (s *ExecutionManagerSuite) TestConflictResolveWorkflowExecutionWithTransact
 	s.NoError(err)
 
 	currentRecord, err := s.ExecutionManager.GetCurrentExecution(ctx, &p.GetCurrentExecutionRequest{
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		DomainID:   domainID,
 		WorkflowID: workflowID,
 	})
@@ -6007,156 +6204,6 @@ func (s *ExecutionManagerSuite) TestWorkflowTimerTaskTracking() {
 		DomainID:   domainID,
 		WorkflowID: workflowExecution.WorkflowID,
 		RunID:      workflowExecution.RunID,
-	})
-	s.NoError(err)
-}
-
-// TestGetActiveClusterSelectionPolicy test
-func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
-
-	domainID := uuid.New()
-	workflowID := "get-active-cluster-selection-policy-test"
-	runID := uuid.New()
-	policy := &types.ActiveClusterSelectionPolicy{
-		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
-	}
-
-	decisionScheduleID := int64(rand.Int31())
-	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
-		{
-			EventID: decisionScheduleID,
-			Version: constants.EmptyVersion,
-		},
-	})
-	versionHistories := p.NewVersionHistories(versionHistory)
-	createReq := &p.CreateWorkflowExecutionRequest{
-		RangeID: s.ShardInfo.RangeID,
-		NewWorkflowSnapshot: p.WorkflowSnapshot{
-			ExecutionInfo: &p.WorkflowExecutionInfo{
-				CreateRequestID:              uuid.New(),
-				DomainID:                     domainID,
-				WorkflowID:                   workflowID,
-				RunID:                        runID,
-				FirstExecutionRunID:          runID,
-				TaskList:                     "tasklist",
-				WorkflowTypeName:             "wf-type",
-				WorkflowTimeout:              20,
-				DecisionStartToCloseTimeout:  13,
-				State:                        p.WorkflowStateRunning,
-				CloseStatus:                  p.WorkflowCloseStatusNone,
-				LastFirstEventID:             constants.FirstEventID,
-				NextEventID:                  3,
-				LastProcessedEvent:           0,
-				DecisionScheduleID:           decisionScheduleID,
-				DecisionStartedID:            constants.EmptyEventID,
-				DecisionTimeout:              1,
-				ActiveClusterSelectionPolicy: policy,
-			},
-			ExecutionStats:   &p.ExecutionStats{},
-			VersionHistories: versionHistories,
-		},
-		Mode: p.CreateWorkflowModeBrandNew,
-	}
-	_, err := s.ExecutionManager.CreateWorkflowExecution(ctx, createReq)
-	s.NoError(err)
-
-	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
-		DomainID:   domainID,
-		WorkflowID: workflowID,
-		RunID:      runID,
-	})
-	s.NoError(err)
-	s.Equal(policy, got)
-
-	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
-		DomainID:   domainID,
-		WorkflowID: workflowID,
-		RunID:      uuid.New(),
-	})
-	s.Error(err)
-	s.IsType(&types.EntityNotExistsError{}, err)
-}
-
-// TestDeleteActiveClusterSelectionPolicy test
-func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
-	defer cancel()
-
-	domainID := uuid.New()
-	workflowID := "delete-active-cluster-selection-policy-test"
-	runID := uuid.New()
-	policy := &types.ActiveClusterSelectionPolicy{
-		ClusterAttribute: &types.ClusterAttribute{Scope: "region", Name: "region1"},
-	}
-
-	decisionScheduleID := int64(rand.Int31())
-	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
-		{
-			EventID: decisionScheduleID,
-			Version: constants.EmptyVersion,
-		},
-	})
-	versionHistories := p.NewVersionHistories(versionHistory)
-	createReq := &p.CreateWorkflowExecutionRequest{
-		RangeID: s.ShardInfo.RangeID,
-		NewWorkflowSnapshot: p.WorkflowSnapshot{
-			ExecutionInfo: &p.WorkflowExecutionInfo{
-				CreateRequestID:              uuid.New(),
-				DomainID:                     domainID,
-				WorkflowID:                   workflowID,
-				RunID:                        runID,
-				FirstExecutionRunID:          runID,
-				TaskList:                     "tasklist",
-				WorkflowTypeName:             "wf-type",
-				WorkflowTimeout:              20,
-				DecisionStartToCloseTimeout:  13,
-				State:                        p.WorkflowStateRunning,
-				CloseStatus:                  p.WorkflowCloseStatusNone,
-				LastFirstEventID:             constants.FirstEventID,
-				NextEventID:                  3,
-				LastProcessedEvent:           0,
-				DecisionScheduleID:           decisionScheduleID,
-				DecisionStartedID:            constants.EmptyEventID,
-				DecisionTimeout:              1,
-				ActiveClusterSelectionPolicy: policy,
-			},
-			ExecutionStats:   &p.ExecutionStats{},
-			VersionHistories: versionHistories,
-		},
-		Mode: p.CreateWorkflowModeBrandNew,
-	}
-	_, err := s.ExecutionManager.CreateWorkflowExecution(ctx, createReq)
-	s.NoError(err)
-
-	got, err := s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
-		DomainID:   domainID,
-		WorkflowID: workflowID,
-		RunID:      runID,
-	})
-	s.NoError(err)
-	s.Equal(policy, got)
-
-	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
-		DomainID:   domainID,
-		WorkflowID: workflowID,
-		RunID:      runID,
-	})
-	s.NoError(err)
-
-	_, err = s.ExecutionManager.GetActiveClusterSelectionPolicy(ctx, &p.GetActiveClusterSelectionPolicyRequest{
-		DomainID:   domainID,
-		WorkflowID: workflowID,
-		RunID:      runID,
-	})
-	s.Error(err)
-	s.IsType(&types.EntityNotExistsError{}, err)
-
-	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
-		DomainID:   domainID,
-		WorkflowID: workflowID,
-		RunID:      runID,
 	})
 	s.NoError(err)
 }

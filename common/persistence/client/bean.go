@@ -60,8 +60,8 @@ type (
 		GetHistoryManager() persistence.HistoryManager
 		SetHistoryManager(persistence.HistoryManager)
 
-		GetExecutionManager(int) (persistence.ExecutionManager, error)
-		SetExecutionManager(int, persistence.ExecutionManager)
+		GetExecutionManager() persistence.ExecutionManager
+		SetExecutionManager(persistence.ExecutionManager)
 
 		GetConfigStoreManager() persistence.ConfigStoreManager
 		SetConfigStoreManager(persistence.ConfigStoreManager)
@@ -81,10 +81,13 @@ type (
 		historyManager                persistence.HistoryManager
 		configStoreManager            persistence.ConfigStoreManager
 		historyTaskDLQManager         persistence.HistoryTaskDLQManager
-		executionManagerFactory       persistence.ExecutionManagerFactory
+		// factory is retained only so Close() can tear down the underlying
+		// datastores (see Factory.Close()). The execution manager itself is
+		// constructed eagerly in NewBeanFromFactory, not lazily via factory.
+		factory Factory
 
 		sync.RWMutex
-		shardIDToExecutionManager map[int]persistence.ExecutionManager
+		executionManager persistence.ExecutionManager
 	}
 
 	// Params contains dependencies for persistence
@@ -153,7 +156,15 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
-	return NewBean(
+	// The execution manager is now a host-level singleton, so build it
+	// eagerly here just like every other manager instead of lazily via a
+	// dedicated factory.
+	executionMgr, err := factory.NewExecutionManager()
+	if err != nil {
+		return nil, err
+	}
+
+	bean := NewBean(
 		metadataMgr,
 		domainAuditMgr,
 		taskMgr,
@@ -163,8 +174,11 @@ func NewBeanFromFactory(
 		historyMgr,
 		configStoreMgr,
 		historyTaskDLQMgr,
-		factory,
-	), nil
+		executionMgr,
+	)
+	// retained solely for Close(); see BeanImpl.factory doc comment.
+	bean.factory = factory
+	return bean, nil
 }
 
 // NewBean create a new store bean
@@ -178,7 +192,7 @@ func NewBean(
 	historyManager persistence.HistoryManager,
 	configStoreManager persistence.ConfigStoreManager,
 	historyTaskDLQManager persistence.HistoryTaskDLQManager,
-	executionManagerFactory persistence.ExecutionManagerFactory,
+	executionManager persistence.ExecutionManager,
 ) *BeanImpl {
 	return &BeanImpl{
 		domainManager:                 domainManager,
@@ -190,9 +204,7 @@ func NewBean(
 		historyManager:                historyManager,
 		configStoreManager:            configStoreManager,
 		historyTaskDLQManager:         historyTaskDLQManager,
-		executionManagerFactory:       executionManagerFactory,
-
-		shardIDToExecutionManager: make(map[int]persistence.ExecutionManager),
+		executionManager:              executionManager,
 	}
 }
 
@@ -337,45 +349,23 @@ func (s *BeanImpl) SetHistoryManager(
 }
 
 // GetExecutionManager get ExecutionManager
-func (s *BeanImpl) GetExecutionManager(
-	shardID int,
-) (persistence.ExecutionManager, error) {
+func (s *BeanImpl) GetExecutionManager() persistence.ExecutionManager {
 
 	s.RLock()
-	executionManager, ok := s.shardIDToExecutionManager[shardID]
-	if ok {
-		s.RUnlock()
-		return executionManager, nil
-	}
-	s.RUnlock()
+	defer s.RUnlock()
 
-	s.Lock()
-	defer s.Unlock()
-
-	executionManager, ok = s.shardIDToExecutionManager[shardID]
-	if ok {
-		return executionManager, nil
-	}
-
-	executionManager, err := s.executionManagerFactory.NewExecutionManager(shardID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.shardIDToExecutionManager[shardID] = executionManager
-	return executionManager, nil
+	return s.executionManager
 }
 
 // SetExecutionManager set ExecutionManager
 func (s *BeanImpl) SetExecutionManager(
-	shardID int,
 	executionManager persistence.ExecutionManager,
 ) {
 
 	s.Lock()
 	defer s.Unlock()
 
-	s.shardIDToExecutionManager[shardID] = executionManager
+	s.executionManager = executionManager
 }
 
 // GetConfigStoreManager gets ConfigStoreManager
@@ -436,10 +426,12 @@ func (s *BeanImpl) Close() {
 	s.domainReplicationQueueManager.Close()
 	s.shardManager.Close()
 	s.historyManager.Close()
-	s.executionManagerFactory.Close()
+	if s.factory != nil {
+		s.factory.Close()
+	}
 	s.configStoreManager.Close()
-	for _, executionMgr := range s.shardIDToExecutionManager {
-		executionMgr.Close()
+	if s.executionManager != nil {
+		s.executionManager.Close()
 	}
 
 	if s.historyTaskDLQManager != nil {

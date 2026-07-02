@@ -58,7 +58,7 @@ func (s *DomainAuditPersistenceSuite) TestCreateAndGetDomainAuditLog() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	manager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	manager, err := s.PersistenceFactory.NewDomainAuditManager()
 	s.NoError(err)
 	s.NotNil(manager)
 	defer manager.Close()
@@ -118,7 +118,7 @@ func (s *DomainAuditPersistenceSuite) TestCreateMultipleAuditLogs() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	manager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	manager, err := s.PersistenceFactory.NewDomainAuditManager()
 	s.NoError(err)
 	s.NotNil(manager)
 	defer manager.Close()
@@ -159,7 +159,7 @@ func (s *DomainAuditPersistenceSuite) TestGetDomainAuditLogsPagination() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	manager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	manager, err := s.PersistenceFactory.NewDomainAuditManager()
 	s.NoError(err)
 	s.NotNil(manager)
 	defer manager.Close()
@@ -215,7 +215,7 @@ func (s *DomainAuditPersistenceSuite) TestGetDomainAuditLogsByOperationType() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	manager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	manager, err := s.PersistenceFactory.NewDomainAuditManager()
 	s.NoError(err)
 	s.NotNil(manager)
 	defer manager.Close()
@@ -272,7 +272,7 @@ func (s *DomainAuditPersistenceSuite) TestGetDomainAuditLogsByTimeRange() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	manager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	manager, err := s.PersistenceFactory.NewDomainAuditManager()
 	s.NoError(err)
 	s.NotNil(manager)
 	defer manager.Close()
@@ -322,7 +322,7 @@ func (s *DomainAuditPersistenceSuite) TestDomainAuditLogWithStateBefore() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	manager, err := s.ExecutionMgrFactory.NewDomainAuditManager()
+	manager, err := s.PersistenceFactory.NewDomainAuditManager()
 	s.NoError(err)
 	s.NotNil(manager)
 	defer manager.Close()

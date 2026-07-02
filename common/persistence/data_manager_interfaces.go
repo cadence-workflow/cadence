@@ -20,7 +20,7 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
@@ -1684,7 +1684,6 @@ type (
 	ExecutionManager interface {
 		Closeable
 		GetName() string
-		GetShardID() int
 
 		CreateWorkflowExecution(ctx context.Context, request *CreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error)
 		GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error)
@@ -1718,12 +1717,6 @@ type (
 
 		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)
 		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
-	}
-
-	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard
-	ExecutionManagerFactory interface {
-		Closeable
-		NewExecutionManager(shardID int) (ExecutionManager, error)
 	}
 
 	// TaskManager is used to manage tasks

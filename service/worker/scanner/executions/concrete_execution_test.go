@@ -30,7 +30,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
+	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
 
@@ -38,9 +40,11 @@ import (
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
+	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/types/testdata"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
@@ -357,7 +361,29 @@ func Test_concreteExecutionFixerHooks(t *testing.T) {
 	assert.NotNil(t, h)
 }
 
-func Test_concreteExecutionScannerManager(t *testing.T) {
+type concreteExecutionManagerSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+
+	controller   *gomock.Controller
+	mockResource *resource.Test
+}
+
+func TestConcreteExecutionManagerSuite(t *testing.T) {
+	suite.Run(t, new(concreteExecutionManagerSuite))
+}
+
+func (s *concreteExecutionManagerSuite) SetupTest() {
+	s.controller = gomock.NewController(s.T())
+	s.mockResource = resource.NewTest(s.T(), s.controller, metrics.Worker)
+}
+
+func (s *concreteExecutionManagerSuite) TearDownTest() {
+	s.controller.Finish()
+}
+
+func (s *concreteExecutionManagerSuite) Test_concreteExecutionScannerManager() {
+	const workflowName = "test-concrete-scanner-workflow"
 	params := shardscanner.ScanShardActivityParams{
 		Shards: []int{1, 2, 3},
 		ScannerConfig: shardscanner.CustomScannerConfig{
@@ -365,9 +391,23 @@ func Test_concreteExecutionScannerManager(t *testing.T) {
 		},
 	}
 
-	m := concreteExecutionScannerManager(context.Background(), nil, params, nil)
+	sc := shardscanner.NewShardScannerContext(s.mockResource, &shardscanner.ScannerConfig{
+		ScannerHooks: func() *shardscanner.ScannerHooks { return nil },
+	})
+	activityCtx := shardscanner.NewScannerContext(context.Background(), workflowName, sc)
 
-	assert.NotNil(t, m)
+	env := s.NewTestActivityEnvironment()
+	env.SetWorkerOptions(worker.Options{BackgroundActivityContext: activityCtx})
+
+	var capturedManager invariant.Manager
+	probeActivity := func(ctx context.Context) error {
+		capturedManager = concreteExecutionScannerManager(ctx, nil, params, nil)
+		return nil
+	}
+	activity.RegisterWithOptions(probeActivity, activity.RegisterOptions{Name: "probe-scanner-manager"})
+	_, err := env.ExecuteActivity(probeActivity)
+	s.NoError(err)
+	s.NotNil(capturedManager)
 }
 
 func Test_concreteExecutionScannerIterator(t *testing.T) {
@@ -418,8 +458,9 @@ func Test_concreteExecutionFixerIterator(t *testing.T) {
 	assert.NotNil(t, it)
 }
 
-func Test_concreteExecutionFixerManager(t *testing.T) {
-	mockRetryer := persistence.NewMockRetryer(gomock.NewController(t))
+func (s *concreteExecutionManagerSuite) Test_concreteExecutionFixerManager() {
+	const workflowName = "test-concrete-fixer-workflow"
+	mockRetryer := persistence.NewMockRetryer(s.controller)
 
 	params := shardscanner.FixShardActivityParams{
 		EnabledInvariants: shardscanner.CustomScannerConfig{
@@ -427,9 +468,23 @@ func Test_concreteExecutionFixerManager(t *testing.T) {
 		},
 	}
 
-	m := concreteExecutionFixerManager(context.Background(), mockRetryer, params, nil)
+	fc := shardscanner.NewShardFixerContext(s.mockResource, &shardscanner.ScannerConfig{
+		FixerHooks: func() *shardscanner.FixerHooks { return nil },
+	})
+	activityCtx := shardscanner.NewFixerContext(context.Background(), workflowName, fc)
 
-	assert.NotNil(t, m)
+	env := s.NewTestActivityEnvironment()
+	env.SetWorkerOptions(worker.Options{BackgroundActivityContext: activityCtx})
+
+	var capturedManager invariant.Manager
+	probeActivity := func(ctx context.Context) error {
+		capturedManager = concreteExecutionFixerManager(ctx, mockRetryer, params, nil)
+		return nil
+	}
+	activity.RegisterWithOptions(probeActivity, activity.RegisterOptions{Name: "probe-fixer-manager"})
+	_, err := env.ExecuteActivity(probeActivity)
+	s.NoError(err)
+	s.NotNil(capturedManager)
 }
 
 func Test_concreteExecutionFixerManager_Panic(t *testing.T) {

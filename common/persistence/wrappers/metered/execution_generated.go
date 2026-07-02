@@ -35,7 +35,7 @@ func NewExecutionManager(
 		wrapped: wrapped,
 		base: base{
 			metricClient:                  metricClient,
-			logger:                        logger.WithTags(tag.ShardID(wrapped.GetShardID())),
+			logger:                        logger,
 			enableLatencyHistogramMetrics: cfg.EnablePersistenceLatencyHistogramMetrics,
 			enableShardIDMetrics:          enableShardIDMetrics,
 			hostName:                      cfg.HostName,
@@ -57,10 +57,17 @@ func (c *meteredExecutionManager) CompleteHistoryTask(ctx context.Context, reque
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence CompleteHistoryTask called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceCompleteHistoryTaskScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -82,10 +89,17 @@ func (c *meteredExecutionManager) ConflictResolveWorkflowExecution(ctx context.C
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence ConflictResolveWorkflowExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceConflictResolveWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -106,10 +120,17 @@ func (c *meteredExecutionManager) CreateFailoverMarkerTasks(ctx context.Context,
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence CreateFailoverMarkerTasks called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCreateFailoverMarkerTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceCreateFailoverMarkerTasksScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceCreateFailoverMarkerTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceCreateFailoverMarkerTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -130,10 +151,17 @@ func (c *meteredExecutionManager) CreateHistoryTasks(ctx context.Context, reques
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence CreateHistoryTasks called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceCreateHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -155,10 +183,17 @@ func (c *meteredExecutionManager) CreateWorkflowExecution(ctx context.Context, r
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence CreateWorkflowExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceCreateWorkflowExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceCreateWorkflowExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceCreateWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceCreateWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -179,10 +214,17 @@ func (c *meteredExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence DeleteActiveClusterSelectionPolicy called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceDeleteActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -203,10 +245,17 @@ func (c *meteredExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Con
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence DeleteCurrentWorkflowExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceDeleteCurrentWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -227,10 +276,17 @@ func (c *meteredExecutionManager) DeleteReplicationTaskFromDLQ(ctx context.Conte
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence DeleteReplicationTaskFromDLQ called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -251,10 +307,17 @@ func (c *meteredExecutionManager) DeleteWorkflowExecution(ctx context.Context, r
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence DeleteWorkflowExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteWorkflowExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceDeleteWorkflowExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceDeleteWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceDeleteWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -276,10 +339,17 @@ func (c *meteredExecutionManager) FetchWorkflowTimerTasksForCleanup(ctx context.
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence FetchWorkflowTimerTasksForCleanup called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceFetchWorkflowTimerTasksForCleanupScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -301,10 +371,17 @@ func (c *meteredExecutionManager) GetActiveClusterSelectionPolicy(ctx context.Co
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence GetActiveClusterSelectionPolicy called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceGetActiveClusterSelectionPolicyScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -326,10 +403,17 @@ func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, reque
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence GetCurrentExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceGetCurrentExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceGetCurrentExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceGetCurrentExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceGetCurrentExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -351,10 +435,17 @@ func (c *meteredExecutionManager) GetHistoryTasks(ctx context.Context, request *
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence GetHistoryTasks called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceGetHistoryTasksScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceGetHistoryTasksScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceGetHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceGetHistoryTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -380,10 +471,17 @@ func (c *meteredExecutionManager) GetReplicationDLQSize(ctx context.Context, req
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence GetReplicationDLQSize called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceGetReplicationDLQSizeScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceGetReplicationDLQSizeScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceGetReplicationDLQSizeScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceGetReplicationDLQSizeScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -405,10 +503,17 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence GetReplicationTasksFromDLQ called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceGetReplicationTasksFromDLQScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceGetReplicationTasksFromDLQScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceGetReplicationTasksFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceGetReplicationTasksFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -418,10 +523,6 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 	err = c.callWithoutDomainTag(metrics.PersistenceGetReplicationTasksFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
-}
-
-func (c *meteredExecutionManager) GetShardID() (i1 int) {
-	return c.wrapped.GetShardID()
 }
 
 func (c *meteredExecutionManager) GetWorkflowExecution(ctx context.Context, request *_sourcePersistence.GetWorkflowExecutionRequest) (gp1 *_sourcePersistence.GetWorkflowExecutionResponse, err error) {
@@ -434,10 +535,17 @@ func (c *meteredExecutionManager) GetWorkflowExecution(ctx context.Context, requ
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence GetWorkflowExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceGetWorkflowExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceGetWorkflowExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceGetWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceGetWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -459,10 +567,17 @@ func (c *meteredExecutionManager) IsWorkflowExecutionExists(ctx context.Context,
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence IsWorkflowExecutionExists called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceIsWorkflowExecutionExistsScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceIsWorkflowExecutionExistsScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceIsWorkflowExecutionExistsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceIsWorkflowExecutionExistsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -484,10 +599,17 @@ func (c *meteredExecutionManager) ListConcreteExecutions(ctx context.Context, re
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence ListConcreteExecutions called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceListConcreteExecutionsScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceListConcreteExecutionsScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceListConcreteExecutionsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceListConcreteExecutionsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -509,10 +631,17 @@ func (c *meteredExecutionManager) ListCurrentExecutions(ctx context.Context, req
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence ListCurrentExecutions called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceListCurrentExecutionsScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceListCurrentExecutionsScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceListCurrentExecutionsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceListCurrentExecutionsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -533,10 +662,17 @@ func (c *meteredExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, r
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence PutReplicationTaskToDLQ called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistencePutReplicationTaskToDLQScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistencePutReplicationTaskToDLQScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistencePutReplicationTaskToDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistencePutReplicationTaskToDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -558,10 +694,17 @@ func (c *meteredExecutionManager) RangeCompleteHistoryTask(ctx context.Context, 
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence RangeCompleteHistoryTask called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceRangeCompleteHistoryTaskScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceRangeCompleteHistoryTaskScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceRangeCompleteHistoryTaskScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceRangeCompleteHistoryTaskScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -583,10 +726,17 @@ func (c *meteredExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence RangeDeleteReplicationTaskFromDLQ called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}
@@ -608,10 +758,17 @@ func (c *meteredExecutionManager) UpdateWorkflowExecution(ctx context.Context, r
 	retryCount := getRetryCountFromContext(ctx)
 	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
 		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+			logTags = append(logTags, tag.ShardID(*shardID))
+		}
 		c.logger.Debug("Persistence UpdateWorkflowExecution called", logTags...)
 		if c.enableShardIDMetrics() {
-			err = c.callWithDomainAndShardScope(metrics.PersistenceUpdateWorkflowExecutionScope, op, metrics.DomainTag(domainName),
-				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+			if shardID, hasShardID := getShardIDFromRequest(request); hasShardID && shardID != nil {
+				err = c.callWithDomainAndShardScope(metrics.PersistenceUpdateWorkflowExecutionScope, op, metrics.DomainTag(domainName),
+					metrics.ShardIDTag(*shardID), metrics.IsRetryTag(retryCount > 0))
+			} else {
+				err = c.call(metrics.PersistenceUpdateWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+			}
 		} else {
 			err = c.call(metrics.PersistenceUpdateWorkflowExecutionScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
 		}

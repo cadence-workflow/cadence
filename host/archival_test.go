@@ -200,7 +200,7 @@ func (s *IntegrationSuite) isHistoryDeleted(domainID string, execution *types.Wo
 
 func (s *IntegrationSuite) isMutableStateDeleted(domainID string, execution *types.WorkflowExecution) bool {
 	shardID := common.WorkflowIDToHistoryShard(execution.WorkflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
-	executionManager, err := s.TestCluster.testBase.ExecutionMgrFactory.NewExecutionManager(shardID)
+	executionManager, err := s.TestCluster.testBase.PersistenceFactory.NewExecutionManager()
 	if err != nil {
 		s.NoError(err)
 		return false

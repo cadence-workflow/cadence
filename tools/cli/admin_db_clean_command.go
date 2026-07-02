@@ -65,6 +65,11 @@ func AdminDBClean(c *cli.Context) error {
 		collections = append(collections, collection)
 	}
 
+	numberOfShards, err := getRequiredIntOption(c, FlagNumberOfShards)
+	if err != nil {
+		return commoncli.Problem("Required flag not found", err)
+	}
+
 	logger := zap.NewNop()
 	if c.Bool(FlagVerbose) {
 		logger, err = zap.NewDevelopment()
@@ -74,7 +79,7 @@ func AdminDBClean(c *cli.Context) error {
 		}
 	}
 
-	invariants := scanType.ToInvariants(collections, logger)
+	invariants := scanType.ToInvariants(collections, logger, numberOfShards)
 	if len(invariants) < 1 {
 		return commoncli.Problem(
 			fmt.Sprintf("no invariants for scantype %q and collections %q",
@@ -133,7 +138,7 @@ func fixExecution(
 	execution *store.ScanOutputEntity,
 ) (invariant.ManagerFixResult, error) {
 	shardID := execution.Execution.(entity.Entity).GetShardID()
-	execManager, err := getDeps(c).initializeExecutionManager(c, shardID)
+	execManager, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
 		return invariant.ManagerFixResult{}, err
 	}

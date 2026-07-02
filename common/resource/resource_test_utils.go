@@ -68,6 +68,7 @@ type (
 	Test struct {
 		MetricsScope    tally.TestScope
 		ClusterMetadata cluster.Metadata
+		numShards       int
 
 		// other common resources
 
@@ -169,7 +170,7 @@ func NewTest(
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
-	persistenceBean.EXPECT().GetExecutionManager(gomock.Any()).Return(executionMgr, nil).AnyTimes()
+	persistenceBean.EXPECT().GetExecutionManager().Return(executionMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(controller)).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
@@ -234,6 +235,7 @@ func NewTest(
 		AsyncWorkflowQueueProvider: asyncWorkflowQueueProvider,
 
 		RatelimiterAggregatorClient: nil, // TODO: not currently used
+		numShards:                   1024,
 	}
 }
 
@@ -440,16 +442,19 @@ func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 }
 
 // GetExecutionManager for testing
-func (s *Test) GetExecutionManager(
-	shardID int,
-) (persistence.ExecutionManager, error) {
+func (s *Test) GetExecutionManager() persistence.ExecutionManager {
 
-	return s.ExecutionMgr, nil
+	return s.ExecutionMgr
 }
 
 // GetPersistenceBean for testing
 func (s *Test) GetPersistenceBean() persistenceClient.Bean {
 	return s.PersistenceBean
+}
+
+// GetNumShards for testing
+func (s *Test) GetNumShards() int {
+	return s.numShards
 }
 
 // GetHostName for testing
