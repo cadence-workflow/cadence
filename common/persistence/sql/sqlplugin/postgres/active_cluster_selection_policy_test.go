@@ -23,6 +23,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,12 +42,13 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 	testRunID := serialization.MustParseUUID("30000000-0000-f000-f000-000000000001")
 	testData := []byte("test-data-123")
 	testDataEncoding := "thriftrw"
+	driverErr := errors.New("driver error")
 
 	tests := []struct {
 		name      string
 		row       *sqlplugin.ActiveClusterSelectionPolicyRow
 		mockSetup func(*sqldriver.MockDriver)
-		wantErr   bool
+		wantErr   error
 	}{
 		{
 			name: "successfully inserted active_cluster_selection_policy",
@@ -71,7 +73,32 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 					testDataEncoding,
 				).Return(nil, nil)
 			},
-			wantErr: false,
+			wantErr: nil,
+		},
+		{
+			name: "driver error occurred",
+			row: &sqlplugin.ActiveClusterSelectionPolicyRow{
+				ShardID:      testHistoryShardID,
+				DomainID:     testDomainID,
+				WorkflowID:   testWorkflowID,
+				RunID:        testRunID,
+				Data:         testData,
+				DataEncoding: testDataEncoding,
+			},
+			mockSetup: func(mockDriver *sqldriver.MockDriver) {
+				mockDriver.EXPECT().ExecContext(
+					gomock.Any(),
+					testHistoryShardID%numDBShards,
+					insertActiveClusterSelectionPolicyQry,
+					testHistoryShardID,
+					testDomainID,
+					testWorkflowID,
+					testRunID,
+					testData,
+					testDataEncoding,
+				).Return(nil, driverErr)
+			},
+			wantErr: driverErr,
 		},
 	}
 
@@ -90,9 +117,8 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 			}
 
 			_, err := pdb.InsertIntoActiveClusterSelectionPolicy(context.Background(), tc.row)
-
-			if tc.wantErr {
-				assert.Error(t, err)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -100,7 +126,7 @@ func TestInsertIntoActiveClusterSelectionPolicy(t *testing.T) {
 	}
 }
 
-func TestSelectIntoActiveClusterSelectionPolicy(t *testing.T) {
+func TestSelectFromActiveClusterSelectionPolicy(t *testing.T) {
 	numDBShards := 50
 	testHistoryShardID := 999
 	testDomainID := serialization.MustParseUUID("10000000-0000-f000-f000-000000000001")
@@ -205,11 +231,12 @@ func TestDeleteFromActiveClusterSelectionPolicy(t *testing.T) {
 	testDomainID := serialization.MustParseUUID("10000000-0000-f000-f000-000000000001")
 	testWorkflowID := "test-workflow-id"
 	testRunID := serialization.MustParseUUID("30000000-0000-f000-f000-000000000001")
+	contextTimeoutErr := context.DeadlineExceeded
 	tests := []struct {
 		name      string
 		filter    *sqlplugin.ActiveClusterSelectionPolicyFilter
 		mockSetup func(*sqldriver.MockDriver)
-		wantErr   bool
+		wantErr   error
 	}{
 		{
 			name: "successfully deleted one active_cluster_selection_policy row",
@@ -230,7 +257,28 @@ func TestDeleteFromActiveClusterSelectionPolicy(t *testing.T) {
 					testRunID,
 				).Return(nil, nil)
 			},
-			wantErr: false,
+			wantErr: nil,
+		},
+		{
+			name: "context timeout error occurred",
+			filter: &sqlplugin.ActiveClusterSelectionPolicyFilter{
+				ShardID:    testHistoryShardID,
+				DomainID:   testDomainID,
+				WorkflowID: testWorkflowID,
+				RunID:      testRunID,
+			},
+			mockSetup: func(mockDriver *sqldriver.MockDriver) {
+				mockDriver.EXPECT().ExecContext(
+					gomock.Any(),
+					testHistoryShardID%numDBShards,
+					deleteActiveClusterSelectionPolicyQry,
+					testHistoryShardID,
+					testDomainID,
+					testWorkflowID,
+					testRunID,
+				).Return(nil, contextTimeoutErr)
+			},
+			wantErr: contextTimeoutErr,
 		},
 	}
 
@@ -250,8 +298,8 @@ func TestDeleteFromActiveClusterSelectionPolicy(t *testing.T) {
 
 			// Delete inserted row
 			_, err := pdb.DeleteFromActiveClusterSelectionPolicy(context.Background(), tc.filter)
-			if tc.wantErr {
-				assert.Error(t, err)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
 			} else {
 				assert.NoError(t, err)
 			}
