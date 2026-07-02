@@ -40,7 +40,7 @@ require (
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
-	github.com/uber/cadence-idl v0.0.0-20260609034356-3ee08a98cf70
+	github.com/uber/cadence-idl v0.0.0-20260629225231-2b52d305fd49
 	github.com/uber/ringpop-go v0.10.0
 	github.com/uber/tchannel-go v1.34.4
 	github.com/urfave/cli/v2 v2.27.4

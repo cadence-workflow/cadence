@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +47,13 @@ import (
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/environment"
+)
+
+const (
+	defaultTestLimit   = 3 * time.Second
+	slowTestLimit      = 40 * time.Second
+	suiteOverheadLimit = 30 * time.Second
+	slowTestSuffix     = "_SLOW"
 )
 
 type (
@@ -349,6 +357,30 @@ func (s *IntegrationBase) registerArchivalDomain() error {
 		)
 	}
 	return err
+}
+
+func (s *IntegrationBase) HandleStats(suiteName string, stats *suite.SuiteInformation) {
+	suiteDuration := stats.End.Sub(stats.Start)
+
+	var timeInTests time.Duration
+	for testName, info := range stats.TestStats {
+		testDuration := info.End.Sub(info.Start)
+
+		allowedTime := defaultTestLimit
+		if strings.HasSuffix(testName, slowTestSuffix) {
+			allowedTime = slowTestLimit
+		}
+
+		if testDuration > allowedTime {
+			s.Fail("Test took too long", "%s took %v (limit %v)", testName, testDuration, allowedTime)
+		}
+		timeInTests += testDuration
+	}
+
+	suiteOverhead := suiteDuration - timeInTests
+	if suiteOverhead > suiteOverheadLimit {
+		s.Fail("Test suite took too long to setup and teardown", "%s had overhead of %v (limit %v)", suiteName, suiteOverhead, suiteOverheadLimit)
+	}
 }
 
 // PrettyPrintHistory prints history in human readable format

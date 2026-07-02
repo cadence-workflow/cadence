@@ -102,7 +102,7 @@ func (s *IntegrationSuite) TestArchival_ArchiverWorker() {
 	s.True(s.isMutableStateDeleted(domainID, execution))
 }
 
-func (s *IntegrationSuite) TestVisibilityArchival() {
+func (s *IntegrationSuite) TestVisibilityArchival_SLOW() {
 	s.True(s.TestCluster.archiverBase.metadata.GetVisibilityConfig().ClusterConfiguredForArchival())
 
 	domainID := s.getDomainID(s.ArchivalDomainName)

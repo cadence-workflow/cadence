@@ -26,13 +26,16 @@ package failovermanager
 
 import (
 	"context"
+	"math"
 	"slices"
+	"strconv"
 	"time"
 
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
 )
 
@@ -57,6 +60,9 @@ type (
 		TargetCluster string
 		// ClusterAttributeUpdates lists all ClusterAttribute level changes.
 		ClusterAttributeUpdates []ClusterAttributePreference
+		// FailoverTimeoutSeconds, when > 0, triggers a graceful failover with this timeout.
+		// When zero, force failover is used.
+		FailoverTimeoutSeconds int32
 	}
 
 	// FailoverActivityV2Params is the arg for the shared FailoverActivityV2.
@@ -118,6 +124,9 @@ func failoverDomains(ctx context.Context, prefs []DomainFailoverPreferences) (*F
 		}
 		if len(p.ClusterAttributeUpdates) > 0 {
 			failoverRequest.ActiveClusters = buildActiveClustersFromUpdates(p.ClusterAttributeUpdates)
+		}
+		if p.FailoverTimeoutSeconds > 0 {
+			failoverRequest.FailoverTimeoutInSeconds = common.Int32Ptr(p.FailoverTimeoutSeconds)
 		}
 
 		if _, err := frontendClient.FailoverDomain(ctx, failoverRequest); err != nil {
@@ -319,4 +328,20 @@ func failedDomainNames(failures []DomainFailoverFailure) []string {
 		names[i] = f.DomainName
 	}
 	return names
+}
+
+func getFailoverTimeoutSeconds(domain *types.DescribeDomainResponse, logger *zap.Logger) int32 {
+	raw := domain.GetDomainInfo().GetData()[constants.DomainDataKeyForFailoverTimeoutSeconds]
+	if raw == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= 0 || v > math.MaxInt32 {
+		logger.Warn("ignoring invalid failover timeout seconds in domain data",
+			zap.String("domain", domain.GetDomainInfo().GetName()),
+			zap.String("failoverTimeoutInSeconds", raw),
+		)
+		return 0
+	}
+	return int32(v)
 }

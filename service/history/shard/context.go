@@ -112,6 +112,7 @@ type (
 		AppendHistoryV2Events(ctx context.Context, request *persistence.AppendHistoryNodesRequest, domainID string, execution types.WorkflowExecution) (*persistence.AppendHistoryNodesResponse, error)
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
+		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
 	}
@@ -1534,10 +1535,95 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 	return err
 }
 
+func (s *contextImpl) ReinjectHistoryTasks(
+	ctx context.Context,
+	tasks []persistence.Task,
+) error {
+	if err := s.closedError(); err != nil {
+		return err
+	}
+
+	// Group tasks by execution to allow allocateTaskIDsLocked to allocate IDs on a per-execution basis.
+	type executionKey struct {
+		domainID   string
+		workflowID string
+	}
+	tasksByExecution := make(map[executionKey]persistence.HistoryTasksByCategory)
+	for _, task := range tasks {
+		key := executionKey{domainID: task.GetDomainID(), workflowID: task.GetWorkflowID()}
+		if tasksByExecution[key] == nil {
+			tasksByExecution[key] = make(persistence.HistoryTasksByCategory)
+		}
+		category := task.GetTaskCategory()
+		tasksByExecution[key][category] = append(tasksByExecution[key][category], task)
+	}
+
+	// Resolve domain entries before taking the shard lock to minimize the time spent holding the lock.
+	domainEntries := make(map[string]*cache.DomainCacheEntry)
+	for key := range tasksByExecution {
+		if _, ok := domainEntries[key.domainID]; ok {
+			continue
+		}
+		domainEntry, err := s.GetDomainCache().GetDomainByID(key.domainID)
+		if err != nil {
+			return err
+		}
+		domainEntries[key.domainID] = domainEntry
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	immediateTaskMaxReadLevel := int64(0)
+	// tasksByCategory is built after allocation of taskIDs. It is used to build the persistence request.
+	tasksByCategory := make(persistence.HistoryTasksByCategory)
+	for key, executionTasks := range tasksByExecution {
+		if err := s.allocateTaskIDsLocked(
+			domainEntries[key.domainID],
+			key.workflowID,
+			executionTasks,
+			&immediateTaskMaxReadLevel,
+		); err != nil {
+			return err
+		}
+		for category, categoryTasks := range executionTasks {
+			tasksByCategory[category] = append(tasksByCategory[category], categoryTasks...)
+		}
+	}
+
+	if err := s.closedError(); err != nil {
+		return err
+	}
+	err := s.executionManager.CreateHistoryTasks(
+		ctx,
+		&persistence.CreateHistoryTasksRequest{
+			ShardID:         common.Ptr(s.shardID),
+			RangeID:         s.getRangeID(),
+			TasksByCategory: tasksByCategory,
+		},
+	)
+	if err == nil {
+		// Update MaxReadLevel if write to DB succeeds
+		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+	} else if errors.As(err, new(*persistence.ShardOwnershipLostError)) {
+		// do not retry on ShardOwnershipLostError
+		s.logger.Warn(
+			"Closing shard: ReinjectHistoryTasks failed due to stolen shard.",
+			tag.Error(err),
+		)
+		s.closeShard()
+	} else {
+		s.logger.Error(
+			"Failed to re-inject history DLQ tasks into the executions table.",
+			tag.Error(err),
+		)
+	}
+	return err
+}
+
 func (s *contextImpl) AddingPendingFailoverMarker(
 	marker *types.FailoverMarkerAttributes,
 ) error {
-
 	domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 	if err != nil {
 		return err

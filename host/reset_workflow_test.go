@@ -46,7 +46,7 @@ import (
 //
 // Topology exercised: baseRunID --(continue-as-new)--> currentRunID (open)
 // Reset baseRunID with SkipSignalReapply=false to trigger the chain traversal.
-func (s *IntegrationSuite) TestResetWorkflow_ContinueAsNew_DeadlockRegression() {
+func (s *IntegrationSuite) TestResetWorkflow_ContinueAsNew_DeadlockRegression_SLOW() {
 	id := "integration-reset-workflow-can-deadlock-regression-test"
 	wt := "integration-reset-workflow-can-deadlock-regression-test-type"
 	tl := "integration-reset-workflow-can-deadlock-regression-test-tasklist"

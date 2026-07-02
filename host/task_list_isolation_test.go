@@ -119,7 +119,7 @@ func (s *TaskListIsolationIntegrationSuite) TestTaskListIsolation() {
 	}
 }
 
-func (s *TaskListIsolationIntegrationSuite) TestTaskListIsolationLeak() {
+func (s *TaskListIsolationIntegrationSuite) TestTaskListIsolationLeak_SLOW() {
 	runID := s.startWorkflow("a").RunID
 
 	bPoller := s.createPoller("b")

@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout() {
+func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout_SLOW() {
 	id := "integration-workflow-retry-policy-timeout-test"
 	wt := "integration-workflow-retry-policy-timeout-test-type"
 	tl := "integration-workflow-retry-policy-timeout-test-tasklist"
@@ -97,7 +97,7 @@ func (s *IntegrationSuite) TestWorkflowRetryPolicyTimeout() {
 	s.True(delta < 4*time.Second)
 }
 
-func (s *IntegrationSuite) TestWorkflowRetryPolicyContinueAsNewAsRetry() {
+func (s *IntegrationSuite) TestWorkflowRetryPolicyContinueAsNewAsRetry_SLOW() {
 	id := "integration-workflow-retry-policy-continue-as-new-retry-test"
 	wt := "integration-workflow-retry-policy-continue-as-new-retry-test-type"
 	tl := "integration-workflow-retry-policy-continue-as-new-retry-test-tasklist"
