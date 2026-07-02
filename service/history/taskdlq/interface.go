@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq TaskExecutor
+//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq TaskReinjector
 
 package taskdlq
 
@@ -28,13 +28,8 @@ import (
 	"github.com/uber/cadence/common/persistence"
 )
 
-// TaskExecutor executes a single DLQ task synchronously.
-// Callers should implement this using the historyqueuev2 executor machinery.
-type TaskExecutor interface {
-	Execute(ctx context.Context, task persistence.Task) error
-	// HandleErr classifies the error returned by Execute. It returns nil if the error
-	// is ackable (the task can be skipped and processing continues to the next task),
-	// or a non-nil error if execution must stop and the ack level must not advance past
-	// this task.
-	HandleErr(err error) error
+// TaskReinjector writes DLQ tasks back into the executions table with fresh task IDs.
+// Implemented by shard.Context.ReinjectHistoryTasks.
+type TaskReinjector interface {
+	ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 }

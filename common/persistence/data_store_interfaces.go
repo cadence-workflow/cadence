@@ -111,6 +111,7 @@ type (
 		RangeDeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
 		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
+		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request InternalHistoryDLQAckLevel) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer

@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/constants"
 )
@@ -50,24 +51,36 @@ func newMockTask(ctrl *gomock.Controller, taskID int64) *persistence.MockTask {
 	return t
 }
 
-func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *persistence.MockHistoryTaskDLQManager, *MockTaskExecutor) {
+// newProcessor builds a ProcessorImpl with the given dependencies and sensible test defaults.
+func newProcessor(
+	t *testing.T,
+	mgr persistence.HistoryTaskDLQManager,
+	reinjector TaskReinjector,
+	domainMode string,
+	enabled bool,
+	timeSource clock.TimeSource,
+) *ProcessorImpl {
 	t.Helper()
-	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	executor := NewMockTaskExecutor(ctrl)
-	proc := NewProcessor(
+	return NewProcessor(
 		1,
 		mgr,
-		map[int]TaskExecutor{
-			persistence.HistoryTaskCategoryIDTransfer: executor,
-		},
+		reinjector,
 		10,
 		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		clock.NewMockedTimeSource(),
+		dynamicproperties.GetStringPropertyFnFilteredByDomain(domainMode),
+		dynamicproperties.GetBoolPropertyFn(enabled),
+		timeSource,
+		metrics.NewNoopMetricsClient(),
 		testlogger.New(t),
 	)
-	return proc, mgr, executor
+}
+
+func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *persistence.MockHistoryTaskDLQManager, *MockTaskReinjector) {
+	t.Helper()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	reinjector := NewMockTaskReinjector(ctrl)
+	proc := newProcessor(t, mgr, reinjector, constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
+	return proc, mgr, reinjector
 }
 
 func baseAckLevel(shardID int) persistence.HistoryDLQAckLevel {
@@ -92,6 +105,25 @@ func TestProcessShard_WhenNoAckLevels_ReturnsNil(t *testing.T) {
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
+// TestProcessShard_WhenCategoryUnsupported_SkipsWithoutReinjecting verifies that a stray
+// replication ack level is skipped rather than paged and reinjected. Reinjection only supports
+// transfer and timer tasks; attempting to reinject replication would fail at the store, leaving
+// the ack level unadvanced and retried forever.
+func TestProcessShard_WhenCategoryUnsupported_SkipsWithoutReinjecting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, _ := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+	al.TaskCategory = persistence.HistoryTaskCategoryReplication
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	// No GetHistoryDLQTasks / ReinjectHistoryTasks / UpdateHistoryDLQAckLevel expectations:
+	// the partition must be skipped entirely.
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
 func TestProcessShard_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -104,11 +136,11 @@ func TestProcessShard_WhenGetAckLevelsFails_ReturnsError(t *testing.T) {
 	assert.ErrorContains(t, err, "db error")
 }
 
-func TestProcessShard_WhenAllTasksSucceed_AdvancesAckLevel(t *testing.T) {
+func TestProcessShard_WhenPageSucceeds_AdvancesAckLevelToLastTaskKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	proc, mgr, executor := setupProcessor(t, ctrl)
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
 	task0 := newMockTask(ctrl, 0)
 	task1 := newMockTask(ctrl, 1)
@@ -116,115 +148,154 @@ func TestProcessShard_WhenAllTasksSucceed_AdvancesAckLevel(t *testing.T) {
 
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: tasks}, nil)
-	executor.EXPECT().Execute(gomock.Any(), tasks[0]).Return(nil)
-	executor.EXPECT().Execute(gomock.Any(), tasks[1]).Return(nil)
-	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
-
-	assert.NoError(t, proc.ProcessShard(context.Background()))
-}
-
-func TestProcessShard_WhenTasksSpanMultiplePages_ProcessesAll(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	proc, mgr, executor := setupProcessor(t, ctrl)
-	al := baseAckLevel(1)
-	page1Token := []byte("token1")
-	task0 := newMockTask(ctrl, 0)
-	task1 := newMockTask(ctrl, 1)
-
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
-		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}, NextPageToken: page1Token}, nil,
-	)
-	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
-		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task1}}, nil,
-	)
-	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
-	executor.EXPECT().Execute(gomock.Any(), task1).Return(nil)
-	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
-
-	assert.NoError(t, proc.ProcessShard(context.Background()))
-}
-
-func TestProcessShard_WhenExecutionFailsMidPage_AdvancesAckLevelToLastSuccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	proc, mgr, executor := setupProcessor(t, ctrl)
-	al := baseAckLevel(1)
-	key0 := persistence.NewImmediateTaskKey(0)
-	task0 := persistence.NewMockTask(ctrl)
-	task0.EXPECT().GetTaskKey().Return(key0)
-	task1 := persistence.NewMockTask(ctrl) // GetTaskKey never called: execution fails before it
-	execErr := errors.New("execute failed")
-
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
-		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
-	)
-	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
-	executor.EXPECT().Execute(gomock.Any(), task1).Return(execErr)
-	executor.EXPECT().HandleErr(execErr).Return(execErr)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), tasks).Return(nil)
 	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
 		ShardID:                   al.ShardID,
 		DomainID:                  al.DomainID,
 		ClusterAttributeScope:     al.ClusterAttributeScope,
 		ClusterAttributeName:      al.ClusterAttributeName,
 		TaskCategory:              al.TaskCategory,
-		UpdatedInclusiveReadLevel: key0,
+		UpdatedInclusiveReadLevel: persistence.NewImmediateTaskKey(1),
+	}).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+// TestProcessShard_AdvancesUsingOriginalKey_WhenReinjectionMutatesTaskID guards against
+// reading the ack-level cursor from a task whose ID was rewritten by reinjection.
+// ReinjectHistoryTasks allocates fresh shard-global IDs and calls SetTaskID in place; if
+// the processor captured GetTaskKey() after reinjection it would advance the ack level
+// (and delete) using the huge fresh ID instead of the original DLQ row position.
+func TestProcessShard_AdvancesUsingOriginalKey_WhenReinjectionMutatesTaskID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+
+	const originalID = int64(7)
+	const freshID = int64(1_000_000) // simulates a monotonically increasing shard-global ID
+	// Real task type whose GetTaskKey() reads the same mutable TaskID that SetTaskID writes.
+	task := &persistence.ActivityTask{TaskData: persistence.TaskData{TaskID: originalID}}
+	tasks := []persistence.Task{task}
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: tasks}, nil)
+	// Reinjection rewrites the task ID in place, as the real shard implementation does.
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), tasks).DoAndReturn(
+		func(_ context.Context, ts []persistence.Task) error {
+			ts[len(ts)-1].SetTaskID(freshID)
+			return nil
+		},
+	)
+	// Ack level must advance to the original key, not the mutated one.
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
+		ShardID:                   al.ShardID,
+		DomainID:                  al.DomainID,
+		ClusterAttributeScope:     al.ClusterAttributeScope,
+		ClusterAttributeName:      al.ClusterAttributeName,
+		TaskCategory:              al.TaskCategory,
+		UpdatedInclusiveReadLevel: persistence.NewImmediateTaskKey(originalID),
+	}).Return(nil)
+	// Delete must bound on the original key, not delete the whole partition via the huge fresh ID.
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), persistence.HistoryDLQDeleteTasksRequest{
+		ShardID:               al.ShardID,
+		DomainID:              al.DomainID,
+		ClusterAttributeScope: al.ClusterAttributeScope,
+		ClusterAttributeName:  al.ClusterAttributeName,
+		TaskCategory:          al.TaskCategory,
+		ExclusiveMaxTaskKey:   persistence.NewImmediateTaskKey(originalID).Next(),
+	}).Return(nil)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+func TestProcessShard_WhenTasksSpanMultiplePages_ReinjectsEachPageAndAdvances(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+	page1Token := []byte("token1")
+	task0 := newMockTask(ctrl, 0)
+	task1 := newMockTask(ctrl, 1)
+	page0 := []persistence.Task{task0}
+	page1 := []persistence.Task{task1}
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
+		persistence.HistoryDLQGetTasksResponse{Tasks: page0, NextPageToken: page1Token}, nil,
+	)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
+		persistence.HistoryDLQGetTasksResponse{Tasks: page1}, nil,
+	)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page0).Return(nil)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page1).Return(nil)
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
+	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+func TestProcessShard_WhenPageReinjectFails_AdvancesToLastGoodPage(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
+	al := baseAckLevel(1)
+	page1Token := []byte("token1")
+	task0 := newMockTask(ctrl, 0)
+	task1 := newMockTask(ctrl, 1)
+	page0 := []persistence.Task{task0}
+	page1 := []persistence.Task{task1}
+	reinjectErr := errors.New("reinject failed")
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
+		persistence.HistoryDLQGetTasksResponse{Tasks: page0, NextPageToken: page1Token}, nil,
+	)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
+		persistence.HistoryDLQGetTasksResponse{Tasks: page1}, nil,
+	)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page0).Return(nil)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page1).Return(reinjectErr)
+	// Ack level advances only to the last task of the last successfully re-injected page (task0).
+	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), persistence.HistoryDLQUpdateAckLevelRequest{
+		ShardID:                   al.ShardID,
+		DomainID:                  al.DomainID,
+		ClusterAttributeScope:     al.ClusterAttributeScope,
+		ClusterAttributeName:      al.ClusterAttributeName,
+		TaskCategory:              al.TaskCategory,
+		UpdatedInclusiveReadLevel: persistence.NewImmediateTaskKey(0),
 	}).Return(nil)
 	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, execErr)
+	assert.ErrorIs(t, err, reinjectErr)
 }
 
-func TestProcessShard_WhenFirstTaskFails_DoesNotAdvanceAckLevel(t *testing.T) {
+func TestProcessShard_WhenFirstPageReinjectFails_DoesNotAdvanceAckLevel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	proc, mgr, executor := setupProcessor(t, ctrl)
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
-	task0 := persistence.NewMockTask(ctrl)
-	execErr := errors.New("execute failed")
+	task0 := newMockTask(ctrl, 0) // key captured before reinjection, but ack level must not advance
+	page0 := []persistence.Task{task0}
+	reinjectErr := errors.New("reinject failed")
 
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
-		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}}, nil,
+		persistence.HistoryDLQGetTasksResponse{Tasks: page0}, nil,
 	)
-	executor.EXPECT().Execute(gomock.Any(), task0).Return(execErr)
-	executor.EXPECT().HandleErr(execErr).Return(execErr)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page0).Return(reinjectErr)
+	// UpdateHistoryDLQAckLevel / DeleteHistoryDLQTasks must NOT be called.
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, execErr)
-}
-
-func TestProcessShard_WhenTaskIsAckable_SkipsAndAdvancesPastIt(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	proc, mgr, executor := setupProcessor(t, ctrl)
-	al := baseAckLevel(1)
-	task0 := newMockTask(ctrl, 0) // will fail with ackable error
-	task1 := newMockTask(ctrl, 1) // succeeds
-	ackableErr := errors.New("entity not found")
-
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
-		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
-	)
-	executor.EXPECT().Execute(gomock.Any(), task0).Return(ackableErr)
-	executor.EXPECT().HandleErr(ackableErr).Return(nil) // ackable: skip and continue
-	executor.EXPECT().Execute(gomock.Any(), task1).Return(nil)
-	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
-	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(nil)
-
-	assert.NoError(t, proc.ProcessShard(context.Background()))
+	assert.ErrorIs(t, err, reinjectErr)
 }
 
 func TestProcessShard_WhenOnePartitionFails_ReturnsErrorButProcessesRemainingPartitions(t *testing.T) {
@@ -274,23 +345,7 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	transferExecutor := NewMockTaskExecutor(ctrl)
-	timerExecutor := NewMockTaskExecutor(ctrl)
-	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	proc := NewProcessor(
-		1,
-		mgr,
-		map[int]TaskExecutor{
-			persistence.HistoryTaskCategoryIDTransfer: transferExecutor,
-			persistence.HistoryTaskCategoryIDTimer:    timerExecutor,
-		},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		clock.NewMockedTimeSource(),
-		testlogger.New(t),
-	)
+	proc, mgr, _ := setupProcessor(t, ctrl)
 
 	transferAL := persistence.HistoryDLQAckLevel{
 		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
@@ -360,44 +415,34 @@ func TestAdvanceAckLevel(t *testing.T) {
 	}
 }
 
-func TestProcessShard_WhenNoExecutorForTaskType_ReturnsError(t *testing.T) {
+func TestProcessShard_WhenReinjectAndAdvanceAckLevelBothFail_ReturnsBothErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	proc, mgr, _ := setupProcessor(t, ctrl)
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
-	al.TaskCategory = persistence.HistoryTaskCategoryTimer // no executor registered for timer
-
-	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
-
-	err := proc.ProcessShard(context.Background())
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "no executor registered for task type")
-}
-
-func TestProcessShard_WhenExecutionAndAdvanceAckLevelBothFail_ReturnsBothErrors(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	proc, mgr, executor := setupProcessor(t, ctrl)
-	al := baseAckLevel(1)
+	page1Token := []byte("token1")
 	task0 := newMockTask(ctrl, 0)
-	task1 := persistence.NewMockTask(ctrl)
-	execErr := errors.New("execute failed")
+	task1 := newMockTask(ctrl, 1)
+	page0 := []persistence.Task{task0}
+	page1 := []persistence.Task{task1}
+	reinjectErr := errors.New("reinject failed")
 	updateErr := errors.New("update ack level failed")
 
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
-		persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0, task1}}, nil,
+		persistence.HistoryDLQGetTasksResponse{Tasks: page0, NextPageToken: page1Token}, nil,
 	)
-	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
-	executor.EXPECT().Execute(gomock.Any(), task1).Return(execErr)
-	executor.EXPECT().HandleErr(execErr).Return(execErr)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(
+		persistence.HistoryDLQGetTasksResponse{Tasks: page1}, nil,
+	)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page0).Return(nil)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), page1).Return(reinjectErr)
 	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(updateErr)
 
 	err := proc.ProcessShard(context.Background())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, execErr)
+	assert.ErrorIs(t, err, reinjectErr)
 	assert.ErrorIs(t, err, updateErr)
 }
 
@@ -406,17 +451,7 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	proc := NewProcessor(
-		1,
-		mgr,
-		map[int]TaskExecutor{},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		clock.NewMockedTimeSource(),
-		testlogger.New(t),
-	)
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
 
 	shardStarted := make(chan struct{})
 	shardBlocked := make(chan struct{})
@@ -477,17 +512,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 		return nil, ctx.Err()
 	}).AnyTimes()
 
-	proc := NewProcessor(
-		1,
-		mgr,
-		map[int]TaskExecutor{},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		ts,
-		testlogger.New(t),
-	)
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, ts)
 
 	proc.Start()
 
@@ -519,15 +544,15 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	proc, mgr, executor := setupProcessor(t, ctrl)
+	proc, mgr, reinjector := setupProcessor(t, ctrl)
 	al := baseAckLevel(1)
 	task0Key := persistence.NewImmediateTaskKey(0)
 	task0 := newMockTask(ctrl, 0)
 
-	// First run: task executes, ack level advances, DeleteTasks fails.
+	// First run: page re-injects, ack level advances, DeleteTasks fails.
 	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(persistence.HistoryDLQGetTasksResponse{Tasks: []persistence.Task{task0}}, nil)
-	executor.EXPECT().Execute(gomock.Any(), task0).Return(nil)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), []persistence.Task{task0}).Return(nil)
 	mgr.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil)
 	mgr.EXPECT().DeleteHistoryDLQTasks(gomock.Any(), gomock.Any()).Return(errors.New("delete failed"))
 
@@ -555,17 +580,7 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	proc := NewProcessor(
-		1,
-		mgr,
-		map[int]TaskExecutor{},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		clock.NewMockedTimeSource(),
-		testlogger.New(t),
-	)
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
 
 	proc.Start()
 	proc.Start() // second call must be a no-op
@@ -588,17 +603,7 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 		return nil, nil
 	}).AnyTimes()
 
-	proc := NewProcessor(
-		1,
-		mgr,
-		map[int]TaskExecutor{},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		ts,
-		testlogger.New(t),
-	)
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, ts)
 
 	proc.Start()
 	defer proc.Stop()
@@ -620,17 +625,7 @@ func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 	ts := clock.NewMockedTimeSource()
 	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Times(0)
-	proc := NewProcessor(
-		1,
-		store,
-		map[int]TaskExecutor{},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeEnabled),
-		dynamicproperties.GetBoolPropertyFn(false),
-		ts,
-		testlogger.New(t),
-	)
+	proc := newProcessor(t, store, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, false, ts)
 
 	proc.Start()
 	defer proc.Stop()
@@ -649,25 +644,13 @@ func TestProcessShard_WhenDomainNotEnabled_SkipsProcessing(t *testing.T) {
 	defer ctrl.Finish()
 
 	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	executor := NewMockTaskExecutor(ctrl)
-	proc := NewProcessor(
-		1,
-		store,
-		map[int]TaskExecutor{
-			persistence.HistoryTaskCategoryIDTransfer: executor,
-		},
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(constants.HistoryTaskDLQModeDisabled),
-		dynamicproperties.GetBoolPropertyFn(true),
-		clock.NewMockedTimeSource(),
-		testlogger.New(t),
-	)
+	reinjector := NewMockTaskReinjector(ctrl)
+	proc := newProcessor(t, store, reinjector, constants.HistoryTaskDLQModeDisabled, true, clock.NewMockedTimeSource())
 
 	al := baseAckLevel(1)
 	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
 	store.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).Times(0)
-	executor.EXPECT().Execute(gomock.Any(), gomock.Any()).Times(0)
+	reinjector.EXPECT().ReinjectHistoryTasks(gomock.Any(), gomock.Any()).Times(0)
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
