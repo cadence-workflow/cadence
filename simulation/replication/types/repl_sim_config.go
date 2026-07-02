@@ -51,6 +51,7 @@ const (
 	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
+	ReplicationSimulationOperationValidateDLQ                 ReplicationSimulationOperation = "validate_dlq"
 )
 
 type ReplicationSimulationConfig struct {
@@ -126,6 +127,12 @@ type Validation struct {
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
 	Error                       string `yaml:"error"`
 	QueryResult                 any    `yaml:"queryResult"`
+
+	// DLQCountAtLeast / DLQCountAtMost are used by the validate_dlq operation to assert
+	// on the number of history-task DLQ rows for a domain in a cluster's keyspace.
+	// Pointers so that "unset" is distinguishable from an explicit 0.
+	DLQCountAtLeast *int `yaml:"dlqCountAtLeast"`
+	DLQCountAtMost  *int `yaml:"dlqCountAtMost"`
 }
 
 type Cluster struct {
@@ -133,6 +140,22 @@ type Cluster struct {
 
 	AdminClient    admin.Client    `yaml:"-"`
 	FrontendClient frontend.Client `yaml:"-"`
+}
+
+// KeyspaceForCluster returns the Cassandra keyspace that backs a cluster in the
+// replication simulation docker-compose. It mirrors the KEYSPACE env vars set in
+// docker/github_actions/docker-compose-local-replication-simulation.yml.
+// Used by the validate_dlq operation to query the history-task DLQ tables directly,
+// since there is no admin RPC for the history-task DLQ.
+func KeyspaceForCluster(clusterName string) (string, error) {
+	switch clusterName {
+	case "cluster0":
+		return "cadence_primary", nil
+	case "cluster1":
+		return "cadence_secondary", nil
+	default:
+		return "", fmt.Errorf("no known keyspace for cluster %q", clusterName)
+	}
 }
 
 func LoadConfig() (*ReplicationSimulationConfig, error) {

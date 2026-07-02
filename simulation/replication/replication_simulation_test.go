@@ -43,6 +43,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gocql/gocql"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -104,6 +105,8 @@ func TestReplicationSimulation(t *testing.T) {
 			err = signalWithStartWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
 			err = validateWorkflowReplication(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationValidateDLQ:
+			err = validateDLQ(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -555,6 +558,71 @@ func validateWorkflowReplication(
 
 	if !reflect.DeepEqual(sourceClusterWorkflowExecution, targetClusterWorkflowExecution) {
 		return fmt.Errorf("workflow execution info mismatch between source cluster %s and target cluster %s for workflow %s. \nSource: %+v\nTarget: %+v", op.SourceCluster, op.TargetCluster, op.WorkflowID, *sourceClusterWorkflowExecution, *targetClusterWorkflowExecution)
+	}
+
+	return nil
+}
+
+// cassandraSeed is the docker-compose network alias of the shared Cassandra node
+// (see docker/github_actions/docker-compose-local-replication-simulation.yml).
+const cassandraSeed = "cassandra"
+
+// validateDLQ asserts on the number of history-task DLQ rows for a domain in a
+// cluster's keyspace. There is no admin RPC for the history-task DLQ, so it queries
+// Cassandra directly.
+//
+// Typical usage: assert the standby cluster's DLQ fills up (dlqCountAtLeast) while a
+// domain is active elsewhere, then drains to zero (dlqCountAtMost) after failover makes
+// that cluster active and the DLQ processor re-injects the tasks.
+func validateDLQ(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	keyspace, err := simTypes.KeyspaceForCluster(op.Cluster)
+	if err != nil {
+		return err
+	}
+
+	// Resolve the domain UUID; the DLQ tables key on domain_id, not the domain name.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	descResp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(op.Domain)})
+	if err != nil {
+		return fmt.Errorf("failed to describe domain %s: %w", op.Domain, err)
+	}
+	domainID := descResp.GetDomainInfo().GetUUID()
+
+	simTypes.Logf(t, "Validating DLQ for domain %s (id=%s) on cluster %s (keyspace %s)", op.Domain, domainID, op.Cluster, keyspace)
+
+	cluster := gocql.NewCluster(cassandraSeed)
+	cluster.Keyspace = keyspace
+	cluster.Consistency = gocql.One
+	cluster.Timeout = 10 * time.Second
+	session, err := cluster.CreateSession()
+	if err != nil {
+		return fmt.Errorf("failed to create cassandra session for keyspace %s: %w", keyspace, err)
+	}
+	defer session.Close()
+
+	// domain_id is only part of the composite partition key, so ALLOW FILTERING is required.
+	var count int
+	if err := session.Query(
+		`SELECT COUNT(*) FROM history_task_dlq WHERE domain_id = ? ALLOW FILTERING`,
+		domainID,
+	).WithContext(ctx).Scan(&count); err != nil {
+		return fmt.Errorf("failed to count history_task_dlq rows for domain %s in %s: %w", op.Domain, keyspace, err)
+	}
+
+	simTypes.Logf(t, "history_task_dlq row count for domain %s in %s: %d", op.Domain, keyspace, count)
+
+	if op.Want.DLQCountAtLeast != nil && count < *op.Want.DLQCountAtLeast {
+		return fmt.Errorf("DLQ row count for domain %s in %s = %d, want at least %d", op.Domain, keyspace, count, *op.Want.DLQCountAtLeast)
+	}
+	if op.Want.DLQCountAtMost != nil && count > *op.Want.DLQCountAtMost {
+		return fmt.Errorf("DLQ row count for domain %s in %s = %d, want at most %d", op.Domain, keyspace, count, *op.Want.DLQCountAtMost)
 	}
 
 	return nil
