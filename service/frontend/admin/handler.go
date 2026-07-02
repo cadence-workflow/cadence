@@ -446,11 +446,7 @@ func (adh *adminHandlerImpl) deleteWorkflowFromExecutions(
 	runID string,
 	scope metrics.Scope,
 ) bool {
-	exeStore, err := adh.GetExecutionManager()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Cannot get execution manager for shardID(%v): %#v", shardIDInt, err))
-		return false
-	}
+	exeStore := adh.GetExecutionManager()
 	domainName, err := adh.GetDomainCache().GetDomainName(domainID)
 	if err != nil {
 		logger.Error("Unexpected: Cannot fetch domain name", tag.Error(err))

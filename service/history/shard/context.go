@@ -1775,10 +1775,7 @@ func acquireShard(
 		scheduledTaskMaxReadLevelMap[clusterName] = scheduledTaskMaxReadLevelMap[clusterName].Truncate(persistence.DBTimestampMinPrecision)
 	}
 
-	executionMgr, err := shardItem.GetExecutionManager()
-	if err != nil {
-		return nil, err
-	}
+	executionMgr := shardItem.GetExecutionManager()
 
 	context := &contextImpl{
 		Resource:                       shardItem.Resource,

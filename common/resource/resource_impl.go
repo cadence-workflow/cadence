@@ -243,7 +243,7 @@ func New(
 		domainCache.GetDomainByID,
 		params.MetricsClient,
 		logger,
-		persistenceBean,
+		persistenceBean.GetExecutionManager(),
 		numShards,
 	)
 	if err != nil {
@@ -671,7 +671,7 @@ func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 }
 
 // GetExecutionManager return execution manager
-func (h *Impl) GetExecutionManager() (persistence.ExecutionManager, error) {
+func (h *Impl) GetExecutionManager() persistence.ExecutionManager {
 
 	return h.persistenceBean.GetExecutionManager()
 }
