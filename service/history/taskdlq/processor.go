@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"go.uber.org/multierr"
 
@@ -36,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/constants"
 )
@@ -62,15 +62,16 @@ type (
 	}
 
 	ProcessorImpl struct {
-		shardID    int
-		mgr        persistence.HistoryTaskDLQManager
-		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
-		pageSize   int
-		interval   dynamicproperties.DurationPropertyFnWithShardIDFilter
-		domainMode dynamicproperties.StringPropertyFnWithDomainFilter
-		enabled    dynamicproperties.BoolPropertyFn
-		timeSource clock.TimeSource
-		logger     log.Logger
+		shardID       int
+		mgr           persistence.HistoryTaskDLQManager
+		reinjector    TaskReinjector
+		pageSize      int
+		interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
+		domainMode    dynamicproperties.StringPropertyFnWithDomainFilter
+		enabled       dynamicproperties.BoolPropertyFn
+		timeSource    clock.TimeSource
+		metricsClient metrics.Client
+		logger        log.Logger
 
 		status    int32
 		ctx       context.Context
@@ -82,35 +83,35 @@ type (
 
 var _ Processor = (*ProcessorImpl)(nil)
 
-// NewProcessor creates a Processor that reads from the history task DLQ for shardID.
+// NewProcessor creates a Processor that reads from the history task DLQ for the given shardID.
 //
-// executors maps persistence.HistoryTaskCategoryID* constants to the appropriate
-// historyqueuev2 executor for each task type.
-//
-// interval controls how often the background loop calls ProcessShard.
+// The processor will periodically process the DLQ for the entire shard,
+// and will process a domain/clustetAttribute pair on demand.
 func NewProcessor(
 	shardID int,
 	mgr persistence.HistoryTaskDLQManager,
-	executors map[int]TaskExecutor,
+	reinjector TaskReinjector,
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
 	timeSource clock.TimeSource,
+	metricsClient metrics.Client,
 	logger log.Logger,
 ) *ProcessorImpl {
 	return &ProcessorImpl{
-		shardID:    shardID,
-		mgr:        mgr,
-		executors:  executors,
-		pageSize:   pageSize,
-		interval:   interval,
-		domainMode: domainMode,
-		enabled:    enabled,
-		timeSource: timeSource,
-		logger:     logger,
-		status:     common.DaemonStatusInitialized,
-		cancel:     func() {}, // no-op until Start() sets the real cancel
+		shardID:       shardID,
+		mgr:           mgr,
+		reinjector:    reinjector,
+		pageSize:      pageSize,
+		interval:      interval,
+		domainMode:    domainMode,
+		enabled:       enabled,
+		timeSource:    timeSource,
+		metricsClient: metricsClient,
+		logger:        logger,
+		status:        common.DaemonStatusInitialized,
+		cancel:        func() {}, // no-op until Start() sets the real cancel
 	}
 }
 
@@ -205,8 +206,9 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	return p.processAckLevels(ctx, ackLevels)
 }
 
-// processAckLevels attempts to process every ack level entry. All partitions are
-// attempted regardless of individual failures; all errors are combined and returned.
+// processAckLevels takes a list of ack levels and processes them one by one.
+// All ack levels are processed regardless of individual failures.
+// Returns an error when any of the ack levels cannot be processed
 func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {
 	var errs error
 	for _, al := range ackLevels {
@@ -224,19 +226,28 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persis
 	return errs
 }
 
-// processAckLevel pages through the tasks for one (partition, taskType) and executes
-// each one. It stops at the first execution failure, then advances the ack level to
-// the last successfully executed task key.
+// processAckLevel fetches and re-injects tasks for the given ack level.
+// It reads all tasks from the current ack position to the shards max read level, and re-injects them
+// to the executions table.
+// Returns an error when the domain is not enabled or when the tasks cannot be fetched or re-injected.
 func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.HistoryDLQAckLevel) error {
 	if p.domainMode(al.DomainID) != constants.HistoryTaskDLQModeEnabled {
 		p.logger.Debug("DLQ not enabled for domain, skipping ack level processing", tag.ShardID(p.shardID), tag.WorkflowDomainID(al.DomainID))
 		return nil
 	}
 
-	executor, ok := p.executors[al.TaskCategory.ID()]
-	if !ok {
-		return fmt.Errorf("no executor registered for task type %d", al.TaskCategory.ID())
+	// Reinjection only supports transfer and timer tasks (see ExecutionManager.CreateHistoryTasks).
+	// Skip any other category (e.g. replication) so an ack level cannot block processing.
+	if id := al.TaskCategory.ID(); id != persistence.HistoryTaskCategoryIDTransfer &&
+		id != persistence.HistoryTaskCategoryIDTimer {
+		p.logger.Debug("Skipping DLQ ack level for unsupported task category",
+			tag.ShardID(p.shardID),
+			tag.WorkflowDomainID(al.DomainID),
+			tag.TaskType(al.TaskCategory.ID()))
+		return nil
 	}
+
+	scope := p.metricsClient.Scope(metrics.HistoryTaskDLQProcessorScope, metrics.DomainTag(al.DomainID))
 
 	var (
 		pageToken   []byte
@@ -245,8 +256,8 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-	// TODO(c-warren): Pass in max read level from the shard context
-	maxKey := persistence.NewHistoryTaskKey(time.Unix(1<<62, 0), 0)
+	// TODO(c-warren): Pass in max read level from the shard context.
+	maxKey := persistence.MaximumHistoryTaskKey
 
 	for {
 		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{
@@ -265,23 +276,18 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 			break
 		}
 
-		for _, t := range resp.Tasks {
-			if err := executor.Execute(ctx, t); err != nil {
-				if handledErr := executor.HandleErr(err); handledErr != nil {
-					firstErr = handledErr
-					break
-				}
-				// ackable error: log and skip this task, advance past it
-				p.logger.Warn("skipping ackable DLQ task execution error",
-					tag.WorkflowDomainID(al.DomainID),
-					tag.Error(err),
-				)
+		if len(resp.Tasks) > 0 {
+			scope.RecordHistogramValue(metrics.HistoryTaskDLQPageSizeBytes, float64(resp.PageSizeBytes))
+			k := resp.Tasks[len(resp.Tasks)-1].GetTaskKey()
+			if err := p.reinjector.ReinjectHistoryTasks(ctx, resp.Tasks); err != nil {
+				scope.IncCounter(metrics.HistoryTaskDLQReinjectFailuresCounter)
+				firstErr = err
+				break
 			}
-			k := t.GetTaskKey()
 			lastGoodKey = &k
 		}
 
-		if firstErr != nil || len(resp.NextPageToken) == 0 {
+		if len(resp.NextPageToken) == 0 {
 			break
 		}
 		pageToken = resp.NextPageToken

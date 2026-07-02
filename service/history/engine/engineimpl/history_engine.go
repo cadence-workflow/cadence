@@ -298,12 +298,13 @@ func NewEngineWithShardContext(
 	historyEngImpl.dlqProcessor = taskdlq.NewProcessor(
 		shard.GetShardID(),
 		shard.GetService().GetHistoryTaskDLQManager(),
-		map[int]taskdlq.TaskExecutor{},
+		shard,
 		100,
 		config.HistoryTaskDLQProcessorInterval,
 		config.HistoryTaskDLQMode,
 		config.HistoryTaskDLQProcessorEnabled,
 		shard.GetTimeSource(),
+		shard.GetMetricsClient(),
 		logger,
 	)
 
