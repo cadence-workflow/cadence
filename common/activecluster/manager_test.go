@@ -308,15 +308,14 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 	logger := log.NewNoop()
 
 	tests := []struct {
-		name                           string
-		runID                          string
-		activeClusterCfg               *types.ActiveClusters
-		domainIDToNameErr              error
-		mockExecutionManagerFn         func(em *persistence.MockExecutionManager)
-		mockExecutionManagerProviderFn func(emp *MockExecutionManagerProvider)
-		cachedPolicy                   *types.ActiveClusterSelectionPolicy
-		expectedResult                 *types.ActiveClusterInfo
-		expectedError                  string
+		name                   string
+		runID                  string
+		activeClusterCfg       *types.ActiveClusters
+		domainIDToNameErr      error
+		mockExecutionManagerFn func(em *persistence.MockExecutionManager)
+		cachedPolicy           *types.ActiveClusterSelectionPolicy
+		expectedResult         *types.ActiveClusterInfo
+		expectedError          string
 	}{
 		{
 			name:  "domain ID to name function returns error",
@@ -335,26 +334,6 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 			},
 			domainIDToNameErr: errors.New("failed to find domain by id"),
 			expectedError:     "failed to find domain by id",
-		},
-		{
-			name:  "execution manager provider returns error",
-			runID: "test-run-id",
-			activeClusterCfg: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"us-west": {
-								ActiveClusterName: "cluster0",
-								FailoverVersion:   100,
-							},
-						},
-					},
-				},
-			},
-			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
-				emp.EXPECT().GetExecutionManager().Return(nil, errors.New("failed to get execution manager")).AnyTimes()
-			},
-			expectedError: "failed to get execution manager",
 		},
 		{
 			name:  "execution manager GetActiveClusterSelectionPolicy returns error",
@@ -510,7 +489,7 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 				},
 			},
 			mockExecutionManagerFn: func(em *persistence.MockExecutionManager) {
-				// No expectations needed since policy comes from cache, but we need the provider to be non-nil
+				// No expectations needed since policy comes from cache, but we need the execution manager to be non-nil
 			},
 			expectedResult: &types.ActiveClusterInfo{
 				ActiveClusterName: "cluster1",
@@ -663,27 +642,18 @@ func TestGetActiveClusterInfoByWorkflow(t *testing.T) {
 
 			wfID := "test-workflow-id"
 
-			var emProvider *MockExecutionManagerProvider
-			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
-				emProvider = NewMockExecutionManagerProvider(ctrl)
-
-				if tc.mockExecutionManagerProviderFn != nil {
-					tc.mockExecutionManagerProviderFn(emProvider)
-				} else {
-					// Default case: create execution manager and set up provider
-					em := persistence.NewMockExecutionManager(ctrl)
-					if tc.mockExecutionManagerFn != nil {
-						tc.mockExecutionManagerFn(em)
-					}
-					emProvider.EXPECT().GetExecutionManager().Return(em, nil).AnyTimes()
-				}
+			var em persistence.ExecutionManager
+			if tc.mockExecutionManagerFn != nil {
+				mockEM := persistence.NewMockExecutionManager(ctrl)
+				tc.mockExecutionManagerFn(mockEM)
+				em = mockEM
 			}
 
 			mgr, err := NewManager(
 				domainIDToDomainFn,
 				metricsCl,
 				logger,
-				emProvider,
+				em,
 				numShards,
 			)
 			assert.NoError(t, err)
@@ -731,16 +701,15 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 	logger := log.NewNoop()
 
 	tests := []struct {
-		name                           string
-		activeClusterCfg               *types.ActiveClusters
-		isActiveActive                 bool
-		domainIDToNameErr              error
-		mockExecutionManagerFn         func(em *persistence.MockExecutionManager)
-		mockExecutionManagerProviderFn func(emp *MockExecutionManagerProvider)
-		cachedPolicy                   *types.ActiveClusterSelectionPolicy
-		expectedPolicy                 *types.ActiveClusterSelectionPolicy
-		expectedRunning                bool
-		expectedError                  string
+		name                   string
+		activeClusterCfg       *types.ActiveClusters
+		isActiveActive         bool
+		domainIDToNameErr      error
+		mockExecutionManagerFn func(em *persistence.MockExecutionManager)
+		cachedPolicy           *types.ActiveClusterSelectionPolicy
+		expectedPolicy         *types.ActiveClusterSelectionPolicy
+		expectedRunning        bool
+		expectedError          string
 	}{
 		{
 			name:              "domain ID to name function returns error",
@@ -753,27 +722,6 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 			name:            "non-active-active domain returns nil",
 			isActiveActive:  false,
 			expectedPolicy:  nil,
-			expectedRunning: false,
-		},
-		{
-			name:           "execution manager provider returns error",
-			isActiveActive: true,
-			activeClusterCfg: &types.ActiveClusters{
-				AttributeScopes: map[string]types.ClusterAttributeScope{
-					"region": {
-						ClusterAttributes: map[string]types.ActiveClusterInfo{
-							"us-west": {
-								ActiveClusterName: "cluster0",
-								FailoverVersion:   100,
-							},
-						},
-					},
-				},
-			},
-			mockExecutionManagerProviderFn: func(emp *MockExecutionManagerProvider) {
-				emp.EXPECT().GetExecutionManager().Return(nil, errors.New("failed to get execution manager")).AnyTimes()
-			},
-			expectedError:   "failed to get execution manager",
 			expectedRunning: false,
 		},
 		{
@@ -1067,27 +1015,18 @@ func TestGetActiveClusterSelectionPolicyForCurrentWorkflow(t *testing.T) {
 
 			wfID := "test-workflow-id"
 
-			var emProvider *MockExecutionManagerProvider
-			if tc.mockExecutionManagerProviderFn != nil || tc.mockExecutionManagerFn != nil {
-				emProvider = NewMockExecutionManagerProvider(ctrl)
-
-				if tc.mockExecutionManagerProviderFn != nil {
-					tc.mockExecutionManagerProviderFn(emProvider)
-				} else {
-					// Default case: create execution manager and set up provider
-					em := persistence.NewMockExecutionManager(ctrl)
-					if tc.mockExecutionManagerFn != nil {
-						tc.mockExecutionManagerFn(em)
-					}
-					emProvider.EXPECT().GetExecutionManager().Return(em, nil).AnyTimes()
-				}
+			var em persistence.ExecutionManager
+			if tc.mockExecutionManagerFn != nil {
+				mockEM := persistence.NewMockExecutionManager(ctrl)
+				tc.mockExecutionManagerFn(mockEM)
+				em = mockEM
 			}
 
 			mgr, err := NewManager(
 				domainIDToDomainFn,
 				metricsCl,
 				logger,
-				emProvider,
+				em,
 				numShards,
 			)
 			assert.NoError(t, err)

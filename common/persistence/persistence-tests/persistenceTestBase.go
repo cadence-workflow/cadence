@@ -82,7 +82,7 @@ type (
 		*suite.Suite
 		Controller                *gomock.Controller
 		ShardMgr                  persistence.ShardManager
-		ExecutionMgrFactory       client.Factory
+		PersistenceFactory        client.Factory
 		ExecutionManager          persistence.ExecutionManager
 		TaskMgr                   persistence.TaskManager
 		HistoryV2Mgr              persistence.HistoryManager
@@ -249,7 +249,7 @@ func (s *TestBase) Setup() {
 	s.ConfigStoreManager, err = factory.NewConfigStoreManager()
 	s.fatalOnError("NewConfigStoreManager", err)
 
-	s.ExecutionMgrFactory = factory
+	s.PersistenceFactory = factory
 	s.ExecutionManager, err = factory.NewExecutionManager()
 	s.fatalOnError("NewExecutionManager", err)
 
@@ -1880,7 +1880,7 @@ func (s *TestBase) CompleteTask(ctx context.Context, domainID, taskList string, 
 
 // TearDownWorkflowStore to cleanup
 func (s *TestBase) TearDownWorkflowStore() {
-	s.ExecutionMgrFactory.Close()
+	s.PersistenceFactory.Close()
 
 	s.DefaultTestCluster.TearDownTestDatabase()
 }

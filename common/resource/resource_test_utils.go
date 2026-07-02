@@ -172,7 +172,7 @@ func NewTest(
 	persistenceBean.EXPECT().GetVisibilityManager().Return(visibilityMgr).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
-	persistenceBean.EXPECT().GetExecutionManager().Return(executionMgr, nil).AnyTimes()
+	persistenceBean.EXPECT().GetExecutionManager().Return(executionMgr).AnyTimes()
 	historyTaskDLQMgr := persistence.NewMockHistoryTaskDLQManager(controller)
 	// Permissive default: the standby DLQ write path seeds the partition ack-level row through the
 	// shard after inserting the task. Tests that care can override on the exposed HistoryTaskDLQMgr.
@@ -449,9 +449,9 @@ func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 }
 
 // GetExecutionManager for testing
-func (s *Test) GetExecutionManager() (persistence.ExecutionManager, error) {
+func (s *Test) GetExecutionManager() persistence.ExecutionManager {
 
-	return s.ExecutionMgr, nil
+	return s.ExecutionMgr
 }
 
 // GetPersistenceBean for testing

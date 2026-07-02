@@ -292,12 +292,11 @@ func (mr *MockResourceMockRecorder) GetDomainReplicationQueue() *gomock.Call {
 }
 
 // GetExecutionManager mocks base method.
-func (m *MockResource) GetExecutionManager() (persistence.ExecutionManager, error) {
+func (m *MockResource) GetExecutionManager() persistence.ExecutionManager {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetExecutionManager")
 	ret0, _ := ret[0].(persistence.ExecutionManager)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetExecutionManager indicates an expected call of GetExecutionManager.
