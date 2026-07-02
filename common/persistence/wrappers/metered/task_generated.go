@@ -50,7 +50,9 @@ func (c *meteredTaskManager) CompleteTask(ctx context.Context, request *_sourceP
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCompleteTaskScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCompleteTaskScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -61,7 +63,9 @@ func (c *meteredTaskManager) CompleteTasksLessThan(ctx context.Context, request 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCompleteTasksLessThanScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCompleteTasksLessThanScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -72,7 +76,9 @@ func (c *meteredTaskManager) CreateTasks(ctx context.Context, request *_sourcePe
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCreateTasksScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCreateTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -83,7 +89,9 @@ func (c *meteredTaskManager) DeleteTaskList(ctx context.Context, request *_sourc
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteTaskListScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteTaskListScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -98,7 +106,9 @@ func (c *meteredTaskManager) GetOrphanTasks(ctx context.Context, request *_sourc
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetOrphanTasksScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetOrphanTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -109,7 +119,9 @@ func (c *meteredTaskManager) GetTaskList(ctx context.Context, request *_sourcePe
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetTaskListScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetTaskListScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -120,7 +132,9 @@ func (c *meteredTaskManager) GetTaskListSize(ctx context.Context, request *_sour
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetTaskListSizeScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetTaskListSizeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -131,7 +145,9 @@ func (c *meteredTaskManager) GetTasks(ctx context.Context, request *_sourcePersi
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetTasksScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -142,7 +158,9 @@ func (c *meteredTaskManager) LeaseTaskList(ctx context.Context, request *_source
 		return err
 	}
 
-	err = c.call(metrics.PersistenceLeaseTaskListScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceLeaseTaskListScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -153,7 +171,9 @@ func (c *meteredTaskManager) ListTaskList(ctx context.Context, request *_sourceP
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListTaskListScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListTaskListScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -164,6 +184,8 @@ func (c *meteredTaskManager) UpdateTaskList(ctx context.Context, request *_sourc
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateTaskListScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateTaskListScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }

@@ -45,7 +45,9 @@ func (c *meteredHistoryManager) AppendHistoryNodes(ctx context.Context, request 
 		return err
 	}
 
-	err = c.call(metrics.PersistenceAppendHistoryNodesScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceAppendHistoryNodesScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -61,7 +63,9 @@ func (c *meteredHistoryManager) DeleteHistoryBranch(ctx context.Context, request
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteHistoryBranchScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteHistoryBranchScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -72,7 +76,9 @@ func (c *meteredHistoryManager) ForkHistoryBranch(ctx context.Context, request *
 		return err
 	}
 
-	err = c.call(metrics.PersistenceForkHistoryBranchScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceForkHistoryBranchScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -83,7 +89,9 @@ func (c *meteredHistoryManager) GetAllHistoryTreeBranches(ctx context.Context, r
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetAllHistoryTreeBranchesScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetAllHistoryTreeBranchesScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -94,7 +102,9 @@ func (c *meteredHistoryManager) GetHistoryTree(ctx context.Context, request *_so
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetHistoryTreeScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetHistoryTreeScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -109,7 +119,9 @@ func (c *meteredHistoryManager) ReadHistoryBranch(ctx context.Context, request *
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadHistoryBranchScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceReadHistoryBranchScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -120,7 +132,9 @@ func (c *meteredHistoryManager) ReadHistoryBranchByBatch(ctx context.Context, re
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadHistoryBranchByBatchScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceReadHistoryBranchByBatchScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -131,6 +145,8 @@ func (c *meteredHistoryManager) ReadRawHistoryBranch(ctx context.Context, reques
 		return err
 	}
 
-	err = c.call(metrics.PersistenceReadRawHistoryBranchScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceReadRawHistoryBranchScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }

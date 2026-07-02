@@ -29,9 +29,11 @@ import (
 	"testing"
 	"time"
 
+	p8s "github.com/m3db/prometheus_client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+	tallyp8s "github.com/uber-go/tally/prometheus"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -49,6 +51,77 @@ var _staticMethods = map[string]bool{
 	"Close":      true,
 	"GetName":    true,
 	"GetShardID": true,
+}
+
+func TestPersistenceMetricsLabelConsistency(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	wrapped := persistence.NewMockExecutionManager(ctrl)
+	wrapped.EXPECT().GetShardID().Return(1).AnyTimes()
+	wrapped.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).Return(&persistence.GetWorkflowExecutionResponse{}, nil).Times(2)
+	wrapped.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{}, nil).Times(1)
+	wrapped.EXPECT().GetReplicationDLQSize(gomock.Any(), gomock.Any()).Return(&persistence.GetReplicationDLQSizeResponse{}, nil).Times(1)
+	historyStore := persistence.NewMockHistoryManager(ctrl)
+	historyStore.EXPECT().AppendHistoryNodes(gomock.Any(), gomock.Any()).Return(&persistence.AppendHistoryNodesResponse{}, nil).Times(1)
+
+	var registrationErrors []error
+	promCfg := &tallyp8s.Configuration{
+		OnError:   "none",
+		TimerType: "histogram",
+	}
+	reporter, err := promCfg.NewReporter(tallyp8s.ConfigurationOptions{
+		Registry: p8s.NewRegistry(),
+		OnError: func(err error) {
+			registrationErrors = append(registrationErrors, err)
+		},
+	})
+	require.NoError(t, err)
+	rootScope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Tags: map[string]string{
+			metrics.CadenceServiceTagName: "history",
+		},
+		CachedReporter: reporter,
+		Separator:      tallyp8s.DefaultSeparator,
+	}, time.Second)
+	defer closer.Close()
+
+	metricsClient := metrics.NewClient(rootScope, metrics.History, metrics.MigrationConfig{})
+
+	shardMetricsManager := NewExecutionManager(
+		wrapped,
+		metricsClient,
+		log.NewNoop(),
+		&config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+		dynamicproperties.GetBoolPropertyFn(true),
+	)
+	noShardMetricsManager := NewExecutionManager(
+		wrapped,
+		metricsClient,
+		log.NewNoop(),
+		&config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+		dynamicproperties.GetBoolPropertyFn(false),
+	)
+	historyManager := NewHistoryManager(
+		historyStore,
+		metricsClient,
+		log.NewNoop(),
+		&config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
+	)
+
+	ctx := context.Background()
+	_, err = shardMetricsManager.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{})
+	assert.NoError(t, err)
+	_, err = shardMetricsManager.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		TaskCategory: persistence.HistoryTaskCategoryTransfer,
+	})
+	assert.NoError(t, err)
+	_, err = shardMetricsManager.GetReplicationDLQSize(ctx, &persistence.GetReplicationDLQSizeRequest{})
+	assert.NoError(t, err)
+	_, err = noShardMetricsManager.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{})
+	assert.NoError(t, err)
+	_, err = historyManager.AppendHistoryNodes(ctx, &persistence.AppendHistoryNodesRequest{})
+	assert.NoError(t, err)
+
+	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
 }
 
 func TestGetRetryCountFromContext(t *testing.T) {

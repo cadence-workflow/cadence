@@ -50,7 +50,9 @@ func (c *meteredDomainManager) CreateDomain(ctx context.Context, request *_sourc
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCreateDomainScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCreateDomainScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -61,7 +63,9 @@ func (c *meteredDomainManager) DeleteDomain(ctx context.Context, request *_sourc
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteDomainScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteDomainScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -72,7 +76,9 @@ func (c *meteredDomainManager) DeleteDomainByName(ctx context.Context, request *
 		return err
 	}
 
-	err = c.call(metrics.PersistenceDeleteDomainByNameScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceDeleteDomainByNameScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -83,7 +89,9 @@ func (c *meteredDomainManager) GetDomain(ctx context.Context, request *_sourcePe
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetDomainScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetDomainScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -93,7 +101,9 @@ func (c *meteredDomainManager) GetMetadata(ctx context.Context) (gp1 *_sourcePer
 		return err
 	}
 
-	err = c.call(metrics.PersistenceGetMetadataScope, op)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceGetMetadataScope, op, metrics.IsRetryTag(retryCount > 0))
 	return
 }
 
@@ -108,7 +118,9 @@ func (c *meteredDomainManager) ListDomains(ctx context.Context, request *_source
 		return err
 	}
 
-	err = c.call(metrics.PersistenceListDomainsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceListDomainsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
@@ -119,6 +131,8 @@ func (c *meteredDomainManager) UpdateDomain(ctx context.Context, request *_sourc
 		return err
 	}
 
-	err = c.call(metrics.PersistenceUpdateDomainScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceUpdateDomainScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
