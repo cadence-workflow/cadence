@@ -109,7 +109,7 @@ func CheckCompatibleVersion(
 		Password:              cfg.Password,
 		Keyspace:              cfg.Keyspace,
 		AllowedAuthenticators: cfg.AllowedAuthenticators,
-		Timeout:               DefaultTimeout,
+		Timeout:               DefaultConnectTimeout,
 		ConnectTimeout:        DefaultConnectTimeout,
 		TLS:                   cfg.TLS,
 		ProtoVersion:          cfg.ProtoVersion,
