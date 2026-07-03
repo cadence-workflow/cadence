@@ -76,11 +76,11 @@ type (
 )
 
 const (
-	DefaultTimeout              = 30 // Timeout in seconds
-	DefaultConnectTimeout       = 2  // Connect timeout in seconds
-	DefaultVersionCheckTimeout  = 2  // Timeout in seconds for schema version compatibility checks
-	DefaultCassandraPort  = 9042
-	SystemKeyspace        = "system"
+	DefaultTimeout             = 30 // Timeout in seconds
+	DefaultConnectTimeout      = 2  // Connect timeout in seconds
+	DefaultVersionCheckTimeout = 2  // Timeout in seconds for schema version compatibility checks
+	DefaultCassandraPort       = 9042
+	SystemKeyspace             = "system"
 )
 
 const (
