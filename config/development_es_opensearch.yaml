@@ -32,5 +32,6 @@ kafka:
 
 dynamicconfig:
   client: filebased
-  filebased:
-    filepath: "config/dynamicconfig/development_es.yaml"
+  configs:
+    filebased:
+      filepath: "config/dynamicconfig/development_es.yaml"

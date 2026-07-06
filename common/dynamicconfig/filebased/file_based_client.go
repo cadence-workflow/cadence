@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package filebased
 
 import (
 	"errors"
@@ -30,13 +30,14 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/types"
 )
 
-var _ Client = (*fileBasedClient)(nil)
+var _ dynamicconfig.Client = (*fileBasedClient)(nil)
 
 const (
 	minPollInterval = time.Second * 5
@@ -48,10 +49,10 @@ type constrainedValue struct {
 	Constraints map[string]interface{}
 }
 
-// FileBasedClientConfig is the config for the file based dynamic config client.
+// Config is the config for the file based dynamic config client.
 // It specifies where the config file is stored and how often the config should be
 // updated by checking the config file again.
-type FileBasedClientConfig struct {
+type Config struct {
 	Filepath     string        `yaml:"filepath"`
 	PollInterval time.Duration `yaml:"pollInterval"`
 }
@@ -59,13 +60,13 @@ type FileBasedClientConfig struct {
 type fileBasedClient struct {
 	values          atomic.Value
 	lastUpdatedTime time.Time
-	config          *FileBasedClientConfig
+	config          *Config
 	doneCh          chan struct{}
 	logger          log.Logger
 }
 
-// NewFileBasedClient creates a file based client.
-func NewFileBasedClient(config *FileBasedClientConfig, logger log.Logger, doneCh chan struct{}) (Client, error) {
+// NewClient creates a file based client.
+func NewClient(config *Config, logger log.Logger, doneCh chan struct{}) (dynamicconfig.Client, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
@@ -302,7 +303,7 @@ func (fc *fileBasedClient) getValueWithFilters(key dynamicproperties.Key, filter
 		}
 	}
 	if !found {
-		return defaultValue, NotFoundError
+		return defaultValue, dynamicconfig.NotFoundError
 	}
 	return defaultValue, nil
 }
@@ -361,7 +362,7 @@ func convertKeyTypeToStringSlice(s []interface{}) ([]interface{}, error) {
 	return stringKeySlice, nil
 }
 
-func validateConfig(config *FileBasedClientConfig) error {
+func validateConfig(config *Config) error {
 	if config == nil {
 		return errors.New("no config found for file based dynamic config client")
 	}

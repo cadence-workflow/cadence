@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamicconfig
+package filebased
 
 import (
 	"fmt"
@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 )
@@ -35,7 +36,7 @@ import (
 type fileBasedClientSuite struct {
 	suite.Suite
 	*require.Assertions
-	client Client
+	client dynamicconfig.Client
 	doneCh chan struct{}
 }
 
@@ -47,7 +48,7 @@ func TestFileBasedClientSuite(t *testing.T) {
 func (s *fileBasedClientSuite) SetupSuite() {
 	var err error
 	s.doneCh = make(chan struct{})
-	s.client, err = NewFileBasedClient(&FileBasedClientConfig{
+	s.client, err = NewClient(&Config{
 		Filepath:     "config/testConfig.yaml",
 		PollInterval: time.Second * 5,
 	}, log.NewNoop(), s.doneCh)
@@ -214,12 +215,12 @@ func (s *fileBasedClientSuite) TestGetDurationValue_ParseFailed() {
 }
 
 func (s *fileBasedClientSuite) TestValidateConfig_ConfigNotExist() {
-	_, err := NewFileBasedClient(nil, nil, nil)
+	_, err := NewClient(nil, nil, nil)
 	s.Error(err)
 }
 
 func (s *fileBasedClientSuite) TestValidateConfig_FileNotExist() {
-	_, err := NewFileBasedClient(&FileBasedClientConfig{
+	_, err := NewClient(&Config{
 		Filepath:     "file/not/exist.yaml",
 		PollInterval: time.Second * 10,
 	}, nil, nil)
@@ -227,11 +228,11 @@ func (s *fileBasedClientSuite) TestValidateConfig_FileNotExist() {
 }
 
 func (s *fileBasedClientSuite) TestValidateConfig_ShortPollInterval() {
-	cfg := &FileBasedClientConfig{
+	cfg := &Config{
 		Filepath:     "config/testConfig.yaml",
 		PollInterval: time.Second,
 	}
-	_, err := NewFileBasedClient(cfg, log.NewNoop(), nil)
+	_, err := NewClient(cfg, log.NewNoop(), nil)
 	s.NoError(err)
 	s.Equal(minPollInterval, cfg.PollInterval, "fallback to default poll interval")
 

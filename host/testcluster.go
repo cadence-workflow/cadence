@@ -40,6 +40,7 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/filebased"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -98,7 +99,7 @@ type (
 		MockAdminClient       map[string]adminClient.Client
 		PinotConfig           *config.PinotVisibilityConfig
 		AsyncWFQueues         map[string]config.AsyncWorkflowQueueProvider
-		DynamicClientConfig   dynamicconfig.FileBasedClientConfig
+		DynamicClientConfig   filebased.Config
 
 		// TimeSource is used to override the time source of internal components.
 		// Note that most components don't respect this, and it's only used in a few places.
@@ -160,7 +161,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 	)
 	aConfig := noopAuthorizationConfig()
 	doneCh := make(chan struct{})
-	dynamicClient, err := dynamicconfig.NewFileBasedClient(
+	dynamicClient, err := filebased.NewClient(
 		&options.DynamicClientConfig,
 		logger,
 		doneCh,
@@ -242,7 +243,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 	)
 	aConfig := noopAuthorizationConfig()
 	doneCh := make(chan struct{})
-	dynamicClient, err := dynamicconfig.NewFileBasedClient(
+	dynamicClient, err := filebased.NewClient(
 		&options.DynamicClientConfig,
 		logger,
 		doneCh,

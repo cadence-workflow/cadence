@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/filebased"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
@@ -522,8 +523,14 @@ func initializeDynamicConfig(
 	// and CLI does not need that, so just close the done channel
 	doneChan := make(chan struct{})
 	close(doneChan)
-	dynamicConfigClient, err := dynamicconfig.NewFileBasedClient(
-		&serviceConfig.DynamicConfig.FileBased,
+	var fileBasedCfg filebased.Config
+	if cfg, ok := serviceConfig.DynamicConfig.Configs[dynamicconfig.FileBasedClient]; ok {
+		if err := cfg.Decode(&fileBasedCfg); err != nil {
+			return nil, fmt.Errorf("Error decoding file based dynamic config. %w", err)
+		}
+	}
+	dynamicConfigClient, err := filebased.NewClient(
+		&fileBasedCfg,
 		logger,
 		doneChan,
 	)

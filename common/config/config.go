@@ -33,9 +33,8 @@ import (
 	yarpctls "go.uber.org/yarpc/api/transport/tls"
 	"gopkg.in/yaml.v2" // CAUTION: go.uber.org/config does not support yaml.v3
 
-	"github.com/uber/cadence/common/dynamicconfig"
-	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/filebased"
 	"github.com/uber/cadence/common/metrics"
 	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
@@ -70,7 +69,7 @@ type (
 		// Filepath would be relative to the root directory when the path wasn't absolute.
 		// Included for backwards compatibility, please transition to DynamicConfig
 		// If both are specified, DynamicConig will be used.
-		DynamicConfigClient dynamicconfig.FileBasedClientConfig `yaml:"dynamicConfigClient"`
+		DynamicConfigClient filebased.Config `yaml:"dynamicConfigClient"`
 		// DynamicConfig is the config for setting up all dynamic config clients
 		// Allows for changes in client without needing code change
 		DynamicConfig DynamicConfig `yaml:"dynamicconfig"`
@@ -119,10 +118,19 @@ type (
 	}
 
 	DynamicConfig struct {
-		Client      string                              `yaml:"client"`
-		ConfigStore c.ClientConfig                      `yaml:"configstore"`
-		FileBased   dynamicconfig.FileBasedClientConfig `yaml:"filebased"`
+		Client  string                 `yaml:"client"`
+		Configs DynamicConfigProviders `yaml:"configs"`
 	}
+
+	// DynamicConfigProviders contains the config for all dynamic config clients, keyed by client name.
+	// Add a new entry here when adding a new dynamicconfig.Client implementation; the exact
+	// structure of the config block is owned entirely by that implementation.
+	// See common/dynamicconfig/provider for the client registry.
+	//
+	// Registered keys today:
+	//  - filebased: [*filebased.Config], used with dynamicconfig.FileBasedClient
+	//  - configstore: [*configstoreconfig.ClientConfig], used with dynamicconfig.ConfigStoreClient
+	DynamicConfigProviders map[string]*YamlNode
 
 	// Service contains the service specific config items
 	Service struct {

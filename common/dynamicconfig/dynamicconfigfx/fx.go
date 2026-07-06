@@ -29,12 +29,12 @@ import (
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/filebased"
+	"github.com/uber/cadence/common/dynamicconfig/provider"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/persistence"
 )
 
 // Module provides fx options for dynamic config initialization
@@ -65,8 +65,6 @@ func New(p Params) Result {
 
 	if p.Cfg.DynamicConfig.Client == "" {
 		p.Cfg.DynamicConfigClient.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfigClient.Filepath)
-	} else {
-		p.Cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(p.RootDir, p.Cfg.DynamicConfig.FileBased.Filepath)
 	}
 
 	p.Lifecycle.Append(fx.StopHook(func() {
@@ -78,22 +76,18 @@ func New(p Params) Result {
 	var err error
 	if p.Cfg.DynamicConfig.Client == "" {
 		p.Logger.Warn("falling back to legacy file based dynamicClientConfig")
-		res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfigClient, p.Logger, stopped)
+		res, err = filebased.NewClient(&p.Cfg.DynamicConfigClient, p.Logger, stopped)
 	} else {
-		switch p.Cfg.DynamicConfig.Client {
-		case dynamicconfig.ConfigStoreClient:
-			p.Logger.Info("initialising ConfigStore dynamic config client")
-			res, err = configstore.NewConfigStoreClient(
-				&p.Cfg.DynamicConfig.ConfigStore,
-				&p.Cfg.Persistence,
-				p.Logger,
-				p.MetricsClient,
-				persistence.DynamicConfig,
-			)
-		case dynamicconfig.FileBasedClient:
-			p.Logger.Info("initialising File Based dynamic config client")
-			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
+		container := &provider.BootstrapContainer{
+			Logger:            p.Logger,
+			MetricsClient:     p.MetricsClient,
+			PersistenceConfig: &p.Cfg.Persistence,
+			RootDir:           p.RootDir,
+			Stopped:           stopped,
 		}
+		clientProvider := provider.NewClientProvider(p.Cfg.DynamicConfig.Configs, container)
+		p.Logger.Info("initialising dynamic config client", tag.Value(p.Cfg.DynamicConfig.Client))
+		res, err = clientProvider.GetClient(p.Cfg.DynamicConfig.Client)
 	}
 
 	if res == nil {

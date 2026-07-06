@@ -120,14 +120,15 @@ domainDefaults:
 
 dynamicconfig:
   client: filebased
-  configstore:
-    pollInterval: "10s"
-    updateRetryAttempts: 2
-    FetchTimeout: "2s"
-    UpdateTimeout: "2s"
-  filebased:
-    filepath: "config/dynamicconfig/development.yaml"
-    pollInterval: "10s"
+  configs:
+    configstore:
+      pollInterval: "10s"
+      updateRetryAttempts: 2
+      FetchTimeout: "2s"
+      UpdateTimeout: "2s"
+    filebased:
+      filepath: "config/dynamicconfig/development.yaml"
+      pollInterval: "10s"
 
 blobstore:
   filestore:

@@ -56,6 +56,31 @@ func TestModule(t *testing.T) {
 	app.RequireStart().RequireStop()
 }
 
+func TestModule_NamedClient(t *testing.T) {
+	app := fxtest.New(t,
+		testlogger.Module(t),
+		fx.Provide(
+			func() config.Config {
+				return config.Config{
+					ClusterGroupMetadata: &config.ClusterGroupMetadata{},
+					DynamicConfig: config.DynamicConfig{
+						Client: dynamicconfig.InMemoryClient,
+					},
+				}
+			},
+			func() fxRoot {
+				return fxRoot{
+					RootDir: "../../../",
+				}
+			},
+			metrics.NewNoopMetricsClient,
+		),
+		Module,
+		fx.Invoke(func(c dynamicconfig.Client) {}),
+	)
+	app.RequireStart().RequireStop()
+}
+
 type fxRoot struct {
 	fx.Out
 

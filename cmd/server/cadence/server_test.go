@@ -91,8 +91,6 @@ func (s *ServerSuite) TestServerStartup() {
 
 	s.T().Logf("config=\n%v\n", cfg.String())
 
-	cfg.DynamicConfig.FileBased.Filepath = constructPathIfNeed(rootDir, cfg.DynamicConfig.FileBased.Filepath)
-
 	if err := cfg.ValidateAndFillDefaults(); err != nil {
 		s.logger.Fatal("config validation failed", tag.Error(err))
 	}
