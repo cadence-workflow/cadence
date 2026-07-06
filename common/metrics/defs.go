@@ -2989,6 +2989,8 @@ const (
 	TaskProcessingLatencyPerTaskListHistogram
 	TaskQueueLatencyPerTaskListHistogram
 	TaskScheduleLatencyPerTaskListHistogram
+	TaskScheduleSubmittedPerTaskList
+	TaskScheduleThrottledPerTaskList
 
 	NumHistoryMetrics
 )
@@ -3631,6 +3633,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskProcessingLatencyPerTaskListHistogram: {metricName: "task_latency_processing_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskQueueLatencyPerTaskListHistogram:      {metricName: "task_latency_queue_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskScheduleLatencyPerTaskListHistogram:   {metricName: "task_latency_schedule_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
+		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},
