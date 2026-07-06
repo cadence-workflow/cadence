@@ -75,6 +75,7 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 						assert.Equal(t, "test-domain", req.DomainID)
 						assert.Equal(t, "scope", req.ClusterAttributeScope)
 						assert.Equal(t, "cluster-a", req.ClusterAttributeName)
+						assert.Equal(t, HistoryTaskCategoryIDTransfer, req.TaskCategory)
 						assert.Equal(t, int64(42), req.TaskID)
 						assert.Equal(t, now, req.CreatedAt)
 						assert.Equal(t, serializedBlob.Data, req.TaskBlob.Data)
