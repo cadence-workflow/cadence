@@ -42,6 +42,7 @@ import (
 	"github.com/uber/cadence/service/history/queue"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/task"
+	"github.com/uber/cadence/service/history/taskdlq"
 )
 
 func TestGenerateFailoverTasksForDomainCallback(t *testing.T) {
@@ -445,6 +446,7 @@ func TestDomainCallback(t *testing.T) {
 			txProcessor *queue.MockProcessor,
 			timerProcessor *queue.MockProcessor,
 			taskProcessor *task.MockProcessor,
+			dlqProcessor *taskdlq.MockProcessor,
 		)
 		expectedErr error
 	}{
@@ -455,7 +457,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(3))
@@ -472,7 +475,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(4))
@@ -489,7 +493,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().GetTimeSource().Return(timeSource)
@@ -502,6 +507,10 @@ func TestDomainCallback(t *testing.T) {
 				timerProcessor.EXPECT().UnlockTaskProcessing()
 				timerProcessor.EXPECT().FailoverDomain(gomock.Any())
 				timerProcessor.EXPECT().NotifyNewTask("cluster2", gomock.Any())
+
+				dlqProcessor.EXPECT().FailoverPartitions([]taskdlq.Partition{
+					{DomainID: "83b48dab-68cb-4f73-8752-c75d9271977f"},
+				})
 			},
 		},
 		"t2 -> t3: graceful failover domain update. cluster0 POV": {
@@ -511,7 +520,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(6))
@@ -524,6 +534,10 @@ func TestDomainCallback(t *testing.T) {
 				timerProcessor.EXPECT().UnlockTaskProcessing()
 				timerProcessor.EXPECT().FailoverDomain(map[string]struct{}{"83b48dab-68cb-4f73-8752-c75d9271977f": struct{}{}})
 				timerProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+
+				dlqProcessor.EXPECT().FailoverPartitions([]taskdlq.Partition{
+					{DomainID: "83b48dab-68cb-4f73-8752-c75d9271977f"},
+				})
 			},
 		},
 		"t2 -> t3: graceful failover domain update. - cluster2 POV": {
@@ -533,7 +547,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(6))
@@ -550,7 +565,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().UpdateDomainNotificationVersion(int64(6))
@@ -575,7 +591,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 
@@ -599,7 +616,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 
@@ -616,7 +634,8 @@ func TestDomainCallback(t *testing.T) {
 				shardCtx *shard.MockContext,
 				txProcessor *queue.MockProcessor,
 				timerProcessor *queue.MockProcessor,
-				taskProcessor *task.MockProcessor) {
+				taskProcessor *task.MockProcessor,
+				dlqProcessor *taskdlq.MockProcessor) {
 
 				shardCtx.EXPECT().GetDomainNotificationVersion().Return(int64(1))
 				shardCtx.EXPECT().GetTimeSource().Return(timeSource)
@@ -627,6 +646,16 @@ func TestDomainCallback(t *testing.T) {
 
 				timerProcessor.EXPECT().UnlockTaskProcessing()
 				timerProcessor.EXPECT().NotifyNewTask("cluster0", gomock.Any())
+
+				// Only region0 is active in cluster0; region1 (active in cluster1) is
+				// intentionally excluded so we don't re-DLQ a still-passive attribute.
+				dlqProcessor.EXPECT().FailoverPartitions([]taskdlq.Partition{
+					{
+						DomainID:              "83b48dab-68cb-4f73-8752-c75d9271977f",
+						ClusterAttributeScope: "region",
+						ClusterAttributeName:  "region0",
+					},
+				})
 			},
 		},
 	}
@@ -665,8 +694,9 @@ func TestDomainCallback(t *testing.T) {
 			queueTaskProcessor := task.NewMockProcessor(ctrl)
 			txProcessor := queue.NewMockProcessor(ctrl)
 			shardCtx := shard.NewMockContext(ctrl)
+			dlqProcessor := taskdlq.NewMockProcessor(ctrl)
 
-			td.affordances(shardCtx, txProcessor, timeProcessor, queueTaskProcessor)
+			td.affordances(shardCtx, txProcessor, timeProcessor, queueTaskProcessor, dlqProcessor)
 
 			he := historyEngineImpl{
 				logger:             log.NewNoop(),
@@ -677,7 +707,8 @@ func TestDomainCallback(t *testing.T) {
 					persistence.HistoryTaskCategoryTransfer: txProcessor,
 					persistence.HistoryTaskCategoryTimer:    timeProcessor,
 				},
-				shard: shardCtx,
+				shard:        shardCtx,
+				dlqProcessor: dlqProcessor,
 			}
 			he.domainChangeCB(td.domainUpdates)
 		})

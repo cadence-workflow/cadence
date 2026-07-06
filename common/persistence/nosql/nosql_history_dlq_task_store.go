@@ -232,11 +232,11 @@ func (sh *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
 
 // CreateHistoryDLQAckLevelIfNotExists writes a sentinel ack-level row only when
 // no row already exists for this partition/task-type.
-func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(
+func (sh *nosqlHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(
 	ctx context.Context,
 	row persistence.InternalHistoryDLQAckLevel,
 ) error {
-	storeShard, err := m.GetStoreShardByHistoryShard(row.ShardID)
+	storeShard, err := sh.GetStoreShardByHistoryShard(row.ShardID)
 	if err != nil {
 		return err
 	}

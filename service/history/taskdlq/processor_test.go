@@ -654,3 +654,100 @@ func TestProcessShard_WhenDomainNotEnabled_SkipsProcessing(t *testing.T) {
 
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
+
+func TestFailoverPartitions_DispatchesToProcessPartition(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	processed := make(chan persistence.HistoryDLQGetAckLevelsRequest, 1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+			select {
+			case processed <- req:
+			default:
+			}
+			return nil, nil
+		}).AnyTimes()
+
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
+	proc.Start()
+	defer proc.Stop()
+
+	proc.FailoverPartitions([]Partition{{
+		DomainID:              "test-domain",
+		ClusterAttributeScope: "scope",
+		ClusterAttributeName:  "name",
+	}})
+
+	select {
+	case req := <-processed:
+		// The partition keys must be passed through verbatim so the store issues a
+		// by-cluster-attribute query for exactly this partition.
+		assert.Equal(t, persistence.HistoryDLQGetAckLevelsRequest{
+			ShardID:               1,
+			DomainID:              "test-domain",
+			ClusterAttributeScope: "scope",
+			ClusterAttributeName:  "name",
+		}, req)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for FailoverPartitions to trigger ProcessPartition")
+	}
+}
+
+func TestFailoverPartitions_DropsWhenQueueFull_WithoutBlocking(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Not started: nothing drains failoverCh, so the buffer fills and extras are dropped.
+	proc := newProcessor(t, persistence.NewMockHistoryTaskDLQManager(ctrl), NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
+
+	extra := 5
+	partitions := make([]Partition, failoverQueueSize+extra)
+	for i := range partitions {
+		partitions[i] = Partition{DomainID: "test-domain"}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		proc.FailoverPartitions(partitions) // must never block
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("FailoverPartitions blocked when the queue was full")
+	}
+	// The queue holds at most its capacity; the extras were dropped.
+	assert.Equal(t, failoverQueueSize, len(proc.failoverCh))
+}
+
+func TestFailoverPartitions_WhenNotEnabled_DoesNotProcess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	called := make(chan struct{}, 1)
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+			select {
+			case called <- struct{}{}:
+			default:
+			}
+			return nil, nil
+		}).AnyTimes()
+
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, false, clock.NewMockedTimeSource())
+	proc.Start()
+	defer proc.Stop()
+
+	proc.FailoverPartitions([]Partition{{DomainID: "test-domain"}})
+
+	// enabled() is false, so the loop drains the request but must not process it.
+	select {
+	case <-called:
+		t.Fatal("ProcessPartition ran while the processor was disabled")
+	case <-time.After(200 * time.Millisecond):
+	}
+}

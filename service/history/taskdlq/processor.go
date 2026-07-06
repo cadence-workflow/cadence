@@ -59,6 +59,21 @@ type (
 		// within a shard.
 		// Returns errors for all partitions that could not be processed.
 		ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error
+
+		// FailoverPartitions schedules asynchronous re-injection of the given DLQ partitions.
+		// It is non-blocking: requests are dropped if the internal queue is full (the periodic
+		// ProcessShard sweep is the backstop). Safe to call from the domain failover callback,
+		// which must not block on DB work.
+		FailoverPartitions(partitions []Partition)
+	}
+
+	// Partition identifies a single DLQ partition to reprocess on demand.
+	// An empty ClusterAttributeScope/ClusterAttributeName targets the domain's default
+	// partition (and, for the underlying by-domain query, every partition of the domain).
+	Partition struct {
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
 	}
 
 	ProcessorImpl struct {
@@ -78,8 +93,17 @@ type (
 		cancel    context.CancelFunc
 		wg        sync.WaitGroup
 		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
+
+		// failoverCh delivers on-demand partition reprocessing requests to the background
+		// loop. Buffered and always non-nil so FailoverPartitions never blocks its caller.
+		failoverCh chan Partition
 	}
 )
+
+// failoverQueueSize bounds the number of pending failover-triggered partitions. When exceeded,
+// requests are dropped (recorded via HistoryTaskDLQFailoverDroppedCounter) and the periodic
+// ProcessShard sweep reprocesses them on its next tick.
+const failoverQueueSize = 1024
 
 var _ Processor = (*ProcessorImpl)(nil)
 
@@ -112,6 +136,7 @@ func NewProcessor(
 		logger:        logger,
 		status:        common.DaemonStatusInitialized,
 		cancel:        func() {}, // no-op until Start() sets the real cancel
+		failoverCh:    make(chan Partition, failoverQueueSize),
 	}
 }
 
@@ -152,6 +177,18 @@ func (p *ProcessorImpl) processLoop() {
 		select {
 		case <-p.ctx.Done():
 			return
+		case part := <-p.failoverCh:
+			if p.enabled() {
+				if err := p.ProcessPartition(p.ctx, part.DomainID, part.ClusterAttributeScope, part.ClusterAttributeName); err != nil {
+					p.logger.Error("DLQ failover partition reprocessing failed",
+						tag.ShardID(p.shardID),
+						tag.WorkflowDomainID(part.DomainID),
+						tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
+						tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
+						tag.Error(err),
+					)
+				}
+			}
 		case <-timer.Chan():
 			if p.enabled() {
 				if err := p.ProcessShard(p.ctx); err != nil {
@@ -206,7 +243,26 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	return p.processAckLevels(ctx, ackLevels)
 }
 
-// processAckLevels takes a list of ack levels and processes them one by one.
+// FailoverPartitions enqueues the given partitions for asynchronous reprocessing by the
+// background loop. It never blocks the caller: a partition that does not fit in the queue is
+// dropped (recorded via HistoryTaskDLQFailoverDroppedCounter) and picked up by the next
+// periodic ProcessShard sweep instead.
+func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
+	for _, part := range partitions {
+		select {
+		case p.failoverCh <- part:
+		default:
+			p.metricsClient.IncCounter(metrics.HistoryTaskDLQProcessorScope, metrics.HistoryTaskDLQFailoverDroppedCounter)
+			p.logger.Warn("DLQ failover queue full, dropping partition (periodic sweep will retry)",
+				tag.ShardID(p.shardID),
+				tag.WorkflowDomainID(part.DomainID),
+				tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
+				tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
+			)
+		}
+	}
+}
+
 // All ack levels are processed regardless of individual failures.
 // Returns an error when any of the ack levels cannot be processed
 func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {

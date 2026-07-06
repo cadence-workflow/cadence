@@ -30,7 +30,9 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 	hcommon "github.com/uber/cadence/service/history/common"
+	"github.com/uber/cadence/service/history/taskdlq"
 )
 
 func (e *historyEngineImpl) registerDomainFailoverCallback() {
@@ -103,6 +105,11 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	shardNotificationVersion := e.shard.GetDomainNotificationVersion()
 	failoverActivePassiveDomainIDs := map[string]struct{}{}
 	failoverActiveActiveDomainIDs := map[string]struct{}{}
+	// dlqPartitions collects the DLQ partitions to reprocess promptly on failover, keyed
+	// precisely: active-passive domains use their single default partition; active-active
+	// domains use one partition per cluster attribute now active in this cluster (never
+	// still-passive attributes, which would just be re-DLQ'd).
+	var dlqPartitions []taskdlq.Partition
 
 	for _, nextDomain := range nextDomains {
 		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
@@ -116,11 +123,19 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 			domainFailoverNotificationVersion >= shardNotificationVersion &&
 			domainActiveCluster == e.currentClusterName {
 			failoverActivePassiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
+			dlqPartitions = append(dlqPartitions, taskdlq.Partition{DomainID: nextDomain.GetInfo().ID})
 		}
 		if nextDomain.GetReplicationConfig().IsActiveActive() &&
 			domainFailoverNotificationVersion >= shardNotificationVersion &&
 			nextDomain.IsActiveIn(e.currentClusterName) {
 			failoverActiveActiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
+			for _, ca := range activeClusterAttributesIn(nextDomain, e.currentClusterName) {
+				dlqPartitions = append(dlqPartitions, taskdlq.Partition{
+					DomainID:              nextDomain.GetInfo().ID,
+					ClusterAttributeScope: ca.Scope,
+					ClusterAttributeName:  ca.Name,
+				})
+			}
 		}
 	}
 
@@ -134,6 +149,12 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 
 	if len(failoverActiveActiveDomainIDs) > 0 {
 		e.logger.Debug("Active-Active Domain updated", tag.WorkflowDomainIDs(failoverActiveActiveDomainIDs))
+	}
+
+	// Promptly reprocess DLQ'd tasks for the failed-over partitions instead of waiting for the
+	// next periodic sweep. This is non-blocking; the periodic ProcessShard sweep is the backstop.
+	if e.dlqProcessor != nil && len(dlqPartitions) > 0 {
+		e.dlqProcessor.FailoverPartitions(dlqPartitions)
 	}
 
 	// Notify queues for any domain update. (active-passive and active-active)
@@ -159,6 +180,26 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 
 	//nolint:errcheck
 	e.shard.UpdateDomainNotificationVersion(nextDomains[len(nextDomains)-1].GetNotificationVersion() + 1)
+}
+
+// activeClusterAttributesIn returns the cluster attributes of an active-active domain whose
+// active cluster is the given cluster. This is precise by construction (no previous entry
+// needed): only attributes currently active in the cluster are returned, so failover-triggered
+// DLQ reprocessing never touches attributes that are still passive here.
+func activeClusterAttributesIn(entry *cache.DomainCacheEntry, cluster string) []types.ClusterAttribute {
+	rc := entry.GetReplicationConfig()
+	if rc == nil || rc.ActiveClusters == nil {
+		return nil
+	}
+	var out []types.ClusterAttribute
+	for scope, s := range rc.ActiveClusters.AttributeScopes {
+		for name, info := range s.ClusterAttributes {
+			if info.ActiveClusterName == cluster {
+				out = append(out, types.ClusterAttribute{Scope: scope, Name: name})
+			}
+		}
+	}
+	return out
 }
 
 func (e *historyEngineImpl) notifyQueues() {
