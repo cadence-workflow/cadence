@@ -43,6 +43,5 @@ kafka:
 
 dynamicconfig:
   client: filebased
-  configs:
-    filebased:
-      filepath: "config/dynamicconfig/development_pinot.yaml"
+  filebased:
+    filepath: "config/dynamicconfig/development_pinot.yaml"

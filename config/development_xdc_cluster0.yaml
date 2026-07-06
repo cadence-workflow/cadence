@@ -128,15 +128,14 @@ blobstore:
 
 dynamicconfig:
   client: filebased
-  configs:
-    configstore:
-      pollInterval: "10s"
-      updateRetryAttempts: 2
-      FetchTimeout: "2s"
-      UpdateTimeout: "2s"
-    filebased:
-      filepath: "config/dynamicconfig/development.yaml"
-      pollInterval: "10s"
+  configstore:
+    pollInterval: "10s"
+    updateRetryAttempts: 2
+    FetchTimeout: "2s"
+    UpdateTimeout: "2s"
+  filebased:
+    filepath: "config/dynamicconfig/development.yaml"
+    pollInterval: "10s"
 
 shard-distributor-matching:
   namespaces:

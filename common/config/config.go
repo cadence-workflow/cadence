@@ -67,8 +67,8 @@ type (
 		PublicClient PublicClient `yaml:"publicClient"`
 		// DynamicConfigClient is the config for setting up the file based dynamic config client
 		// Filepath would be relative to the root directory when the path wasn't absolute.
-		// Included for backwards compatibility, please transition to DynamicConfig
-		// If both are specified, DynamicConig will be used.
+		// Deprecated: please transition to DynamicConfig.
+		// If both are specified, DynamicConfig will be used.
 		DynamicConfigClient filebased.Config `yaml:"dynamicConfigClient"`
 		// DynamicConfig is the config for setting up all dynamic config clients
 		// Allows for changes in client without needing code change
@@ -118,8 +118,11 @@ type (
 	}
 
 	DynamicConfig struct {
-		Client  string                 `yaml:"client"`
-		Configs DynamicConfigProviders `yaml:"configs"`
+		Client string `yaml:"client"`
+		// Provider is inlined so each client's config block (e.g. "filebased", "configstore")
+		// sits directly under "dynamicconfig" in yaml, alongside "client" -- keeping the schema
+		// unchanged from before the plugin registry existed.
+		Provider DynamicConfigProviders `yaml:",inline"`
 	}
 
 	// DynamicConfigProviders contains the config for all dynamic config clients, keyed by client name.

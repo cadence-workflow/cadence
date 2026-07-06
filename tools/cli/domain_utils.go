@@ -524,7 +524,7 @@ func initializeDynamicConfig(
 	doneChan := make(chan struct{})
 	close(doneChan)
 	var fileBasedCfg filebased.Config
-	if cfg, ok := serviceConfig.DynamicConfig.Configs[dynamicconfig.FileBasedClient]; ok {
+	if cfg, ok := serviceConfig.DynamicConfig.Provider[dynamicconfig.FileBasedClient]; ok {
 		if err := cfg.Decode(&fileBasedCfg); err != nil {
 			return nil, fmt.Errorf("Error decoding file based dynamic config. %w", err)
 		}

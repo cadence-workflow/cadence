@@ -310,10 +310,9 @@ publicClient:
 
 dynamicconfig:
   client: filebased
-  configs:
-    filebased:
-      filepath: {{ default .Env.DYNAMIC_CONFIG_FILE_PATH "/etc/cadence/dynamicconfig/development.yaml" }}
-      pollInterval: "60s"
+  filebased:
+    filepath: {{ default .Env.DYNAMIC_CONFIG_FILE_PATH "/etc/cadence/dynamicconfig/development.yaml" }}
+    pollInterval: "60s"
 
 blobstore:
   filestore:

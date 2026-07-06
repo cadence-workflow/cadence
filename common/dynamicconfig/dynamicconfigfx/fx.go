@@ -85,7 +85,7 @@ func New(p Params) Result {
 			RootDir:           p.RootDir,
 			Stopped:           stopped,
 		}
-		clientProvider := provider.NewClientProvider(p.Cfg.DynamicConfig.Configs, container)
+		clientProvider := provider.NewClientProvider(p.Cfg.DynamicConfig.Provider, container)
 		p.Logger.Info("initialising dynamic config client", tag.Value(p.Cfg.DynamicConfig.Client))
 		res, err = clientProvider.GetClient(p.Cfg.DynamicConfig.Client)
 	}
