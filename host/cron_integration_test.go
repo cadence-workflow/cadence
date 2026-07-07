@@ -11,7 +11,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (s *IntegrationSuite) TestCronWorkflowWithOverlapPolicy() {
+func (s *IntegrationSuite) TestCronWorkflowWithOverlapPolicy_SLOW() {
 	id := "integration-wf-cron-overlap-test"
 	wt := "integration-wf-cron-overlap-type"
 	tl := "integration-wf-cron-overlap-tasklist"
@@ -166,7 +166,7 @@ func (s *IntegrationSuite) TestCronWorkflowWithOverlapPolicy() {
 	}
 }
 
-func (s *IntegrationSuite) TestCronWorkflowOverlapBehavior() {
+func (s *IntegrationSuite) TestCronWorkflowOverlapBehavior_SLOW() {
 	id := "integration-wf-cron-overlap-behavior-test"
 	wt := "integration-wf-cron-overlap-behavior-type"
 	tl := "integration-wf-cron-overlap-behavior-tasklist"

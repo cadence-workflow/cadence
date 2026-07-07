@@ -167,7 +167,7 @@ func (s *IntegrationSuite) TestActivityHeartBeatWorkflow_Success() {
 	}
 }
 
-func (s *IntegrationSuite) TestActivityHeartbeatDetailsDuringRetry() {
+func (s *IntegrationSuite) TestActivityHeartbeatDetailsDuringRetry_SLOW() {
 	id := "integration-heartbeat-details-retry-test"
 	wt := "integration-heartbeat-details-retry-type"
 	tl := "integration-heartbeat-details-retry-tasklist"
@@ -347,7 +347,7 @@ func (s *IntegrationSuite) TestActivityHeartbeatDetailsDuringRetry() {
 	s.Equal(3, activityExecutedCount)
 }
 
-func (s *IntegrationSuite) TestActivityRetry() {
+func (s *IntegrationSuite) TestActivityRetry_SLOW() {
 	id := "integration-activity-retry-test"
 	wt := "integration-activity-retry-type"
 	tl := "integration-activity-retry-tasklist"
@@ -672,7 +672,7 @@ func (s *IntegrationSuite) TestActivityHeartBeatWorkflow_Timeout() {
 	s.True(workflowComplete)
 }
 
-func (s *IntegrationSuite) TestActivityTimeouts() {
+func (s *IntegrationSuite) TestActivityTimeouts_SLOW() {
 	id := "integration-activity-timeout-test"
 	wt := "integration-activity-timeout-test-type"
 	tl := "integration-activity-timeout-test-tasklist"
@@ -918,7 +918,7 @@ func (s *IntegrationSuite) TestActivityTimeouts() {
 	s.False(workflowFailed)
 }
 
-func (s *IntegrationSuite) TestActivityHeartbeatTimeouts() {
+func (s *IntegrationSuite) TestActivityHeartbeatTimeouts_SLOW() {
 	id := "integration-activity-heartbeat-timeout-test"
 	wt := "integration-activity-heartbeat-timeout-test-type"
 	tl := "integration-activity-heartbeat-timeout-test-tasklist"

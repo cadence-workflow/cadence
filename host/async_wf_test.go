@@ -130,7 +130,7 @@ func (s *AsyncWFIntegrationSuite) TearDownSuite() {
 	s.TearDownBaseSuite()
 }
 
-func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync() {
+func (s *AsyncWFIntegrationSuite) TestStartWorkflowExecutionAsync_SLOW() {
 	tests := []struct {
 		name             string
 		wantStartFailure bool

@@ -171,7 +171,7 @@ func (s *PinotIntegrationSuite) TearDownSuite() {
 	// currently it is not supported
 }
 
-func (s *PinotIntegrationSuite) TestListOpenWorkflow() {
+func (s *PinotIntegrationSuite) TestListOpenWorkflow_SLOW() {
 	id := "pinot-integration-start-workflow-test"
 	wt := "pinot-integration-start-workflow-test-type"
 	tl := "pinot-integration-start-workflow-test-tasklist"
@@ -217,7 +217,7 @@ func (s *PinotIntegrationSuite) TestListOpenWorkflow() {
 	s.Equal(attrValBytes, openExecution.SearchAttributes.GetIndexedFields()[s.testSearchAttributeKey])
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow() {
+func (s *PinotIntegrationSuite) TestListWorkflow_SLOW() {
 	id := "pinot-integration-list-workflow-test"
 	wt := "pinot-integration-list-workflow-test-type"
 	tl := "pinot-integration-list-workflow-test-tasklist"
@@ -331,7 +331,7 @@ func (s *PinotIntegrationSuite) startWorkflow(
 	return we
 }
 
-func (s *PinotIntegrationSuite) TestListCronWorkflows() {
+func (s *PinotIntegrationSuite) TestListCronWorkflows_SLOW() {
 	we1 := s.startWorkflow("cron", true)
 	we2 := s.startWorkflow("regular", false)
 
@@ -342,14 +342,14 @@ func (s *PinotIntegrationSuite) TestListCronWorkflows() {
 	s.testHelperForReadOnce(we2.GetRunID(), query, false, true)
 }
 
-func (s *PinotIntegrationSuite) TestIsGlobalSearchAttribute() {
+func (s *PinotIntegrationSuite) TestIsGlobalSearchAttribute_SLOW() {
 	we := s.startWorkflow("local", true)
 	// global domains are disabled for this integration test, so we can only test the false case
 	query := fmt.Sprintf(`NumClusters = "1"`)
 	s.testHelperForReadOnce(we.GetRunID(), query, false, true)
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow_ExecutionTime() {
+func (s *PinotIntegrationSuite) TestListWorkflow_ExecutionTime_SLOW() {
 	id := "pinot-integration-list-workflow-execution-time-test"
 	wt := "pinot-integration-list-workflow-execution-time-test-type"
 	tl := "pinot-integration-list-workflow-execution-time-test-tasklist"
@@ -373,7 +373,7 @@ func (s *PinotIntegrationSuite) TestListWorkflow_ExecutionTime() {
 	s.testHelperForReadOnce(we.GetRunID(), query, false, false)
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow_SearchAttribute() {
+func (s *PinotIntegrationSuite) TestListWorkflow_SearchAttribute_SLOW() {
 	id := "pinot-integration-list-workflow-by-search-attr-test"
 	wt := "pinot-integration-list-workflow-by-search-attr-test-type"
 	tl := "pinot-integration-list-workflow-by-search-attr-test-tasklist"
@@ -453,7 +453,7 @@ func (s *PinotIntegrationSuite) TestListWorkflow_SearchAttribute() {
 	s.Equal(expectedSearchAttributes, descResp.WorkflowExecutionInfo.GetSearchAttributes())
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow_PageToken() {
+func (s *PinotIntegrationSuite) TestListWorkflow_PageToken_SLOW() {
 	id := "pinot-integration-list-workflow-token-test"
 	wt := "pinot-integration-list-workflow-token-test-type"
 	tl := "pinot-integration-list-workflow-token-test-tasklist"
@@ -465,7 +465,7 @@ func (s *PinotIntegrationSuite) TestListWorkflow_PageToken() {
 	s.testListWorkflowHelper(numOfWorkflows, pageSize, request, id, wt, false)
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow_SearchAfter() {
+func (s *PinotIntegrationSuite) TestListWorkflow_SearchAfter_SLOW() {
 	id := "pinot-integration-list-workflow-searchAfter-test"
 	wt := "pinot-integration-list-workflow-searchAfter-test-type"
 	tl := "pinot-integration-list-workflow-searchAfter-test-tasklist"
@@ -477,7 +477,7 @@ func (s *PinotIntegrationSuite) TestListWorkflow_SearchAfter() {
 	s.testListWorkflowHelper(numOfWorkflows, pageSize, request, id, wt, false)
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow_OrQuery() {
+func (s *PinotIntegrationSuite) TestListWorkflow_OrQuery_SLOW() {
 	id := "pinot-integration-list-workflow-or-query-test"
 	wt := "pinot-integration-list-workflow-or-query-test-type"
 	tl := "pinot-integration-list-workflow-or-query-test-tasklist"
@@ -588,7 +588,7 @@ func (s *PinotIntegrationSuite) TestListWorkflow_OrQuery() {
 }
 
 // To test last page search trigger max window size error
-func (s *PinotIntegrationSuite) TestListWorkflow_MaxWindowSize() {
+func (s *PinotIntegrationSuite) TestListWorkflow_MaxWindowSize_SLOW() {
 	id := "pinot-integration-list-workflow-max-window-size-test"
 	wt := "pinot-integration-list-workflow-max-window-size-test-type"
 	tl := "pinot-integration-list-workflow-max-window-size-test-tasklist"
@@ -634,7 +634,7 @@ func (s *PinotIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 	s.True(len(resp.GetNextPageToken()) == 0)
 }
 
-func (s *PinotIntegrationSuite) TestListWorkflow_OrderBy() {
+func (s *PinotIntegrationSuite) TestListWorkflow_OrderBy_SLOW() {
 	id := "pinot-integration-list-workflow-order-by-test"
 	wt := "pinot-integration-list-workflow-order-by-test-type"
 	tl := "pinot-integration-list-workflow-order-by-test-tasklist"
@@ -846,7 +846,7 @@ func (s *PinotIntegrationSuite) testListWorkflowHelper(numOfWorkflows, pageSize 
 	s.Nil(nextPageToken)
 }
 
-func (s *PinotIntegrationSuite) TestScanWorkflow() {
+func (s *PinotIntegrationSuite) TestScanWorkflow_SLOW() {
 	id := "pinot-integration-scan-workflow-test"
 	wt := "pinot-integration-scan-workflow-test-type"
 	tl := "pinot-integration-scan-workflow-test-tasklist"
@@ -877,7 +877,7 @@ func (s *PinotIntegrationSuite) TestScanWorkflow() {
 	s.testHelperForReadOnce(we.GetRunID(), query, true, false)
 }
 
-func (s *PinotIntegrationSuite) TestScanWorkflow_SearchAttribute() {
+func (s *PinotIntegrationSuite) TestScanWorkflow_SearchAttribute_SLOW() {
 	id := "pinot-integration-scan-workflow-search-attr-test"
 	wt := "pinot-integration-scan-workflow-search-attr-test-type"
 	tl := "pinot-integration-scan-workflow-search-attr-test-tasklist"
@@ -898,7 +898,7 @@ func (s *PinotIntegrationSuite) TestScanWorkflow_SearchAttribute() {
 	s.testHelperForReadOnce(we.GetRunID(), query, true, false)
 }
 
-func (s *PinotIntegrationSuite) TestScanWorkflow_PageToken() {
+func (s *PinotIntegrationSuite) TestScanWorkflow_PageToken_SLOW() {
 	id := "pinot-integration-scan-workflow-token-test"
 	wt := "pinot-integration-scan-workflow-token-test-type"
 	tl := "pinot-integration-scan-workflow-token-test-tasklist"
@@ -926,7 +926,7 @@ func (s *PinotIntegrationSuite) TestScanWorkflow_PageToken() {
 	s.testListWorkflowHelper(numOfWorkflows, pageSize, request, id, wt, true)
 }
 
-func (s *PinotIntegrationSuite) TestCountWorkflow() {
+func (s *PinotIntegrationSuite) TestCountWorkflow_SLOW() {
 	id := "pinot-integration-count-workflow-test"
 	wt := "pinot-integration-count-workflow-test-type"
 	tl := "pinot-integration-count-workflow-test-tasklist"
@@ -967,7 +967,7 @@ func (s *PinotIntegrationSuite) TestCountWorkflow() {
 	s.Equal(int64(0), resp.GetCount())
 }
 
-func (s *PinotIntegrationSuite) TestUpsertWorkflowExecution() {
+func (s *PinotIntegrationSuite) TestUpsertWorkflowExecution_SLOW() {
 	id := "pinot-integration-upsert-workflow-test"
 	wt := "pinot-integration-upsert-workflow-test-type"
 	tl := "pinot-integration-upsert-workflow-test-tasklist"

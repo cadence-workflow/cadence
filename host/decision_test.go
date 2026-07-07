@@ -31,7 +31,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult() {
+func (s *IntegrationSuite) TestDecisionHeartbeatingWithEmptyResult_SLOW() {
 	id := uuid.New()
 	wt := "integration-workflow-decision-heartbeating-local-activities"
 	tl := id

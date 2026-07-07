@@ -272,7 +272,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_ExecutionTime() {
 	s.testHelperForReadOnce(we.GetRunID(), query, false, false)
 }
 
-func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAttribute() {
+func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAttribute_SLOW() {
 	id := "es-integration-list-workflow-by-search-attr-test"
 	wt := "es-integration-list-workflow-by-search-attr-test-type"
 	tl := "es-integration-list-workflow-by-search-attr-test-tasklist"
@@ -354,7 +354,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAttribute() {
 	s.Equal(expectedSearchAttributes, descResp.WorkflowExecutionInfo.GetSearchAttributes())
 }
 
-func (s *ElasticSearchIntegrationSuite) TestListWorkflow_PageToken() {
+func (s *ElasticSearchIntegrationSuite) TestListWorkflow_PageToken_SLOW() {
 	id := "es-integration-list-workflow-token-test"
 	wt := "es-integration-list-workflow-token-test-type"
 	tl := "es-integration-list-workflow-token-test-tasklist"
@@ -366,7 +366,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_PageToken() {
 	s.testListWorkflowHelper(numOfWorkflows, pageSize, request, id, wt, false)
 }
 
-func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAfter() {
+func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAfter_SLOW() {
 	id := "es-integration-list-workflow-searchAfter-test"
 	wt := "es-integration-list-workflow-searchAfter-test-type"
 	tl := "es-integration-list-workflow-searchAfter-test-tasklist"
@@ -378,7 +378,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_SearchAfter() {
 	s.testListWorkflowHelper(numOfWorkflows, pageSize, request, id, wt, false)
 }
 
-func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrQuery() {
+func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrQuery_SLOW() {
 	id := "es-integration-list-workflow-or-query-test"
 	wt := "es-integration-list-workflow-or-query-test-type"
 	tl := "es-integration-list-workflow-or-query-test-tasklist"
@@ -498,7 +498,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrQuery() {
 }
 
 // To test last page search trigger max window size error
-func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
+func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize_SLOW() {
 	id := "es-integration-list-workflow-max-window-size-test"
 	wt := "es-integration-list-workflow-max-window-size-test-type"
 	tl := "es-integration-list-workflow-max-window-size-test-tasklist"
@@ -549,7 +549,7 @@ func (s *ElasticSearchIntegrationSuite) TestListWorkflow_MaxWindowSize() {
 	s.True(len(resp.GetNextPageToken()) == 0)
 }
 
-func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrderBy() {
+func (s *ElasticSearchIntegrationSuite) TestListWorkflow_OrderBy_SLOW() {
 	id := "es-integration-list-workflow-order-by-test"
 	wt := "es-integration-list-workflow-order-by-test-type"
 	tl := "es-integration-list-workflow-order-by-test-tasklist"
@@ -876,7 +876,7 @@ func (s *ElasticSearchIntegrationSuite) TestScanWorkflow_SearchAttribute() {
 	s.testHelperForReadOnce(we.GetRunID(), query, true, false)
 }
 
-func (s *ElasticSearchIntegrationSuite) TestScanWorkflow_PageToken() {
+func (s *ElasticSearchIntegrationSuite) TestScanWorkflow_PageToken_SLOW() {
 	id := "es-integration-scan-workflow-token-test"
 	wt := "es-integration-scan-workflow-token-test-type"
 	tl := "es-integration-scan-workflow-token-test-tasklist"
@@ -995,7 +995,7 @@ func (s *ElasticSearchIntegrationSuite) createActiveActiveStartWorkflowExecution
 	return request
 }
 
-func (s *ElasticSearchIntegrationSuite) TestUpsertWorkflowExecution() {
+func (s *ElasticSearchIntegrationSuite) TestUpsertWorkflowExecution_SLOW() {
 	id := "es-integration-upsert-workflow-test"
 	wt := "es-integration-upsert-workflow-test-type"
 	tl := "es-integration-upsert-workflow-test-tasklist"

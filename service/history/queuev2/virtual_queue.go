@@ -410,6 +410,7 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		// shard level metrics for the duration between a task being written to a queue and being fetched from it
 		q.metricsScope.RecordHistogramDuration(metrics.TaskEnqueueToFetchLatency, now.Sub(task.GetVisibilityTimestamp()))
 		task.SetInitialSubmitTime(now)
+		taskListTaggedScope := q.metricsScope.Tagged(common.GetTaskListTag(task.GetOriginalTaskList(), task.GetOriginalTaskListKind()))
 		submitted, err := q.processor.TrySubmit(task)
 		if err != nil {
 			select {
@@ -421,7 +422,10 @@ func (q *virtualQueueImpl) loadAndSubmitTasks() {
 		}
 		if !submitted {
 			q.metricsScope.IncCounter(metrics.ProcessingQueueThrottledCounter)
+			taskListTaggedScope.IncCounter(metrics.TaskScheduleThrottledPerTaskList)
 			q.rescheduler.RescheduleTask(task, q.timeSource.Now().Add(taskSchedulerThrottleBackoffInterval))
+		} else {
+			taskListTaggedScope.IncCounter(metrics.TaskScheduleSubmittedPerTaskList)
 		}
 	}
 

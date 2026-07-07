@@ -30,6 +30,7 @@ import (
 	"go.uber.org/cadence/testsuite"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/types"
@@ -162,7 +163,7 @@ func TestRebalancePreferencesForDomain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prefs, err := rebalancePreferencesForDomain(tt.domain)
+			prefs, err := rebalancePreferencesForDomain(tt.domain, zap.NewNop())
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
