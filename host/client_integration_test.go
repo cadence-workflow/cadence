@@ -99,6 +99,7 @@ func (s *ClientIntegrationSuite) SetupSuite() {
 }
 
 func (s *ClientIntegrationSuite) TearDownSuite() {
+	s.worker.Stop()
 	s.TearDownBaseSuite()
 }
 
@@ -381,7 +382,7 @@ func (s *ClientIntegrationSuite) TestClientDataConverter_WithChild() {
 	s.Equal(2, d.NumOfCallFromData)
 }
 
-func (s *ClientIntegrationSuite) Test_StickyWorkerRestartDecisionTask() {
+func (s *ClientIntegrationSuite) Test_StickyWorkerRestartDecisionTask_SLOW() {
 	testCases := []struct {
 		name       string
 		waitTime   time.Duration

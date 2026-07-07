@@ -354,7 +354,7 @@ func (s *IntegrationSuite) TestWorkflowContinueAsNew_TaskID() {
 	}
 }
 
-func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew() {
+func (s *IntegrationSuite) TestChildWorkflowWithContinueAsNew_SLOW() {
 	parentID := "integration-child-workflow-with-continue-as-new-test-parent"
 	childID := "integration-child-workflow-with-continue-as-new-test-child"
 	wtParent := "integration-child-workflow-with-continue-as-new-test-parent-type"

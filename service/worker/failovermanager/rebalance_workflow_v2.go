@@ -138,7 +138,7 @@ func GetDomainsForRebalanceV2Activity(ctx context.Context) ([]DomainFailoverPref
 	}
 	var res []DomainFailoverPreferences
 	for _, domain := range domains {
-		prefs, err := rebalancePreferencesForDomain(domain)
+		prefs, err := rebalancePreferencesForDomain(domain, logger)
 		if err != nil {
 			logger.Info("skipping domain: no rebalance required",
 				zap.String("domain", domain.GetDomainInfo().GetName()), zap.Error(err))
@@ -153,7 +153,7 @@ func GetDomainsForRebalanceV2Activity(ctx context.Context) ([]DomainFailoverPref
 // rebalancePreferencesForDomain builds the preferences for one domain, or returns an error when the
 // domain is ineligible or already balanced. A malformed ClusterAttributePreferences value is treated
 // as "no attribute preferences" so a single bad domain does not block the rest.
-func rebalancePreferencesForDomain(domain *types.DescribeDomainResponse) (DomainFailoverPreferences, error) {
+func rebalancePreferencesForDomain(domain *types.DescribeDomainResponse, logger *zap.Logger) (DomainFailoverPreferences, error) {
 	if !isEligibleForFailover(domain) {
 		return DomainFailoverPreferences{}, errors.New("domain is not eligible for rebalance")
 	}
@@ -177,6 +177,7 @@ func rebalancePreferencesForDomain(domain *types.DescribeDomainResponse) (Domain
 	if prefs.TargetCluster == "" && len(prefs.ClusterAttributeUpdates) == 0 {
 		return DomainFailoverPreferences{}, errNoRebalanceRequiredV2
 	}
+	prefs.FailoverTimeoutSeconds = getFailoverTimeoutSeconds(domain, logger)
 	return prefs, nil
 }
 

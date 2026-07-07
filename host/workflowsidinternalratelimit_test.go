@@ -109,7 +109,7 @@ func (s *WorkflowIDInternalRateLimitIntegrationSuite) TearDownSuite() {
 	s.TearDownBaseSuite()
 }
 
-func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInternalRateLimits() {
+func (s *WorkflowIDInternalRateLimitIntegrationSuite) TestWorkflowIDSpecificInternalRateLimits_SLOW() {
 	const (
 		testWorkflowID   = "integration-workflow-specific-internal-rate-limit-test"
 		testWorkflowType = "integration-workflow-specific-internal-rate-limit-test-type"
