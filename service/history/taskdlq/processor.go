@@ -60,10 +60,11 @@ type (
 		// Returns errors for all partitions that could not be processed.
 		ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error
 
-		// FailoverPartitions schedules asynchronous re-injection of the given DLQ partitions.
-		// It is non-blocking: requests are dropped if the internal queue is full (the periodic
-		// ProcessShard sweep is the backstop). Safe to call from the domain failover callback,
-		// which must not block on DB work.
+		// FailoverPartitions schedules on-demand re-injection of the given DLQ partitions.
+		// It is non-blocking and safe to call from the domain failover callback (which must not
+		// block on DB work): the partitions are queued and processed by the background loop,
+		// which preempts any in-progress periodic ProcessShard sweep so failed-over partitions
+		// are reprocessed first.
 		FailoverPartitions(partitions []Partition)
 	}
 
@@ -94,16 +95,19 @@ type (
 		wg        sync.WaitGroup
 		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
 
-		// failoverCh delivers on-demand partition reprocessing requests to the background
-		// loop. Buffered and always non-nil so FailoverPartitions never blocks its caller.
-		failoverCh chan Partition
+		// failoverMu guards the failover coordination state below.
+		failoverMu sync.Mutex
+		// pendingFailover holds partitions awaiting on-demand reprocessing, keyed by
+		// Partition.String() so a burst of failovers for the same partition collapses to one.
+		pendingFailover map[string]Partition
+		// sweepCancel cancels the in-flight periodic sweep so a failover can preempt it; nil
+		// when no sweep is running.
+		sweepCancel context.CancelFunc
+		// failoverSignal wakes an idle loop when pendingFailover becomes non-empty. Buffered
+		// size 1 and sent non-blocking, so it coalesces: one wake-up drains everything pending.
+		failoverSignal chan struct{}
 	}
 )
-
-// failoverQueueSize bounds the number of pending failover-triggered partitions. When exceeded,
-// requests are dropped (recorded via HistoryTaskDLQFailoverDroppedCounter) and the periodic
-// ProcessShard sweep reprocesses them on its next tick.
-const failoverQueueSize = 1024
 
 var _ Processor = (*ProcessorImpl)(nil)
 
@@ -124,19 +128,20 @@ func NewProcessor(
 	logger log.Logger,
 ) *ProcessorImpl {
 	return &ProcessorImpl{
-		shardID:       shardID,
-		mgr:           mgr,
-		reinjector:    reinjector,
-		pageSize:      pageSize,
-		interval:      interval,
-		domainMode:    domainMode,
-		enabled:       enabled,
-		timeSource:    timeSource,
-		metricsClient: metricsClient,
-		logger:        logger,
-		status:        common.DaemonStatusInitialized,
-		cancel:        func() {}, // no-op until Start() sets the real cancel
-		failoverCh:    make(chan Partition, failoverQueueSize),
+		shardID:         shardID,
+		mgr:             mgr,
+		reinjector:      reinjector,
+		pageSize:        pageSize,
+		interval:        interval,
+		domainMode:      domainMode,
+		enabled:         enabled,
+		timeSource:      timeSource,
+		metricsClient:   metricsClient,
+		logger:          logger,
+		status:          common.DaemonStatusInitialized,
+		cancel:          func() {}, // no-op until Start() sets the real cancel
+		pendingFailover: make(map[string]Partition),
+		failoverSignal:  make(chan struct{}, 1),
 	}
 }
 
@@ -163,9 +168,16 @@ func (p *ProcessorImpl) Stop() {
 	p.logger.Debug("DLQ processor stopped", tag.ShardID(p.shardID))
 }
 
-// processLoop is the background goroutine that periodically calls ProcessShard.
-// It reads the interval on every tick so that dynamic-config changes take effect
-// without a restart.
+// processLoop is the background goroutine that periodically calls ProcessShard and drains
+// on-demand failovers. It reads the interval on every tick so dynamic-config changes take
+// effect without a restart.
+//
+// The periodic sweep runs synchronously (runSweep) under a cancelable context published to
+// p.sweepCancel, so an on-demand failover can preempt it via FailoverPartitions -> cancel().
+// After a sweep returns (whether it completed or was preempted) the loop drains any pending
+// failovers, guaranteeing failed-over partitions are reprocessed before the next sweep.
+// ProcessShard is resumable (it reads ack levels fresh on each run), so a preempted sweep
+// simply picks up where it left off on the next tick.
 func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
@@ -177,28 +189,73 @@ func (p *ProcessorImpl) processLoop() {
 		select {
 		case <-p.ctx.Done():
 			return
-		case part := <-p.failoverCh:
-			if p.enabled() {
-				if err := p.ProcessPartition(p.ctx, part.DomainID, part.ClusterAttributeScope, part.ClusterAttributeName); err != nil {
-					p.logger.Error("DLQ failover partition reprocessing failed",
-						tag.ShardID(p.shardID),
-						tag.WorkflowDomainID(part.DomainID),
-						tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
-						tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
-						tag.Error(err),
-					)
-				}
-			}
+		case <-p.failoverSignal:
+			// A failover arrived while the loop was idle; drain it.
+			p.processPendingFailovers()
 		case <-timer.Chan():
-			if p.enabled() {
-				if err := p.ProcessShard(p.ctx); err != nil {
-					p.logger.Error("DLQ periodic shard sweep failed",
-						tag.ShardID(p.shardID),
-						tag.Error(err),
-					)
-				}
-			}
+			p.runSweep()
+			// A failover may have preempted the sweep; drain it before the next tick.
+			p.processPendingFailovers()
 			timer.Reset(p.interval(p.shardID))
+		}
+	}
+}
+
+// runSweep runs one periodic ProcessShard synchronously under a cancelable context, publishing
+// its cancel func to p.sweepCancel so FailoverPartitions can preempt it. A canceled context is
+// expected (a failover preempted the sweep) and is not logged as an error; ProcessShard resumes
+// from its persisted ack levels on the next tick.
+func (p *ProcessorImpl) runSweep() {
+	if !p.enabled() {
+		return
+	}
+	ctx, cancel := context.WithCancel(p.ctx)
+	p.failoverMu.Lock()
+	p.sweepCancel = cancel
+	p.failoverMu.Unlock()
+	defer func() {
+		p.failoverMu.Lock()
+		p.sweepCancel = nil
+		p.failoverMu.Unlock()
+		cancel()
+	}()
+
+	if err := p.ProcessShard(ctx); err != nil && ctx.Err() == nil {
+		p.logger.Error("DLQ periodic shard sweep failed",
+			tag.ShardID(p.shardID),
+			tag.Error(err),
+		)
+	}
+}
+
+// processPendingFailovers drains the pending failover set and reprocesses each partition.
+// It runs on the loop goroutine after any in-progress sweep has returned, so ProcessPartition
+// can acquire processMu immediately. Partitions that arrive while this runs re-signal the loop and
+// are handled on the next iteration (the signal is coalesced, so nothing is lost).
+func (p *ProcessorImpl) processPendingFailovers() {
+	p.failoverMu.Lock()
+	parts := make([]Partition, 0, len(p.pendingFailover))
+	for _, part := range p.pendingFailover {
+		parts = append(parts, part)
+	}
+	p.pendingFailover = make(map[string]Partition)
+	p.failoverMu.Unlock()
+
+	if !p.enabled() {
+		return
+	}
+	for _, part := range parts {
+		if p.ctx.Err() != nil {
+			return
+		}
+		if err := p.ProcessPartition(p.ctx, part.DomainID, part.ClusterAttributeScope, part.ClusterAttributeName); err != nil {
+			p.logger.Error("DLQ failover partition reprocessing failed",
+				tag.ShardID(p.shardID),
+				tag.WorkflowDomainID(part.DomainID),
+				tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
+				tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
+				tag.Error(err),
+			)
 		}
 	}
 }
@@ -243,23 +300,34 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	return p.processAckLevels(ctx, ackLevels)
 }
 
-// FailoverPartitions enqueues the given partitions for asynchronous reprocessing by the
-// background loop. It never blocks the caller: a partition that does not fit in the queue is
-// dropped (recorded via HistoryTaskDLQFailoverDroppedCounter) and picked up by the next
-// periodic ProcessShard sweep instead.
+// FailoverPartitions enqueues the given partitions for on-demand reprocessing by the background
+// loop and preempts any in-progress periodic sweep so they run first. It never blocks the caller and
+// never drops: partitions are deduplicated into a pending set keyed by Partition.String() (bounded by
+// domains×attributes per failover), the in-flight sweep's context is canceled, and the wake-up signal
+// is coalesced so one signal drains everything pending.
 func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
+	if len(partitions) == 0 {
+		return
+	}
+
+	p.failoverMu.Lock()
 	for _, part := range partitions {
-		select {
-		case p.failoverCh <- part:
-		default:
-			p.metricsClient.IncCounter(metrics.HistoryTaskDLQProcessorScope, metrics.HistoryTaskDLQFailoverDroppedCounter)
-			p.logger.Warn("DLQ failover queue full, dropping partition (periodic sweep will retry)",
-				tag.ShardID(p.shardID),
-				tag.WorkflowDomainID(part.DomainID),
-				tag.Dynamic("cluster-attribute-scope", part.ClusterAttributeScope),
-				tag.Dynamic("cluster-attribute-name", part.ClusterAttributeName),
-			)
-		}
+		p.pendingFailover[part.String()] = part
+	}
+	// Preempt the in-flight sweep (if any) so the loop drains these partitions promptly. cancel is
+	// idempotent, so calling it after the sweep already finished is harmless.
+	cancel := p.sweepCancel
+	p.failoverMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
+	// Coalescing, non-blocking signal: wakes an idle loop. If one is already pending the loop will
+	// pick up the newly-added partitions when it drains, so a full buffer is fine to ignore.
+	select {
+	case p.failoverSignal <- struct{}{}:
+	default:
 	}
 }
 
@@ -268,7 +336,17 @@ func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
 func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {
 	var errs error
 	for _, al := range ackLevels {
+		// Preempt promptly when the sweep's context is canceled (e.g. a failover wants to run
+		// its partitions first). ProcessShard is resumable, so stopping between partitions is safe.
+		if err := ctx.Err(); err != nil {
+			return multierr.Append(errs, err)
+		}
 		if err := p.processAckLevel(ctx, al); err != nil {
+			// A canceled context means the sweep was preempted mid-partition, not a real
+			// failure — return quietly so the failover partitions can run.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return multierr.Append(errs, ctxErr)
+			}
 			p.logger.Error("failed to process DLQ partition",
 				tag.WorkflowDomainID(al.DomainID),
 				tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
@@ -316,6 +394,12 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	maxKey := persistence.MaximumHistoryTaskKey
 
 	for {
+		// Preempt promptly between pages when the sweep is canceled; any pages already
+		// reinjected are still acknowledged below so progress is not lost.
+		if err := ctx.Err(); err != nil {
+			firstErr = err
+			break
+		}
 		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{
 			ShardID:               al.ShardID,
 			DomainID:              al.DomainID,
@@ -350,7 +434,9 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	}
 
 	if lastGoodKey != nil {
-		if err := p.advanceAckLevel(ctx, al, *lastGoodKey); err != nil {
+		// Use the processor context, not the passed-in (possibly sweep-canceled) context, so that
+		// pages already reinjected above are acknowledged and not re-injected on the next run.
+		if err := p.advanceAckLevel(p.ctx, al, *lastGoodKey); err != nil {
 			return multierr.Append(err, firstErr)
 		}
 	}
@@ -385,4 +471,8 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.Hist
 		)
 	}
 	return nil
+}
+
+func (p *Partition) String() string {
+	return fmt.Sprintf("DomainID/%s/ClusterAttributeScope/%s/ClusterAttributeName/%s", p.DomainID, p.ClusterAttributeScope, p.ClusterAttributeName)
 }

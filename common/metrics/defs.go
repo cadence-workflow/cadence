@@ -2997,9 +2997,6 @@ const (
 	HistoryTaskDLQReinjectFailuresCounter
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
-	// HistoryTaskDLQFailoverDroppedCounter counts failover-triggered DLQ reprocessing requests
-	// dropped because the async queue was full (the periodic sweep is the backstop)
-	HistoryTaskDLQFailoverDroppedCounter
 
 	NumHistoryMetrics
 )
@@ -3645,7 +3642,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		HistoryTaskDLQFailoverDroppedCounter:  {metricName: "history_task_dlq_failover_dropped", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

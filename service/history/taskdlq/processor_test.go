@@ -695,32 +695,102 @@ func TestFailoverPartitions_DispatchesToProcessPartition(t *testing.T) {
 	}
 }
 
-func TestFailoverPartitions_DropsWhenQueueFull_WithoutBlocking(t *testing.T) {
+func TestFailoverPartitions_DedupsAndNeverBlocks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Not started: nothing drains failoverCh, so the buffer fills and extras are dropped.
+	// Not started: nothing drains the pending set, so we can inspect it directly and confirm
+	// FailoverPartitions never blocks no matter how many partitions are queued.
 	proc := newProcessor(t, persistence.NewMockHistoryTaskDLQManager(ctrl), NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
 
-	extra := 5
-	partitions := make([]Partition, failoverQueueSize+extra)
-	for i := range partitions {
-		partitions[i] = Partition{DomainID: "test-domain"}
+	dup := Partition{DomainID: "test-domain", ClusterAttributeScope: "scope", ClusterAttributeName: "name"}
+	other := Partition{DomainID: "other-domain"}
+	partitions := make([]Partition, 0, 2000)
+	for i := 0; i < 1000; i++ {
+		partitions = append(partitions, dup, other) // repeatedly the same two partitions
 	}
 
 	done := make(chan struct{})
 	go func() {
-		proc.FailoverPartitions(partitions) // must never block
+		proc.FailoverPartitions(partitions)
+		proc.FailoverPartitions(partitions) // second call while a signal is already pending
 		close(done)
 	}()
 
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("FailoverPartitions blocked when the queue was full")
+		t.Fatal("FailoverPartitions blocked")
 	}
-	// The queue holds at most its capacity; the extras were dropped.
-	assert.Equal(t, failoverQueueSize, len(proc.failoverCh))
+
+	// Deduped down to the two distinct partitions regardless of how many were queued.
+	proc.failoverMu.Lock()
+	assert.Len(t, proc.pendingFailover, 2)
+	assert.Contains(t, proc.pendingFailover, dup.String())
+	assert.Contains(t, proc.pendingFailover, other.String())
+	proc.failoverMu.Unlock()
+
+	// The wake-up signal is coalesced to a single pending token.
+	assert.Equal(t, 1, len(proc.failoverSignal))
+}
+
+// TestFailoverPartitions_PreemptsInProgressSweep verifies the Q2 requirement: a failover
+// interrupts an in-progress periodic ProcessShard sweep and reprocesses the failed-over
+// partition first.
+func TestFailoverPartitions_PreemptsInProgressSweep(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := clock.NewMockedTimeSource()
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+
+	// Buffered so the restarted sweep after preemption can send again without a second reader.
+	sweepStarted := make(chan struct{}, 10)
+	partitionRan := make(chan persistence.HistoryDLQGetAckLevelsRequest, 1)
+
+	// Shard-level sweep query: blocks until its context is canceled by the preemption.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).DoAndReturn(
+		func(ctx context.Context, _ persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+			sweepStarted <- struct{}{}
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}).AnyTimes()
+	// Partition-level failover query: must run once the sweep has been preempted.
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n",
+	}).DoAndReturn(
+		func(_ context.Context, req persistence.HistoryDLQGetAckLevelsRequest) ([]persistence.HistoryDLQAckLevel, error) {
+			select {
+			case partitionRan <- req:
+			default:
+			}
+			return nil, nil
+		}).AnyTimes()
+
+	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, ts)
+	proc.Start()
+	defer proc.Stop()
+
+	// Kick off a periodic sweep and wait for it to block inside the shard-level query.
+	ts.BlockUntil(1)
+	ts.Advance(defaultTestProcessingInterval)
+	select {
+	case <-sweepStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("periodic sweep did not start")
+	}
+
+	// Fire a failover; it must cancel the in-flight sweep and process the partition first.
+	proc.FailoverPartitions([]Partition{{DomainID: "d", ClusterAttributeScope: "s", ClusterAttributeName: "n"}})
+
+	select {
+	case req := <-partitionRan:
+		assert.Equal(t, "d", req.DomainID)
+		assert.Equal(t, "s", req.ClusterAttributeScope)
+		assert.Equal(t, "n", req.ClusterAttributeName)
+	case <-time.After(5 * time.Second):
+		t.Fatal("failover partition was not processed after preempting the sweep")
+	}
 }
 
 func TestFailoverPartitions_WhenNotEnabled_DoesNotProcess(t *testing.T) {

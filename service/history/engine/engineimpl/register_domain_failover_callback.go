@@ -152,7 +152,9 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	}
 
 	// Promptly reprocess DLQ'd tasks for the failed-over partitions instead of waiting for the
-	// next periodic sweep. This is non-blocking; the periodic ProcessShard sweep is the backstop.
+	// next periodic sweep. This is non-blocking: the partitions are queued and a background loop
+	// preempts any in-progress sweep to reprocess them first, re-injecting the tasks into the
+	// executions table and notifying the queues so they are picked up immediately.
 	if e.dlqProcessor != nil && len(dlqPartitions) > 0 {
 		e.dlqProcessor.FailoverPartitions(dlqPartitions)
 	}
