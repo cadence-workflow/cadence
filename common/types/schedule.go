@@ -387,14 +387,16 @@ func (v *BackfillInfo) GetRunsTotal() (o int32) {
 
 // ScheduleInfo provides runtime information about the schedule.
 type ScheduleInfo struct {
-	LastRunTime      time.Time       `json:"lastRunTime,omitempty"`
-	NextRunTime      time.Time       `json:"nextRunTime,omitempty"`
-	TotalRuns        int64           `json:"totalRuns,omitempty"`
-	MissedRuns       int64           `json:"missedRuns,omitempty"`
-	SkippedRuns      int64           `json:"skippedRuns,omitempty"`
-	CreateTime       time.Time       `json:"createTime,omitempty"`
-	LastUpdateTime   time.Time       `json:"lastUpdateTime,omitempty"`
-	OngoingBackfills []*BackfillInfo `json:"ongoingBackfills,omitempty"`
+	LastRunTime          time.Time       `json:"lastRunTime,omitempty"`
+	NextRunTime          time.Time       `json:"nextRunTime,omitempty"`
+	TotalRuns            int64           `json:"totalRuns,omitempty"`
+	MissedRuns           int64           `json:"missedRuns,omitempty"`
+	SkippedRuns          int64           `json:"skippedRuns,omitempty"`
+	CreateTime           time.Time       `json:"createTime,omitempty"`
+	LastUpdateTime       time.Time       `json:"lastUpdateTime,omitempty"`
+	OngoingBackfills     []*BackfillInfo `json:"ongoingBackfills,omitempty"`
+	BufferedFireCount    int64           `json:"bufferedFireCount,omitempty"`
+	RunningWorkflowCount int64           `json:"runningWorkflowCount,omitempty"`
 }
 
 func (v *ScheduleInfo) GetLastRunTime() (o time.Time) {
@@ -449,6 +451,20 @@ func (v *ScheduleInfo) GetLastUpdateTime() (o time.Time) {
 func (v *ScheduleInfo) GetOngoingBackfills() (o []*BackfillInfo) {
 	if v != nil {
 		return v.OngoingBackfills
+	}
+	return
+}
+
+func (v *ScheduleInfo) GetBufferedFireCount() (o int64) {
+	if v != nil {
+		return v.BufferedFireCount
+	}
+	return
+}
+
+func (v *ScheduleInfo) GetRunningWorkflowCount() (o int64) {
+	if v != nil {
+		return v.RunningWorkflowCount
 	}
 	return
 }

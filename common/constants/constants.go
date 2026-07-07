@@ -182,6 +182,10 @@ const (
 	DomainDataKeyForClusterAttributePreferences = "ClusterAttributePreferences"
 	// DomainDataKeyForFailoverHistory is the key of DomainData for failover history
 	DomainDataKeyForFailoverHistory = "FailoverHistory"
+	// DomainDataKeyForFailoverTimeoutSeconds is the key of DomainData for graceful failover timeout.
+	// When set to a value > 0, failover and rebalance workflows use graceful failover with this timeout.
+	// When empty or zero, force failover is used.
+	DomainDataKeyForFailoverTimeoutSeconds = "FailoverTimeoutInSeconds"
 	// DomainDataKeyForReadGroups stores which groups have read permission of the domain API
 	DomainDataKeyForReadGroups = "READ_GROUPS"
 	// DomainDataKeyForWriteGroups stores which groups have write permission of the domain API

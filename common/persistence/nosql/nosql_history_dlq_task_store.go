@@ -77,15 +77,17 @@ func (sh *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskType:              request.TaskType,
-		TaskID:                request.TaskID,
-		WorkflowID:            request.WorkflowID,
-		RunID:                 request.RunID,
-		Version:               request.Version,
-		VisibilityTimestamp:   request.VisibilityTimestamp,
-		Data:                  request.TaskBlob.Data,
-		DataEncoding:          string(request.TaskBlob.Encoding),
-		CreatedAt:             request.CreatedAt,
+		// TODO(c-warren): Rename column to TaskCategory.
+		// TaskType currently stores TaskCategory, required for deserialization of the TaskBlob.
+		TaskType:            request.TaskCategory,
+		TaskID:              request.TaskID,
+		WorkflowID:          request.WorkflowID,
+		RunID:               request.RunID,
+		Version:             request.Version,
+		VisibilityTimestamp: request.VisibilityTimestamp,
+		Data:                request.TaskBlob.Data,
+		DataEncoding:        string(request.TaskBlob.Encoding),
+		CreatedAt:           request.CreatedAt,
 	}
 
 	err = storeShard.db.InsertHistoryDLQTaskRow(ctx, row)

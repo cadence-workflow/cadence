@@ -32,7 +32,7 @@ import (
 // TestScheduleSmokeTest verifies the schedule pipeline end-to-end against the
 // integration test cluster: CreateSchedule, wait for the scheduler workflow to
 // fire at least one target run, DeleteSchedule.
-func (s *IntegrationSuite) TestScheduleSmokeTest() {
+func (s *IntegrationSuite) TestScheduleSmokeTest_SLOW() {
 	if s.TestClusterConfig.WorkerConfig == nil || !s.TestClusterConfig.WorkerConfig.EnableScheduler {
 		s.T().Skip("scheduler worker manager not enabled on this cluster")
 	}

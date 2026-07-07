@@ -594,7 +594,7 @@ func (s *IntegrationSuite) TestSequentialWorkflow() {
 	)
 }
 
-func (s *IntegrationSuite) TestDelayStartWorkflow() {
+func (s *IntegrationSuite) TestDelayStartWorkflow_SLOW() {
 	startWorkflowTS := time.Now()
 	RunSequentialWorkflow(
 		s,
@@ -887,7 +887,7 @@ func (s *IntegrationSuite) TestCompleteDecisionTaskAndCreateNewOne() {
 	s.Equal(types.EventTypeDecisionTaskStarted, newTask.DecisionTask.History.Events[3].GetEventType())
 }
 
-func (s *IntegrationSuite) TestDecisionAndActivityTimeoutsWorkflow() {
+func (s *IntegrationSuite) TestDecisionAndActivityTimeoutsWorkflow_SLOW() {
 	id := "integration-timeouts-workflow-test"
 	wt := "integration-timeouts-workflow-test-type"
 	tl := "integration-timeouts-workflow-test-tasklist"
@@ -1014,7 +1014,7 @@ func (s *IntegrationSuite) TestDecisionAndActivityTimeoutsWorkflow() {
 	s.True(workflowComplete)
 }
 
-func (s *IntegrationSuite) TestWorkflowRetry() {
+func (s *IntegrationSuite) TestWorkflowRetry_SLOW() {
 	id := "integration-wf-retry-test"
 	wt := "integration-wf-retry-type"
 	tl := "integration-wf-retry-tasklist"
@@ -1276,7 +1276,7 @@ func (s *IntegrationSuite) TestWorkflowRetryFailures() {
 
 }
 
-func (s *IntegrationSuite) TestCronWorkflow() {
+func (s *IntegrationSuite) TestCronWorkflow_SLOW() {
 	id := "integration-wf-cron-test"
 	wt := "integration-wf-cron-type"
 	tl := "integration-wf-cron-tasklist"
@@ -1504,7 +1504,7 @@ func (s *IntegrationSuite) TestCronWorkflow() {
 	}
 }
 
-func (s *IntegrationSuite) TestCronWorkflowTimeout() {
+func (s *IntegrationSuite) TestCronWorkflowTimeout_SLOW() {
 	id := "integration-wf-cron-timeout-test"
 	wt := "integration-wf-cron-timeout-type"
 	tl := "integration-wf-cron-timeout-tasklist"
@@ -1627,7 +1627,7 @@ func (s *IntegrationSuite) TestCronWorkflowTimeout() {
 	s.NoError(terminateErr)
 }
 
-func (s *IntegrationSuite) TestSequential_UserTimers() {
+func (s *IntegrationSuite) TestSequential_UserTimers_SLOW() {
 	id := "integration-sequential-user-timers-test"
 	wt := "integration-sequential-user-timers-test-type"
 	tl := "integration-sequential-user-timers-test-tasklist"
@@ -2434,7 +2434,7 @@ func (s *IntegrationSuite) TestChildWorkflowExecution() {
 	s.Equal([]byte("Child Done."), completedAttributes.Result)
 }
 
-func (s *IntegrationSuite) TestCronChildWorkflowExecution() {
+func (s *IntegrationSuite) TestCronChildWorkflowExecution_SLOW() {
 	parentID := "integration-cron-child-workflow-test-parent"
 	childID := "integration-cron-child-workflow-test-child"
 	wtParent := "integration-cron-child-workflow-test-parent-type"
@@ -4264,7 +4264,7 @@ func (s *IntegrationSuite) TestCancelTimer() {
 	}
 }
 
-func (s *IntegrationSuite) TestCancelTimer_CancelFiredAndBuffered() {
+func (s *IntegrationSuite) TestCancelTimer_CancelFiredAndBuffered_SLOW() {
 	id := "integration-cancel-timer-fired-and-buffered-test"
 	wt := "integration-cancel-timer-fired-and-buffered-test-type"
 	tl := "integration-cancel-timer-fired-and-buffered-test-tasklist"

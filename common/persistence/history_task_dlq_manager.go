@@ -69,12 +69,15 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	if err != nil {
 		return fmt.Errorf("failed to serialize history DLQ task: %w", err)
 	}
+
+	taskCategoryID := request.Task.GetTaskCategory().ID()
+
 	if err := m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskCategory:          request.Task.GetTaskCategory().ID(),
+		TaskCategory:          taskCategoryID,
 		AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
 		AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
 		LastUpdatedAt:         m.timeSrc.Now().UTC(),
@@ -83,12 +86,13 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	}
 	// Use the task's key to store the visibility_ts/task_id in the DLQ.
 	taskKey := request.Task.GetTaskKey()
-	return m.persistence.CreateHistoryDLQTask(ctx, InternalCreateHistoryDLQTaskRequest{
+
+	createHistoryDLQTaskRequest := InternalCreateHistoryDLQTaskRequest{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskType:              request.Task.GetTaskCategory().ID(),
+		TaskCategory:          taskCategoryID,
 		TaskID:                taskKey.GetTaskID(),
 		WorkflowID:            request.Task.GetWorkflowID(),
 		RunID:                 request.Task.GetRunID(),
@@ -96,7 +100,9 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 		VisibilityTimestamp:   taskKey.GetScheduledTime(),
 		CreatedAt:             m.timeSrc.Now().UTC(),
 		TaskBlob:              &DataBlob{Data: blob.Data, Encoding: blob.Encoding},
-	})
+	}
+
+	return m.persistence.CreateHistoryDLQTask(ctx, createHistoryDLQTaskRequest)
 }
 
 // GetHistoryDLQAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.

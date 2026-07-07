@@ -2992,6 +2992,8 @@ const (
 	TaskProcessingLatencyPerTaskListHistogram
 	TaskQueueLatencyPerTaskListHistogram
 	TaskScheduleLatencyPerTaskListHistogram
+	TaskScheduleSubmittedPerTaskList
+	TaskScheduleThrottledPerTaskList
 
 	// HistoryTaskDLQReinjectFailuresCounter counts DLQ page re-injection failures (alert on this)
 	HistoryTaskDLQReinjectFailuresCounter
@@ -3639,6 +3641,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskProcessingLatencyPerTaskListHistogram: {metricName: "task_latency_processing_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskQueueLatencyPerTaskListHistogram:      {metricName: "task_latency_queue_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskScheduleLatencyPerTaskListHistogram:   {metricName: "task_latency_schedule_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
+		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
 		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},

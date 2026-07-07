@@ -59,7 +59,7 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		DomainID:              "domain-abc",
 		ClusterAttributeScope: "scope-1",
 		ClusterAttributeName:  "cluster-west",
-		TaskType:              3,
+		TaskCategory:          3,
 		TaskID:                99,
 		VisibilityTimestamp:   now,
 		CreatedAt:             createdAt,
