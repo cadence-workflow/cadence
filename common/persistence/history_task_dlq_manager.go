@@ -69,12 +69,15 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	if err != nil {
 		return fmt.Errorf("failed to serialize history DLQ task: %w", err)
 	}
+
+	taskCategoryID := request.Task.GetTaskCategory().ID()
+
 	if err := m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskCategory:          request.Task.GetTaskCategory().ID(),
+		TaskCategory:          taskCategoryID,
 		AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
 		AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
 		LastUpdatedAt:         m.timeSrc.Now().UTC(),
@@ -89,7 +92,7 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskCategory:          request.Task.GetTaskCategory().ID(),
+		TaskCategory:          taskCategoryID,
 		TaskID:                taskKey.GetTaskID(),
 		WorkflowID:            request.Task.GetWorkflowID(),
 		RunID:                 request.Task.GetRunID(),

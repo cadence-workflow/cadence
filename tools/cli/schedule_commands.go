@@ -76,23 +76,76 @@ func (sc *scheduleCLIImpl) CreateSchedule(c *cli.Context) error {
 		}
 		action.Input = []byte(inputStr)
 	}
+	if c.IsSet(FlagWorkflowIDPrefix) {
+		action.WorkflowIDPrefix = c.String(FlagWorkflowIDPrefix)
+	}
+	if memoFields, err := processMemo(c); err != nil {
+		return err
+	} else if len(memoFields) > 0 {
+		action.Memo = &types.Memo{Fields: memoFields}
+	}
+	if saFields, err := processSearchAttr(c); err != nil {
+		return err
+	} else if len(saFields) > 0 {
+		action.SearchAttributes = &types.SearchAttributes{IndexedFields: saFields}
+	}
+	if c.IsSet(FlagRetryAttempts) || c.IsSet(FlagRetryExpiration) || c.IsSet(FlagRetryInterval) || c.IsSet(FlagRetryBackoff) || c.IsSet(FlagRetryMaxInterval) {
+		action.RetryPolicy = &types.RetryPolicy{
+			InitialIntervalInSeconds: int32(c.Int(FlagRetryInterval)),
+			BackoffCoefficient:       c.Float64(FlagRetryBackoff),
+		}
+		if c.IsSet(FlagRetryAttempts) {
+			action.RetryPolicy.MaximumAttempts = int32(c.Int(FlagRetryAttempts))
+		}
+		if c.IsSet(FlagRetryExpiration) {
+			action.RetryPolicy.ExpirationIntervalInSeconds = int32(c.Int(FlagRetryExpiration))
+		}
+		if c.IsSet(FlagRetryMaxInterval) {
+			action.RetryPolicy.MaximumIntervalInSeconds = int32(c.Int(FlagRetryMaxInterval))
+		}
+	}
+
+	spec := &types.ScheduleSpec{CronExpression: cronExpr}
+	if c.IsSet(FlagStartTime) {
+		t, err := time.Parse(time.RFC3339, c.String(FlagStartTime))
+		if err != nil {
+			return commoncli.Problem("Invalid start_time format, expected RFC3339", err)
+		}
+		spec.StartTime = t
+	}
+	if c.IsSet(FlagEndTime) {
+		t, err := time.Parse(time.RFC3339, c.String(FlagEndTime))
+		if err != nil {
+			return commoncli.Problem("Invalid end_time format, expected RFC3339", err)
+		}
+		spec.EndTime = t
+	}
+	if c.IsSet(FlagJitter) {
+		d, err := time.ParseDuration(c.String(FlagJitter))
+		if err != nil {
+			return commoncli.Problem("Invalid jitter format, expected Go duration (e.g. '30s', '5m')", err)
+		}
+		spec.Jitter = d
+	}
 
 	request := &types.CreateScheduleRequest{
 		Domain:     domain,
 		ScheduleID: scheduleID,
-		Spec:       &types.ScheduleSpec{CronExpression: cronExpr},
+		Spec:       spec,
 		Action:     &types.ScheduleAction{StartWorkflow: action},
 	}
 
-	policies, err := buildPoliciesFromFlags(c)
+	policies, err := buildPoliciesFromFlags(c, nil)
 	if err != nil {
 		return err
 	}
-	if policies != nil && policies.ConcurrencyLimit > 0 &&
-		policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
-		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
-	}
 	if policies != nil {
+		if policies.ConcurrencyLimit > 0 && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
+			return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
+		}
+		if policies.BufferLimit > 0 && policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer {
+			return commoncli.Problem("--buffer_limit requires --overlap_policy buffer", nil)
+		}
 		request.Policies = policies
 	}
 
@@ -158,27 +211,94 @@ func (sc *scheduleCLIImpl) UpdateSchedule(c *cli.Context) error {
 		ScheduleID: scheduleID,
 	}
 
-	if c.IsSet(FlagCronExpression) {
-		request.Spec = &types.ScheduleSpec{CronExpression: c.String(FlagCronExpression)}
+	specFlags := []string{FlagCronExpression, FlagStartTime, FlagEndTime, FlagJitter}
+	specSet := false
+	for _, f := range specFlags {
+		if c.IsSet(f) {
+			specSet = true
+			break
+		}
+	}
+	policyFlags := []string{FlagOverlapPolicy, FlagCatchUpPolicy, FlagConcurrencyLimit, FlagCatchUpWindow, FlagPauseOnFailure, FlagBufferLimit}
+	policySet := false
+	for _, f := range policyFlags {
+		if c.IsSet(f) {
+			policySet = true
+			break
+		}
 	}
 
-	policies, err := buildPoliciesFromFlags(c)
-	if err != nil {
-		return err
-	}
-	// Only reject explicit conflicts; standalone --concurrency_limit updates are
-	// valid when the schedule's existing server-side policy is already concurrent.
-	if policies != nil && policies.ConcurrencyLimit > 0 &&
-		c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
-		return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
-	}
-	request.Policies = policies
-
-	if request.Spec == nil && request.Policies == nil {
-		return commoncli.Problem("At least one of --cron_expression, --overlap_policy, --catch_up_policy, or --concurrency_limit must be set", nil)
+	if !specSet && !policySet {
+		return commoncli.Problem("At least one flag must be set to update the schedule", nil)
 	}
 
+	// The scheduler workflow replaces Spec/Policies wholesale on update
+	// (handleUpdate in service/worker/scheduler/workflow.go), so any field
+	// not set here would reset to its zero value. Fetch the current
+	// schedule and merge the flags on top of it instead.
 	ctx, cancel, err := newContext(c)
+	if err != nil {
+		return commoncli.Problem("Error creating context", err)
+	}
+	current, err := sc.frontendClient.DescribeSchedule(ctx, &types.DescribeScheduleRequest{
+		Domain:     domain,
+		ScheduleID: scheduleID,
+	})
+	cancel()
+	if err != nil {
+		return commoncli.Problem("Failed to fetch current schedule for update", err)
+	}
+
+	if specSet {
+		spec := &types.ScheduleSpec{}
+		if current.GetSpec() != nil {
+			*spec = *current.GetSpec()
+		}
+		if c.IsSet(FlagCronExpression) {
+			spec.CronExpression = c.String(FlagCronExpression)
+		}
+		if spec.CronExpression == "" {
+			return commoncli.Problem("--cron_expression is required: the existing schedule has no cron expression set", nil)
+		}
+		if c.IsSet(FlagStartTime) {
+			t, err := time.Parse(time.RFC3339, c.String(FlagStartTime))
+			if err != nil {
+				return commoncli.Problem("Invalid start_time format, expected RFC3339", err)
+			}
+			spec.StartTime = t
+		}
+		if c.IsSet(FlagEndTime) {
+			t, err := time.Parse(time.RFC3339, c.String(FlagEndTime))
+			if err != nil {
+				return commoncli.Problem("Invalid end_time format, expected RFC3339", err)
+			}
+			spec.EndTime = t
+		}
+		if c.IsSet(FlagJitter) {
+			d, err := time.ParseDuration(c.String(FlagJitter))
+			if err != nil {
+				return commoncli.Problem("Invalid jitter format, expected Go duration (e.g. '30s', '5m')", err)
+			}
+			spec.Jitter = d
+		}
+		request.Spec = spec
+	}
+
+	if policySet {
+		policies, err := buildPoliciesFromFlags(c, current.GetPolicies())
+		if err != nil {
+			return err
+		}
+		if c.IsSet(FlagConcurrencyLimit) && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyConcurrent {
+			return commoncli.Problem("--concurrency_limit requires --overlap_policy concurrent", nil)
+		}
+		if c.IsSet(FlagBufferLimit) && c.IsSet(FlagOverlapPolicy) && policies.OverlapPolicy != types.ScheduleOverlapPolicyBuffer {
+			return commoncli.Problem("--buffer_limit requires --overlap_policy buffer", nil)
+		}
+		request.Policies = policies
+	}
+
+	ctx, cancel, err = newContext(c)
 	if err != nil {
 		return commoncli.Problem("Error creating context", err)
 	}
@@ -375,15 +495,28 @@ func (sc *scheduleCLIImpl) ListSchedules(c *cli.Context) error {
 	return nil
 }
 
-func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
+// buildPoliciesFromFlags builds SchedulePolicies from CLI flags, starting
+// from base (nil for create, current policies for update) so unset flags
+// keep their existing value instead of resetting to zero.
+func buildPoliciesFromFlags(c *cli.Context, base *types.SchedulePolicies) (*types.SchedulePolicies, error) {
 	hasOverlap := c.IsSet(FlagOverlapPolicy)
 	hasCatchUp := c.IsSet(FlagCatchUpPolicy)
 	hasLimit := c.IsSet(FlagConcurrencyLimit)
-	if !hasOverlap && !hasCatchUp && !hasLimit {
+	hasCatchUpWindow := c.IsSet(FlagCatchUpWindow)
+	hasPauseOnFailure := c.IsSet(FlagPauseOnFailure)
+	hasBufferLimit := c.IsSet(FlagBufferLimit)
+	if !hasOverlap && !hasCatchUp && !hasLimit && !hasCatchUpWindow && !hasPauseOnFailure && !hasBufferLimit {
+		if base != nil {
+			cloned := *base
+			return &cloned, nil
+		}
 		return nil, nil
 	}
 
 	policies := &types.SchedulePolicies{}
+	if base != nil {
+		*policies = *base
+	}
 	if hasOverlap {
 		p, err := parseOverlapPolicy(c.String(FlagOverlapPolicy))
 		if err != nil {
@@ -404,6 +537,23 @@ func buildPoliciesFromFlags(c *cli.Context) (*types.SchedulePolicies, error) {
 			return nil, commoncli.Problem("--concurrency_limit must be >= 0", nil)
 		}
 		policies.ConcurrencyLimit = limit
+	}
+	if hasCatchUpWindow {
+		d, err := time.ParseDuration(c.String(FlagCatchUpWindow))
+		if err != nil {
+			return nil, commoncli.Problem("Invalid catch_up_window format, expected Go duration (e.g. '1h', '30m')", err)
+		}
+		policies.CatchUpWindow = d
+	}
+	if hasPauseOnFailure {
+		policies.PauseOnFailure = c.Bool(FlagPauseOnFailure)
+	}
+	if hasBufferLimit {
+		limit := int32(c.Int(FlagBufferLimit))
+		if limit < 0 {
+			return nil, commoncli.Problem("--buffer_limit must be >= 0", nil)
+		}
+		policies.BufferLimit = limit
 	}
 	return policies, nil
 }
@@ -442,46 +592,113 @@ func printDescribeSchedule(resp *types.DescribeScheduleResponse) {
 	fmt.Println("Schedule Configuration:")
 
 	if spec := resp.GetSpec(); spec != nil {
-		fmt.Printf("  Cron Expression:  %s\n", spec.CronExpression)
+		fmt.Printf("  Cron Expression:    %s\n", spec.CronExpression)
+		if !spec.StartTime.IsZero() {
+			fmt.Printf("  Start Time:         %s\n", spec.StartTime.UTC().Format(time.RFC3339))
+		}
+		if !spec.EndTime.IsZero() {
+			fmt.Printf("  End Time:           %s\n", spec.EndTime.UTC().Format(time.RFC3339))
+		}
+		if spec.Jitter > 0 {
+			fmt.Printf("  Jitter:             %s\n", spec.Jitter)
+		}
 	}
 
 	if action := resp.GetAction(); action != nil {
 		if sw := action.StartWorkflow; sw != nil {
 			if sw.WorkflowType != nil {
-				fmt.Printf("  Workflow Type:    %s\n", sw.WorkflowType.Name)
+				fmt.Printf("  Workflow Type:      %s\n", sw.WorkflowType.Name)
 			}
 			if sw.TaskList != nil {
-				fmt.Printf("  Task List:        %s\n", sw.TaskList.Name)
+				fmt.Printf("  Task List:          %s\n", sw.TaskList.Name)
+			}
+			if sw.WorkflowIDPrefix != "" {
+				fmt.Printf("  Workflow ID Prefix: %s\n", sw.WorkflowIDPrefix)
+			}
+			if sw.ExecutionStartToCloseTimeoutSeconds != nil {
+				fmt.Printf("  Execution Timeout:  %ds\n", *sw.ExecutionStartToCloseTimeoutSeconds)
+			}
+			if sw.TaskStartToCloseTimeoutSeconds != nil {
+				fmt.Printf("  Decision Timeout:   %ds\n", *sw.TaskStartToCloseTimeoutSeconds)
+			}
+			if rp := sw.RetryPolicy; rp != nil {
+				fmt.Printf("  Retry Policy:       max_attempts=%d initial=%ds backoff=%.1f",
+					rp.MaximumAttempts, rp.InitialIntervalInSeconds, rp.BackoffCoefficient)
+				if rp.MaximumIntervalInSeconds > 0 {
+					fmt.Printf(" max_interval=%ds", rp.MaximumIntervalInSeconds)
+				}
+				if rp.ExpirationIntervalInSeconds > 0 {
+					fmt.Printf(" expiration=%ds", rp.ExpirationIntervalInSeconds)
+				}
+				fmt.Println()
 			}
 		}
 	}
 
 	if policies := resp.GetPolicies(); policies != nil {
-		fmt.Printf("  Overlap Policy:   %s\n", policies.OverlapPolicy)
-		fmt.Printf("  Catch-up Policy:  %s\n", policies.CatchUpPolicy)
+		fmt.Printf("  Overlap Policy:     %s\n", policies.OverlapPolicy)
+		fmt.Printf("  Catch-up Policy:    %s\n", policies.CatchUpPolicy)
+		if policies.CatchUpWindow > 0 {
+			fmt.Printf("  Catch-up Window:    %s\n", policies.CatchUpWindow)
+		}
+		if policies.PauseOnFailure {
+			fmt.Printf("  Pause On Failure:   true\n")
+		}
+		if policies.BufferLimit > 0 || policies.OverlapPolicy == types.ScheduleOverlapPolicyBuffer {
+			fmt.Printf("  Buffer Limit:       %d (0=unlimited)\n", policies.BufferLimit)
+		}
+		if policies.ConcurrencyLimit > 0 || policies.OverlapPolicy == types.ScheduleOverlapPolicyConcurrent {
+			fmt.Printf("  Concurrency Limit:  %d (0=unlimited)\n", policies.ConcurrencyLimit)
+		}
 	}
 
 	if state := resp.GetState(); state != nil {
 		if state.Paused {
-			fmt.Printf("  Status:           PAUSED\n")
+			fmt.Printf("  Status:             PAUSED\n")
 			if pi := state.PauseInfo; pi != nil {
-				fmt.Printf("  Pause Reason:     %s\n", pi.Reason)
+				if pi.Reason != "" {
+					fmt.Printf("  Pause Reason:       %s\n", pi.Reason)
+				}
 				if pi.PausedBy != "" {
-					fmt.Printf("  Paused By:        %s\n", pi.PausedBy)
+					fmt.Printf("  Paused By:          %s\n", pi.PausedBy)
+				}
+				if !pi.PausedAt.IsZero() {
+					fmt.Printf("  Paused At:          %s\n", pi.PausedAt.UTC().Format(time.RFC3339))
 				}
 			}
 		} else {
-			fmt.Printf("  Status:           ACTIVE\n")
+			fmt.Printf("  Status:             ACTIVE\n")
 		}
 	}
 
+	fmt.Println()
+	fmt.Println("Schedule Runtime:")
+
 	if info := resp.GetInfo(); info != nil {
-		fmt.Printf("  Total Runs:       %d\n", info.TotalRuns)
+		fmt.Printf("  Total Runs:         %d\n", info.TotalRuns)
+		if info.MissedRuns > 0 {
+			fmt.Printf("  Missed Runs:        %d\n", info.MissedRuns)
+		}
+		if info.SkippedRuns > 0 {
+			fmt.Printf("  Skipped Runs:       %d\n", info.SkippedRuns)
+		}
+		if info.BufferedFireCount > 0 {
+			fmt.Printf("  Buffered Fires:     %d\n", info.BufferedFireCount)
+		}
+		if info.RunningWorkflowCount > 0 {
+			fmt.Printf("  Running Workflows:  %d\n", info.RunningWorkflowCount)
+		}
 		if !info.LastRunTime.IsZero() {
-			fmt.Printf("  Last Run:         %s\n", info.LastRunTime.Format(time.RFC3339))
+			fmt.Printf("  Last Run:           %s\n", info.LastRunTime.UTC().Format(time.RFC3339))
 		}
 		if !info.NextRunTime.IsZero() {
-			fmt.Printf("  Next Run:         %s\n", info.NextRunTime.Format(time.RFC3339))
+			fmt.Printf("  Next Run:           %s\n", info.NextRunTime.UTC().Format(time.RFC3339))
+		}
+		if !info.CreateTime.IsZero() {
+			fmt.Printf("  Created:            %s\n", info.CreateTime.UTC().Format(time.RFC3339))
+		}
+		if !info.LastUpdateTime.IsZero() {
+			fmt.Printf("  Last Updated:       %s\n", info.LastUpdateTime.UTC().Format(time.RFC3339))
 		}
 		if len(info.OngoingBackfills) > 0 {
 			fmt.Printf("  Ongoing Backfills:\n")
