@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/constants"
+	"github.com/uber/cadence/service/history/shard"
 )
 
 type (
@@ -79,40 +80,68 @@ type (
 		wg        sync.WaitGroup
 		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
 	}
+
+	// ProcessorParams are the dependencies needed to build a Processor.
+	ProcessorParams struct {
+		ShardID       int
+		Manager       persistence.HistoryTaskDLQManager
+		Reinjector    TaskReinjector
+		PageSize      int
+		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
+		DomainMode    dynamicproperties.StringPropertyFnWithDomainFilter
+		Enabled       dynamicproperties.BoolPropertyFn
+		TimeSource    clock.TimeSource
+		MetricsClient metrics.Client
+		Logger        log.Logger
+	}
 )
 
 var _ Processor = (*ProcessorImpl)(nil)
 
-// NewProcessor creates a Processor that reads from the history task DLQ for the given shardID.
+// NewProcessor creates a Processor from the given dependencies.
 //
 // The processor will periodically process the DLQ for the entire shard,
-// and will process a domain/clustetAttribute pair on demand.
-func NewProcessor(
-	shardID int,
-	mgr persistence.HistoryTaskDLQManager,
-	reinjector TaskReinjector,
+// and will process a domain/clusterAttribute pair on demand.
+func NewProcessor(params ProcessorParams) *ProcessorImpl {
+	return &ProcessorImpl{
+		shardID:       params.ShardID,
+		mgr:           params.Manager,
+		reinjector:    params.Reinjector,
+		pageSize:      params.PageSize,
+		interval:      params.Interval,
+		domainMode:    params.DomainMode,
+		enabled:       params.Enabled,
+		timeSource:    params.TimeSource,
+		metricsClient: params.MetricsClient,
+		logger:        params.Logger,
+		status:        common.DaemonStatusInitialized,
+		cancel:        func() {}, // no-op until Start() sets the real cancel
+	}
+}
+
+// NewProcessorFromShard is a convenience constructor that derives the shard-scoped
+// dependencies (shard ID, reinjector, DLQ manager, time source, metrics, logger)
+// from the shard context and delegates to NewProcessor.
+func NewProcessorFromShard(
+	shard shard.Context,
+	// TODO(c-warren): Convert pageSize to a dynamic property.
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
 	domainMode dynamicproperties.StringPropertyFnWithDomainFilter,
 	enabled dynamicproperties.BoolPropertyFn,
-	timeSource clock.TimeSource,
-	metricsClient metrics.Client,
-	logger log.Logger,
 ) *ProcessorImpl {
-	return &ProcessorImpl{
-		shardID:       shardID,
-		mgr:           mgr,
-		reinjector:    reinjector,
-		pageSize:      pageSize,
-		interval:      interval,
-		domainMode:    domainMode,
-		enabled:       enabled,
-		timeSource:    timeSource,
-		metricsClient: metricsClient,
-		logger:        logger,
-		status:        common.DaemonStatusInitialized,
-		cancel:        func() {}, // no-op until Start() sets the real cancel
-	}
+	return NewProcessor(ProcessorParams{
+		ShardID:       shard.GetShardID(),
+		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
+		Reinjector:    shard,
+		PageSize:      pageSize,
+		Interval:      interval,
+		DomainMode:    domainMode,
+		Enabled:       enabled,
+		TimeSource:    shard.GetTimeSource(),
+		MetricsClient: shard.GetMetricsClient(),
+		Logger:        shard.GetLogger(),
+	})
 }
 
 // Start starts the processor and launches the background processing loop.
