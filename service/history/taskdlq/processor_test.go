@@ -51,35 +51,46 @@ func newMockTask(ctrl *gomock.Controller, taskID int64) *persistence.MockTask {
 	return t
 }
 
+type newProcessorParams struct {
+	ShardID           int
+	Manager           persistence.HistoryTaskDLQManager
+	Reinjector        TaskReinjector
+	DomainMode        string
+	ProcessingEnabled bool
+	TimeSource        clock.TimeSource
+}
+
 // newProcessor builds a ProcessorImpl with the given dependencies and sensible test defaults.
 func newProcessor(
 	t *testing.T,
-	mgr persistence.HistoryTaskDLQManager,
-	reinjector TaskReinjector,
-	domainMode string,
-	enabled bool,
-	timeSource clock.TimeSource,
+	params newProcessorParams,
 ) *ProcessorImpl {
 	t.Helper()
-	return NewProcessor(
-		1,
-		mgr,
-		reinjector,
-		10,
-		dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
-		dynamicproperties.GetStringPropertyFnFilteredByDomain(domainMode),
-		dynamicproperties.GetBoolPropertyFn(enabled),
-		timeSource,
-		metrics.NewNoopMetricsClient(),
-		testlogger.New(t),
-	)
+	return NewProcessor(ProcessorParams{
+		ShardID:       1,
+		Manager:       params.Manager,
+		Reinjector:    params.Reinjector,
+		PageSize:      10,
+		Interval:      dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
+		DomainMode:    dynamicproperties.GetStringPropertyFnFilteredByDomain(params.DomainMode),
+		Enabled:       dynamicproperties.GetBoolPropertyFn(params.ProcessingEnabled),
+		TimeSource:    params.TimeSource,
+		MetricsClient: metrics.NewNoopMetricsClient(),
+		Logger:        testlogger.New(t),
+	})
 }
 
 func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *persistence.MockHistoryTaskDLQManager, *MockTaskReinjector) {
 	t.Helper()
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	reinjector := NewMockTaskReinjector(ctrl)
-	proc := newProcessor(t, mgr, reinjector, constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+	})
 	return proc, mgr, reinjector
 }
 
@@ -451,7 +462,13 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+	})
 
 	shardStarted := make(chan struct{})
 	shardBlocked := make(chan struct{})
@@ -512,7 +529,13 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 		return nil, ctx.Err()
 	}).AnyTimes()
 
-	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, ts)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        ts,
+	})
 
 	proc.Start()
 
@@ -580,7 +603,13 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
-	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, clock.NewMockedTimeSource())
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+	})
 
 	proc.Start()
 	proc.Start() // second call must be a no-op
@@ -603,7 +632,13 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 		return nil, nil
 	}).AnyTimes()
 
-	proc := newProcessor(t, mgr, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, true, ts)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        ts,
+	})
 
 	proc.Start()
 	defer proc.Stop()
@@ -625,7 +660,13 @@ func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 	ts := clock.NewMockedTimeSource()
 	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Times(0)
-	proc := newProcessor(t, store, NewMockTaskReinjector(ctrl), constants.HistoryTaskDLQModeEnabled, false, ts)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           store,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: false,
+		TimeSource:        ts,
+	})
 
 	proc.Start()
 	defer proc.Stop()
@@ -645,7 +686,13 @@ func TestProcessShard_WhenDomainNotEnabled_SkipsProcessing(t *testing.T) {
 
 	store := persistence.NewMockHistoryTaskDLQManager(ctrl)
 	reinjector := NewMockTaskReinjector(ctrl)
-	proc := newProcessor(t, store, reinjector, constants.HistoryTaskDLQModeDisabled, true, clock.NewMockedTimeSource())
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           store,
+		Reinjector:        reinjector,
+		DomainMode:        constants.HistoryTaskDLQModeDisabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+	})
 
 	al := baseAckLevel(1)
 	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), persistence.HistoryDLQGetAckLevelsRequest{ShardID: 1}).Return([]persistence.HistoryDLQAckLevel{al}, nil)
