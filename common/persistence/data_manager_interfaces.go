@@ -1798,6 +1798,9 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
+		// CreateHistoryDLQAckLevelIfNotExists creates the sentinel ack-level row for a DLQ partition/task
+		// category only when one does not already exist. It is a no-op (successful) when the row is present.
+		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request CreateHistoryDLQAckLevelRequest) error
 		// GetHistoryDLQAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
 		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
 		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
@@ -1809,7 +1812,7 @@ type (
 		DeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
-	// CreateHistoryDLQTaskRequest is the public request for adding a task to the history DLQ.
+	// CreateHistoryDLQTaskRequest adds a task to the History Task Dead Letter Queue.
 	CreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
@@ -1817,6 +1820,16 @@ type (
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		Task                  Task
+	}
+
+	// CreateHistoryDLQAckLevelRequest creates the sentinel ack-level row for a DLQ partition/task
+	// category when one does not already exist.
+	CreateHistoryDLQAckLevelRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
 	}
 
 	// HistoryDLQAckLevel identifies one DLQ partition and its current processing watermark.

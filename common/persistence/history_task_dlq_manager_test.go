@@ -69,19 +69,6 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 					SerializeTask(HistoryTaskCategoryTransfer, testTask).
 					Return(serializedBlob, nil)
 				store.EXPECT().
-					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.AssignableToTypeOf(InternalHistoryDLQAckLevel{})).
-					DoAndReturn(func(_ context.Context, row InternalHistoryDLQAckLevel) error {
-						assert.Equal(t, 1, row.ShardID)
-						assert.Equal(t, "test-domain", row.DomainID)
-						assert.Equal(t, "scope", row.ClusterAttributeScope)
-						assert.Equal(t, "cluster-a", row.ClusterAttributeName)
-						assert.Equal(t, HistoryTaskCategoryTransfer.ID(), row.TaskCategory)
-						assert.Equal(t, MinimumHistoryTaskKey.GetScheduledTime(), row.AckLevelVisibilityTS)
-						assert.Equal(t, MinimumHistoryTaskKey.GetTaskID(), row.AckLevelTaskID)
-						assert.Equal(t, now, row.LastUpdatedAt)
-						return nil
-					})
-				store.EXPECT().
 					CreateHistoryDLQTask(gomock.Any(), gomock.AssignableToTypeOf(InternalCreateHistoryDLQTaskRequest{})).
 					DoAndReturn(func(_ context.Context, req InternalCreateHistoryDLQTaskRequest) error {
 						assert.Equal(t, 1, req.ShardID)
@@ -95,20 +82,6 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 						return nil
 					})
 			},
-		},
-		{
-			name: "ack level creation failure",
-			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
-				ser.EXPECT().
-					SerializeTask(HistoryTaskCategoryTransfer, testTask).
-					Return(serializedBlob, nil)
-				store.EXPECT().
-					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
-					Return(errors.New("cassandra unavailable"))
-				// CreateHistoryDLQTask must NOT be called when the ack level write fails:
-				// the ack level row is always inserted prior to the task.
-			},
-			wantErr: "failed to create initial DLQ ack level: cassandra unavailable",
 		},
 		{
 			name: "serialization failure",
@@ -126,9 +99,6 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 				ser.EXPECT().
 					SerializeTask(HistoryTaskCategoryTransfer, testTask).
 					Return(serializedBlob, nil)
-				store.EXPECT().
-					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
-					Return(nil)
 				store.EXPECT().
 					CreateHistoryDLQTask(gomock.Any(), gomock.Any()).
 					Return(errors.New("cassandra unavailable"))
@@ -156,6 +126,72 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 				ClusterAttributeScope: "scope",
 				ClusterAttributeName:  "cluster-a",
 				Task:                  testTask,
+			})
+
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestHistoryTaskDLQManager_CreateHistoryDLQAckLevelIfNotExists(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		mockSetup func(*MockHistoryDLQTaskStore)
+		wantErr   string
+	}{
+		{
+			name: "forwards sentinel key to store",
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.AssignableToTypeOf(InternalHistoryDLQAckLevel{})).
+					DoAndReturn(func(_ context.Context, row InternalHistoryDLQAckLevel) error {
+						assert.Equal(t, 1, row.ShardID)
+						assert.Equal(t, "test-domain", row.DomainID)
+						assert.Equal(t, "scope", row.ClusterAttributeScope)
+						assert.Equal(t, "cluster-a", row.ClusterAttributeName)
+						assert.Equal(t, HistoryTaskCategoryTransfer.ID(), row.TaskCategory)
+						assert.Equal(t, MinimumHistoryTaskKey.GetScheduledTime(), row.AckLevelVisibilityTS)
+						assert.Equal(t, MinimumHistoryTaskKey.GetTaskID(), row.AckLevelTaskID)
+						assert.Equal(t, now, row.LastUpdatedAt)
+						return nil
+					})
+			},
+		},
+		{
+			name: "store error propagates",
+			mockSetup: func(store *MockHistoryDLQTaskStore) {
+				store.EXPECT().
+					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+					Return(errors.New("cassandra unavailable"))
+			},
+			wantErr: "cassandra unavailable",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockStore := NewMockHistoryDLQTaskStore(ctrl)
+			tc.mockSetup(mockStore)
+
+			mgr := &historyTaskDLQManagerImpl{
+				persistence:    mockStore,
+				taskSerializer: NewMockHistoryTaskSerializer(ctrl),
+				logger:         log.NewNoop(),
+				timeSrc:        clock.NewMockedTimeSourceAt(now),
+			}
+			err := mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), CreateHistoryDLQAckLevelRequest{
+				ShardID:               1,
+				DomainID:              "test-domain",
+				ClusterAttributeScope: "scope",
+				ClusterAttributeName:  "cluster-a",
+				TaskCategory:          HistoryTaskCategoryTransfer,
 			})
 
 			if tc.wantErr != "" {

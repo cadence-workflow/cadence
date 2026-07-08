@@ -43,6 +43,17 @@ func (c *meteredHistoryTaskDLQManager) Close() {
 	return
 }
 
+func (c *meteredHistoryTaskDLQManager) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request _sourcePersistence.CreateHistoryDLQAckLevelRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.CreateHistoryDLQAckLevelIfNotExists(ctx, request)
+		c.emptyMetric("HistoryTaskDLQManager.CreateHistoryDLQAckLevelIfNotExists", request, err, err)
+		return err
+	}
+
+	err = c.call(metrics.PersistenceCreateHistoryDLQAckLevelIfNotExistsScope, op, getCustomMetricTags(request)...)
+	return
+}
+
 func (c *meteredHistoryTaskDLQManager) CreateHistoryDLQTask(ctx context.Context, request _sourcePersistence.CreateHistoryDLQTaskRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.CreateHistoryDLQTask(ctx, request)
