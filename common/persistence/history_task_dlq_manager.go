@@ -72,18 +72,6 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 
 	taskCategoryID := request.Task.GetTaskCategory().ID()
 
-	if err := m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
-		ShardID:               request.ShardID,
-		DomainID:              request.DomainID,
-		ClusterAttributeScope: request.ClusterAttributeScope,
-		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskCategory:          taskCategoryID,
-		AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
-		AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
-		LastUpdatedAt:         m.timeSrc.Now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("failed to create initial DLQ ack level: %w", err)
-	}
 	// Use the task's key to store the visibility_ts/task_id in the DLQ.
 	taskKey := request.Task.GetTaskKey()
 
@@ -103,6 +91,25 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	}
 
 	return m.persistence.CreateHistoryDLQTask(ctx, createHistoryDLQTaskRequest)
+}
+
+// CreateHistoryDLQAckLevelIfNotExists seeds the sentinel ack-level row for a DLQ partition/task
+// category when one does not already exist. It is idempotent: the underlying store uses an
+// IF NOT EXISTS write and treats "row already present" as success, so it never overwrites progress.
+func (m *historyTaskDLQManagerImpl) CreateHistoryDLQAckLevelIfNotExists(
+	ctx context.Context,
+	request CreateHistoryDLQAckLevelRequest,
+) error {
+	return m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskCategory:          request.TaskCategory.ID(),
+		AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
+		AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
+		LastUpdatedAt:         m.timeSrc.Now().UTC(),
+	})
 }
 
 // GetHistoryDLQAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.

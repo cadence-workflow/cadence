@@ -73,6 +73,7 @@ func NewTestContext(
 		maxTaskSequenceNumber:        100000,
 		scheduledTaskMaxReadLevelMap: make(map[string]time.Time),
 		failoverLevels:               make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
+		dlqAckLevelsCreated:          make(map[dlqAckLevelKey]struct{}),
 		remoteClusterCurrentTime:     make(map[string]time.Time),
 		eventsCache:                  eventsCache,
 	}

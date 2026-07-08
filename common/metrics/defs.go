@@ -960,6 +960,8 @@ const (
 
 	// PersistenceCreateHistoryDLQTaskScope tracks CreateHistoryDLQTask calls to the persistence layer
 	PersistenceCreateHistoryDLQTaskScope
+	// PersistenceCreateHistoryDLQAckLevelIfNotExistsScope tracks CreateHistoryDLQAckLevelIfNotExists calls to the persistence layer
+	PersistenceCreateHistoryDLQAckLevelIfNotExistsScope
 	// PersistenceGetHistoryDLQAckLevelsScope tracks GetAckLevels calls to the persistence layer
 	PersistenceGetHistoryDLQAckLevelsScope
 	// PersistenceGetHistoryDLQTasksScope tracks GetTasks calls to the persistence layer
@@ -1968,11 +1970,12 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		ActiveClusterManager:                   {operation: "ActiveClusterManager"},
 		ActiveClusterManagerWorkflowCacheScope: {operation: "ActiveClusterManagerWorkflowCache"},
 
-		PersistenceCreateHistoryDLQTaskScope:     {operation: "CreateHistoryDLQTask"},
-		PersistenceGetHistoryDLQAckLevelsScope:   {operation: "GetHistoryDLQAckLevels"},
-		PersistenceGetHistoryDLQTasksScope:       {operation: "GetHistoryDLQTasks"},
-		PersistenceUpdateHistoryDLQAckLevelScope: {operation: "UpdateHistoryDLQAckLevel"},
-		PersistenceDeleteHistoryDLQTasksScope:    {operation: "DeleteHistoryDLQTasks"},
+		PersistenceCreateHistoryDLQTaskScope:                {operation: "CreateHistoryDLQTask"},
+		PersistenceCreateHistoryDLQAckLevelIfNotExistsScope: {operation: "CreateHistoryDLQAckLevelIfNotExists"},
+		PersistenceGetHistoryDLQAckLevelsScope:              {operation: "GetHistoryDLQAckLevels"},
+		PersistenceGetHistoryDLQTasksScope:                  {operation: "GetHistoryDLQTasks"},
+		PersistenceUpdateHistoryDLQAckLevelScope:            {operation: "UpdateHistoryDLQAckLevel"},
+		PersistenceDeleteHistoryDLQTasksScope:               {operation: "DeleteHistoryDLQTasks"},
 	},
 	// Frontend Scope Names
 	Frontend: {
