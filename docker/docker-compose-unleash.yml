@@ -1,0 +1,135 @@
+# Example docker-compose configuration demonstrating Cadence's dynamic config
+# backed by OpenFeature + Unleash OSS (see common/dynamicconfig/openfeatureclient
+# and common/dynamicconfig/openfeatureprovider/unleash).
+#
+# Unlike the other docker-compose-*.yml files here, the `cadence` service is
+# built from the local source tree instead of pulling ubercadence/server:master-auto-setup:
+# the OpenFeature/Unleash dynamic config integration is not yet in any published
+# image, so it must be built locally until a release picks it up.
+#
+# To run:
+#   docker compose -f docker-compose-unleash.yml up --build
+#
+# Then:
+#   1. Open the Unleash admin UI at http://localhost:4242 (default login: admin / unleash4all)
+#   2. Create a flag named after a Cadence dynamic config key (see
+#      common/dynamicconfig/dynamicproperties for available keys) and enable it
+#      for the "development" environment.
+#   3. Cadence polls Unleash for that key on its next dynamic config refresh.
+
+services:
+  cassandra:
+    image: cassandra:4.1.1
+    ports:
+      - "9042:9042"
+    environment:
+      - "MAX_HEAP_SIZE=256M"
+      - "HEAP_NEWSIZE=128M"
+    healthcheck:
+      test: ["CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '9090:9090'
+
+  node-exporter:
+    image: prom/node-exporter
+    ports:
+      - '9100:9100'
+
+  unleash-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: "db"
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+    healthcheck:
+      test: ["CMD", "pg_isready", "--username=postgres", "--host=127.0.0.1", "--port=5432"]
+      interval: 2s
+      timeout: 1m
+      retries: 5
+      start_period: 10s
+
+  unleash:
+    image: unleashorg/unleash-server:latest
+    ports:
+      - "4242:4242"
+    environment:
+      DATABASE_URL: "postgres://postgres:unleash@unleash-db/db"
+      DATABASE_SSL: "false"
+      LOG_LEVEL: "warn"
+      # Backend/server-side token the Go client (via our openfeatureprovider/unleash
+      # plugin) authenticates with. Must match UNLEASH_API_TOKEN below.
+      INIT_BACKEND_API_TOKENS: "default:development.unleash-insecure-api-token"
+    depends_on:
+      unleash-db:
+        condition: service_healthy
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:4242/health || exit 1
+      interval: 5s
+      timeout: 1m
+      retries: 5
+      start_period: 15s
+
+  cadence:
+    image: ubercadence/server:master-auto-setup
+    ports:
+     - "8000:8000"
+     - "8001:8001"
+     - "8002:8002"
+     - "8003:8003"
+     - "7933:7933"
+     - "7934:7934"
+     - "7935:7935"
+     - "7939:7939"
+     - "7833:7833"
+     - "7936:7936"
+    environment:
+      - "CASSANDRA_SEEDS=cassandra"
+      - "PROMETHEUS_ENDPOINT_0=0.0.0.0:8000"
+      - "PROMETHEUS_ENDPOINT_1=0.0.0.0:8001"
+      - "PROMETHEUS_ENDPOINT_2=0.0.0.0:8002"
+      - "PROMETHEUS_ENDPOINT_3=0.0.0.0:8003"
+      - "FRONTEND_PPROF_PORT=7936"
+      - "LOG_LEVEL=debug"
+      - "DYNAMIC_CONFIG_CLIENT=openfeature"
+      - "OPENFEATURE_PROVIDER_NAME=unleash"
+      - "UNLEASH_URL=http://unleash:4242/api"
+      - "UNLEASH_APP_NAME=cadence"
+      - "UNLEASH_INSTANCE_ID=cadence-docker"
+      - "UNLEASH_ENVIRONMENT=development"
+      - "UNLEASH_API_TOKEN=default:development.unleash-insecure-api-token"
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+      unleash:
+        condition: service_healthy
+
+  cadence-web:
+    image: ubercadence/web:latest
+    environment:
+      - "CADENCE_GRPC_PEERS=cadence:7833"
+      - "CADENCE_HISTORY_PAGE_V2_ENABLED=OPT_OUT"
+    ports:
+      - "8088:8088"
+    depends_on:
+      - cadence
+
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ./grafana:/etc/grafana
+    user: "1000"
+    depends_on:
+      - prometheus
+    ports:
+      - '3000:3000'

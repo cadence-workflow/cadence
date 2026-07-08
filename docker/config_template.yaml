@@ -309,10 +309,22 @@ publicClient:
     {{- end }}
 
 dynamicconfig:
-  client: filebased
+  {{- $dcClient := default .Env.DYNAMIC_CONFIG_CLIENT "filebased" | lower }}
+  client: {{ $dcClient }}
+  {{- if eq $dcClient "openfeature" }}
+  openfeature:
+    providerName: {{ default .Env.OPENFEATURE_PROVIDER_NAME "unleash" }}
+    provider:
+      url: {{ default .Env.UNLEASH_URL "" }}
+      appName: {{ default .Env.UNLEASH_APP_NAME "cadence" }}
+      instanceId: {{ default .Env.UNLEASH_INSTANCE_ID "" }}
+      environment: {{ default .Env.UNLEASH_ENVIRONMENT "" }}
+      apiToken: {{ default .Env.UNLEASH_API_TOKEN "" }}
+  {{- else }}
   filebased:
     filepath: {{ default .Env.DYNAMIC_CONFIG_FILE_PATH "/etc/cadence/dynamicconfig/development.yaml" }}
     pollInterval: "60s"
+  {{- end }}
 
 blobstore:
   filestore:
