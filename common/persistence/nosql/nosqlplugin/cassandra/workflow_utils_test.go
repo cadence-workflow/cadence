@@ -30,9 +30,9 @@ import (
 	"testing"
 	"time"
 
+	gogocql "github.com/gocql/gocql"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	gogocql "github.com/gocql/gocql"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
