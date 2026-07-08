@@ -41,7 +41,7 @@ func (db *CDB) InsertHistoryDLQTaskRow(
 		task.DomainID,
 		task.ClusterAttributeScope,
 		task.ClusterAttributeName,
-		task.TaskType,
+		task.TaskCategory,
 		task.VisibilityTimestamp,
 		task.TaskID,
 		task.WorkflowID,
@@ -64,7 +64,7 @@ func (db *CDB) SelectHistoryDLQTaskRows(
 		filter.DomainID,
 		filter.ClusterAttributeScope,
 		filter.ClusterAttributeName,
-		filter.TaskType,
+		filter.TaskCategory,
 		filter.InclusiveMinVisibilityTS,
 		filter.InclusiveMinTaskID,
 		filter.ExclusiveMaxVisibilityTS,
@@ -93,7 +93,7 @@ func (db *CDB) SelectHistoryDLQTaskRows(
 		&row.DomainID,
 		&row.ClusterAttributeScope,
 		&row.ClusterAttributeName,
-		&row.TaskType,
+		&row.TaskCategory,
 		&row.VisibilityTimestamp,
 		&row.TaskID,
 		&row.Data,
@@ -125,7 +125,7 @@ func (db *CDB) RangeDeleteHistoryDLQTaskRows(
 		filter.DomainID,
 		filter.ClusterAttributeScope,
 		filter.ClusterAttributeName,
-		filter.TaskType,
+		filter.TaskCategory,
 		filter.ExclusiveMaxVisibilityTS,
 		filter.ExclusiveMaxTaskID,
 	).WithContext(ctx)
@@ -186,7 +186,7 @@ func (db *CDB) InsertOrUpdateHistoryDLQAckLevelRow(
 		row.DomainID,
 		row.ClusterAttributeScope,
 		row.ClusterAttributeName,
-		row.TaskType,
+		row.TaskCategory,
 		row.AckLevelVisibilityTS,
 		row.AckLevelTaskID,
 		row.LastUpdatedAt,
@@ -195,7 +195,7 @@ func (db *CDB) InsertOrUpdateHistoryDLQAckLevelRow(
 }
 
 // InsertHistoryDLQAckLevelIfNotExistsRow writes a sentinel ack-level row only when
-// no row for this (shard, domain, scope, name, task_type) already exists. Both
+// no row for this (shard, domain, scope, name, task_category) already exists. Both
 // outcomes (created or already present) are successful — the [applied] LWT result
 // is intentionally discarded since we never want to overwrite progress.
 func (db *CDB) InsertHistoryDLQAckLevelIfNotExistsRow(
@@ -207,7 +207,7 @@ func (db *CDB) InsertHistoryDLQAckLevelIfNotExistsRow(
 		row.DomainID,
 		row.ClusterAttributeScope,
 		row.ClusterAttributeName,
-		row.TaskType,
+		row.TaskCategory,
 		row.AckLevelVisibilityTS,
 		row.AckLevelTaskID,
 		row.LastUpdatedAt,
@@ -220,7 +220,7 @@ func parseHistoryDLQAckLevelRow(shardID int, row map[string]interface{}) *nosqlp
 		DomainID:              row["domain_id"].(string),
 		ClusterAttributeScope: row["cluster_attribute_scope"].(string),
 		ClusterAttributeName:  row["cluster_attribute_name"].(string),
-		TaskType:              row["task_type"].(int),
+		TaskCategory:          row["task_category"].(int),
 		AckLevelVisibilityTS:  row["ack_level_visibility_ts"].(time.Time),
 		AckLevelTaskID:        row["ack_level_task_id"].(int64),
 		LastUpdatedAt:         row["last_updated_at"].(time.Time),
