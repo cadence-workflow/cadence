@@ -98,6 +98,20 @@ func (mr *MockContextMockRecorder) ConflictResolveWorkflowExecution(ctx, request
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConflictResolveWorkflowExecution", reflect.TypeOf((*MockContext)(nil).ConflictResolveWorkflowExecution), ctx, request)
 }
 
+// CreateHistoryDLQAckLevelIfNotExists mocks base method.
+func (m *MockContext) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateHistoryDLQAckLevelIfNotExists", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHistoryDLQAckLevelIfNotExists indicates an expected call of CreateHistoryDLQAckLevelIfNotExists.
+func (mr *MockContextMockRecorder) CreateHistoryDLQAckLevelIfNotExists(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQAckLevelIfNotExists", reflect.TypeOf((*MockContext)(nil).CreateHistoryDLQAckLevelIfNotExists), ctx, request)
+}
+
 // CreateWorkflowExecution mocks base method.
 func (m *MockContext) CreateWorkflowExecution(ctx context.Context, request *persistence.CreateWorkflowExecutionRequest) (*persistence.CreateWorkflowExecutionResponse, error) {
 	m.ctrl.T.Helper()

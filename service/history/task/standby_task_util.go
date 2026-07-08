@@ -149,29 +149,37 @@ func standbyTaskPostActionWriteToDLQ(
 		}
 
 		// TODO(c-warren): Move this logic into the writer instead, and return a ErrHistoryDLQNotEnabled error to be handled here
+		dlqTaskRequest := persistence.CreateHistoryDLQTaskRequest{
+			ShardID:               shardID,
+			DomainID:              domainID,
+			DomainName:            domainName,
+			ClusterAttributeScope: clusterAttribute.Scope,
+			ClusterAttributeName:  clusterAttribute.Name,
+			Task:                  task,
+		}
+		ackLevelRequest := persistence.CreateHistoryDLQAckLevelRequest{
+			DomainID:              domainID,
+			ClusterAttributeScope: clusterAttribute.Scope,
+			ClusterAttributeName:  clusterAttribute.Name,
+			TaskCategory:          task.GetTaskCategory(),
+		}
+
 		switch isDeadLetterQueueEnabled {
 		case constants.HistoryTaskDLQModeEnabled:
 			logger.Warn("Writing standby task to DLQ due to task being pending for too long.", taskTags...)
-			return writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
-				ShardID:               shardID,
-				DomainID:              domainID,
-				DomainName:            domainName,
-				ClusterAttributeScope: clusterAttribute.Scope,
-				ClusterAttributeName:  clusterAttribute.Name,
-				Task:                  task,
-			})
+			// Insert the task first, then seed the partition ack-level row. If the ack-level write
+			// fails we return the error so the whole standby task is retried, guaranteeing the task
+			// row is never left orphaned (undiscoverable by the DLQ processor).
+			if err := writer.CreateHistoryDLQTask(ctx, dlqTaskRequest); err != nil {
+				return err
+			}
+			return shard.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest)
 		case constants.HistoryTaskDLQModeShadow:
 			logger.Warn("Writing standby task to DLQ in shadow mode; task will be discarded.", taskTags...)
-			err := writer.CreateHistoryDLQTask(ctx, persistence.CreateHistoryDLQTaskRequest{
-				ShardID:               shardID,
-				DomainID:              domainID,
-				DomainName:            domainName,
-				ClusterAttributeScope: clusterAttribute.Scope,
-				ClusterAttributeName:  clusterAttribute.Name,
-				Task:                  task,
-			})
-			if err != nil {
+			if err := writer.CreateHistoryDLQTask(ctx, dlqTaskRequest); err != nil {
 				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.")
+			} else if err := shard.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest); err != nil {
+				logger.Warn("Failed to seed DLQ ack level in shadow mode. Will discard the task.")
 			}
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		default:
