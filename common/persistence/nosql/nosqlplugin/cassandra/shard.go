@@ -35,9 +35,9 @@ import (
 // Return ShardOperationConditionFailure if the condition doesn't meet
 func (db *CDB) InsertShard(ctx context.Context, row *nosqlplugin.ShardRow) error {
 	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(row.CurrentTimestamp.UnixNano())
-	markerData, markerEncoding := persistence.FromDataBlob(row.PendingFailoverMarkers)
-	transferPQS, transferPQSEncoding := persistence.FromDataBlob(row.TransferProcessingQueueStates)
-	timerPQS, timerPQSEncoding := persistence.FromDataBlob(row.TimerProcessingQueueStates)
+	markerData, markerEncoding := fromDataBlobForCassandra(row.PendingFailoverMarkers)
+	transferPQS, transferPQSEncoding := fromDataBlobForCassandra(row.TransferProcessingQueueStates)
+	timerPQS, timerPQSEncoding := fromDataBlobForCassandra(row.TimerProcessingQueueStates)
 	query := db.session.Query(templateCreateShardQuery,
 		row.ShardID,
 		rowTypeShard,
@@ -245,9 +245,9 @@ func (db *CDB) UpdateRangeID(ctx context.Context, shardID int, rangeID int64, pr
 // Return ShardOperationConditionFailure if the condition doesn't meet
 func (db *CDB) UpdateShard(ctx context.Context, row *nosqlplugin.ShardRow, previousRangeID int64) error {
 	cqlNowTimestamp := persistence.UnixNanoToDBTimestamp(row.CurrentTimestamp.UnixNano())
-	markerData, markerEncoding := persistence.FromDataBlob(row.PendingFailoverMarkers)
-	transferPQS, transferPQSEncoding := persistence.FromDataBlob(row.TransferProcessingQueueStates)
-	timerPQS, timerPQSEncoding := persistence.FromDataBlob(row.TimerProcessingQueueStates)
+	markerData, markerEncoding := fromDataBlobForCassandra(row.PendingFailoverMarkers)
+	transferPQS, transferPQSEncoding := fromDataBlobForCassandra(row.TransferProcessingQueueStates)
+	timerPQS, timerPQSEncoding := fromDataBlobForCassandra(row.TimerProcessingQueueStates)
 
 	query := db.session.Query(templateUpdateShardQuery,
 		row.ShardID,
