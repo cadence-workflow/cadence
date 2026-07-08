@@ -1,6 +1,6 @@
 module github.com/uber/cadence
 
-go 1.24
+go 1.24.0
 
 toolchain go1.24.5
 
@@ -57,10 +57,10 @@ require (
 	go.uber.org/yarpc v1.88.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
-	golang.org/x/net v0.43.0
-	golang.org/x/sync v0.16.0
+	golang.org/x/net v0.44.0
+	golang.org/x/sync v0.17.0
 	golang.org/x/time v0.5.0
-	golang.org/x/tools v0.36.0
+	golang.org/x/tools v0.37.0
 	gonum.org/v1/gonum v0.15.1
 	google.golang.org/grpc v1.67.3
 	gopkg.in/validator.v2 v2.0.0-20180514200540-135c24b11c19
@@ -70,16 +70,20 @@ require (
 require (
 	github.com/IBM/sarama v1.45.2
 	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Unleash/unleash-client-go/v4 v4.1.4
 	github.com/flynn/go-shlex v0.0.0-20150515145356-3f9db97f8568
 	github.com/google/gofuzz v1.0.0
 	github.com/mark3labs/mcp-go v0.18.0
 	github.com/ncruces/go-sqlite3 v0.23.3
+	github.com/open-feature/go-sdk v1.17.0
+	github.com/open-feature/go-sdk-contrib/providers/unleash v0.1.1-alpha
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	go.uber.org/mock v0.6.0
 )
 
 require (
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
@@ -146,12 +150,12 @@ require (
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/net/metrics v1.4.0 // indirect
-	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.27.0
-	golang.org/x/sys v0.35.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/mod v0.28.0
+	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

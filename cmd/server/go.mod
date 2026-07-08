@@ -75,6 +75,8 @@ require (
 	cloud.google.com/go/auth v0.9.8 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	github.com/IBM/sarama v1.45.2 // indirect
+	github.com/Masterminds/semver/v3 v3.2.1 // indirect
+	github.com/Unleash/unleash-client-go/v4 v4.1.4 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -85,6 +87,8 @@ require (
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/ncruces/go-sqlite3 v0.23.3 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/open-feature/go-sdk v1.17.0 // indirect
+	github.com/open-feature/go-sdk-contrib/providers/unleash v0.1.1-alpha // indirect
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect

@@ -24,6 +24,7 @@ package dynamicconfigfx
 
 import (
 	"path/filepath"
+	"sync"
 
 	"go.uber.org/fx"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/openfeatureclient"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -39,6 +41,22 @@ import (
 
 // Module provides fx options for dynamic config initialization
 var Module = fx.Options(fx.Provide(New))
+
+// Cadence's server binary runs one fx.App per service (frontend/history/matching/worker)
+// in the same OS process, so New is invoked once per service. OpenFeature's default
+// provider - and vendor SDKs behind it such as unleash-client-go - keep process-wide
+// global state, not per-instance state: registering a second provider makes the
+// OpenFeature SDK shut down the "old" one, which for a global-singleton client like
+// Unleash's tears down whichever client instance is currently live and deadlocks any
+// later flag evaluation. Guard with a process-wide once so the OpenFeature provider is
+// only ever constructed and registered a single time, no matter how many services share
+// this process; every service's dynamicconfig.Client ends up wrapping that same
+// singleton, which is correct since the underlying SDK state is shared anyway.
+var (
+	openFeatureClientOnce sync.Once
+	openFeatureClient     dynamicconfig.Client
+	openFeatureClientErr  error
+)
 
 // Params required to build a new dynamic config.
 type Params struct {
@@ -93,6 +111,16 @@ func New(p Params) Result {
 		case dynamicconfig.FileBasedClient:
 			p.Logger.Info("initialising File Based dynamic config client")
 			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
+		case dynamicconfig.OpenFeatureClient:
+			openFeatureClientOnce.Do(func() {
+				p.Logger.Info("initialising OpenFeature dynamic config client")
+				openFeatureClient, openFeatureClientErr = openfeatureclient.NewOpenFeatureClient(
+					p.Cfg.DynamicConfig.OpenFeature.ProviderName,
+					p.Cfg.DynamicConfig.OpenFeature.Provider,
+					p.Logger,
+				)
+			})
+			res, err = openFeatureClient, openFeatureClientErr
 		}
 	}
 
