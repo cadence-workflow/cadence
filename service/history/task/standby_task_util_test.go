@@ -167,6 +167,7 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
@@ -183,6 +184,15 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	mockShard.EXPECT().GetShardID().Return(7)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+	mockShard.EXPECT().
+		CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req persistence.CreateHistoryDLQAckLevelRequest) error {
+			assert.Equal(t, "domain-1", req.DomainID)
+			assert.Equal(t, "my-scope", req.ClusterAttributeScope)
+			assert.Equal(t, "my-name", req.ClusterAttributeName)
+			assert.Equal(t, persistence.HistoryTaskCategoryTransfer, req.TaskCategory)
+			return nil
+		})
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -214,6 +224,7 @@ func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(1)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("d").Return(getDomainCacheEntry(true, true), nil)
@@ -252,6 +263,7 @@ func TestStandbyTaskPostActionWriteToDLQ_DisabledMode_FallsBackToDiscard(t *test
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
@@ -283,6 +295,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
@@ -299,6 +312,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 	mockShard.EXPECT().GetShardID().Return(7)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+	mockShard.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(nil)
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeShadow }
 
@@ -324,6 +338,7 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
 	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
 	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
 
 	mockDomainCache := cache.NewMockDomainCache(ctrl)
 	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, false), nil)
@@ -332,6 +347,13 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+	mockShard.EXPECT().
+		CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req persistence.CreateHistoryDLQAckLevelRequest) error {
+			assert.Equal(t, taskdlq.DefaultClusterAttributeScope, req.ClusterAttributeScope)
+			assert.Equal(t, taskdlq.DefaultClusterAttributeName, req.ClusterAttributeName)
+			return nil
+		})
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -344,4 +366,48 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.calls[0].ClusterAttributeScope)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.calls[0].ClusterAttributeName)
+}
+
+func TestStandbyTaskPostActionWriteToDLQ_AckLevelFailure_PropagatesErrorForRetry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sentinel := errors.New("ack level write failed")
+	writer := &mockDLQWriter{}
+	mockTask := persistence.NewMockTask(ctrl)
+	mockTask.EXPECT().GetDomainID().Return("domain-1").AnyTimes()
+	mockTask.EXPECT().GetWorkflowID().Return("wf-1").AnyTimes()
+	mockTask.EXPECT().GetRunID().Return("run-1").AnyTimes()
+	mockTask.EXPECT().GetTaskID().Return(int64(100)).AnyTimes()
+	mockTask.EXPECT().GetTaskType().Return(1).AnyTimes()
+	mockTask.EXPECT().GetVersion().Return(int64(5)).AnyTimes()
+	mockTask.EXPECT().GetVisibilityTimestamp().Return(testTime).AnyTimes()
+	mockTask.EXPECT().GetTaskCategory().Return(persistence.HistoryTaskCategoryTransfer).AnyTimes()
+
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+	mockDomainCache.EXPECT().GetDomainByID("domain-1").Return(getDomainCacheEntry(true, true), nil)
+	mockDomainCache.EXPECT().GetDomainName("domain-1").Return("my-domain-name", nil)
+
+	mockActiveClusterMgr := activecluster.NewMockManager(ctrl)
+	mockActiveClusterMgr.EXPECT().
+		GetActiveClusterSelectionPolicyForWorkflow(gomock.Any(), "domain-1", "wf-1", "run-1").
+		Return(&types.ActiveClusterSelectionPolicy{
+			ClusterAttribute: &types.ClusterAttribute{Scope: "my-scope", Name: "my-name"},
+		}, nil)
+
+	mockShard := shard.NewMockContext(ctrl)
+	mockShard.EXPECT().GetShardID().Return(7)
+	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
+	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
+	mockShard.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(sentinel)
+
+	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
+
+	fn := standbyTaskPostActionWriteToDLQ(writer, mockShard, enabled)
+	err := fn(context.Background(), mockTask, "info", testlogger.New(t))
+
+	// The task row was inserted, but the ack-level write failed. The error must propagate so the
+	// whole standby task is retried (guaranteeing the task row is not left orphaned).
+	assert.ErrorIs(t, err, sentinel)
+	assert.Len(t, writer.calls, 1)
 }
