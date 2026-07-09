@@ -24,10 +24,13 @@ package unleash
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeDecoder struct {
@@ -44,6 +47,9 @@ func (d fakeDecoder) Decode(out any) error {
 }
 
 func TestNewProvider(t *testing.T) {
+	bootstrapFile := filepath.Join(t.TempDir(), "bootstrap.json")
+	require.NoError(t, os.WriteFile(bootstrapFile, []byte(`{"version":1,"features":[]}`), 0o600))
+
 	tests := []struct {
 		name    string
 		decoder fakeDecoder
@@ -80,6 +86,23 @@ func TestNewProvider(t *testing.T) {
 				Environment:     "production",
 				APIToken:        "default:production.some-secret",
 				RefreshInterval: 30 * time.Second,
+			}},
+		},
+		{
+			name: "bootstrap file not found",
+			decoder: fakeDecoder{cfg: Config{
+				URL:           "https://unleash.example.com/api",
+				AppName:       "cadence",
+				BootstrapFile: filepath.Join(t.TempDir(), "does-not-exist.json"),
+			}},
+			wantErr: "failed to read unleash bootstrap file",
+		},
+		{
+			name: "valid config with bootstrap file",
+			decoder: fakeDecoder{cfg: Config{
+				URL:           "https://unleash.example.com/api",
+				AppName:       "cadence",
+				BootstrapFile: bootstrapFile,
 			}},
 		},
 	}

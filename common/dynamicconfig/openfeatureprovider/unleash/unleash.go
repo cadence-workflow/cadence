@@ -23,8 +23,10 @@
 package unleash
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	unleashclient "github.com/Unleash/unleash-client-go/v4"
@@ -58,6 +60,13 @@ type Config struct {
 	// RefreshInterval controls how often the client polls Unleash for flag updates.
 	// Defaults to the Unleash client library's own default when zero.
 	RefreshInterval time.Duration `yaml:"refreshInterval"`
+	// BootstrapFile, if set, points to a JSON file in the same format as
+	// Unleash's `/api/client/features` response. Its contents seed the
+	// client's flag repository before the first successful poll, so
+	// evaluations succeed immediately even if Unleash is briefly unreachable
+	// at startup - primarily meant for local dev/docker-compose, to bootstrap
+	// Unleash with predefined flags without a manual admin-UI setup step.
+	BootstrapFile string `yaml:"bootstrapFile"`
 }
 
 func newProvider(cfg openfeatureprovider.Decoder) (openfeature.FeatureProvider, error) {
@@ -87,6 +96,17 @@ func newProvider(cfg openfeatureprovider.Decoder) (openfeature.FeatureProvider, 
 	}
 	if c.RefreshInterval > 0 {
 		options = append(options, unleashclient.WithRefreshInterval(c.RefreshInterval))
+	}
+	if c.BootstrapFile != "" {
+		data, err := os.ReadFile(c.BootstrapFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read unleash bootstrap file %q: %w", c.BootstrapFile, err)
+		}
+		// BootstrapStorage.Load reads its Reader synchronously and only once,
+		// during unleash-client-go's Initialize call - so an in-memory
+		// bytes.Reader over the file contents is enough, no need to keep the
+		// file open for the client's lifetime.
+		options = append(options, unleashclient.WithStorage(&unleashclient.BootstrapStorage{Reader: bytes.NewReader(data)}))
 	}
 
 	provider, err := unleashprovider.NewProvider(unleashprovider.ProviderConfig{Options: options})

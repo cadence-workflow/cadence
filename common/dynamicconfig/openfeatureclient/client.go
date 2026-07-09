@@ -186,7 +186,6 @@ func (c *openFeatureClient) GetValueWithFilters(name dynamicproperties.Key, filt
 }
 
 func (c *openFeatureClient) GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]interface{}) (int, error) {
-	c.logger.Info("GetIntValue")
 	defaultValue := name.DefaultInt()
 	val, err := c.client.IntValue(context.Background(), name.String(), int64(defaultValue), toEvalContext(filters))
 	if err != nil {

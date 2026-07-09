@@ -320,6 +320,7 @@ dynamicconfig:
       instanceId: {{ default .Env.UNLEASH_INSTANCE_ID "" }}
       environment: {{ default .Env.UNLEASH_ENVIRONMENT "" }}
       apiToken: {{ default .Env.UNLEASH_API_TOKEN "" }}
+      bootstrapFile: {{ default .Env.UNLEASH_BOOTSTRAP_FILE "" }}
   {{- else }}
   filebased:
     filepath: {{ default .Env.DYNAMIC_CONFIG_FILE_PATH "/etc/cadence/dynamicconfig/development.yaml" }}

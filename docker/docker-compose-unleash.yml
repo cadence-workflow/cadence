@@ -10,12 +10,18 @@
 # To run:
 #   docker compose -f docker-compose-unleash.yml up --build
 #
-# Then:
+# Then either:
 #   1. Open the Unleash admin UI at http://localhost:4242 (default login: admin / unleash4all)
 #   2. Create a flag named after a Cadence dynamic config key (see
 #      common/dynamicconfig/dynamicproperties for available keys) and enable it
 #      for the "development" environment.
 #   3. Cadence polls Unleash for that key on its next dynamic config refresh.
+#
+# ...or skip the manual setup: the cadence service below bootstraps its
+# OpenFeature/Unleash client from ./unleash/bootstrap.json on startup (see
+# UNLEASH_BOOTSTRAP_FILE and common/dynamicconfig/openfeatureprovider/unleash's
+# BootstrapFile config), so the flags defined there are enabled immediately -
+# even before the unleash service itself finishes starting.
 
 services:
   cassandra:
@@ -106,6 +112,9 @@ services:
       - "UNLEASH_INSTANCE_ID=cadence-docker"
       - "UNLEASH_ENVIRONMENT=development"
       - "UNLEASH_API_TOKEN=default:development.unleash-insecure-api-token"
+      - "UNLEASH_BOOTSTRAP_FILE=/etc/cadence/unleash/bootstrap.json"
+    volumes:
+      - ./unleash/bootstrap.json:/etc/cadence/unleash/bootstrap.json:ro
     depends_on:
       cassandra:
         condition: service_healthy
