@@ -35,7 +35,6 @@ import (
 	"time"
 
 	"github.com/open-feature/go-sdk/openfeature"
-	"go.uber.org/fx"
 
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -56,13 +55,13 @@ type openFeatureClient struct {
 // a single package-level client - is process-wide state, not per-caller
 // state. Cadence's server binary runs one fx.App per service
 // (frontend/history/matching/worker) in the same OS process, so
-// NewOpenFeatureClient gets called once per service: without this guard, each
+// RegisterProvider gets called once per service: without this guard, each
 // call would register a new default provider and make the OpenFeature SDK
 // shut down the previous one, which for a global-singleton client tears down
 // whichever client instance is currently live and deadlocks any later flag
 // evaluation. Registration happens at most once per process, inside the
-// first service's OnStart hook to run; every other service's OnStart just
-// verifies it's requesting the same provider and attaches to it.
+// first service's call to run; every other service's call just verifies
+// it's requesting the same provider and attaches to it.
 //
 // registeredProviderName records which provider "won" the race so a later
 // call requesting a *different* provider fails loudly instead of silently
@@ -71,14 +70,12 @@ type openFeatureClient struct {
 // a caller's config is being ignored, not honored.
 //
 // attachedCount tracks how many services are currently attached to the
-// shared provider (incremented by a successful OnStart, decremented by the
-// matching OnStop - fx only calls OnStop for hooks whose own OnStart
-// succeeded, so this can't be decremented without first being incremented).
-// openfeature.Shutdown() tears down the *entire* global OpenFeature API
-// (every provider, hook, and event handler, process-wide), so it must only
-// run once every attached service has stopped - otherwise whichever service
-// stops first would kill flag evaluation for the others still running in
-// this process.
+// shared provider (incremented by a successful RegisterProvider, decremented
+// by a matching DeregisterProvider). openfeature.Shutdown() tears down the
+// *entire* global OpenFeature API (every provider, hook, and event handler,
+// process-wide), so it must only run once every attached service has
+// stopped - otherwise whichever service stops first would kill flag
+// evaluation for the others still running in this process.
 var (
 	registerOnce           sync.Once
 	registeredProviderName string
@@ -89,72 +86,75 @@ var (
 )
 
 // NewOpenFeatureClient creates a dynamicconfig.Client backed by OpenFeature.
-// providerName selects a provider plugin previously registered via
-// openfeatureprovider.Register (see that package's doc for the plugin
-// convention); providerConfig is that plugin's own config, decoded lazily so
-// this package never depends on any provider-specific config type.
-//
 // The returned client is usable immediately - it wraps
 // openfeature.NewDefaultClient(), which evaluates against whatever provider
 // is live at call time and falls back to OpenFeature's own no-op default
-// provider until one is registered. The actual provider construction and
-// registration (openfeature.SetProviderAndWait, which blocks on the
-// provider's own readiness) happens in an OnStart hook appended to
-// lifecycle, not here - matching how other blocking/validating work in this
-// codebase is deferred to fx.StartHook (see common/config/fx.go's
-// cfg.validate). If that hook fails (unknown provider, bad config, a
-// provider name mismatched with what another service in this process
-// already registered, or SetProviderAndWait itself erroring), the owning
-// fx.App's Start() fails.
-func NewOpenFeatureClient(lifecycle fx.Lifecycle, providerName string, providerConfig openfeatureprovider.Decoder, logger log.Logger) dynamicconfig.Client {
-	client := &openFeatureClient{
+// provider until one is registered via RegisterProvider.
+func NewOpenFeatureClient(logger log.Logger) dynamicconfig.Client {
+	return &openFeatureClient{
 		client: openfeature.NewDefaultClient(),
 		logger: logger,
 	}
+}
 
-	lifecycle.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			registerOnce.Do(func() {
-				constructor, ok := openfeatureprovider.Get(providerName)
-				if !ok {
-					registerErr = fmt.Errorf("unknown openfeature provider %q: is its package blank-imported for plugin registration?", providerName)
-					return
-				}
-				provider, err := constructor(providerConfig)
-				if err != nil {
-					registerErr = fmt.Errorf("failed to construct openfeature provider %q: %w", providerName, err)
-					return
-				}
-				if err := openfeature.SetProviderAndWait(provider); err != nil {
-					registerErr = fmt.Errorf("failed to set openfeature provider %q: %w", providerName, err)
-					return
-				}
-				registeredProviderName = providerName
-			})
-			if registerErr != nil {
-				return registerErr
-			}
-			if registeredProviderName != providerName {
-				return fmt.Errorf("openfeature dynamicconfig client already initialized with provider %q in this process; cannot also use %q - OpenFeature's default provider (and most provider SDKs' own state, e.g. unleash-client-go) is process-wide, so every caller in the same process must configure the same provider", registeredProviderName, providerName)
-			}
-			attachedMu.Lock()
-			attachedCount++
-			attachedMu.Unlock()
-			return nil
-		},
-		OnStop: func(ctx context.Context) error {
-			attachedMu.Lock()
-			attachedCount--
-			last := attachedCount == 0
-			attachedMu.Unlock()
-			if last {
-				openfeature.Shutdown()
-			}
-			return nil
-		},
+// RegisterProvider registers providerName's OpenFeature provider (looked up
+// via openfeatureprovider.Get - see that package's doc for the plugin
+// convention) as the process-wide default provider, at most once per
+// process: every call after the first successful one just verifies
+// providerName matches what's already registered and attaches to it.
+// providerConfig is the provider plugin's own config, decoded lazily so this
+// package never depends on any provider-specific config type.
+//
+// This does blocking work (openfeature.SetProviderAndWait, which blocks on
+// the provider's own readiness) and so is meant to be called from an
+// fx.Hook's OnStart (see dynamicconfigfx.New), matching how other
+// blocking/validating work in this codebase is deferred to fx.StartHook
+// (common/config/fx.go's cfg.validate) rather than run eagerly inside an
+// fx.Provide constructor. A returned error should fail the caller's
+// fx.App.Start().
+func RegisterProvider(providerName string, providerConfig openfeatureprovider.Decoder) error {
+	registerOnce.Do(func() {
+		constructor, ok := openfeatureprovider.Get(providerName)
+		if !ok {
+			registerErr = fmt.Errorf("unknown openfeature provider %q: is its package blank-imported for plugin registration?", providerName)
+			return
+		}
+		provider, err := constructor(providerConfig)
+		if err != nil {
+			registerErr = fmt.Errorf("failed to construct openfeature provider %q: %w", providerName, err)
+			return
+		}
+		if err := openfeature.SetProviderAndWait(provider); err != nil {
+			registerErr = fmt.Errorf("failed to set openfeature provider %q: %w", providerName, err)
+			return
+		}
+		registeredProviderName = providerName
 	})
+	if registerErr != nil {
+		return registerErr
+	}
+	if registeredProviderName != providerName {
+		return fmt.Errorf("openfeature dynamicconfig client already initialized with provider %q in this process; cannot also use %q - OpenFeature's default provider (and most provider SDKs' own state, e.g. unleash-client-go) is process-wide, so every caller in the same process must configure the same provider", registeredProviderName, providerName)
+	}
+	attachedMu.Lock()
+	attachedCount++
+	attachedMu.Unlock()
+	return nil
+}
 
-	return client
+// DeregisterProvider marks one previously-RegisterProvider-attached service
+// as stopped, calling openfeature.Shutdown() once every attached service in
+// this process has done so. Meant to be called from the matching fx.Hook's
+// OnStop - fx only calls a hook's OnStop if its own OnStart succeeded, so
+// this can't be called without a preceding successful RegisterProvider.
+func DeregisterProvider() {
+	attachedMu.Lock()
+	attachedCount--
+	last := attachedCount == 0
+	attachedMu.Unlock()
+	if last {
+		openfeature.Shutdown()
+	}
 }
 
 // toEvalContext maps Cadence's Filter/value pairs onto an OpenFeature

@@ -26,18 +26,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/open-feature/go-sdk/openfeature"
+	"github.com/open-feature/go-sdk/openfeature/memprovider"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
-	"gopkg.in/yaml.v2"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/dynamicconfig/openfeatureclient"
+	"github.com/uber/cadence/common/dynamicconfig/openfeatureprovider"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
-
-	_ "github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash"
 )
 
 func TestModule(t *testing.T) {
@@ -71,32 +72,34 @@ type fxRoot struct {
 // TestNew_OpenFeatureClient_SingletonAcrossCalls guards against a regression where
 // Cadence's server binary runs one fx.App per service (frontend/history/matching/
 // worker) in the same process, so New is invoked once per service. OpenFeature's
-// default provider - and the vendor SDK behind it (unleash-client-go keeps a
-// process-wide global client) - is process-wide state, not per-fx.App state:
-// registering a second provider makes the OpenFeature SDK shut down the "old" one,
-// which for a global-singleton client tears down whichever client instance is
-// currently live and deadlocks any later flag evaluation. New must construct the
-// OpenFeature provider at most once per process, regardless of how many times it's
-// called, and every caller must share that one client.
+// default provider is process-wide state, not per-fx.App state: registering a
+// second provider makes the OpenFeature SDK shut down the "old" one, which for a
+// global-singleton client tears down whichever client instance is currently live
+// and deadlocks any later flag evaluation. New must construct the OpenFeature
+// provider at most once per process, regardless of how many times it's called,
+// and every caller must share that one client.
 func TestNew_OpenFeatureClient_SingletonAcrossCalls(t *testing.T) {
-	var providerCfg openfeatureclient.Config
-	err := yaml.Unmarshal([]byte(`
-providerName: unleash
-provider:
-  url: http://127.0.0.1:1/api
-  appName: cadence
-`), &providerCfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	providerName := t.Name()
+	require.NoError(t, openfeatureprovider.Register(providerName, func(openfeatureprovider.Decoder) (openfeature.FeatureProvider, error) {
+		return memprovider.NewInMemoryProvider(map[string]memprovider.InMemoryFlag{
+			"testGetDurationPropertyKey": {
+				Key:            "testGetDurationPropertyKey",
+				State:          memprovider.Enabled,
+				DefaultVariant: "default",
+				Variants:       map[string]any{"default": "1s"},
+			},
+		}), nil
+	}))
 
 	newParams := func(lc fx.Lifecycle) Params {
 		return Params{
 			Cfg: config.Config{
 				ClusterGroupMetadata: &config.ClusterGroupMetadata{},
 				DynamicConfig: config.DynamicConfig{
-					Client:      dynamicconfig.OpenFeatureClient,
-					OpenFeature: providerCfg,
+					Client: dynamicconfig.OpenFeatureClient,
+					OpenFeature: openfeatureclient.Config{
+						ProviderName: providerName,
+					},
 				},
 			},
 			Logger:        testlogger.New(t),

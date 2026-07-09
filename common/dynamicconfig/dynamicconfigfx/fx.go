@@ -23,6 +23,7 @@
 package dynamicconfigfx
 
 import (
+	"context"
 	"path/filepath"
 
 	"go.uber.org/fx"
@@ -96,12 +97,19 @@ func New(p Params) Result {
 			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
 		case dynamicconfig.OpenFeatureClient:
 			p.Logger.Info("initialising OpenFeature dynamic config client")
-			res = openfeatureclient.NewOpenFeatureClient(
-				p.Lifecycle,
-				p.Cfg.DynamicConfig.OpenFeature.ProviderName,
-				p.Cfg.DynamicConfig.OpenFeature.Provider,
-				p.Logger,
-			)
+			res = openfeatureclient.NewOpenFeatureClient(p.Logger)
+
+			providerName := p.Cfg.DynamicConfig.OpenFeature.ProviderName
+			providerConfig := p.Cfg.DynamicConfig.OpenFeature.Provider
+			p.Lifecycle.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					return openfeatureclient.RegisterProvider(providerName, providerConfig)
+				},
+				OnStop: func(ctx context.Context) error {
+					openfeatureclient.DeregisterProvider()
+					return nil
+				},
+			})
 		}
 	}
 

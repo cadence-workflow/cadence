@@ -13,6 +13,8 @@ replace github.com/uber/cadence => ../..
 
 replace github.com/uber/cadence/common/archiver/gcloud => ../../common/archiver/gcloud
 
+replace github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash => ../../common/dynamicconfig/openfeatureprovider/unleash
+
 require (
 	github.com/VividCortex/mysqlerr v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.54.12 // indirect
@@ -67,6 +69,7 @@ require (
 	github.com/cadence-workflow/shard-manager v0.0.0-20260610143419-4bef35311802
 	github.com/uber/cadence v0.0.0-00010101000000-000000000000
 	github.com/uber/cadence/common/archiver/gcloud v0.0.0-00010101000000-000000000000
+	github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash v0.0.0-00010101000000-000000000000
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/mock v0.6.0
 )
@@ -75,8 +78,8 @@ require (
 	cloud.google.com/go/auth v0.9.8 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	github.com/IBM/sarama v1.45.2 // indirect
-	github.com/Masterminds/semver/v3 v3.2.1 // indirect
-	github.com/Unleash/unleash-client-go/v4 v4.1.4 // indirect
+	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/Unleash/unleash-client-go/v4 v4.5.0 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -87,7 +90,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/ncruces/go-sqlite3 v0.23.3 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
-	github.com/open-feature/go-sdk v1.17.0 // indirect
+	github.com/open-feature/go-sdk v1.17.1 // indirect
 	github.com/open-feature/go-sdk-contrib/providers/unleash v0.1.1-alpha // indirect
 	github.com/opensearch-project/opensearch-go/v4 v4.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
