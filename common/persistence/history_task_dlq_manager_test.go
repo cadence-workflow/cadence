@@ -203,6 +203,83 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQAckLevelIfNotExists(t *testing.T)
 	}
 }
 
+func TestHistoryTaskDLQManager_CreateHistoryDLQAckLevelIfNotExists_CachesPerPartition(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+	mockStore := NewMockHistoryDLQTaskStore(ctrl)
+
+	mgr := &historyTaskDLQManagerImpl{
+		persistence:    mockStore,
+		taskSerializer: NewMockHistoryTaskSerializer(ctrl),
+		logger:         log.NewNoop(),
+		timeSrc:        clock.NewMockedTimeSourceAt(now),
+	}
+
+	partitionA := CreateHistoryDLQAckLevelRequest{
+		ShardID:               1,
+		DomainID:              "test-domain",
+		ClusterAttributeScope: "scope",
+		ClusterAttributeName:  "cluster-a",
+		TaskCategory:          HistoryTaskCategoryTransfer,
+	}
+	// partitionB differs only by cluster attribute name, so it is a distinct partition.
+	partitionB := partitionA
+	partitionB.ClusterAttributeName = "cluster-b"
+
+	// Each distinct partition hits persistence exactly once; repeated calls are served from cache.
+	mockStore.EXPECT().
+		CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.AssignableToTypeOf(InternalHistoryDLQAckLevel{})).
+		Return(nil).
+		Times(2)
+
+	// First write for partition A hits persistence.
+	assert.NoError(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), partitionA))
+	// Second write for the same partition is served from cache (no additional persistence call).
+	assert.NoError(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), partitionA))
+	// A distinct partition hits persistence again.
+	assert.NoError(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), partitionB))
+	// Repeat of the distinct partition is again served from cache.
+	assert.NoError(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), partitionB))
+}
+
+func TestHistoryTaskDLQManager_CreateHistoryDLQAckLevelIfNotExists_FailureNotCached(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+	mockStore := NewMockHistoryDLQTaskStore(ctrl)
+
+	mgr := &historyTaskDLQManagerImpl{
+		persistence:    mockStore,
+		taskSerializer: NewMockHistoryTaskSerializer(ctrl),
+		logger:         log.NewNoop(),
+		timeSrc:        clock.NewMockedTimeSourceAt(now),
+	}
+
+	request := CreateHistoryDLQAckLevelRequest{
+		ShardID:               1,
+		DomainID:              "test-domain",
+		ClusterAttributeScope: "scope",
+		ClusterAttributeName:  "cluster-a",
+		TaskCategory:          HistoryTaskCategoryTransfer,
+	}
+
+	// A failed write must not populate the cache, so the next call retries persistence.
+	gomock.InOrder(
+		mockStore.EXPECT().
+			CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+			Return(errors.New("cassandra unavailable")),
+		mockStore.EXPECT().
+			CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+			Return(nil),
+	)
+
+	assert.Error(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), request))
+	assert.NoError(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), request))
+	// Now cached: no further persistence call.
+	assert.NoError(t, mgr.CreateHistoryDLQAckLevelIfNotExists(context.Background(), request))
+}
+
 func TestHistoryTaskDLQManager_GetName(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockStore := NewMockHistoryDLQTaskStore(ctrl)

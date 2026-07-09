@@ -25,6 +25,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -39,11 +40,23 @@ type HistoryTaskSerializer interface {
 	DeserializeTask(HistoryTaskCategory, *DataBlob) (Task, error)
 }
 
+// dlqAckLevelKey is used to uniquely identify a DLQ partition + task category.
+type dlqAckLevelKey struct {
+	shardID               int
+	domainID              string
+	clusterAttributeScope string
+	clusterAttributeName  string
+	taskCategoryID        int
+}
+
 type historyTaskDLQManagerImpl struct {
 	persistence    HistoryDLQTaskStore
 	taskSerializer HistoryTaskSerializer
 	logger         log.Logger
 	timeSrc        clock.TimeSource
+
+	// ackLevelsCreated memoizes DLQ partitions/task-categories whose ack-level row is known to exist.
+	ackLevelsCreated sync.Map
 }
 
 // NewHistoryTaskDLQManager creates a new HistoryTaskDLQManager.
@@ -94,13 +107,23 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 }
 
 // CreateHistoryDLQAckLevelIfNotExists seeds the sentinel ack-level row for a DLQ partition/task
-// category when one does not already exist. It is idempotent: the underlying store uses an
-// IF NOT EXISTS write and treats "row already present" as success, so it never overwrites progress.
+// category when one does not already exist. The write is cached to minimize duplicate LWT attempts.
 func (m *historyTaskDLQManagerImpl) CreateHistoryDLQAckLevelIfNotExists(
 	ctx context.Context,
 	request CreateHistoryDLQAckLevelRequest,
 ) error {
-	return m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
+	key := dlqAckLevelKey{
+		shardID:               request.ShardID,
+		domainID:              request.DomainID,
+		clusterAttributeScope: request.ClusterAttributeScope,
+		clusterAttributeName:  request.ClusterAttributeName,
+		taskCategoryID:        request.TaskCategory.ID(),
+	}
+	if _, cached := m.ackLevelsCreated.Load(key); cached {
+		return nil
+	}
+
+	if err := m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
@@ -109,7 +132,12 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQAckLevelIfNotExists(
 		AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
 		AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
 		LastUpdatedAt:         m.timeSrc.Now().UTC(),
-	})
+	}); err != nil {
+		return err
+	}
+
+	m.ackLevelsCreated.Store(key, struct{}{})
+	return nil
 }
 
 // GetHistoryDLQAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.

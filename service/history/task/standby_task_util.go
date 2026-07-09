@@ -48,6 +48,7 @@ type (
 	// TaskDLQWriter is the subset of persistence.HistoryTaskDLQManager used by standby task executors.
 	TaskDLQWriter interface {
 		CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error
+		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error
 	}
 )
 
@@ -174,12 +175,12 @@ func standbyTaskPostActionWriteToDLQ(
 			if err := writer.CreateHistoryDLQTask(ctx, dlqTaskRequest); err != nil {
 				return err
 			}
-			return shard.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest)
+			return writer.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest)
 		case constants.HistoryTaskDLQModeShadow:
 			logger.Warn("Writing standby task to DLQ in shadow mode; task will be discarded.", taskTags...)
 			if err := writer.CreateHistoryDLQTask(ctx, dlqTaskRequest); err != nil {
 				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.", tag.Error(err))
-			} else if err := shard.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest); err != nil {
+			} else if err := writer.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest); err != nil {
 				logger.Warn("Failed to seed DLQ ack level in shadow mode. Will discard the task.", tag.Error(err))
 			}
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)

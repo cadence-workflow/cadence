@@ -113,7 +113,6 @@ type (
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
 		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
-		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
 	}
@@ -145,10 +144,6 @@ type (
 		scheduledTaskMaxReadLevelMap map[string]time.Time                                                     // cluster -> timerMaxReadLevel
 		failoverLevels               map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel // category -> uuid -> FailoverLevel
 
-		// dlqAckLevelsCreated memoizes DLQ partitions/task-categories whose ack-level row
-		// is known to exist for this shard.
-		dlqAckLevelsCreated map[dlqAckLevelKey]struct{}
-
 		// exist only in memory
 		remoteClusterCurrentTime map[string]time.Time
 
@@ -156,14 +151,6 @@ type (
 		previousShardOwnerWasDifferent bool
 	}
 )
-
-// dlqAckLevelKey identifies a single DLQ partition + task category within a shard.
-type dlqAckLevelKey struct {
-	domainID              string
-	clusterAttributeScope string
-	clusterAttributeName  string
-	taskCategoryID        int
-}
 
 var _ Context = (*contextImpl)(nil)
 
@@ -1636,41 +1623,6 @@ func (s *contextImpl) ReinjectHistoryTasks(
 	return err
 }
 
-// CreateHistoryDLQAckLevelIfNotExists seeds the sentinel ack-level row for a DLQ partition/task
-// category on this shard. Cached to avoid multiple LWT for the same partition/category.
-func (s *contextImpl) CreateHistoryDLQAckLevelIfNotExists(
-	ctx context.Context,
-	request persistence.CreateHistoryDLQAckLevelRequest,
-) error {
-	if err := s.closedError(); err != nil {
-		return err
-	}
-
-	request.ShardID = s.shardID
-	key := dlqAckLevelKey{
-		domainID:              request.DomainID,
-		clusterAttributeScope: request.ClusterAttributeScope,
-		clusterAttributeName:  request.ClusterAttributeName,
-		taskCategoryID:        request.TaskCategory.ID(),
-	}
-
-	s.RLock()
-	_, cached := s.dlqAckLevelsCreated[key]
-	s.RUnlock()
-	if cached {
-		return nil
-	}
-
-	if err := s.GetService().GetHistoryTaskDLQManager().CreateHistoryDLQAckLevelIfNotExists(ctx, request); err != nil {
-		return err
-	}
-
-	s.Lock()
-	s.dlqAckLevelsCreated[key] = struct{}{}
-	s.Unlock()
-	return nil
-}
-
 func (s *contextImpl) AddingPendingFailoverMarker(
 	marker *types.FailoverMarkerAttributes,
 ) error {
@@ -1881,7 +1833,6 @@ func acquireShard(
 		remoteClusterCurrentTime:       remoteClusterCurrentTime,
 		scheduledTaskMaxReadLevelMap:   scheduledTaskMaxReadLevelMap, // use ack to init read level
 		failoverLevels:                 make(map[persistence.HistoryTaskCategory]map[string]persistence.FailoverLevel),
-		dlqAckLevelsCreated:            make(map[dlqAckLevelKey]struct{}),
 		logger:                         shardItem.logger,
 		throttledLogger:                shardItem.throttledLogger,
 		previousShardOwnerWasDifferent: ownershipChanged,
