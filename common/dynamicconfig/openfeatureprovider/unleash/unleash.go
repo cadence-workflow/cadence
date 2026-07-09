@@ -93,9 +93,5 @@ func newProvider(cfg openfeatureprovider.Decoder) (openfeature.FeatureProvider, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unleash provider: %w", err)
 	}
-	err = provider.Init(openfeature.EvaluationContext{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize unleash provider: %w", err)
-	}
 	return provider, nil
 }

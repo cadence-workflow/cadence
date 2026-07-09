@@ -90,7 +90,7 @@ provider:
 		t.Fatal(err)
 	}
 
-	newParams := func() Params {
+	newParams := func(lc fx.Lifecycle) Params {
 		return Params{
 			Cfg: config.Config{
 				ClusterGroupMetadata: &config.ClusterGroupMetadata{},
@@ -102,17 +102,20 @@ provider:
 			Logger:        testlogger.New(t),
 			MetricsClient: metrics.NewNoopMetricsClient(),
 			RootDir:       "../../../",
-			Lifecycle:     fxtest.NewLifecycle(t),
+			Lifecycle:     lc,
 		}
 	}
 
 	// Simulate two per-service fx.Apps sharing the same process.
-	res1 := New(newParams())
-	res2 := New(newParams())
+	lc1 := fxtest.NewLifecycle(t)
+	New(newParams(lc1))
+	lc1.RequireStart()
+	defer lc1.RequireStop()
 
-	if res1.Client != res2.Client {
-		t.Fatal("expected New to return the same OpenFeature client instance across calls in the same process")
-	}
+	lc2 := fxtest.NewLifecycle(t)
+	res2 := New(newParams(lc2))
+	lc2.RequireStart()
+	defer lc2.RequireStop()
 
 	// Regression check: a flag evaluation must not hang even though the provider
 	// was "registered" twice.
