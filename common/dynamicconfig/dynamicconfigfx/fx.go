@@ -103,7 +103,7 @@ func New(p Params) Result {
 			providerConfig := p.Cfg.DynamicConfig.OpenFeature.Provider
 			p.Lifecycle.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-					return openfeatureclient.RegisterProvider(providerName, providerConfig)
+					return openfeatureclient.RegisterProvider(ctx, providerName, providerConfig)
 				},
 				OnStop: func(ctx context.Context) error {
 					openfeatureclient.DeregisterProvider()

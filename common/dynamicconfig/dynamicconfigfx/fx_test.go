@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/dynamicconfig/openfeatureclient"
+	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/dynamicconfig/openfeatureprovider"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
@@ -97,7 +97,7 @@ func TestNew_OpenFeatureClient_SingletonAcrossCalls(t *testing.T) {
 				ClusterGroupMetadata: &config.ClusterGroupMetadata{},
 				DynamicConfig: config.DynamicConfig{
 					Client: dynamicconfig.OpenFeatureClient,
-					OpenFeature: openfeatureclient.Config{
+					OpenFeature: openfeatureclientconfig.Config{
 						ProviderName: providerName,
 					},
 				},

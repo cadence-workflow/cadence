@@ -36,7 +36,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
-	"github.com/uber/cadence/common/dynamicconfig/openfeatureclient"
+	openfeatureclientconfig "github.com/uber/cadence/common/dynamicconfig/openfeatureclient/config"
 	"github.com/uber/cadence/common/metrics"
 	ringpopprovider "github.com/uber/cadence/common/peerprovider/ringpopprovider/config"
 	"github.com/uber/cadence/common/service"
@@ -123,7 +123,7 @@ type (
 		Client      string                              `yaml:"client"`
 		ConfigStore c.ClientConfig                      `yaml:"configstore"`
 		FileBased   dynamicconfig.FileBasedClientConfig `yaml:"filebased"`
-		OpenFeature openfeatureclient.Config            `yaml:"openfeature"`
+		OpenFeature openfeatureclientconfig.Config      `yaml:"openfeature"`
 	}
 
 	// Service contains the service specific config items

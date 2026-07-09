@@ -42,7 +42,7 @@ const ProviderName = "unleash"
 
 // Config is Unleash's own provider configuration. It is decoded from the
 // "provider" block of dynamicconfig.openfeature config when providerName is
-// "unleash" - see common/dynamicconfig/openfeatureclient.Config.
+// "unleash" - see common/dynamicconfig/openfeatureclient/config.Config.
 type Config struct {
 	// URL is the Unleash API URL, e.g. "https://unleash.example.com/api".
 	URL string `yaml:"url"`

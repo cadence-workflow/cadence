@@ -21,6 +21,7 @@
 package openfeatureclient
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/dynamicconfig/openfeatureprovider"
 	"github.com/uber/cadence/common/log"
@@ -56,7 +58,7 @@ func newInMemoryProvider(flags map[string]memprovider.InMemoryFlag) func(openfea
 
 func TestRegisterProvider_UnknownProvider(t *testing.T) {
 	resetOpenFeatureRegistration()
-	err := RegisterProvider("does-not-exist", nil)
+	err := RegisterProvider(context.Background(), "does-not-exist", nil)
 	assert.ErrorContains(t, err, "unknown openfeature provider")
 }
 
@@ -67,7 +69,7 @@ func TestRegisterProvider_ConstructorError(t *testing.T) {
 		return nil, assert.AnError
 	}))
 
-	err := RegisterProvider(providerName, nil)
+	err := RegisterProvider(context.Background(), providerName, nil)
 	assert.ErrorContains(t, err, "failed to construct openfeature provider")
 }
 
@@ -84,12 +86,33 @@ func TestNewOpenFeatureClient_EndToEnd(t *testing.T) {
 	})))
 
 	client := NewOpenFeatureClient(log.NewNoop())
-	require.NoError(t, RegisterProvider(providerName, nil))
+	require.NoError(t, RegisterProvider(context.Background(), providerName, nil))
 	defer DeregisterProvider()
 
 	val, err := client.GetBoolValue(dynamicproperties.TestGetBoolPropertyKey, nil)
 	require.NoError(t, err)
 	assert.True(t, val)
+}
+
+// TestGetValue_TranslatesFlagNotFoundToNotFoundError guards against WARN-level
+// log noise: Cadence declares hundreds of dynamic config keys and only a
+// handful are ever expected to be set in an external flag platform like
+// Unleash, so evaluating an undefined key is the common case, not a real
+// failure. dynamicconfig.Collection logs dynamicconfig.NotFoundError (a
+// *types.EntityNotExistsError) at DEBUG and anything else at WARN - so the raw
+// FLAG_NOT_FOUND resolution error from OpenFeature must be translated, or
+// every unset key would log at WARN on every access.
+func TestGetValue_TranslatesFlagNotFoundToNotFoundError(t *testing.T) {
+	resetOpenFeatureRegistration()
+	providerName := t.Name()
+	require.NoError(t, openfeatureprovider.Register(providerName, newInMemoryProvider(nil)))
+
+	client := NewOpenFeatureClient(log.NewNoop())
+	require.NoError(t, RegisterProvider(context.Background(), providerName, nil))
+	defer DeregisterProvider()
+
+	_, err := client.GetBoolValue(dynamicproperties.TestGetBoolPropertyKey, nil)
+	assert.Equal(t, dynamicconfig.NotFoundError, err)
 }
 
 // TestRegisterProvider_SingletonAcrossCalls guards against a regression where
@@ -117,9 +140,9 @@ func TestRegisterProvider_SingletonAcrossCalls(t *testing.T) {
 		}), nil
 	}))
 
-	require.NoError(t, RegisterProvider(providerName, nil))
+	require.NoError(t, RegisterProvider(context.Background(), providerName, nil))
 	defer DeregisterProvider()
-	require.NoError(t, RegisterProvider(providerName, nil))
+	require.NoError(t, RegisterProvider(context.Background(), providerName, nil))
 	defer DeregisterProvider()
 
 	assert.Equal(t, 1, constructCount, "expected the provider to be constructed at most once across services sharing this process")
@@ -143,10 +166,10 @@ func TestRegisterProvider_RejectsMismatchedProvider(t *testing.T) {
 	require.NoError(t, openfeatureprovider.Register(firstProvider, newInMemoryProvider(nil)))
 	require.NoError(t, openfeatureprovider.Register(secondProvider, newInMemoryProvider(nil)))
 
-	require.NoError(t, RegisterProvider(firstProvider, nil))
+	require.NoError(t, RegisterProvider(context.Background(), firstProvider, nil))
 	defer DeregisterProvider()
 
-	err := RegisterProvider(secondProvider, nil)
+	err := RegisterProvider(context.Background(), secondProvider, nil)
 	assert.ErrorContains(t, err, "already initialized with provider")
 }
 
@@ -168,8 +191,8 @@ func TestDeregisterProvider_ShutdownOnlyAfterLastServiceStops(t *testing.T) {
 		},
 	})))
 
-	require.NoError(t, RegisterProvider(providerName, nil))
-	require.NoError(t, RegisterProvider(providerName, nil))
+	require.NoError(t, RegisterProvider(context.Background(), providerName, nil))
+	require.NoError(t, RegisterProvider(context.Background(), providerName, nil))
 
 	client := NewOpenFeatureClient(log.NewNoop())
 

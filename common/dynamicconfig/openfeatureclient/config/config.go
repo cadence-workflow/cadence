@@ -18,7 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package openfeatureclient
+// Package config holds only the YAML-decodable Config for the
+// OpenFeature-backed dynamicconfig.Client, so common/config can embed it
+// directly. Deliberately kept free of any OpenFeature SDK import:
+// github.com/open-feature/go-sdk/openfeature starts a background goroutine
+// unconditionally from its own package init() the moment anything imports
+// it, whether or not a provider is ever configured. common/config is
+// imported by nearly every binary and test package in this repo, so if it
+// pulled that SDK in transitively, every one of them would carry that
+// goroutine permanently - breaking any test using goleak.VerifyNone. The
+// actual client implementation (openfeatureclient.NewOpenFeatureClient et
+// al., which does need the SDK) lives in the parent
+// common/dynamicconfig/openfeatureclient package instead, imported only by
+// dynamicconfigfx.New.
+package config
 
 import "gopkg.in/yaml.v2" // CAUTION: go.uber.org/config does not support yaml.v3
 

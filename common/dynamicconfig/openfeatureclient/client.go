@@ -19,12 +19,17 @@
 // THE SOFTWARE.
 
 // Package openfeatureclient implements dynamicconfig.Client on top of
-// OpenFeature. It lives in its own subpackage (rather than in
-// common/dynamicconfig itself) so that its Config type can be referenced
-// directly from common/config: common/config already imports
-// common/dynamicconfig, so common/dynamicconfig cannot import common/config
-// back without a cycle, which would block defining a lazily-decoded YAML
-// config field there. This package has no such constraint.
+// OpenFeature. Its YAML-decodable Config type lives in the
+// common/dynamicconfig/openfeatureclient/config subpackage instead of here,
+// specifically so that common/config (which embeds that Config type) doesn't
+// transitively import github.com/open-feature/go-sdk/openfeature: that SDK
+// starts a background goroutine (its event executor) unconditionally from
+// its own package init(), the moment anything imports it - not only when a
+// provider is actually configured. common/config is imported by nearly every
+// binary and test package in this repo, so if it pulled in the OpenFeature
+// SDK, that goroutine would exist in every one of them, permanently, and
+// break any test using goleak.VerifyNone. Only dynamicconfigfx.New (which
+// backs an actual running server) should import this package.
 package openfeatureclient
 
 import (
@@ -50,10 +55,10 @@ type openFeatureClient struct {
 	logger log.Logger
 }
 
-// registerOnce guards openfeature.SetProviderAndWait. OpenFeature's default
-// provider - and vendor SDKs behind it such as unleash-client-go, which keeps
-// a single package-level client - is process-wide state, not per-caller
-// state. Cadence's server binary runs one fx.App per service
+// registerOnce guards openfeature.SetProviderWithContextAndWait. OpenFeature's
+// default provider - and vendor SDKs behind it such as unleash-client-go,
+// which keeps a single package-level client - is process-wide state, not
+// per-caller state. Cadence's server binary runs one fx.App per service
 // (frontend/history/matching/worker) in the same OS process, so
 // RegisterProvider gets called once per service: without this guard, each
 // call would register a new default provider and make the OpenFeature SDK
@@ -105,14 +110,17 @@ func NewOpenFeatureClient(logger log.Logger) dynamicconfig.Client {
 // providerConfig is the provider plugin's own config, decoded lazily so this
 // package never depends on any provider-specific config type.
 //
-// This does blocking work (openfeature.SetProviderAndWait, which blocks on
-// the provider's own readiness) and so is meant to be called from an
-// fx.Hook's OnStart (see dynamicconfigfx.New), matching how other
+// This does blocking work (openfeature.SetProviderWithContextAndWait, which
+// blocks on the provider's own readiness) and so is meant to be called from
+// an fx.Hook's OnStart (see dynamicconfigfx.New), matching how other
 // blocking/validating work in this codebase is deferred to fx.StartHook
 // (common/config/fx.go's cfg.validate) rather than run eagerly inside an
-// fx.Provide constructor. A returned error should fail the caller's
-// fx.App.Start().
-func RegisterProvider(providerName string, providerConfig openfeatureprovider.Decoder) error {
+// fx.Provide constructor. ctx should be the OnStart context fx provides,
+// which carries fx's own start timeout - without it, a provider that never
+// becomes ready (e.g. an unreachable Unleash server) would block
+// fx.App.Start() forever instead of failing after that timeout. A returned
+// error should fail the caller's fx.App.Start().
+func RegisterProvider(ctx context.Context, providerName string, providerConfig openfeatureprovider.Decoder) error {
 	registerOnce.Do(func() {
 		constructor, ok := openfeatureprovider.Get(providerName)
 		if !ok {
@@ -124,7 +132,7 @@ func RegisterProvider(providerName string, providerConfig openfeatureprovider.De
 			registerErr = fmt.Errorf("failed to construct openfeature provider %q: %w", providerName, err)
 			return
 		}
-		if err := openfeature.SetProviderAndWait(provider); err != nil {
+		if err := openfeature.SetProviderWithContextAndWait(ctx, provider); err != nil {
 			registerErr = fmt.Errorf("failed to set openfeature provider %q: %w", providerName, err)
 			return
 		}
@@ -169,6 +177,28 @@ func toEvalContext(filters map[dynamicproperties.Filter]interface{}) openfeature
 	return openfeature.NewTargetlessEvaluationContext(attrs)
 }
 
+// translateErr maps an OpenFeature evaluation error onto dynamicconfig's own
+// error vocabulary, using the resolution details' exported ErrorCode rather
+// than string-matching err.Error() (Client.*Value doesn't preserve a typed
+// openfeature.ResolutionError - see openfeature.ProviderResolutionDetail.Error
+// - so ErrorCode is only available via the *ValueDetails variants).
+//
+// This distinction matters because Cadence declares hundreds of dynamic
+// config keys and only a handful are ever expected to be set in an external
+// flag platform - an unset key is the common case, not a real failure.
+// dynamicconfig.Collection already special-cases dynamicconfig.NotFoundError
+// (a *types.EntityNotExistsError) down to a DEBUG log instead of WARN; without
+// this translation, every unset key would log at WARN on every access.
+func translateErr(err error, errorCode openfeature.ErrorCode) error {
+	if err == nil {
+		return nil
+	}
+	if errorCode == openfeature.FlagNotFoundCode {
+		return dynamicconfig.NotFoundError
+	}
+	return err
+}
+
 func (c *openFeatureClient) GetValue(name dynamicproperties.Key) (interface{}, error) {
 	return c.GetValueWithFilters(name, nil)
 }
@@ -178,46 +208,58 @@ func (c *openFeatureClient) GetValue(name dynamicproperties.Key) (interface{}, e
 // It uses ObjectValue; callers should prefer the typed getters below, which
 // is how dynamicconfig.Collection reaches this client in practice.
 func (c *openFeatureClient) GetValueWithFilters(name dynamicproperties.Key, filters map[dynamicproperties.Filter]interface{}) (interface{}, error) {
-	val, err := c.client.ObjectValue(context.Background(), name.String(), name.DefaultValue(), toEvalContext(filters))
+	details, err := c.client.ObjectValueDetails(context.Background(), name.String(), name.DefaultValue(), toEvalContext(filters))
 	if err != nil {
-		return name.DefaultValue(), err
+		return name.DefaultValue(), translateErr(err, details.ErrorCode)
 	}
-	return val, nil
+	return details.Value, nil
 }
 
 func (c *openFeatureClient) GetIntValue(name dynamicproperties.IntKey, filters map[dynamicproperties.Filter]interface{}) (int, error) {
 	defaultValue := name.DefaultInt()
-	val, err := c.client.IntValue(context.Background(), name.String(), int64(defaultValue), toEvalContext(filters))
+	details, err := c.client.IntValueDetails(context.Background(), name.String(), int64(defaultValue), toEvalContext(filters))
 	if err != nil {
-		return defaultValue, err
+		return defaultValue, translateErr(err, details.ErrorCode)
 	}
-	return int(val), nil
+	return int(details.Value), nil
 }
 
 func (c *openFeatureClient) GetFloatValue(name dynamicproperties.FloatKey, filters map[dynamicproperties.Filter]interface{}) (float64, error) {
 	defaultValue := name.DefaultFloat()
-	return c.client.FloatValue(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	details, err := c.client.FloatValueDetails(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	if err != nil {
+		return defaultValue, translateErr(err, details.ErrorCode)
+	}
+	return details.Value, nil
 }
 
 func (c *openFeatureClient) GetBoolValue(name dynamicproperties.BoolKey, filters map[dynamicproperties.Filter]interface{}) (bool, error) {
 	defaultValue := name.DefaultBool()
-	return c.client.BooleanValue(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	details, err := c.client.BooleanValueDetails(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	if err != nil {
+		return defaultValue, translateErr(err, details.ErrorCode)
+	}
+	return details.Value, nil
 }
 
 func (c *openFeatureClient) GetStringValue(name dynamicproperties.StringKey, filters map[dynamicproperties.Filter]interface{}) (string, error) {
 	defaultValue := name.DefaultString()
-	return c.client.StringValue(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	details, err := c.client.StringValueDetails(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	if err != nil {
+		return defaultValue, translateErr(err, details.ErrorCode)
+	}
+	return details.Value, nil
 }
 
 func (c *openFeatureClient) GetMapValue(name dynamicproperties.MapKey, filters map[dynamicproperties.Filter]interface{}) (map[string]interface{}, error) {
 	defaultValue := name.DefaultMap()
-	val, err := c.client.ObjectValue(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	details, err := c.client.ObjectValueDetails(context.Background(), name.String(), defaultValue, toEvalContext(filters))
 	if err != nil {
-		return defaultValue, err
+		return defaultValue, translateErr(err, details.ErrorCode)
 	}
-	mapVal, ok := val.(map[string]interface{})
+	mapVal, ok := details.Value.(map[string]interface{})
 	if !ok {
-		return defaultValue, fmt.Errorf("value type is not map but is: %T", val)
+		return defaultValue, fmt.Errorf("value type is not map but is: %T", details.Value)
 	}
 	return mapVal, nil
 }
@@ -227,11 +269,11 @@ func (c *openFeatureClient) GetMapValue(name dynamicproperties.MapKey, filters m
 // file-based client already uses on disk.
 func (c *openFeatureClient) GetDurationValue(name dynamicproperties.DurationKey, filters map[dynamicproperties.Filter]interface{}) (time.Duration, error) {
 	defaultValue := name.DefaultDuration()
-	s, err := c.client.StringValue(context.Background(), name.String(), defaultValue.String(), toEvalContext(filters))
+	details, err := c.client.StringValueDetails(context.Background(), name.String(), defaultValue.String(), toEvalContext(filters))
 	if err != nil {
-		return defaultValue, err
+		return defaultValue, translateErr(err, details.ErrorCode)
 	}
-	d, err := time.ParseDuration(s)
+	d, err := time.ParseDuration(details.Value)
 	if err != nil {
 		return defaultValue, fmt.Errorf("failed to parse duration: %v", err)
 	}
@@ -240,13 +282,13 @@ func (c *openFeatureClient) GetDurationValue(name dynamicproperties.DurationKey,
 
 func (c *openFeatureClient) GetListValue(name dynamicproperties.ListKey, filters map[dynamicproperties.Filter]interface{}) ([]interface{}, error) {
 	defaultValue := name.DefaultList()
-	val, err := c.client.ObjectValue(context.Background(), name.String(), defaultValue, toEvalContext(filters))
+	details, err := c.client.ObjectValueDetails(context.Background(), name.String(), defaultValue, toEvalContext(filters))
 	if err != nil {
-		return defaultValue, err
+		return defaultValue, translateErr(err, details.ErrorCode)
 	}
-	listVal, ok := val.([]interface{})
+	listVal, ok := details.Value.([]interface{})
 	if !ok {
-		return defaultValue, fmt.Errorf("value type is not list but is: %T", val)
+		return defaultValue, fmt.Errorf("value type is not list but is: %T", details.Value)
 	}
 	return listVal, nil
 }
