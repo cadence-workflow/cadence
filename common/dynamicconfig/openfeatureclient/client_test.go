@@ -170,7 +170,7 @@ func TestRegisterProvider_RejectsMismatchedProvider(t *testing.T) {
 	defer DeregisterProvider()
 
 	err := RegisterProvider(context.Background(), secondProvider, nil)
-	assert.ErrorContains(t, err, "already initialized with provider")
+	assert.ErrorContains(t, err, "already registered in this process")
 }
 
 // TestDeregisterProvider_ShutdownOnlyAfterLastServiceStops guards the
