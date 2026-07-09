@@ -45,7 +45,7 @@ func TestInsertHistoryDLQAckLevelIfNotExistsRow(t *testing.T) {
 		DomainID:              "domain-x",
 		ClusterAttributeScope: "scope-1",
 		ClusterAttributeName:  "cluster-a",
-		TaskType:              2,
+		TaskCategory:          2,
 		AckLevelVisibilityTS:  ackTS,
 		AckLevelTaskID:        0,
 		LastUpdatedAt:         updatedAt,
@@ -55,7 +55,7 @@ func TestInsertHistoryDLQAckLevelIfNotExistsRow(t *testing.T) {
 	// no-op sentinel that never overwrites recorded progress.
 	const wantQuery = `INSERT INTO history_task_dlq_ack_level (` +
 		`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
-		`task_type, ack_level_visibility_ts, ack_level_task_id, last_updated_at) ` +
+		`task_category, ack_level_visibility_ts, ack_level_task_id, last_updated_at) ` +
 		`VALUES(7, domain-x, scope-1, cluster-a, 2, 2025-06-01T12:00:00Z, 0, 2025-06-01T13:00:00Z) IF NOT EXISTS`
 
 	tests := []struct {
@@ -110,7 +110,7 @@ func TestInsertOrUpdateHistoryDLQAckLevelRow(t *testing.T) {
 		DomainID:              "domain-x",
 		ClusterAttributeScope: "scope-1",
 		ClusterAttributeName:  "cluster-a",
-		TaskType:              2,
+		TaskCategory:          2,
 		AckLevelVisibilityTS:  ackTS,
 		AckLevelTaskID:        42,
 		LastUpdatedAt:         updatedAt,
@@ -119,7 +119,7 @@ func TestInsertOrUpdateHistoryDLQAckLevelRow(t *testing.T) {
 	// The upsert path is an unconditional write — no IF NOT EXISTS — so it overwrites progress.
 	const wantQuery = `INSERT INTO history_task_dlq_ack_level (` +
 		`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
-		`task_type, ack_level_visibility_ts, ack_level_task_id, last_updated_at) ` +
+		`task_category, ack_level_visibility_ts, ack_level_task_id, last_updated_at) ` +
 		`VALUES(7, domain-x, scope-1, cluster-a, 2, 2025-06-01T12:00:00Z, 42, 2025-06-01T13:00:00Z)`
 
 	tests := []struct {
