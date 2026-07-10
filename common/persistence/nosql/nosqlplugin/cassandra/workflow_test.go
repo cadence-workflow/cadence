@@ -552,7 +552,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 						1: {"schedule_id": int64(1)},
 					}
 					m["timer_map"] = map[string]map[string]interface{}{
-						"t1": {"started_id": int64(5)},
+						"t1": {"timer_id": "t1", "started_id": int64(5)},
 					}
 					m["child_executions_map"] = map[int64]map[string]interface{}{
 						3: {"initiated_id": int64(2)},
@@ -579,7 +579,7 @@ func TestSelectWorkflowExecution(t *testing.T) {
 					1: {ScheduleID: 1, DomainID: "test-domain-id"},
 				},
 				TimerInfos: map[string]*persistence.TimerInfo{
-					"t1": {StartedID: 5},
+					"t1": {TimerID: "t1", StartedID: 5},
 				},
 				ChildExecutionInfos: map[int64]*persistence.InternalChildExecutionInfo{
 					3: {InitiatedID: 2},

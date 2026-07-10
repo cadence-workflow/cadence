@@ -633,6 +633,9 @@ type (
 		VersionHistories    *VersionHistories
 		ReplicationState    *ReplicationState // TODO: remove this after all 2DC workflows complete
 		Checksum            checksum.Checksum
+
+		ActivityMapSentinelCount int
+		TimerMapSentinelCount    int
 	}
 
 	// ActivityInfo details.
@@ -908,8 +911,10 @@ type (
 
 		UpsertActivityInfos       []*ActivityInfo
 		DeleteActivityInfos       []int64
+		ResetActivityInfos        []*ActivityInfo // non-nil triggers full activity_map rewrite
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		ResetTimerInfos           []*TimerInfo // non-nil triggers full timer_map rewrite
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo

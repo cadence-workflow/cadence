@@ -222,20 +222,32 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	state.ReplicationState = replicationState
 
 	activityInfos := make(map[int64]*persistence.InternalActivityInfo)
+	activitySentinelCount := 0
 	aMap := result["activity_map"].(map[int64]map[string]interface{})
 	for key, value := range aMap {
 		info := parseActivityInfo(domainID, value)
+		if info.ScheduleID == 0 {
+			activitySentinelCount++
+			continue
+		}
 		activityInfos[key] = info
 	}
 	state.ActivityInfos = activityInfos
+	state.ActivityMapSentinelCount = activitySentinelCount
 
 	timerInfos := make(map[string]*persistence.TimerInfo)
+	timerSentinelCount := 0
 	tMap := result["timer_map"].(map[string]map[string]interface{})
 	for key, value := range tMap {
 		info := parseTimerInfo(value)
+		if info.TimerID == "" {
+			timerSentinelCount++
+			continue
+		}
 		timerInfos[key] = info
 	}
 	state.TimerInfos = timerInfos
+	state.TimerMapSentinelCount = timerSentinelCount
 
 	childExecutionInfos := make(map[int64]*persistence.InternalChildExecutionInfo)
 	cMap := result["child_executions_map"].(map[int64]map[string]interface{})

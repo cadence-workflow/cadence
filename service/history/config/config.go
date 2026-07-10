@@ -236,15 +236,17 @@ type Config struct {
 	AllowArchivingIncompleteHistory  dynamicproperties.BoolPropertyFn
 
 	// Size limit related settings
-	BlobSizeLimitError               dynamicproperties.IntPropertyFnWithDomainFilter
-	BlobSizeLimitWarn                dynamicproperties.IntPropertyFnWithDomainFilter
-	HistorySizeLimitError            dynamicproperties.IntPropertyFnWithDomainFilter
-	HistorySizeLimitWarn             dynamicproperties.IntPropertyFnWithDomainFilter
-	HistoryCountLimitError           dynamicproperties.IntPropertyFnWithDomainFilter
-	HistoryCountLimitWarn            dynamicproperties.IntPropertyFnWithDomainFilter
-	PendingActivitiesCountLimitError dynamicproperties.IntPropertyFnWithDomainFilter
-	PendingActivitiesCountLimitWarn  dynamicproperties.IntPropertyFnWithDomainFilter
-	PendingActivityValidationEnabled dynamicproperties.BoolPropertyFn
+	BlobSizeLimitError                  dynamicproperties.IntPropertyFnWithDomainFilter
+	BlobSizeLimitWarn                   dynamicproperties.IntPropertyFnWithDomainFilter
+	HistorySizeLimitError               dynamicproperties.IntPropertyFnWithDomainFilter
+	HistorySizeLimitWarn                dynamicproperties.IntPropertyFnWithDomainFilter
+	HistoryCountLimitError              dynamicproperties.IntPropertyFnWithDomainFilter
+	HistoryCountLimitWarn               dynamicproperties.IntPropertyFnWithDomainFilter
+	PendingActivitiesCountLimitError    dynamicproperties.IntPropertyFnWithDomainFilter
+	PendingActivitiesCountLimitWarn     dynamicproperties.IntPropertyFnWithDomainFilter
+	PendingActivityValidationEnabled    dynamicproperties.BoolPropertyFn
+	ActivityMapSentinelRewriteThreshold dynamicproperties.IntPropertyFn
+	TimerMapSentinelRewriteThreshold    dynamicproperties.IntPropertyFn
 
 	// ValidSearchAttributes is legal indexed keys that can be used in list APIs
 	EnableQueryAttributeValidation    dynamicproperties.BoolPropertyFn
@@ -537,15 +539,17 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		ArchiveInlineVisibilityGlobalRPS: dc.GetIntProperty(dynamicproperties.ArchiveInlineVisibilityGlobalRPS),
 		AllowArchivingIncompleteHistory:  dc.GetBoolProperty(dynamicproperties.AllowArchivingIncompleteHistory),
 
-		BlobSizeLimitError:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitError),
-		BlobSizeLimitWarn:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
-		HistorySizeLimitError:            dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitError),
-		HistorySizeLimitWarn:             dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitWarn),
-		HistoryCountLimitError:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitError),
-		HistoryCountLimitWarn:            dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitWarn),
-		PendingActivitiesCountLimitError: dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitError),
-		PendingActivitiesCountLimitWarn:  dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitWarn),
-		PendingActivityValidationEnabled: dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation),
+		BlobSizeLimitError:                  dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitError),
+		BlobSizeLimitWarn:                   dc.GetIntPropertyFilteredByDomain(dynamicproperties.BlobSizeLimitWarn),
+		HistorySizeLimitError:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitError),
+		HistorySizeLimitWarn:                dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistorySizeLimitWarn),
+		HistoryCountLimitError:              dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitError),
+		HistoryCountLimitWarn:               dc.GetIntPropertyFilteredByDomain(dynamicproperties.HistoryCountLimitWarn),
+		PendingActivitiesCountLimitError:    dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitError),
+		PendingActivitiesCountLimitWarn:     dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitWarn),
+		PendingActivityValidationEnabled:    dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation),
+		ActivityMapSentinelRewriteThreshold: dc.GetIntProperty(dynamicproperties.ActivityMapSentinelRewriteThreshold),
+		TimerMapSentinelRewriteThreshold:    dc.GetIntProperty(dynamicproperties.TimerMapSentinelRewriteThreshold),
 
 		ThrottledLogRPS:   dc.GetIntProperty(dynamicproperties.HistoryThrottledLogRPS),
 		EnableStickyQuery: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStickyQuery),
