@@ -1460,8 +1460,10 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 
 		UpsertActivityInfos:       slices.Collect(maps.Values(e.updateActivityInfos)),
 		DeleteActivityInfos:       slices.Collect(maps.Keys(e.deleteActivityInfos)),
+		UseActivityMapSentinel:    e.config.EnableActivityMapSentinelRewrite(),
 		UpsertTimerInfos:          slices.Collect(maps.Values(e.updateTimerInfos)),
 		DeleteTimerInfos:          slices.Collect(maps.Keys(e.deleteTimerInfos)),
+		UseTimerMapSentinel:       e.config.EnableTimerMapSentinelRewrite(),
 		UpsertChildExecutionInfos: slices.Collect(maps.Values(e.updateChildExecutionInfos)),
 		DeleteChildExecutionInfos: slices.Collect(maps.Keys(e.deleteChildExecutionInfos)),
 		UpsertRequestCancelInfos:  slices.Collect(maps.Values(e.updateRequestCancelInfos)),
@@ -1485,15 +1487,21 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		Checksum:  checksum,
 	}
 
-	if e.activityMapSentinelCount >= e.config.ActivityMapSentinelRewriteThreshold() {
+	if e.config.EnableActivityMapSentinelRewrite() && e.activityMapSentinelCount >= e.config.ActivityMapSentinelRewriteThreshold() {
+		start := time.Now()
 		workflowMutation.ResetActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
 		workflowMutation.DeleteActivityInfos = nil
 		e.activityMapSentinelCount = 0
+		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapSentinelRewriteCounter)
+		e.metricsClient.RecordHistogramDuration(metrics.WorkflowContextScope, metrics.ActivityMapRewriteLatency, time.Since(start))
 	}
-	if e.timerMapSentinelCount >= e.config.TimerMapSentinelRewriteThreshold() {
+	if e.config.EnableTimerMapSentinelRewrite() && e.timerMapSentinelCount >= e.config.TimerMapSentinelRewriteThreshold() {
+		start := time.Now()
 		workflowMutation.ResetTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
 		workflowMutation.DeleteTimerInfos = nil
 		e.timerMapSentinelCount = 0
+		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapSentinelRewriteCounter)
+		e.metricsClient.RecordHistogramDuration(metrics.WorkflowContextScope, metrics.TimerMapRewriteLatency, time.Since(start))
 	}
 
 	e.checksum = checksum

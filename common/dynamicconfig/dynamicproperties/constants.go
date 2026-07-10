@@ -2247,6 +2247,20 @@ const (
 	// Default value: false
 	EnablePendingActivityValidation
 
+	// EnableActivityMapSentinelRewrite enables sentinel-based deletion for activity_map
+	// to reduce Cassandra cell tombstones. When disabled, falls back to DELETE.
+	// KeyName: history.enableActivityMapSentinelRewrite
+	// Value type: Bool
+	// Default value: false
+	EnableActivityMapSentinelRewrite
+
+	// EnableTimerMapSentinelRewrite enables sentinel-based deletion for timer_map
+	// to reduce Cassandra cell tombstones. When disabled, falls back to DELETE.
+	// KeyName: history.enableTimerMapSentinelRewrite
+	// Value type: Bool
+	// Default value: false
+	EnableTimerMapSentinelRewrite
+
 	// EnableCassandraAllConsistencyLevelDelete uses all consistency level for Cassandra delete operations
 	// KeyName: system.enableCassandraAllConsistencyLevelDelete
 	// Value type: Bool
@@ -5120,6 +5134,16 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnablePendingActivityValidation: {
 		KeyName:      "limit.pendingActivityCount.enabled",
 		Description:  "Enables pending activity count limiting/validation",
+		DefaultValue: false,
+	},
+	EnableActivityMapSentinelRewrite: {
+		KeyName:      "history.enableActivityMapSentinelRewrite",
+		Description:  "Enables sentinel-based deletion for activity_map to reduce Cassandra cell tombstones",
+		DefaultValue: false,
+	},
+	EnableTimerMapSentinelRewrite: {
+		KeyName:      "history.enableTimerMapSentinelRewrite",
+		Description:  "Enables sentinel-based deletion for timer_map to reduce Cassandra cell tombstones",
 		DefaultValue: false,
 	},
 	EnableCassandraAllConsistencyLevelDelete: {
