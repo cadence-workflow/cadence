@@ -259,7 +259,7 @@ func (e *mutableStateBuilder) DeleteUserTimer(
 
 	delete(e.updateTimerInfos, timerID)
 	e.deleteTimerInfos[timerID] = struct{}{}
-	if e.config.EnableTimerMapSentinelRewrite() {
+	if e.config.EnableCassandraTimerMapSentinelRewrite() {
 		e.timerMapSentinelCount++
 	} else {
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapDeleteCounter)
