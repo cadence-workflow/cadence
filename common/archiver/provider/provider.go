@@ -27,6 +27,7 @@ import (
 
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/syncmap"
 )
 
@@ -74,13 +75,13 @@ type (
 	}
 
 	historyConstructor struct {
-		fn func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error)
+		fn func(cfg *yaml.Node, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error)
 		// yaml key where this config exists, under archival.history.provider.
 		// This almost certainly should be the same as the scheme, but that'll need more work.
 		configKey string
 	}
 	visibilityConstructor struct {
-		fn func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error)
+		fn func(cfg *yaml.Node, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error)
 		// yaml key where this config exists, under archival.visibility.provider.
 		// This almost certainly should be the same as the scheme, but that'll need more work.
 		configKey string
@@ -92,7 +93,7 @@ var (
 	visibilityConstructors = syncmap.New[string, visibilityConstructor]()
 )
 
-func RegisterHistoryArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error)) error {
+func RegisterHistoryArchiver(scheme, configKey string, constructor func(cfg *yaml.Node, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error)) error {
 	inserted := historyConstructors.Put(scheme, historyConstructor{
 		fn:        constructor,
 		configKey: configKey,
@@ -103,7 +104,7 @@ func RegisterHistoryArchiver(scheme, configKey string, constructor func(cfg *con
 	return nil
 }
 
-func RegisterVisibilityArchiver(scheme, configKey string, constructor func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error)) error {
+func RegisterVisibilityArchiver(scheme, configKey string, constructor func(cfg *yaml.Node, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error)) error {
 	inserted := visibilityConstructors.Put(scheme, visibilityConstructor{
 		fn:        constructor,
 		configKey: configKey,

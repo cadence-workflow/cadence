@@ -33,40 +33,16 @@
 // dynamicconfigfx.New.
 package config
 
-import "gopkg.in/yaml.v2" // CAUTION: go.uber.org/config does not support yaml.v3
+import "github.com/uber/cadence/common/config/yaml"
 
 // Config configures the dynamicconfig.Client backed by OpenFeature.
 // ProviderName selects a provider plugin self-registered under
 // common/dynamicconfig/openfeatureprovider/<name> (blank-imported by the
 // binary that wants it, e.g. cmd/server/main.go). Provider holds that
-// plugin's own config shape, decoded lazily so this package - and
-// common/config, which embeds this struct directly - never import any
+// plugin's own config shape, decoded lazily via yaml.Node so this package -
+// and common/config, which embeds this struct directly - never import any
 // provider-specific config type.
 type Config struct {
-	ProviderName string   `yaml:"providerName"`
-	Provider     *RawYAML `yaml:"provider"`
-}
-
-// RawYAML is a lazy YAML unmarshaler, deferring decode until the selected
-// provider plugin knows what shape to decode into. It mirrors
-// common/config.YamlNode; that type can't be reused here directly since
-// common/config already imports common/dynamicconfig, and this package must
-// stay import-cycle-free with respect to common/config.
-type RawYAML struct {
-	unmarshal func(out interface{}) error
-}
-
-var _ yaml.Unmarshaler = (*RawYAML)(nil)
-
-func (r *RawYAML) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	r.unmarshal = unmarshal
-	return nil
-}
-
-// Decode satisfies openfeatureprovider.Decoder.
-func (r *RawYAML) Decode(out any) error {
-	if r == nil {
-		return nil
-	}
-	return r.unmarshal(out)
+	ProviderName string     `yaml:"providerName"`
+	Provider     *yaml.Node `yaml:"provider"`
 }

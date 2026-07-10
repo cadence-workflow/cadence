@@ -1,4 +1,4 @@
--- DLQ Schema Migration v0.48
+-- DLQ Schema Migration v0.49
 -- Creates two tables for the history task dead letter queue.
 
 -- Main DLQ table.

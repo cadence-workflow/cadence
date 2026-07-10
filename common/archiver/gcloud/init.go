@@ -28,7 +28,7 @@ import (
 	"github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/gcloud/connector"
 	"github.com/uber/cadence/common/archiver/provider"
-	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/config/yaml"
 )
 
 func init() {
@@ -40,14 +40,14 @@ func init() {
 		}
 	}
 
-	must(provider.RegisterHistoryArchiver(URIScheme, ConfigKey, func(cfg *config.YamlNode, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error) {
+	must(provider.RegisterHistoryArchiver(URIScheme, ConfigKey, func(cfg *yaml.Node, container *archiver.HistoryBootstrapContainer) (archiver.HistoryArchiver, error) {
 		var out connector.Config
 		if err := cfg.Decode(&out); err != nil {
 			return nil, fmt.Errorf("bad config: %w", err)
 		}
 		return NewHistoryArchiver(container, out)
 	}))
-	must(provider.RegisterVisibilityArchiver(URIScheme, ConfigKey, func(cfg *config.YamlNode, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error) {
+	must(provider.RegisterVisibilityArchiver(URIScheme, ConfigKey, func(cfg *yaml.Node, container *archiver.VisibilityBootstrapContainer) (archiver.VisibilityArchiver, error) {
 		var out connector.Config
 		if err := cfg.Decode(&out); err != nil {
 			return nil, fmt.Errorf("bad config: %w", err)

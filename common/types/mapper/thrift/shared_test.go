@@ -462,6 +462,35 @@ func TestActivityTaskTimedEventAttributesConversion(t *testing.T) {
 	}
 }
 
+func TestFailureOptionsConversion(t *testing.T) {
+	testCases := []*types.FailureOptions{
+		nil,
+		{},
+		&testdata.FailureOptions,
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromFailureOptions(original)
+		roundTripObj := ToFailureOptions(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
+func TestFailureCategoryConversion(t *testing.T) {
+	testCases := []*types.FailureCategory{
+		nil,
+		types.FailureCategoryPoll.Ptr(),
+		types.FailureCategoryStandard.Ptr(),
+		types.FailureCategoryFatal.Ptr(),
+	}
+
+	for _, original := range testCases {
+		thriftObj := FromFailureCategory(original)
+		roundTripObj := ToFailureCategory(thriftObj)
+		assert.Equal(t, original, roundTripObj)
+	}
+}
+
 func TestArchivalStatusConversion(t *testing.T) {
 	enabledStatus := types.ArchivalStatus(1)
 	disabledStatus := types.ArchivalStatus(0)

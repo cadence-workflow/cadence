@@ -123,13 +123,118 @@ func (v *ActivityTaskCompletedEventAttributes) ByteSize() uint64 {
 	return 0
 }
 
+// FailureCategory is an internal type (TBD...)
+type FailureCategory int32
+
+// Ptr is a helper function for getting pointer value
+func (e FailureCategory) Ptr() *FailureCategory {
+	return &e
+}
+
+// String returns a readable string representation of FailureCategory.
+func (e FailureCategory) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "Standard"
+	case 1:
+		return "Poll"
+	case 2:
+		return "Fatal"
+	}
+	return fmt.Sprintf("FailureCategory(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *FailureCategory) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "POLL":
+		*e = FailureCategoryPoll
+		return nil
+	case "STANDARD":
+		*e = FailureCategoryStandard
+		return nil
+	case "FATAL":
+		*e = FailureCategoryFatal
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "FailureCategory", err)
+		}
+		*e = FailureCategory(val)
+		return nil
+	}
+}
+
+// MarshalText encodes FailureCategory to text.
+func (e FailureCategory) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (e FailureCategory) ByteSize() uint64 {
+	return uint64(unsafe.Sizeof(e))
+}
+
+const (
+	// FailureCategoryStandard is the default behavior for a failure: whether it is retried
+	// depends on the RetryPolicy. It is intentionally the zero value so that an unspecified or
+	// nil category preserves the legacy (pre-FailureCategory) behavior and is not a breaking change.
+	FailureCategoryStandard FailureCategory = iota
+	// FailureCategoryPoll indicates the failure is expected due to a polling-style activity.
+	FailureCategoryPoll
+	// FailureCategoryFatal indicates the failure should not be retried, regardless of the RetryPolicy.
+	FailureCategoryFatal
+)
+
+// FailureOptions is an internal type (TBD...)
+type FailureOptions struct {
+	FailureCategory          *FailureCategory `json:"failureCategory,omitempty"`
+	NextRetryIntervalSeconds *int32           `json:"nextRetryIntervalSeconds,omitempty"`
+}
+
+// GetFailureCategory is an internal getter (TBD...)
+// When the category is unspecified or nil it defaults to FailureCategoryStandard, which represents
+// the legacy retry behavior.
+func (v *FailureOptions) GetFailureCategory() (o FailureCategory) {
+	if v != nil && v.FailureCategory != nil {
+		return *v.FailureCategory
+	}
+	return FailureCategoryStandard
+}
+
+// GetNextRetryIntervalSeconds is an internal getter (TBD...)
+func (v *FailureOptions) GetNextRetryIntervalSeconds() (o int32) {
+	if v != nil && v.NextRetryIntervalSeconds != nil {
+		return *v.NextRetryIntervalSeconds
+	}
+	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *FailureOptions) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+	size := uint64(unsafe.Sizeof(*v))
+	if v.FailureCategory != nil {
+		size += v.FailureCategory.ByteSize()
+	}
+	if v.NextRetryIntervalSeconds != nil {
+		size += uint64(unsafe.Sizeof(*v.NextRetryIntervalSeconds))
+	}
+	return size
+}
+
 // ActivityTaskFailedEventAttributes is an internal type (TBD...)
 type ActivityTaskFailedEventAttributes struct {
-	Reason           *string `json:"reason,omitempty"`
-	Details          []byte  `json:"details,omitempty"`
-	ScheduledEventID int64   `json:"scheduledEventId,omitempty"`
-	StartedEventID   int64   `json:"startedEventId,omitempty"`
-	Identity         string  `json:"identity,omitempty"`
+	Reason           *string         `json:"reason,omitempty"`
+	Details          []byte          `json:"details,omitempty"`
+	FailureOptions   *FailureOptions `json:"failureOptions,omitempty"`
+	ScheduledEventID int64           `json:"scheduledEventId,omitempty"`
+	StartedEventID   int64           `json:"startedEventId,omitempty"`
+	Identity         string          `json:"identity,omitempty"`
 }
 
 // GetScheduledEventID is an internal getter (TBD...)
@@ -240,12 +345,13 @@ func (v *ActivityTaskScheduledEventAttributes) ByteSize() uint64 {
 
 // ActivityTaskStartedEventAttributes is an internal type (TBD...)
 type ActivityTaskStartedEventAttributes struct {
-	ScheduledEventID   int64   `json:"scheduledEventId,omitempty"`
-	Identity           string  `json:"identity,omitempty"`
-	RequestID          string  `json:"requestId,omitempty"`
-	Attempt            int32   `json:"attempt,omitempty"`
-	LastFailureReason  *string `json:"lastFailureReason,omitempty"`
-	LastFailureDetails []byte  `json:"lastFailureDetails,omitempty"`
+	ScheduledEventID   int64           `json:"scheduledEventId,omitempty"`
+	Identity           string          `json:"identity,omitempty"`
+	RequestID          string          `json:"requestId,omitempty"`
+	Attempt            int32           `json:"attempt,omitempty"`
+	LastFailureReason  *string         `json:"lastFailureReason,omitempty"`
+	LastFailureDetails []byte          `json:"lastFailureDetails,omitempty"`
+	LastFailureOptions *FailureOptions `json:"lastFailureOptions,omitempty"`
 }
 
 // GetScheduledEventID is an internal getter (TBD...)
@@ -271,12 +377,13 @@ func (v *ActivityTaskStartedEventAttributes) ByteSize() uint64 {
 
 // ActivityTaskTimedOutEventAttributes is an internal type (TBD...)
 type ActivityTaskTimedOutEventAttributes struct {
-	Details            []byte       `json:"details,omitempty"`
-	ScheduledEventID   int64        `json:"scheduledEventId,omitempty"`
-	StartedEventID     int64        `json:"startedEventId,omitempty"`
-	TimeoutType        *TimeoutType `json:"timeoutType,omitempty"`
-	LastFailureReason  *string      `json:"lastFailureReason,omitempty"`
-	LastFailureDetails []byte       `json:"lastFailureDetails,omitempty"`
+	Details            []byte          `json:"details,omitempty"`
+	ScheduledEventID   int64           `json:"scheduledEventId,omitempty"`
+	StartedEventID     int64           `json:"startedEventId,omitempty"`
+	TimeoutType        *TimeoutType    `json:"timeoutType,omitempty"`
+	LastFailureReason  *string         `json:"lastFailureReason,omitempty"`
+	LastFailureDetails []byte          `json:"lastFailureDetails,omitempty"`
+	LastFailureOptions *FailureOptions `json:"lastFailureOptions,omitempty"`
 }
 
 // GetScheduledEventID is an internal getter (TBD...)
@@ -4701,6 +4808,7 @@ type PendingActivityInfo struct {
 	StartedWorkerIdentity  string                `json:"startedWorkerIdentity,omitempty"`
 	LastWorkerIdentity     string                `json:"lastWorkerIdentity,omitempty"`
 	LastFailureDetails     []byte                `json:"lastFailureDetails,omitempty"`
+	LastFailureOptions     *FailureOptions       `json:"lastFailureOptions,omitempty"`
 	ScheduleID             int64                 `json:"scheduleID,omitempty"`
 }
 
@@ -6307,13 +6415,15 @@ func (v *RespondActivityTaskCompletedRequest) ByteSize() uint64 {
 
 // RespondActivityTaskFailedByIDRequest is an internal type (TBD...)
 type RespondActivityTaskFailedByIDRequest struct {
-	Domain     string  `json:"domain,omitempty"`
-	WorkflowID string  `json:"workflowID,omitempty"`
-	RunID      string  `json:"runID,omitempty"`
-	ActivityID string  `json:"activityID,omitempty"`
-	Reason     *string `json:"reason,omitempty"`
-	Details    []byte  `json:"details,omitempty"`
-	Identity   string  `json:"identity,omitempty"`
+	Domain           string          `json:"domain,omitempty"`
+	WorkflowID       string          `json:"workflowID,omitempty"`
+	RunID            string          `json:"runID,omitempty"`
+	ActivityID       string          `json:"activityID,omitempty"`
+	Reason           *string         `json:"reason,omitempty"`
+	Details          []byte          `json:"details,omitempty"`
+	Identity         string          `json:"identity,omitempty"`
+	FailureOptions   *FailureOptions `json:"failureOptions,omitempty"`
+	HeartbeatDetails []byte          `json:"heartbeatDetails,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -6363,10 +6473,12 @@ func (v *RespondActivityTaskFailedByIDRequest) ByteSize() uint64 {
 
 // RespondActivityTaskFailedRequest is an internal type (TBD...)
 type RespondActivityTaskFailedRequest struct {
-	TaskToken []byte  `json:"taskToken,omitempty"`
-	Reason    *string `json:"reason,omitempty"`
-	Details   []byte  `json:"details,omitempty"`
-	Identity  string  `json:"identity,omitempty"`
+	TaskToken        []byte          `json:"taskToken,omitempty"`
+	Reason           *string         `json:"reason,omitempty"`
+	Details          []byte          `json:"details,omitempty"`
+	Identity         string          `json:"identity,omitempty"`
+	FailureOptions   *FailureOptions `json:"failureOptions,omitempty"`
+	HeartbeatDetails []byte          `json:"heartbeatDetails,omitempty"`
 }
 
 // GetReason is an internal getter (TBD...)

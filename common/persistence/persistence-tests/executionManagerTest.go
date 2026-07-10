@@ -3433,6 +3433,8 @@ func (s *ExecutionManagerSuite) TestWorkflowMutableStateActivities() {
 		LastFailureReason:        "some random error",
 		LastWorkerIdentity:       uuid.New(),
 		LastFailureDetails:       []byte(uuid.New()),
+		LastFailureCategory:      types.FailureCategoryFatal,
+		LastRetryIntervalSeconds: 10,
 	}}
 	versionHistory := p.NewVersionHistory([]byte{}, []*p.VersionHistoryItem{
 		{

@@ -2011,8 +2011,8 @@ func TestResetActivityInfos(t *testing.T) {
 					`1:map[` +
 					`activity_id:activity1 attempt:3 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
 					`details:[] event_data_encoding:thriftrw expiration_time:0001-01-01 00:00:00 +0000 UTC has_retry_policy:true ` +
-					`heart_beat_timeout:60 init_interval:0 last_failure_details:[] last_failure_reason:retry reason ` +
-					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_worker_identity: max_attempts:5 max_interval:0 ` +
+					`heart_beat_timeout:60 init_interval:0 last_failure_category:0 last_failure_details:[] last_failure_reason:retry reason ` +
+					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_retry_interval_seconds:0 last_worker_identity: max_attempts:5 max_interval:0 ` +
 					`non_retriable_errors:[] request_id: schedule_id:1 schedule_to_close_timeout:120 schedule_to_start_timeout:60 ` +
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
@@ -2022,8 +2022,8 @@ func TestResetActivityInfos(t *testing.T) {
 					`2:map[` +
 					`activity_id:activity2 attempt:1 backoff_coefficient:0 cancel_request_id:0 cancel_requested:false ` +
 					`details:[] event_data_encoding:thriftrw expiration_time:0001-01-01 00:00:00 +0000 UTC has_retry_policy:true ` +
-					`heart_beat_timeout:60 init_interval:0 last_failure_details:[] last_failure_reason:another retry reason ` +
-					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_worker_identity: max_attempts:5 max_interval:0 ` +
+					`heart_beat_timeout:60 init_interval:0 last_failure_category:0 last_failure_details:[] last_failure_reason:another retry reason ` +
+					`last_hb_updated_time:0001-01-01 00:00:00 +0000 UTC last_retry_interval_seconds:0 last_worker_identity: max_attempts:5 max_interval:0 ` +
 					`non_retriable_errors:[] request_id: schedule_id:2 schedule_to_close_timeout:120 schedule_to_start_timeout:60 ` +
 					`scheduled_event:[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97] ` +
 					`scheduled_event_batch_id:0 scheduled_time:2023-12-19 22:08:41 +0000 UTC start_to_close_timeout:180 ` +
@@ -2116,7 +2116,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
 					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
-					`last_failure_details: [], event_data_encoding: thriftrw` +
+					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,

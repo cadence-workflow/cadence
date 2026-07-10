@@ -857,6 +857,13 @@ func catchUpWatermark(state *SchedulerWorkflowState) time.Time {
 	if state.LastRunTime.After(watermark) {
 		watermark = state.LastRunTime
 	}
+	// When the schedule has never fired, both LastProcessedTime and LastRunTime are zero.
+	// Starting from epoch causes computeMissedFireTimes to find thousands of ancient fires,
+	// all outside the catch-up window, so no catch-up fires are dispatched. Use CreateTime
+	// as the floor so catch-up only considers fires that could have been missed since creation.
+	if !state.CreateTime.IsZero() && state.CreateTime.After(watermark) {
+		watermark = state.CreateTime
+	}
 	return watermark
 }
 

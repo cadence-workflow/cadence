@@ -31,8 +31,8 @@ import (
 	"github.com/uber-go/tally/m3"
 	"github.com/uber-go/tally/prometheus"
 	yarpctls "go.uber.org/yarpc/api/transport/tls"
-	"gopkg.in/yaml.v2" // CAUTION: go.uber.org/config does not support yaml.v3
 
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/dynamicconfig"
 	c "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -112,7 +112,7 @@ type (
 	}
 
 	// PeerProvider is provider config. Contents depends on plugin in use
-	PeerProvider map[string]*YamlNode
+	PeerProvider map[string]*yaml.Node
 
 	HeaderRule struct {
 		Add   bool // if false, matching headers are removed if previously matched.
@@ -531,8 +531,8 @@ type (
 	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
 	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
 	//
-	// For handling hardcoded config, see ToYamlNode.
-	HistoryArchiverProvider map[string]*YamlNode
+	// For handling hardcoded config, see yaml.ToNode.
+	HistoryArchiverProvider map[string]*yaml.Node
 
 	// VisibilityArchival contains the config for visibility archival
 	VisibilityArchival struct {
@@ -555,8 +555,8 @@ type (
 	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
 	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
 	//
-	// For handling hardcoded config, see ToYamlNode.
-	VisibilityArchiverProvider map[string]*YamlNode
+	// For handling hardcoded config, see yaml.ToNode.
+	VisibilityArchiverProvider map[string]*yaml.Node
 
 	// FilestoreArchiver contain the config for filestore archiver
 	FilestoreArchiver struct {
@@ -621,20 +621,14 @@ type (
 		HostPort string `yaml:"hostPort"`
 	}
 
-	// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,
-	// and go.uber.org/config currently uses only v2.
-	YamlNode struct {
-		unmarshal func(out any) error
-	}
-
 	// AsyncWorkflowQueueProvider contains the config for an async workflow queue.
 	// Type is the implementation type of the queue provider.
 	// Config is the configuration for the queue provider.
 	// Config types and structures expected in the main default binary include:
 	// - type: "kafka", config: [*github.com/uber/cadence/common/asyncworkflow/queue/kafka.QueueConfig]]]
 	AsyncWorkflowQueueProvider struct {
-		Type   string    `yaml:"type"`
-		Config *YamlNode `yaml:"config"`
+		Type   string     `yaml:"type"`
+		Config *yaml.Node `yaml:"config"`
 	}
 )
 
@@ -645,37 +639,6 @@ const (
 	FilestoreConfig = "filestore"
 	S3storeConfig   = "s3store"
 )
-
-var _ yaml.Unmarshaler = (*YamlNode)(nil)
-
-func (y *YamlNode) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	y.unmarshal = unmarshal
-	return nil
-}
-
-func (y *YamlNode) Decode(out any) error {
-	if y == nil {
-		return nil
-	}
-	return y.unmarshal(out)
-}
-
-// ToYamlNode is a bit of a hack to get a *yaml.Node for config-parsing compatibility purposes.
-// There is probably a better way to achieve this with yaml-loading compatibility, but this is at least fairly simple.
-func ToYamlNode(input any) (*YamlNode, error) {
-	data, err := yaml.Marshal(input)
-	if err != nil {
-		// should be extremely unlikely, unless yaml marshaling is customized
-		return nil, fmt.Errorf("could not serialize data to yaml: %w", err)
-	}
-	var out *YamlNode
-	err = yaml.Unmarshal(data, &out)
-	if err != nil {
-		// should not be possible
-		return nil, fmt.Errorf("could not deserialize to yaml node: %w", err)
-	}
-	return out, nil
-}
 
 func (n *NoSQL) ConvertToShardedNoSQLConfig() *ShardedNoSQL {
 	connections := make(map[string]DBShardConnection)
