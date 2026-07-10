@@ -3007,8 +3007,6 @@ const (
 	TimerMapSentinelRewriteCounter
 	ActivityMapDeleteCounter
 	TimerMapDeleteCounter
-	ActivityMapRewriteLatency
-	TimerMapRewriteLatency
 
 	NumHistoryMetrics
 )
@@ -3661,8 +3659,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TimerMapSentinelRewriteCounter:    {metricName: "timer_map_sentinel_rewrite", metricType: Counter},
 		ActivityMapDeleteCounter:          {metricName: "activity_map_delete", metricType: Counter},
 		TimerMapDeleteCounter:             {metricName: "timer_map_delete", metricType: Counter},
-		ActivityMapRewriteLatency:         {metricName: "activity_map_rewrite_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		TimerMapRewriteLatency:            {metricName: "timer_map_rewrite_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},
