@@ -158,7 +158,7 @@ func (e *mutableStateBuilder) DeleteActivity(
 
 	delete(e.updateActivityInfos, scheduleEventID)
 	e.deleteActivityInfos[scheduleEventID] = struct{}{}
-	if e.config.EnableActivityMapSentinelRewrite() {
+	if e.config.EnableCassandraActivityMapSentinelRewrite() {
 		e.activityMapSentinelCount++
 	} else {
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapDeleteCounter)

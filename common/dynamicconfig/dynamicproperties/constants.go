@@ -1663,19 +1663,19 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
-	// ActivityMapSentinelRewriteThreshold is the number of sentinel entries in the activity_map
+	// CassandraActivityMapSentinelRewriteThreshold is the number of sentinel entries in the activity_map
 	// before triggering a full map rewrite to consolidate tombstones
-	// KeyName: history.activityMapSentinelRewriteThreshold
+	// KeyName: history.cassandraActivityMapSentinelRewriteThreshold
 	// Value type: Int
 	// Default value: 100
-	ActivityMapSentinelRewriteThreshold
+	CassandraActivityMapSentinelRewriteThreshold
 
-	// TimerMapSentinelRewriteThreshold is the number of sentinel entries in the timer_map
+	// CassandraTimerMapSentinelRewriteThreshold is the number of sentinel entries in the timer_map
 	// before triggering a full map rewrite to consolidate tombstones
-	// KeyName: history.timerMapSentinelRewriteThreshold
+	// KeyName: history.cassandraTimerMapSentinelRewriteThreshold
 	// Value type: Int
 	// Default value: 100
-	TimerMapSentinelRewriteThreshold
+	CassandraTimerMapSentinelRewriteThreshold
 
 	// LastIntKey must be the last one in this const group
 	LastIntKey
@@ -2247,19 +2247,19 @@ const (
 	// Default value: false
 	EnablePendingActivityValidation
 
-	// EnableActivityMapSentinelRewrite enables sentinel-based deletion for activity_map
+	// EnableCassandraActivityMapSentinelRewrite enables sentinel-based deletion for activity_map
 	// to reduce Cassandra cell tombstones. When disabled, falls back to DELETE.
-	// KeyName: history.enableActivityMapSentinelRewrite
+	// KeyName: history.enableCassandraActivityMapSentinelRewrite
 	// Value type: Bool
 	// Default value: false
-	EnableActivityMapSentinelRewrite
+	EnableCassandraActivityMapSentinelRewrite
 
-	// EnableTimerMapSentinelRewrite enables sentinel-based deletion for timer_map
+	// EnableCassandraTimerMapSentinelRewrite enables sentinel-based deletion for timer_map
 	// to reduce Cassandra cell tombstones. When disabled, falls back to DELETE.
-	// KeyName: history.enableTimerMapSentinelRewrite
+	// KeyName: history.enableCassandraTimerMapSentinelRewrite
 	// Value type: Bool
 	// Default value: false
-	EnableTimerMapSentinelRewrite
+	EnableCassandraTimerMapSentinelRewrite
 
 	// EnableCassandraAllConsistencyLevelDelete uses all consistency level for Cassandra delete operations
 	// KeyName: system.enableCassandraAllConsistencyLevelDelete
@@ -4609,13 +4609,13 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
 	},
-	ActivityMapSentinelRewriteThreshold: {
-		KeyName:      "history.activityMapSentinelRewriteThreshold",
+	CassandraActivityMapSentinelRewriteThreshold: {
+		KeyName:      "history.cassandraActivityMapSentinelRewriteThreshold",
 		Description:  "Number of sentinel entries in activity_map before triggering a full map rewrite to consolidate tombstones",
 		DefaultValue: 100,
 	},
-	TimerMapSentinelRewriteThreshold: {
-		KeyName:      "history.timerMapSentinelRewriteThreshold",
+	CassandraTimerMapSentinelRewriteThreshold: {
+		KeyName:      "history.cassandraTimerMapSentinelRewriteThreshold",
 		Description:  "Number of sentinel entries in timer_map before triggering a full map rewrite to consolidate tombstones",
 		DefaultValue: 100,
 	},
@@ -5136,13 +5136,13 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "Enables pending activity count limiting/validation",
 		DefaultValue: false,
 	},
-	EnableActivityMapSentinelRewrite: {
-		KeyName:      "history.enableActivityMapSentinelRewrite",
+	EnableCassandraActivityMapSentinelRewrite: {
+		KeyName:      "history.enableCassandraActivityMapSentinelRewrite",
 		Description:  "Enables sentinel-based deletion for activity_map to reduce Cassandra cell tombstones",
 		DefaultValue: false,
 	},
-	EnableTimerMapSentinelRewrite: {
-		KeyName:      "history.enableTimerMapSentinelRewrite",
+	EnableCassandraTimerMapSentinelRewrite: {
+		KeyName:      "history.enableCassandraTimerMapSentinelRewrite",
 		Description:  "Enables sentinel-based deletion for timer_map to reduce Cassandra cell tombstones",
 		DefaultValue: false,
 	},

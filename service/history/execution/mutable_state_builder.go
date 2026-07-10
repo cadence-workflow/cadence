@@ -1460,10 +1460,10 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 
 		UpsertActivityInfos:       slices.Collect(maps.Values(e.updateActivityInfos)),
 		DeleteActivityInfos:       slices.Collect(maps.Keys(e.deleteActivityInfos)),
-		UseActivityMapSentinel:    e.config.EnableActivityMapSentinelRewrite(),
+		UseActivityMapSentinel:    e.config.EnableCassandraActivityMapSentinelRewrite(),
 		UpsertTimerInfos:          slices.Collect(maps.Values(e.updateTimerInfos)),
 		DeleteTimerInfos:          slices.Collect(maps.Keys(e.deleteTimerInfos)),
-		UseTimerMapSentinel:       e.config.EnableTimerMapSentinelRewrite(),
+		UseTimerMapSentinel:       e.config.EnableCassandraTimerMapSentinelRewrite(),
 		UpsertChildExecutionInfos: slices.Collect(maps.Values(e.updateChildExecutionInfos)),
 		DeleteChildExecutionInfos: slices.Collect(maps.Keys(e.deleteChildExecutionInfos)),
 		UpsertRequestCancelInfos:  slices.Collect(maps.Values(e.updateRequestCancelInfos)),
@@ -1487,14 +1487,14 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		Checksum:  checksum,
 	}
 
-	if e.config.EnableActivityMapSentinelRewrite() && e.activityMapSentinelCount >= e.config.ActivityMapSentinelRewriteThreshold() {
+	if e.config.EnableCassandraActivityMapSentinelRewrite() && e.activityMapSentinelCount >= e.config.CassandraActivityMapSentinelRewriteThreshold() {
 		workflowMutation.ResetActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
 		workflowMutation.ResetActivityMap = true
 		workflowMutation.DeleteActivityInfos = nil
 		e.activityMapSentinelCount = 0
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapSentinelRewriteCounter)
 	}
-	if e.config.EnableTimerMapSentinelRewrite() && e.timerMapSentinelCount >= e.config.TimerMapSentinelRewriteThreshold() {
+	if e.config.EnableCassandraTimerMapSentinelRewrite() && e.timerMapSentinelCount >= e.config.CassandraTimerMapSentinelRewriteThreshold() {
 		workflowMutation.ResetTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
 		workflowMutation.ResetTimerMap = true
 		workflowMutation.DeleteTimerInfos = nil

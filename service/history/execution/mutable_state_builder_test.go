@@ -3522,8 +3522,8 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
 				ms.activityMapSentinelCount = 100
 				ms.timerMapSentinelCount = 100
-				ms.config.EnableActivityMapSentinelRewrite = func(...dynamicproperties.FilterOption) bool { return true }
-				ms.config.EnableTimerMapSentinelRewrite = func(...dynamicproperties.FilterOption) bool { return true }
+				ms.config.EnableCassandraActivityMapSentinelRewrite = func(...dynamicproperties.FilterOption) bool { return true }
+				ms.config.EnableCassandraTimerMapSentinelRewrite = func(...dynamicproperties.FilterOption) bool { return true }
 			},
 			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
 				shardContext.EXPECT().GetConfig().Return(&config.Config{
@@ -4172,19 +4172,19 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 	shardContext.EXPECT().GetClusterMetadata().Return(cluster.TestActiveClusterMetadata).Times(2)
 	shardContext.EXPECT().GetEventsCache().Return(mockCache)
 	shardContext.EXPECT().GetConfig().Return(&config.Config{
-		NumberOfShards:                        2,
-		IsAdvancedVisConfigExist:              false,
-		MaxResponseSize:                       0,
-		MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
-		MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
-		MutableStateChecksumGenProbability:    dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
-		HostName:                              "test-host",
-		EnableReplicationTaskGeneration:       func(string, string) bool { return true },
-		MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
-		EnableActivityMapSentinelRewrite:      func(...dynamicproperties.FilterOption) bool { return false },
-		EnableTimerMapSentinelRewrite:         func(...dynamicproperties.FilterOption) bool { return false },
-		ActivityMapSentinelRewriteThreshold:   func(...dynamicproperties.FilterOption) int { return 100 },
-		TimerMapSentinelRewriteThreshold:      func(...dynamicproperties.FilterOption) int { return 100 },
+		NumberOfShards:                               2,
+		IsAdvancedVisConfigExist:                     false,
+		MaxResponseSize:                              0,
+		MutableStateChecksumInvalidateBefore:         dynamicproperties.GetFloatPropertyFn(10),
+		MutableStateChecksumVerifyProbability:        dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
+		MutableStateChecksumGenProbability:           dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
+		HostName:                                     "test-host",
+		EnableReplicationTaskGeneration:              func(string, string) bool { return true },
+		MaximumBufferedEventsBatch:                   func(...dynamicproperties.FilterOption) int { return 100 },
+		EnableCassandraActivityMapSentinelRewrite:    func(...dynamicproperties.FilterOption) bool { return false },
+		EnableCassandraTimerMapSentinelRewrite:       func(...dynamicproperties.FilterOption) bool { return false },
+		CassandraActivityMapSentinelRewriteThreshold: func(...dynamicproperties.FilterOption) int { return 100 },
+		CassandraTimerMapSentinelRewriteThreshold:    func(...dynamicproperties.FilterOption) int { return 100 },
 	}).Times(1)
 	shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())
