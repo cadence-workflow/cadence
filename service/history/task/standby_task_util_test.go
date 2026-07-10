@@ -130,13 +130,20 @@ func TestGetRemoteClusterName(t *testing.T) {
 
 // mockDLQWriter is a simple in-process test double for TaskDLQWriter.
 type mockDLQWriter struct {
-	calls []persistence.CreateHistoryDLQTaskRequest
-	err   error
+	calls    []persistence.CreateHistoryDLQTaskRequest
+	err      error
+	ackCalls []persistence.CreateHistoryDLQAckLevelRequest
+	ackErr   error
 }
 
 func (m *mockDLQWriter) CreateHistoryDLQTask(_ context.Context, req persistence.CreateHistoryDLQTaskRequest) error {
 	m.calls = append(m.calls, req)
 	return m.err
+}
+
+func (m *mockDLQWriter) CreateHistoryDLQAckLevelIfNotExists(_ context.Context, req persistence.CreateHistoryDLQAckLevelRequest) error {
+	m.ackCalls = append(m.ackCalls, req)
+	return m.ackErr
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_NilPostActionInfo_ReturnsNil(t *testing.T) {
@@ -184,15 +191,6 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	mockShard.EXPECT().GetShardID().Return(7)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
-	mockShard.EXPECT().
-		CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, req persistence.CreateHistoryDLQAckLevelRequest) error {
-			assert.Equal(t, "domain-1", req.DomainID)
-			assert.Equal(t, "my-scope", req.ClusterAttributeScope)
-			assert.Equal(t, "my-name", req.ClusterAttributeName)
-			assert.Equal(t, persistence.HistoryTaskCategoryTransfer, req.TaskCategory)
-			return nil
-		})
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -208,6 +206,14 @@ func TestStandbyTaskPostActionWriteToDLQ_WritesTaskToDLQ(t *testing.T) {
 	assert.Equal(t, "my-scope", req.ClusterAttributeScope)
 	assert.Equal(t, "my-name", req.ClusterAttributeName)
 	assert.Equal(t, mockTask, req.Task)
+
+	assert.Len(t, writer.ackCalls, 1)
+	ackReq := writer.ackCalls[0]
+	assert.Equal(t, 7, ackReq.ShardID)
+	assert.Equal(t, "domain-1", ackReq.DomainID)
+	assert.Equal(t, "my-scope", ackReq.ClusterAttributeScope)
+	assert.Equal(t, "my-name", ackReq.ClusterAttributeName)
+	assert.Equal(t, persistence.HistoryTaskCategoryTransfer, ackReq.TaskCategory)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_PropagatesWriterError(t *testing.T) {
@@ -312,7 +318,6 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 	mockShard.EXPECT().GetShardID().Return(7)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
-	mockShard.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(nil)
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeShadow }
 
@@ -323,6 +328,7 @@ func TestStandbyTaskPostActionWriteToDLQ_ShadowMode_WritesToDLQButDiscards(t *te
 	assert.Len(t, writer.calls, 1)
 	assert.Equal(t, "domain-1", writer.calls[0].DomainID)
 	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
+	assert.Len(t, writer.ackCalls, 1)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttributes(t *testing.T) {
@@ -347,13 +353,6 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetShardID().Return(1)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
-	mockShard.EXPECT().
-		CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, req persistence.CreateHistoryDLQAckLevelRequest) error {
-			assert.Equal(t, taskdlq.DefaultClusterAttributeScope, req.ClusterAttributeScope)
-			assert.Equal(t, taskdlq.DefaultClusterAttributeName, req.ClusterAttributeName)
-			return nil
-		})
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -366,6 +365,9 @@ func TestStandbyTaskPostActionWriteToDLQ_NonActiveActiveDomain_UsesDefaultAttrib
 	assert.Equal(t, "my-domain-name", writer.calls[0].DomainName)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.calls[0].ClusterAttributeScope)
 	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.calls[0].ClusterAttributeName)
+	assert.Len(t, writer.ackCalls, 1)
+	assert.Equal(t, taskdlq.DefaultClusterAttributeScope, writer.ackCalls[0].ClusterAttributeScope)
+	assert.Equal(t, taskdlq.DefaultClusterAttributeName, writer.ackCalls[0].ClusterAttributeName)
 }
 
 func TestStandbyTaskPostActionWriteToDLQ_AckLevelFailure_PropagatesErrorForRetry(t *testing.T) {
@@ -373,7 +375,7 @@ func TestStandbyTaskPostActionWriteToDLQ_AckLevelFailure_PropagatesErrorForRetry
 	defer ctrl.Finish()
 
 	sentinel := errors.New("ack level write failed")
-	writer := &mockDLQWriter{}
+	writer := &mockDLQWriter{ackErr: sentinel}
 	mockTask := persistence.NewMockTask(ctrl)
 	mockTask.EXPECT().GetDomainID().Return("domain-1").AnyTimes()
 	mockTask.EXPECT().GetWorkflowID().Return("wf-1").AnyTimes()
@@ -399,7 +401,6 @@ func TestStandbyTaskPostActionWriteToDLQ_AckLevelFailure_PropagatesErrorForRetry
 	mockShard.EXPECT().GetShardID().Return(7)
 	mockShard.EXPECT().GetDomainCache().Return(mockDomainCache).AnyTimes()
 	mockShard.EXPECT().GetActiveClusterManager().Return(mockActiveClusterMgr)
-	mockShard.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(sentinel)
 
 	enabled := func(string) string { return constants.HistoryTaskDLQModeEnabled }
 
@@ -410,4 +411,5 @@ func TestStandbyTaskPostActionWriteToDLQ_AckLevelFailure_PropagatesErrorForRetry
 	// whole standby task is retried (guaranteeing the task row is not left orphaned).
 	assert.ErrorIs(t, err, sentinel)
 	assert.Len(t, writer.calls, 1)
+	assert.Len(t, writer.ackCalls, 1)
 }

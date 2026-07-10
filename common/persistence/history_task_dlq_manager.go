@@ -94,8 +94,7 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 }
 
 // CreateHistoryDLQAckLevelIfNotExists seeds the sentinel ack-level row for a DLQ partition/task
-// category when one does not already exist. It is idempotent: the underlying store uses an
-// IF NOT EXISTS write and treats "row already present" as success, so it never overwrites progress.
+// category when one does not already exist.
 func (m *historyTaskDLQManagerImpl) CreateHistoryDLQAckLevelIfNotExists(
 	ctx context.Context,
 	request CreateHistoryDLQAckLevelRequest,

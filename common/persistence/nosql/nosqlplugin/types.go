@@ -287,7 +287,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          int
 		TaskID                int64
 		WorkflowID            string
 		RunID                 string
@@ -305,7 +305,7 @@ type (
 		DomainID                 string
 		ClusterAttributeScope    string
 		ClusterAttributeName     string
-		TaskType                 int
+		TaskCategory             int
 		InclusiveMinVisibilityTS time.Time
 		InclusiveMinTaskID       int64
 		ExclusiveMaxVisibilityTS time.Time
@@ -320,7 +320,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          int
 		// ExclusiveMaxVisibilityTS and ExclusiveMaxTaskID form the exclusive upper bound for deletion.
 		ExclusiveMaxVisibilityTS time.Time
 		ExclusiveMaxTaskID       int64
@@ -332,7 +332,7 @@ type (
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
+		TaskCategory          int
 		AckLevelVisibilityTS  time.Time
 		AckLevelTaskID        int64
 		LastUpdatedAt         time.Time
