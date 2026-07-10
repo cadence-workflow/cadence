@@ -23,6 +23,7 @@
 package dynamicconfigfx
 
 import (
+	"context"
 	"path/filepath"
 
 	"go.uber.org/fx"
@@ -31,6 +32,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
+	"github.com/uber/cadence/common/dynamicconfig/openfeatureclient"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
@@ -93,6 +95,21 @@ func New(p Params) Result {
 		case dynamicconfig.FileBasedClient:
 			p.Logger.Info("initialising File Based dynamic config client")
 			res, err = dynamicconfig.NewFileBasedClient(&p.Cfg.DynamicConfig.FileBased, p.Logger, stopped)
+		case dynamicconfig.OpenFeatureClient:
+			p.Logger.Info("initialising OpenFeature dynamic config client")
+			res = openfeatureclient.NewOpenFeatureClient(p.Logger)
+
+			providerName := p.Cfg.DynamicConfig.OpenFeature.ProviderName
+			providerConfig := p.Cfg.DynamicConfig.OpenFeature.Provider
+			p.Lifecycle.Append(fx.Hook{
+				OnStart: func(ctx context.Context) error {
+					return openfeatureclient.RegisterProvider(ctx, providerName, providerConfig)
+				},
+				OnStop: func(ctx context.Context) error {
+					openfeatureclient.DeregisterProvider()
+					return nil
+				},
+			})
 		}
 	}
 

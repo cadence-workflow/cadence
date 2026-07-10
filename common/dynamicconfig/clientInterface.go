@@ -34,6 +34,7 @@ const (
 	FileBasedClient   = "filebased"
 	InMemoryClient    = "memory"
 	NopClient         = "nop"
+	OpenFeatureClient = "openfeature"
 )
 
 // Client allows fetching values from a dynamic configuration system NOTE: This does not have async

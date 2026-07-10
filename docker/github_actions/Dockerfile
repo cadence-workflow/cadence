@@ -34,5 +34,6 @@ COPY go.* /cadence
 COPY internal/tools/go.* /cadence/internal/tools/
 COPY cmd/server/go.* /cadence/cmd/server/
 COPY common/archiver/gcloud/go.* /cadence/common/archiver/gcloud/
+COPY common/dynamicconfig/openfeatureprovider/unleash/go.* /cadence/common/dynamicconfig/openfeatureprovider/unleash/
 # go.work means this downloads everything, not just the top module
 RUN go mod download

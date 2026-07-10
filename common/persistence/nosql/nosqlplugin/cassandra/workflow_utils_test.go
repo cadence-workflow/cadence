@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	gogocql "github.com/gocql/gocql"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/pborman/uuid"
@@ -3066,4 +3067,40 @@ func trimColumnsPart(s *string) {
 	re := regexp.MustCompile(`, columns: \(.*\)`)
 	trimmed := re.ReplaceAllString(*s, "")
 	*s = trimmed
+}
+
+func TestFromDataBlobForCassandra(t *testing.T) {
+	tests := []struct {
+		name         string
+		blob         *persistence.DataBlob
+		wantData     interface{}
+		wantEncoding interface{}
+	}{
+		{
+			name:         "nil blob returns UnsetValue",
+			blob:         nil,
+			wantData:     gogocql.UnsetValue,
+			wantEncoding: gogocql.UnsetValue,
+		},
+		{
+			name:         "empty data returns UnsetValue",
+			blob:         &persistence.DataBlob{Data: []byte{}, Encoding: "thriftrw"},
+			wantData:     gogocql.UnsetValue,
+			wantEncoding: gogocql.UnsetValue,
+		},
+		{
+			name:         "non-nil blob returns data and encoding",
+			blob:         &persistence.DataBlob{Data: []byte{1, 2, 3}, Encoding: "thriftrw"},
+			wantData:     []byte{1, 2, 3},
+			wantEncoding: "thriftrw",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data, encoding := fromDataBlobForCassandra(tc.blob)
+			assert.Equal(t, tc.wantData, data)
+			assert.Equal(t, tc.wantEncoding, encoding)
+		})
+	}
 }
