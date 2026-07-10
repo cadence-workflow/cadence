@@ -1511,6 +1511,20 @@ LIMIT 0, 10
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
 	assert.NoError(t, err3)
+
+	request.WorkflowTypeName = "test-wf'type"
+	escapedResult, err := getListWorkflowExecutionsByTypeQuery(testTableName, request, true)
+	expectEscapedResult := fmt.Sprintf(`SELECT *
+FROM %s
+WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
+AND WorkflowType = 'test-wf''type'
+AND CloseTime BETWEEN 1547596871371 AND 2547596873371
+AND CloseStatus >= 0
+Order BY StartTime DESC
+LIMIT 0, 10
+`, testTableName)
+	assert.Equal(t, escapedResult, expectEscapedResult)
+	assert.NoError(t, err)
 }
 
 func TestGetListWorkflowExecutionsByWorkflowIDQuery(t *testing.T) {
@@ -1556,6 +1570,20 @@ LIMIT 0, 10
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
 	assert.NoError(t, err3)
+
+	request.WorkflowID = "test-w'id"
+	escapedResult, err := getListWorkflowExecutionsByWorkflowIDQuery(testTableName, request, true)
+	expectEscapedResult := fmt.Sprintf(`SELECT *
+FROM %s
+WHERE DomainID = 'bfd5c907-f899-4baf-a7b2-2ab85e623ebd'
+AND WorkflowID = 'test-w''id'
+AND CloseTime BETWEEN 1547596871371 AND 2547596873371
+AND CloseStatus >= 0
+Order BY StartTime DESC
+LIMIT 0, 10
+`, testTableName)
+	assert.Equal(t, escapedResult, expectEscapedResult)
+	assert.NoError(t, err)
 }
 
 func TestGetListWorkflowExecutionsByStatusQuery(t *testing.T) {

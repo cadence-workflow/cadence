@@ -18,6 +18,7 @@ use (
 	.
 	./cmd/server
 	./common/archiver/gcloud
+	./common/dynamicconfig/openfeatureprovider/unleash
 
 // DO NOT include, tools dependencies are intentionally separate.
 // ./internal/tools
