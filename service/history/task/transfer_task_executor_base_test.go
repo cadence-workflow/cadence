@@ -148,7 +148,6 @@ func TestPushDecision(t *testing.T) {
 				mockShard.EXPECT().GetActiveClusterManager().Return(activeClusterMgr).AnyTimes()
 				mockShard.EXPECT().GetClusterMetadata().Return(constants.TestClusterMetadata).AnyTimes()
 				mockShard.EXPECT().GetShardID().Return(7).AnyTimes()
-				mockShard.EXPECT().CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).Return(nil)
 
 				writer := &mockDLQWriter{}
 				return &transferTaskExecutorBase{
