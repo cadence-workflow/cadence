@@ -91,12 +91,14 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 	}
 	newResponse := &GetWorkflowExecutionResponse{
 		State: &WorkflowMutableState{
-			TimerInfos:         response.State.TimerInfos,
-			RequestCancelInfos: response.State.RequestCancelInfos,
-			SignalInfos:        response.State.SignalInfos,
-			SignalRequestedIDs: response.State.SignalRequestedIDs,
-			ReplicationState:   response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
-			Checksum:           response.State.Checksum,
+			TimerInfos:               response.State.TimerInfos,
+			RequestCancelInfos:       response.State.RequestCancelInfos,
+			SignalInfos:              response.State.SignalInfos,
+			SignalRequestedIDs:       response.State.SignalRequestedIDs,
+			ReplicationState:         response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
+			Checksum:                 response.State.Checksum,
+			ActivityMapSentinelCount: response.State.ActivityMapSentinelCount,
+			TimerMapSentinelCount:    response.State.TimerMapSentinelCount,
 		},
 	}
 
@@ -714,6 +716,13 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
+	var serializedResetActivityInfos []*InternalActivityInfo
+	if input.ResetActivityInfos != nil {
+		serializedResetActivityInfos, err = m.SerializeUpsertActivityInfos(input.ResetActivityInfos, encoding)
+		if err != nil {
+			return nil, err
+		}
+	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
 		return nil, err
@@ -747,8 +756,10 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 		UpsertActivityInfos:       serializedUpsertActivityInfos,
 		DeleteActivityInfos:       input.DeleteActivityInfos,
+		ResetActivityInfos:        serializedResetActivityInfos,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
+		ResetTimerInfos:           input.ResetTimerInfos,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,

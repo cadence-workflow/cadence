@@ -460,6 +460,9 @@ type (
 		// ChecksumData is used by All SQL storage
 		Checksum     checksum.Checksum
 		ChecksumData *DataBlob
+
+		ActivityMapSentinelCount int
+		TimerMapSentinelCount    int
 	}
 
 	// InternalActivityInfo details  for Persistence Interface
@@ -568,8 +571,10 @@ type (
 
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
+		ResetActivityInfos        []*InternalActivityInfo // non-nil triggers full activity_map rewrite
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
+		ResetTimerInfos           []*TimerInfo // non-nil triggers full timer_map rewrite
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64

@@ -158,6 +158,7 @@ func (e *mutableStateBuilder) DeleteActivity(
 
 	delete(e.updateActivityInfos, scheduleEventID)
 	e.deleteActivityInfos[scheduleEventID] = struct{}{}
+	e.activityMapSentinelCount++
 	return nil
 }
 

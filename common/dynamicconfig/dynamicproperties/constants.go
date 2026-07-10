@@ -1663,6 +1663,20 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// ActivityMapSentinelRewriteThreshold is the number of sentinel entries in the activity_map
+	// before triggering a full map rewrite to consolidate tombstones
+	// KeyName: history.activityMapSentinelRewriteThreshold
+	// Value type: Int
+	// Default value: 100
+	ActivityMapSentinelRewriteThreshold
+
+	// TimerMapSentinelRewriteThreshold is the number of sentinel entries in the timer_map
+	// before triggering a full map rewrite to consolidate tombstones
+	// KeyName: history.timerMapSentinelRewriteThreshold
+	// Value type: Int
+	// Default value: 100
+	TimerMapSentinelRewriteThreshold
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -4580,6 +4594,16 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	ActivityMapSentinelRewriteThreshold: {
+		KeyName:      "history.activityMapSentinelRewriteThreshold",
+		Description:  "Number of sentinel entries in activity_map before triggering a full map rewrite to consolidate tombstones",
+		DefaultValue: 100,
+	},
+	TimerMapSentinelRewriteThreshold: {
+		KeyName:      "history.timerMapSentinelRewriteThreshold",
+		Description:  "Number of sentinel entries in timer_map before triggering a full map rewrite to consolidate tombstones",
+		DefaultValue: 100,
 	},
 }
 

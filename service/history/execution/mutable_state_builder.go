@@ -90,11 +90,13 @@ type (
 		updateActivityInfos        map[int64]*persistence.ActivityInfo // Modified activities from last update.
 		deleteActivityInfos        map[int64]struct{}                  // Deleted activities from last update.
 		syncActivityTasks          map[int64]struct{}                  // Activity to be sync to remote
+		activityMapSentinelCount   int                                 // Number of sentinel entries in Cassandra activity_map
 
 		pendingTimerInfoIDs     map[string]*persistence.TimerInfo // User Timer ID -> Timer Info.
 		pendingTimerEventIDToID map[int64]string                  // User Timer Start Event ID -> User Timer ID.
 		updateTimerInfos        map[string]*persistence.TimerInfo // Modified timers from last update.
 		deleteTimerInfos        map[string]struct{}               // Deleted timers from last update.
+		timerMapSentinelCount   int                               // Number of sentinel entries in Cassandra timer_map
 
 		pendingChildExecutionInfoIDs map[int64]*persistence.ChildExecutionInfo // Initiated Event ID -> Child Execution Info
 		updateChildExecutionInfos    map[int64]*persistence.ChildExecutionInfo // Modified ChildExecution Infos since last update
@@ -336,10 +338,12 @@ func (e *mutableStateBuilder) Load(
 	for _, activityInfo := range state.ActivityInfos {
 		e.pendingActivityIDToEventID[activityInfo.ActivityID] = activityInfo.ScheduleID
 	}
+	e.activityMapSentinelCount = state.ActivityMapSentinelCount
 	e.pendingTimerInfoIDs = state.TimerInfos
 	for _, timerInfo := range state.TimerInfos {
 		e.pendingTimerEventIDToID[timerInfo.StartedID] = timerInfo.TimerID
 	}
+	e.timerMapSentinelCount = state.TimerMapSentinelCount
 	e.pendingChildExecutionInfoIDs = state.ChildExecutionInfos
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
@@ -1479,6 +1483,17 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 
 		Condition: e.nextEventIDInDB,
 		Checksum:  checksum,
+	}
+
+	if e.activityMapSentinelCount >= e.config.ActivityMapSentinelRewriteThreshold() {
+		workflowMutation.ResetActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
+		workflowMutation.DeleteActivityInfos = nil
+		e.activityMapSentinelCount = 0
+	}
+	if e.timerMapSentinelCount >= e.config.TimerMapSentinelRewriteThreshold() {
+		workflowMutation.ResetTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
+		workflowMutation.DeleteTimerInfos = nil
+		e.timerMapSentinelCount = 0
 	}
 
 	e.checksum = checksum

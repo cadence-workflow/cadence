@@ -1970,6 +1970,10 @@ func TestMutableStateBuilder_CopyToPersistence_roundtrip(t *testing.T) {
 		assert.Equal(t, execution.ReplicationState, out.ReplicationState, "replication state mismatch")
 		assert.Equal(t, execution.ExecutionStats, out.ExecutionStats, "execution stats mismatch")
 
+		// Sentinel counts are storage-layer metadata set during Load() but not
+		// emitted by CopyToPersistence(), so zero them before the full-struct comparison.
+		execution.ActivityMapSentinelCount = 0
+		execution.TimerMapSentinelCount = 0
 		assert.Equal(t, execution, out)
 
 	}
@@ -4110,6 +4114,8 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 		HostName:                              "test-host",
 		EnableReplicationTaskGeneration:       func(string, string) bool { return true },
 		MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
+		ActivityMapSentinelRewriteThreshold:   func(...dynamicproperties.FilterOption) int { return 100 },
+		TimerMapSentinelRewriteThreshold:      func(...dynamicproperties.FilterOption) int { return 100 },
 	}).Times(1)
 	shardContext.EXPECT().GetTimeSource().Return(clock.NewMockedTimeSource())
 	shardContext.EXPECT().GetMetricsClient().Return(metrics.NewNoopMetricsClient())

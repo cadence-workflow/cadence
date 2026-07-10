@@ -258,6 +258,7 @@ func (e *mutableStateBuilder) DeleteUserTimer(
 
 	delete(e.updateTimerInfos, timerID)
 	e.deleteTimerInfos[timerID] = struct{}{}
+	e.timerMapSentinelCount++
 	return nil
 }
 
