@@ -3513,6 +3513,73 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			expectedEvent: nil,
 			expectedErr:   nil,
 		},
+		"sentinel rewrite with empty pending maps": {
+			mutableStateSetup: func(ms *mutableStateBuilder) {
+				ms.executionInfo.DomainID = "some-domain-id"
+				ms.executionInfo.NextEventID = 10
+				ms.executionInfo.LastProcessedEvent = 5
+				ms.executionInfo.State = persistence.WorkflowStateRunning
+				ms.executionInfo.CloseStatus = persistence.WorkflowCloseStatusNone
+				ms.activityMapSentinelCount = 100
+				ms.timerMapSentinelCount = 100
+				ms.config.EnableActivityMapSentinelRewrite = func(...dynamicproperties.FilterOption) bool { return true }
+				ms.config.EnableTimerMapSentinelRewrite = func(...dynamicproperties.FilterOption) bool { return true }
+			},
+			shardContextExpectations: func(mockCache *events.MockCache, shardContext *shardCtx.MockContext, mockDomainCache *cache.MockDomainCache) {
+				shardContext.EXPECT().GetConfig().Return(&config.Config{
+					NumberOfShards:                        2,
+					IsAdvancedVisConfigExist:              false,
+					MaxResponseSize:                       0,
+					MutableStateChecksumInvalidateBefore:  dynamicproperties.GetFloatPropertyFn(10),
+					MutableStateChecksumVerifyProbability: dynamicproperties.GetIntPropertyFilteredByDomain(0.0),
+					HostName:                              "test-host",
+					EnableReplicationTaskGeneration:       func(string, string) bool { return true },
+					MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
+				}).Times(2)
+
+				shardContext.EXPECT().GetDomainCache().Return(mockDomainCache).Times(1)
+				mockDomainCache.EXPECT().GetDomainByID("some-domain-id").Return(mockDomain, nil)
+			},
+			expectedMutation: &persistence.WorkflowMutation{
+				ExecutionInfo: &persistence.WorkflowExecutionInfo{
+					DomainID:             "some-domain-id",
+					NextEventID:          10,
+					LastProcessedEvent:   5,
+					State:                persistence.WorkflowStateRunning,
+					CloseStatus:          persistence.WorkflowCloseStatusNone,
+					LastUpdatedTimestamp: now,
+					DecisionVersion:      commonconstants.EmptyVersion,
+					DecisionScheduleID:   commonconstants.EmptyEventID,
+					DecisionRequestID:    commonconstants.EmptyUUID,
+					DecisionStartedID:    commonconstants.EmptyEventID,
+				},
+				TasksByCategory: map[persistence.HistoryTaskCategory][]persistence.Task{
+					persistence.HistoryTaskCategoryTransfer:    nil,
+					persistence.HistoryTaskCategoryTimer:       nil,
+					persistence.HistoryTaskCategoryReplication: nil,
+				},
+				UpsertActivityInfos:       []*persistence.ActivityInfo{},
+				DeleteActivityInfos:       nil,
+				ResetActivityMap:          true,
+				UseActivityMapSentinel:    true,
+				UpsertTimerInfos:          []*persistence.TimerInfo{},
+				DeleteTimerInfos:          nil,
+				ResetTimerMap:             true,
+				UseTimerMapSentinel:       true,
+				UpsertChildExecutionInfos: []*persistence.ChildExecutionInfo{},
+				UpsertRequestCancelInfos:  []*persistence.RequestCancelInfo{},
+				DeleteRequestCancelInfos:  []int64{},
+				UpsertSignalInfos:         []*persistence.SignalInfo{},
+				DeleteSignalInfos:         []int64{},
+				UpsertSignalRequestedIDs:  []string{},
+				DeleteSignalRequestedIDs:  []string{},
+				DeleteChildExecutionInfos: []int64{},
+				WorkflowRequests:          []*persistence.WorkflowRequest{},
+				Condition:                 0,
+			},
+			expectedEvent: nil,
+			expectedErr:   nil,
+		},
 		"with buffered events": {
 			mutableStateSetup: func(ms *mutableStateBuilder) {
 				ms.executionInfo.DomainID = "some-domain-id"

@@ -571,12 +571,14 @@ type (
 
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
-		ResetActivityInfos        []*InternalActivityInfo // non-nil triggers full activity_map rewrite
-		UseActivityMapSentinel    bool                    // when true, use sentinel writes instead of DELETE for activity_map
+		ResetActivityInfos        []*InternalActivityInfo
+		ResetActivityMap          bool // triggers full activity_map rewrite, even if ResetActivityInfos is empty
+		UseActivityMapSentinel    bool // when true, use sentinel writes instead of DELETE for activity_map
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		ResetTimerInfos           []*TimerInfo // non-nil triggers full timer_map rewrite
-		UseTimerMapSentinel       bool         // when true, use sentinel writes instead of DELETE for timer_map
+		ResetTimerInfos           []*TimerInfo
+		ResetTimerMap             bool // triggers full timer_map rewrite, even if ResetTimerInfos is empty
+		UseTimerMapSentinel       bool // when true, use sentinel writes instead of DELETE for timer_map
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64

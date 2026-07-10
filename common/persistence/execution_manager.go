@@ -717,11 +717,18 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		return nil, err
 	}
 	var serializedResetActivityInfos []*InternalActivityInfo
-	if input.ResetActivityInfos != nil {
+	if input.ResetActivityMap {
 		serializedResetActivityInfos, err = m.SerializeUpsertActivityInfos(input.ResetActivityInfos, encoding)
 		if err != nil {
 			return nil, err
 		}
+		if serializedResetActivityInfos == nil {
+			serializedResetActivityInfos = []*InternalActivityInfo{}
+		}
+	}
+	resetTimerInfos := input.ResetTimerInfos
+	if input.ResetTimerMap && resetTimerInfos == nil {
+		resetTimerInfos = []*TimerInfo{}
 	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
@@ -757,10 +764,12 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		UpsertActivityInfos:       serializedUpsertActivityInfos,
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		ResetActivityInfos:        serializedResetActivityInfos,
+		ResetActivityMap:          input.ResetActivityMap,
 		UseActivityMapSentinel:    input.UseActivityMapSentinel,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
-		ResetTimerInfos:           input.ResetTimerInfos,
+		ResetTimerInfos:           resetTimerInfos,
+		ResetTimerMap:             input.ResetTimerMap,
 		UseTimerMapSentinel:       input.UseTimerMapSentinel,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
