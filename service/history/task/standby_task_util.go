@@ -46,6 +46,10 @@ type (
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 
 	// TaskDLQWriter is the subset of persistence.HistoryTaskDLQManager used by standby task executors.
+	//
+	// TODO: Remove this interface and the dlqWriter injection from the standby task executors. The
+	// writer is now the shard-scoped shard.GetHistoryTaskDLQWriter(); the post-action should fetch it
+	// directly from the shard instead of having it threaded through the executor constructors.
 	TaskDLQWriter interface {
 		CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error
 		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error

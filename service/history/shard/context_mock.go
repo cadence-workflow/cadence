@@ -311,6 +311,20 @@ func (mr *MockContextMockRecorder) GetHistoryManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryManager", reflect.TypeOf((*MockContext)(nil).GetHistoryManager))
 }
 
+// GetHistoryTaskDLQWriter mocks base method.
+func (m *MockContext) GetHistoryTaskDLQWriter() TaskDLQWriter {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQWriter")
+	ret0, _ := ret[0].(TaskDLQWriter)
+	return ret0
+}
+
+// GetHistoryTaskDLQWriter indicates an expected call of GetHistoryTaskDLQWriter.
+func (mr *MockContextMockRecorder) GetHistoryTaskDLQWriter() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQWriter", reflect.TypeOf((*MockContext)(nil).GetHistoryTaskDLQWriter))
+}
+
 // GetLastUpdatedTime mocks base method.
 func (m *MockContext) GetLastUpdatedTime() time.Time {
 	m.ctrl.T.Helper()
@@ -729,4 +743,56 @@ func (m *MockContext) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 func (mr *MockContextMockRecorder) ValidateAndUpdateFailoverMarkers() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateAndUpdateFailoverMarkers", reflect.TypeOf((*MockContext)(nil).ValidateAndUpdateFailoverMarkers))
+}
+
+// MockTaskDLQWriter is a mock of TaskDLQWriter interface.
+type MockTaskDLQWriter struct {
+	ctrl     *gomock.Controller
+	recorder *MockTaskDLQWriterMockRecorder
+	isgomock struct{}
+}
+
+// MockTaskDLQWriterMockRecorder is the mock recorder for MockTaskDLQWriter.
+type MockTaskDLQWriterMockRecorder struct {
+	mock *MockTaskDLQWriter
+}
+
+// NewMockTaskDLQWriter creates a new mock instance.
+func NewMockTaskDLQWriter(ctrl *gomock.Controller) *MockTaskDLQWriter {
+	mock := &MockTaskDLQWriter{ctrl: ctrl}
+	mock.recorder = &MockTaskDLQWriterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockTaskDLQWriter) EXPECT() *MockTaskDLQWriterMockRecorder {
+	return m.recorder
+}
+
+// CreateHistoryDLQAckLevelIfNotExists mocks base method.
+func (m *MockTaskDLQWriter) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateHistoryDLQAckLevelIfNotExists", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHistoryDLQAckLevelIfNotExists indicates an expected call of CreateHistoryDLQAckLevelIfNotExists.
+func (mr *MockTaskDLQWriterMockRecorder) CreateHistoryDLQAckLevelIfNotExists(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQAckLevelIfNotExists", reflect.TypeOf((*MockTaskDLQWriter)(nil).CreateHistoryDLQAckLevelIfNotExists), ctx, request)
+}
+
+// CreateHistoryDLQTask mocks base method.
+func (m *MockTaskDLQWriter) CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateHistoryDLQTask", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHistoryDLQTask indicates an expected call of CreateHistoryDLQTask.
+func (mr *MockTaskDLQWriterMockRecorder) CreateHistoryDLQTask(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQTask", reflect.TypeOf((*MockTaskDLQWriter)(nil).CreateHistoryDLQTask), ctx, request)
 }
