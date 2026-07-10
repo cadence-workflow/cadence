@@ -157,8 +157,9 @@ func (s *HistoryTaskDLQPersistenceSuite) TestCreateAndGetHistoryDLQTask() {
 	s.Equal(p.HistoryTaskCategoryTransfer, got.GetTaskCategory())
 }
 
-// TestCreateInitializesAckLevelSentinel verifies that the first write to a partition initializes
-// an ack-level row at the minimum task key (the IF NOT EXISTS sentinel).
+// TestCreateInitializesAckLevelSentinel verifies that CreateHistoryDLQAckLevelIfNotExists seeds an
+// ack-level row at the minimum task key, and that a subsequent call is a no-op that never overwrites
+// recorded progress.
 func (s *HistoryTaskDLQPersistenceSuite) TestCreateInitializesAckLevelSentinel() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
@@ -170,12 +171,12 @@ func (s *HistoryTaskDLQPersistenceSuite) TestCreateInitializesAckLevelSentinel()
 		name    = "cluster-a"
 	)
 
-	err := s.dlqManager.CreateHistoryDLQTask(ctx, p.CreateHistoryDLQTaskRequest{
+	err := s.dlqManager.CreateHistoryDLQAckLevelIfNotExists(ctx, p.CreateHistoryDLQAckLevelRequest{
 		ShardID:               shardID,
 		DomainID:              domain,
 		ClusterAttributeScope: scope,
 		ClusterAttributeName:  name,
-		Task:                  s.newTransferTask(1, 1),
+		TaskCategory:          p.HistoryTaskCategoryTransfer,
 	})
 	s.NoError(err)
 
@@ -190,10 +191,39 @@ func (s *HistoryTaskDLQPersistenceSuite) TestCreateInitializesAckLevelSentinel()
 	s.Len(ackLevels, 1)
 	s.Equal(p.MinimumHistoryTaskKey.GetTaskID(), ackLevels[0].AckLevelTaskID)
 	s.Equal(p.HistoryTaskCategoryTransfer, ackLevels[0].TaskCategory)
+
+	// Advance the ack level
+	s.NoError(s.dlqManager.UpdateHistoryDLQAckLevel(ctx, p.HistoryDLQUpdateAckLevelRequest{
+		ShardID:                   shardID,
+		DomainID:                  domain,
+		ClusterAttributeScope:     scope,
+		ClusterAttributeName:      name,
+		TaskCategory:              p.HistoryTaskCategoryTransfer,
+		UpdatedInclusiveReadLevel: p.NewImmediateTaskKey(42),
+	}))
+	// Re-seed the ack level
+	s.NoError(s.dlqManager.CreateHistoryDLQAckLevelIfNotExists(ctx, p.CreateHistoryDLQAckLevelRequest{
+		ShardID:               shardID,
+		DomainID:              domain,
+		ClusterAttributeScope: scope,
+		ClusterAttributeName:  name,
+		TaskCategory:          p.HistoryTaskCategoryTransfer,
+	}))
+	// Verify the ack level is still at the advanced level
+	ackLevels, err = s.dlqManager.GetHistoryDLQAckLevels(ctx, p.HistoryDLQGetAckLevelsRequest{
+		ShardID:               shardID,
+		DomainID:              domain,
+		ClusterAttributeScope: scope,
+		ClusterAttributeName:  name,
+		TaskCategory:          p.HistoryTaskCategoryTransfer,
+	})
+	s.NoError(err)
+	s.Len(ackLevels, 1)
+	s.Equal(int64(42), ackLevels[0].AckLevelTaskID)
 }
 
 // TestUpdateAndGetAckLevel updates an ack level and verifies it is read back, and that a subsequent
-// task create does not reset the recorded progress (the sentinel only initializes, never overwrites).
+// task create does not reset the recorded progress.
 func (s *HistoryTaskDLQPersistenceSuite) TestUpdateAndGetAckLevel() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
@@ -380,13 +410,25 @@ func (s *HistoryTaskDLQPersistenceSuite) TestAckLevelFilteringScopes() {
 		ShardID: shardID, DomainID: domainA, ClusterAttributeScope: scope, ClusterAttributeName: nameX,
 		Task: s.newTransferTask(1, 1),
 	}))
+	s.NoError(s.dlqManager.CreateHistoryDLQAckLevelIfNotExists(ctx, p.CreateHistoryDLQAckLevelRequest{
+		ShardID: shardID, DomainID: domainA, ClusterAttributeScope: scope, ClusterAttributeName: nameX,
+		TaskCategory: p.HistoryTaskCategoryTransfer,
+	}))
 	s.NoError(s.dlqManager.CreateHistoryDLQTask(ctx, p.CreateHistoryDLQTaskRequest{
 		ShardID: shardID, DomainID: domainA, ClusterAttributeScope: scope, ClusterAttributeName: nameY,
 		Task: s.newTransferTask(1, 1),
 	}))
+	s.NoError(s.dlqManager.CreateHistoryDLQAckLevelIfNotExists(ctx, p.CreateHistoryDLQAckLevelRequest{
+		ShardID: shardID, DomainID: domainA, ClusterAttributeScope: scope, ClusterAttributeName: nameY,
+		TaskCategory: p.HistoryTaskCategoryTransfer,
+	}))
 	s.NoError(s.dlqManager.CreateHistoryDLQTask(ctx, p.CreateHistoryDLQTaskRequest{
 		ShardID: shardID, DomainID: domainB, ClusterAttributeScope: scope, ClusterAttributeName: nameX,
 		Task: s.newTimerTask(1, 1, timerTS),
+	}))
+	s.NoError(s.dlqManager.CreateHistoryDLQAckLevelIfNotExists(ctx, p.CreateHistoryDLQAckLevelRequest{
+		ShardID: shardID, DomainID: domainB, ClusterAttributeScope: scope, ClusterAttributeName: nameX,
+		TaskCategory: p.HistoryTaskCategoryTimer,
 	}))
 
 	// Shard-wide: all three partitions.

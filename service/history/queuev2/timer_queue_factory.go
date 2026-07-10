@@ -122,7 +122,7 @@ func (f *timerQueueFactory) createQueuev2(
 		shard.GetMetricsClient(),
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
-		shard.GetService().GetHistoryTaskDLQManager(),
+		shard.GetHistoryTaskDLQWriter(),
 	)
 	executorWrapper := task.NewExecutorWrapper(
 		shard.GetClusterMetadata().GetCurrentClusterName(),

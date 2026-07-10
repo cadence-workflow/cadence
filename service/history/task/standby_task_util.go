@@ -46,8 +46,13 @@ type (
 	standbyCurrentTimeFn func(persistence.Task) (time.Time, error)
 
 	// TaskDLQWriter is the subset of persistence.HistoryTaskDLQManager used by standby task executors.
+	//
+	// TODO: Remove this interface and the dlqWriter injection from the standby task executors. The
+	// writer is now the shard-scoped shard.GetHistoryTaskDLQWriter(); the post-action should fetch it
+	// directly from the shard instead of having it threaded through the executor constructors.
 	TaskDLQWriter interface {
 		CreateHistoryDLQTask(ctx context.Context, request persistence.CreateHistoryDLQTaskRequest) error
+		CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, request persistence.CreateHistoryDLQAckLevelRequest) error
 	}
 )
 
@@ -158,6 +163,7 @@ func standbyTaskPostActionWriteToDLQ(
 			Task:                  task,
 		}
 		ackLevelRequest := persistence.CreateHistoryDLQAckLevelRequest{
+			ShardID:               shardID,
 			DomainID:              domainID,
 			ClusterAttributeScope: clusterAttribute.Scope,
 			ClusterAttributeName:  clusterAttribute.Name,
@@ -173,13 +179,13 @@ func standbyTaskPostActionWriteToDLQ(
 			if err := writer.CreateHistoryDLQTask(ctx, dlqTaskRequest); err != nil {
 				return err
 			}
-			return shard.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest)
+			return writer.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest)
 		case constants.HistoryTaskDLQModeShadow:
 			logger.Warn("Writing standby task to DLQ in shadow mode; task will be discarded.", taskTags...)
 			if err := writer.CreateHistoryDLQTask(ctx, dlqTaskRequest); err != nil {
-				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.")
-			} else if err := shard.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest); err != nil {
-				logger.Warn("Failed to seed DLQ ack level in shadow mode. Will discard the task.")
+				logger.Warn("Failed to write standby task to DLQ in shadow mode. Will discard the task.", tag.Error(err))
+			} else if err := writer.CreateHistoryDLQAckLevelIfNotExists(ctx, ackLevelRequest); err != nil {
+				logger.Warn("Failed to seed DLQ ack level in shadow mode. Will discard the task.", tag.Error(err))
 			}
 			return standbyTaskPostActionTaskDiscarded(ctx, task, postActionInfo, logger)
 		default:

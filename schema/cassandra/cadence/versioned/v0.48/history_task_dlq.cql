@@ -6,7 +6,7 @@
 -- Partition key (shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name)
 -- partitions the DLQ per domain and cluster attribute pair, to allow processing per-failover.
 --
--- Clustering key (task_type, visibility_ts, task_id) mirrors the HistoryTaskKey
+-- Clustering key (task_category, visibility_ts, task_id) mirrors the HistoryTaskKey
 -- structure used throughout the history service:
 --   - Immediate tasks (transfer, replication): visibility_ts = epoch (time.Unix(0,0)),
 --     ordered primarily by task_id.
@@ -20,7 +20,7 @@ CREATE TABLE history_task_dlq (
     domain_id                 text,
     cluster_attribute_scope   text,
     cluster_attribute_name    text,
-    task_type                 int,
+    task_category             int,
     visibility_ts             timestamp,
     task_id                   bigint,
     workflow_id               text,
@@ -29,8 +29,8 @@ CREATE TABLE history_task_dlq (
     encoding_type             text,
     version                   bigint,
     created_at                timestamp,
-    PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_type, visibility_ts, task_id)
-) WITH CLUSTERING ORDER BY (task_type ASC, visibility_ts ASC, task_id ASC)
+    PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_category, visibility_ts, task_id)
+) WITH CLUSTERING ORDER BY (task_category ASC, visibility_ts ASC, task_id ASC)
     AND compaction = {
         'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
     };
@@ -52,11 +52,11 @@ CREATE TABLE history_task_dlq_ack_level (
     domain_id                 text,
     cluster_attribute_scope   text,
     cluster_attribute_name    text,
-    task_type                 int,
+    task_category             int,
     ack_level_visibility_ts   timestamp,
     ack_level_task_id         bigint,
     last_updated_at           timestamp,
-    PRIMARY KEY ((shard_id), domain_id, cluster_attribute_scope, cluster_attribute_name, task_type)
+    PRIMARY KEY ((shard_id), domain_id, cluster_attribute_scope, cluster_attribute_name, task_category)
 ) WITH compaction = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
 };

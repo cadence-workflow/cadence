@@ -574,7 +574,7 @@ type (
 		// InsertOrUpdateHistoryDLQAckLevelRow upserts a single ack-level row.
 		InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *HistoryDLQAckLevelRow) error
 		// InsertHistoryDLQAckLevelIfNotExistsRow writes a sentinel ack-level row only when
-		// no row for this (shard, domain, scope, name, task_type) already exists.
+		// no row for this (shard, domain, scope, name, task_category) already exists.
 		// Both outcomes (created or already present) are successful.
 		InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *HistoryDLQAckLevelRow) error
 	}
