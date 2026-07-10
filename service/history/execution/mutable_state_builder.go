@@ -1490,6 +1490,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 	if e.config.EnableActivityMapSentinelRewrite() && e.activityMapSentinelCount >= e.config.ActivityMapSentinelRewriteThreshold() {
 		start := time.Now()
 		workflowMutation.ResetActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
+		workflowMutation.ResetActivityMap = true
 		workflowMutation.DeleteActivityInfos = nil
 		e.activityMapSentinelCount = 0
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapSentinelRewriteCounter)
@@ -1498,6 +1499,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 	if e.config.EnableTimerMapSentinelRewrite() && e.timerMapSentinelCount >= e.config.TimerMapSentinelRewriteThreshold() {
 		start := time.Now()
 		workflowMutation.ResetTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
+		workflowMutation.ResetTimerMap = true
 		workflowMutation.DeleteTimerInfos = nil
 		e.timerMapSentinelCount = 0
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapSentinelRewriteCounter)
