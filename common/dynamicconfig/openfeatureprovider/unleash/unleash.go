@@ -52,6 +52,9 @@ type Config struct {
 	InstanceID string `yaml:"instanceId"`
 	// Environment is the Unleash environment to evaluate flags against.
 	Environment string `yaml:"environment"`
+	// ProjectName scopes flag evaluation to a single Unleash project. Left
+	// empty, the client evaluates against all projects.
+	ProjectName string `yaml:"projectName"`
 	// APIToken authenticates against Unleash's API. Required by Unleash OSS
 	// and Enterprise servers (a client-side/backend token, e.g.
 	// "default:development.unleash-insecure-api-token"); left empty for
@@ -60,6 +63,9 @@ type Config struct {
 	// RefreshInterval controls how often the client polls Unleash for flag updates.
 	// Defaults to the Unleash client library's own default when zero.
 	RefreshInterval time.Duration `yaml:"refreshInterval"`
+	// MetricsInterval controls how often the client uploads usage metrics to
+	// Unleash. Defaults to the Unleash client library's own default when zero.
+	MetricsInterval time.Duration `yaml:"metricsInterval"`
 	// BootstrapFile, if set, points to a JSON file in the same format as
 	// Unleash's `/api/client/features` response. Its contents seed the
 	// client's flag repository before the first successful poll, so
@@ -91,11 +97,17 @@ func newProvider(cfg openfeatureprovider.Decoder) (openfeature.FeatureProvider, 
 	if c.Environment != "" {
 		options = append(options, unleashclient.WithEnvironment(c.Environment))
 	}
+	if c.ProjectName != "" {
+		options = append(options, unleashclient.WithProjectName(c.ProjectName))
+	}
 	if c.APIToken != "" {
 		options = append(options, unleashclient.WithCustomHeaders(http.Header{"Authorization": {c.APIToken}}))
 	}
 	if c.RefreshInterval > 0 {
 		options = append(options, unleashclient.WithRefreshInterval(c.RefreshInterval))
+	}
+	if c.MetricsInterval > 0 {
+		options = append(options, unleashclient.WithMetricsInterval(c.MetricsInterval))
 	}
 	if c.BootstrapFile != "" {
 		data, err := os.ReadFile(c.BootstrapFile)
