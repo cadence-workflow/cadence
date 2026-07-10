@@ -38,6 +38,7 @@ We also provide several other compose files for different features/modes:
 * docker-compose-statsd.yaml runs with Statsd+Graphite
 * docker-compose-multiclusters.yaml runs with 2 cadence clusters
 * docker-compose-custom-config.yml uses a custom configuration file instead of the template
+* docker-compose-unleash.yml uses OpenFeature + Unleash OSS for dynamic config instead of the file-based client (builds the cadence image locally - see the file's header comment)
 
 For example:
 ```

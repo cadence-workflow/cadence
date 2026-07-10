@@ -676,7 +676,7 @@ func (db *CDB) DeleteCrossClusterTask(ctx context.Context, shardID int, targetCl
 func (db *CDB) InsertReplicationDLQTask(ctx context.Context, shardID int, sourceCluster string, replicationTask *nosqlplugin.HistoryMigrationTask) error {
 	// Use source cluster name as the workflow id for replication dlq
 	task := replicationTask.Replication
-	taskBlob, taskEncoding := persistence.FromDataBlob(replicationTask.Task)
+	taskBlob, taskEncoding := fromDataBlobForCassandra(replicationTask.Task)
 	query := db.session.Query(templateCreateReplicationTaskQuery,
 		shardID,
 		rowTypeDLQ,

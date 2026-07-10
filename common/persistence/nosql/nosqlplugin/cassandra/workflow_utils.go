@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	gogocql "github.com/gocql/gocql"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/persistence"
@@ -448,6 +450,16 @@ func createTasksByCategory(
 	// TODO: implementing writing tasks for other categories
 }
 
+// fromDataBlobForCassandra extracts data and encoding from a DataBlob for use in CQL queries.
+// Unlike persistence.FromDataBlob, it returns gocql.UnsetValue for nil blobs to avoid
+// creating cell-level tombstones on the data/data_encoding columns.
+func fromDataBlobForCassandra(blob *persistence.DataBlob) (interface{}, interface{}) {
+	if blob == nil || len(blob.Data) == 0 {
+		return gogocql.UnsetValue, gogocql.UnsetValue
+	}
+	return blob.Data, string(blob.Encoding)
+}
+
 func createTimerTasks(
 	batch gocql.Batch,
 	shardID int,
@@ -458,7 +470,7 @@ func createTimerTasks(
 ) error {
 	for _, timer := range timerTasks {
 		task := timer.Timer
-		taskBlob, taskEncoding := persistence.FromDataBlob(timer.Task)
+		taskBlob, taskEncoding := fromDataBlobForCassandra(timer.Task)
 		// Ignoring possible type cast errors.
 		ts := persistence.UnixNanoToDBTimestamp(task.VisibilityTimestamp.UnixNano())
 
@@ -499,7 +511,7 @@ func createReplicationTasks(
 ) {
 	for _, replication := range replicationTasks {
 		task := replication.Replication
-		taskBlob, taskEncoding := persistence.FromDataBlob(replication.Task)
+		taskBlob, taskEncoding := fromDataBlobForCassandra(replication.Task)
 		batch.Query(templateCreateReplicationTaskQuery,
 			shardID,
 			rowTypeReplicationTask,
@@ -540,7 +552,7 @@ func createTransferTasks(
 ) {
 	for _, transfer := range transferTasks {
 		task := transfer.Transfer
-		taskBlob, taskEncoding := persistence.FromDataBlob(transfer.Task)
+		taskBlob, taskEncoding := fromDataBlobForCassandra(transfer.Task)
 		batch.Query(templateCreateTransferTaskQuery,
 			shardID,
 			rowTypeTransferTask,
