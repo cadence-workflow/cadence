@@ -112,7 +112,7 @@ type (
 	}
 
 	// PeerProvider is provider config. Contents depends on plugin in use
-	PeerProvider map[string]*YamlNode
+	PeerProvider map[string]*yaml.Node
 
 	HeaderRule struct {
 		Add   bool // if false, matching headers are removed if previously matched.
@@ -531,8 +531,8 @@ type (
 	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
 	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
 	//
-	// For handling hardcoded config, see ToYamlNode.
-	HistoryArchiverProvider map[string]*YamlNode
+	// For handling hardcoded config, see yaml.ToNode.
+	HistoryArchiverProvider map[string]*yaml.Node
 
 	// VisibilityArchival contains the config for visibility archival
 	VisibilityArchival struct {
@@ -555,8 +555,8 @@ type (
 	//  - S3storeConfig: [*S3Archiver], used with provider scheme [github.com/uber/cadence/common/archiver/s3store.URIScheme]
 	//  - "gstorage" via [github.com/uber/cadence/common/archiver/gcloud.ConfigKey]: [github.com/uber/cadence/common/archiver/gcloud.Config], used with provider scheme "gs" [github.com/uber/cadence/common/archiver/gcloud.URIScheme]
 	//
-	// For handling hardcoded config, see ToYamlNode.
-	VisibilityArchiverProvider map[string]*YamlNode
+	// For handling hardcoded config, see yaml.ToNode.
+	VisibilityArchiverProvider map[string]*yaml.Node
 
 	// FilestoreArchiver contain the config for filestore archiver
 	FilestoreArchiver struct {
@@ -627,19 +627,10 @@ type (
 	// Config types and structures expected in the main default binary include:
 	// - type: "kafka", config: [*github.com/uber/cadence/common/asyncworkflow/queue/kafka.QueueConfig]]]
 	AsyncWorkflowQueueProvider struct {
-		Type   string    `yaml:"type"`
-		Config *YamlNode `yaml:"config"`
+		Type   string     `yaml:"type"`
+		Config *yaml.Node `yaml:"config"`
 	}
 )
-
-// YamlNode is a lazy-unmarshaler, because *yaml.Node only exists in gopkg.in/yaml.v3, not v2,
-// and go.uber.org/config currently uses only v2. Defined in common/config/yaml so leaf
-// config packages that must stay import-cycle-free with common/config (e.g.
-// common/dynamicconfig/openfeatureclient/config) can reuse it too.
-type YamlNode = yaml.Node
-
-// ToYamlNode is a bit of a hack to get a *yaml.Node for config-parsing compatibility purposes.
-var ToYamlNode = yaml.ToNode
 
 const (
 	// NonShardedStoreName is the shard name used for singular (non-sharded) stores

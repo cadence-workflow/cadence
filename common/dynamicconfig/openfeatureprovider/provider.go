@@ -37,8 +37,9 @@ import (
 )
 
 type (
-	// Decoder decodes a provider's own configuration. *config.YamlNode satisfies this
-	// structurally, so this package never needs to import common/config.
+	// Decoder decodes a provider's own configuration. *yaml.Node (from
+	// common/config/yaml) satisfies this structurally, so this package never
+	// needs to import common/config.
 	Decoder interface {
 		Decode(out any) error
 	}

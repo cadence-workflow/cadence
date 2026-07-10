@@ -28,6 +28,7 @@ import (
 	"go.uber.org/yarpc/transport/tchannel"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/syncmap"
@@ -44,7 +45,7 @@ type Container struct {
 	Portmap membership.PortMap
 }
 
-type constructorFn func(cfg *config.YamlNode, container Container) (membership.PeerProvider, error)
+type constructorFn func(cfg *yaml.Node, container Container) (membership.PeerProvider, error)
 
 var plugins = syncmap.New[string, plugin]()
 
