@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -258,7 +259,11 @@ func (e *mutableStateBuilder) DeleteUserTimer(
 
 	delete(e.updateTimerInfos, timerID)
 	e.deleteTimerInfos[timerID] = struct{}{}
-	e.timerMapSentinelCount++
+	if e.config.EnableTimerMapSentinelRewrite() {
+		e.timerMapSentinelCount++
+	} else {
+		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapDeleteCounter)
+	}
 	return nil
 }
 

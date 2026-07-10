@@ -4114,6 +4114,8 @@ func createMSBWithMocks(mockCache *events.MockCache, shardContext *shardCtx.Mock
 		HostName:                              "test-host",
 		EnableReplicationTaskGeneration:       func(string, string) bool { return true },
 		MaximumBufferedEventsBatch:            func(...dynamicproperties.FilterOption) int { return 100 },
+		EnableActivityMapSentinelRewrite:      func(...dynamicproperties.FilterOption) bool { return false },
+		EnableTimerMapSentinelRewrite:         func(...dynamicproperties.FilterOption) bool { return false },
 		ActivityMapSentinelRewriteThreshold:   func(...dynamicproperties.FilterOption) int { return 100 },
 		TimerMapSentinelRewriteThreshold:      func(...dynamicproperties.FilterOption) int { return 100 },
 	}).Times(1)
