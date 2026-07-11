@@ -71,16 +71,10 @@ DELETE FROM replication_tasks
 WHERE (shard_id, task_id) IN (SELECT shard_id, task_id FROM tasks_to_delete);`
 
 	rangeDeleteTimerTaskQuery        = `DELETE FROM timer_tasks WHERE shard_id = ? AND visibility_timestamp >= ? AND visibility_timestamp < ?`
-	rangeDeleteTimerTaskByBatchQuery = `WITH tasks_to_delete AS (
-    SELECT shard_id, visibility_timestamp, task_id
-    FROM timer_tasks
+	rangeDeleteTimerTaskByBatchQuery = `DELETE FROM timer_tasks WHERE rowid IN (
+    SELECT rowid FROM timer_tasks
     WHERE shard_id = ? AND visibility_timestamp >= ? AND visibility_timestamp < ?
-    ORDER BY visibility_timestamp,task_id
-    LIMIT ?
-)
-
-DELETE FROM timer_tasks
-WHERE (shard_id, visibility_timestamp, task_id) IN (SELECT shard_id, visibility_timestamp, task_id FROM tasks_to_delete);`
+    ORDER BY visibility_timestamp, task_id LIMIT ?);`
 )
 
 // ReadLockExecutions acquires a write lock on a single row in executions table
