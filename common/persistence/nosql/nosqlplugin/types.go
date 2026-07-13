@@ -60,8 +60,6 @@ type (
 		TimerInfoKeysToDelete          []string
 		ResetActivityInfos             map[int64]*persistence.InternalActivityInfo // non-nil triggers full activity_map rewrite
 		ResetTimerInfos                map[string]*persistence.TimerInfo           // non-nil triggers full timer_map rewrite
-		UseActivityMapSentinel         bool                                        // when true, use sentinel writes instead of DELETE for activity_map
-		UseTimerMapSentinel            bool                                        // when true, use sentinel writes instead of DELETE for timer_map
 		ChildWorkflowInfoKeysToDelete  []int64
 		RequestCancelInfoKeysToDelete  []int64
 		SignalInfoKeysToDelete         []int64

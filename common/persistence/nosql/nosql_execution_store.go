@@ -58,6 +58,18 @@ func newNoSQLExecutionStore(
 	}, nil
 }
 
+func (d *nosqlExecutionStore) GetShardID() int {
+	return d.shardID
+}
+
+func (d *nosqlExecutionStore) GetActivityMapDeleteResetThreshold() int {
+	return d.db.GetActivityMapDeleteResetThreshold()
+}
+
+func (d *nosqlExecutionStore) GetTimerMapDeleteResetThreshold() int {
+	return d.db.GetTimerMapDeleteResetThreshold()
+}
+
 func resolveRequestShardID(requestShardID *int, operation string, logger log.Logger) (int, error) {
 	if requestShardID == nil {
 		err := &types.BadRequestError{Message: "execution persistence request missing shard ID"}

@@ -1265,6 +1265,8 @@ func createWorkflowExecutionWithMergeMaps(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	useActivitySentinel bool,
+	useTimerSentinel bool,
 	timeStamp time.Time,
 ) error {
 	err := createWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
@@ -1280,11 +1282,11 @@ func createWorkflowExecutionWithMergeMaps(
 		return fmt.Errorf("should only support WorkflowExecutionMapsWriteModeCreate")
 	}
 
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, nil, execution.UseActivityMapSentinel, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, nil, nil, useActivitySentinel, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, nil, execution.UseTimerMapSentinel, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, nil, nil, useTimerSentinel, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -1408,6 +1410,8 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 	domainID string,
 	workflowID string,
 	execution *nosqlplugin.WorkflowExecutionRequest,
+	useActivitySentinel bool,
+	useTimerSentinel bool,
 	timeStamp time.Time,
 ) error {
 	err := updateWorkflowExecution(batch, shardID, domainID, workflowID, execution, timeStamp)
@@ -1433,11 +1437,11 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 
 	// In certain cases, some of the execution update cycles update particular columns asynchronously before reaching the final cycle.
 	// Each of these functions are updating a non-frozen column type in Cassandra table.
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.ResetActivityInfos, execution.UseActivityMapSentinel, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.ResetActivityInfos, useActivitySentinel, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.ResetTimerInfos, execution.UseTimerMapSentinel, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.ResetTimerInfos, useTimerSentinel, timeStamp)
 	if err != nil {
 		return err
 	}

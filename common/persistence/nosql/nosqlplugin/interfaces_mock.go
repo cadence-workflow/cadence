@@ -373,6 +373,20 @@ func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, wo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
+// GetActivityMapDeleteResetThreshold mocks base method.
+func (m *MockDB) GetActivityMapDeleteResetThreshold() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivityMapDeleteResetThreshold")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetActivityMapDeleteResetThreshold indicates an expected call of GetActivityMapDeleteResetThreshold.
+func (mr *MockDBMockRecorder) GetActivityMapDeleteResetThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteResetThreshold", reflect.TypeOf((*MockDB)(nil).GetActivityMapDeleteResetThreshold))
+}
+
 // GetQueueSize mocks base method.
 func (m *MockDB) GetQueueSize(ctx context.Context, queueType persistence.QueueType) (int64, error) {
 	m.ctrl.T.Helper()
@@ -401,6 +415,20 @@ func (m *MockDB) GetTasksCount(ctx context.Context, filter *TasksFilter) (int64,
 func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MockDB)(nil).GetTasksCount), ctx, filter)
+}
+
+// GetTimerMapDeleteResetThreshold mocks base method.
+func (m *MockDB) GetTimerMapDeleteResetThreshold() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTimerMapDeleteResetThreshold")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetTimerMapDeleteResetThreshold indicates an expected call of GetTimerMapDeleteResetThreshold.
+func (mr *MockDBMockRecorder) GetTimerMapDeleteResetThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteResetThreshold", reflect.TypeOf((*MockDB)(nil).GetTimerMapDeleteResetThreshold))
 }
 
 // InsertConfig mocks base method.

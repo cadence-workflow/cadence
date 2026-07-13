@@ -48,8 +48,11 @@ import (
 )
 
 var _staticMethods = map[string]bool{
-	"Close":   true,
-	"GetName": true,
+	"Close":                              true,
+	"GetName":                            true,
+	"GetShardID":                         true,
+	"GetActivityMapDeleteResetThreshold": true,
+	"GetTimerMapDeleteResetThreshold":    true,
 }
 
 // TestPersistenceMetricsLabelConsistency exercises every method of every metered
