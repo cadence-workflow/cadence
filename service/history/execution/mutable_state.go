@@ -108,7 +108,7 @@ type (
 		ClearStickyness()
 		CheckResettable() error
 		CopyToPersistence() *persistence.WorkflowMutableState
-		RetryActivity(ai *persistence.ActivityInfo, failureReason string, failureDetails []byte) (bool, error)
+		RetryActivity(ai *persistence.ActivityInfo, failureReason string, failureDetails []byte, failureOptions *types.FailureOptions) (bool, error)
 		CreateNewHistoryEvent(eventType types.EventType) *types.HistoryEvent
 		CreateNewHistoryEventWithTimestamp(eventType types.EventType, timestamp int64) *types.HistoryEvent
 		CreateTransientDecisionEvents(di *DecisionInfo, identity string) (*types.HistoryEvent, *types.HistoryEvent)

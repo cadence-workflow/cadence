@@ -1,4 +1,4 @@
--- DLQ Schema Migration v0.48
+-- DLQ Schema Migration v0.49
 -- Creates two tables for the history task dead letter queue.
 
 -- Main DLQ table.
@@ -18,7 +18,7 @@
 CREATE TABLE history_task_dlq (
     shard_id                  int,
     domain_id                 text,
-    cluster_attribute_scope   text,
+    cluster_attribute_scope   text, 
     cluster_attribute_name    text,
     task_category             int,
     visibility_ts             timestamp,
@@ -26,7 +26,7 @@ CREATE TABLE history_task_dlq (
     workflow_id               text,
     run_id                    text,
     task_payload              blob,
-    encoding_type             text,
+    task_payload_encoding     text,
     version                   bigint,
     created_at                timestamp,
     PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_category, visibility_ts, task_id)

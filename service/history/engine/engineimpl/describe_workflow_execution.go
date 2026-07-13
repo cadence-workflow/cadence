@@ -232,6 +232,10 @@ func mapPendingActivityInfo(ai *persistence.ActivityInfo, activityScheduledEvent
 		if ai.LastFailureReason != "" {
 			p.LastFailureReason = common.StringPtr(ai.LastFailureReason)
 			p.LastFailureDetails = ai.LastFailureDetails
+			p.LastFailureOptions = &types.FailureOptions{
+				FailureCategory:          ai.LastFailureCategory.Ptr(),
+				NextRetryIntervalSeconds: common.Int32Ptr(ai.LastRetryIntervalSeconds),
+			}
 		}
 		if ai.LastWorkerIdentity != "" {
 			p.LastWorkerIdentity = ai.LastWorkerIdentity

@@ -57,9 +57,19 @@ type (
 
 	// the methods can be executed from either a started or transaction(then need to call Commit/Rollback), or without a transaction
 	commonOfDbAndTx interface {
+		// ExecContext executes a query that doesn't return rows.
+		// For example, INSERT, DELETE or UPDATE.
 		ExecContext(ctx context.Context, dbShardID int, query string, args ...interface{}) (sql.Result, error)
+
+		// NamedExecContext works same as ExecContext but it binds named query parameters like (:field_name).
 		NamedExecContext(ctx context.Context, dbShardID int, query string, arg interface{}) (sql.Result, error)
+
+		// GetContext fetches exactly one row into dest.
+		// dest parameter must be a pointer to a struct.
 		GetContext(ctx context.Context, dbShardID int, dest interface{}, query string, args ...interface{}) error
+
+		// SelectContext fetches all matching rows into dest.
+		// dest parameter must be a pointer to a slice.
 		SelectContext(ctx context.Context, dbShardID int, dest interface{}, query string, args ...interface{}) error
 	}
 )

@@ -247,6 +247,7 @@ func (b *HistoryBuilder) AddActivityTaskStartedEvent(
 	identity string,
 	lastFailureReason string,
 	lastFailureDetails []byte,
+	lastFailureOptions *types.FailureOptions,
 ) *types.HistoryEvent {
 	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeActivityTaskStarted)
 	event.ActivityTaskStartedEventAttributes = &types.ActivityTaskStartedEventAttributes{
@@ -256,6 +257,7 @@ func (b *HistoryBuilder) AddActivityTaskStartedEvent(
 		RequestID:          requestID,
 		LastFailureReason:  common.StringPtr(lastFailureReason),
 		LastFailureDetails: lastFailureDetails,
+		LastFailureOptions: lastFailureOptions,
 	}
 
 	return b.addEventToHistory(event)
@@ -285,6 +287,7 @@ func (b *HistoryBuilder) AddActivityTaskFailedEvent(scheduleEventID, StartedEven
 		ScheduledEventID: scheduleEventID,
 		StartedEventID:   StartedEventID,
 		Identity:         request.Identity,
+		FailureOptions:   request.FailureOptions,
 	}
 
 	return b.addEventToHistory(event)
@@ -298,6 +301,7 @@ func (b *HistoryBuilder) AddActivityTaskTimedOutEvent(
 	lastHeartBeatDetails []byte,
 	lastFailureReason string,
 	lastFailureDetail []byte,
+	lastFailureOptions *types.FailureOptions,
 ) *types.HistoryEvent {
 	event := b.msBuilder.CreateNewHistoryEvent(types.EventTypeActivityTaskTimedOut)
 	event.ActivityTaskTimedOutEventAttributes = &types.ActivityTaskTimedOutEventAttributes{
@@ -307,6 +311,7 @@ func (b *HistoryBuilder) AddActivityTaskTimedOutEvent(
 		Details:            lastHeartBeatDetails,
 		LastFailureReason:  common.StringPtr(lastFailureReason),
 		LastFailureDetails: lastFailureDetail,
+		LastFailureOptions: lastFailureOptions,
 	}
 
 	return b.addEventToHistory(event)

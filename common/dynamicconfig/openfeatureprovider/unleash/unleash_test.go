@@ -84,8 +84,10 @@ func TestNewProvider(t *testing.T) {
 				AppName:         "cadence",
 				InstanceID:      "instance-1",
 				Environment:     "production",
+				ProjectName:     "cadence-project",
 				APIToken:        "default:production.some-secret",
 				RefreshInterval: 30 * time.Second,
+				MetricsInterval: time.Minute,
 			}},
 		},
 		{
