@@ -430,25 +430,54 @@ func HistoryReapplyEventsRequestFuzzer(r *types.HistoryReapplyEventsRequest, c f
 }
 
 // RespondActivityTaskFailedRequestFuzzer ensures Reason is non-nil when
-// Details is non-nil. FromFailure(nil, details) returns nil (drops details when
-// reason is nil), so a nil Reason with non-nil Details breaks the round-trip.
+// Details or FailureOptions is non-nil. Reason, Details and FailureOptions merge
+// into a single Failure object, and FromFailure(nil, ...) returns nil (dropping
+// details and options when reason is nil), so a nil Reason with non-nil
+// details/options breaks the round-trip. It also normalizes the failure category
+// to a valid enum value, since unknown values map to INVALID and round-trip to nil.
 func RespondActivityTaskFailedRequestFuzzer(r *types.RespondActivityTaskFailedRequest, c fuzz.Continue) {
 	c.FuzzNoCustom(r)
-	if r.Reason == nil && len(r.Details) > 0 {
+	if r.Reason == nil && (len(r.Details) > 0 || r.FailureOptions != nil) {
 		reason := ""
 		r.Reason = &reason
 	}
+	normalizeFailureCategory(r.FailureOptions, c)
+}
+
+// RespondActivityTaskFailedByIDRequestFuzzer mirrors RespondActivityTaskFailedRequestFuzzer
+// for the ByID variant: it keeps Reason non-nil when Details or FailureOptions is
+// set and normalizes the failure category to a valid enum value.
+func RespondActivityTaskFailedByIDRequestFuzzer(r *types.RespondActivityTaskFailedByIDRequest, c fuzz.Continue) {
+	c.FuzzNoCustom(r)
+	if r.Reason == nil && (len(r.Details) > 0 || r.FailureOptions != nil) {
+		reason := ""
+		r.Reason = &reason
+	}
+	normalizeFailureCategory(r.FailureOptions, c)
 }
 
 // SyncActivityRequestFuzzer ensures LastFailureReason is non-nil when
-// LastFailureDetails is non-nil. FromFailure(nil, details) returns nil (drops
-// details when reason is nil), so a nil reason with non-nil details breaks the
-// round-trip.
+// LastFailureDetails or LastFailureOptions is set. LastFailureReason,
+// LastFailureDetails and LastFailureOptions merge into a single LastFailure
+// (Failure) object, and FromFailure(nil, ...) returns nil (dropping details and
+// options when reason is nil), so a nil reason with non-nil details/options
+// breaks the round-trip. It also normalizes the failure category to a valid
+// enum value, since unknown values map to INVALID and round-trip to nil.
 func SyncActivityRequestFuzzer(r *types.SyncActivityRequest, c fuzz.Continue) {
 	c.FuzzNoCustom(r)
-	if r.LastFailureReason == nil && len(r.LastFailureDetails) > 0 {
+	if r.LastFailureReason == nil && (len(r.LastFailureDetails) > 0 || r.LastFailureOptions != nil) {
 		reason := ""
 		r.LastFailureReason = &reason
+	}
+	normalizeFailureCategory(r.LastFailureOptions, c)
+}
+
+// normalizeFailureCategory replaces a fuzzed failure category with a valid enum
+// value (Poll, Standard, Fatal) so it round-trips through the proto mapper.
+func normalizeFailureCategory(o *types.FailureOptions, c fuzz.Continue) {
+	if o != nil && o.FailureCategory != nil {
+		cat := types.FailureCategory(c.Intn(3)) // 0-2: Standard, Poll, Fatal
+		o.FailureCategory = &cat
 	}
 }
 
@@ -656,9 +685,10 @@ func TestHistoryRatelimitUpdateResponseFuzz(t *testing.T) {
 }
 
 func TestHistorySyncActivityRequestFuzz(t *testing.T) {
-	// [BUG] LastFailureReason + LastFailureDetails merge into LastFailure (Failure object);
-	// FromFailure(nil, details) drops details when reason is nil, breaking the round-trip.
-	// SyncActivityRequestFuzzer ensures LastFailureReason is non-nil when Details is set.
+	// [BUG] LastFailureReason + LastFailureDetails + LastFailureOptions merge into LastFailure
+	// (Failure object); FromFailure(nil, ...) drops details/options when reason is nil, breaking
+	// the round-trip. SyncActivityRequestFuzzer ensures LastFailureReason is non-nil when
+	// Details/Options is set and normalizes the failure category.
 	// WorkflowID + RunID merge into WorkflowExecution and split back correctly.
 	testutils.RunMapperFuzzTest(t, FromHistorySyncActivityRequest, ToHistorySyncActivityRequest,
 		testutils.WithCustomFuncs(SyncActivityRequestFuzzer),

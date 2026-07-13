@@ -335,7 +335,7 @@ func (s *IntegrationSuite) startAndFinishWorkflow(id, wt, tl, domain, domainID s
 		TaskList:        taskList,
 		Identity:        identity,
 		DecisionHandler: dtHandler,
-		ActivityHandler: atHandler,
+		ActivityHandler: activityTaskHandler(atHandler),
 		Logger:          s.Logger,
 		T:               s.T(),
 	}
@@ -344,11 +344,7 @@ func (s *IntegrationSuite) startAndFinishWorkflow(id, wt, tl, domain, domainID s
 			_, err := poller.PollAndProcessDecisionTask(false, false)
 			s.Logger.Info("PollAndProcessDecisionTask", tag.Error(err))
 			s.Nil(err)
-			if i%2 == 0 {
-				err = poller.PollAndProcessActivityTask(false)
-			} else { // just for testing respondActivityTaskCompleteByID
-				err = poller.PollAndProcessActivityTaskWithID(false)
-			}
+			err = poller.PollAndProcessActivityTask()
 			s.Logger.Info("PollAndProcessActivityTask", tag.Error(err))
 			s.Nil(err)
 		}

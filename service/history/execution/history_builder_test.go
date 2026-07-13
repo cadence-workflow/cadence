@@ -319,10 +319,12 @@ func (s *historyBuilderSuite) TestHistoryBuilderDynamicSuccess() {
 
 	activity3Reason := "dynamic-historybuilder-success-activity3-failed"
 	activity3Details := []byte("dynamic-historybuilder-success-activity3-callstack")
-	s.msBuilder.RetryActivity(ai5, activity3Reason, activity3Details)
+	s.msBuilder.RetryActivity(ai5, activity3Reason, activity3Details, nil)
 	ai6, activity3Running2 := s.msBuilder.GetActivityInfo(7)
 	s.Equal(activity3Reason, ai6.LastFailureReason)
 	s.Equal(activity3Details, ai6.LastFailureDetails)
+	s.Equal(types.FailureCategoryStandard, ai6.LastFailureCategory)
+	s.Equal(int32(0), ai6.LastRetryIntervalSeconds)
 	s.True(activity3Running2)
 
 	activity3StartedEvent2 := s.addActivityTaskStartedEvent(7, activityTaskList, identity)
@@ -378,10 +380,17 @@ func (s *historyBuilderSuite) TestHistoryBuilderDynamicSuccess() {
 
 	activity5Reason := "dynamic-historybuilder-success-activity5-failed"
 	activity5Details := []byte("dynamic-historybuilder-success-activity5-callstack")
-	s.msBuilder.RetryActivity(ai5, activity5Reason, activity5Details)
+	activity5Category := types.FailureCategoryPoll
+	activity5NextRetry := int32(10)
+	s.msBuilder.RetryActivity(ai5, activity5Reason, activity5Details, &types.FailureOptions{
+		FailureCategory:          &activity5Category,
+		NextRetryIntervalSeconds: common.Int32Ptr(activity5NextRetry),
+	})
 	ai6, activity5Running2 := s.msBuilder.GetActivityInfo(9)
 	s.Equal(activity5Reason, ai6.LastFailureReason)
 	s.Equal(activity5Details, ai6.LastFailureDetails)
+	s.Equal(activity5Category, ai6.LastFailureCategory)
+	s.Equal(activity5NextRetry, ai6.LastRetryIntervalSeconds)
 	s.True(activity5Running2)
 
 	activity5StartedEvent2 := s.addActivityTaskStartedEvent(9, activityTaskList, identity)
@@ -397,6 +406,7 @@ func (s *historyBuilderSuite) TestHistoryBuilderDynamicSuccess() {
 	s.validateActivityTaskCompletedEvent(activity5CompletedEvent, commonconstants.BufferedEventID, 9, commonconstants.TransientEventID,
 		activity5Result, identity)
 	s.Nil(s.msBuilder.FlushBufferedEvents())
+	// Started = 19, Completed = 20
 	s.validateActivityTaskCompletedEvent(activity5CompletedEvent, 20, 9, 19, activity5Result, identity)
 	s.Equal(int64(21), s.getNextEventID())
 	ai8, activity5Running4 := s.msBuilder.GetActivityInfo(9)
@@ -405,9 +415,20 @@ func (s *historyBuilderSuite) TestHistoryBuilderDynamicSuccess() {
 	s.Equal(int64(3), s.getPreviousDecisionStartedEventID())
 
 	// Verify the last ActivityTaskStartedEvent which should show the error from the first attempt
+	// All prior validation was on the transient started events, we need to check what is committed to history
+	// We can only do this once the buffered events have been flushed
 	historyEvents := s.msBuilder.GetHistoryBuilder().GetHistory().GetEvents()
 	s.Len(historyEvents, 20)
+	// Validate activity 3
+	// Succeeded on first attempt
 	s.validateActivityTaskStartedEvent(historyEvents[14], 15, 7, identity, 1, activity3Reason, activity3Details)
+	// Validate activity 5
+	// Failed twice, succeeded on attempt 3
+	// Event IDs are indexed starting at 1, so this is event with ID 19
+	activity5ActualStartedEvent := historyEvents[18]
+	s.validateActivityTaskStartedEvent(activity5ActualStartedEvent, 19, 9, identity, 2, activity5Reason, activity5Details)
+	s.Equal(activity5Category, activity5ActualStartedEvent.ActivityTaskStartedEventAttributes.LastFailureOptions.GetFailureCategory())
+	s.Equal(activity5NextRetry, activity5ActualStartedEvent.ActivityTaskStartedEventAttributes.LastFailureOptions.GetNextRetryIntervalSeconds())
 
 	markerDetails := []byte("dynamic-historybuilder-success-marker-details")
 	markerHeaderField1 := []byte("dynamic-historybuilder-success-marker-header1")

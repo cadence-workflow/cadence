@@ -2377,18 +2377,18 @@ func (mr *MockMutableStateMockRecorder) ReplicateWorkflowExecutionTimedoutEvent(
 }
 
 // RetryActivity mocks base method.
-func (m *MockMutableState) RetryActivity(ai *persistence.ActivityInfo, failureReason string, failureDetails []byte) (bool, error) {
+func (m *MockMutableState) RetryActivity(ai *persistence.ActivityInfo, failureReason string, failureDetails []byte, failureOptions *types.FailureOptions) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RetryActivity", ai, failureReason, failureDetails)
+	ret := m.ctrl.Call(m, "RetryActivity", ai, failureReason, failureDetails, failureOptions)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RetryActivity indicates an expected call of RetryActivity.
-func (mr *MockMutableStateMockRecorder) RetryActivity(ai, failureReason, failureDetails any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) RetryActivity(ai, failureReason, failureDetails, failureOptions any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryActivity", reflect.TypeOf((*MockMutableState)(nil).RetryActivity), ai, failureReason, failureDetails)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryActivity", reflect.TypeOf((*MockMutableState)(nil).RetryActivity), ai, failureReason, failureDetails, failureOptions)
 }
 
 // SetCurrentBranchToken mocks base method.

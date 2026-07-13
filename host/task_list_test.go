@@ -2,9 +2,7 @@ package host
 
 import (
 	"context"
-	"errors"
 	"flag"
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -135,7 +133,7 @@ func (s *TaskListIntegrationSuite) TestDescribeTaskList_Status() {
 	poller := s.createPoller("result", types.TaskListKindNormal)
 	cancelPoller := poller.PollAndProcessDecisions()
 	defer cancelPoller()
-	_, err := s.getWorkflowResult(runID)
+	_, err := s.GetWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 
 	response = s.describeTaskList(types.TaskListTypeDecision)
@@ -151,7 +149,7 @@ func (s *TaskListIntegrationSuite) TestEphemeralTaskList() {
 	response := s.describeWorkflow(s.workflowID(), runID)
 	s.Equal(types.TaskListKindEphemeral, response.WorkflowExecutionInfo.TaskList.GetKind())
 
-	firstEvent := s.getStartedEvent(runID)
+	firstEvent := s.GetStartedEvent(runID)
 	s.Equal(types.TaskListKindEphemeral, firstEvent.TaskList.GetKind())
 
 	taskList := s.waitUntilTaskListExists(types.TaskListTypeDecision)
@@ -160,7 +158,7 @@ func (s *TaskListIntegrationSuite) TestEphemeralTaskList() {
 	poller := s.createPoller("result", types.TaskListKindEphemeral)
 	cancelPoller := poller.PollAndProcessDecisions()
 	defer cancelPoller()
-	_, err := s.getWorkflowResult(runID)
+	_, err := s.GetWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 }
 
@@ -196,7 +194,7 @@ func (s *TaskListIntegrationSuite) TestEphemeralTaskList_EphemeralActivity() {
 	cancelActivityPoller := activityPoller.PollAndProcessActivities()
 	defer cancelActivityPoller()
 
-	_, err := s.getWorkflowResult(runID)
+	_, err := s.GetWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 
 	scheduled := s.getActivityScheduledEvent(runID)
@@ -239,7 +237,7 @@ func (s *TaskListIntegrationSuite) TestEphemeralTaskList_EphemeralWorkflow() {
 	cancelActivityPoller := activityPoller.PollAndProcessActivities()
 	defer cancelActivityPoller()
 
-	_, err := s.getWorkflowResult(runID)
+	_, err := s.GetWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 
 	scheduled := s.getActivityScheduledEvent(runID)
@@ -272,7 +270,7 @@ func (s *TaskListIntegrationSuite) TestEphemeralTaskList_EphemeralChildWorkflow(
 	cancelPoller := poller.PollAndProcessDecisions()
 	defer cancelPoller()
 
-	_, err := s.getWorkflowResult(runID)
+	_, err := s.GetWorkflowResult(runID)
 	s.NoError(err, "failed to get workflow result")
 
 	// Ensure the child is also ephemeral
@@ -287,9 +285,9 @@ func (s *TaskListIntegrationSuite) createEchoActivityPoller(tlKind types.TaskLis
 		Domain:   s.DomainName,
 		TaskList: &types.TaskList{Name: s.TaskListName, Kind: tlKind.Ptr()},
 		Identity: "activity-poller",
-		ActivityHandler: func(execution *types.WorkflowExecution, activityType *types.ActivityType, ActivityID string, input []byte, takeToken []byte) ([]byte, bool, error) {
+		ActivityHandler: activityTaskHandler(func(execution *types.WorkflowExecution, activityType *types.ActivityType, ActivityID string, input []byte, takeToken []byte) ([]byte, bool, error) {
 			return input, false, nil
-		},
+		}),
 		Logger:      s.Logger,
 		T:           s.T(),
 		CallOptions: []yarpc.CallOption{},
@@ -299,49 +297,14 @@ func (s *TaskListIntegrationSuite) createEchoActivityPoller(tlKind types.TaskLis
 // decisionPoller creates a decision poller capable of running Workflows consisting of a single decision
 func (s *TaskListIntegrationSuite) decisionPoller(tlKind types.TaskListKind, decision *types.Decision) *TaskPoller {
 	return &TaskPoller{
-		Engine:   s.Engine,
-		Domain:   s.DomainName,
-		TaskList: &types.TaskList{Name: s.TaskListName, Kind: tlKind.Ptr()},
-		Identity: "decision-poller",
-		DecisionHandler: func(execution *types.WorkflowExecution, wt *types.WorkflowType, previousStartedEventID, startedEventID int64, history *types.History) ([]byte, []*types.Decision, error) {
-			// Treat any other workflow type as a no-op, and allow passing nil as a no-op
-			if wt.GetName() != testWorkflowType || decision == nil {
-				return nil, []*types.Decision{{
-					DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
-					CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
-						Result: []byte("done"),
-					},
-				}}, nil
-			}
-			// Ignore the DecisionTaskScheduled and DecisionTaskStarted that'll be at the end
-			latestEvent := history.Events[len(history.Events)-3]
-			// Started Event only. We support one of three things:
-			// - Activity Scheduled. We wait until it finishes
-			// - Child Workflow. We wait until it finishes, ignoring the start.
-			// - nil. We complete immediately
-			if *latestEvent.EventType == types.EventTypeWorkflowExecutionStarted {
-				if decision != nil {
-					return nil, []*types.Decision{decision}, nil
-				}
-			}
-			// Do nothing until the child workflow completes
-			if *latestEvent.EventType == types.EventTypeChildWorkflowExecutionStarted {
-				return nil, []*types.Decision{}, nil
-			}
-			// Once the decision is done we finish the workflow
-			if *latestEvent.EventType == types.EventTypeActivityTaskCompleted || *latestEvent.EventType == types.EventTypeChildWorkflowExecutionCompleted {
-				return nil, []*types.Decision{{
-					DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
-					CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
-						Result: []byte("done"),
-					},
-				}}, nil
-			}
-			return nil, nil, fmt.Errorf("unexpected event type: %v", latestEvent.EventType)
-		},
-		Logger:      s.Logger,
-		T:           s.T(),
-		CallOptions: []yarpc.CallOption{},
+		Engine:          s.Engine,
+		Domain:          s.DomainName,
+		TaskList:        &types.TaskList{Name: s.TaskListName, Kind: tlKind.Ptr()},
+		Identity:        "decision-poller",
+		DecisionHandler: s.singleDecisionWorkflow(testWorkflowType, decision),
+		Logger:          s.Logger,
+		T:               s.T(),
+		CallOptions:     []yarpc.CallOption{},
 	}
 }
 
@@ -488,74 +451,6 @@ func (s *TaskListIntegrationSuite) describeTaskList(tlType types.TaskListType) *
 	return result
 }
 
-func (s *TaskListIntegrationSuite) getStartedEvent(runID string) *types.WorkflowExecutionStartedEventAttributes {
-	ctx, cancel := createContext()
-	defer cancel()
-	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: s.T().Name(),
-			RunID:      runID,
-		},
-		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
-	})
-	s.NoError(err, "failed to get workflow history")
-
-	history := historyResponse.History
-
-	firstEvent := history.Events[0]
-	if *firstEvent.EventType != types.EventTypeWorkflowExecutionStarted {
-		s.FailNow("expected first event to be WorkflowExecutionStarted")
-	}
-
-	return firstEvent.WorkflowExecutionStartedEventAttributes
-}
-
 func (s *TaskListIntegrationSuite) getActivityScheduledEvent(runID string) *types.ActivityTaskScheduledEventAttributes {
-	ctx, cancel := createContext()
-	defer cancel()
-	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: s.T().Name(),
-			RunID:      runID,
-		},
-		HistoryEventFilterType: types.HistoryEventFilterTypeAllEvent.Ptr(),
-	})
-	s.NoError(err, "failed to get workflow history")
-
-	history := historyResponse.History
-
-	for _, event := range history.Events {
-		if *event.EventType == types.EventTypeActivityTaskScheduled {
-			return event.ActivityTaskScheduledEventAttributes
-		}
-	}
-	s.FailNow("failed to find EventTypeActivityTaskScheduled")
-	return nil
-}
-
-func (s *TaskListIntegrationSuite) getWorkflowResult(runID string) (string, error) {
-	ctx, cancel := createContext()
-	defer cancel()
-	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
-		Domain: s.DomainName,
-		Execution: &types.WorkflowExecution{
-			WorkflowID: s.T().Name(),
-			RunID:      runID,
-		},
-		HistoryEventFilterType: types.HistoryEventFilterTypeCloseEvent.Ptr(),
-		WaitForNewEvent:        true,
-	})
-	if err != nil {
-		return "", err
-	}
-	history := historyResponse.History
-
-	lastEvent := history.Events[len(history.Events)-1]
-	if *lastEvent.EventType != types.EventTypeWorkflowExecutionCompleted {
-		return "", errors.New("workflow didn't complete")
-	}
-
-	return string(lastEvent.WorkflowExecutionCompletedEventAttributes.Result), nil
+	return s.GetOnlyEventWithType(runID, types.EventTypeActivityTaskScheduled).ActivityTaskScheduledEventAttributes
 }

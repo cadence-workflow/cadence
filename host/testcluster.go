@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/config/yaml"
 	"github.com/uber/cadence/common/domain"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -411,7 +412,7 @@ func newArchiverBase(enabled bool, logger log.Logger) *ArchiverBase {
 		FileMode: "0666",
 		DirMode:  "0766",
 	}
-	node, err := config.ToYamlNode(cfg)
+	node, err := yaml.ToNode(cfg)
 	if err != nil {
 		logger.Fatal("Should be impossible: failed to convert filestore archiver config to a yaml node")
 	}

@@ -1,8 +1,8 @@
 {
-    "CurrVersion": "0.48",
-    "MinCompatibleVersion": "0.48",
-    "Description": "Add history task DLQ tables",
-    "SchemaUpdateCqlFiles": [
-      "history_task_dlq.cql"
-    ]
-  }
+  "CurrVersion": "0.48",
+  "MinCompatibleVersion": "0.48",
+  "Description": "Add failure category and retry interval to activity info to support FailureOptions",
+  "SchemaUpdateCqlFiles": [
+    "failure_options.cql"
+  ]
+}

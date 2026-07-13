@@ -23,6 +23,7 @@ package host
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -383,6 +384,99 @@ func (s *IntegrationBase) HandleStats(suiteName string, stats *suite.SuiteInform
 	}
 }
 
+func (s *IntegrationBase) newPoller(decisions decisionTaskHandler, activities ActivityExecutor) *TaskPoller {
+	return &TaskPoller{
+		Engine: s.Engine,
+		Domain: s.DomainName,
+		TaskList: &types.TaskList{
+			Name: s.T().Name(),
+		},
+		Identity:        s.T().Name(),
+		DecisionHandler: decisions,
+		ActivityHandler: activities,
+		Logger:          s.Logger,
+		T:               s.T(),
+	}
+}
+
+func (s *IntegrationBase) GetWorkflowResult(runID string) (string, error) {
+	ctx, cancel := createContext()
+	defer cancel()
+	historyResponse, err := s.Engine.GetWorkflowExecutionHistory(ctx, &types.GetWorkflowExecutionHistoryRequest{
+		Domain: s.DomainName,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: s.T().Name(),
+			RunID:      runID,
+		},
+		HistoryEventFilterType: types.HistoryEventFilterTypeCloseEvent.Ptr(),
+		WaitForNewEvent:        true,
+	})
+	if err != nil {
+		return "", err
+	}
+	history := historyResponse.History
+
+	lastEvent := history.Events[len(history.Events)-1]
+	if *lastEvent.EventType != types.EventTypeWorkflowExecutionCompleted {
+		return "", errors.New("workflow didn't complete")
+	}
+
+	return string(lastEvent.WorkflowExecutionCompletedEventAttributes.Result), nil
+}
+
+func (s *IntegrationBase) GetStartedEvent(runID string) *types.WorkflowExecutionStartedEventAttributes {
+	return s.GetOnlyEventWithType(runID, types.EventTypeWorkflowExecutionStarted).WorkflowExecutionStartedEventAttributes
+}
+
+func (s *IntegrationBase) GetOnlyEventWithType(runID string, eventType types.EventType) *types.HistoryEvent {
+	return s.GetOnlyEvent(runID, func(event *types.HistoryEvent) bool {
+		return event.GetEventType() == eventType
+	})
+}
+
+func (s *IntegrationBase) GetOnlyEvent(runID string, filter func(event *types.HistoryEvent) bool) *types.HistoryEvent {
+	history := s.getHistory(s.DomainName, &types.WorkflowExecution{WorkflowID: s.T().Name(), RunID: runID})
+	events := s.filterEvents(history, filter)
+	if len(events) == 0 {
+		s.FailNowf("expected event", "no event found matching filter for: %s, got : %v ", runID, history)
+		return nil
+	}
+	if len(events) > 1 {
+		s.FailNowf("unexpected events", "expected one event for %s, got : %v", runID, events)
+		return nil
+	}
+	return events[0]
+}
+
+func (s *IntegrationBase) GetEvents(runID string, filter func(event *types.HistoryEvent) bool) []*types.HistoryEvent {
+	history := s.getHistory(s.DomainName, &types.WorkflowExecution{WorkflowID: s.T().Name(), RunID: runID})
+	return s.filterEvents(history, filter)
+}
+
+func (s *IntegrationBase) filterEvents(history []*types.HistoryEvent, filter func(event *types.HistoryEvent) bool) []*types.HistoryEvent {
+	result := make([]*types.HistoryEvent, 0, len(history))
+	for _, event := range history {
+		if filter(event) {
+			result = append(result, event)
+		}
+	}
+	return result
+}
+
+func (s *IntegrationBase) DescribeWorkflow(runID string) *types.DescribeWorkflowExecutionResponse {
+	ctx, cancel := createContext()
+	defer cancel()
+	resp, err := s.Engine.DescribeWorkflowExecution(ctx, &types.DescribeWorkflowExecutionRequest{
+		Domain: s.DomainName,
+		Execution: &types.WorkflowExecution{
+			WorkflowID: s.T().Name(),
+			RunID:      runID,
+		},
+	})
+	s.NoError(err, "failed to describe workflow")
+	return resp
+}
+
 // PrettyPrintHistory prints history in human readable format
 func PrettyPrintHistory(history *types.History, logger log.Logger) {
 	data, err := json.MarshalIndent(history, "", "    ")
@@ -394,4 +488,49 @@ func PrettyPrintHistory(history *types.History, logger log.Logger) {
 	fmt.Println("******************************************")
 	fmt.Println("History", tag.DetailInfo(string(data)))
 	fmt.Println("******************************************")
+}
+
+// singleDecisionWorkflow is a decisionTaskHandler that can run a single Activity or Child Workflow and will wait until
+// it completes. It always completes with a value of "done".
+func (s *IntegrationBase) singleDecisionWorkflow(testWorkflowType string, decision *types.Decision) decisionTaskHandler {
+	return func(execution *types.WorkflowExecution, wt *types.WorkflowType, previousStartedEventID, startedEventID int64, history *types.History) ([]byte, []*types.Decision, error) {
+		// Treat any other workflow type as a no-op, and allow passing nil as a no-op
+		if wt.GetName() != testWorkflowType || decision == nil {
+			return nil, []*types.Decision{{
+				DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
+				CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
+					Result: []byte("done"),
+				},
+			}}, nil
+		}
+		// Ignore the DecisionTaskScheduled and DecisionTaskStarted that'll be at the end
+		latestEvent := history.Events[len(history.Events)-3]
+		// Started Event only. We support one of three things:
+		// - Activity Scheduled. We wait until it finishes
+		// - Child Workflow. We wait until it finishes, ignoring the start.
+		// - nil. We complete immediately
+		if *latestEvent.EventType == types.EventTypeWorkflowExecutionStarted {
+			if decision != nil {
+				return nil, []*types.Decision{decision}, nil
+			}
+		}
+		// Do nothing until the child workflow completes
+		if *latestEvent.EventType == types.EventTypeChildWorkflowExecutionStarted {
+			return nil, []*types.Decision{}, nil
+		}
+		// Once the decision is done we finish the workflow
+		if *latestEvent.EventType == types.EventTypeActivityTaskCompleted ||
+			*latestEvent.EventType == types.EventTypeChildWorkflowExecutionCompleted ||
+			*latestEvent.EventType == types.EventTypeActivityTaskFailed {
+			return nil, []*types.Decision{{
+				DecisionType: types.DecisionTypeCompleteWorkflowExecution.Ptr(),
+				CompleteWorkflowExecutionDecisionAttributes: &types.CompleteWorkflowExecutionDecisionAttributes{
+					Result: []byte("done"),
+				},
+			}}, nil
+		}
+		// Fail and pretty print the history for debugging
+		PrettyPrintHistory(&types.History{Events: history.Events}, s.Logger)
+		panic(fmt.Sprintf("Unexpected event type: %v", latestEvent.EventType))
+	}
 }

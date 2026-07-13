@@ -290,3 +290,14 @@ CREATE TABLE domain_audit_log (
   comment                 TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (domain_id, operation_type, created_time, event_id)
 );
+
+CREATE TABLE active_cluster_selection_policy (
+  shard_id      INT          NOT NULL,
+  domain_id     BYTEA        NOT NULL,
+  workflow_id   TEXT         NOT NULL,
+  run_id        BYTEA        NOT NULL,
+  --
+  data          BYTEA        NOT NULL,
+  data_encoding VARCHAR(16)  NOT NULL,
+  PRIMARY KEY (shard_id, domain_id, workflow_id, run_id)
+);
