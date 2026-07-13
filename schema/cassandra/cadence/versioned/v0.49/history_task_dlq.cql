@@ -26,7 +26,7 @@ CREATE TABLE history_task_dlq (
     workflow_id               text,
     run_id                    text,
     task_payload              blob,
-    encoding_type             text,
+    task_payload_encoding     text,
     version                   bigint,
     created_at                timestamp,
     PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_category, visibility_ts, task_id)
