@@ -1375,6 +1375,18 @@ const (
 	// Default value: 10
 	// Allowed filters: ShardID
 	ReplicationTaskProcessorErrorRetryMaxAttempts
+	// ReplicationDLQProcessorMaxRetries is the number of execution retries before invoking a fixer
+	// KeyName: history.ReplicationDLQProcessorMaxRetries
+	// Value type: Int
+	// Default value: 3
+	// Allowed filters: N/A
+	ReplicationDLQProcessorMaxRetries
+	// ReplicationDLQProcessorPageSize is the page size used when scanning the DLQ
+	// KeyName: history.ReplicationDLQProcessorPageSize
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: N/A
+	ReplicationDLQProcessorPageSize
 
 	// WorkflowIDExternalRPS is the rate limit per workflowID for external calls
 	// KeyName: history.workflowIDExternalRPS
@@ -1995,6 +2007,12 @@ const (
 	// Default value: true
 	// Allowed filters: DomainID, WorkflowID
 	EnableReplicationTaskGeneration
+	// ReplicationDLQProcessorEnabled enables the background DLQ processor that automatically retries and fixes DLQ tasks
+	// KeyName: history.ReplicationDLQProcessorEnabled
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: N/A
+	ReplicationDLQProcessorEnabled
 	// UseNewInitialFailoverVersion is a switch to issue a failover version based on the minFailoverVersion
 	// rather than the default initialFailoverVersion. USed as a per-domain migration switch
 	// KeyName: history.useNewInitialFailoverVersion
@@ -3211,6 +3229,12 @@ const (
 	// Default value: 0
 	// Allowed filters: N/A
 	ReplicationTaskProcessorLatencyLogThreshold
+	// ReplicationDLQProcessorRescanInterval is the interval between full DLQ rescans
+	// KeyName: history.ReplicationDLQProcessorRescanInterval
+	// Value type: Duration
+	// Default value: 5m
+	// Allowed filters: N/A
+	ReplicationDLQProcessorRescanInterval
 	// WorkerESProcessorFlushInterval is flush interval for esProcessor
 	// KeyName: worker.ESProcessorFlushInterval
 	// Value type: Duration
@@ -4347,6 +4371,16 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "ReplicationTaskProcessorErrorRetryMaxAttempts is the max retry attempts for applying replication tasks",
 		DefaultValue: 10,
 	},
+	ReplicationDLQProcessorMaxRetries: {
+		KeyName:      "history.ReplicationDLQProcessorMaxRetries",
+		Description:  "ReplicationDLQProcessorMaxRetries is the number of execution retries before invoking a fixer.",
+		DefaultValue: 3,
+	},
+	ReplicationDLQProcessorPageSize: {
+		KeyName:      "history.ReplicationDLQProcessorPageSize",
+		Description:  "ReplicationDLQProcessorPageSize is the page size used when scanning the DLQ.",
+		DefaultValue: 100,
+	},
 	WorkflowIDExternalRPS: {
 		KeyName:      "history.workflowIDExternalRPS",
 		Filters:      []Filter{DomainName},
@@ -4902,6 +4936,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Filters:      []Filter{DomainID, WorkflowID},
 		Description:  "EnableReplicationTaskGeneration is the flag to control replication generation",
 		DefaultValue: true,
+	},
+	ReplicationDLQProcessorEnabled: {
+		KeyName:      "history.ReplicationDLQProcessorEnabled",
+		Description:  "ReplicationDLQProcessorEnabled enables the background DLQ processor that automatically retries and fixes DLQ tasks.",
+		DefaultValue: false,
 	},
 	UseNewInitialFailoverVersion: {
 		KeyName:      "history.useNewInitialFailoverVersion",
@@ -5929,6 +5968,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.ReplicationTaskProcessorLatencyLogThreshold",
 		Description:  "ReplicationTaskProcessorLatencyLogThreshold is is the threshold of whether history will log history replication latency.",
 		DefaultValue: 0,
+	},
+	ReplicationDLQProcessorRescanInterval: {
+		KeyName:      "history.ReplicationDLQProcessorRescanInterval",
+		Description:  "ReplicationDLQProcessorRescanInterval is the interval between full DLQ rescans.",
+		DefaultValue: 5 * time.Minute,
 	},
 	WorkerESProcessorFlushInterval: {
 		KeyName:      "worker.ESProcessorFlushInterval",
