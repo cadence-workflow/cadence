@@ -2240,11 +2240,13 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc       string
-		shardID    int
-		domainID   string
-		workflowID string
-		execution  *nosqlplugin.WorkflowExecutionRequest
+		desc                string
+		shardID             int
+		domainID            string
+		workflowID          string
+		execution           *nosqlplugin.WorkflowExecutionRequest
+		useActivitySentinel bool
+		useTimerSentinel    bool
 		// expectations
 		wantQueries int
 		wantErr     bool
@@ -2388,7 +2390,7 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
+			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, tc.useActivitySentinel, tc.useTimerSentinel, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2504,11 +2506,13 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 		t.Fatal(err)
 	}
 	tests := []struct {
-		desc       string
-		shardID    int
-		domainID   string
-		workflowID string
-		execution  *nosqlplugin.WorkflowExecutionRequest
+		desc                string
+		shardID             int
+		domainID            string
+		workflowID          string
+		execution           *nosqlplugin.WorkflowExecutionRequest
+		useActivitySentinel bool
+		useTimerSentinel    bool
 		// expectations
 		wantQueries int
 		wantErr     bool
@@ -2631,13 +2635,39 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 			// - 1 for signal requested IDs update
 			wantQueries: 8,
 		},
+		{
+			desc:                "ok with sentinel deletes",
+			shardID:             1000,
+			domainID:            "domain1",
+			workflowID:          "workflow1",
+			useActivitySentinel: true,
+			useTimerSentinel:    true,
+			execution: &nosqlplugin.WorkflowExecutionRequest{
+				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeClear,
+				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeUpdate,
+				InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
+					CompletionEvent: &persistence.DataBlob{},
+					AutoResetPoints: &persistence.DataBlob{},
+				},
+				VersionHistories:         &persistence.DataBlob{},
+				Checksums:                &checksum.Checksum{},
+				ActivityInfoKeysToDelete: []int64{10, 20},
+				TimerInfoKeysToDelete:    []string{"t1", "t2"},
+			},
+			// expecting 6 queries:
+			// - 1 for execution record
+			// - 1 for deletion of buffered events
+			// - 2 for activity sentinel writes (one per deleted activity)
+			// - 2 for timer sentinel writes (one per deleted timer)
+			wantQueries: 6,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
+			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, tc.useActivitySentinel, tc.useTimerSentinel, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)

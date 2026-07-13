@@ -119,6 +119,8 @@ type (
 		Closeable
 		GetName() string
 		GetShardID() int
+		GetActivityMapDeleteResetThreshold() int
+		GetTimerMapDeleteResetThreshold() int
 		// The below three APIs are related to serialization/deserialization
 		GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error)
 		UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error
@@ -461,8 +463,8 @@ type (
 		Checksum     checksum.Checksum
 		ChecksumData *DataBlob
 
-		ActivityMapSentinelCount int
-		TimerMapSentinelCount    int
+		ActivityMapDeleteCount int
+		TimerMapDeleteCount    int
 	}
 
 	// InternalActivityInfo details  for Persistence Interface
@@ -573,12 +575,10 @@ type (
 		DeleteActivityInfos       []int64
 		ResetActivityInfos        []*InternalActivityInfo
 		ResetActivityMap          bool // triggers full activity_map rewrite, even if ResetActivityInfos is empty
-		UseActivityMapSentinel    bool // when true, use sentinel writes instead of DELETE for activity_map
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
 		ResetTimerInfos           []*TimerInfo
 		ResetTimerMap             bool // triggers full timer_map rewrite, even if ResetTimerInfos is empty
-		UseTimerMapSentinel       bool // when true, use sentinel writes instead of DELETE for timer_map
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64

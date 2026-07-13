@@ -292,10 +292,6 @@ func TestNewConfig(t *testing.T) {
 		"HistoryTaskDLQMode":                                   {dynamicproperties.HistoryTaskDLQMode, "enabled"},
 		"HistoryTaskDLQProcessorInterval":                      {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
 		"HistoryTaskDLQProcessorEnabled":                       {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
-		"EnableCassandraActivityMapSentinelRewrite":            {dynamicproperties.EnableCassandraActivityMapSentinelRewrite, true},
-		"EnableCassandraTimerMapSentinelRewrite":               {dynamicproperties.EnableCassandraTimerMapSentinelRewrite, true},
-		"CassandraActivityMapSentinelRewriteThreshold":         {dynamicproperties.CassandraActivityMapSentinelRewriteThreshold, 50},
-		"CassandraTimerMapSentinelRewriteThreshold":            {dynamicproperties.CassandraTimerMapSentinelRewriteThreshold, 50},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

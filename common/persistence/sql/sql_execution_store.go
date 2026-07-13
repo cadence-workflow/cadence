@@ -154,6 +154,14 @@ func (m *sqlExecutionStore) GetShardID() int {
 	return m.shardID
 }
 
+func (m *sqlExecutionStore) GetActivityMapDeleteResetThreshold() int {
+	return 0
+}
+
+func (m *sqlExecutionStore) GetTimerMapDeleteResetThreshold() int {
+	return 0
+}
+
 func (m *sqlExecutionStore) CreateWorkflowExecution(
 	ctx context.Context,
 	request *p.InternalCreateWorkflowExecutionRequest,

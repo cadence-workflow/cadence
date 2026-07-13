@@ -593,6 +593,20 @@ func (mr *MockExecutionManagerMockRecorder) GetActiveClusterSelectionPolicy(ctx,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionManager)(nil).GetActiveClusterSelectionPolicy), ctx, request)
 }
 
+// GetActivityMapDeleteResetThreshold mocks base method.
+func (m *MockExecutionManager) GetActivityMapDeleteResetThreshold() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivityMapDeleteResetThreshold")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetActivityMapDeleteResetThreshold indicates an expected call of GetActivityMapDeleteResetThreshold.
+func (mr *MockExecutionManagerMockRecorder) GetActivityMapDeleteResetThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteResetThreshold", reflect.TypeOf((*MockExecutionManager)(nil).GetActivityMapDeleteResetThreshold))
+}
+
 // GetCurrentExecution mocks base method.
 func (m *MockExecutionManager) GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -679,6 +693,20 @@ func (m *MockExecutionManager) GetShardID() int {
 func (mr *MockExecutionManagerMockRecorder) GetShardID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionManager)(nil).GetShardID))
+}
+
+// GetTimerMapDeleteResetThreshold mocks base method.
+func (m *MockExecutionManager) GetTimerMapDeleteResetThreshold() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTimerMapDeleteResetThreshold")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetTimerMapDeleteResetThreshold indicates an expected call of GetTimerMapDeleteResetThreshold.
+func (mr *MockExecutionManagerMockRecorder) GetTimerMapDeleteResetThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteResetThreshold", reflect.TypeOf((*MockExecutionManager)(nil).GetTimerMapDeleteResetThreshold))
 }
 
 // GetWorkflowExecution mocks base method.

@@ -64,6 +64,14 @@ func (d *nosqlExecutionStore) GetShardID() int {
 	return d.shardID
 }
 
+func (d *nosqlExecutionStore) GetActivityMapDeleteResetThreshold() int {
+	return d.db.GetActivityMapDeleteResetThreshold()
+}
+
+func (d *nosqlExecutionStore) GetTimerMapDeleteResetThreshold() int {
+	return d.db.GetTimerMapDeleteResetThreshold()
+}
+
 // resolveShardID returns the shard ID to use for persistence along with a non-empty reason
 // describing any inconsistency between the request and the store. During the migration toward
 // a host-level ExecutionStore, the per-shard store still owns the canonical shard ID, so both

@@ -72,6 +72,14 @@ func (m *executionManagerImpl) GetShardID() int {
 	return m.persistence.GetShardID()
 }
 
+func (m *executionManagerImpl) GetActivityMapDeleteResetThreshold() int {
+	return m.persistence.GetActivityMapDeleteResetThreshold()
+}
+
+func (m *executionManagerImpl) GetTimerMapDeleteResetThreshold() int {
+	return m.persistence.GetTimerMapDeleteResetThreshold()
+}
+
 // The below three APIs are related to serialization/deserialization
 
 func (m *executionManagerImpl) GetWorkflowExecution(
@@ -91,14 +99,14 @@ func (m *executionManagerImpl) GetWorkflowExecution(
 	}
 	newResponse := &GetWorkflowExecutionResponse{
 		State: &WorkflowMutableState{
-			TimerInfos:               response.State.TimerInfos,
-			RequestCancelInfos:       response.State.RequestCancelInfos,
-			SignalInfos:              response.State.SignalInfos,
-			SignalRequestedIDs:       response.State.SignalRequestedIDs,
-			ReplicationState:         response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
-			Checksum:                 response.State.Checksum,
-			ActivityMapSentinelCount: response.State.ActivityMapSentinelCount,
-			TimerMapSentinelCount:    response.State.TimerMapSentinelCount,
+			TimerInfos:             response.State.TimerInfos,
+			RequestCancelInfos:     response.State.RequestCancelInfos,
+			SignalInfos:            response.State.SignalInfos,
+			SignalRequestedIDs:     response.State.SignalRequestedIDs,
+			ReplicationState:       response.State.ReplicationState, // TODO: remove this after all 2DC workflows complete
+			Checksum:               response.State.Checksum,
+			ActivityMapDeleteCount: response.State.ActivityMapDeleteCount,
+			TimerMapDeleteCount:    response.State.TimerMapDeleteCount,
 		},
 	}
 
@@ -765,12 +773,10 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		ResetActivityInfos:        serializedResetActivityInfos,
 		ResetActivityMap:          input.ResetActivityMap,
-		UseActivityMapSentinel:    input.UseActivityMapSentinel,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
 		ResetTimerInfos:           resetTimerInfos,
 		ResetTimerMap:             input.ResetTimerMap,
-		UseTimerMapSentinel:       input.UseTimerMapSentinel,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,
