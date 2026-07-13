@@ -571,18 +571,21 @@ CREATE TABLE domain_audit_log (
   };
 
 
+-- History Task DLQ table
+-- This table can be used to store unprocessable history tasks.
+-- The primary key is at a shard/domain/cluster_attribute level to allow processing of the tasks for a given domain/cluster attribute during failover.
 CREATE TABLE history_task_dlq (
     shard_id                  int,
-    domain_id                 text,
-    cluster_attribute_scope   text,
-    cluster_attribute_name    text,
-    task_category             int,
-    visibility_ts             timestamp,
-    task_id                   bigint,
-    workflow_id               text,
+    domain_id                 text, -- Used to pull tasks on failover
+    cluster_attribute_scope   text, -- Used to pull tasks by cluster attribute on failover, cluster_attribute_scope should be an empty string for tasks in the 'default' active cluster
+    cluster_attribute_name    text, -- Used to pull tasks by cluster attribute on failover, cluster_attribute_name should be an empty string for tasks in the 'default' active cluster
+    task_category             int, -- the category of task, used for deserialization of the task payload
+    visibility_ts             timestamp, -- used for task ordering when pulling from the DLQ
+    task_id                   bigint, -- used for task ordering 
+    workflow_id               text, 
     run_id                    text,
-    task_payload              blob,
-    encoding_type             text,
+    task_payload              blob, -- the full serialized payload of the task 
+    task_payload_encoding     text, -- the encoding type used for task_payload
     version                   bigint,
     created_at                timestamp,
     PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_category, visibility_ts, task_id)
@@ -591,6 +594,9 @@ CREATE TABLE history_task_dlq (
         'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
     };
 
+-- History Task DLQ Ack level table.
+-- This table is used to fetch the current ack level for a given domain_id + cluster_attribute_pair when a cluster attribute scoped failover occurs.
+-- The primary key is shard_id to allow a shard-level processor to pull all ack levels for the shard during background processing. 
 CREATE TABLE history_task_dlq_ack_level (
     shard_id                  int,
     domain_id                 text,
