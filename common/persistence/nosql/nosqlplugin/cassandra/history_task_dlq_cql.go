@@ -4,7 +4,7 @@ package cassandra
 const templateInsertHistoryDLQTaskRowQuery = `INSERT INTO history_task_dlq (` +
 	`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
 	`task_category, visibility_ts, task_id, workflow_id, run_id, version, ` +
-	`task_payload, encoding_type, created_at) ` +
+	`task_payload, task_payload_encoding, created_at) ` +
 	`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 // templateSelectHistoryDLQTaskRowsQuery uses CQL multi-column slice syntax (tuple comparison),
@@ -12,7 +12,7 @@ const templateInsertHistoryDLQTaskRowQuery = `INSERT INTO history_task_dlq (` +
 // Bounds are [inclusive min, exclusive max).
 const templateSelectHistoryDLQTaskRowsQuery = `SELECT ` +
 	`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
-	`task_category, visibility_ts, task_id, task_payload, encoding_type, created_at ` +
+	`task_category, visibility_ts, task_id, task_payload, task_payload_encoding, created_at ` +
 	`FROM history_task_dlq ` +
 	`WHERE shard_id = ? AND domain_id = ? AND cluster_attribute_scope = ? AND cluster_attribute_name = ? ` +
 	`AND task_category = ? ` +
