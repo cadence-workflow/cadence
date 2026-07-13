@@ -5,4 +5,4 @@
     "SchemaUpdateCqlFiles": [
       "history_task_dlq.cql"
     ]
-  }
+}
