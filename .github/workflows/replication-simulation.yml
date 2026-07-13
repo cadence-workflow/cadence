@@ -29,7 +29,7 @@ jobs:
           - clusterredirection
           - default
           # TODO(c-warren): Enable after History DLQ has been completed
-          # - dlq
+          - dlq
 
     steps:
       - name: Checkout
