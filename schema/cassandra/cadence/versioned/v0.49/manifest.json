@@ -1,8 +1,8 @@
 {
-    "CurrVersion": "0.49",
-    "MinCompatibleVersion": "0.49",
-    "Description": "Add history task DLQ tables",
-    "SchemaUpdateCqlFiles": [
-      "history_task_dlq.cql"
-    ]
+  "CurrVersion": "0.49",
+  "MinCompatibleVersion": "0.49",
+  "Description": "Add history task DLQ tables",
+  "SchemaUpdateCqlFiles": [
+    "history_task_dlq.cql"
+  ]
 }
