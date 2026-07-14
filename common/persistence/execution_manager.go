@@ -72,12 +72,12 @@ func (m *executionManagerImpl) GetShardID() int {
 	return m.persistence.GetShardID()
 }
 
-func (m *executionManagerImpl) GetActivityMapDeleteResetThreshold() int {
-	return m.persistence.GetActivityMapDeleteResetThreshold()
+func (m *executionManagerImpl) GetActivityMapDeleteRewriteThreshold() int {
+	return m.persistence.GetActivityMapDeleteRewriteThreshold()
 }
 
-func (m *executionManagerImpl) GetTimerMapDeleteResetThreshold() int {
-	return m.persistence.GetTimerMapDeleteResetThreshold()
+func (m *executionManagerImpl) GetTimerMapDeleteRewriteThreshold() int {
+	return m.persistence.GetTimerMapDeleteRewriteThreshold()
 }
 
 // The below three APIs are related to serialization/deserialization
@@ -724,19 +724,19 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 	if err != nil {
 		return nil, err
 	}
-	var serializedResetActivityInfos []*InternalActivityInfo
-	if input.ResetActivityMap {
-		serializedResetActivityInfos, err = m.SerializeUpsertActivityInfos(input.ResetActivityInfos, encoding)
+	var serializedRewriteActivityInfos []*InternalActivityInfo
+	if input.RewriteActivityMap {
+		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
 		if err != nil {
 			return nil, err
 		}
-		if serializedResetActivityInfos == nil {
-			serializedResetActivityInfos = []*InternalActivityInfo{}
+		if serializedRewriteActivityInfos == nil {
+			serializedRewriteActivityInfos = []*InternalActivityInfo{}
 		}
 	}
-	resetTimerInfos := input.ResetTimerInfos
-	if input.ResetTimerMap && resetTimerInfos == nil {
-		resetTimerInfos = []*TimerInfo{}
+	rewriteTimerInfos := input.RewriteTimerInfos
+	if input.RewriteTimerMap && rewriteTimerInfos == nil {
+		rewriteTimerInfos = []*TimerInfo{}
 	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
 	if err != nil {
@@ -771,12 +771,12 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 
 		UpsertActivityInfos:       serializedUpsertActivityInfos,
 		DeleteActivityInfos:       input.DeleteActivityInfos,
-		ResetActivityInfos:        serializedResetActivityInfos,
-		ResetActivityMap:          input.ResetActivityMap,
+		RewriteActivityInfos:      serializedRewriteActivityInfos,
+		RewriteActivityMap:        input.RewriteActivityMap,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
-		ResetTimerInfos:           resetTimerInfos,
-		ResetTimerMap:             input.ResetTimerMap,
+		RewriteTimerInfos:         rewriteTimerInfos,
+		RewriteTimerMap:           input.RewriteTimerMap,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,

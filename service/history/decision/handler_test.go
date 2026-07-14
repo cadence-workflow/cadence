@@ -1426,8 +1426,8 @@ func expectCommonCalls(handler *handlerImpl, domainID string, ctrl *gomock.Contr
 	handler.shard.(*shard.MockContext).EXPECT().GetMetricsClient().AnyTimes().Return(handler.metricsClient)
 	handler.domainCache.(*cache.MockDomainCache).EXPECT().GetDomainName(domainID).AnyTimes().Return(constants.TestDomainName, nil)
 	mockExecManager := persistence.NewMockExecutionManager(ctrl)
-	mockExecManager.EXPECT().GetActivityMapDeleteResetThreshold().Return(0).AnyTimes()
-	mockExecManager.EXPECT().GetTimerMapDeleteResetThreshold().Return(0).AnyTimes()
+	mockExecManager.EXPECT().GetActivityMapDeleteRewriteThreshold().Return(0).AnyTimes()
+	mockExecManager.EXPECT().GetTimerMapDeleteRewriteThreshold().Return(0).AnyTimes()
 	handler.shard.(*shard.MockContext).EXPECT().GetExecutionManager().Return(mockExecManager).AnyTimes()
 	handler.shard.(*shard.MockContext).EXPECT().GetActiveClusterManager().Return(handler.activeClusterManager).AnyTimes()
 }

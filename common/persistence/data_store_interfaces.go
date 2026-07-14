@@ -119,8 +119,8 @@ type (
 		Closeable
 		GetName() string
 		GetShardID() int
-		GetActivityMapDeleteResetThreshold() int
-		GetTimerMapDeleteResetThreshold() int
+		GetActivityMapDeleteRewriteThreshold() int
+		GetTimerMapDeleteRewriteThreshold() int
 		// The below three APIs are related to serialization/deserialization
 		GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error)
 		UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error
@@ -573,12 +573,12 @@ type (
 
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
-		ResetActivityInfos        []*InternalActivityInfo
-		ResetActivityMap          bool // triggers full activity_map rewrite, even if ResetActivityInfos is empty
+		RewriteActivityInfos      []*InternalActivityInfo
+		RewriteActivityMap        bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		ResetTimerInfos           []*TimerInfo
-		ResetTimerMap             bool // triggers full timer_map rewrite, even if ResetTimerInfos is empty
+		RewriteTimerInfos         []*TimerInfo
+		RewriteTimerMap           bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64

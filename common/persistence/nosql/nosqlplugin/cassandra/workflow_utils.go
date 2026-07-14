@@ -964,12 +964,12 @@ func updateTimerInfos(
 	runID string,
 	timerInfos map[string]*persistence.TimerInfo,
 	deleteInfos []string,
-	resetInfos map[string]*persistence.TimerInfo,
+	rewriteInfos map[string]*persistence.TimerInfo,
 	useSentinel bool,
 	timeStamp time.Time,
 ) error {
-	if resetInfos != nil {
-		return resetTimerInfos(batch, shardID, domainID, workflowID, runID, resetInfos, timeStamp)
+	if rewriteInfos != nil {
+		return resetTimerInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
 	}
 
 	for _, timerInfo := range timerInfos {
@@ -1149,12 +1149,12 @@ func updateActivityInfos(
 	runID string,
 	activityInfos map[int64]*persistence.InternalActivityInfo,
 	deleteInfos []int64,
-	resetInfos map[int64]*persistence.InternalActivityInfo,
+	rewriteInfos map[int64]*persistence.InternalActivityInfo,
 	useSentinel bool,
 	timeStamp time.Time,
 ) error {
-	if resetInfos != nil {
-		return resetActivityInfos(batch, shardID, domainID, workflowID, runID, resetInfos, timeStamp)
+	if rewriteInfos != nil {
+		return resetActivityInfos(batch, shardID, domainID, workflowID, runID, rewriteInfos, timeStamp)
 	}
 
 	for _, a := range activityInfos {
@@ -1437,11 +1437,11 @@ func updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(
 
 	// In certain cases, some of the execution update cycles update particular columns asynchronously before reaching the final cycle.
 	// Each of these functions are updating a non-frozen column type in Cassandra table.
-	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.ResetActivityInfos, useActivitySentinel, timeStamp)
+	err = updateActivityInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.ActivityInfos, execution.ActivityInfoKeysToDelete, execution.RewriteActivityInfos, useActivitySentinel, timeStamp)
 	if err != nil {
 		return err
 	}
-	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.ResetTimerInfos, useTimerSentinel, timeStamp)
+	err = updateTimerInfos(batch, shardID, domainID, workflowID, execution.RunID, execution.TimerInfos, execution.TimerInfoKeysToDelete, execution.RewriteTimerInfos, useTimerSentinel, timeStamp)
 	if err != nil {
 		return err
 	}

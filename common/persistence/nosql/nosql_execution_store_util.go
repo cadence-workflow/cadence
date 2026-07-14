@@ -197,22 +197,22 @@ func (d *nosqlExecutionStore) prepareUpdateWorkflowExecutionRequestWithMapsAndEv
 	// delete from maps
 	executionRequest.ActivityInfoKeysToDelete = workflowMutation.DeleteActivityInfos
 	executionRequest.TimerInfoKeysToDelete = workflowMutation.DeleteTimerInfos
-	if workflowMutation.ResetActivityMap {
-		executionRequest.ResetActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(workflowMutation.ResetActivityInfos)
+	if workflowMutation.RewriteActivityMap {
+		executionRequest.RewriteActivityInfos, err = d.prepareActivityInfosForWorkflowTxn(workflowMutation.RewriteActivityInfos)
 		if err != nil {
 			return nil, err
 		}
-		if executionRequest.ResetActivityInfos == nil {
-			executionRequest.ResetActivityInfos = map[int64]*persistence.InternalActivityInfo{}
+		if executionRequest.RewriteActivityInfos == nil {
+			executionRequest.RewriteActivityInfos = map[int64]*persistence.InternalActivityInfo{}
 		}
 	}
-	if workflowMutation.ResetTimerMap {
-		executionRequest.ResetTimerInfos, err = d.prepareTimerInfosForWorkflowTxn(workflowMutation.ResetTimerInfos)
+	if workflowMutation.RewriteTimerMap {
+		executionRequest.RewriteTimerInfos, err = d.prepareTimerInfosForWorkflowTxn(workflowMutation.RewriteTimerInfos)
 		if err != nil {
 			return nil, err
 		}
-		if executionRequest.ResetTimerInfos == nil {
-			executionRequest.ResetTimerInfos = map[string]*persistence.TimerInfo{}
+		if executionRequest.RewriteTimerInfos == nil {
+			executionRequest.RewriteTimerInfos = map[string]*persistence.TimerInfo{}
 		}
 	}
 	executionRequest.ChildWorkflowInfoKeysToDelete = workflowMutation.DeleteChildExecutionInfos

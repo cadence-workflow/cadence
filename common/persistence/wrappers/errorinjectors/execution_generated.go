@@ -207,8 +207,8 @@ func (c *injectorExecutionManager) GetActiveClusterSelectionPolicy(ctx context.C
 	return
 }
 
-func (c *injectorExecutionManager) GetActivityMapDeleteResetThreshold() (i1 int) {
-	return c.wrapped.GetActivityMapDeleteResetThreshold()
+func (c *injectorExecutionManager) GetActivityMapDeleteRewriteThreshold() (i1 int) {
+	return c.wrapped.GetActivityMapDeleteRewriteThreshold()
 }
 
 func (c *injectorExecutionManager) GetCurrentExecution(ctx context.Context, request *_sourcePersistence.GetCurrentExecutionRequest) (gp1 *_sourcePersistence.GetCurrentExecutionResponse, err error) {
@@ -279,8 +279,8 @@ func (c *injectorExecutionManager) GetShardID() (i1 int) {
 	return c.wrapped.GetShardID()
 }
 
-func (c *injectorExecutionManager) GetTimerMapDeleteResetThreshold() (i1 int) {
-	return c.wrapped.GetTimerMapDeleteResetThreshold()
+func (c *injectorExecutionManager) GetTimerMapDeleteRewriteThreshold() (i1 int) {
+	return c.wrapped.GetTimerMapDeleteRewriteThreshold()
 }
 
 func (c *injectorExecutionManager) GetWorkflowExecution(ctx context.Context, request *_sourcePersistence.GetWorkflowExecutionRequest) (gp1 *_sourcePersistence.GetWorkflowExecutionResponse, err error) {

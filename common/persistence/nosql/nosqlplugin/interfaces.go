@@ -52,14 +52,14 @@ type (
 		ClientErrorChecker
 		tableCRUD
 
-		// GetActivityMapDeleteResetThreshold returns the threshold of activity map
+		// GetActivityMapDeleteRewriteThreshold returns the threshold of activity map
 		// deletes before triggering a full map rewrite to consolidate tombstones.
 		// Returns 0 if the feature is not supported or disabled.
-		GetActivityMapDeleteResetThreshold() int
-		// GetTimerMapDeleteResetThreshold returns the threshold of timer map
+		GetActivityMapDeleteRewriteThreshold() int
+		// GetTimerMapDeleteRewriteThreshold returns the threshold of timer map
 		// deletes before triggering a full map rewrite to consolidate tombstones.
 		// Returns 0 if the feature is not supported or disabled.
-		GetTimerMapDeleteResetThreshold() int
+		GetTimerMapDeleteRewriteThreshold() int
 	}
 	// tableCRUD defines the API for interacting with the database tables
 	// NOTE 1: All SELECT interfaces require strong consistency (eventual consistency will not work) unless specify in the method.

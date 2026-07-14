@@ -49,8 +49,8 @@ var _staticMethods = map[string]bool{
 	"Close":                              true,
 	"GetName":                            true,
 	"GetShardID":                         true,
-	"GetActivityMapDeleteResetThreshold": true,
-	"GetTimerMapDeleteResetThreshold":    true,
+	"GetActivityMapDeleteRewriteThreshold": true,
+	"GetTimerMapDeleteRewriteThreshold":    true,
 }
 
 func TestGetRetryCountFromContext(t *testing.T) {
