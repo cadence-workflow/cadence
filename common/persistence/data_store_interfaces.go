@@ -571,25 +571,25 @@ type (
 		StartVersion     int64
 		LastWriteVersion int64
 
-		UpsertActivityInfos       []*InternalActivityInfo
-		DeleteActivityInfos       []int64
-		RewriteActivityInfos      []*InternalActivityInfo
+		UpsertActivityInfos         []*InternalActivityInfo
+		DeleteActivityInfos         []int64
+		RewriteActivityInfos        []*InternalActivityInfo
 		RewriteActivityMapTriggered bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
-		UpsertTimerInfos          []*TimerInfo
-		DeleteTimerInfos          []string
-		RewriteTimerInfos         []*TimerInfo
-		RewriteTimerMapTriggered  bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
-		WorkflowTimerTasks        []HistoryTaskKey
-		UpsertChildExecutionInfos []*InternalChildExecutionInfo
-		DeleteChildExecutionInfos []int64
-		UpsertRequestCancelInfos  []*RequestCancelInfo
-		DeleteRequestCancelInfos  []int64
-		UpsertSignalInfos         []*SignalInfo
-		DeleteSignalInfos         []int64
-		UpsertSignalRequestedIDs  []string
-		DeleteSignalRequestedIDs  []string
-		NewBufferedEvents         *DataBlob
-		ClearBufferedEvents       bool
+		UpsertTimerInfos            []*TimerInfo
+		DeleteTimerInfos            []string
+		RewriteTimerInfos           []*TimerInfo
+		RewriteTimerMapTriggered    bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
+		WorkflowTimerTasks          []HistoryTaskKey
+		UpsertChildExecutionInfos   []*InternalChildExecutionInfo
+		DeleteChildExecutionInfos   []int64
+		UpsertRequestCancelInfos    []*RequestCancelInfo
+		DeleteRequestCancelInfos    []int64
+		UpsertSignalInfos           []*SignalInfo
+		DeleteSignalInfos           []int64
+		UpsertSignalRequestedIDs    []string
+		DeleteSignalRequestedIDs    []string
+		NewBufferedEvents           *DataBlob
+		ClearBufferedEvents         bool
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 
