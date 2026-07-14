@@ -1488,7 +1488,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 	activityRewriteThreshold := e.shard.GetExecutionManager().GetActivityMapDeleteRewriteThreshold()
 	if activityRewriteThreshold > 0 && e.activityMapDeleteCount >= activityRewriteThreshold {
 		workflowMutation.RewriteActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
-		workflowMutation.RewriteActivityMap = true
+		workflowMutation.RewriteActivityMapTriggered = true
 		workflowMutation.DeleteActivityInfos = nil
 		e.activityMapDeleteCount = 0
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapRewriteCounter)
@@ -1496,7 +1496,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 	timerRewriteThreshold := e.shard.GetExecutionManager().GetTimerMapDeleteRewriteThreshold()
 	if timerRewriteThreshold > 0 && e.timerMapDeleteCount >= timerRewriteThreshold {
 		workflowMutation.RewriteTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
-		workflowMutation.RewriteTimerMap = true
+		workflowMutation.RewriteTimerMapTriggered = true
 		workflowMutation.DeleteTimerInfos = nil
 		e.timerMapDeleteCount = 0
 		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapRewriteCounter)

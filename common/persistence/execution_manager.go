@@ -725,7 +725,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		return nil, err
 	}
 	var serializedRewriteActivityInfos []*InternalActivityInfo
-	if input.RewriteActivityMap {
+	if input.RewriteActivityMapTriggered {
 		serializedRewriteActivityInfos, err = m.SerializeUpsertActivityInfos(input.RewriteActivityInfos, encoding)
 		if err != nil {
 			return nil, err
@@ -735,7 +735,7 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		}
 	}
 	rewriteTimerInfos := input.RewriteTimerInfos
-	if input.RewriteTimerMap && rewriteTimerInfos == nil {
+	if input.RewriteTimerMapTriggered && rewriteTimerInfos == nil {
 		rewriteTimerInfos = []*TimerInfo{}
 	}
 	serializedUpsertChildExecutionInfos, err := m.SerializeUpsertChildExecutionInfos(input.UpsertChildExecutionInfos, encoding)
@@ -772,11 +772,11 @@ func (m *executionManagerImpl) SerializeWorkflowMutation(
 		UpsertActivityInfos:       serializedUpsertActivityInfos,
 		DeleteActivityInfos:       input.DeleteActivityInfos,
 		RewriteActivityInfos:      serializedRewriteActivityInfos,
-		RewriteActivityMap:        input.RewriteActivityMap,
+		RewriteActivityMapTriggered: input.RewriteActivityMapTriggered,
 		UpsertTimerInfos:          input.UpsertTimerInfos,
 		DeleteTimerInfos:          input.DeleteTimerInfos,
 		RewriteTimerInfos:         rewriteTimerInfos,
-		RewriteTimerMap:           input.RewriteTimerMap,
+		RewriteTimerMapTriggered:    input.RewriteTimerMapTriggered,
 		WorkflowTimerTasks:        m.syncTimerTaskTrackingKeys(input.TasksByCategory),
 		UpsertChildExecutionInfos: serializedUpsertChildExecutionInfos,
 		DeleteChildExecutionInfos: input.DeleteChildExecutionInfos,

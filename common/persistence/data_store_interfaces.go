@@ -574,11 +574,11 @@ type (
 		UpsertActivityInfos       []*InternalActivityInfo
 		DeleteActivityInfos       []int64
 		RewriteActivityInfos      []*InternalActivityInfo
-		RewriteActivityMap        bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
+		RewriteActivityMapTriggered bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
 		RewriteTimerInfos         []*TimerInfo
-		RewriteTimerMap           bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
+		RewriteTimerMapTriggered  bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
 		WorkflowTimerTasks        []HistoryTaskKey
 		UpsertChildExecutionInfos []*InternalChildExecutionInfo
 		DeleteChildExecutionInfos []int64
