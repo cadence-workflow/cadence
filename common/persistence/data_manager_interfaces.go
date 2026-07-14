@@ -912,11 +912,11 @@ type (
 		UpsertActivityInfos       []*ActivityInfo
 		DeleteActivityInfos       []int64
 		RewriteActivityInfos      []*ActivityInfo
-		RewriteActivityMap        bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
+		RewriteActivityMapTriggered bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
 		RewriteTimerInfos         []*TimerInfo
-		RewriteTimerMap           bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
+		RewriteTimerMapTriggered  bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
