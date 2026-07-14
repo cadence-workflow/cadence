@@ -2206,7 +2206,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
 					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
 					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
-					`last_failure_details: [], event_data_encoding: thriftrw` +
+					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
