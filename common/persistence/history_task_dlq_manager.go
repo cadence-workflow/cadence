@@ -167,6 +167,8 @@ func (m *historyTaskDLQManagerImpl) GetHistoryDLQTasks(
 		if err != nil {
 			return HistoryDLQGetTasksResponse{}, fmt.Errorf("failed to deserialize history DLQ task: %w", err)
 		}
+		task.SetTaskID(raw.TaskID)
+		task.SetVisibilityTimestamp(raw.VisibilityTimestamp)
 		tasks = append(tasks, task)
 	}
 	return HistoryDLQGetTasksResponse{Tasks: tasks, NextPageToken: resp.NextPageToken, PageSizeBytes: pageSizeBytes}, nil
