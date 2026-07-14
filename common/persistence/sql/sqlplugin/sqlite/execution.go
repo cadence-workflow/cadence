@@ -46,29 +46,21 @@ shard_id, domain_id, workflow_id, run_id, create_request_id, state, close_status
 FROM current_executions WHERE shard_id = ? AND domain_id = ? AND workflow_id = ?`
 	lockCurrentExecutionQuery = getCurrentExecutionQuery
 
-	rangeDeleteTransferTaskQuery        = `DELETE FROM transfer_tasks WHERE shard_id = ? AND task_id >= ? AND task_id < ?`
-	rangeDeleteTransferTaskByBatchQuery = `WITH tasks_to_delete AS (
-    SELECT shard_id, task_id
-    FROM transfer_tasks
-    WHERE shard_id = ? AND task_id >= ? AND task_id < ?
-    ORDER BY task_id
-    LIMIT ?
-)
+	rangeDeleteTransferTaskQuery = `DELETE FROM transfer_tasks WHERE shard_id = ? AND task_id >= ? AND task_id < ?`
 
-DELETE FROM transfer_tasks
-WHERE (shard_id, task_id) IN (SELECT shard_id, task_id FROM tasks_to_delete);`
-
+	rangeDeleteTransferTaskByBatchQuery = `DELETE FROM transfer_tasks WHERE rowid IN (
+SELECT rowid FROM transfer_tasks 
+WHERE shard_id = ? AND task_id >= ? AND task_id < ?
+ORDER BY task_id
+LIMIT ?  
+)`
 	rangeDeleteReplicationTaskQuery        = `DELETE FROM replication_tasks WHERE shard_id = ? AND task_id < ?`
-	rangeDeleteReplicationTaskByBatchQuery = `WITH tasks_to_delete AS (
-    SELECT shard_id, task_id
-    FROM replication_tasks
-    WHERE shard_id = ? AND task_id < ?
-    ORDER BY task_id
-    LIMIT ?
-)
-
-DELETE FROM replication_tasks
-WHERE (shard_id, task_id) IN (SELECT shard_id, task_id FROM tasks_to_delete);`
+	rangeDeleteReplicationTaskByBatchQuery = `DELETE FROM replication_tasks
+WHERE rowid  IN (
+SELECT rowid FROM replication_tasks
+WHERE shard_id = ? AND task_id < ?
+ORDER BY task_id
+LIMIT ?);`
 
 	rangeDeleteTimerTaskQuery        = `DELETE FROM timer_tasks WHERE shard_id = ? AND visibility_timestamp >= ? AND visibility_timestamp < ?`
 	rangeDeleteTimerTaskByBatchQuery = `DELETE FROM timer_tasks WHERE rowid IN (
