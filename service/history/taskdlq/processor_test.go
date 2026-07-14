@@ -785,8 +785,8 @@ func TestFailoverPartitions_DedupsAndNeverBlocks(t *testing.T) {
 	// Deduped down to the two distinct partitions regardless of how many were queued.
 	proc.failoverMu.Lock()
 	assert.Len(t, proc.pendingFailover, 2)
-	assert.Contains(t, proc.pendingFailover, dup.String())
-	assert.Contains(t, proc.pendingFailover, other.String())
+	assert.Contains(t, proc.pendingFailover, dup.key())
+	assert.Contains(t, proc.pendingFailover, other.key())
 	proc.failoverMu.Unlock()
 
 	// The wake-up signal is coalesced to a single pending token.

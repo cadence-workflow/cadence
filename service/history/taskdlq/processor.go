@@ -70,8 +70,7 @@ type (
 	}
 
 	// Partition identifies a single DLQ partition to reprocess on demand.
-	// An empty ClusterAttributeScope/ClusterAttributeName targets the domain's default
-	// partition (and, for the underlying by-domain query, every partition of the domain).
+	// An empty ClusterAttributeScope/ClusterAttributeName targets the domain's default partition.
 	Partition struct {
 		DomainID              string
 		ClusterAttributeScope string
@@ -99,7 +98,7 @@ type (
 		// failoverMu guards the failover coordination state below.
 		failoverMu sync.Mutex
 		// pendingFailover holds partitions awaiting on-demand reprocessing, keyed by
-		// Partition.String() so a burst of failovers for the same partition collapses to one.
+		// Partition.key() so a burst of failovers for the same partition collapses to one.
 		pendingFailover map[string]Partition
 		// sweepCancel cancels the in-flight periodic sweep so a failover can preempt it; nil
 		// when no sweep is running.
@@ -201,12 +200,9 @@ func (p *ProcessorImpl) Stop() {
 // on-demand failovers. It reads the interval on every tick so dynamic-config changes take
 // effect without a restart.
 //
-// The periodic sweep runs synchronously (runSweep) under a cancelable context published to
-// p.sweepCancel, so an on-demand failover can preempt it via FailoverPartitions -> cancel().
-// After a sweep returns (whether it completed or was preempted) the loop drains any pending
-// failovers, guaranteeing failed-over partitions are reprocessed before the next sweep.
-// ProcessShard is resumable (it reads ack levels fresh on each run), so a preempted sweep
-// simply picks up where it left off on the next tick.
+// processLoop coordinates between two processing triggers:
+// - A periodic sweep of all DLQ partitions for the shard.
+// - On-demand failovers of specific DLQ partitions.
 func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
@@ -230,10 +226,9 @@ func (p *ProcessorImpl) processLoop() {
 	}
 }
 
-// runSweep runs one periodic ProcessShard synchronously under a cancelable context, publishing
-// its cancel func to p.sweepCancel so FailoverPartitions can preempt it. A canceled context is
-// expected (a failover preempted the sweep) and is not logged as an error; ProcessShard resumes
-// from its persisted ack levels on the next tick.
+// runSweep runs one periodic ProcessShard synchronously under a cancelable context.
+// It creates a cancelable context, stored in p.sweepCancel, so that a background sweep can
+// be preempted when a failover occurs.
 func (p *ProcessorImpl) runSweep() {
 	if !p.enabled() {
 		return
@@ -257,10 +252,7 @@ func (p *ProcessorImpl) runSweep() {
 	}
 }
 
-// processPendingFailovers drains the pending failover set and reprocesses each partition.
-// It runs on the loop goroutine after any in-progress sweep has returned, so ProcessPartition
-// can acquire processMu immediately. Partitions that arrive while this runs re-signal the loop and
-// are handled on the next iteration (the signal is coalesced, so nothing is lost).
+// processPendingFailovers drains the pending failover set and processes each partition.
 func (p *ProcessorImpl) processPendingFailovers() {
 	p.failoverMu.Lock()
 	parts := make([]Partition, 0, len(p.pendingFailover))
@@ -329,11 +321,7 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 	return p.processAckLevels(ctx, ackLevels)
 }
 
-// FailoverPartitions enqueues the given partitions for on-demand reprocessing by the background
-// loop and preempts any in-progress periodic sweep so they run first. It never blocks the caller and
-// never drops: partitions are deduplicated into a pending set keyed by Partition.String() (bounded by
-// domains×attributes per failover), the in-flight sweep's context is canceled, and the wake-up signal
-// is coalesced so one signal drains everything pending.
+// FailoverPartitions enqueues the given partitions for on-demand reprocessing processLoop.
 func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
 	if len(partitions) == 0 {
 		return
@@ -341,10 +329,9 @@ func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
 
 	p.failoverMu.Lock()
 	for _, part := range partitions {
-		p.pendingFailover[part.String()] = part
+		p.pendingFailover[part.key()] = part
 	}
-	// Preempt the in-flight sweep (if any) so the loop drains these partitions promptly. cancel is
-	// idempotent, so calling it after the sweep already finished is harmless.
+	// Cancel an in-flight sweep (if any) to prioritize the failover partitions.
 	cancel := p.sweepCancel
 	p.failoverMu.Unlock()
 
@@ -352,15 +339,16 @@ func (p *ProcessorImpl) FailoverPartitions(partitions []Partition) {
 		cancel()
 	}
 
-	// Coalescing, non-blocking signal: wakes an idle loop. If one is already pending the loop will
-	// pick up the newly-added partitions when it drains, so a full buffer is fine to ignore.
+	// Send a signal to failoverSignal to trigger the background loop to process the newly added partitions.
+	// If the failoverSignal is already pending then nothing needs to be done - the new partitions will be processed on the next iteration.
 	select {
 	case p.failoverSignal <- struct{}{}:
 	default:
 	}
 }
 
-// All ack levels are processed regardless of individual failures.
+// processAckLevels takes a set of ackLevels and processes them sequentially.
+// It manages context cancellation to allow the processor to preempt and ongoing operation.
 // Returns an error when any of the ack levels cannot be processed
 func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []persistence.HistoryDLQAckLevel) error {
 	var errs error
@@ -502,6 +490,6 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al persistence.Hist
 	return nil
 }
 
-func (p *Partition) String() string {
+func (p *Partition) key() string {
 	return fmt.Sprintf("DomainID/%s/ClusterAttributeScope/%s/ClusterAttributeName/%s", p.DomainID, p.ClusterAttributeScope, p.ClusterAttributeName)
 }
