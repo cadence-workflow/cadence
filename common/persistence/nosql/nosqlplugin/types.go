@@ -58,8 +58,8 @@ type (
 		// For WorkflowExecutionMapsWriteMode of update only
 		ActivityInfoKeysToDelete       []int64
 		TimerInfoKeysToDelete          []string
-		ResetActivityInfos             map[int64]*persistence.InternalActivityInfo // non-nil triggers full activity_map rewrite
-		ResetTimerInfos                map[string]*persistence.TimerInfo           // non-nil triggers full timer_map rewrite
+		RewriteActivityInfos           map[int64]*persistence.InternalActivityInfo // non-nil triggers full activity_map rewrite
+		RewriteTimerInfos              map[string]*persistence.TimerInfo           // non-nil triggers full timer_map rewrite
 		ChildWorkflowInfoKeysToDelete  []int64
 		RequestCancelInfoKeysToDelete  []int64
 		SignalInfoKeysToDelete         []int64

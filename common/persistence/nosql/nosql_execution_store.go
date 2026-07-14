@@ -62,12 +62,12 @@ func (d *nosqlExecutionStore) GetShardID() int {
 	return d.shardID
 }
 
-func (d *nosqlExecutionStore) GetActivityMapDeleteResetThreshold() int {
-	return d.db.GetActivityMapDeleteResetThreshold()
+func (d *nosqlExecutionStore) GetActivityMapDeleteRewriteThreshold() int {
+	return d.db.GetActivityMapDeleteRewriteThreshold()
 }
 
-func (d *nosqlExecutionStore) GetTimerMapDeleteResetThreshold() int {
-	return d.db.GetTimerMapDeleteResetThreshold()
+func (d *nosqlExecutionStore) GetTimerMapDeleteRewriteThreshold() int {
+	return d.db.GetTimerMapDeleteRewriteThreshold()
 }
 
 func resolveRequestShardID(requestShardID *int, operation string, logger log.Logger) (int, error) {

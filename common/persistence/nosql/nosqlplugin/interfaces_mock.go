@@ -373,18 +373,18 @@ func (mr *MockDBMockRecorder) DeleteWorkflowExecution(ctx, shardID, domainID, wo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkflowExecution", reflect.TypeOf((*MockDB)(nil).DeleteWorkflowExecution), ctx, shardID, domainID, workflowID, runID)
 }
 
-// GetActivityMapDeleteResetThreshold mocks base method.
-func (m *MockDB) GetActivityMapDeleteResetThreshold() int {
+// GetActivityMapDeleteRewriteThreshold mocks base method.
+func (m *MockDB) GetActivityMapDeleteRewriteThreshold() int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActivityMapDeleteResetThreshold")
+	ret := m.ctrl.Call(m, "GetActivityMapDeleteRewriteThreshold")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetActivityMapDeleteResetThreshold indicates an expected call of GetActivityMapDeleteResetThreshold.
-func (mr *MockDBMockRecorder) GetActivityMapDeleteResetThreshold() *gomock.Call {
+// GetActivityMapDeleteRewriteThreshold indicates an expected call of GetActivityMapDeleteRewriteThreshold.
+func (mr *MockDBMockRecorder) GetActivityMapDeleteRewriteThreshold() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteResetThreshold", reflect.TypeOf((*MockDB)(nil).GetActivityMapDeleteResetThreshold))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteRewriteThreshold", reflect.TypeOf((*MockDB)(nil).GetActivityMapDeleteRewriteThreshold))
 }
 
 // GetQueueSize mocks base method.
@@ -417,18 +417,18 @@ func (mr *MockDBMockRecorder) GetTasksCount(ctx, filter any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTasksCount", reflect.TypeOf((*MockDB)(nil).GetTasksCount), ctx, filter)
 }
 
-// GetTimerMapDeleteResetThreshold mocks base method.
-func (m *MockDB) GetTimerMapDeleteResetThreshold() int {
+// GetTimerMapDeleteRewriteThreshold mocks base method.
+func (m *MockDB) GetTimerMapDeleteRewriteThreshold() int {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTimerMapDeleteResetThreshold")
+	ret := m.ctrl.Call(m, "GetTimerMapDeleteRewriteThreshold")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// GetTimerMapDeleteResetThreshold indicates an expected call of GetTimerMapDeleteResetThreshold.
-func (mr *MockDBMockRecorder) GetTimerMapDeleteResetThreshold() *gomock.Call {
+// GetTimerMapDeleteRewriteThreshold indicates an expected call of GetTimerMapDeleteRewriteThreshold.
+func (mr *MockDBMockRecorder) GetTimerMapDeleteRewriteThreshold() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteResetThreshold", reflect.TypeOf((*MockDB)(nil).GetTimerMapDeleteResetThreshold))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteRewriteThreshold", reflect.TypeOf((*MockDB)(nil).GetTimerMapDeleteRewriteThreshold))
 }
 
 // InsertConfig mocks base method.

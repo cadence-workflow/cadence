@@ -1816,7 +1816,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 	}
 }
 
-func TestResetTimerInfos(t *testing.T) {
+func TestRewriteTimerInfos(t *testing.T) {
 	ts, err := time.Parse(time.RFC3339, "2023-12-12T22:08:41Z")
 	if err != nil {
 		t.Fatal(err)
@@ -1965,7 +1965,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 }
 
-func TestResetActivityInfos(t *testing.T) {
+func TestRewriteActivityInfos(t *testing.T) {
 	ts, err := time.Parse(time.RFC3339, "2023-12-19T22:08:41Z")
 	if err != nil {
 		t.Fatal(err)

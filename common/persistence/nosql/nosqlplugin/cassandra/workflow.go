@@ -68,7 +68,7 @@ func (db *CDB) InsertWorkflowExecutionWithTasks(
 		return err
 	}
 
-	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, db.GetActivityMapDeleteResetThreshold() > 0, db.GetTimerMapDeleteResetThreshold() > 0, timeStamp)
+	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, db.GetActivityMapDeleteRewriteThreshold() > 0, db.GetTimerMapDeleteRewriteThreshold() > 0, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -161,14 +161,14 @@ func (db *CDB) UpdateWorkflowExecutionWithTasks(
 	}
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapDeleteResetThreshold() > 0, db.GetTimerMapDeleteResetThreshold() > 0, timeStamp)
+		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapDeleteRewriteThreshold() > 0, db.GetTimerMapDeleteRewriteThreshold() > 0, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
 	if insertedExecution != nil {
-		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, db.GetActivityMapDeleteResetThreshold() > 0, db.GetTimerMapDeleteResetThreshold() > 0, timeStamp)
+		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, db.GetActivityMapDeleteRewriteThreshold() > 0, db.GetTimerMapDeleteRewriteThreshold() > 0, timeStamp)
 		if err != nil {
 			return err
 		}

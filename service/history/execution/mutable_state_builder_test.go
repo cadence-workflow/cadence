@@ -3558,10 +3558,10 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 				},
 				UpsertActivityInfos:       []*persistence.ActivityInfo{},
 				DeleteActivityInfos:       nil,
-				ResetActivityMap:          true,
+				RewriteActivityMap:        true,
 				UpsertTimerInfos:          []*persistence.TimerInfo{},
 				DeleteTimerInfos:          nil,
-				ResetTimerMap:             true,
+				RewriteTimerMap:           true,
 				UpsertChildExecutionInfos: []*persistence.ChildExecutionInfo{},
 				UpsertRequestCancelInfos:  []*persistence.RequestCancelInfo{},
 				DeleteRequestCancelInfos:  []int64{},
@@ -3684,8 +3684,8 @@ func TestCloseTransactionAsMutation(t *testing.T) {
 			mockDomainCache := cache.NewMockDomainCache(ctrl)
 
 			mockExecManager := persistence.NewMockExecutionManager(ctrl)
-			mockExecManager.EXPECT().GetActivityMapDeleteResetThreshold().Return(100).AnyTimes()
-			mockExecManager.EXPECT().GetTimerMapDeleteResetThreshold().Return(100).AnyTimes()
+			mockExecManager.EXPECT().GetActivityMapDeleteRewriteThreshold().Return(100).AnyTimes()
+			mockExecManager.EXPECT().GetTimerMapDeleteRewriteThreshold().Return(100).AnyTimes()
 			shardContext.EXPECT().GetExecutionManager().Return(mockExecManager).AnyTimes()
 
 			ms := createMSBWithMocks(mockCache, shardContext, mockDomainCache, nil)

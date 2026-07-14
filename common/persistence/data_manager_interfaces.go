@@ -911,12 +911,12 @@ type (
 
 		UpsertActivityInfos       []*ActivityInfo
 		DeleteActivityInfos       []int64
-		ResetActivityInfos        []*ActivityInfo
-		ResetActivityMap          bool // triggers full activity_map rewrite, even if ResetActivityInfos is empty
+		RewriteActivityInfos      []*ActivityInfo
+		RewriteActivityMap        bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
 		UpsertTimerInfos          []*TimerInfo
 		DeleteTimerInfos          []string
-		ResetTimerInfos           []*TimerInfo
-		ResetTimerMap             bool // triggers full timer_map rewrite, even if ResetTimerInfos is empty
+		RewriteTimerInfos         []*TimerInfo
+		RewriteTimerMap           bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
 		UpsertChildExecutionInfos []*ChildExecutionInfo
 		DeleteChildExecutionInfos []int64
 		UpsertRequestCancelInfos  []*RequestCancelInfo
@@ -1694,8 +1694,8 @@ type (
 		Closeable
 		GetName() string
 		GetShardID() int
-		GetActivityMapDeleteResetThreshold() int
-		GetTimerMapDeleteResetThreshold() int
+		GetActivityMapDeleteRewriteThreshold() int
+		GetTimerMapDeleteRewriteThreshold() int
 
 		CreateWorkflowExecution(ctx context.Context, request *CreateWorkflowExecutionRequest) (*CreateWorkflowExecutionResponse, error)
 		GetWorkflowExecution(ctx context.Context, request *GetWorkflowExecutionRequest) (*GetWorkflowExecutionResponse, error)

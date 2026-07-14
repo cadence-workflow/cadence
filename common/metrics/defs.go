@@ -3003,8 +3003,8 @@ const (
 	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
 	HistoryTaskDLQPageSizeBytes
 
-	ActivityMapResetCounter
-	TimerMapResetCounter
+	ActivityMapRewriteCounter
+	TimerMapRewriteCounter
 
 	NumHistoryMetrics
 )
@@ -3653,8 +3653,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
 		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
 
-		ActivityMapResetCounter: {metricName: "activity_map_reset", metricType: Counter},
-		TimerMapResetCounter:    {metricName: "timer_map_reset", metricType: Counter},
+		ActivityMapRewriteCounter: {metricName: "activity_map_rewrite", metricType: Counter},
+		TimerMapRewriteCounter:    {metricName: "timer_map_rewrite", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},
