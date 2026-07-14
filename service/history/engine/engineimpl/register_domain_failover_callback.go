@@ -105,10 +105,7 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	shardNotificationVersion := e.shard.GetDomainNotificationVersion()
 	failoverActivePassiveDomainIDs := map[string]struct{}{}
 	failoverActiveActiveDomainIDs := map[string]struct{}{}
-	// dlqPartitions collects the DLQ partitions to reprocess promptly on failover, keyed
-	// precisely: active-passive domains use their single default partition; active-active
-	// domains use one partition per cluster attribute now active in this cluster (never
-	// still-passive attributes, which would just be re-DLQ'd).
+	// dlqPartitions collects the domain and cluster-attribute pairs that were failed over.
 	var dlqPartitions []taskdlq.Partition
 
 	for _, nextDomain := range nextDomains {
@@ -151,10 +148,7 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 		e.logger.Debug("Active-Active Domain updated", tag.WorkflowDomainIDs(failoverActiveActiveDomainIDs))
 	}
 
-	// Promptly reprocess DLQ'd tasks for the failed-over partitions instead of waiting for the
-	// next periodic sweep. This is non-blocking: the partitions are queued and a background loop
-	// preempts any in-progress sweep to reprocess them first, re-injecting the tasks into the
-	// executions table and notifying the queues so they are picked up immediately.
+	// Notify the DLQ processor to reprocess all the failed-over domains, including cluster attribute failovers.
 	if e.dlqProcessor != nil && len(dlqPartitions) > 0 {
 		e.dlqProcessor.FailoverPartitions(dlqPartitions)
 	}
@@ -184,10 +178,8 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	e.shard.UpdateDomainNotificationVersion(nextDomains[len(nextDomains)-1].GetNotificationVersion() + 1)
 }
 
-// activeClusterAttributesIn returns the cluster attributes of an active-active domain whose
-// active cluster is the given cluster. This is precise by construction (no previous entry
-// needed): only attributes currently active in the cluster are returned, so failover-triggered
-// DLQ reprocessing never touches attributes that are still passive here.
+// activeClusterAttributesIn returns which cluster attributes of an active-active domain are active in the given cluster.
+// Used to determine which cluster attributes need to be reprocessed for a given domain failover.
 func activeClusterAttributesIn(entry *cache.DomainCacheEntry, cluster string) []types.ClusterAttribute {
 	rc := entry.GetReplicationConfig()
 	if rc == nil || rc.ActiveClusters == nil {
