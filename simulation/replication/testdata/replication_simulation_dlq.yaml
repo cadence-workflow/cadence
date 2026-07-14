@@ -13,8 +13,8 @@
 #   3. The domain fails over region0 -> cluster1, making cluster1 active for the workflows.
 #   4. The history-task DLQ processor on cluster1 re-injects the DLQ tasks into the executions
 #      table and advances the ack level, draining the DLQ.
-#   5. validate_dlq asserts the DLQ has drained to zero, and validate asserts a sample of the
-#      workflows completed on cluster1 (secondary evidence that the re-injected work actually ran).
+#   5. validate_dlq asserts the DLQ has drained to zero; validate_dlq_ack_level asserts the ack
+#      level advanced past the fill-time sentinel; and validate asserts workflows completed successfully
 
 clusters:
   cluster0:
@@ -277,8 +277,8 @@ operations:
         scope: region
         name: region0
 
-  # Fill assertion: the standby cluster (cluster1) should have accumulated DLQ rows for the
-  # domain by now. This runs before failover, while cluster0 is still active for region0.
+  # Assert that the standby cluster (cluster1) has accumulated DLQ rows for the
+  # domain.
   - op: validate_dlq
     at: 40s
     cluster: cluster1
@@ -296,8 +296,8 @@ operations:
         region0: cluster1 # changed from cluster0 to cluster1
         region1: cluster1
 
-  # Drain assertion: after failover + a couple of DLQ processor intervals, the DLQ on cluster1
-  # should have drained back to zero.
+  # Assert that after failover + a couple of DLQ processor intervals, the DLQ on cluster1
+  # has drained back to zero.
   - op: validate_dlq
     at: 130s
     cluster: cluster1
@@ -305,8 +305,18 @@ operations:
     want:
       dlqCountAtMost: 0
 
-  # Secondary evidence: a sample of the workflows should have completed, and the completing worker
-  # should be on cluster1 (the re-injected tasks ran on the now-active cluster).
+  # Assert that the ack level has advanced past the fill-time sentinel. 
+  - op: validate_dlq_ack_level
+    at: 132s
+    cluster: cluster1
+    domain: test-domain-aa
+    want:
+      dlqClusterAttributeScope: region
+      dlqClusterAttributeName: region0
+      dlqAckLevelTaskIDAtLeast: 1
+
+  # Validation that a sample of the workflows have completed, and the completing worker
+  # should be on cluster1.
   - op: validate
     at: 170s
     workflowID: dlq-wf1

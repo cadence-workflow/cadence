@@ -52,6 +52,7 @@ const (
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
 	ReplicationSimulationOperationValidateDLQ                 ReplicationSimulationOperation = "validate_dlq"
+	ReplicationSimulationOperationValidateDLQAckLevel         ReplicationSimulationOperation = "validate_dlq_ack_level"
 )
 
 type ReplicationSimulationConfig struct {
@@ -130,9 +131,18 @@ type Validation struct {
 
 	// DLQCountAtLeast / DLQCountAtMost are used by the validate_dlq operation to assert
 	// on the number of history-task DLQ rows for a domain in a cluster's keyspace.
-	// Pointers so that "unset" is distinguishable from an explicit 0.
 	DLQCountAtLeast *int `yaml:"dlqCountAtLeast"`
 	DLQCountAtMost  *int `yaml:"dlqCountAtMost"`
+
+	// DLQAckLevelTaskIDAtLeast is used by the validate_dlq_ack_level operation to assert
+	// that the history-task DLQ ack level for a domain has advanced past the sentinel value.
+	DLQAckLevelTaskIDAtLeast *int64 `yaml:"dlqAckLevelTaskIDAtLeast"`
+
+	// DLQClusterAttributeScope / DLQClusterAttributeName select the specific DLQ partition
+	// (domain + cluster-attribute pair) that validate_dlq_ack_level asserts on. Use empty strings
+	// to assert on the 'default' active cluster.
+	DLQClusterAttributeScope string `yaml:"dlqClusterAttributeScope"`
+	DLQClusterAttributeName  string `yaml:"dlqClusterAttributeName"`
 }
 
 type Cluster struct {
