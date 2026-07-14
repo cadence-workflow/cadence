@@ -48,9 +48,9 @@ import (
 )
 
 var _staticMethods = map[string]bool{
-	"Close":                              true,
-	"GetName":                            true,
-	"GetShardID":                         true,
+	"Close":                                true,
+	"GetName":                              true,
+	"GetShardID":                           true,
 	"GetActivityMapDeleteRewriteThreshold": true,
 	"GetTimerMapDeleteRewriteThreshold":    true,
 }
