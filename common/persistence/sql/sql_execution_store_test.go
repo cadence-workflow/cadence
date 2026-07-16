@@ -3332,4 +3332,3 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 		})
 	}
 }
-

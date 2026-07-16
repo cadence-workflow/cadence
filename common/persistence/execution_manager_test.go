@@ -1385,7 +1385,6 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 	}
 }
 
-
 func sampleInternalActivityInfo(name string) *InternalActivityInfo {
 	return &InternalActivityInfo{
 		Version:        1,

@@ -42,14 +42,14 @@ import (
 
 func TestInsertWorkflowExecutionWithTasks(t *testing.T) {
 	tests := []struct {
-		name                            string
-		workflowRequest                 *nosqlplugin.WorkflowRequestsWriteRequest
-		request                         *nosqlplugin.CurrentWorkflowWriteRequest
-		execution                       *nosqlplugin.WorkflowExecutionRequest
-		tasksByCategory                 map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
-		shardCondition *nosqlplugin.ShardCondition
-		mapExecuteBatchCASErr           error
-		wantErr                         bool
+		name                  string
+		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
+		request               *nosqlplugin.CurrentWorkflowWriteRequest
+		execution             *nosqlplugin.WorkflowExecutionRequest
+		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		shardCondition        *nosqlplugin.ShardCondition
+		mapExecuteBatchCASErr error
+		wantErr               bool
 	}{
 		{
 			name: "success",
@@ -278,16 +278,16 @@ func TestSelectCurrentWorkflow(t *testing.T) {
 
 func TestUpdateWorkflowExecutionWithTasks(t *testing.T) {
 	tests := []struct {
-		name                            string
-		workflowRequest                 *nosqlplugin.WorkflowRequestsWriteRequest
-		request                         *nosqlplugin.CurrentWorkflowWriteRequest
-		mutatedExecution                *nosqlplugin.WorkflowExecutionRequest
-		insertedExecution               *nosqlplugin.WorkflowExecutionRequest
-		resetExecution                  *nosqlplugin.WorkflowExecutionRequest
-		tasksByCategory                 map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
-		shardCondition                  *nosqlplugin.ShardCondition
-		mapExecuteBatchCASErr           error
-		wantErr                         bool
+		name                  string
+		workflowRequest       *nosqlplugin.WorkflowRequestsWriteRequest
+		request               *nosqlplugin.CurrentWorkflowWriteRequest
+		mutatedExecution      *nosqlplugin.WorkflowExecutionRequest
+		insertedExecution     *nosqlplugin.WorkflowExecutionRequest
+		resetExecution        *nosqlplugin.WorkflowExecutionRequest
+		tasksByCategory       map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask
+		shardCondition        *nosqlplugin.ShardCondition
+		mapExecuteBatchCASErr error
+		wantErr               bool
 	}{
 		{
 			name: "both mutatedExecution and resetExecution not provided",
@@ -2624,7 +2624,6 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 		})
 	}
 }
-
 
 func TestSelectWorkflowTimerTasks(t *testing.T) {
 	ts := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
