@@ -1627,30 +1627,6 @@ func fromRequestRowType(rowType int) (persistence.WorkflowRequestType, error) {
 	}
 }
 
-func insertWorkflowActiveClusterSelectionPolicyRow(
-	batch gocql.Batch,
-	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
-	timeStamp time.Time,
-) error {
-	if activeClusterSelectionPolicyRow == nil || activeClusterSelectionPolicyRow.Policy == nil {
-		return nil
-	}
-
-	batch.Query(templateInsertWorkflowActiveClusterSelectionPolicyRowQuery,
-		activeClusterSelectionPolicyRow.ShardID,
-		rowTypeWorkflowActiveClusterSelectionPolicy,
-		activeClusterSelectionPolicyRow.DomainID,
-		activeClusterSelectionPolicyRow.WorkflowID,
-		activeClusterSelectionPolicyRow.RunID,
-		defaultVisibilityTimestamp,
-		rowTypeWorkflowActiveClusterSelectionVersion,
-		timeStamp,
-		activeClusterSelectionPolicyRow.Policy.Data,
-		activeClusterSelectionPolicyRow.Policy.GetEncodingString(),
-	)
-	return nil
-}
-
 func insertOrUpsertWorkflowRequestRow(
 	batch gocql.Batch,
 	requests *nosqlplugin.WorkflowRequestsWriteRequest,

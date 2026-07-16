@@ -256,11 +256,7 @@ const (
 		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, current_run_id, last_updated_time) ` +
 		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?`
 
-	templateInsertWorkflowActiveClusterSelectionPolicyRowQuery = `INSERT INTO executions (` +
-		`shard_id, type, domain_id, workflow_id, run_id, visibility_ts, task_id, created_time, data, data_encoding) ` +
-		`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
-
-	templateGetActiveClusterSelectionPolicyQuery = `SELECT data, data_encoding ` +
+	templateGetActiveClusterSelectionPolicyFromExecutionQuery = `SELECT execution ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +
@@ -599,15 +595,6 @@ const (
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
-
-	templateDeleteActiveClusterSelectionPolicyQuery = `DELETE FROM executions ` +
-		`WHERE shard_id = ? ` +
-		`and type = ? ` +
-		`and domain_id = ? ` +
-		`and workflow_id = ? ` +
-		`and run_id = ? ` +
-		`and visibility_ts = ? ` +
-		`and task_id = ?`
 
 	templateGetTransferTasksQuery = `SELECT task_id, transfer, data, data_encoding ` +
 		`FROM executions ` +

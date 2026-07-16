@@ -507,20 +507,6 @@ func (mr *MockExecutionManagerMockRecorder) CreateWorkflowExecution(ctx, request
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWorkflowExecution", reflect.TypeOf((*MockExecutionManager)(nil).CreateWorkflowExecution), ctx, request)
 }
 
-// DeleteActiveClusterSelectionPolicy mocks base method.
-func (m *MockExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteActiveClusterSelectionPolicy", ctx, request)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteActiveClusterSelectionPolicy indicates an expected call of DeleteActiveClusterSelectionPolicy.
-func (mr *MockExecutionManagerMockRecorder) DeleteActiveClusterSelectionPolicy(ctx, request any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionManager)(nil).DeleteActiveClusterSelectionPolicy), ctx, request)
-}
-
 // DeleteCurrentWorkflowExecution mocks base method.
 func (m *MockExecutionManager) DeleteCurrentWorkflowExecution(ctx context.Context, request *DeleteCurrentWorkflowExecutionRequest) error {
 	m.ctrl.T.Helper()
