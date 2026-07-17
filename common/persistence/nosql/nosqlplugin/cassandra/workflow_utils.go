@@ -1482,6 +1482,8 @@ func updateWorkflowExecution(
 		execution.LastWriteVersion,
 		execution.State,
 		timeStamp,
+		execution.ActiveClusterSelectionPolicy.GetData(),
+		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1586,6 +1588,8 @@ func createWorkflowExecution(
 		execution.LastWriteVersion,
 		execution.State,
 		timeStamp,
+		execution.ActiveClusterSelectionPolicy.GetData(),
+		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
 	)
 	return nil
 }

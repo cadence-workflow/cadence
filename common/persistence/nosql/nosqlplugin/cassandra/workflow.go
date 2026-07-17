@@ -918,13 +918,8 @@ func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 		return nil, err
 	}
 
-	executionBlob, ok := result["execution"].(map[string]interface{})
-	if !ok {
-		return nil, nil
-	}
-
-	policyData, _ := executionBlob["active_cluster_selection_policy"].([]byte)
-	policyEncoding, _ := executionBlob["active_cluster_selection_policy_encoding"].(string)
+	policyData, _ := result["data"].([]byte)
+	policyEncoding, _ := result["data_encoding"].(string)
 	if policyData == nil {
 		return nil, nil
 	}

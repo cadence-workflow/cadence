@@ -2509,14 +2509,12 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 			session: &fakeSession{
 				query: &fakeQuery{
 					mapScan: map[string]interface{}{
-						"execution": map[string]interface{}{
-							"active_cluster_selection_policy":          []byte("data1"),
-							"active_cluster_selection_policy_encoding": "thriftrw",
-						},
+						"data":          []byte("data1"),
+						"data_encoding": "thriftrw",
 					},
 				},
 			},
-			wantQuery: `SELECT execution FROM executions WHERE ` +
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
 				`shard_id = 1 and type = 1 and domain_id = domain1 and ` +
 				`workflow_id = wfid1 and run_id = r1 and visibility_ts = 946684800000 and task_id = -10`,
 			wantPolicy: &nosqlplugin.ActiveClusterSelectionPolicyRow{
@@ -2539,7 +2537,7 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 					err:     errors.New("not found"),
 				},
 			},
-			wantQuery: `SELECT execution FROM executions WHERE ` +
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
 				`shard_id = 1 and type = 1 and domain_id = domain2 and ` +
 				`workflow_id = wfid2 and run_id = r2 and visibility_ts = 946684800000 and task_id = -10`,
 			mockFn: func(cl *gocql.MockClient) {
@@ -2560,7 +2558,7 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 					err:     errors.New("failed"),
 				},
 			},
-			wantQuery: `SELECT execution FROM executions WHERE ` +
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
 				`shard_id = 1 and type = 1 and domain_id = domain3 and ` +
 				`workflow_id = wfid3 and run_id = r3 and visibility_ts = 946684800000 and task_id = -10`,
 			mockFn: func(cl *gocql.MockClient) {
@@ -2577,14 +2575,10 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 			rID:      "r4",
 			session: &fakeSession{
 				query: &fakeQuery{
-					mapScan: map[string]interface{}{
-						"execution": map[string]interface{}{
-							"workflow_id": "wfid4",
-						},
-					},
+					mapScan: map[string]interface{}{},
 				},
 			},
-			wantQuery: `SELECT execution FROM executions WHERE ` +
+			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
 				`shard_id = 1 and type = 1 and domain_id = domain4 and ` +
 				`workflow_id = wfid4 and run_id = r4 and visibility_ts = 946684800000 and task_id = -10`,
 			wantPolicy: nil,
