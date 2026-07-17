@@ -1539,6 +1539,26 @@ func (m *sqlExecutionStore) GetActiveClusterSelectionPolicy(
 	return p.NewDataBlob(row.Data, constants.EncodingType(row.DataEncoding)), nil
 }
 
+func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	request *p.DeleteActiveClusterSelectionPolicyRequest,
+) error {
+	domainID := serialization.MustParseUUID(request.DomainID)
+	runID := serialization.MustParseUUID(request.RunID)
+	if _, err := m.db.DeleteFromActiveClusterSelectionPolicy(ctx, &sqlplugin.ActiveClusterSelectionPolicyFilter{
+		ShardID:    m.shardID,
+		DomainID:   domainID,
+		WorkflowID: request.WorkflowID,
+		RunID:      runID,
+	}); err != nil {
+		if errors.Is(err, sqlplugin.ErrNotImplemented) {
+			return nil
+		}
+		return convertCommonErrors(m.db, "DeleteActiveClusterSelectionPolicy", "", err)
+	}
+	return nil
+}
+
 func (m *sqlExecutionStore) SelectWorkflowTimerTasks(
 	ctx context.Context,
 	request *p.SelectWorkflowTimerTasksRequest,

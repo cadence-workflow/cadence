@@ -165,6 +165,10 @@ func (t *timerTaskExecutorBase) deleteWorkflow(
 		return err
 	}
 
+	if err := t.deleteActiveClusterSelectionPolicy(ctx, task); err != nil {
+		return err
+	}
+
 	t.cleanupWorkflowTimerTasks(ctx, task)
 
 	// it must be the last one due to the nature of workflow execution deletion
@@ -235,6 +239,10 @@ func (t *timerTaskExecutorBase) archiveWorkflow(
 		return err
 	}
 
+	if err := t.deleteActiveClusterSelectionPolicy(ctx, task); err != nil {
+		return err
+	}
+
 	if err := t.deleteCurrentWorkflowExecution(ctx, task); err != nil {
 		return err
 	}
@@ -284,6 +292,21 @@ func (t *timerTaskExecutorBase) deleteCurrentWorkflowExecution(
 			WorkflowID: task.WorkflowID,
 			RunID:      task.RunID,
 			DomainName: domainName,
+			ShardID:    common.Ptr(t.shard.GetShardID()),
+		})
+	}
+	return t.throttleRetry.Do(ctx, op)
+}
+
+func (t *timerTaskExecutorBase) deleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	task *persistence.DeleteHistoryEventTask,
+) error {
+	op := func(ctx context.Context) error {
+		return t.shard.GetExecutionManager().DeleteActiveClusterSelectionPolicy(ctx, &persistence.DeleteActiveClusterSelectionPolicyRequest{
+			DomainID:   task.DomainID,
+			WorkflowID: task.WorkflowID,
+			RunID:      task.RunID,
 			ShardID:    common.Ptr(t.shard.GetShardID()),
 		})
 	}

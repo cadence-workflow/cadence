@@ -1031,6 +1031,13 @@ func (m *executionManagerImpl) GetActiveClusterSelectionPolicy(
 	return policy, nil
 }
 
+func (m *executionManagerImpl) DeleteActiveClusterSelectionPolicy(
+	ctx context.Context,
+	request *DeleteActiveClusterSelectionPolicyRequest,
+) error {
+	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, request)
+}
+
 func (m *executionManagerImpl) Close() {
 	m.persistence.Close()
 }

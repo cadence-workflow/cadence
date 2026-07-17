@@ -87,6 +87,10 @@ func (s *ExecutionManagerSuite) TestGetActiveClusterSelectionPolicy() {
 	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in postgres sql")
 }
 
+func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
+	s.T().Skip("skip the test until we support ActiveClusterSelectionPolicy in postgres sql")
+}
+
 func TestPostgresSQLExecutionManagerSuite(t *testing.T) {
 	testflags.RequirePostgres(t)
 	s := new(ExecutionManagerSuite)

@@ -976,6 +976,14 @@ type (
 		RunID      string
 	}
 
+	// DeleteActiveClusterSelectionPolicyRequest is used to delete the active cluster selection policy
+	DeleteActiveClusterSelectionPolicyRequest struct {
+		ShardID    ShardID
+		DomainID   string
+		WorkflowID string
+		RunID      string
+	}
+
 	// PutReplicationTaskToDLQRequest is used to put a replication task to dlq
 	PutReplicationTaskToDLQRequest struct {
 		ShardID           ShardID
@@ -1711,6 +1719,7 @@ type (
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
 
 		GetActiveClusterSelectionPolicy(ctx context.Context, request *GetActiveClusterSelectionPolicyRequest) (*types.ActiveClusterSelectionPolicy, error)
+		DeleteActiveClusterSelectionPolicy(ctx context.Context, request *DeleteActiveClusterSelectionPolicyRequest) error
 	}
 
 	// ExecutionManagerFactory creates an instance of ExecutionManager for a given shard

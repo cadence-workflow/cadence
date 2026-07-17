@@ -2489,16 +2489,16 @@ func TestInsertHistoryTasks(t *testing.T) {
 
 func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 	tests := []struct {
-		name       string
-		shardID    int
-		domainID   string
-		wfID       string
-		rID        string
-		session    *fakeSession
-		mockFn     func(cl *gocql.MockClient)
-		wantQuery  string
-		wantPolicy *nosqlplugin.ActiveClusterSelectionPolicyRow
-		wantErr    bool
+		name        string
+		shardID     int
+		domainID    string
+		wfID        string
+		rID         string
+		session     *fakeSession
+		mockFn      func(cl *gocql.MockClient)
+		wantQueries []string
+		wantPolicy  *nosqlplugin.ActiveClusterSelectionPolicyRow
+		wantErr     bool
 	}{
 		{
 			name:     "success",
@@ -2514,9 +2514,11 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 					},
 				},
 			},
-			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
-				`shard_id = 1 and type = 1 and domain_id = domain1 and ` +
-				`workflow_id = wfid1 and run_id = r1 and visibility_ts = 946684800000 and task_id = -10`,
+			wantQueries: []string{
+				`SELECT data, data_encoding FROM executions WHERE ` +
+					`shard_id = 1 and type = 1 and domain_id = domain1 and ` +
+					`workflow_id = wfid1 and run_id = r1 and visibility_ts = 946684800000 and task_id = -10`,
+			},
 			wantPolicy: &nosqlplugin.ActiveClusterSelectionPolicyRow{
 				Policy:     persistence.NewDataBlob([]byte("data1"), constants.EncodingTypeThriftRW),
 				ShardID:    1,
@@ -2537,9 +2539,11 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 					err:     errors.New("not found"),
 				},
 			},
-			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
-				`shard_id = 1 and type = 1 and domain_id = domain2 and ` +
-				`workflow_id = wfid2 and run_id = r2 and visibility_ts = 946684800000 and task_id = -10`,
+			wantQueries: []string{
+				`SELECT data, data_encoding FROM executions WHERE ` +
+					`shard_id = 1 and type = 1 and domain_id = domain2 and ` +
+					`workflow_id = wfid2 and run_id = r2 and visibility_ts = 946684800000 and task_id = -10`,
+			},
 			mockFn: func(cl *gocql.MockClient) {
 				cl.EXPECT().IsNotFoundError(errors.New("not found")).Return(true).Times(1)
 			},
@@ -2558,9 +2562,11 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 					err:     errors.New("failed"),
 				},
 			},
-			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
-				`shard_id = 1 and type = 1 and domain_id = domain3 and ` +
-				`workflow_id = wfid3 and run_id = r3 and visibility_ts = 946684800000 and task_id = -10`,
+			wantQueries: []string{
+				`SELECT data, data_encoding FROM executions WHERE ` +
+					`shard_id = 1 and type = 1 and domain_id = domain3 and ` +
+					`workflow_id = wfid3 and run_id = r3 and visibility_ts = 946684800000 and task_id = -10`,
+			},
 			mockFn: func(cl *gocql.MockClient) {
 				cl.EXPECT().IsNotFoundError(errors.New("failed")).Return(false).Times(1)
 			},
@@ -2568,7 +2574,7 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			name:     "execution exists but no policy - returns nil",
+			name:     "data columns nil - falls back to legacy row",
 			shardID:  1,
 			domainID: "domain4",
 			wfID:     "wfid4",
@@ -2578,9 +2584,14 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 					mapScan: map[string]interface{}{},
 				},
 			},
-			wantQuery: `SELECT data, data_encoding FROM executions WHERE ` +
-				`shard_id = 1 and type = 1 and domain_id = domain4 and ` +
-				`workflow_id = wfid4 and run_id = r4 and visibility_ts = 946684800000 and task_id = -10`,
+			wantQueries: []string{
+				`SELECT data, data_encoding FROM executions WHERE ` +
+					`shard_id = 1 and type = 1 and domain_id = domain4 and ` +
+					`workflow_id = wfid4 and run_id = r4 and visibility_ts = 946684800000 and task_id = -10`,
+				`SELECT data, data_encoding FROM executions WHERE ` +
+					`shard_id = 1 and type = 11 and domain_id = domain4 and ` +
+					`workflow_id = wfid4 and run_id = r4 and visibility_ts = 946684800000 and task_id = -1001`,
+			},
 			wantPolicy: nil,
 			wantErr:    false,
 		},
@@ -2612,7 +2623,7 @@ func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 				t.Fatalf("Policy mismatch (-want +got):\n%s", diff)
 			}
 
-			if diff := cmp.Diff(tc.wantQuery, tc.session.queries[0]); diff != "" {
+			if diff := cmp.Diff(tc.wantQueries, tc.session.queries); diff != "" {
 				t.Fatalf("Query mismatch (-want +got):\n%s", diff)
 			}
 		})

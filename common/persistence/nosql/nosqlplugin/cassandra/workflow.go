@@ -920,6 +920,42 @@ func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 
 	policyData, _ := result["data"].([]byte)
 	policyEncoding, _ := result["data_encoding"].(string)
+
+	if policyData == nil {
+		return db.selectActiveClusterSelectionPolicyLegacy(ctx, shardID, domainID, wfID, rID)
+	}
+
+	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
+		ShardID:    shardID,
+		DomainID:   domainID,
+		WorkflowID: wfID,
+		RunID:      rID,
+		Policy:     persistence.NewDataBlob(policyData, constants.EncodingType(policyEncoding)),
+	}, nil
+}
+
+func (db *CDB) selectActiveClusterSelectionPolicyLegacy(ctx context.Context, shardID int, domainID, wfID, rID string) (*nosqlplugin.ActiveClusterSelectionPolicyRow, error) {
+	query := db.session.Query(templateGetActiveClusterSelectionPolicyFromExecutionLegacyQuery,
+		shardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		domainID,
+		wfID,
+		rID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+	).WithContext(ctx)
+
+	result := make(map[string]interface{})
+	if err := query.MapScan(result); err != nil {
+		if db.client.IsNotFoundError(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	policyData, _ := result["data"].([]byte)
+	policyEncoding, _ := result["data_encoding"].(string)
 	if policyData == nil {
 		return nil, nil
 	}
@@ -931,4 +967,18 @@ func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 		RunID:      rID,
 		Policy:     persistence.NewDataBlob(policyData, constants.EncodingType(policyEncoding)),
 	}, nil
+}
+
+func (db *CDB) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error {
+	query := db.session.Query(templateDeleteActiveClusterSelectionPolicyQuery,
+		shardID,
+		rowTypeWorkflowActiveClusterSelectionPolicy,
+		domainID,
+		workflowID,
+		runID,
+		defaultVisibilityTimestamp,
+		rowTypeWorkflowActiveClusterSelectionVersion,
+	).WithContext(ctx)
+
+	return db.executeWithConsistencyAll(query)
 }

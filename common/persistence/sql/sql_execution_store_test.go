@@ -3332,3 +3332,63 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
+	shardID := 7
+	domainID := "abdcea69-61d5-44c3-9d55-afe23505a542"
+	workflowID := "wf-1"
+	runID := "fd65967f-777d-45de-8dee-be49dfda6716"
+
+	wantFilter := &sqlplugin.ActiveClusterSelectionPolicyFilter{
+		ShardID:    shardID,
+		DomainID:   serialization.MustParseUUID(domainID),
+		WorkflowID: workflowID,
+		RunID:      serialization.MustParseUUID(runID),
+	}
+
+	tests := []struct {
+		name      string
+		mockSetup func(*sqlplugin.MockDB)
+		wantErr   error
+	}{
+		{
+			name: "successful delete",
+			mockSetup: func(db *sqlplugin.MockDB) {
+				db.EXPECT().DeleteFromActiveClusterSelectionPolicy(gomock.Any(), wantFilter).Return(nil, nil)
+			},
+		},
+		{
+			name: "error is wrapped",
+			mockSetup: func(db *sqlplugin.MockDB) {
+				err := errors.New("boom")
+				db.EXPECT().DeleteFromActiveClusterSelectionPolicy(gomock.Any(), wantFilter).Return(nil, err)
+				db.EXPECT().IsNotFoundError(err).Return(false)
+				db.EXPECT().IsTimeoutError(err).Return(false)
+				db.EXPECT().IsThrottlingError(err).Return(false)
+			},
+			wantErr: &types.InternalServiceError{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockDB := sqlplugin.NewMockDB(ctrl)
+			tc.mockSetup(mockDB)
+
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+			err := store.DeleteActiveClusterSelectionPolicy(context.Background(), &persistence.DeleteActiveClusterSelectionPolicyRequest{
+				DomainID:   domainID,
+				WorkflowID: workflowID,
+				RunID:      runID,
+			})
+			if tc.wantErr != nil {
+				require.ErrorAs(t, err, &tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}

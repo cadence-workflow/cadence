@@ -266,6 +266,16 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ?`
 
+	templateGetActiveClusterSelectionPolicyFromExecutionLegacyQuery = `SELECT data, data_encoding ` +
+		`FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ?`
+
 	templateGetLatestWorkflowRequestQuery = `SELECT current_run_id ` +
 		`FROM executions ` +
 		`WHERE shard_id = ? ` +
@@ -597,6 +607,15 @@ const (
 		`and run_id = ? ` +
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
+
+	templateDeleteActiveClusterSelectionPolicyQuery = `DELETE FROM executions ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ?`
 
 	templateGetTransferTasksQuery = `SELECT task_id, transfer, data, data_encoding ` +
 		`FROM executions ` +

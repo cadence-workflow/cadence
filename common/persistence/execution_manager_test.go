@@ -1385,6 +1385,58 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 	}
 }
 
+func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
+	ctx := context.Background()
+	domainID := "domainID"
+	workflowID := "workflowID"
+	runID := "runID"
+
+	request := &DeleteActiveClusterSelectionPolicyRequest{
+		DomainID:   domainID,
+		WorkflowID: workflowID,
+		RunID:      runID,
+	}
+
+	tests := []struct {
+		name         string
+		prepareMocks func(*MockExecutionStore)
+		wantErr      error
+	}{
+		{
+			name: "success",
+			prepareMocks: func(mockedStore *MockExecutionStore) {
+				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, request).Return(nil)
+			},
+		},
+		{
+			name: "store error",
+			prepareMocks: func(mockedStore *MockExecutionStore) {
+				mockedStore.EXPECT().DeleteActiveClusterSelectionPolicy(ctx, request).Return(assert.AnError)
+			},
+			wantErr: assert.AnError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockedStore := NewMockExecutionStore(ctrl)
+			manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), nil, &DynamicConfiguration{
+				SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+			})
+
+			test.prepareMocks(mockedStore)
+
+			err := manager.DeleteActiveClusterSelectionPolicy(ctx, request)
+			if test.wantErr != nil {
+				assert.EqualError(t, err, test.wantErr.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func sampleInternalActivityInfo(name string) *InternalActivityInfo {
 	return &InternalActivityInfo{
 		Version:        1,

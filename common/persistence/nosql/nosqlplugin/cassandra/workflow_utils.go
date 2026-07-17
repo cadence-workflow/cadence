@@ -1408,6 +1408,8 @@ func updateWorkflowExecution(
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
 
+	policyData, policyEncoding := fromDataBlobForCassandra(execution.ActiveClusterSelectionPolicy)
+
 	batch.Query(templateUpdateWorkflowExecutionWithVersionHistoriesQuery,
 		domainID,
 		workflowID,
@@ -1482,8 +1484,8 @@ func updateWorkflowExecution(
 		execution.LastWriteVersion,
 		execution.State,
 		timeStamp,
-		execution.ActiveClusterSelectionPolicy.GetData(),
-		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
+		policyData,
+		policyEncoding,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1506,6 +1508,8 @@ func createWorkflowExecution(
 ) error {
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
+
+	policyData, policyEncoding := fromDataBlobForCassandra(execution.ActiveClusterSelectionPolicy)
 
 	batch.Query(templateCreateWorkflowExecutionWithVersionHistoriesQuery,
 		shardID,
@@ -1588,8 +1592,8 @@ func createWorkflowExecution(
 		execution.LastWriteVersion,
 		execution.State,
 		timeStamp,
-		execution.ActiveClusterSelectionPolicy.GetData(),
-		execution.ActiveClusterSelectionPolicy.GetEncodingString(),
+		policyData,
+		policyEncoding,
 	)
 	return nil
 }
