@@ -6140,8 +6140,6 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 	s.NoError(err)
 	s.Equal(policy, got)
 
-	// Delete only removes the legacy separate row (type=11).
-	// The policy is still readable from the execution row's data/data_encoding columns.
 	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
 		DomainID:   domainID,
 		WorkflowID: workflowID,
@@ -6154,8 +6152,16 @@ func (s *ExecutionManagerSuite) TestDeleteActiveClusterSelectionPolicy() {
 		WorkflowID: workflowID,
 		RunID:      runID,
 	})
-	s.NoError(err)
-	s.Equal(policy, got)
+	if s.ExecutionManager.GetName() == "cassandra" {
+		// Cassandra: delete only removes the legacy separate row (type=11).
+		// The policy is still readable from the execution row's data/data_encoding columns.
+		s.NoError(err)
+		s.Equal(policy, got)
+	} else {
+		// SQL: delete removes the dedicated table row, so the policy is gone.
+		s.Error(err)
+		s.IsType(&types.EntityNotExistsError{}, err)
+	}
 
 	// Deleting again is a no-op (idempotent).
 	err = s.ExecutionManager.DeleteActiveClusterSelectionPolicy(ctx, &p.DeleteActiveClusterSelectionPolicyRequest{
