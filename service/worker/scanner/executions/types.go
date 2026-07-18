@@ -93,7 +93,7 @@ func (st ScanType) ToExecutionFetcher() ExecutionFetcher {
 }
 
 // ToInvariants returns list of invariants to be checked depending on scan type.
-func (st ScanType) ToInvariants(collections []invariant.Collection, logger *zap.Logger, numShards int) []InvariantFactory {
+func (st ScanType) ToInvariants(collections []invariant.Collection, logger *zap.Logger) []InvariantFactory {
 	var fns []InvariantFactory
 	switch st {
 	case ConcreteExecutionType:
@@ -105,7 +105,7 @@ func (st ScanType) ToInvariants(collections []invariant.Collection, logger *zap.
 				fns = append(fns, invariant.NewHistoryExists)
 			case invariant.CollectionStale:
 				fns = append(fns, func(pr persistence.Retryer, dc cache.DomainCache) invariant.Invariant {
-					return invariant.NewStaleWorkflow(pr, dc, logger.Named(string(invariant.StaleWorkflow)), numShards)
+					return invariant.NewStaleWorkflow(pr, dc, logger.Named(string(invariant.StaleWorkflow)))
 				})
 			case invariant.CollectionMutableState:
 				fns = append(fns, invariant.NewOpenCurrentExecution)

@@ -21,8 +21,6 @@
 package nosql
 
 import (
-	"sync"
-
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -33,12 +31,10 @@ import (
 type (
 	// Factory vends datastore implementations backed by cassandra
 	Factory struct {
-		sync.RWMutex
 		cfg            config.ShardedNoSQL
 		clusterName    string
 		logger         log.Logger
 		metricsClient  metrics.Client
-		shardedStore   shardedNosqlStore
 		dc             *persistence.DynamicConfiguration
 		parser         serialization.Parser
 		taskSerializer serialization.TaskSerializer
@@ -91,11 +87,7 @@ func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, err
 
 // NewExecutionStore returns an ExecutionStore
 func (f *Factory) NewExecutionStore() (persistence.ExecutionStore, error) {
-	store, err := f.getOrCreateShardedStore()
-	if err != nil {
-		return nil, err
-	}
-	return NewShardedExecutionStore(store, f.logger, f.taskSerializer), nil
+	return newNoSQLExecutionStore(f.cfg, f.logger, f.metricsClient, f.taskSerializer, f.dc)
 }
 
 // NewVisibilityStore returns a visibility store
@@ -113,35 +105,6 @@ func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 	return NewNoSQLConfigStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
-// Close closes the factory
-func (f *Factory) Close() {
-	f.Lock()
-	defer f.Unlock()
-	if f.shardedStore != nil {
-		f.shardedStore.Close()
-	}
-}
-
-// getOrCreateShardedStore lazily creates the shared shardedNosqlStore backing the
-// (host-level) execution store, caching it so repeated calls to NewExecutionStore
-// reuse the same underlying connections.
-func (f *Factory) getOrCreateShardedStore() (shardedNosqlStore, error) {
-	f.RLock()
-	if f.shardedStore != nil {
-		defer f.RUnlock()
-		return f.shardedStore, nil
-	}
-	f.RUnlock()
-	f.Lock()
-	defer f.Unlock()
-	if f.shardedStore != nil {
-		return f.shardedStore, nil
-	}
-
-	s, err := newShardedNosqlStore(f.cfg, f.logger, f.metricsClient, f.dc, true)
-	if err != nil {
-		return nil, err
-	}
-	f.shardedStore = s
-	return f.shardedStore, nil
-}
+// Close closes the factory. Store Close methods own connection lifecycle
+// (matching HistoryStore), so this is intentionally a no-op.
+func (f *Factory) Close() {}

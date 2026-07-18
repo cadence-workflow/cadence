@@ -62,7 +62,7 @@ func TestWriterIterator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			assertions := require.New(t)
-			pr := persistence.NewPersistenceRetryerWithShardID(getMockExecutionManager(tc.pages, tc.countPerPage), nil, common.CreatePersistenceRetryPolicy(), testShardID)
+			pr := persistence.NewPersistenceRetryer(getMockExecutionManager(tc.pages, tc.countPerPage), nil, common.CreatePersistenceRetryPolicy())
 			pItr := fetcher.ConcreteExecutionIterator(context.Background(), pr, executionPageSize)
 
 			uuid := "uuid"
@@ -127,7 +127,6 @@ func getMockExecutionManager(pages int, countPerPage int) persistence.ExecutionM
 	execManager := &mocks.ExecutionManager{}
 	for i := 0; i < pages; i++ {
 		req := &persistence.ListConcreteExecutionsRequest{
-			ShardID:   common.IntPtr(testShardID),
 			PageToken: []byte(fmt.Sprintf("token_%v", i)),
 			PageSize:  executionPageSize,
 		}
@@ -142,6 +141,7 @@ func getMockExecutionManager(pages int, countPerPage int) persistence.ExecutionM
 			resp.PageToken = nil
 		}
 		execManager.On("ListConcreteExecutions", mock.Anything, req).Return(resp, nil)
+		execManager.On("GetShardID").Return(testShardID)
 	}
 	return execManager
 }
