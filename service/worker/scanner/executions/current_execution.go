@@ -112,13 +112,7 @@ func currentExecutionScannerManager(
 	logger.Info("Creating invariant manager for current execution scanner", zap.Any("Params", params))
 	var ivs []invariant.Invariant
 	collections := ParseCollections(params.ScannerConfig)
-	scannerContext, err := shardscanner.GetScannerContext(ctx)
-	if err != nil {
-		return invariant.NewInvariantManager(nil)
-	}
-	numShards := scannerContext.Resource.GetNumShards()
-
-	for _, fn := range CurrentExecutionType.ToInvariants(collections, zap.NewNop(), numShards) {
+	for _, fn := range CurrentExecutionType.ToInvariants(collections, zap.NewNop(), 0) {
 		ivs = append(ivs, fn(pr, domainCache))
 	}
 	return invariant.NewInvariantManager(ivs)

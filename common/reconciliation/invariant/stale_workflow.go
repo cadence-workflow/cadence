@@ -184,9 +184,16 @@ func (c *staleWorkflowCheck) Name() Name {
 }
 
 // CheckAge checks whether a workflow has exceeded its retention window.
+// When numShards > 0 (taskvalidator), the shard is derived from the workflow ID.
+// Otherwise (scanners with NewPersistenceRetryerWithShardID), the retryer's shard is used.
 func (c *staleWorkflowCheck) CheckAge(workflow *persistence.GetWorkflowExecutionResponse) (pastExpiration bool, result CheckResult) {
-	shardID := common.WorkflowIDToHistoryShard(
-		workflow.State.ExecutionInfo.WorkflowID, c.numShards)
+	var shardID int
+	if c.numShards > 0 {
+		shardID = common.WorkflowIDToHistoryShard(
+			workflow.State.ExecutionInfo.WorkflowID, c.numShards)
+	} else {
+		shardID = c.pr.GetShardID()
+	}
 	return c.checkAge(workflow, shardID)
 }
 
