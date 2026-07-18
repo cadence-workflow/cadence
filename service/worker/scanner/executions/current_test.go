@@ -31,7 +31,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/cadence/activity"
 	"go.uber.org/cadence/testsuite"
+	"go.uber.org/cadence/worker"
 	"go.uber.org/cadence/workflow"
 	"go.uber.org/mock/gomock"
 
@@ -39,9 +41,11 @@ import (
 	"github.com/uber/cadence/common/blobstore"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/reconciliation/store"
+	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/worker/scanner/shardscanner"
 )
@@ -270,16 +274,53 @@ func Test_currentExecutionScannerHooks(t *testing.T) {
 	assert.NotNil(t, hooks)
 }
 
-func Test_currentExecutionScannerManager(t *testing.T) {
-	mockRetryer := persistence.NewMockRetryer(gomock.NewController(t))
+type currentExecutionManagerSuite struct {
+	suite.Suite
+	testsuite.WorkflowTestSuite
+
+	controller   *gomock.Controller
+	mockResource *resource.Test
+}
+
+func TestCurrentExecutionManagerSuite(t *testing.T) {
+	suite.Run(t, new(currentExecutionManagerSuite))
+}
+
+func (s *currentExecutionManagerSuite) SetupTest() {
+	s.controller = gomock.NewController(s.T())
+	s.mockResource = resource.NewTest(s.T(), s.controller, metrics.Worker)
+}
+
+func (s *currentExecutionManagerSuite) TearDownTest() {
+	s.controller.Finish()
+}
+
+func (s *currentExecutionManagerSuite) Test_currentExecutionScannerManager() {
+	const workflowName = "test-current-scanner-workflow"
+	mockRetryer := persistence.NewMockRetryer(s.controller)
 	params := shardscanner.ScanShardActivityParams{
 		ScannerConfig: shardscanner.CustomScannerConfig{
 			"CollectionMutableState": "true",
 		},
 	}
 
-	manager := currentExecutionScannerManager(context.Background(), mockRetryer, params, nil)
-	assert.NotNil(t, manager)
+	sc := shardscanner.NewShardScannerContext(s.mockResource, &shardscanner.ScannerConfig{
+		ScannerHooks: func() *shardscanner.ScannerHooks { return nil },
+	})
+	activityCtx := shardscanner.NewScannerContext(context.Background(), workflowName, sc)
+
+	env := s.NewTestActivityEnvironment()
+	env.SetWorkerOptions(worker.Options{BackgroundActivityContext: activityCtx})
+
+	var capturedManager invariant.Manager
+	probeActivity := func(ctx context.Context) error {
+		capturedManager = currentExecutionScannerManager(ctx, mockRetryer, params, nil)
+		return nil
+	}
+	activity.RegisterWithOptions(probeActivity, activity.RegisterOptions{Name: "probe-current-scanner-manager"})
+	_, err := env.ExecuteActivity(probeActivity)
+	s.NoError(err)
+	s.NotNil(capturedManager)
 }
 
 func (s *currentExecutionsWorkflowsSuite) TestCurrentFixerWorkflow_NewFixerWorkflow_Error() {
