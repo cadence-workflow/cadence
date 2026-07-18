@@ -49,6 +49,7 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 			name: "SuccessCase_emptyResult",
 			setupContext: func(app *cli.App) *cli.Context {
 				set := flag.NewFlagSet("test", 0)
+				set.Int(FlagNumberOfShards, 0, "number of shards")
 				// Define flags
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
@@ -57,6 +58,7 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 
 				// Set actual values for the flags
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
+				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
 
 				return cli.NewContext(app, set, nil)
@@ -96,6 +98,7 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 			name: "InvalidInvariantCollection",
 			setupContext: func(app *cli.App) *cli.Context {
 				set := flag.NewFlagSet("test", 0)
+				set.Int(FlagNumberOfShards, 0, "number of shards")
 				// Define FlagScanType and FlagInputFile
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
@@ -105,6 +108,7 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 
 				// Set actual values for the flags
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
+				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
 
 				return cli.NewContext(app, set, nil)
@@ -117,11 +121,13 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 			name: "NoInvariantsError",
 			setupContext: func(app *cli.App) *cli.Context {
 				set := flag.NewFlagSet("test", 0)
+				set.Int(FlagNumberOfShards, 0, "number of shards")
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInvariantCollection, "", "invariant collection flag")
 				set.String(FlagInputFile, "", "Input file flag")
 
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
+				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
 				require.NoError(t, set.Set(FlagInvariantCollection, "invalid_collection"))
 
