@@ -80,7 +80,7 @@ func AdminDBScan(c *cli.Context) error {
 		}
 	}
 
-	invariants := scanType.ToInvariants(collections, logger, numberOfShards)
+	invariants := scanType.ToInvariants(collections, logger)
 	if len(invariants) < 1 {
 		return commoncli.Problem(
 			fmt.Sprintf("no invariants for scan type %q and collections %q",
