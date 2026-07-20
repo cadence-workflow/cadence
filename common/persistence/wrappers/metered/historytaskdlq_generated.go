@@ -50,7 +50,9 @@ func (c *meteredHistoryTaskDLQManager) CreateHistoryDLQAckLevelIfNotExists(ctx c
 		return err
 	}
 
-	err = c.call(metrics.PersistenceCreateHistoryDLQAckLevelIfNotExistsScope, op, getCustomMetricTags(request)...)
+	retryCount := getRetryCountFromContext(ctx)
+
+	err = c.call(metrics.PersistenceCreateHistoryDLQAckLevelIfNotExistsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 	return
 }
 
