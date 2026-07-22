@@ -151,6 +151,8 @@ func TestIsTransientError(t *testing.T) {
 		&types.ServiceBusyError{},
 		&types.InternalServiceError{},
 		&TimeoutError{},
+		&DBUnavailableError{},
+		fmt.Errorf("wrapped: %w", &DBUnavailableError{Msg: "db down"}),
 	}
 	for _, err := range transientErrors {
 		require.True(t, IsTransientError(err))

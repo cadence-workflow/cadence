@@ -2712,8 +2712,9 @@ func IsTransientError(err error) bool {
 	var internalServiceError *types.InternalServiceError
 	var serviceBusyError *types.ServiceBusyError
 	var timeoutError *TimeoutError
+	var dbUnavailableError *DBUnavailableError
 	switch {
-	case errors.As(err, &internalServiceError), errors.As(err, &serviceBusyError), errors.As(err, &timeoutError):
+	case errors.As(err, &internalServiceError), errors.As(err, &serviceBusyError), errors.As(err, &timeoutError), errors.As(err, &dbUnavailableError):
 		return true
 	}
 
