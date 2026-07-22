@@ -246,6 +246,9 @@ const (
 	FlagClusterAttributeScope          = "cluster_attribute_scope"
 	FlagClusterAttributeName           = "cluster_attribute_name"
 	FlagClusterAttributesJSON          = "cluster_attributes_json"
+	// FlagBatchV1 forces the deprecated v1 batch workflow as a fallback.
+	// TODO: remove together with the v1 batch workflow once it is fully deprecated.
+	FlagBatchV1 = "v1"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"
 )

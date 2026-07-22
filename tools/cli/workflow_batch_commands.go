@@ -317,6 +317,10 @@ func StartBatchJob(c *cli.Context) error {
 		return commoncli.Problem("Failed to encode batch job search attributes", err)
 	}
 	wfTypeName := batcher.BatchWFV2TypeName
+	// TODO: remove this fallback once the v1 batch workflow is fully deprecated.
+	if c.Bool(FlagBatchV1) {
+		wfTypeName = batcher.BatchWFTypeName
+	}
 
 	workflowID := uuid.NewRandom().String()
 	request := &types.StartWorkflowExecutionRequest{

@@ -566,6 +566,11 @@ func newBatchCommands() []*cli.Command {
 					Value: batcher.DefaultMaxActivityRetries,
 					Usage: "Max retries of batch activity, before retrying the whole workflow (0 means unlimited)",
 				},
+				// TODO: remove this flag once the v1 batch workflow is fully deprecated.
+				&cli.BoolFlag{
+					Name:  FlagBatchV1,
+					Usage: "Fallback to the deprecated v1 batch workflow (v1 is deprecated; defaults to v2)",
+				},
 			},
 			Action: StartBatchJob,
 		},
