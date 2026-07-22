@@ -65,6 +65,26 @@ func ensureTaskCategoryTag(tags []metrics.Tag) []metrics.Tag {
 	return append(tags, metrics.TaskCategoryTag("none"))
 }
 
+// dropDomainTag removes any domain tag from tags. It exists for the row-count and
+// payload-size metrics (see emitRowCountMetrics/emitPayloadSizeMetrics), which -
+// unlike the request/latency family - use a single metric name across every
+// persistence operation rather than splitting into overall/per-domain variants.
+// getCustomMetricTags(req) is shared with that request/latency family and returns
+// a domain tag for some request types (e.g. ReadHistoryBranchRequest) and not
+// others; letting it through here would multiply these metrics' cardinality by
+// every domain in the cluster while duplicating the discrimination the built-in
+// operation tag already provides, and would collide with the metric registered by
+// the domain-less request types sharing the same metric name.
+func dropDomainTag(tags []metrics.Tag) []metrics.Tag {
+	filtered := make([]metrics.Tag, 0, len(tags))
+	for _, t := range tags {
+		if t.Key() != domainTagKey {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
 type base struct {
 	metricClient                  metrics.Client
 	logger                        log.Logger
@@ -258,6 +278,13 @@ type extraLogRequest interface {
 	GetExtraLogTags() []tag.Tag
 }
 
+// rowMetricTags builds the tag set shared by the row-count and payload-size
+// metrics: task_category is always present (defaulted like the request/latency
+// family), while domain is deliberately excluded — see dropDomainTag.
+func rowMetricTags(req any) []metrics.Tag {
+	return ensureTaskCategoryTag(dropDomainTag(getCustomMetricTags(req)))
+}
+
 func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 	scope, ok := emptyCountedMethods[methodName]
 	if !ok {
@@ -270,7 +297,7 @@ func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope := p.metricClient.Scope(scope.scope, rowMetricTags(req)...)
 
 	if resLen.Len() == 0 {
 		metricScope.IncCounter(metrics.PersistenceEmptyResponseCounter)
@@ -290,7 +317,7 @@ func (p *base) emitPayloadSizeMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope := p.metricClient.Scope(scope.scope, rowMetricTags(req)...)
 	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.ByteSize()))
 }
 
