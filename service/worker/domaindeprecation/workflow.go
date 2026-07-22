@@ -132,7 +132,7 @@ func (w *domainDeprecator) DomainDeprecationWorkflow(ctx workflow.Context, param
 		})
 
 		var result batcher.HeartBeatDetails
-		err = workflow.ExecuteChildWorkflow(childWorkflowOptions, batcher.BatchWorkflow, batchParams).Get(ctx, &result)
+		err = workflow.ExecuteChildWorkflow(childWorkflowOptions, batcher.BatchWorkflowV2, batchParams).Get(ctx, &result)
 		if err != nil {
 			return fmt.Errorf("batch workflow failed on attempt %d: %v", attempt, err)
 		}
