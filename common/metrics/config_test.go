@@ -13,6 +13,9 @@ func TestHistogramMigrationMetricsExist(t *testing.T) {
 	for _, serviceMetrics := range MetricDefs {
 		for _, def := range serviceMetrics {
 			delete(dup, def.metricName.String())
+			if !def.metricRollupName.Empty() {
+				delete(dup, def.metricRollupName.String())
+			}
 		}
 	}
 	if len(dup) != 0 {
@@ -25,6 +28,9 @@ func TestGaugeMigrationMetricsExist(t *testing.T) {
 	for _, serviceMetrics := range MetricDefs {
 		for _, def := range serviceMetrics {
 			delete(dup, def.metricName.String())
+			if !def.metricRollupName.Empty() {
+				delete(dup, def.metricRollupName.String())
+			}
 		}
 	}
 	if len(dup) != 0 {
@@ -37,6 +43,9 @@ func TestCounterMigrationMetricsExist(t *testing.T) {
 	for _, serviceMetrics := range MetricDefs {
 		for _, def := range serviceMetrics {
 			delete(dup, def.metricName.String())
+			if !def.metricRollupName.Empty() {
+				delete(dup, def.metricRollupName.String())
+			}
 		}
 	}
 	if len(dup) != 0 {
