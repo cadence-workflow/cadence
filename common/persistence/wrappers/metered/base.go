@@ -270,7 +270,7 @@ func (p *base) emitRowCountMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope := p.metricClient.Scope(scope.scope, ensureTaskCategoryTag(getCustomMetricTags(req))...)
 
 	if resLen.Len() == 0 {
 		metricScope.IncCounter(metrics.PersistenceEmptyResponseCounter)
@@ -290,7 +290,7 @@ func (p *base) emitPayloadSizeMetrics(methodName string, req any, res any) {
 		return
 	}
 
-	metricScope := p.metricClient.Scope(scope.scope, getCustomMetricTags(req)...)
+	metricScope := p.metricClient.Scope(scope.scope, ensureTaskCategoryTag(getCustomMetricTags(req))...)
 	metricScope.RecordHistogramValue(metrics.PersistenceResponsePayloadSize, float64(resSize.ByteSize()))
 }
 
