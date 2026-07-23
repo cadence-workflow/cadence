@@ -286,6 +286,7 @@ func (s *server) startService() common.Daemon {
 				Workflow:   apiv1.NewWorkflowAPIYARPCClient(publicClientConfig),
 				Worker:     apiv1.NewWorkerAPIYARPCClient(publicClientConfig),
 				Visibility: apiv1.NewVisibilityAPIYARPCClient(publicClientConfig),
+				Schedule:   apiv1.NewScheduleAPIYARPCClient(publicClientConfig),
 			},
 		)
 	} else {

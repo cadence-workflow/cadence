@@ -1215,6 +1215,7 @@ func newPublicClient(dispatcher *yarpc.Dispatcher) cwsc.Interface {
 			Workflow:   apiv1.NewWorkflowAPIYARPCClient(config),
 			Worker:     apiv1.NewWorkerAPIYARPCClient(config),
 			Visibility: apiv1.NewVisibilityAPIYARPCClient(config),
+			Schedule:   apiv1.NewScheduleAPIYARPCClient(config),
 		},
 	)
 }

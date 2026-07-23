@@ -133,6 +133,7 @@ func (s *ClientIntegrationSuite) buildServiceClient() (workflowserviceclient.Int
 			Workflow:   apiv1.NewWorkflowAPIYARPCClient(cc),
 			Worker:     apiv1.NewWorkerAPIYARPCClient(cc),
 			Visibility: apiv1.NewVisibilityAPIYARPCClient(cc),
+			Schedule:   apiv1.NewScheduleAPIYARPCClient(cc),
 		},
 	), nil
 }

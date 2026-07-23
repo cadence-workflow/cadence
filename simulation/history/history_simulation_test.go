@@ -134,6 +134,7 @@ func (s *HistorySimulationSuite) buildServiceClient() workflowserviceclient.Inte
 			Workflow:   apiv1.NewWorkflowAPIYARPCClient(cc),
 			Worker:     apiv1.NewWorkerAPIYARPCClient(cc),
 			Visibility: apiv1.NewVisibilityAPIYARPCClient(cc),
+			Schedule:   apiv1.NewScheduleAPIYARPCClient(cc),
 		},
 	)
 }

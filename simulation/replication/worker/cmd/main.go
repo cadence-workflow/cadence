@@ -100,6 +100,7 @@ func main() {
 			Workflow:   apiv1.NewWorkflowAPIYARPCClient(clientConfig),
 			Worker:     apiv1.NewWorkerAPIYARPCClient(clientConfig),
 			Visibility: apiv1.NewVisibilityAPIYARPCClient(clientConfig),
+			Schedule:   apiv1.NewScheduleAPIYARPCClient(clientConfig),
 		},
 	)
 
