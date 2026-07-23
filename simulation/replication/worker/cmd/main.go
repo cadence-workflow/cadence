@@ -95,10 +95,12 @@ func main() {
 	clientConfig := dispatcher.ClientConfig("cadence-frontend")
 
 	cadenceClient := compatibility.NewThrift2ProtoAdapter(
-		apiv1.NewDomainAPIYARPCClient(clientConfig),
-		apiv1.NewWorkflowAPIYARPCClient(clientConfig),
-		apiv1.NewWorkerAPIYARPCClient(clientConfig),
-		apiv1.NewVisibilityAPIYARPCClient(clientConfig),
+		compatibility.AdapterClients{
+			Domain:     apiv1.NewDomainAPIYARPCClient(clientConfig),
+			Workflow:   apiv1.NewWorkflowAPIYARPCClient(clientConfig),
+			Worker:     apiv1.NewWorkerAPIYARPCClient(clientConfig),
+			Visibility: apiv1.NewVisibilityAPIYARPCClient(clientConfig),
+		},
 	)
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

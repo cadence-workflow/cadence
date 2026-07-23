@@ -49,7 +49,7 @@ require (
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	go.mongodb.org/mongo-driver v1.7.3
 	go.uber.org/atomic v1.11.0
-	go.uber.org/cadence v1.3.0
+	go.uber.org/cadence v1.4.0-rc.3
 	go.uber.org/config v1.4.0
 	go.uber.org/fx v1.23.0
 	go.uber.org/multierr v1.11.0

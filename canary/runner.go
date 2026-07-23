@@ -96,10 +96,12 @@ func NewCanaryRunner(cfg *Config) (Runnable, error) {
 			logger,
 			metricsScope,
 			compatibility.NewThrift2ProtoAdapter(
-				apiv1.NewDomainAPIYARPCClient(clientConfig),
-				apiv1.NewWorkflowAPIYARPCClient(clientConfig),
-				apiv1.NewWorkerAPIYARPCClient(clientConfig),
-				apiv1.NewVisibilityAPIYARPCClient(clientConfig),
+				compatibility.AdapterClients{
+					Domain:     apiv1.NewDomainAPIYARPCClient(clientConfig),
+					Workflow:   apiv1.NewWorkflowAPIYARPCClient(clientConfig),
+					Worker:     apiv1.NewWorkerAPIYARPCClient(clientConfig),
+					Visibility: apiv1.NewVisibilityAPIYARPCClient(clientConfig),
+				},
 			),
 		)
 	} else if cfg.Cadence.ThriftHostNameAndPort != "" {

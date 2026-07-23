@@ -281,10 +281,12 @@ func (s *server) startService() common.Daemon {
 	publicClientConfig := params.RPCFactory.GetDispatcher().ClientConfig(rpc.OutboundPublicClient)
 	if rpc.IsGRPCOutbound(publicClientConfig) {
 		params.PublicClient = compatibility.NewThrift2ProtoAdapter(
-			apiv1.NewDomainAPIYARPCClient(publicClientConfig),
-			apiv1.NewWorkflowAPIYARPCClient(publicClientConfig),
-			apiv1.NewWorkerAPIYARPCClient(publicClientConfig),
-			apiv1.NewVisibilityAPIYARPCClient(publicClientConfig),
+			compatibility.AdapterClients{
+				Domain:     apiv1.NewDomainAPIYARPCClient(publicClientConfig),
+				Workflow:   apiv1.NewWorkflowAPIYARPCClient(publicClientConfig),
+				Worker:     apiv1.NewWorkerAPIYARPCClient(publicClientConfig),
+				Visibility: apiv1.NewVisibilityAPIYARPCClient(publicClientConfig),
+			},
 		)
 	} else {
 		params.PublicClient = workflowserviceclient.New(publicClientConfig)

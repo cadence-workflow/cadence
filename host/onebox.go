@@ -1210,10 +1210,12 @@ func newPProfInitializerImpl(logger log.Logger, port int) common.PProfInitialize
 func newPublicClient(dispatcher *yarpc.Dispatcher) cwsc.Interface {
 	config := dispatcher.ClientConfig(rpc.OutboundPublicClient)
 	return compatibility.NewThrift2ProtoAdapter(
-		apiv1.NewDomainAPIYARPCClient(config),
-		apiv1.NewWorkflowAPIYARPCClient(config),
-		apiv1.NewWorkerAPIYARPCClient(config),
-		apiv1.NewVisibilityAPIYARPCClient(config),
+		compatibility.AdapterClients{
+			Domain:     apiv1.NewDomainAPIYARPCClient(config),
+			Workflow:   apiv1.NewWorkflowAPIYARPCClient(config),
+			Worker:     apiv1.NewWorkerAPIYARPCClient(config),
+			Visibility: apiv1.NewVisibilityAPIYARPCClient(config),
+		},
 	)
 }
 

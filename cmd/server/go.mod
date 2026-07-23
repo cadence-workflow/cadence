@@ -48,7 +48,7 @@ require (
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/cadence v1.3.0
+	go.uber.org/cadence v1.4.0-rc.3
 	go.uber.org/config v1.4.0 // indirect
 	go.uber.org/fx v1.23.0
 	go.uber.org/multierr v1.11.0

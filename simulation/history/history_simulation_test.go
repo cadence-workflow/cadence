@@ -129,10 +129,12 @@ func (s *HistorySimulationSuite) buildServiceClient() workflowserviceclient.Inte
 	}
 	cc := dispatcher.ClientConfig(service.Frontend)
 	return compatibility.NewThrift2ProtoAdapter(
-		apiv1.NewDomainAPIYARPCClient(cc),
-		apiv1.NewWorkflowAPIYARPCClient(cc),
-		apiv1.NewWorkerAPIYARPCClient(cc),
-		apiv1.NewVisibilityAPIYARPCClient(cc),
+		compatibility.AdapterClients{
+			Domain:     apiv1.NewDomainAPIYARPCClient(cc),
+			Workflow:   apiv1.NewWorkflowAPIYARPCClient(cc),
+			Worker:     apiv1.NewWorkerAPIYARPCClient(cc),
+			Visibility: apiv1.NewVisibilityAPIYARPCClient(cc),
+		},
 	)
 }
 
