@@ -160,8 +160,6 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		WriteMode: workflowRequestWriteMode,
 	}
 
-	activeClusterSelectionPolicyRow := d.prepareActiveClusterSelectionPolicyRow(domainID, workflowID, runID, executionInfo.ActiveClusterSelectionPolicy, shardID)
-
 	shardCondition := &nosqlplugin.ShardCondition{
 		ShardID: shardID,
 		RangeID: request.RangeID,
@@ -173,7 +171,6 @@ func (d *nosqlExecutionStore) CreateWorkflowExecution(
 		currentWorkflowWriteReq,
 		workflowExecutionWriteReq,
 		tasksByCategory,
-		activeClusterSelectionPolicyRow,
 		shardCondition,
 	)
 	if err != nil {
@@ -349,7 +346,6 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 	}
 
 	var mutateExecution, insertExecution *nosqlplugin.WorkflowExecutionRequest
-	var activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow
 	var workflowRequests []*nosqlplugin.WorkflowRequestRow
 	tasksByCategory := map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{}
 
@@ -374,14 +370,6 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 		if err != nil {
 			return err
 		}
-
-		activeClusterSelectionPolicyRow = d.prepareActiveClusterSelectionPolicyRow(
-			domainID,
-			newWorkflow.ExecutionInfo.WorkflowID,
-			newWorkflow.ExecutionInfo.RunID,
-			newWorkflow.ExecutionInfo.ActiveClusterSelectionPolicy,
-			shardID,
-		)
 
 		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, newWorkflow.ExecutionInfo.RunID,
@@ -410,7 +398,6 @@ func (d *nosqlExecutionStore) UpdateWorkflowExecution(
 		currentWorkflowWriteReq,
 		mutateExecution,
 		insertExecution,
-		activeClusterSelectionPolicyRow,
 		nil, // no workflow to reset here
 		tasksByCategory,
 		shardCondition,
@@ -541,8 +528,6 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 			return err
 		}
 
-		// TODO(active-active): make changes here to insert active cluster selection policy.
-
 		err = d.prepareNoSQLTasksForWorkflowTxn(
 			domainID, workflowID, newWorkflow.ExecutionInfo.RunID,
 			newWorkflow.TasksByCategory,
@@ -566,7 +551,7 @@ func (d *nosqlExecutionStore) ConflictResolveWorkflowExecution(
 
 	err = d.db.UpdateWorkflowExecutionWithTasks(
 		ctx, workflowRequestsWriteRequest, currentWorkflowWriteReq,
-		mutateExecution, insertExecution, nil, resetExecution,
+		mutateExecution, insertExecution, resetExecution,
 		tasksByCategory,
 		shardCondition)
 	return d.processUpdateWorkflowResult(err, request.RangeID, shardID)

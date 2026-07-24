@@ -417,7 +417,6 @@ type (
 			currentWorkflowRequest *CurrentWorkflowWriteRequest,
 			execution *WorkflowExecutionRequest,
 			tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask,
-			activeClusterSelectionPolicyRow *ActiveClusterSelectionPolicyRow,
 			shardCondition *ShardCondition,
 		) error
 
@@ -429,7 +428,6 @@ type (
 		//		childWorkflowInfoMap, signalInfoMap and signalRequestedIDs)
 		// 3. if insertedExecution is not nil, then also insert a new workflow_execution record including basic info and add to 6 maps:
 		// 		(activityInfoMap, timerInfoMap, childWorkflowInfoMap, signalInfoMap and signalRequestedIDs)
-		//      Also insert activeClusterSelectionPolicyRow if it is not nil corresponding to the new execution
 		// 4. if resetExecution is not nil, then also update the workflow_execution record including basic info and reset/override 6 maps(activityInfoMap, timerInfoMap,
 		//		childWorkflowInfoMap, signalInfoMap and signalRequestedIDs
 		// 5. Create history tasks
@@ -442,7 +440,6 @@ type (
 			currentWorkflowRequest *CurrentWorkflowWriteRequest,
 			mutatedExecution *WorkflowExecutionRequest,
 			insertedExecution *WorkflowExecutionRequest,
-			activeClusterSelectionPolicyRow *ActiveClusterSelectionPolicyRow,
 			resetExecution *WorkflowExecutionRequest,
 			tasksByCategory map[persistence.HistoryTaskCategory][]*HistoryMigrationTask,
 			shardCondition *ShardCondition,
