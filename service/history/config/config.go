@@ -546,9 +546,8 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		PendingActivitiesCountLimitError: dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitError),
 		PendingActivitiesCountLimitWarn:  dc.GetIntPropertyFilteredByDomain(dynamicproperties.PendingActivitiesCountLimitWarn),
 		PendingActivityValidationEnabled: dc.GetBoolProperty(dynamicproperties.EnablePendingActivityValidation),
-
-		ThrottledLogRPS:   dc.GetIntProperty(dynamicproperties.HistoryThrottledLogRPS),
-		EnableStickyQuery: dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStickyQuery),
+		ThrottledLogRPS:                  dc.GetIntProperty(dynamicproperties.HistoryThrottledLogRPS),
+		EnableStickyQuery:                dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableStickyQuery),
 
 		EnableQueryAttributeValidation:           dc.GetBoolProperty(dynamicproperties.EnableQueryAttributeValidation),
 		ValidSearchAttributes:                    dc.GetMapProperty(dynamicproperties.ValidSearchAttributes),

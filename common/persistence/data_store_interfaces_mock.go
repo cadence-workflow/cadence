@@ -194,6 +194,20 @@ func (mr *MockExecutionStoreMockRecorder) GetActiveClusterSelectionPolicy(ctx, r
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveClusterSelectionPolicy", reflect.TypeOf((*MockExecutionStore)(nil).GetActiveClusterSelectionPolicy), ctx, request)
 }
 
+// GetActivityMapDeleteRewriteThreshold mocks base method.
+func (m *MockExecutionStore) GetActivityMapDeleteRewriteThreshold() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivityMapDeleteRewriteThreshold")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetActivityMapDeleteRewriteThreshold indicates an expected call of GetActivityMapDeleteRewriteThreshold.
+func (mr *MockExecutionStoreMockRecorder) GetActivityMapDeleteRewriteThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityMapDeleteRewriteThreshold", reflect.TypeOf((*MockExecutionStore)(nil).GetActivityMapDeleteRewriteThreshold))
+}
+
 // GetCurrentExecution mocks base method.
 func (m *MockExecutionStore) GetCurrentExecution(ctx context.Context, request *GetCurrentExecutionRequest) (*GetCurrentExecutionResponse, error) {
 	m.ctrl.T.Helper()
@@ -280,6 +294,20 @@ func (m *MockExecutionStore) GetShardID() int {
 func (mr *MockExecutionStoreMockRecorder) GetShardID() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionStore)(nil).GetShardID))
+}
+
+// GetTimerMapDeleteRewriteThreshold mocks base method.
+func (m *MockExecutionStore) GetTimerMapDeleteRewriteThreshold() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTimerMapDeleteRewriteThreshold")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetTimerMapDeleteRewriteThreshold indicates an expected call of GetTimerMapDeleteRewriteThreshold.
+func (mr *MockExecutionStoreMockRecorder) GetTimerMapDeleteRewriteThreshold() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTimerMapDeleteRewriteThreshold", reflect.TypeOf((*MockExecutionStore)(nil).GetTimerMapDeleteRewriteThreshold))
 }
 
 // GetWorkflowExecution mocks base method.

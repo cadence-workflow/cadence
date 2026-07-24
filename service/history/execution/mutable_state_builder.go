@@ -90,11 +90,13 @@ type (
 		updateActivityInfos        map[int64]*persistence.ActivityInfo // Modified activities from last update.
 		deleteActivityInfos        map[int64]struct{}                  // Deleted activities from last update.
 		syncActivityTasks          map[int64]struct{}                  // Activity to be sync to remote
+		activityMapDeleteCount     int                                 // accumulated map key deletions since last full map rewrite
 
 		pendingTimerInfoIDs     map[string]*persistence.TimerInfo // User Timer ID -> Timer Info.
 		pendingTimerEventIDToID map[int64]string                  // User Timer Start Event ID -> User Timer ID.
 		updateTimerInfos        map[string]*persistence.TimerInfo // Modified timers from last update.
 		deleteTimerInfos        map[string]struct{}               // Deleted timers from last update.
+		timerMapDeleteCount     int                               // accumulated map key deletions since last full map rewrite
 
 		pendingChildExecutionInfoIDs map[int64]*persistence.ChildExecutionInfo // Initiated Event ID -> Child Execution Info
 		updateChildExecutionInfos    map[int64]*persistence.ChildExecutionInfo // Modified ChildExecution Infos since last update
@@ -336,10 +338,12 @@ func (e *mutableStateBuilder) Load(
 	for _, activityInfo := range state.ActivityInfos {
 		e.pendingActivityIDToEventID[activityInfo.ActivityID] = activityInfo.ScheduleID
 	}
+	e.activityMapDeleteCount = state.ActivityMapDeleteCount
 	e.pendingTimerInfoIDs = state.TimerInfos
 	for _, timerInfo := range state.TimerInfos {
 		e.pendingTimerEventIDToID[timerInfo.StartedID] = timerInfo.TimerID
 	}
+	e.timerMapDeleteCount = state.TimerMapDeleteCount
 	e.pendingChildExecutionInfoIDs = state.ChildExecutionInfos
 	e.pendingRequestCancelInfoIDs = state.RequestCancelInfos
 	e.pendingSignalInfoIDs = state.SignalInfos
@@ -1479,6 +1483,23 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 
 		Condition: e.nextEventIDInDB,
 		Checksum:  checksum,
+	}
+
+	activityRewriteThreshold := e.shard.GetExecutionManager().GetActivityMapDeleteRewriteThreshold()
+	if activityRewriteThreshold > 0 && e.activityMapDeleteCount >= activityRewriteThreshold {
+		workflowMutation.RewriteActivityInfos = slices.Collect(maps.Values(e.pendingActivityInfoIDs))
+		workflowMutation.RewriteActivityMapTriggered = true
+		workflowMutation.DeleteActivityInfos = nil
+		e.activityMapDeleteCount = 0
+		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapRewriteCounter)
+	}
+	timerRewriteThreshold := e.shard.GetExecutionManager().GetTimerMapDeleteRewriteThreshold()
+	if timerRewriteThreshold > 0 && e.timerMapDeleteCount >= timerRewriteThreshold {
+		workflowMutation.RewriteTimerInfos = slices.Collect(maps.Values(e.pendingTimerInfoIDs))
+		workflowMutation.RewriteTimerMapTriggered = true
+		workflowMutation.DeleteTimerInfos = nil
+		e.timerMapDeleteCount = 0
+		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapRewriteCounter)
 	}
 
 	e.checksum = checksum

@@ -385,6 +385,17 @@ const (
 		`and visibility_ts = ? ` +
 		`and task_id = ? `
 
+	templateSentinelActivityInfoQuery = `UPDATE executions ` +
+		`SET activity_map[ ? ] = {schedule_id: 0} ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
 	templateResetActivityInfoQuery = `UPDATE executions ` +
 		`SET activity_map = ? ` +
 		`, last_updated_time = ? ` +
@@ -398,6 +409,17 @@ const (
 
 	templateUpdateTimerInfoQuery = `UPDATE executions ` +
 		`SET timer_map[ ? ] = ` + templateTimerInfoType + ` ` +
+		`, last_updated_time = ? ` +
+		`WHERE shard_id = ? ` +
+		`and type = ? ` +
+		`and domain_id = ? ` +
+		`and workflow_id = ? ` +
+		`and run_id = ? ` +
+		`and visibility_ts = ? ` +
+		`and task_id = ? `
+
+	templateSentinelTimerInfoQuery = `UPDATE executions ` +
+		`SET timer_map[ ? ] = {timer_id: ''} ` +
 		`, last_updated_time = ? ` +
 		`WHERE shard_id = ? ` +
 		`and type = ? ` +

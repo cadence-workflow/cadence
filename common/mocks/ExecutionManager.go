@@ -744,6 +744,50 @@ func (_c *ExecutionManager_GetActiveClusterSelectionPolicy_Call) RunAndReturn(ru
 	return _c
 }
 
+// GetActivityMapDeleteRewriteThreshold provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetActivityMapDeleteRewriteThreshold() int {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActivityMapDeleteRewriteThreshold")
+	}
+
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func() int); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
+}
+
+// ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityMapDeleteRewriteThreshold'
+type ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call struct {
+	*mock.Call
+}
+
+// GetActivityMapDeleteRewriteThreshold is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetActivityMapDeleteRewriteThreshold() *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call {
+	return &ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call{Call: _e.mock.On("GetActivityMapDeleteRewriteThreshold")}
+}
+
+func (_c *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call) Run(run func()) *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call) Return(n int) *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call) RunAndReturn(run func() int) *ExecutionManager_GetActivityMapDeleteRewriteThreshold_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetCurrentExecution provides a mock function for the type ExecutionManager
 func (_mock *ExecutionManager) GetCurrentExecution(ctx context.Context, request *persistence.GetCurrentExecutionRequest) (*persistence.GetCurrentExecutionResponse, error) {
 	ret := _mock.Called(ctx, request)
@@ -1100,6 +1144,50 @@ func (_c *ExecutionManager_GetShardID_Call) Return(n int) *ExecutionManager_GetS
 }
 
 func (_c *ExecutionManager_GetShardID_Call) RunAndReturn(run func() int) *ExecutionManager_GetShardID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetTimerMapDeleteRewriteThreshold provides a mock function for the type ExecutionManager
+func (_mock *ExecutionManager) GetTimerMapDeleteRewriteThreshold() int {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetTimerMapDeleteRewriteThreshold")
+	}
+
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func() int); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
+}
+
+// ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTimerMapDeleteRewriteThreshold'
+type ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call struct {
+	*mock.Call
+}
+
+// GetTimerMapDeleteRewriteThreshold is a helper method to define mock.On call
+func (_e *ExecutionManager_Expecter) GetTimerMapDeleteRewriteThreshold() *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call {
+	return &ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call{Call: _e.mock.On("GetTimerMapDeleteRewriteThreshold")}
+}
+
+func (_c *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call) Run(run func()) *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call) Return(n int) *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call {
+	_c.Call.Return(n)
+	return _c
+}
+
+func (_c *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call) RunAndReturn(run func() int) *ExecutionManager_GetTimerMapDeleteRewriteThreshold_Call {
 	_c.Call.Return(run)
 	return _c
 }

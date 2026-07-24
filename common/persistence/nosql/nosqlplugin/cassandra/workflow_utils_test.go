@@ -1816,7 +1816,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 	}
 }
 
-func TestResetTimerInfos(t *testing.T) {
+func TestRewriteTimerInfos(t *testing.T) {
 	ts, err := time.Parse(time.RFC3339, "2023-12-12T22:08:41Z")
 	if err != nil {
 		t.Fatal(err)
@@ -1886,11 +1886,12 @@ func TestUpdateTimerInfos(t *testing.T) {
 		runID       string
 		timerInfos  map[string]*persistence.TimerInfo
 		deleteInfos []string
+		useSentinel bool
 		// expectations
 		wantQueries []string
 	}{
 		{
-			desc:       "update and delete timer infos",
+			desc:       "update and delete timer infos with sentinel",
 			shardID:    1000,
 			domainID:   "domain1",
 			workflowID: "workflow1",
@@ -1905,6 +1906,36 @@ func TestUpdateTimerInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []string{"timer2"},
+			useSentinel: true,
+			wantQueries: []string{
+				`UPDATE executions SET timer_map[ timer1 ] = {` +
+					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`UPDATE executions SET timer_map[ timer2 ] = {timer_id: ''} ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc:       "update and delete timer infos without sentinel",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			timerInfos: map[string]*persistence.TimerInfo{
+				"timer1": {
+					TimerID:    "timer1",
+					Version:    1,
+					StartedID:  2,
+					ExpiryTime: ts.UTC(),
+					TaskStatus: 1,
+				},
+			},
+			deleteInfos: []string{"timer2"},
+			useSentinel: false,
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
 					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
@@ -1922,7 +1953,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, FixedTime)
+			err := updateTimerInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.timerInfos, tc.deleteInfos, nil, tc.useSentinel, FixedTime)
 			if err != nil {
 				t.Fatalf("updateTimerInfos() error = %v", err)
 			}
@@ -1934,7 +1965,7 @@ func TestUpdateTimerInfos(t *testing.T) {
 	}
 }
 
-func TestResetActivityInfos(t *testing.T) {
+func TestRewriteActivityInfos(t *testing.T) {
 	ts, err := time.Parse(time.RFC3339, "2023-12-19T22:08:41Z")
 	if err != nil {
 		t.Fatal(err)
@@ -2067,11 +2098,12 @@ func TestUpdateActivityInfos(t *testing.T) {
 		runID         string
 		activityInfos map[int64]*persistence.InternalActivityInfo
 		deleteInfos   []int64
+		useSentinel   bool
 		// expectations
 		wantQueries []string
 	}{
 		{
-			desc:       "update and delete activity infos",
+			desc:       "update and delete activity infos with sentinel",
 			shardID:    1000,
 			domainID:   "domain1",
 			workflowID: "workflow1",
@@ -2104,6 +2136,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 				},
 			},
 			deleteInfos: []int64{2},
+			useSentinel: true,
 			wantQueries: []string{
 				`UPDATE executions SET activity_map[ 1 ] = {` +
 					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
@@ -2120,8 +2153,65 @@ func TestUpdateActivityInfos(t *testing.T) {
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
-				`DELETE activity_map[ 2 ] FROM executions ` +
-					`WHERE shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+				`UPDATE executions SET activity_map[ 2 ] = {schedule_id: 0} ` +
+					`, last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+			},
+		},
+		{
+			desc:       "update and delete activity infos without sentinel",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			runID:      "runid1",
+			activityInfos: map[int64]*persistence.InternalActivityInfo{
+				1: {
+					Version: 1,
+					ScheduledEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-scheduled-event-data"),
+					},
+					ScheduledTime: ts.UTC(),
+					ScheduleID:    1,
+					StartedID:     2,
+					StartedEvent: &persistence.DataBlob{
+						Encoding: constants.EncodingTypeThriftRW,
+						Data:     []byte("thrift-encoded-started-event-data"),
+					},
+					ActivityID:             "activity1",
+					ScheduleToStartTimeout: 1 * time.Minute,
+					ScheduleToCloseTimeout: 2 * time.Minute,
+					StartToCloseTimeout:    3 * time.Minute,
+					HeartbeatTimeout:       1 * time.Minute,
+					Attempt:                3,
+					MaximumAttempts:        5,
+					TaskList:               "tasklist1",
+					TaskListKind:           types.TaskListKindEphemeral,
+					HasRetryPolicy:         true,
+					LastFailureReason:      "retry reason",
+				},
+			},
+			deleteInfos: []int64{2},
+			useSentinel: false,
+			wantQueries: []string{
+				`UPDATE executions SET activity_map[ 1 ] = {` +
+					`version: 1, schedule_id: 1, scheduled_event_batch_id: 0, ` +
+					`scheduled_event: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 99 104 101 100 117 108 101 100 45 101 118 101 110 116 45 100 97 116 97], ` +
+					`scheduled_time: 2023-12-19T22:08:41Z, started_id: 2, ` +
+					`started_event: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 115 116 97 114 116 101 100 45 101 118 101 110 116 45 100 97 116 97], ` +
+					`started_time: 0001-01-01T00:00:00Z, activity_id: activity1, request_id: , ` +
+					`details: [], schedule_to_start_timeout: 60, schedule_to_close_timeout: 120, start_to_close_timeout: 180, ` +
+					`heart_beat_timeout: 60, cancel_requested: false, cancel_request_id: 0, last_hb_updated_time: 0001-01-01T00:00:00Z, ` +
+					`timer_task_status: 0, attempt: 3, task_list: tasklist1, task_list_kind: 2, started_identity: , has_retry_policy: true, ` +
+					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, ` +
+					`max_attempts: 5, non_retriable_errors: [], last_failure_reason: retry reason, last_worker_identity: , ` +
+					`last_failure_details: [], last_failure_category: 0, last_retry_interval_seconds: 0, event_data_encoding: thriftrw` +
+					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
+					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
+				`DELETE activity_map[ 2 ] FROM executions WHERE ` +
+					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
 			},
 		},
@@ -2131,7 +2221,7 @@ func TestUpdateActivityInfos(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, FixedTime)
+			err := updateActivityInfos(batch, tc.shardID, tc.domainID, tc.workflowID, tc.runID, tc.activityInfos, tc.deleteInfos, nil, tc.useSentinel, FixedTime)
 			if err != nil {
 				t.Fatalf("updateActivityInfos() error = %v", err)
 			}
@@ -2150,11 +2240,13 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 	}
 
 	tests := []struct {
-		desc       string
-		shardID    int
-		domainID   string
-		workflowID string
-		execution  *nosqlplugin.WorkflowExecutionRequest
+		desc                string
+		shardID             int
+		domainID            string
+		workflowID          string
+		execution           *nosqlplugin.WorkflowExecutionRequest
+		useActivitySentinel bool
+		useTimerSentinel    bool
 		// expectations
 		wantQueries int
 		wantErr     bool
@@ -2298,7 +2390,7 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
+			err := createWorkflowExecutionWithMergeMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, tc.useActivitySentinel, tc.useTimerSentinel, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
@@ -2414,11 +2506,13 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 		t.Fatal(err)
 	}
 	tests := []struct {
-		desc       string
-		shardID    int
-		domainID   string
-		workflowID string
-		execution  *nosqlplugin.WorkflowExecutionRequest
+		desc                string
+		shardID             int
+		domainID            string
+		workflowID          string
+		execution           *nosqlplugin.WorkflowExecutionRequest
+		useActivitySentinel bool
+		useTimerSentinel    bool
 		// expectations
 		wantQueries int
 		wantErr     bool
@@ -2541,13 +2635,39 @@ func TestUpdateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(t *testing.
 			// - 1 for signal requested IDs update
 			wantQueries: 8,
 		},
+		{
+			desc:                "ok with sentinel deletes",
+			shardID:             1000,
+			domainID:            "domain1",
+			workflowID:          "workflow1",
+			useActivitySentinel: true,
+			useTimerSentinel:    true,
+			execution: &nosqlplugin.WorkflowExecutionRequest{
+				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeClear,
+				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeUpdate,
+				InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
+					CompletionEvent: &persistence.DataBlob{},
+					AutoResetPoints: &persistence.DataBlob{},
+				},
+				VersionHistories:         &persistence.DataBlob{},
+				Checksums:                &checksum.Checksum{},
+				ActivityInfoKeysToDelete: []int64{10, 20},
+				TimerInfoKeysToDelete:    []string{"t1", "t2"},
+			},
+			// expecting 6 queries:
+			// - 1 for execution record
+			// - 1 for deletion of buffered events
+			// - 2 for activity sentinel writes (one per deleted activity)
+			// - 2 for timer sentinel writes (one per deleted timer)
+			wantQueries: 6,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
 			batch := &fakeBatch{}
 
-			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, FixedTime)
+			err := updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, tc.shardID, tc.domainID, tc.workflowID, tc.execution, tc.useActivitySentinel, tc.useTimerSentinel, FixedTime)
 			gotErr := (err != nil)
 			if gotErr != tc.wantErr {
 				t.Fatalf("Got error: %v, want?: %v", err, tc.wantErr)
