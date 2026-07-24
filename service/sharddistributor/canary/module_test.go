@@ -39,7 +39,7 @@ func TestModule(t *testing.T) {
 	mockClientConfig.EXPECT().GetUnaryOutbound().Return(outbound).AnyTimes()
 
 	mockClientConfigProvider := transporttest.NewMockClientConfigProvider(ctrl)
-	mockClientConfigProvider.EXPECT().ClientConfig("cadence-shard-distributor").Return(mockClientConfig).AnyTimes()
+	mockClientConfigProvider.EXPECT().ClientConfig("shard-distributor").Return(mockClientConfig).AnyTimes()
 
 	// Create executor yarpc client mock
 	mockYARPCClient := executorclient.NewMockShardDistributorExecutorAPIYARPCClient(uberCtrl)
@@ -85,7 +85,7 @@ func TestModule(t *testing.T) {
 		Module(NamespacesNames{
 			FixedNamespace:              "shard-distributor-canary",
 			EphemeralNamespace:          "shard-distributor-canary-ephemeral",
-			SharddistributorServiceName: "cadence-shard-distributor",
+			SharddistributorServiceName: "shard-distributor",
 		}),
 	).RequireStart().RequireStop()
 }

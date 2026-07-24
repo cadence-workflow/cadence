@@ -33,7 +33,7 @@ const (
 	defaultCanaryGRPCPort           = 7953 // Port for canary to receive ping requests
 	defaultNumExecutors             = 1
 
-	shardDistributorServiceName = "cadence-shard-distributor"
+	shardDistributorServiceName = "shard-distributor"
 )
 
 func runApp(c *cli.Context) {
