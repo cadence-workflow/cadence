@@ -43,6 +43,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gocql/gocql"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -104,6 +105,10 @@ func TestReplicationSimulation(t *testing.T) {
 			err = signalWithStartWorkflow(t, op, simCfg, sim)
 		case simTypes.ReplicationSimulationOperationValidateWorkflowReplication:
 			err = validateWorkflowReplication(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationValidateDLQ:
+			err = validateDLQ(t, op, simCfg)
+		case simTypes.ReplicationSimulationOperationValidateDLQAckLevel:
+			err = validateDLQAckLevel(t, op, simCfg)
 		default:
 			require.Failf(t, "unknown operation type", "operation type: %s", op.Type)
 		}
@@ -555,6 +560,148 @@ func validateWorkflowReplication(
 
 	if !reflect.DeepEqual(sourceClusterWorkflowExecution, targetClusterWorkflowExecution) {
 		return fmt.Errorf("workflow execution info mismatch between source cluster %s and target cluster %s for workflow %s. \nSource: %+v\nTarget: %+v", op.SourceCluster, op.TargetCluster, op.WorkflowID, *sourceClusterWorkflowExecution, *targetClusterWorkflowExecution)
+	}
+
+	return nil
+}
+
+// cassandraSeed is the docker-compose network alias of the shared Cassandra node
+// (see docker/github_actions/docker-compose-local-replication-simulation.yml).
+const cassandraSeed = "cassandra"
+
+// TODO(c-warren): Replace the gocql/cassandra dependency with Admin APIs for the
+// History Task DLQ.
+// dlqCassandraSession resolves the domain UUID and opens a gocql session to the cluster's
+// keyspace. The caller owns the returned session and must Close it. There is no admin RPC
+// for the history-task DLQ, so the validate_dlq / validate_dlq_ack_level operations query
+// Cassandra directly.
+func dlqCassandraSession(
+	ctx context.Context,
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) (session *gocql.Session, domainID, keyspace string, err error) {
+	keyspace, err = simTypes.KeyspaceForCluster(op.Cluster)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	// Resolve the domain UUID; the DLQ tables key on domain_id, not the domain name.
+	descResp, err := simCfg.MustGetFrontendClient(t, op.Cluster).DescribeDomain(ctx, &types.DescribeDomainRequest{Name: common.StringPtr(op.Domain)})
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to describe domain %s: %w", op.Domain, err)
+	}
+	domainID = descResp.GetDomainInfo().GetUUID()
+
+	cluster := gocql.NewCluster(cassandraSeed)
+	cluster.Keyspace = keyspace
+	cluster.Consistency = gocql.One
+	cluster.Timeout = 10 * time.Second
+	session, err = cluster.CreateSession()
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to create cassandra session for keyspace %s: %w", keyspace, err)
+	}
+	return session, domainID, keyspace, nil
+}
+
+// validateDLQ asserts on the number of history-task DLQ rows for a domain.
+// Uses Cassandra directly in the absence of an Admin API.
+// TODO(c-warren): Replace the gocql/cassandra dependency with an Admin API.
+func validateDLQ(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	session, domainID, keyspace, err := dlqCassandraSession(ctx, t, op, simCfg)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	simTypes.Logf(t, "Validating DLQ for domain %s (id=%s) on cluster %s (keyspace %s)", op.Domain, domainID, op.Cluster, keyspace)
+
+	// domain_id is only part of the composite partition key, so ALLOW FILTERING is required.
+	var count int
+	if err := session.Query(
+		`SELECT COUNT(*) FROM history_task_dlq WHERE domain_id = ? ALLOW FILTERING`,
+		domainID,
+	).WithContext(ctx).Scan(&count); err != nil {
+		return fmt.Errorf("failed to count history_task_dlq rows for domain %s in %s: %w", op.Domain, keyspace, err)
+	}
+
+	simTypes.Logf(t, "history_task_dlq row count for domain %s in %s: %d", op.Domain, keyspace, count)
+
+	if op.Want.DLQCountAtLeast != nil && count < *op.Want.DLQCountAtLeast {
+		return fmt.Errorf("DLQ row count for domain %s in %s = %d, want at least %d", op.Domain, keyspace, count, *op.Want.DLQCountAtLeast)
+	}
+	if op.Want.DLQCountAtMost != nil && count > *op.Want.DLQCountAtMost {
+		return fmt.Errorf("DLQ row count for domain %s in %s = %d, want at most %d", op.Domain, keyspace, count, *op.Want.DLQCountAtMost)
+	}
+
+	return nil
+}
+
+// validateDLQAckLevel asserts that the history-task DLQ ack level for a domain has advanced
+// past the sentinel value written at fill time.
+// TODO(c-warren): Replace the gocql/cassandra dependency with an Admin API.
+func validateDLQAckLevel(
+	t *testing.T,
+	op *simTypes.Operation,
+	simCfg *simTypes.ReplicationSimulationConfig,
+) error {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	session, domainID, keyspace, err := dlqCassandraSession(ctx, t, op, simCfg)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	scope := op.Want.DLQClusterAttributeScope
+	name := op.Want.DLQClusterAttributeName
+
+	simTypes.Logf(t, "Validating DLQ ack level for domain %s (id=%s) cluster-attribute (scope=%q name=%q) on cluster %s (keyspace %s)", op.Domain, domainID, scope, name, op.Cluster, keyspace)
+
+	// We are missing shard_id from the clustering key so ALLOW FILTERING is required.
+	// Take any shard row and check that the ack level is greater than the sentinel value.
+	iter := session.Query(
+		`SELECT ack_level_task_id FROM history_task_dlq_ack_level `+
+			`WHERE domain_id = ? AND cluster_attribute_scope = ? AND cluster_attribute_name = ? ALLOW FILTERING`,
+		domainID, scope, name,
+	).WithContext(ctx).Iter()
+
+	var (
+		ackLevelTaskID int64
+		maxAckLevel    int64
+		rowCount       int
+	)
+	for iter.Scan(&ackLevelTaskID) {
+		rowCount++
+		if ackLevelTaskID > maxAckLevel {
+			maxAckLevel = ackLevelTaskID
+		}
+	}
+	if err := iter.Close(); err != nil {
+		return fmt.Errorf("failed to read history_task_dlq_ack_level rows for domain %s (scope=%q name=%q) in %s: %w", op.Domain, scope, name, keyspace, err)
+	}
+
+	simTypes.Logf(t, "history_task_dlq_ack_level for domain %s (scope=%q name=%q) in %s: rows=%d maxAckLevelTaskID=%d", op.Domain, scope, name, keyspace, rowCount, maxAckLevel)
+
+	if op.Want.DLQAckLevelTaskIDAtLeast != nil {
+		if rowCount == 0 {
+			return fmt.Errorf("no history_task_dlq_ack_level rows for domain %s (scope=%q name=%q) in %s, want max ack_level_task_id at least %d", op.Domain, scope, name, keyspace, *op.Want.DLQAckLevelTaskIDAtLeast)
+		}
+		if maxAckLevel < *op.Want.DLQAckLevelTaskIDAtLeast {
+			return fmt.Errorf("max history_task_dlq_ack_level ack_level_task_id for domain %s (scope=%q name=%q) in %s = %d, want at least %d", op.Domain, scope, name, keyspace, maxAckLevel, *op.Want.DLQAckLevelTaskIDAtLeast)
+		}
 	}
 
 	return nil

@@ -1,0 +1,46 @@
+# This file is used as dynamicconfig override for the "dlq" replication simulation scenario
+# configured via simulation/replication/testdata/replication_simulation_dlq.yaml
+#
+# It reuses the active-active regional failover base config and additionally:
+#   - enables the history-task DLQ processor and puts the DLQ in "enabled" mode so standby
+#     tasks are written to (and re-injected from) the history-task DLQ
+#   - shortens the DLQ processor interval so the DLQ drains within the test budget
+#   - forces the DLQ-fill: standby tasks only reach the DLQ-write branch when they can't be
+#     verified before their discard deadline. The discard clock is the remote cluster time
+#     lagged by standbyClusterDelay, so we set standbyClusterDelay ~0 (deadline tracks real
+#     time) + resendDelay 0s + discardDelay 0s (no fetch-history grace), so an expired-but-
+#     unverifiable standby timer task is written to the DLQ immediately rather than rescued by
+#     a resend. Replication is throttled (replicatorTaskBatchSize 1) so events lag behind the
+#     timers, guaranteeing there are unverifiable timers to catch.
+system.writeVisibilityStoreName:
+  - value: "db"
+system.readVisibilityStoreName:
+  - value: "db"
+history.replicatorTaskBatchSize: # throttle replication so it lags behind timers, widening the DLQ-fill race window
+  - value: 1
+    constraints: {}
+frontend.failoverCoolDown:
+  - value: 5s
+history.ReplicationTaskProcessorStartWait: # default is 5s. repl task processor sleeps this much before processing received messages.
+  - value: 10ms
+history.standbyTaskMissingEventsResendDelay:
+  - value: 0s
+history.standbyTaskMissingEventsDiscardDelay: # 0s: no fetch-history grace, so an expired-but-unverifiable standby
+  # timer task goes straight to the DLQ instead of being rescued by a resend within the grace window. This is what
+  # makes the fill happen early and reliably (with any grace, replication+fetch rescues almost every task).
+  - value: 0s
+history.standbyClusterDelay: # KEY: the standby discard clock is the remote cluster time lagged by this; keep it ~0 so the
+  # discard deadline tracks real time. At the default 10s it hands replication a 10s head start and the DLQ never fills.
+  - value: 0s
+history.enableTransferQueueV2:
+  - value: true
+history.enableTimerQueueV2:
+  - value: true
+frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
+  - value: true
+history.historyTaskDLQProcessorEnabled:
+  - value: true
+history.historyTaskDLQMode: # per-domain string; no constraint applies it to all domains
+  - value: "enabled"
+history.historyTaskDLQProcessorInterval:
+  - value: 10s

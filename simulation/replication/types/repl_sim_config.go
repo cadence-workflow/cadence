@@ -51,6 +51,8 @@ const (
 	ReplicationSimulationOperationQueryWorkflow               ReplicationSimulationOperation = "query_workflow"
 	ReplicationSimulationOperationSignalWithStartWorkflow     ReplicationSimulationOperation = "signal_with_start_workflow"
 	ReplicationSimulationOperationValidateWorkflowReplication ReplicationSimulationOperation = "validate_workflow_replication"
+	ReplicationSimulationOperationValidateDLQ                 ReplicationSimulationOperation = "validate_dlq"
+	ReplicationSimulationOperationValidateDLQAckLevel         ReplicationSimulationOperation = "validate_dlq_ack_level"
 )
 
 type ReplicationSimulationConfig struct {
@@ -126,6 +128,21 @@ type Validation struct {
 	CompletedByWorkersInCluster string `yaml:"completedByWorkersInCluster"`
 	Error                       string `yaml:"error"`
 	QueryResult                 any    `yaml:"queryResult"`
+
+	// DLQCountAtLeast / DLQCountAtMost are used by the validate_dlq operation to assert
+	// on the number of history-task DLQ rows for a domain in a cluster's keyspace.
+	DLQCountAtLeast *int `yaml:"dlqCountAtLeast"`
+	DLQCountAtMost  *int `yaml:"dlqCountAtMost"`
+
+	// DLQAckLevelTaskIDAtLeast is used by the validate_dlq_ack_level operation to assert
+	// that the history-task DLQ ack level for a domain has advanced past the sentinel value.
+	DLQAckLevelTaskIDAtLeast *int64 `yaml:"dlqAckLevelTaskIDAtLeast"`
+
+	// DLQClusterAttributeScope / DLQClusterAttributeName select the specific DLQ partition
+	// (domain + cluster-attribute pair) that validate_dlq_ack_level asserts on. Use empty strings
+	// to assert on the 'default' active cluster.
+	DLQClusterAttributeScope string `yaml:"dlqClusterAttributeScope"`
+	DLQClusterAttributeName  string `yaml:"dlqClusterAttributeName"`
 }
 
 type Cluster struct {
@@ -133,6 +150,22 @@ type Cluster struct {
 
 	AdminClient    admin.Client    `yaml:"-"`
 	FrontendClient frontend.Client `yaml:"-"`
+}
+
+// KeyspaceForCluster returns the Cassandra keyspace that backs a cluster in the
+// replication simulation docker-compose. It mirrors the KEYSPACE env vars set in
+// docker/github_actions/docker-compose-local-replication-simulation.yml.
+// Used by the validate_dlq operation to query the history-task DLQ tables directly,
+// since there is no admin RPC for the history-task DLQ.
+func KeyspaceForCluster(clusterName string) (string, error) {
+	switch clusterName {
+	case "cluster0":
+		return "cadence_primary", nil
+	case "cluster1":
+		return "cadence_secondary", nil
+	default:
+		return "", fmt.Errorf("no known keyspace for cluster %q", clusterName)
+	}
 }
 
 func LoadConfig() (*ReplicationSimulationConfig, error) {
