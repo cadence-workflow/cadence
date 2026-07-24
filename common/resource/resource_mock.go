@@ -292,18 +292,17 @@ func (mr *MockResourceMockRecorder) GetDomainReplicationQueue() *gomock.Call {
 }
 
 // GetExecutionManager mocks base method.
-func (m *MockResource) GetExecutionManager(arg0 int) (persistence.ExecutionManager, error) {
+func (m *MockResource) GetExecutionManager() persistence.ExecutionManager {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExecutionManager", arg0)
+	ret := m.ctrl.Call(m, "GetExecutionManager")
 	ret0, _ := ret[0].(persistence.ExecutionManager)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	return ret0
 }
 
 // GetExecutionManager indicates an expected call of GetExecutionManager.
-func (mr *MockResourceMockRecorder) GetExecutionManager(arg0 any) *gomock.Call {
+func (mr *MockResourceMockRecorder) GetExecutionManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutionManager", reflect.TypeOf((*MockResource)(nil).GetExecutionManager), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutionManager", reflect.TypeOf((*MockResource)(nil).GetExecutionManager))
 }
 
 // GetFrontendClient mocks base method.
@@ -542,6 +541,20 @@ func (m *MockResource) GetMetricsScope() tally.Scope {
 func (mr *MockResourceMockRecorder) GetMetricsScope() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetricsScope", reflect.TypeOf((*MockResource)(nil).GetMetricsScope))
+}
+
+// GetNumShards mocks base method.
+func (m *MockResource) GetNumShards() int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNumShards")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// GetNumShards indicates an expected call of GetNumShards.
+func (mr *MockResourceMockRecorder) GetNumShards() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNumShards", reflect.TypeOf((*MockResource)(nil).GetNumShards))
 }
 
 // GetOperationalConfigStore mocks base method.

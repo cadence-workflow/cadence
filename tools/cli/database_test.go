@@ -55,22 +55,22 @@ func TestDefaultManagerFactory(t *testing.T) {
 			name: "initializeExecutionManager - success",
 			setupMocks: func(mockFactory *client.MockFactory, ctrl *gomock.Controller) interface{} {
 				mockExecutionManager := persistence.NewMockExecutionManager(ctrl)
-				mockFactory.EXPECT().NewExecutionManager(gomock.Any()).Return(mockExecutionManager, nil)
+				mockFactory.EXPECT().NewExecutionManager().Return(mockExecutionManager, nil)
 				return mockExecutionManager
 			},
 			methodToTest: func(f *defaultManagerFactory, ctx *cli.Context) (interface{}, error) {
-				return f.initializeExecutionManager(ctx, 1)
+				return f.initializeExecutionManager(ctx)
 			},
 			expectError: false,
 		},
 		{
 			name: "initializeExecutionManager - error",
 			setupMocks: func(mockFactory *client.MockFactory, ctrl *gomock.Controller) interface{} {
-				mockFactory.EXPECT().NewExecutionManager(gomock.Any()).Return(nil, fmt.Errorf("some error"))
+				mockFactory.EXPECT().NewExecutionManager().Return(nil, fmt.Errorf("some error"))
 				return nil
 			},
 			methodToTest: func(f *defaultManagerFactory, ctx *cli.Context) (interface{}, error) {
-				return f.initializeExecutionManager(ctx, 1)
+				return f.initializeExecutionManager(ctx)
 			},
 			expectError: true,
 		},

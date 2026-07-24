@@ -392,10 +392,22 @@ type domainTaggedRequest interface {
 	GetDomainName() string
 }
 
+type shardIDTaggedRequest interface {
+	GetShardID() *int
+}
+
 func getDomainNameFromRequest(req any) (res string, check bool) {
 	d, check := req.(domainTaggedRequest)
 	if check {
 		res = d.GetDomainName()
+	}
+	return res, check
+}
+
+func getShardIDFromRequest(req any) (res *int, check bool) {
+	s, check := req.(shardIDTaggedRequest)
+	if check {
+		res = s.GetShardID()
 	}
 	return res, check
 }

@@ -144,7 +144,7 @@ func checkExecution(
 	fetcher executions.ExecutionFetcher,
 ) (interface{}, invariant.ManagerCheckResult, error) {
 	shardID := common.WorkflowIDToHistoryShard(req.WorkflowID, numberOfShards)
-	execManager, err := getDeps(c).initializeExecutionManager(c, shardID)
+	execManager, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
 		return nil, invariant.ManagerCheckResult{}, fmt.Errorf("initialize execution manager: %w", err)
 	}
@@ -208,9 +208,9 @@ func listExecutionsByShardID(
 	outputFile *os.File,
 ) error {
 
-	client, err := getDeps(c).initializeExecutionManager(c, shardID)
+	client, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
-		commoncli.Problem("initialize execution manager:", err)
+		return commoncli.Problem("initialize execution manager:", err)
 	}
 	defer client.Close()
 	paginationFunc := func(paginationToken []byte) ([]interface{}, []byte, error) {
@@ -220,6 +220,7 @@ func listExecutionsByShardID(
 		resp, err := client.ListConcreteExecutions(
 			ctx,
 			&persistence.ListConcreteExecutionsRequest{
+				ShardID:   &shardID,
 				PageSize:  1000,
 				PageToken: paginationToken,
 			},
