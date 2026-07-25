@@ -28,4 +28,4 @@ const Version = "0.8"
 
 // VisibilityVersion is the Postgres visibility database release version
 // Cadence supports both MySQL and Postgres officially, so upgrade should be perform for both MySQL and Postgres
-const VisibilityVersion = "0.8"
+const VisibilityVersion = "0.9"
