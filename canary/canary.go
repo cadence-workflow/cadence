@@ -89,17 +89,14 @@ func (c *canaryImpl) Run(mode string) error {
 	if mode != ModeCronCanary && mode != ModeAll && mode != ModeWorker {
 		return fmt.Errorf("wrong mode to start canary")
 	}
-	var err error
 	log := c.runtime.logger
 
-	if err = c.createDomain(); err != nil {
+	if err := c.createDomain(); err != nil {
 		log.Error("createDomain failed", zap.Error(err))
-		return err
 	}
 
-	if err = c.createArchivalDomain(); err != nil {
+	if err := c.createArchivalDomain(); err != nil {
 		log.Error("createArchivalDomain failed", zap.Error(err))
-		return err
 	}
 
 	if mode == ModeAll || mode == ModeCronCanary {
@@ -108,8 +105,7 @@ func (c *canaryImpl) Run(mode string) error {
 	}
 
 	if mode == ModeAll || mode == ModeWorker {
-		err = c.startWorker()
-		if err != nil {
+		if err := c.startWorker(); err != nil {
 			log.Error("start worker failed", zap.Error(err))
 			return err
 		}
@@ -132,7 +128,7 @@ func (c *canaryImpl) startWorker() error {
 	archivalWorker := worker.New(c.archivalClient.Service, archivalDomain, archivalTaskListName, options)
 	defer archivalWorker.Stop()
 	if err := archivalWorker.Start(); err != nil {
-		return err
+		c.runtime.logger.Error("failed to start archival worker", zap.Error(err))
 	}
 	canaryWorker := worker.New(c.canaryClient.Service, c.canaryDomain, taskListName, options)
 	if c.canaryConfig.CrossClusterTestMode == CrossClusterCanaryModeFull {

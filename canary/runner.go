@@ -31,6 +31,7 @@ import (
 	apiv1 "github.com/uber/cadence-idl/go/proto/api/v1"
 	"go.uber.org/cadence/.gen/go/cadence/workflowserviceclient"
 	"go.uber.org/cadence/compatibility"
+	"go.uber.org/multierr"
 	"go.uber.org/yarpc"
 	"go.uber.org/yarpc/api/transport"
 	"go.uber.org/yarpc/peer"
@@ -155,22 +156,54 @@ func (r *canaryRunner) Run(mode string) error {
 		r.config.Cron.StartJobTimeout = 9 * time.Minute
 	}
 
-	var wg sync.WaitGroup
-	for _, d := range r.config.Domains {
-		canary := newCanary(d, r.RuntimeContext, r.config)
+	tasks := make([]Runnable, len(r.config.Domains))
+	for i, d := range r.config.Domains {
+		i, d := i, d
+		canaryTask := newCanary(d, r.RuntimeContext, r.config)
 		r.logger.Info("starting canary", zap.String("domain", d))
-		r.execute(canary, mode, &wg)
+		tasks[i] = runnableFunc(func(mode string) error {
+			if err := canaryTask.Run(mode); err != nil {
+				return fmt.Errorf("domain %s: %w", d, err)
+			}
+			return nil
+		})
 	}
-	wg.Wait()
-	return nil
+	return runCanaries(tasks, mode, r.logger)
 }
 
-func (r *canaryRunner) execute(task Runnable, mode string, wg *sync.WaitGroup) {
-	wg.Add(1)
-	go func() {
-		task.Run(mode)
-		wg.Done()
-	}()
+// runnableFunc adapts a plain function to the Runnable interface.
+type runnableFunc func(mode string) error
+
+func (f runnableFunc) Run(mode string) error {
+	return f(mode)
+}
+
+// runCanaries runs every task concurrently and only returns an error if
+// every task failed - a single task's start error should not take down
+// the others, since that would lose observability for the rest during
+// an incident.
+func runCanaries(tasks []Runnable, mode string, logger *zap.Logger) error {
+	var wg sync.WaitGroup
+	errs := make([]error, len(tasks))
+	for i, task := range tasks {
+		i, task := i, task
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := task.Run(mode); err != nil {
+				logger.Error("canary failed to run", zap.Error(err))
+				errs[i] = err
+			}
+		}()
+	}
+	wg.Wait()
+
+	for _, err := range errs {
+		if err == nil {
+			return nil
+		}
+	}
+	return multierr.Combine(errs...)
 }
 
 func updateSanityChildWFList(excludes []string) {
