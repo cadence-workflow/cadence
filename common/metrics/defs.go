@@ -3688,10 +3688,10 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
 		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
-		HistoryTaskDLQReinjectFailuresCounter:      {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
-		HistoryTaskDLQPageSizeBytes:                {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		AsyncWorkflowQueueGCFailuresCounter: {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
-		AsyncWorkflowQueueGCSweepsCounter:   {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
+		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		AsyncWorkflowQueueGCFailuresCounter:   {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
+		AsyncWorkflowQueueGCSweepsCounter:     {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

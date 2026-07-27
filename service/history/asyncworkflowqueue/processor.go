@@ -56,7 +56,6 @@ type (
 	processorImpl struct {
 		shardID    int
 		mgr        persistence.AsyncWorkflowQueueManager
-		queueNames dynamicproperties.ListPropertyFn
 		enabled    dynamicproperties.BoolPropertyFn
 		interval   dynamicproperties.DurationPropertyFnWithShardIDFilter
 		timeSource clock.TimeSource
@@ -73,7 +72,6 @@ type (
 	ProcessorParams struct {
 		ShardID    int
 		Manager    persistence.AsyncWorkflowQueueManager
-		QueueNames dynamicproperties.ListPropertyFn
 		Enabled    dynamicproperties.BoolPropertyFn
 		Interval   dynamicproperties.DurationPropertyFnWithShardIDFilter
 		TimeSource clock.TimeSource
@@ -89,7 +87,6 @@ func NewProcessor(params ProcessorParams) Processor {
 	return &processorImpl{
 		shardID:    params.ShardID,
 		mgr:        params.Manager,
-		queueNames: params.QueueNames,
 		enabled:    params.Enabled,
 		interval:   params.Interval,
 		timeSource: params.TimeSource,
@@ -105,14 +102,12 @@ func NewProcessor(params ProcessorParams) Processor {
 // the shard context and delegates to NewProcessor.
 func NewProcessorFromShard(
 	shard shard.Context,
-	queueNames dynamicproperties.ListPropertyFn,
 	enabled dynamicproperties.BoolPropertyFn,
 	interval dynamicproperties.DurationPropertyFnWithShardIDFilter,
 ) Processor {
 	return NewProcessor(ProcessorParams{
 		ShardID:    shard.GetShardID(),
 		Manager:    shard.GetService().GetAsyncWorkflowQueueManager(),
-		QueueNames: queueNames,
 		Enabled:    enabled,
 		Interval:   interval,
 		TimeSource: shard.GetTimeSource(),
@@ -167,43 +162,18 @@ func (p *processorImpl) processLoop() {
 	}
 }
 
-// processShard sweeps every configured queue on this shard, range-deleting messages
-// at or behind the committed ack level. Errors on individual queues are logged and
-// counted; the sweep always continues to the next queue.
+// processShard range-deletes messages at or behind the committed ack level for this
+// shard. Errors are logged and counted; the next tick retries.
 func (p *processorImpl) processShard(ctx context.Context) {
-	for _, queueName := range p.queueNamesForShard() {
-		if ctx.Err() != nil {
-			return
-		}
-		p.gcQueue(ctx, queueName)
-	}
-}
-
-// queueNamesForShard resolves the configured queue names, ignoring any non-string
-// entries so a malformed dynamic-config value cannot break the sweep.
-func (p *processorImpl) queueNamesForShard() []string {
-	raw := p.queueNames()
-	names := make([]string, 0, len(raw))
-	for _, v := range raw {
-		if s, ok := v.(string); ok && s != "" {
-			names = append(names, s)
-		}
-	}
-	return names
-}
-
-func (p *processorImpl) gcQueue(ctx context.Context, queueName string) {
 	scope := p.metrics.Scope(metrics.AsyncWorkflowQueueGCScope)
 
 	ackResp, err := p.mgr.GetAckLevel(ctx, &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: queueName,
-		ShardID:   p.shardID,
+		ShardID: p.shardID,
 	})
 	if err != nil {
 		scope.IncCounter(metrics.AsyncWorkflowQueueGCFailuresCounter)
 		p.logger.Error("failed to get async workflow queue ack level",
 			tag.ShardID(p.shardID),
-			tag.Dynamic("queue-name", queueName),
 			tag.Error(err),
 		)
 		return
@@ -215,14 +185,12 @@ func (p *processorImpl) gcQueue(ctx context.Context, queueName string) {
 	}
 
 	if err := p.mgr.RangeDeleteMessages(ctx, &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName:             queueName,
 		ShardID:               p.shardID,
 		InclusiveEndMessageID: ackResp.AckLevel,
 	}); err != nil {
 		scope.IncCounter(metrics.AsyncWorkflowQueueGCFailuresCounter)
 		p.logger.Error("failed to range-delete async workflow queue messages",
 			tag.ShardID(p.shardID),
-			tag.Dynamic("queue-name", queueName),
 			tag.Error(err),
 		)
 		return

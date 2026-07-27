@@ -30,15 +30,15 @@ func (db *ddb) InsertIntoAsyncWorkflowQueue(ctx context.Context, row *nosqlplugi
 	panic("TODO")
 }
 
-func (db *ddb) SelectLastAsyncWorkflowMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (db *ddb) SelectLastAsyncWorkflowMessageID(ctx context.Context, shardID int) (int64, error) {
 	panic("TODO")
 }
 
-func (db *ddb) SelectAsyncWorkflowMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*nosqlplugin.AsyncWorkflowQueueMessageRow, error) {
+func (db *ddb) SelectAsyncWorkflowMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*nosqlplugin.AsyncWorkflowQueueMessageRow, error) {
 	panic("TODO")
 }
 
-func (db *ddb) RangeDeleteAsyncWorkflowMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (db *ddb) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	panic("TODO")
 }
 
@@ -50,7 +50,7 @@ func (db *ddb) UpdateAsyncWorkflowQueueMetadataCas(ctx context.Context, row nosq
 	panic("TODO")
 }
 
-func (db *ddb) SelectAsyncWorkflowQueueMetadata(ctx context.Context, queueName string, shardID int) (*nosqlplugin.AsyncWorkflowQueueMetadataRow, error) {
+func (db *ddb) SelectAsyncWorkflowQueueMetadata(ctx context.Context, shardID int) (*nosqlplugin.AsyncWorkflowQueueMetadataRow, error) {
 	panic("TODO")
 }
 
@@ -58,14 +58,14 @@ func (db *ddb) InsertIntoAsyncWorkflowDLQ(ctx context.Context, row *nosqlplugin.
 	panic("TODO")
 }
 
-func (db *ddb) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (db *ddb) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, shardID int) (int64, error) {
 	panic("TODO")
 }
 
-func (db *ddb) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*nosqlplugin.AsyncWorkflowQueueMessageRow, error) {
+func (db *ddb) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*nosqlplugin.AsyncWorkflowQueueMessageRow, error) {
 	panic("TODO")
 }
 
-func (db *ddb) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (db *ddb) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	panic("TODO")
 }

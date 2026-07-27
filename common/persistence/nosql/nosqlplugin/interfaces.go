@@ -157,39 +157,39 @@ type (
 	 * async_workflow_queue_dlq).
 	 *
 	 * Significant columns:
-	 * async_workflow_queue          partition key: (queueName, shardID), range key: (messageID)
-	 * async_workflow_queue_metadata partition key: (queueName, shardID), query condition column(version)
-	 * async_workflow_queue_dlq      partition key: (queueName, shardID), range key: (messageID)
+	 * async_workflow_queue          partition key: (shardID), range key: (messageID)
+	 * async_workflow_queue_metadata partition key: (shardID), query condition column(version)
+	 * async_workflow_queue_dlq      partition key: (shardID), range key: (messageID)
 	 *
-	 * Within a (queueName, shardID) partition the shard owner is the single writer, so messageID is a
+	 * Within a shard partition the shard owner is the single writer, so messageID is a
 	 * monotonic sequence and enqueue is a plain insert (no conditional write needed).
 	 */
 	AsyncWorkflowQueueCRUD interface {
-		// InsertIntoAsyncWorkflowQueue inserts a message into (queueName, shardID). Single writer, plain insert.
+		// InsertIntoAsyncWorkflowQueue inserts a message into the shard's queue. Single writer, plain insert.
 		InsertIntoAsyncWorkflowQueue(ctx context.Context, row *AsyncWorkflowQueueMessageRow) error
-		// SelectLastAsyncWorkflowMessageID returns the id of the last message in (queueName, shardID), or emptyMessageID if empty.
-		SelectLastAsyncWorkflowMessageID(ctx context.Context, queueName string, shardID int) (int64, error)
+		// SelectLastAsyncWorkflowMessageID returns the id of the last message in the shard, or emptyMessageID if empty.
+		SelectLastAsyncWorkflowMessageID(ctx context.Context, shardID int) (int64, error)
 		// SelectAsyncWorkflowMessagesFrom reads up to maxRows messages with messageID > exclusiveBeginMessageID.
-		SelectAsyncWorkflowMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error)
+		SelectAsyncWorkflowMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error)
 		// RangeDeleteAsyncWorkflowMessages deletes all messages with messageID <= inclusiveEndMessageID.
-		RangeDeleteAsyncWorkflowMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error
+		RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error
 
 		// InsertAsyncWorkflowQueueMetadata inserts an initial metadata row (ack_level=emptyMessageID, version=0) if absent.
 		InsertAsyncWorkflowQueueMetadata(ctx context.Context, row AsyncWorkflowQueueMetadataRow) error
 		// UpdateAsyncWorkflowQueueMetadataCas conditionally updates the metadata row if current version == row.Version-1.
 		// Must return conditionFailed error if the condition is not met.
 		UpdateAsyncWorkflowQueueMetadataCas(ctx context.Context, row AsyncWorkflowQueueMetadataRow) error
-		// SelectAsyncWorkflowQueueMetadata reads the metadata row for (queueName, shardID).
-		SelectAsyncWorkflowQueueMetadata(ctx context.Context, queueName string, shardID int) (*AsyncWorkflowQueueMetadataRow, error)
+		// SelectAsyncWorkflowQueueMetadata reads the metadata row for the shard.
+		SelectAsyncWorkflowQueueMetadata(ctx context.Context, shardID int) (*AsyncWorkflowQueueMetadataRow, error)
 
-		// InsertIntoAsyncWorkflowDLQ inserts a poison message into the DLQ for (queueName, shardID).
+		// InsertIntoAsyncWorkflowDLQ inserts a poison message into the shard's DLQ.
 		InsertIntoAsyncWorkflowDLQ(ctx context.Context, row *AsyncWorkflowQueueMessageRow) error
-		// SelectLastAsyncWorkflowDLQMessageID returns the id of the last DLQ message in (queueName, shardID).
-		SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, queueName string, shardID int) (int64, error)
+		// SelectLastAsyncWorkflowDLQMessageID returns the id of the last DLQ message in the shard.
+		SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, shardID int) (int64, error)
 		// SelectAsyncWorkflowDLQMessagesFrom reads up to maxRows DLQ messages with messageID > exclusiveBeginMessageID.
-		SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error)
+		SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error)
 		// RangeDeleteAsyncWorkflowDLQMessages deletes all DLQ messages with messageID <= inclusiveEndMessageID.
-		RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error
+		RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error
 	}
 
 	/***

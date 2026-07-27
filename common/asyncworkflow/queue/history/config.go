@@ -25,6 +25,10 @@ package history
 import "fmt"
 
 type (
+	// queueConfig configures a history-backed async workflow queue. QueueName is only a
+	// provider-registry namespace (it distinguishes queue instances in domain config and
+	// producer caches); it has no effect on storage, which is partitioned by history
+	// shard id alone.
 	queueConfig struct {
 		QueueName string `yaml:"queueName"`
 	}

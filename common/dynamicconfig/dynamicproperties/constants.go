@@ -3477,14 +3477,6 @@ const (
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
 
-	// AsyncWorkflowQueueGCQueueNames is the list of async workflow queue names the
-	// per-shard GC daemon sweeps. Empty (the default) means GC is a no-op.
-	// KeyName: history.asyncWorkflowQueueGCQueueNames
-	// Value type: []string
-	// Default value: empty list
-	// Allowed filters: N/A
-	AsyncWorkflowQueueGCQueueNames
-
 	LastListKey
 )
 
@@ -6173,11 +6165,6 @@ var ListKeys = map[ListKey]DynamicList{
 				"Match": "",
 			},
 		},
-	},
-	AsyncWorkflowQueueGCQueueNames: {
-		KeyName:      "history.asyncWorkflowQueueGCQueueNames",
-		Description:  "List of async workflow queue names the per-shard GC daemon sweeps. Empty means GC is a no-op.",
-		DefaultValue: []interface{}{},
 	},
 }
 

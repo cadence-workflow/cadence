@@ -533,35 +533,34 @@ PRIMARY KEY (queue_type)
      'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
    };
 
--- async_workflow_queue holds async workflow requests (start / signal-with-start) awaiting execution.
--- Rows are grouped into logical queues (queue_name, the equivalent of a Kafka topic) and sharded by
--- history shard id. Within a (queue_name, shard_id) partition, message_id is a monotonic per-shard
--- sequence written by the single shard owner, giving FIFO ordering without conditional writes.
+-- async_workflow_queue holds async workflow requests (start / signal-with-start) awaiting execution,
+-- sharded by history shard id. message_id is a monotonic per-shard sequence written by the single
+-- shard owner, giving FIFO ordering without conditional writes. Domain isolation is virtual: the
+-- history-side consumer schedules messages through a weighted per-domain scheduler, so there is no
+-- per-queue partitioning at the storage layer.
 CREATE TABLE async_workflow_queue (
-  queue_name      text,
   shard_id        int,
   message_id      bigint,
   message_payload blob,
   encoding        text,
   partition_key   text,
   created_time    timestamp,
-  PRIMARY KEY ((queue_name, shard_id), message_id)
+  PRIMARY KEY ((shard_id), message_id)
 ) WITH CLUSTERING ORDER BY (message_id ASC)
   AND COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
   };
 
--- async_workflow_queue_metadata holds the per-(queue_name, shard_id) consumption cursor (ack_level)
+-- async_workflow_queue_metadata holds the per-shard consumption cursor (ack_level)
 -- and a version for optimistic-concurrency (CAS) updates. Cross-region delivery is handled by the
 -- history replication stream, so each region acks its own local copy independently.
 CREATE TABLE async_workflow_queue_metadata (
-  queue_name        text,
   shard_id          int,
   ack_level         bigint,
   version           bigint,
   created_time      timestamp,
   last_updated_time timestamp,
-  PRIMARY KEY ((queue_name, shard_id))
+  PRIMARY KEY ((shard_id))
 ) WITH COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'
   };
@@ -569,14 +568,13 @@ CREATE TABLE async_workflow_queue_metadata (
 -- async_workflow_queue_dlq holds poison / corrupt async workflow requests that could not be processed.
 -- Same shape as async_workflow_queue.
 CREATE TABLE async_workflow_queue_dlq (
-  queue_name      text,
   shard_id        int,
   message_id      bigint,
   message_payload blob,
   encoding        text,
   partition_key   text,
   created_time    timestamp,
-  PRIMARY KEY ((queue_name, shard_id), message_id)
+  PRIMARY KEY ((shard_id), message_id)
 ) WITH CLUSTERING ORDER BY (message_id ASC)
   AND COMPACTION = {
     'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'

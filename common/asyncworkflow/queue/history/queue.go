@@ -26,9 +26,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/uber/cadence/common/asyncworkflow/queue/consumer"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
-	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -54,34 +52,21 @@ func (q *queueImpl) ID() string {
 	return q.config.ID()
 }
 
+// CreateConsumer returns a no-op consumer: history-backed async workflow queues are
+// consumed inside the history service itself (per-shard consumer daemons), not by the
+// worker service. A no-op (rather than an error) keeps the worker's ConsumerManager
+// from logging an error for every history-backed domain on every refresh.
 func (q *queueImpl) CreateConsumer(p *provider.Params) (provider.Consumer, error) {
-	if p.HistoryClient == nil {
-		return nil, errors.New("history client is required to create a history-backed async queue consumer")
-	}
-	if p.NumHistoryShards <= 0 {
-		return nil, fmt.Errorf("invalid number of history shards %d for history-backed async queue consumer", p.NumHistoryShards)
-	}
-	if p.MembershipResolver == nil {
-		return nil, errors.New("membership resolver is required to create a history-backed async queue consumer")
-	}
-
-	timeSource := p.TimeSource
-	if timeSource == nil {
-		timeSource = clock.NewRealTimeSource()
-	}
-
-	p.Logger.Info("Creating history-backed async wf consumer", tag.AsyncWFQueueID(q.config.ID()))
-	historyConsumer := newConsumer(
-		q.config.QueueName,
-		p.HistoryClient,
-		p.NumHistoryShards,
-		p.MembershipResolver,
-		timeSource,
-		p.Logger,
-		p.MetricsClient,
-	)
-	return consumer.New(q.ID(), historyConsumer, p.Logger, p.MetricsClient, p.FrontendClient), nil
+	p.Logger.Info("History-backed async wf queue is consumed by the history service; starting no-op worker consumer",
+		tag.AsyncWFQueueID(q.config.ID()))
+	return &noopConsumer{}, nil
 }
+
+// noopConsumer satisfies provider.Consumer without doing any work.
+type noopConsumer struct{}
+
+func (*noopConsumer) Start() error { return nil }
+func (*noopConsumer) Stop()        {}
 
 func (q *queueImpl) CreateProducer(p *provider.Params) (messaging.Producer, error) {
 	if p.HistoryClient == nil {

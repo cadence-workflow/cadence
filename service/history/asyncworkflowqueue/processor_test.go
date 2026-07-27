@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
@@ -46,18 +45,8 @@ const (
 
 type newProcessorParams struct {
 	Manager    persistence.AsyncWorkflowQueueManager
-	QueueNames []string
 	Enabled    bool
 	TimeSource clock.TimeSource
-}
-
-// toList converts a []string to the []interface{} shape a ListPropertyFn returns.
-func toList(names []string) []interface{} {
-	out := make([]interface{}, len(names))
-	for i, n := range names {
-		out[i] = n
-	}
-	return out
 }
 
 func newProcessor(t *testing.T, params newProcessorParams) *processorImpl {
@@ -69,7 +58,6 @@ func newProcessor(t *testing.T, params newProcessorParams) *processorImpl {
 	return NewProcessor(ProcessorParams{
 		ShardID:    testShardID,
 		Manager:    params.Manager,
-		QueueNames: func(...dynamicproperties.FilterOption) []interface{} { return toList(params.QueueNames) },
 		Enabled:    dynamicproperties.GetBoolPropertyFn(params.Enabled),
 		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestGCInterval),
 		TimeSource: ts,
@@ -84,17 +72,14 @@ func TestProcessShard_WhenAckLevelNonNegative_RangeDeletesUpToAckLevel(t *testin
 
 	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
-		Enabled:    true,
+		Manager: mgr,
+		Enabled: true,
 	})
 
 	mgr.EXPECT().GetAckLevel(gomock.Any(), &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: "queue-a",
-		ShardID:   testShardID,
+		ShardID: testShardID,
 	}).Return(&persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: 42}, nil)
 	mgr.EXPECT().RangeDeleteMessages(gomock.Any(), &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName:             "queue-a",
 		ShardID:               testShardID,
 		InclusiveEndMessageID: 42,
 	}).Return(nil)
@@ -108,16 +93,14 @@ func TestProcessShard_WhenAckLevelZero_RangeDeletesUpToZero(t *testing.T) {
 
 	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
-		Enabled:    true,
+		Manager: mgr,
+		Enabled: true,
 	})
 
 	// AckLevel == 0 means message 0 has been consumed and is eligible for GC.
 	mgr.EXPECT().GetAckLevel(gomock.Any(), gomock.Any()).
 		Return(&persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: 0}, nil)
 	mgr.EXPECT().RangeDeleteMessages(gomock.Any(), &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName:             "queue-a",
 		ShardID:               testShardID,
 		InclusiveEndMessageID: 0,
 	}).Return(nil)
@@ -131,9 +114,8 @@ func TestProcessShard_WhenAckLevelEmpty_DoesNotRangeDelete(t *testing.T) {
 
 	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
-		Enabled:    true,
+		Manager: mgr,
+		Enabled: true,
 	})
 
 	// EmptyMessageID (-1): queue never consumed, nothing to GC.
@@ -144,90 +126,39 @@ func TestProcessShard_WhenAckLevelEmpty_DoesNotRangeDelete(t *testing.T) {
 	proc.processShard(context.Background())
 }
 
-func TestProcessShard_WhenGetAckLevelFails_SkipsQueueAndContinues(t *testing.T) {
+func TestProcessShard_WhenGetAckLevelFails_DoesNotRangeDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a", "queue-b"},
-		Enabled:    true,
+		Manager: mgr,
+		Enabled: true,
 	})
 
-	// First queue errors on GetAckLevel; second queue must still be processed.
 	mgr.EXPECT().GetAckLevel(gomock.Any(), &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: "queue-a", ShardID: testShardID,
+		ShardID: testShardID,
 	}).Return(nil, errors.New("db error"))
-	mgr.EXPECT().GetAckLevel(gomock.Any(), &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: "queue-b", ShardID: testShardID,
-	}).Return(&persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: 5}, nil)
-	mgr.EXPECT().RangeDeleteMessages(gomock.Any(), &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName: "queue-b", ShardID: testShardID, InclusiveEndMessageID: 5,
-	}).Return(nil)
+	mgr.EXPECT().RangeDeleteMessages(gomock.Any(), gomock.Any()).Times(0)
 
 	proc.processShard(context.Background())
 }
 
-func TestProcessShard_WhenRangeDeleteFails_ContinuesToNextQueue(t *testing.T) {
+func TestProcessShard_WhenRangeDeleteFails_ReturnsWithoutPanic(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a", "queue-b"},
-		Enabled:    true,
+		Manager: mgr,
+		Enabled: true,
 	})
 
 	mgr.EXPECT().GetAckLevel(gomock.Any(), gomock.Any()).
-		Return(&persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: 1}, nil).Times(2)
+		Return(&persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: 1}, nil)
 	mgr.EXPECT().RangeDeleteMessages(gomock.Any(), &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName: "queue-a", ShardID: testShardID, InclusiveEndMessageID: 1,
+		ShardID: testShardID, InclusiveEndMessageID: 1,
 	}).Return(errors.New("delete failed"))
-	mgr.EXPECT().RangeDeleteMessages(gomock.Any(), &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName: "queue-b", ShardID: testShardID, InclusiveEndMessageID: 1,
-	}).Return(nil)
-
-	proc.processShard(context.Background())
-}
-
-func TestProcessShard_WhenNoQueuesConfigured_IsNoOp(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: nil,
-		Enabled:    true,
-	})
-	// No manager calls expected.
-	proc.processShard(context.Background())
-}
-
-func TestProcessShard_IgnoresNonStringAndEmptyQueueNames(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-	proc := NewProcessor(ProcessorParams{
-		ShardID: testShardID,
-		Manager: mgr,
-		QueueNames: func(...dynamicproperties.FilterOption) []interface{} {
-			return []interface{}{"queue-a", "", 123, nil}
-		},
-		Enabled:    dynamicproperties.GetBoolPropertyFn(true),
-		Interval:   dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestGCInterval),
-		TimeSource: clock.NewMockedTimeSource(),
-		Metrics:    metrics.NewNoopMetricsClient(),
-		Logger:     testlogger.New(t),
-	}).(*processorImpl)
-
-	// Only the valid non-empty string "queue-a" is processed.
-	mgr.EXPECT().GetAckLevel(gomock.Any(), &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: "queue-a", ShardID: testShardID,
-	}).Return(&persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: constants.EmptyMessageID}, nil)
 
 	proc.processShard(context.Background())
 }
@@ -243,7 +174,6 @@ func TestStart_WhenNotEnabled_SkipsProcessingButContinuesLoop(t *testing.T) {
 
 	proc := newProcessor(t, newProcessorParams{
 		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
 		Enabled:    false,
 		TimeSource: ts,
 	})
@@ -278,7 +208,6 @@ func TestStart_WhenEnabled_CallsProcessShardOnInterval(t *testing.T) {
 
 	proc := newProcessor(t, newProcessorParams{
 		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
 		Enabled:    true,
 		TimeSource: ts,
 	})
@@ -302,9 +231,8 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 
 	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
 	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
-		Enabled:    true,
+		Manager: mgr,
+		Enabled: true,
 	})
 
 	proc.Start()
@@ -332,7 +260,6 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 
 	proc := newProcessor(t, newProcessorParams{
 		Manager:    mgr,
-		QueueNames: []string{"queue-a"},
 		Enabled:    true,
 		TimeSource: ts,
 	})
@@ -358,23 +285,4 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 	case <-time.After(5 * time.Second):
 		t.Fatal("Stop() did not return promptly after context cancellation")
 	}
-}
-
-func TestProcessShard_WhenContextCancelled_StopsBeforeNextQueue(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mgr := persistence.NewMockAsyncWorkflowQueueManager(ctrl)
-	proc := newProcessor(t, newProcessorParams{
-		Manager:    mgr,
-		QueueNames: []string{"queue-a", "queue-b"},
-		Enabled:    true,
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// No manager calls: the cancelled context short-circuits before the first queue.
-	proc.processShard(ctx)
-	assert.Error(t, ctx.Err())
 }

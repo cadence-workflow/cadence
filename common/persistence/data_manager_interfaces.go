@@ -1982,11 +1982,12 @@ type (
 
 	QueueMessageList []*QueueMessage
 
-	// AsyncWorkflowQueueManager manages the history-backed async workflow request queue(s).
-	// Each logical queue (QueueName, the equivalent of a Kafka topic) is sharded by history shard id.
-	// Within a (QueueName, ShardID) partition, MessageID is a monotonic sequence assigned by the single
-	// shard owner, giving FIFO ordering without conditional writes. Consumers advance a per-shard ack
-	// level and range-delete acked messages; poison messages are moved to a per-shard DLQ.
+	// AsyncWorkflowQueueManager manages the history-backed async workflow request queue.
+	// The queue is sharded by history shard id; within a shard partition, MessageID is a monotonic
+	// sequence assigned by the single shard owner, giving FIFO ordering without conditional writes.
+	// Domain isolation is virtual (the consumer schedules messages through a weighted per-domain
+	// scheduler), so there is no per-queue partitioning at the storage layer. Consumers advance a
+	// per-shard ack level and range-delete acked messages; poison messages are moved to a per-shard DLQ.
 	AsyncWorkflowQueueManager interface {
 		Closeable
 		Enqueue(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) (*EnqueueAsyncWorkflowMessageResponse, error)
@@ -2001,7 +2002,6 @@ type (
 
 	// AsyncWorkflowMessage is a single async workflow request stored in the queue.
 	AsyncWorkflowMessage struct {
-		QueueName    string    `json:"queue_name"`
 		ShardID      int       `json:"shard_id"`
 		MessageID    int64     `json:"message_id"`
 		Payload      []byte    `json:"message_payload"`
@@ -2012,10 +2012,9 @@ type (
 
 	AsyncWorkflowMessageList []*AsyncWorkflowMessage
 
-	// EnqueueAsyncWorkflowMessageRequest enqueues a single message onto (QueueName, ShardID).
+	// EnqueueAsyncWorkflowMessageRequest enqueues a single message onto the shard's queue.
 	// The caller (the history shard owner) is the single writer for the shard.
 	EnqueueAsyncWorkflowMessageRequest struct {
-		QueueName        string
 		ShardID          int
 		Payload          []byte
 		Encoding         string
@@ -2030,7 +2029,6 @@ type (
 
 	// ReadAsyncWorkflowMessagesRequest reads up to PageSize messages with MessageID > LastMessageID.
 	ReadAsyncWorkflowMessagesRequest struct {
-		QueueName     string
 		ShardID       int
 		LastMessageID int64 // exclusive lower bound (the consumer's current cursor)
 		PageSize      int
@@ -2042,15 +2040,13 @@ type (
 
 	// UpdateAsyncWorkflowAckLevelRequest advances the per-shard consumption cursor via CAS.
 	UpdateAsyncWorkflowAckLevelRequest struct {
-		QueueName        string
 		ShardID          int
 		AckLevel         int64
 		CurrentTimeStamp time.Time
 	}
 
 	GetAsyncWorkflowAckLevelRequest struct {
-		QueueName string
-		ShardID   int
+		ShardID int
 	}
 
 	GetAsyncWorkflowAckLevelResponse struct {
@@ -2059,7 +2055,6 @@ type (
 
 	// RangeDeleteAsyncWorkflowMessagesRequest deletes all messages with MessageID <= InclusiveEndMessageID.
 	RangeDeleteAsyncWorkflowMessagesRequest struct {
-		QueueName             string
 		ShardID               int
 		InclusiveEndMessageID int64
 	}

@@ -2158,7 +2158,6 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessage(
 	}
 
 	presp, err := h.GetAsyncWorkflowQueueManager().Enqueue(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
-		QueueName:    request.QueueName,
 		ShardID:      int(request.ShardID),
 		Payload:      request.Payload,
 		Encoding:     request.Encoding,
@@ -2195,8 +2194,7 @@ func (h *handlerImpl) GetAsyncWorkflowMessages(
 
 	manager := h.GetAsyncWorkflowQueueManager()
 	ackResp, err := manager.GetAckLevel(ctx, &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: request.QueueName,
-		ShardID:   int(request.ShardID),
+		ShardID: int(request.ShardID),
 	})
 	if err != nil {
 		return nil, h.error(err, scope, "", "", "")
@@ -2207,7 +2205,6 @@ func (h *handlerImpl) GetAsyncWorkflowMessages(
 	effectiveCursor := max(request.LastMessageID, ackResp.AckLevel)
 
 	readResp, err := manager.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName:     request.QueueName,
 		ShardID:       int(request.ShardID),
 		LastMessageID: effectiveCursor,
 		PageSize:      int(request.PageSize),
@@ -2245,9 +2242,8 @@ func (h *handlerImpl) UpdateAsyncWorkflowAckLevel(
 	}
 
 	if err := h.GetAsyncWorkflowQueueManager().UpdateAckLevel(ctx, &persistence.UpdateAsyncWorkflowAckLevelRequest{
-		QueueName: request.QueueName,
-		ShardID:   int(request.ShardID),
-		AckLevel:  request.AckLevel,
+		ShardID:  int(request.ShardID),
+		AckLevel: request.AckLevel,
 	}); err != nil {
 		return nil, h.error(err, scope, "", "", "")
 	}
@@ -2278,7 +2274,6 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessageToDLQ(
 	}
 
 	presp, err := h.GetAsyncWorkflowQueueManager().EnqueueToDLQ(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
-		QueueName:    request.QueueName,
 		ShardID:      int(request.ShardID),
 		Payload:      request.Payload,
 		Encoding:     request.Encoding,

@@ -380,7 +380,6 @@ type (
 
 	// AsyncWorkflowQueueMessageRow defines a row in the async_workflow_queue (or its DLQ) table.
 	AsyncWorkflowQueueMessageRow struct {
-		QueueName        string
 		ShardID          int
 		ID               int64
 		Payload          []byte
@@ -391,7 +390,6 @@ type (
 
 	// AsyncWorkflowQueueMetadataRow defines a row in the async_workflow_queue_metadata table.
 	AsyncWorkflowQueueMetadataRow struct {
-		QueueName        string
 		ShardID          int
 		AckLevel         int64
 		Version          int64

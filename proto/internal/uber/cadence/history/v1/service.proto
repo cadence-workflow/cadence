@@ -221,15 +221,6 @@ service HistoryAPI {
   // EnqueueAsyncWorkflowMessage enqueues an async workflow message onto a shard-scoped queue.
   rpc EnqueueAsyncWorkflowMessage(EnqueueAsyncWorkflowMessageRequest) returns (EnqueueAsyncWorkflowMessageResponse);
 
-  // GetAsyncWorkflowMessages returns async workflow messages from a shard-scoped queue.
-  rpc GetAsyncWorkflowMessages(GetAsyncWorkflowMessagesRequest) returns (GetAsyncWorkflowMessagesResponse);
-
-  // UpdateAsyncWorkflowAckLevel updates the ack level of a shard-scoped async workflow queue.
-  rpc UpdateAsyncWorkflowAckLevel(UpdateAsyncWorkflowAckLevelRequest) returns (UpdateAsyncWorkflowAckLevelResponse);
-
-  // EnqueueAsyncWorkflowMessageToDLQ enqueues an async workflow message onto a shard-scoped DLQ.
-  rpc EnqueueAsyncWorkflowMessageToDLQ(EnqueueAsyncWorkflowMessageToDLQRequest) returns (EnqueueAsyncWorkflowMessageToDLQResponse);
-
   // NotifyFailoverMarkers sends failover marker to the failover coordinator.
   rpc NotifyFailoverMarkers(NotifyFailoverMarkersRequest) returns (NotifyFailoverMarkersResponse);
 
@@ -791,56 +782,14 @@ message RatelimitUpdateResponse {
   shared.v1.Any data = 1;
 }
 
-message AsyncWorkflowMessage {
-  int64 message_id = 1;
+message EnqueueAsyncWorkflowMessageRequest {
+  int32 shard_id = 1;
   bytes payload = 2;
   string encoding = 3;
   string partition_key = 4;
-  google.protobuf.Timestamp created_time = 5;
-}
-
-message EnqueueAsyncWorkflowMessageRequest {
-  int32 shard_id = 1;
-  string queue_name = 2;
-  bytes payload = 3;
-  string encoding = 4;
-  string partition_key = 5;
 }
 
 message EnqueueAsyncWorkflowMessageResponse {
-  int64 message_id = 1;
-}
-
-message GetAsyncWorkflowMessagesRequest {
-  int32 shard_id = 1;
-  string queue_name = 2;
-  int64 last_message_id = 3;
-  int32 page_size = 4;
-}
-
-message GetAsyncWorkflowMessagesResponse {
-  repeated AsyncWorkflowMessage messages = 1;
-  int64 ack_level = 2;
-}
-
-message UpdateAsyncWorkflowAckLevelRequest {
-  int32 shard_id = 1;
-  string queue_name = 2;
-  int64 ack_level = 3;
-}
-
-message UpdateAsyncWorkflowAckLevelResponse {
-}
-
-message EnqueueAsyncWorkflowMessageToDLQRequest {
-  int32 shard_id = 1;
-  string queue_name = 2;
-  bytes payload = 3;
-  string encoding = 4;
-  string partition_key = 5;
-}
-
-message EnqueueAsyncWorkflowMessageToDLQResponse {
   int64 message_id = 1;
 }
 

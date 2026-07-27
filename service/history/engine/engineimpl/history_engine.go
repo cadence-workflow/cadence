@@ -307,7 +307,6 @@ func NewEngineWithShardContext(
 
 	historyEngImpl.asyncQueueGCProcessor = asyncworkflowqueue.NewProcessorFromShard(
 		shard,
-		config.AsyncWorkflowQueueGCQueueNames,
 		config.AsyncWorkflowQueueGCEnabled,
 		config.AsyncWorkflowQueueGCInterval,
 	)

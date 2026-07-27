@@ -42,7 +42,6 @@ type (
 	producerImpl struct {
 		historyClient    historyclient.Client
 		numHistoryShards int
-		queueName        string
 		encoder          codec.BinaryEncoder
 		logger           log.Logger
 		metricsClient    metrics.Client
@@ -61,7 +60,6 @@ func newProducer(
 	return &producerImpl{
 		historyClient:    historyClient,
 		numHistoryShards: numHistoryShards,
-		queueName:        queueName,
 		encoder:          codec.NewThriftRWEncoder(),
 		logger:           logger.WithTags(tag.AsyncWFQueueID((&queueConfig{QueueName: queueName}).ID())),
 		metricsClient:    metricsClient,
@@ -87,7 +85,6 @@ func (p *producerImpl) Publish(ctx context.Context, message interface{}) error {
 
 	_, err = p.historyClient.EnqueueAsyncWorkflowMessage(ctx, &types.EnqueueAsyncWorkflowMessageRequest{
 		ShardID:      int32(shardID),
-		QueueName:    p.queueName,
 		Payload:      payload,
 		Encoding:     string(constants.EncodingTypeThriftRW),
 		PartitionKey: partitionKey,

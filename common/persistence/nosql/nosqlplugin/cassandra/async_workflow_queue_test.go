@@ -44,13 +44,13 @@ func TestInsertIntoAsyncWorkflowQueue(t *testing.T) {
 	db := newAsyncQueueTestDB(t, session)
 
 	err := db.InsertIntoAsyncWorkflowQueue(context.Background(), &nosqlplugin.AsyncWorkflowQueueMessageRow{
-		QueueName: "q1", ShardID: 3, ID: 42, Payload: []byte("p"), Encoding: "thriftrw", PartitionKey: "wf-1", CurrentTimeStamp: FixedTime,
+		ShardID: 3, ID: 42, Payload: []byte("p"), Encoding: "thriftrw", PartitionKey: "wf-1", CurrentTimeStamp: FixedTime,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := []string{
-		`INSERT INTO async_workflow_queue (queue_name, shard_id, message_id, message_payload, encoding, partition_key, created_time) VALUES(q1, 3, 42, [112], thriftrw, wf-1, 2025-01-06T15:00:00Z)`,
+		`INSERT INTO async_workflow_queue (shard_id, message_id, message_payload, encoding, partition_key, created_time) VALUES(3, 42, [112], thriftrw, wf-1, 2025-01-06T15:00:00Z)`,
 	}
 	if diff := cmp.Diff(want, session.queries); diff != "" {
 		t.Fatalf("query mismatch (-want +got):\n%s", diff)
@@ -61,10 +61,10 @@ func TestRangeDeleteAsyncWorkflowMessages(t *testing.T) {
 	session := &fakeSession{query: &fakeQuery{}}
 	db := newAsyncQueueTestDB(t, session)
 
-	if err := db.RangeDeleteAsyncWorkflowMessages(context.Background(), "q1", 3, 20); err != nil {
+	if err := db.RangeDeleteAsyncWorkflowMessages(context.Background(), 3, 20); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := []string{`DELETE FROM async_workflow_queue WHERE queue_name=q1 AND shard_id=3 AND message_id <= 20`}
+	want := []string{`DELETE FROM async_workflow_queue WHERE shard_id=3 AND message_id <= 20`}
 	if diff := cmp.Diff(want, session.queries); diff != "" {
 		t.Fatalf("query mismatch (-want +got):\n%s", diff)
 	}
@@ -78,18 +78,18 @@ func TestSelectAsyncWorkflowMessagesFrom(t *testing.T) {
 	session := &fakeSession{query: &fakeQuery{iter: iter}}
 	db := newAsyncQueueTestDB(t, session)
 
-	rows, err := db.SelectAsyncWorkflowMessagesFrom(context.Background(), "q1", 3, 0, 10)
+	rows, err := db.SelectAsyncWorkflowMessagesFrom(context.Background(), 3, 0, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := []*nosqlplugin.AsyncWorkflowQueueMessageRow{
-		{QueueName: "q1", ShardID: 3, ID: 1, Payload: []byte("a"), Encoding: "thriftrw", PartitionKey: "wf-1", CurrentTimeStamp: FixedTime},
-		{QueueName: "q1", ShardID: 3, ID: 2, Payload: []byte("b"), Encoding: "thriftrw", PartitionKey: "wf-2", CurrentTimeStamp: FixedTime},
+		{ShardID: 3, ID: 1, Payload: []byte("a"), Encoding: "thriftrw", PartitionKey: "wf-1", CurrentTimeStamp: FixedTime},
+		{ShardID: 3, ID: 2, Payload: []byte("b"), Encoding: "thriftrw", PartitionKey: "wf-2", CurrentTimeStamp: FixedTime},
 	}
 	if diff := cmp.Diff(want, rows); diff != "" {
 		t.Fatalf("row mismatch (-want +got):\n%s", diff)
 	}
-	wantQueries := []string{`SELECT message_id, message_payload, encoding, partition_key, created_time FROM async_workflow_queue WHERE queue_name=q1 AND shard_id=3 AND message_id > 0 LIMIT 10`}
+	wantQueries := []string{`SELECT message_id, message_payload, encoding, partition_key, created_time FROM async_workflow_queue WHERE shard_id=3 AND message_id > 0 LIMIT 10`}
 	if diff := cmp.Diff(wantQueries, session.queries); diff != "" {
 		t.Fatalf("query mismatch (-want +got):\n%s", diff)
 	}
@@ -99,15 +99,15 @@ func TestSelectAsyncWorkflowQueueMetadata(t *testing.T) {
 	session := &fakeSession{query: &fakeQuery{scanValues: []interface{}{int64(12), int64(4)}}}
 	db := newAsyncQueueTestDB(t, session)
 
-	row, err := db.SelectAsyncWorkflowQueueMetadata(context.Background(), "q1", 3)
+	row, err := db.SelectAsyncWorkflowQueueMetadata(context.Background(), 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := &nosqlplugin.AsyncWorkflowQueueMetadataRow{QueueName: "q1", ShardID: 3, AckLevel: 12, Version: 4}
+	want := &nosqlplugin.AsyncWorkflowQueueMetadataRow{ShardID: 3, AckLevel: 12, Version: 4}
 	if diff := cmp.Diff(want, row); diff != "" {
 		t.Fatalf("row mismatch (-want +got):\n%s", diff)
 	}
-	wantQueries := []string{`SELECT ack_level, version FROM async_workflow_queue_metadata WHERE queue_name=q1 AND shard_id=3`}
+	wantQueries := []string{`SELECT ack_level, version FROM async_workflow_queue_metadata WHERE shard_id=3`}
 	if diff := cmp.Diff(wantQueries, session.queries); diff != "" {
 		t.Fatalf("query mismatch (-want +got):\n%s", diff)
 	}
@@ -118,12 +118,12 @@ func TestUpdateAsyncWorkflowQueueMetadataCas(t *testing.T) {
 	db := newAsyncQueueTestDB(t, session)
 
 	err := db.UpdateAsyncWorkflowQueueMetadataCas(context.Background(), nosqlplugin.AsyncWorkflowQueueMetadataRow{
-		QueueName: "q1", ShardID: 3, AckLevel: 9, Version: 5, CurrentTimeStamp: FixedTime,
+		ShardID: 3, AckLevel: 9, Version: 5, CurrentTimeStamp: FixedTime,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := []string{`UPDATE async_workflow_queue_metadata SET ack_level = 9, version = 5, last_updated_time = 2025-01-06T15:00:00Z WHERE queue_name=q1 AND shard_id=3 IF version = 4`}
+	want := []string{`UPDATE async_workflow_queue_metadata SET ack_level = 9, version = 5, last_updated_time = 2025-01-06T15:00:00Z WHERE shard_id=3 IF version = 4`}
 	if diff := cmp.Diff(want, session.queries); diff != "" {
 		t.Fatalf("query mismatch (-want +got):\n%s", diff)
 	}
@@ -134,7 +134,7 @@ func TestUpdateAsyncWorkflowQueueMetadataCas_NotApplied(t *testing.T) {
 	db := newAsyncQueueTestDB(t, session)
 
 	err := db.UpdateAsyncWorkflowQueueMetadataCas(context.Background(), nosqlplugin.AsyncWorkflowQueueMetadataRow{
-		QueueName: "q1", ShardID: 3, AckLevel: 9, Version: 5,
+		ShardID: 3, AckLevel: 9, Version: 5,
 	})
 	if _, ok := err.(*nosqlplugin.ConditionFailure); !ok {
 		t.Fatalf("expected ConditionFailure, got %v", err)

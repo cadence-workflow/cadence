@@ -770,31 +770,31 @@ func (mr *MockDBMockRecorder) PluginName() *gomock.Call {
 }
 
 // RangeDeleteAsyncWorkflowDLQMessages mocks base method.
-func (m *MockDB) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (m *MockDB) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowDLQMessages", ctx, queueName, shardID, inclusiveEndMessageID)
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowDLQMessages", ctx, shardID, inclusiveEndMessageID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteAsyncWorkflowDLQMessages indicates an expected call of RangeDeleteAsyncWorkflowDLQMessages.
-func (mr *MockDBMockRecorder) RangeDeleteAsyncWorkflowDLQMessages(ctx, queueName, shardID, inclusiveEndMessageID any) *gomock.Call {
+func (mr *MockDBMockRecorder) RangeDeleteAsyncWorkflowDLQMessages(ctx, shardID, inclusiveEndMessageID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowDLQMessages", reflect.TypeOf((*MockDB)(nil).RangeDeleteAsyncWorkflowDLQMessages), ctx, queueName, shardID, inclusiveEndMessageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowDLQMessages", reflect.TypeOf((*MockDB)(nil).RangeDeleteAsyncWorkflowDLQMessages), ctx, shardID, inclusiveEndMessageID)
 }
 
 // RangeDeleteAsyncWorkflowMessages mocks base method.
-func (m *MockDB) RangeDeleteAsyncWorkflowMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (m *MockDB) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, queueName, shardID, inclusiveEndMessageID)
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, shardID, inclusiveEndMessageID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteAsyncWorkflowMessages indicates an expected call of RangeDeleteAsyncWorkflowMessages.
-func (mr *MockDBMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, queueName, shardID, inclusiveEndMessageID any) *gomock.Call {
+func (mr *MockDBMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, shardID, inclusiveEndMessageID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MockDB)(nil).RangeDeleteAsyncWorkflowMessages), ctx, queueName, shardID, inclusiveEndMessageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MockDB)(nil).RangeDeleteAsyncWorkflowMessages), ctx, shardID, inclusiveEndMessageID)
 }
 
 // RangeDeleteHistoryDLQTaskRows mocks base method.
@@ -962,48 +962,48 @@ func (mr *MockDBMockRecorder) SelectAllWorkflowExecutions(ctx, shardID, pageToke
 }
 
 // SelectAsyncWorkflowDLQMessagesFrom mocks base method.
-func (m *MockDB) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
+func (m *MockDB) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowDLQMessagesFrom", ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowDLQMessagesFrom", ctx, shardID, exclusiveBeginMessageID, maxRows)
 	ret0, _ := ret[0].([]*AsyncWorkflowQueueMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowDLQMessagesFrom indicates an expected call of SelectAsyncWorkflowDLQMessagesFrom.
-func (mr *MockDBMockRecorder) SelectAsyncWorkflowDLQMessagesFrom(ctx, queueName, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectAsyncWorkflowDLQMessagesFrom(ctx, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowDLQMessagesFrom", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowDLQMessagesFrom), ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowDLQMessagesFrom", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowDLQMessagesFrom), ctx, shardID, exclusiveBeginMessageID, maxRows)
 }
 
 // SelectAsyncWorkflowMessagesFrom mocks base method.
-func (m *MockDB) SelectAsyncWorkflowMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
+func (m *MockDB) SelectAsyncWorkflowMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessagesFrom", ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessagesFrom", ctx, shardID, exclusiveBeginMessageID, maxRows)
 	ret0, _ := ret[0].([]*AsyncWorkflowQueueMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowMessagesFrom indicates an expected call of SelectAsyncWorkflowMessagesFrom.
-func (mr *MockDBMockRecorder) SelectAsyncWorkflowMessagesFrom(ctx, queueName, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectAsyncWorkflowMessagesFrom(ctx, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessagesFrom", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowMessagesFrom), ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessagesFrom", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowMessagesFrom), ctx, shardID, exclusiveBeginMessageID, maxRows)
 }
 
 // SelectAsyncWorkflowQueueMetadata mocks base method.
-func (m *MockDB) SelectAsyncWorkflowQueueMetadata(ctx context.Context, queueName string, shardID int) (*AsyncWorkflowQueueMetadataRow, error) {
+func (m *MockDB) SelectAsyncWorkflowQueueMetadata(ctx context.Context, shardID int) (*AsyncWorkflowQueueMetadataRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowQueueMetadata", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowQueueMetadata", ctx, shardID)
 	ret0, _ := ret[0].(*AsyncWorkflowQueueMetadataRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowQueueMetadata indicates an expected call of SelectAsyncWorkflowQueueMetadata.
-func (mr *MockDBMockRecorder) SelectAsyncWorkflowQueueMetadata(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectAsyncWorkflowQueueMetadata(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowQueueMetadata", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowQueueMetadata), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowQueueMetadata", reflect.TypeOf((*MockDB)(nil).SelectAsyncWorkflowQueueMetadata), ctx, shardID)
 }
 
 // SelectCurrentWorkflow mocks base method.
@@ -1130,33 +1130,33 @@ func (mr *MockDBMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *gomock.
 }
 
 // SelectLastAsyncWorkflowDLQMessageID mocks base method.
-func (m *MockDB) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (m *MockDB) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, shardID int) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowDLQMessageID", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowDLQMessageID", ctx, shardID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectLastAsyncWorkflowDLQMessageID indicates an expected call of SelectLastAsyncWorkflowDLQMessageID.
-func (mr *MockDBMockRecorder) SelectLastAsyncWorkflowDLQMessageID(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectLastAsyncWorkflowDLQMessageID(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowDLQMessageID", reflect.TypeOf((*MockDB)(nil).SelectLastAsyncWorkflowDLQMessageID), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowDLQMessageID", reflect.TypeOf((*MockDB)(nil).SelectLastAsyncWorkflowDLQMessageID), ctx, shardID)
 }
 
 // SelectLastAsyncWorkflowMessageID mocks base method.
-func (m *MockDB) SelectLastAsyncWorkflowMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (m *MockDB) SelectLastAsyncWorkflowMessageID(ctx context.Context, shardID int) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowMessageID", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowMessageID", ctx, shardID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectLastAsyncWorkflowMessageID indicates an expected call of SelectLastAsyncWorkflowMessageID.
-func (mr *MockDBMockRecorder) SelectLastAsyncWorkflowMessageID(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MockDBMockRecorder) SelectLastAsyncWorkflowMessageID(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowMessageID", reflect.TypeOf((*MockDB)(nil).SelectLastAsyncWorkflowMessageID), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowMessageID", reflect.TypeOf((*MockDB)(nil).SelectLastAsyncWorkflowMessageID), ctx, shardID)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
@@ -2106,31 +2106,31 @@ func (mr *MocktableCRUDMockRecorder) ListTaskList(ctx, pageSize, nextPageToken a
 }
 
 // RangeDeleteAsyncWorkflowDLQMessages mocks base method.
-func (m *MocktableCRUD) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (m *MocktableCRUD) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowDLQMessages", ctx, queueName, shardID, inclusiveEndMessageID)
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowDLQMessages", ctx, shardID, inclusiveEndMessageID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteAsyncWorkflowDLQMessages indicates an expected call of RangeDeleteAsyncWorkflowDLQMessages.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteAsyncWorkflowDLQMessages(ctx, queueName, shardID, inclusiveEndMessageID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) RangeDeleteAsyncWorkflowDLQMessages(ctx, shardID, inclusiveEndMessageID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowDLQMessages", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteAsyncWorkflowDLQMessages), ctx, queueName, shardID, inclusiveEndMessageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowDLQMessages", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteAsyncWorkflowDLQMessages), ctx, shardID, inclusiveEndMessageID)
 }
 
 // RangeDeleteAsyncWorkflowMessages mocks base method.
-func (m *MocktableCRUD) RangeDeleteAsyncWorkflowMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (m *MocktableCRUD) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, queueName, shardID, inclusiveEndMessageID)
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, shardID, inclusiveEndMessageID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteAsyncWorkflowMessages indicates an expected call of RangeDeleteAsyncWorkflowMessages.
-func (mr *MocktableCRUDMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, queueName, shardID, inclusiveEndMessageID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, shardID, inclusiveEndMessageID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteAsyncWorkflowMessages), ctx, queueName, shardID, inclusiveEndMessageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MocktableCRUD)(nil).RangeDeleteAsyncWorkflowMessages), ctx, shardID, inclusiveEndMessageID)
 }
 
 // RangeDeleteHistoryDLQTaskRows mocks base method.
@@ -2298,48 +2298,48 @@ func (mr *MocktableCRUDMockRecorder) SelectAllWorkflowExecutions(ctx, shardID, p
 }
 
 // SelectAsyncWorkflowDLQMessagesFrom mocks base method.
-func (m *MocktableCRUD) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
+func (m *MocktableCRUD) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowDLQMessagesFrom", ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowDLQMessagesFrom", ctx, shardID, exclusiveBeginMessageID, maxRows)
 	ret0, _ := ret[0].([]*AsyncWorkflowQueueMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowDLQMessagesFrom indicates an expected call of SelectAsyncWorkflowDLQMessagesFrom.
-func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowDLQMessagesFrom(ctx, queueName, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowDLQMessagesFrom(ctx, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowDLQMessagesFrom", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowDLQMessagesFrom), ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowDLQMessagesFrom", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowDLQMessagesFrom), ctx, shardID, exclusiveBeginMessageID, maxRows)
 }
 
 // SelectAsyncWorkflowMessagesFrom mocks base method.
-func (m *MocktableCRUD) SelectAsyncWorkflowMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
+func (m *MocktableCRUD) SelectAsyncWorkflowMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessagesFrom", ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessagesFrom", ctx, shardID, exclusiveBeginMessageID, maxRows)
 	ret0, _ := ret[0].([]*AsyncWorkflowQueueMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowMessagesFrom indicates an expected call of SelectAsyncWorkflowMessagesFrom.
-func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowMessagesFrom(ctx, queueName, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowMessagesFrom(ctx, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessagesFrom", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowMessagesFrom), ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessagesFrom", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowMessagesFrom), ctx, shardID, exclusiveBeginMessageID, maxRows)
 }
 
 // SelectAsyncWorkflowQueueMetadata mocks base method.
-func (m *MocktableCRUD) SelectAsyncWorkflowQueueMetadata(ctx context.Context, queueName string, shardID int) (*AsyncWorkflowQueueMetadataRow, error) {
+func (m *MocktableCRUD) SelectAsyncWorkflowQueueMetadata(ctx context.Context, shardID int) (*AsyncWorkflowQueueMetadataRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowQueueMetadata", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowQueueMetadata", ctx, shardID)
 	ret0, _ := ret[0].(*AsyncWorkflowQueueMetadataRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowQueueMetadata indicates an expected call of SelectAsyncWorkflowQueueMetadata.
-func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowQueueMetadata(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectAsyncWorkflowQueueMetadata(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowQueueMetadata", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowQueueMetadata), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowQueueMetadata", reflect.TypeOf((*MocktableCRUD)(nil).SelectAsyncWorkflowQueueMetadata), ctx, shardID)
 }
 
 // SelectCurrentWorkflow mocks base method.
@@ -2466,33 +2466,33 @@ func (mr *MocktableCRUDMockRecorder) SelectHistoryDLQTaskRows(ctx, filter any) *
 }
 
 // SelectLastAsyncWorkflowDLQMessageID mocks base method.
-func (m *MocktableCRUD) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (m *MocktableCRUD) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, shardID int) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowDLQMessageID", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowDLQMessageID", ctx, shardID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectLastAsyncWorkflowDLQMessageID indicates an expected call of SelectLastAsyncWorkflowDLQMessageID.
-func (mr *MocktableCRUDMockRecorder) SelectLastAsyncWorkflowDLQMessageID(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectLastAsyncWorkflowDLQMessageID(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowDLQMessageID", reflect.TypeOf((*MocktableCRUD)(nil).SelectLastAsyncWorkflowDLQMessageID), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowDLQMessageID", reflect.TypeOf((*MocktableCRUD)(nil).SelectLastAsyncWorkflowDLQMessageID), ctx, shardID)
 }
 
 // SelectLastAsyncWorkflowMessageID mocks base method.
-func (m *MocktableCRUD) SelectLastAsyncWorkflowMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (m *MocktableCRUD) SelectLastAsyncWorkflowMessageID(ctx context.Context, shardID int) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowMessageID", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowMessageID", ctx, shardID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectLastAsyncWorkflowMessageID indicates an expected call of SelectLastAsyncWorkflowMessageID.
-func (mr *MocktableCRUDMockRecorder) SelectLastAsyncWorkflowMessageID(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MocktableCRUDMockRecorder) SelectLastAsyncWorkflowMessageID(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowMessageID", reflect.TypeOf((*MocktableCRUD)(nil).SelectLastAsyncWorkflowMessageID), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowMessageID", reflect.TypeOf((*MocktableCRUD)(nil).SelectLastAsyncWorkflowMessageID), ctx, shardID)
 }
 
 // SelectLastEnqueuedMessageID mocks base method.
@@ -3310,106 +3310,106 @@ func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) InsertIntoAsyncWorkflowQueue(c
 }
 
 // RangeDeleteAsyncWorkflowDLQMessages mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (m *MockAsyncWorkflowQueueCRUD) RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowDLQMessages", ctx, queueName, shardID, inclusiveEndMessageID)
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowDLQMessages", ctx, shardID, inclusiveEndMessageID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteAsyncWorkflowDLQMessages indicates an expected call of RangeDeleteAsyncWorkflowDLQMessages.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) RangeDeleteAsyncWorkflowDLQMessages(ctx, queueName, shardID, inclusiveEndMessageID any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) RangeDeleteAsyncWorkflowDLQMessages(ctx, shardID, inclusiveEndMessageID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowDLQMessages", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).RangeDeleteAsyncWorkflowDLQMessages), ctx, queueName, shardID, inclusiveEndMessageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowDLQMessages", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).RangeDeleteAsyncWorkflowDLQMessages), ctx, shardID, inclusiveEndMessageID)
 }
 
 // RangeDeleteAsyncWorkflowMessages mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) RangeDeleteAsyncWorkflowMessages(ctx context.Context, queueName string, shardID int, inclusiveEndMessageID int64) error {
+func (m *MockAsyncWorkflowQueueCRUD) RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, inclusiveEndMessageID int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, queueName, shardID, inclusiveEndMessageID)
+	ret := m.ctrl.Call(m, "RangeDeleteAsyncWorkflowMessages", ctx, shardID, inclusiveEndMessageID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RangeDeleteAsyncWorkflowMessages indicates an expected call of RangeDeleteAsyncWorkflowMessages.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, queueName, shardID, inclusiveEndMessageID any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) RangeDeleteAsyncWorkflowMessages(ctx, shardID, inclusiveEndMessageID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).RangeDeleteAsyncWorkflowMessages), ctx, queueName, shardID, inclusiveEndMessageID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteAsyncWorkflowMessages", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).RangeDeleteAsyncWorkflowMessages), ctx, shardID, inclusiveEndMessageID)
 }
 
 // SelectAsyncWorkflowDLQMessagesFrom mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
+func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowDLQMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowDLQMessagesFrom", ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowDLQMessagesFrom", ctx, shardID, exclusiveBeginMessageID, maxRows)
 	ret0, _ := ret[0].([]*AsyncWorkflowQueueMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowDLQMessagesFrom indicates an expected call of SelectAsyncWorkflowDLQMessagesFrom.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowDLQMessagesFrom(ctx, queueName, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowDLQMessagesFrom(ctx, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowDLQMessagesFrom", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowDLQMessagesFrom), ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowDLQMessagesFrom", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowDLQMessagesFrom), ctx, shardID, exclusiveBeginMessageID, maxRows)
 }
 
 // SelectAsyncWorkflowMessagesFrom mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowMessagesFrom(ctx context.Context, queueName string, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
+func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowMessagesFrom(ctx context.Context, shardID int, exclusiveBeginMessageID int64, maxRows int) ([]*AsyncWorkflowQueueMessageRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessagesFrom", ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowMessagesFrom", ctx, shardID, exclusiveBeginMessageID, maxRows)
 	ret0, _ := ret[0].([]*AsyncWorkflowQueueMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowMessagesFrom indicates an expected call of SelectAsyncWorkflowMessagesFrom.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowMessagesFrom(ctx, queueName, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowMessagesFrom(ctx, shardID, exclusiveBeginMessageID, maxRows any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessagesFrom", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowMessagesFrom), ctx, queueName, shardID, exclusiveBeginMessageID, maxRows)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowMessagesFrom", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowMessagesFrom), ctx, shardID, exclusiveBeginMessageID, maxRows)
 }
 
 // SelectAsyncWorkflowQueueMetadata mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowQueueMetadata(ctx context.Context, queueName string, shardID int) (*AsyncWorkflowQueueMetadataRow, error) {
+func (m *MockAsyncWorkflowQueueCRUD) SelectAsyncWorkflowQueueMetadata(ctx context.Context, shardID int) (*AsyncWorkflowQueueMetadataRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectAsyncWorkflowQueueMetadata", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectAsyncWorkflowQueueMetadata", ctx, shardID)
 	ret0, _ := ret[0].(*AsyncWorkflowQueueMetadataRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectAsyncWorkflowQueueMetadata indicates an expected call of SelectAsyncWorkflowQueueMetadata.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowQueueMetadata(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectAsyncWorkflowQueueMetadata(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowQueueMetadata", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowQueueMetadata), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectAsyncWorkflowQueueMetadata", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectAsyncWorkflowQueueMetadata), ctx, shardID)
 }
 
 // SelectLastAsyncWorkflowDLQMessageID mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (m *MockAsyncWorkflowQueueCRUD) SelectLastAsyncWorkflowDLQMessageID(ctx context.Context, shardID int) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowDLQMessageID", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowDLQMessageID", ctx, shardID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectLastAsyncWorkflowDLQMessageID indicates an expected call of SelectLastAsyncWorkflowDLQMessageID.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectLastAsyncWorkflowDLQMessageID(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectLastAsyncWorkflowDLQMessageID(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowDLQMessageID", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectLastAsyncWorkflowDLQMessageID), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowDLQMessageID", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectLastAsyncWorkflowDLQMessageID), ctx, shardID)
 }
 
 // SelectLastAsyncWorkflowMessageID mocks base method.
-func (m *MockAsyncWorkflowQueueCRUD) SelectLastAsyncWorkflowMessageID(ctx context.Context, queueName string, shardID int) (int64, error) {
+func (m *MockAsyncWorkflowQueueCRUD) SelectLastAsyncWorkflowMessageID(ctx context.Context, shardID int) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowMessageID", ctx, queueName, shardID)
+	ret := m.ctrl.Call(m, "SelectLastAsyncWorkflowMessageID", ctx, shardID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SelectLastAsyncWorkflowMessageID indicates an expected call of SelectLastAsyncWorkflowMessageID.
-func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectLastAsyncWorkflowMessageID(ctx, queueName, shardID any) *gomock.Call {
+func (mr *MockAsyncWorkflowQueueCRUDMockRecorder) SelectLastAsyncWorkflowMessageID(ctx, shardID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowMessageID", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectLastAsyncWorkflowMessageID), ctx, queueName, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectLastAsyncWorkflowMessageID", reflect.TypeOf((*MockAsyncWorkflowQueueCRUD)(nil).SelectLastAsyncWorkflowMessageID), ctx, shardID)
 }
 
 // UpdateAsyncWorkflowQueueMetadataCas mocks base method.

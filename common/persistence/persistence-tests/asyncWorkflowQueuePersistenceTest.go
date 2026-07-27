@@ -26,7 +26,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/persistence"
@@ -61,15 +60,8 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TearDownSuite() {
 	s.TearDownWorkflowStore()
 }
 
-// uniqueQueueName returns a queue name unique to a test so the shared test database does not leak
-// state across tests within the suite.
-func (s *AsyncWorkflowQueuePersistenceSuite) uniqueQueueName() string {
-	return "async-queue-" + uuid.New()
-}
-
-func (s *AsyncWorkflowQueuePersistenceSuite) enqueue(ctx context.Context, queueName string, shardID int, payload string) int64 {
+func (s *AsyncWorkflowQueuePersistenceSuite) enqueue(ctx context.Context, shardID int, payload string) int64 {
 	resp, err := s.AsyncWorkflowQueueMgr.Enqueue(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
-		QueueName:    queueName,
 		ShardID:      shardID,
 		Payload:      []byte(payload),
 		Encoding:     "thriftrw",
@@ -79,17 +71,16 @@ func (s *AsyncWorkflowQueuePersistenceSuite) enqueue(ctx context.Context, queueN
 	return resp.MessageID
 }
 
-// TestEnqueueAssignsMonotonicIDs verifies that messages within a (queue, shard) partition receive a
+// TestEnqueueAssignsMonotonicIDs verifies that messages within a shard partition receive a
 // zero-based monotonic message id from the single writer.
 func (s *AsyncWorkflowQueuePersistenceSuite) TestEnqueueAssignsMonotonicIDs() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	queueName := s.uniqueQueueName()
 	shardID := 1
 
 	for want := int64(0); want < 5; want++ {
-		got := s.enqueue(ctx, queueName, shardID, "msg")
+		got := s.enqueue(ctx, shardID, "msg")
 		s.Equal(want, got, "expected monotonic message id")
 	}
 }
@@ -100,17 +91,15 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestReadMessages() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	queueName := s.uniqueQueueName()
 	shardID := 2
 
 	const numMessages = 10
 	for i := 0; i < numMessages; i++ {
-		s.enqueue(ctx, queueName, shardID, "payload")
+		s.enqueue(ctx, shardID, "payload")
 	}
 
 	// Read from the beginning with a page smaller than the backlog.
 	resp, err := s.AsyncWorkflowQueueMgr.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName:     queueName,
 		ShardID:       shardID,
 		LastMessageID: -1,
 		PageSize:      4,
@@ -119,7 +108,6 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestReadMessages() {
 	s.Len(resp.Messages, 4)
 	for i, msg := range resp.Messages {
 		s.Equal(int64(i), msg.MessageID, "messages must be returned in id order")
-		s.Equal(queueName, msg.QueueName)
 		s.Equal(shardID, msg.ShardID)
 		s.Equal([]byte("payload"), msg.Payload)
 		s.Equal("thriftrw", msg.Encoding)
@@ -128,7 +116,6 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestReadMessages() {
 	// Resume after the last returned id; the cursor is exclusive.
 	last := resp.Messages[len(resp.Messages)-1].MessageID
 	resp, err = s.AsyncWorkflowQueueMgr.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName:     queueName,
 		ShardID:       shardID,
 		LastMessageID: last,
 		PageSize:      100,
@@ -138,35 +125,27 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestReadMessages() {
 	s.Equal(last+1, resp.Messages[0].MessageID)
 }
 
-// TestQueueAndShardIsolation verifies that different logical queues and different shards maintain
-// independent id sequences and message sets.
-func (s *AsyncWorkflowQueuePersistenceSuite) TestQueueAndShardIsolation() {
+// TestShardIsolation verifies that different shards maintain independent id sequences and message sets.
+func (s *AsyncWorkflowQueuePersistenceSuite) TestShardIsolation() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	queueA := s.uniqueQueueName()
-	queueB := s.uniqueQueueName()
+	// Each shard starts its own sequence at 0 and holds only its own messages.
+	s.Equal(int64(0), s.enqueue(ctx, 5, "a0"))
+	s.Equal(int64(1), s.enqueue(ctx, 5, "a1"))
+	s.Equal(int64(0), s.enqueue(ctx, 6, "b0"))
 
-	// Same shard id across two logical queues: each starts its own sequence at 0.
-	s.Equal(int64(0), s.enqueue(ctx, queueA, 5, "a0"))
-	s.Equal(int64(1), s.enqueue(ctx, queueA, 5, "a1"))
-	s.Equal(int64(0), s.enqueue(ctx, queueB, 5, "b0"))
-
-	// Same logical queue across two shards: each shard is independent.
-	s.Equal(int64(0), s.enqueue(ctx, queueA, 6, "a-shard6"))
-
-	readAll := func(queueName string, shardID int) persistence.AsyncWorkflowMessageList {
+	readAll := func(shardID int) persistence.AsyncWorkflowMessageList {
 		resp, err := s.AsyncWorkflowQueueMgr.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-			QueueName: queueName, ShardID: shardID, LastMessageID: -1, PageSize: 100,
+			ShardID: shardID, LastMessageID: -1, PageSize: 100,
 		})
 		s.Require().NoError(err)
 		return resp.Messages
 	}
 
-	s.Len(readAll(queueA, 5), 2)
-	s.Len(readAll(queueB, 5), 1)
-	s.Len(readAll(queueA, 6), 1)
-	s.Equal([]byte("b0"), readAll(queueB, 5)[0].Payload)
+	s.Len(readAll(5), 2)
+	s.Len(readAll(6), 1)
+	s.Equal([]byte("b0"), readAll(6)[0].Payload)
 }
 
 // TestAckLevel verifies ack-level initialization, monotonic advance, and that it never moves backwards.
@@ -174,32 +153,31 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestAckLevel() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	queueName := s.uniqueQueueName()
 	shardID := 3
 
 	// A shard with no ack level yet reports the empty sentinel.
 	getResp, err := s.AsyncWorkflowQueueMgr.GetAckLevel(ctx, &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: queueName, ShardID: shardID,
+		ShardID: shardID,
 	})
 	s.Require().NoError(err)
 	s.Equal(int64(-1), getResp.AckLevel)
 
 	// Advance the ack level.
 	s.Require().NoError(s.AsyncWorkflowQueueMgr.UpdateAckLevel(ctx, &persistence.UpdateAsyncWorkflowAckLevelRequest{
-		QueueName: queueName, ShardID: shardID, AckLevel: 10,
+		ShardID: shardID, AckLevel: 10,
 	}))
 	getResp, err = s.AsyncWorkflowQueueMgr.GetAckLevel(ctx, &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: queueName, ShardID: shardID,
+		ShardID: shardID,
 	})
 	s.Require().NoError(err)
 	s.Equal(int64(10), getResp.AckLevel)
 
 	// A lower ack level must not move the cursor backwards.
 	s.Require().NoError(s.AsyncWorkflowQueueMgr.UpdateAckLevel(ctx, &persistence.UpdateAsyncWorkflowAckLevelRequest{
-		QueueName: queueName, ShardID: shardID, AckLevel: 5,
+		ShardID: shardID, AckLevel: 5,
 	}))
 	getResp, err = s.AsyncWorkflowQueueMgr.GetAckLevel(ctx, &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: queueName, ShardID: shardID,
+		ShardID: shardID,
 	})
 	s.Require().NoError(err)
 	s.Equal(int64(10), getResp.AckLevel)
@@ -211,32 +189,31 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestRangeDeleteAndMonotonicity() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	queueName := s.uniqueQueueName()
 	shardID := 4
 
 	for i := 0; i < 3; i++ {
-		s.enqueue(ctx, queueName, shardID, "m") // ids 0,1,2
+		s.enqueue(ctx, shardID, "m") // ids 0,1,2
 	}
 
 	// Consume through id 2, then range-delete behind the ack cursor.
 	s.Require().NoError(s.AsyncWorkflowQueueMgr.UpdateAckLevel(ctx, &persistence.UpdateAsyncWorkflowAckLevelRequest{
-		QueueName: queueName, ShardID: shardID, AckLevel: 2,
+		ShardID: shardID, AckLevel: 2,
 	}))
 	s.Require().NoError(s.AsyncWorkflowQueueMgr.RangeDeleteMessages(ctx, &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, InclusiveEndMessageID: 2,
+		ShardID: shardID, InclusiveEndMessageID: 2,
 	}))
 
 	resp, err := s.AsyncWorkflowQueueMgr.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, LastMessageID: -1, PageSize: 100,
+		ShardID: shardID, LastMessageID: -1, PageSize: 100,
 	})
 	s.Require().NoError(err)
 	s.Empty(resp.Messages, "range delete should remove all acked messages")
 
 	// Even with the table empty, the next id must not reuse deleted ids; the ack level anchors it.
-	s.Equal(int64(3), s.enqueue(ctx, queueName, shardID, "m3"))
+	s.Equal(int64(3), s.enqueue(ctx, shardID, "m3"))
 
 	resp, err = s.AsyncWorkflowQueueMgr.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, LastMessageID: -1, PageSize: 100,
+		ShardID: shardID, LastMessageID: -1, PageSize: 100,
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Messages, 1)
@@ -248,22 +225,21 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestDLQ() {
 	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
 	defer cancel()
 
-	queueName := s.uniqueQueueName()
 	shardID := 8
 
-	// A main-queue message on the same (queue, shard) must not appear in the DLQ.
-	s.enqueue(ctx, queueName, shardID, "main")
+	// A main-queue message on the same shard must not appear in the DLQ.
+	s.enqueue(ctx, shardID, "main")
 
 	for i := 0; i < 3; i++ {
 		resp, err := s.AsyncWorkflowQueueMgr.EnqueueToDLQ(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
-			QueueName: queueName, ShardID: shardID, Payload: []byte("poison"), Encoding: "thriftrw",
+			ShardID: shardID, Payload: []byte("poison"), Encoding: "thriftrw",
 		})
 		s.Require().NoError(err)
 		s.Equal(int64(i), resp.MessageID)
 	}
 
 	resp, err := s.AsyncWorkflowQueueMgr.ReadMessagesFromDLQ(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, LastMessageID: -1, PageSize: 100,
+		ShardID: shardID, LastMessageID: -1, PageSize: 100,
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Messages, 3)
@@ -274,17 +250,17 @@ func (s *AsyncWorkflowQueuePersistenceSuite) TestDLQ() {
 
 	// The main queue still holds only its own single message.
 	mainResp, err := s.AsyncWorkflowQueueMgr.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, LastMessageID: -1, PageSize: 100,
+		ShardID: shardID, LastMessageID: -1, PageSize: 100,
 	})
 	s.Require().NoError(err)
 	s.Len(mainResp.Messages, 1)
 
 	// Range-delete the DLQ.
 	s.Require().NoError(s.AsyncWorkflowQueueMgr.RangeDeleteMessagesFromDLQ(ctx, &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, InclusiveEndMessageID: 2,
+		ShardID: shardID, InclusiveEndMessageID: 2,
 	}))
 	resp, err = s.AsyncWorkflowQueueMgr.ReadMessagesFromDLQ(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName: queueName, ShardID: shardID, LastMessageID: -1, PageSize: 100,
+		ShardID: shardID, LastMessageID: -1, PageSize: 100,
 	})
 	s.Require().NoError(err)
 	s.Empty(resp.Messages)

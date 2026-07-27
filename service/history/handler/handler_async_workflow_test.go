@@ -104,7 +104,6 @@ func TestHandlerEnqueueAsyncWorkflowMessage(t *testing.T) {
 				h.expectOwned(3)
 				h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, r *persistence.EnqueueAsyncWorkflowMessageRequest) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
-						assert.Equal(t, "q1", r.QueueName)
 						assert.Equal(t, 3, r.ShardID)
 						assert.Equal(t, []byte("payload"), r.Payload)
 						assert.Equal(t, "json", r.Encoding)
@@ -172,20 +171,17 @@ func TestHandlerGetAsyncWorkflowMessages(t *testing.T) {
 				// so the read cursor must be clamped up to the ack level.
 				h.mockAsyncMgr.EXPECT().GetAckLevel(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, r *persistence.GetAsyncWorkflowAckLevelRequest) (*persistence.GetAsyncWorkflowAckLevelResponse, error) {
-						assert.Equal(t, "q1", r.QueueName)
 						assert.Equal(t, 5, r.ShardID)
 						return &persistence.GetAsyncWorkflowAckLevelResponse{AckLevel: 20}, nil
 					}).Times(1)
 				h.mockAsyncMgr.EXPECT().ReadMessages(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, r *persistence.ReadAsyncWorkflowMessagesRequest) (*persistence.ReadAsyncWorkflowMessagesResponse, error) {
-						assert.Equal(t, "q1", r.QueueName)
 						assert.Equal(t, 5, r.ShardID)
 						assert.Equal(t, int64(20), r.LastMessageID)
 						assert.Equal(t, 100, r.PageSize)
 						return &persistence.ReadAsyncWorkflowMessagesResponse{
 							Messages: persistence.AsyncWorkflowMessageList{
 								{
-									QueueName:    "q1",
 									ShardID:      5,
 									MessageID:    21,
 									Payload:      []byte("p"),
@@ -289,7 +285,6 @@ func TestHandlerUpdateAsyncWorkflowAckLevel(t *testing.T) {
 				h.expectOwned(7)
 				h.mockAsyncMgr.EXPECT().UpdateAckLevel(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, r *persistence.UpdateAsyncWorkflowAckLevelRequest) error {
-						assert.Equal(t, "q1", r.QueueName)
 						assert.Equal(t, 7, r.ShardID)
 						assert.Equal(t, int64(99), r.AckLevel)
 						return nil
@@ -352,7 +347,6 @@ func TestHandlerEnqueueAsyncWorkflowMessageToDLQ(t *testing.T) {
 				h.expectOwned(11)
 				h.mockAsyncMgr.EXPECT().EnqueueToDLQ(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, r *persistence.EnqueueAsyncWorkflowMessageRequest) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
-						assert.Equal(t, "q1", r.QueueName)
 						assert.Equal(t, 11, r.ShardID)
 						assert.Equal(t, []byte("payload"), r.Payload)
 						assert.Equal(t, "json", r.Encoding)

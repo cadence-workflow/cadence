@@ -33,7 +33,7 @@ import (
 
 // nosqlAsyncWorkflowQueueStore is the NoSQL-backed AsyncWorkflowQueueStore.
 //
-// Each (queueName, shardID) partition has a single writer (the history shard owner), so message ids are
+// Each shard partition has a single writer (the history shard owner), so message ids are
 // a monotonic sequence and enqueue is a plain insert with no conditional-write contention. The next id
 // is max(last stored id, current ack level) + 1 so ids are never reused after a range delete.
 type nosqlAsyncWorkflowQueueStore struct {
@@ -59,14 +59,14 @@ func (q *nosqlAsyncWorkflowQueueStore) Enqueue(
 	ctx context.Context,
 	request *persistence.EnqueueAsyncWorkflowMessageRequest,
 ) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
-	if err := q.ensureQueueMetadata(ctx, request.QueueName, request.ShardID, request.CurrentTimeStamp); err != nil {
+	if err := q.ensureQueueMetadata(ctx, request.ShardID, request.CurrentTimeStamp); err != nil {
 		return nil, err
 	}
-	lastMessageID, err := q.getLastMessageID(ctx, request.QueueName, request.ShardID, false)
+	lastMessageID, err := q.getLastMessageID(ctx, request.ShardID, false)
 	if err != nil {
 		return nil, err
 	}
-	ackLevel, err := q.getAckLevel(ctx, request.QueueName, request.ShardID)
+	ackLevel, err := q.getAckLevel(ctx, request.ShardID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (q *nosqlAsyncWorkflowQueueStore) EnqueueToDLQ(
 	ctx context.Context,
 	request *persistence.EnqueueAsyncWorkflowMessageRequest,
 ) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
-	lastMessageID, err := q.getLastMessageID(ctx, request.QueueName, request.ShardID, true)
+	lastMessageID, err := q.getLastMessageID(ctx, request.ShardID, true)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (q *nosqlAsyncWorkflowQueueStore) ReadMessages(
 	ctx context.Context,
 	request *persistence.ReadAsyncWorkflowMessagesRequest,
 ) (*persistence.ReadAsyncWorkflowMessagesResponse, error) {
-	rows, err := q.db.SelectAsyncWorkflowMessagesFrom(ctx, request.QueueName, request.ShardID, request.LastMessageID, request.PageSize)
+	rows, err := q.db.SelectAsyncWorkflowMessagesFrom(ctx, request.ShardID, request.LastMessageID, request.PageSize)
 	if err != nil {
 		return nil, convertCommonErrors(q.db, "ReadAsyncWorkflowMessages", err)
 	}
@@ -107,7 +107,7 @@ func (q *nosqlAsyncWorkflowQueueStore) ReadMessagesFromDLQ(
 	ctx context.Context,
 	request *persistence.ReadAsyncWorkflowMessagesRequest,
 ) (*persistence.ReadAsyncWorkflowMessagesResponse, error) {
-	rows, err := q.db.SelectAsyncWorkflowDLQMessagesFrom(ctx, request.QueueName, request.ShardID, request.LastMessageID, request.PageSize)
+	rows, err := q.db.SelectAsyncWorkflowDLQMessagesFrom(ctx, request.ShardID, request.LastMessageID, request.PageSize)
 	if err != nil {
 		return nil, convertCommonErrors(q.db, "ReadAsyncWorkflowMessagesFromDLQ", err)
 	}
@@ -118,10 +118,10 @@ func (q *nosqlAsyncWorkflowQueueStore) UpdateAckLevel(
 	ctx context.Context,
 	request *persistence.UpdateAsyncWorkflowAckLevelRequest,
 ) error {
-	if err := q.ensureQueueMetadata(ctx, request.QueueName, request.ShardID, request.CurrentTimeStamp); err != nil {
+	if err := q.ensureQueueMetadata(ctx, request.ShardID, request.CurrentTimeStamp); err != nil {
 		return err
 	}
-	metadata, err := q.db.SelectAsyncWorkflowQueueMetadata(ctx, request.QueueName, request.ShardID)
+	metadata, err := q.db.SelectAsyncWorkflowQueueMetadata(ctx, request.ShardID)
 	if err != nil {
 		return convertCommonErrors(q.db, "UpdateAsyncWorkflowAckLevel", err)
 	}
@@ -130,7 +130,6 @@ func (q *nosqlAsyncWorkflowQueueStore) UpdateAckLevel(
 		return nil
 	}
 	err = q.db.UpdateAsyncWorkflowQueueMetadataCas(ctx, nosqlplugin.AsyncWorkflowQueueMetadataRow{
-		QueueName:        request.QueueName,
 		ShardID:          request.ShardID,
 		AckLevel:         request.AckLevel,
 		Version:          metadata.Version + 1,
@@ -146,7 +145,7 @@ func (q *nosqlAsyncWorkflowQueueStore) GetAckLevel(
 	ctx context.Context,
 	request *persistence.GetAsyncWorkflowAckLevelRequest,
 ) (*persistence.GetAsyncWorkflowAckLevelResponse, error) {
-	ackLevel, err := q.getAckLevel(ctx, request.QueueName, request.ShardID)
+	ackLevel, err := q.getAckLevel(ctx, request.ShardID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +156,7 @@ func (q *nosqlAsyncWorkflowQueueStore) RangeDeleteMessages(
 	ctx context.Context,
 	request *persistence.RangeDeleteAsyncWorkflowMessagesRequest,
 ) error {
-	if err := q.db.RangeDeleteAsyncWorkflowMessages(ctx, request.QueueName, request.ShardID, request.InclusiveEndMessageID); err != nil {
+	if err := q.db.RangeDeleteAsyncWorkflowMessages(ctx, request.ShardID, request.InclusiveEndMessageID); err != nil {
 		return convertCommonErrors(q.db, "RangeDeleteAsyncWorkflowMessages", err)
 	}
 	return nil
@@ -167,7 +166,7 @@ func (q *nosqlAsyncWorkflowQueueStore) RangeDeleteMessagesFromDLQ(
 	ctx context.Context,
 	request *persistence.RangeDeleteAsyncWorkflowMessagesRequest,
 ) error {
-	if err := q.db.RangeDeleteAsyncWorkflowDLQMessages(ctx, request.QueueName, request.ShardID, request.InclusiveEndMessageID); err != nil {
+	if err := q.db.RangeDeleteAsyncWorkflowDLQMessages(ctx, request.ShardID, request.InclusiveEndMessageID); err != nil {
 		return convertCommonErrors(q.db, "RangeDeleteAsyncWorkflowMessagesFromDLQ", err)
 	}
 	return nil
@@ -175,11 +174,10 @@ func (q *nosqlAsyncWorkflowQueueStore) RangeDeleteMessagesFromDLQ(
 
 func (q *nosqlAsyncWorkflowQueueStore) ensureQueueMetadata(
 	ctx context.Context,
-	queueName string,
 	shardID int,
 	currentTimestamp time.Time,
 ) error {
-	_, err := q.db.SelectAsyncWorkflowQueueMetadata(ctx, queueName, shardID)
+	_, err := q.db.SelectAsyncWorkflowQueueMetadata(ctx, shardID)
 	if err == nil {
 		return nil
 	}
@@ -189,7 +187,6 @@ func (q *nosqlAsyncWorkflowQueueStore) ensureQueueMetadata(
 	// Insert an initial metadata row. InsertAsyncWorkflowQueueMetadata is a no-op if it already exists
 	// (another writer created it concurrently), so this is safe.
 	insertErr := q.db.InsertAsyncWorkflowQueueMetadata(ctx, nosqlplugin.AsyncWorkflowQueueMetadataRow{
-		QueueName:        queueName,
 		ShardID:          shardID,
 		AckLevel:         emptyMessageID,
 		Version:          0,
@@ -201,8 +198,8 @@ func (q *nosqlAsyncWorkflowQueueStore) ensureQueueMetadata(
 	return nil
 }
 
-func (q *nosqlAsyncWorkflowQueueStore) getAckLevel(ctx context.Context, queueName string, shardID int) (int64, error) {
-	metadata, err := q.db.SelectAsyncWorkflowQueueMetadata(ctx, queueName, shardID)
+func (q *nosqlAsyncWorkflowQueueStore) getAckLevel(ctx context.Context, shardID int) (int64, error) {
+	metadata, err := q.db.SelectAsyncWorkflowQueueMetadata(ctx, shardID)
 	if err != nil {
 		if q.db.IsNotFoundError(err) {
 			return emptyMessageID, nil
@@ -212,15 +209,15 @@ func (q *nosqlAsyncWorkflowQueueStore) getAckLevel(ctx context.Context, queueNam
 	return metadata.AckLevel, nil
 }
 
-func (q *nosqlAsyncWorkflowQueueStore) getLastMessageID(ctx context.Context, queueName string, shardID int, dlq bool) (int64, error) {
+func (q *nosqlAsyncWorkflowQueueStore) getLastMessageID(ctx context.Context, shardID int, dlq bool) (int64, error) {
 	var (
 		id  int64
 		err error
 	)
 	if dlq {
-		id, err = q.db.SelectLastAsyncWorkflowDLQMessageID(ctx, queueName, shardID)
+		id, err = q.db.SelectLastAsyncWorkflowDLQMessageID(ctx, shardID)
 	} else {
-		id, err = q.db.SelectLastAsyncWorkflowMessageID(ctx, queueName, shardID)
+		id, err = q.db.SelectLastAsyncWorkflowMessageID(ctx, shardID)
 	}
 	if err != nil {
 		if q.db.IsNotFoundError(err) {
@@ -233,7 +230,6 @@ func (q *nosqlAsyncWorkflowQueueStore) getLastMessageID(ctx context.Context, que
 
 func (q *nosqlAsyncWorkflowQueueStore) toMessageRow(request *persistence.EnqueueAsyncWorkflowMessageRequest, id int64) *nosqlplugin.AsyncWorkflowQueueMessageRow {
 	return &nosqlplugin.AsyncWorkflowQueueMessageRow{
-		QueueName:        request.QueueName,
 		ShardID:          request.ShardID,
 		ID:               id,
 		Payload:          request.Payload,
@@ -247,7 +243,6 @@ func (q *nosqlAsyncWorkflowQueueStore) toMessageList(rows []*nosqlplugin.AsyncWo
 	messages := make(persistence.AsyncWorkflowMessageList, 0, len(rows))
 	for _, row := range rows {
 		messages = append(messages, &persistence.AsyncWorkflowMessage{
-			QueueName:    row.QueueName,
 			ShardID:      row.ShardID,
 			MessageID:    row.ID,
 			Payload:      row.Payload,

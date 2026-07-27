@@ -20,21 +20,9 @@
 
 package types
 
-import "time"
-
-// AsyncWorkflowMessage is a single message on a shard-scoped async workflow queue.
-type AsyncWorkflowMessage struct {
-	MessageID    int64
-	Payload      []byte
-	Encoding     string
-	PartitionKey string
-	CreatedTime  time.Time
-}
-
 // EnqueueAsyncWorkflowMessageRequest is the request for HistoryAPI.EnqueueAsyncWorkflowMessage.
 type EnqueueAsyncWorkflowMessageRequest struct {
 	ShardID      int32
-	QueueName    string
 	Payload      []byte
 	Encoding     string
 	PartitionKey string
@@ -50,68 +38,5 @@ func (v *EnqueueAsyncWorkflowMessageRequest) GetShardID() (o int32) {
 
 // EnqueueAsyncWorkflowMessageResponse is the response for HistoryAPI.EnqueueAsyncWorkflowMessage.
 type EnqueueAsyncWorkflowMessageResponse struct {
-	MessageID int64
-}
-
-// GetAsyncWorkflowMessagesRequest is the request for HistoryAPI.GetAsyncWorkflowMessages.
-type GetAsyncWorkflowMessagesRequest struct {
-	ShardID       int32
-	QueueName     string
-	LastMessageID int64
-	PageSize      int32
-}
-
-// GetShardID is an internal getter (TBD...)
-func (v *GetAsyncWorkflowMessagesRequest) GetShardID() (o int32) {
-	if v != nil {
-		return v.ShardID
-	}
-	return
-}
-
-// GetAsyncWorkflowMessagesResponse is the response for HistoryAPI.GetAsyncWorkflowMessages.
-type GetAsyncWorkflowMessagesResponse struct {
-	Messages []*AsyncWorkflowMessage
-	AckLevel int64
-}
-
-// UpdateAsyncWorkflowAckLevelRequest is the request for HistoryAPI.UpdateAsyncWorkflowAckLevel.
-type UpdateAsyncWorkflowAckLevelRequest struct {
-	ShardID   int32
-	QueueName string
-	AckLevel  int64
-}
-
-// GetShardID is an internal getter (TBD...)
-func (v *UpdateAsyncWorkflowAckLevelRequest) GetShardID() (o int32) {
-	if v != nil {
-		return v.ShardID
-	}
-	return
-}
-
-// UpdateAsyncWorkflowAckLevelResponse is the response for HistoryAPI.UpdateAsyncWorkflowAckLevel.
-type UpdateAsyncWorkflowAckLevelResponse struct {
-}
-
-// EnqueueAsyncWorkflowMessageToDLQRequest is the request for HistoryAPI.EnqueueAsyncWorkflowMessageToDLQ.
-type EnqueueAsyncWorkflowMessageToDLQRequest struct {
-	ShardID      int32
-	QueueName    string
-	Payload      []byte
-	Encoding     string
-	PartitionKey string
-}
-
-// GetShardID is an internal getter (TBD...)
-func (v *EnqueueAsyncWorkflowMessageToDLQRequest) GetShardID() (o int32) {
-	if v != nil {
-		return v.ShardID
-	}
-	return
-}
-
-// EnqueueAsyncWorkflowMessageToDLQResponse is the response for HistoryAPI.EnqueueAsyncWorkflowMessageToDLQ.
-type EnqueueAsyncWorkflowMessageToDLQResponse struct {
 	MessageID int64
 }

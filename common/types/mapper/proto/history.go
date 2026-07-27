@@ -1623,61 +1623,12 @@ func ToHistoryRatelimitUpdateResponse(t *historyv1.RatelimitUpdateResponse) *typ
 	}
 }
 
-func FromHistoryAsyncWorkflowMessage(t *types.AsyncWorkflowMessage) *historyv1.AsyncWorkflowMessage {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.AsyncWorkflowMessage{
-		MessageId:    t.MessageID,
-		Payload:      t.Payload,
-		Encoding:     t.Encoding,
-		PartitionKey: t.PartitionKey,
-		CreatedTime:  timeToTimestamp(&t.CreatedTime),
-	}
-}
-
-func ToHistoryAsyncWorkflowMessage(t *historyv1.AsyncWorkflowMessage) *types.AsyncWorkflowMessage {
-	if t == nil {
-		return nil
-	}
-	return &types.AsyncWorkflowMessage{
-		MessageID:    t.MessageId,
-		Payload:      t.Payload,
-		Encoding:     t.Encoding,
-		PartitionKey: t.PartitionKey,
-		CreatedTime:  timestampToTimeVal(t.CreatedTime),
-	}
-}
-
-func FromHistoryAsyncWorkflowMessageArray(t []*types.AsyncWorkflowMessage) []*historyv1.AsyncWorkflowMessage {
-	if t == nil {
-		return nil
-	}
-	v := make([]*historyv1.AsyncWorkflowMessage, len(t))
-	for i := range t {
-		v[i] = FromHistoryAsyncWorkflowMessage(t[i])
-	}
-	return v
-}
-
-func ToHistoryAsyncWorkflowMessageArray(t []*historyv1.AsyncWorkflowMessage) []*types.AsyncWorkflowMessage {
-	if t == nil {
-		return nil
-	}
-	v := make([]*types.AsyncWorkflowMessage, len(t))
-	for i := range t {
-		v[i] = ToHistoryAsyncWorkflowMessage(t[i])
-	}
-	return v
-}
-
 func FromHistoryEnqueueAsyncWorkflowMessageRequest(t *types.EnqueueAsyncWorkflowMessageRequest) *historyv1.EnqueueAsyncWorkflowMessageRequest {
 	if t == nil {
 		return nil
 	}
 	return &historyv1.EnqueueAsyncWorkflowMessageRequest{
 		ShardId:      t.ShardID,
-		QueueName:    t.QueueName,
 		Payload:      t.Payload,
 		Encoding:     t.Encoding,
 		PartitionKey: t.PartitionKey,
@@ -1690,7 +1641,6 @@ func ToHistoryEnqueueAsyncWorkflowMessageRequest(t *historyv1.EnqueueAsyncWorkfl
 	}
 	return &types.EnqueueAsyncWorkflowMessageRequest{
 		ShardID:      t.ShardId,
-		QueueName:    t.QueueName,
 		Payload:      t.Payload,
 		Encoding:     t.Encoding,
 		PartitionKey: t.PartitionKey,
@@ -1711,130 +1661,6 @@ func ToHistoryEnqueueAsyncWorkflowMessageResponse(t *historyv1.EnqueueAsyncWorkf
 		return nil
 	}
 	return &types.EnqueueAsyncWorkflowMessageResponse{
-		MessageID: t.MessageId,
-	}
-}
-
-func FromHistoryGetAsyncWorkflowMessagesRequest(t *types.GetAsyncWorkflowMessagesRequest) *historyv1.GetAsyncWorkflowMessagesRequest {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.GetAsyncWorkflowMessagesRequest{
-		ShardId:       t.ShardID,
-		QueueName:     t.QueueName,
-		LastMessageId: t.LastMessageID,
-		PageSize:      t.PageSize,
-	}
-}
-
-func ToHistoryGetAsyncWorkflowMessagesRequest(t *historyv1.GetAsyncWorkflowMessagesRequest) *types.GetAsyncWorkflowMessagesRequest {
-	if t == nil {
-		return nil
-	}
-	return &types.GetAsyncWorkflowMessagesRequest{
-		ShardID:       t.ShardId,
-		QueueName:     t.QueueName,
-		LastMessageID: t.LastMessageId,
-		PageSize:      t.PageSize,
-	}
-}
-
-func FromHistoryGetAsyncWorkflowMessagesResponse(t *types.GetAsyncWorkflowMessagesResponse) *historyv1.GetAsyncWorkflowMessagesResponse {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.GetAsyncWorkflowMessagesResponse{
-		Messages: FromHistoryAsyncWorkflowMessageArray(t.Messages),
-		AckLevel: t.AckLevel,
-	}
-}
-
-func ToHistoryGetAsyncWorkflowMessagesResponse(t *historyv1.GetAsyncWorkflowMessagesResponse) *types.GetAsyncWorkflowMessagesResponse {
-	if t == nil {
-		return nil
-	}
-	return &types.GetAsyncWorkflowMessagesResponse{
-		Messages: ToHistoryAsyncWorkflowMessageArray(t.Messages),
-		AckLevel: t.AckLevel,
-	}
-}
-
-func FromHistoryUpdateAsyncWorkflowAckLevelRequest(t *types.UpdateAsyncWorkflowAckLevelRequest) *historyv1.UpdateAsyncWorkflowAckLevelRequest {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.UpdateAsyncWorkflowAckLevelRequest{
-		ShardId:   t.ShardID,
-		QueueName: t.QueueName,
-		AckLevel:  t.AckLevel,
-	}
-}
-
-func ToHistoryUpdateAsyncWorkflowAckLevelRequest(t *historyv1.UpdateAsyncWorkflowAckLevelRequest) *types.UpdateAsyncWorkflowAckLevelRequest {
-	if t == nil {
-		return nil
-	}
-	return &types.UpdateAsyncWorkflowAckLevelRequest{
-		ShardID:   t.ShardId,
-		QueueName: t.QueueName,
-		AckLevel:  t.AckLevel,
-	}
-}
-
-func FromHistoryUpdateAsyncWorkflowAckLevelResponse(t *types.UpdateAsyncWorkflowAckLevelResponse) *historyv1.UpdateAsyncWorkflowAckLevelResponse {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.UpdateAsyncWorkflowAckLevelResponse{}
-}
-
-func ToHistoryUpdateAsyncWorkflowAckLevelResponse(t *historyv1.UpdateAsyncWorkflowAckLevelResponse) *types.UpdateAsyncWorkflowAckLevelResponse {
-	if t == nil {
-		return nil
-	}
-	return &types.UpdateAsyncWorkflowAckLevelResponse{}
-}
-
-func FromHistoryEnqueueAsyncWorkflowMessageToDLQRequest(t *types.EnqueueAsyncWorkflowMessageToDLQRequest) *historyv1.EnqueueAsyncWorkflowMessageToDLQRequest {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.EnqueueAsyncWorkflowMessageToDLQRequest{
-		ShardId:      t.ShardID,
-		QueueName:    t.QueueName,
-		Payload:      t.Payload,
-		Encoding:     t.Encoding,
-		PartitionKey: t.PartitionKey,
-	}
-}
-
-func ToHistoryEnqueueAsyncWorkflowMessageToDLQRequest(t *historyv1.EnqueueAsyncWorkflowMessageToDLQRequest) *types.EnqueueAsyncWorkflowMessageToDLQRequest {
-	if t == nil {
-		return nil
-	}
-	return &types.EnqueueAsyncWorkflowMessageToDLQRequest{
-		ShardID:      t.ShardId,
-		QueueName:    t.QueueName,
-		Payload:      t.Payload,
-		Encoding:     t.Encoding,
-		PartitionKey: t.PartitionKey,
-	}
-}
-
-func FromHistoryEnqueueAsyncWorkflowMessageToDLQResponse(t *types.EnqueueAsyncWorkflowMessageToDLQResponse) *historyv1.EnqueueAsyncWorkflowMessageToDLQResponse {
-	if t == nil {
-		return nil
-	}
-	return &historyv1.EnqueueAsyncWorkflowMessageToDLQResponse{
-		MessageId: t.MessageID,
-	}
-}
-
-func ToHistoryEnqueueAsyncWorkflowMessageToDLQResponse(t *historyv1.EnqueueAsyncWorkflowMessageToDLQResponse) *types.EnqueueAsyncWorkflowMessageToDLQResponse {
-	if t == nil {
-		return nil
-	}
-	return &types.EnqueueAsyncWorkflowMessageToDLQResponse{
 		MessageID: t.MessageId,
 	}
 }
