@@ -338,16 +338,21 @@ func (c *taskListManagerImpl) Stop() {
 func (c *taskListManagerImpl) handleErr(err error) error {
 	var e *persistence.ConditionFailedError
 	if errors.As(err, &e) {
-		// This indicates the task list may have moved to another host.
-		c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
-		c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
-		go c.Stop()
+		c.reportConditionFailed(err)
+		c.Stop()
 		if c.taskListKind == types.TaskListKindSticky {
 			// TODO: we don't see this error in our logs, we might be able to remove this error
 			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
 		}
 	}
 	return err
+}
+
+// reportConditionFailed emits the metric and log for a ConditionFailedError, which indicates
+// the task list may have moved to another host and the manager must therefore stop
+func (c *taskListManagerImpl) reportConditionFailed(err error) {
+	c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
+	c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
 }
 
 func (c *taskListManagerImpl) TaskListPartitionConfig() *types.TaskListPartitionConfig {

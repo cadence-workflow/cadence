@@ -87,7 +87,6 @@ type (
 		logger                   log.Logger
 		scope                    metrics.Scope
 		throttleRetry            *backoff.ThrottleRetry
-		handleErr                func(error) error
 		onFatalErr               func()
 		dispatchTask             func(context.Context, *InternalTask) error
 		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, time.Duration)
@@ -135,7 +134,6 @@ func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskRe
 		timeSource:               tlMgr.timeSource,
 		logger:                   tlMgr.logger,
 		scope:                    tlMgr.scope,
-		handleErr:                tlMgr.handleErr,
 		onFatalErr:               tlMgr.Stop,
 		dispatchTask:             tlMgr.DispatchTask,
 		getIsolationGroupForTask: tlMgr.getIsolationGroupForTask,
@@ -260,7 +258,16 @@ getTasksPumpLoop:
 				if size, err := tr.db.GetTaskListSize(ackLevel); err == nil {
 					tr.scope.UpdateGauge(metrics.TaskCountPerTaskListGauge, float64(size))
 				}
-				if err := tr.handleErr(tr.persistAckLevel()); err != nil {
+				if err := tr.persistAckLevel(); err != nil {
+					var condErr *persistence.ConditionFailedError
+					if errors.As(err, &condErr) {
+						// Task list moved to another host; the manager must stop. getTasksPump is
+						// awaited by stopWg and Stop() -> taskReader.Stop() -> stopWg.Wait() would
+						// block on this goroutine, so trigger Stop asynchronously and return.
+						tr.tlMgr.reportConditionFailed(err)
+						go tr.onFatalErr() // do not block shutdown
+						return
+					}
 					tr.logger.Error("Persistent store operation failure",
 						tag.StoreOperationUpdateTaskList,
 						tag.Error(err))
