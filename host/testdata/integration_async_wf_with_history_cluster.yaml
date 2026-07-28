@@ -1,12 +1,30 @@
 clusterno: 1
+# The history service's per-shard consumer calls the frontend through the
+# cluster-metadata RPC address (same path the production worker consumer uses),
+# so it must point at this cluster's real frontend gRPC port (clusterno 1 =>
+# 8104 tchannel / 8114 gRPC). The default test cluster metadata hardcodes 7104
+# and would leave the consumer dialing a dead port.
+clustergroupmetadata:
+  failoverVersionIncrement: 10
+  primaryClusterName: "active"
+  currentClusterName: "active"
+  clusterGroup:
+    active:
+      enabled: true
+      initialFailoverVersion: 0
+      rpcName: "cadence-frontend"
+      rpcAddress: "127.0.0.1:8114"
+      rpcTransport: "grpc"
 asyncwfqueues:
   # test-async-wf-queue is the name of the predefined queue referenced by the
   # domain's AsyncWorkflowConfiguration.PredefinedQueueName in async_wf_history_test.go.
   #
   # Unlike the kafka-backed queue, the history-backed queue needs no external broker:
-  # the producer enqueues via the history EnqueueAsyncWorkflowMessage RPC and the
-  # consumer pulls via GetAsyncWorkflowMessages, both persisting to the
-  # async_workflow_queue* Cassandra tables. queueName selects the logical queue.
+  # the producer enqueues via the history EnqueueAsyncWorkflowMessage RPC, and the
+  # history service's per-shard consumer processes the messages from the
+  # async_workflow_queue* Cassandra tables (worker-side consumption is a no-op for
+  # this queue type). queueName only namespaces the provider ID; it has no effect
+  # on storage, which is partitioned by history shard.
   test-async-wf-queue:
     type: "history"
     config:

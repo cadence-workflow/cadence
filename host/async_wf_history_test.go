@@ -79,6 +79,11 @@ func TestAsyncWFHistoryIntegrationSuite(t *testing.T) {
 		dynamicproperties.FrontendFailoverCoolDown:        time.Duration(0),
 		dynamicproperties.EnableReadFromClosedExecutionV2: true,
 	}
+	// Consumption happens inside the history service: enable the per-shard queue
+	// consumer (default off) so enqueued messages are actually processed.
+	clusterConfig.HistoryDynamicConfigOverrides = map[dynamicproperties.Key]interface{}{
+		dynamicproperties.AsyncWorkflowQueueConsumerEnabled: true,
+	}
 
 	testCluster := NewPersistenceTestCluster(t, clusterConfig)
 
