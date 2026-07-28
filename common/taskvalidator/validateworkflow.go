@@ -91,7 +91,12 @@ func (w *checkerImpl) WorkflowCheckforValidation(ctx context.Context, workflowID
 		zap.String("DomainID", domainID),
 		zap.String("DomainName", domainName))
 
-	shardID := common.WorkflowIDToHistoryShard(workflowID, w.numShards)
+	var shardID int
+	if w.numShards > 0 {
+		shardID = common.WorkflowIDToHistoryShard(workflowID, w.numShards)
+	} else {
+		shardID = w.pr.GetShardID()
+	}
 	workflowResp, err := w.pr.GetWorkflowExecution(ctx, &persistence.GetWorkflowExecutionRequest{
 		ShardID:    &shardID,
 		DomainID:   domainID,
@@ -159,6 +164,9 @@ func (w *checkerImpl) staleWorkflowCheck(workflowResp *persistence.GetWorkflowEx
 		return pastExpiration, nil
 	default:
 		w.logger.Error("Error during stale workflow check", zap.String("details", result.InfoDetails))
+		if result.Info == "" {
+			return false, errors.New("stale workflow check failed: " + result.InfoDetails)
+		}
 		return false, errors.New(result.Info)
 	}
 }

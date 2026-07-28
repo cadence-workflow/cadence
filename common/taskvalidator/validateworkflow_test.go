@@ -40,11 +40,16 @@ import (
 )
 
 type fakeStaleChecker struct {
-	stale bool
+	stale  bool
+	result invariant.CheckResult
 }
 
 func (f *fakeStaleChecker) CheckAge(response *persistence.GetWorkflowExecutionResponse) (bool, invariant.CheckResult) {
-	return f.stale, invariant.CheckResult{CheckResultType: invariant.CheckResultTypeHealthy}
+	result := f.result
+	if result.CheckResultType == "" {
+		result.CheckResultType = invariant.CheckResultTypeHealthy
+	}
+	return f.stale, result
 }
 
 func TestWorkflowCheckforValidation(t *testing.T) {
@@ -56,10 +61,26 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 		runID         string
 		isStale       bool
 		simulateError bool
+		numShards     int
+		checkResult   invariant.CheckResult
+		wantErr       string
 	}{
-		{"NonStaleWorkflow", "workflow-1", "domain-1", "domain-name-1", "run-1", false, false},
-		{"StaleWorkflow", "workflow-2", "domain-2", "domain-name-2", "run-2", true, false},
-		{"ErrorInGetWorkflowExecution", "workflow-3", "domain-3", "domain-name-3", "run-3", false, true},
+		{"NonStaleWorkflow", "workflow-1", "domain-1", "domain-name-1", "run-1", false, false, 4, invariant.CheckResult{}, ""},
+		{"StaleWorkflow", "workflow-2", "domain-2", "domain-name-2", "run-2", true, false, 4, invariant.CheckResult{}, ""},
+		{"ErrorInGetWorkflowExecution", "workflow-3", "domain-3", "domain-name-3", "run-3", false, true, 4, invariant.CheckResult{}, ""},
+		{"ZeroNumShardsFallsBackToRetryerShard", "workflow-4", "domain-4", "domain-name-4", "run-4", false, false, 0, invariant.CheckResult{}, ""},
+		{
+			"FailedCheckWithEmptyInfoUsesDetailsFallback",
+			"workflow-5", "domain-5", "domain-name-5", "run-5", false, false, 4,
+			invariant.CheckResult{CheckResultType: invariant.CheckResultTypeFailed, InfoDetails: "no branch token"},
+			"stale workflow check failed: no branch token",
+		},
+		{
+			"FailedCheckWithInfoUsesInfo",
+			"workflow-6", "domain-6", "domain-name-6", "run-6", false, false, 4,
+			invariant.CheckResult{CheckResultType: invariant.CheckResultTypeFailed, Info: "explicit failure"},
+			"explicit failure",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -78,6 +99,9 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 			if tc.isStale {
 				mockExecutionManager.EXPECT().DeleteWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 				mockExecutionManager.EXPECT().DeleteCurrentWorkflowExecution(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			}
+			if tc.numShards == 0 {
+				mockExecutionManager.EXPECT().GetShardID().Return(0).AnyTimes()
 			}
 
 			mockExecutionManager.EXPECT().GetWorkflowExecution(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, request *persistence.GetWorkflowExecutionRequest) (*persistence.GetWorkflowExecutionResponse, error) {
@@ -99,16 +123,19 @@ func TestWorkflowCheckforValidation(t *testing.T) {
 				metricsClient: mockMetricsClient,
 				dc:            mockDomainCache,
 				pr:            persistence.NewPersistenceRetryer(mockExecutionManager, nil, backoff.NewExponentialRetryPolicy(0)),
-				staleCheck:    &fakeStaleChecker{stale: tc.isStale},
-				numShards:     4,
+				staleCheck:    &fakeStaleChecker{stale: tc.isStale, result: tc.checkResult},
+				numShards:     tc.numShards,
 			}
 
 			ctx := context.Background()
 			err := checker.WorkflowCheckforValidation(ctx, tc.workflowID, tc.domainID, tc.domainName, tc.runID)
 
-			if tc.simulateError {
+			switch {
+			case tc.simulateError:
 				assert.Error(t, err, "Expected error when GetWorkflowExecution fails")
-			} else {
+			case tc.wantErr != "":
+				assert.EqualError(t, err, tc.wantErr)
+			default:
 				assert.NoError(t, err, "Expected no error for valid workflow execution")
 			}
 		})
