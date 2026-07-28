@@ -362,6 +362,16 @@ type Config struct {
 	AsyncWorkflowQueueGCEnabled  dynamicproperties.BoolPropertyFn
 	AsyncWorkflowQueueGCInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
 
+	// Async Workflow Queue Consumer Configuration
+	AsyncWorkflowQueueConsumerEnabled        dynamicproperties.BoolPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueConsumerPollInterval   dynamicproperties.DurationPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueConsumerCommitInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueConsumerPageSize       dynamicproperties.IntPropertyFnWithShardIDFilter
+	AsyncWorkflowConsumerDomainRPS           dynamicproperties.IntPropertyFnWithDomainFilter
+	AsyncWorkflowConsumerDomainWeight        dynamicproperties.IntPropertyFnWithDomainFilter
+	AsyncWorkflowTaskWorkerCount             dynamicproperties.IntPropertyFn
+	AsyncWorkflowTaskSchedulerBufferSize     dynamicproperties.IntPropertyFn
+
 	// HostName for machine running the service
 	HostName string
 }
@@ -642,6 +652,15 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 
 		AsyncWorkflowQueueGCEnabled:  dc.GetBoolProperty(dynamicproperties.AsyncWorkflowQueueGCEnabled),
 		AsyncWorkflowQueueGCInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueGCInterval),
+
+		AsyncWorkflowQueueConsumerEnabled:        dc.GetBoolPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueConsumerEnabled),
+		AsyncWorkflowQueueConsumerPollInterval:   dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueConsumerPollInterval),
+		AsyncWorkflowQueueConsumerCommitInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueConsumerCommitInterval),
+		AsyncWorkflowQueueConsumerPageSize:       dc.GetIntPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueConsumerPageSize),
+		AsyncWorkflowConsumerDomainRPS:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.AsyncWorkflowConsumerDomainRPS),
+		AsyncWorkflowConsumerDomainWeight:        dc.GetIntPropertyFilteredByDomain(dynamicproperties.AsyncWorkflowConsumerDomainWeight),
+		AsyncWorkflowTaskWorkerCount:             dc.GetIntProperty(dynamicproperties.AsyncWorkflowTaskWorkerCount),
+		AsyncWorkflowTaskSchedulerBufferSize:     dc.GetIntProperty(dynamicproperties.AsyncWorkflowTaskSchedulerBufferSize),
 
 		HostName: hostname,
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
+	"github.com/uber/cadence/service/history/asyncworkflowqueue"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine"
@@ -58,6 +59,7 @@ type NewEngineFn func(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
+	asyncWFTaskScheduler asyncworkflowqueue.TaskScheduler,
 ) engine.Engine
 
 func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
@@ -137,6 +139,18 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 
 	queueFactories := []queue.Factory{timerQueueFactory, transferQueueFactory}
 
+	// The consumer is disabled by default in test config, so the scheduler is
+	// never used; an unstarted instance satisfies the wiring.
+	asyncWFTaskScheduler, err := asyncworkflowqueue.NewTaskScheduler(
+		historyCfg,
+		shardCtx.GetLogger(),
+		shardCtx.GetMetricsClient(),
+		shardCtx.GetTimeSource(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create async workflow task scheduler: %v", err)
+	}
+
 	engine := newEngineFn(
 		shardCtx,
 		shardCtx.Resource.VisibilityMgr,
@@ -147,6 +161,7 @@ func NewEngineForTest(t *testing.T, newEngineFn NewEngineFn) *EngineForTest {
 		shardCtx.Resource.MatchingClient,
 		failoverCoordinator,
 		queueFactories,
+		asyncWFTaskScheduler,
 	)
 
 	shardCtx.SetEngine(engine)

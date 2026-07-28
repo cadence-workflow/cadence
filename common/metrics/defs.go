@@ -1481,6 +1481,8 @@ const (
 	HistoryTaskDLQProcessorScope
 	// AsyncWorkflowQueueGCScope is the scope used by the per-shard async workflow queue GC daemon
 	AsyncWorkflowQueueGCScope
+	// AsyncWorkflowQueueConsumerScope is the scope used by the per-shard async workflow queue consumer
+	AsyncWorkflowQueueConsumerScope
 	NumHistoryScopes
 )
 
@@ -2242,6 +2244,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
 		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
 		AsyncWorkflowQueueGCScope:                                       {operation: "AsyncWorkflowQueueGC"},
+		AsyncWorkflowQueueConsumerScope:                                 {operation: "AsyncWorkflowQueueConsumer"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -3026,6 +3029,23 @@ const (
 	// AsyncWorkflowQueueGCSweepsCounter counts async workflow queue GC range-delete sweeps
 	AsyncWorkflowQueueGCSweepsCounter
 
+	// AsyncWorkflowQueueConsumerFetchedCounter counts messages fetched from the async workflow queue
+	AsyncWorkflowQueueConsumerFetchedCounter
+	// AsyncWorkflowQueueConsumerSubmittedCounter counts messages submitted to the async workflow task scheduler
+	AsyncWorkflowQueueConsumerSubmittedCounter
+	// AsyncWorkflowQueueConsumerDecodeFailuresCounter counts undecodable messages routed straight to the DLQ
+	AsyncWorkflowQueueConsumerDecodeFailuresCounter
+	// AsyncWorkflowQueueConsumerDLQCounter counts messages written to the async workflow queue DLQ
+	AsyncWorkflowQueueConsumerDLQCounter
+	// AsyncWorkflowQueueConsumerDLQFailuresCounter counts failed DLQ writes (the ack level stalls; alert on this)
+	AsyncWorkflowQueueConsumerDLQFailuresCounter
+	// AsyncWorkflowQueueConsumerCommitFailuresCounter counts failed ack level commits
+	AsyncWorkflowQueueConsumerCommitFailuresCounter
+	// AsyncWorkflowQueueConsumerPollFailuresCounter counts failed queue polls
+	AsyncWorkflowQueueConsumerPollFailuresCounter
+	// AsyncWorkflowQueueConsumerBacklogGauge tracks the count of fetched-but-unacked messages per shard
+	AsyncWorkflowQueueConsumerBacklogGauge
+
 	NumHistoryMetrics
 )
 
@@ -3674,6 +3694,15 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
 		AsyncWorkflowQueueGCFailuresCounter:   {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
 		AsyncWorkflowQueueGCSweepsCounter:     {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
+
+		AsyncWorkflowQueueConsumerFetchedCounter:        {metricName: "async_workflow_queue_consumer_fetched", metricType: Counter},
+		AsyncWorkflowQueueConsumerSubmittedCounter:      {metricName: "async_workflow_queue_consumer_submitted", metricType: Counter},
+		AsyncWorkflowQueueConsumerDecodeFailuresCounter: {metricName: "async_workflow_queue_consumer_decode_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerDLQCounter:            {metricName: "async_workflow_queue_consumer_dlq", metricType: Counter},
+		AsyncWorkflowQueueConsumerDLQFailuresCounter:    {metricName: "async_workflow_queue_consumer_dlq_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerCommitFailuresCounter: {metricName: "async_workflow_queue_consumer_commit_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerPollFailuresCounter:   {metricName: "async_workflow_queue_consumer_poll_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerBacklogGauge:          {metricName: "async_workflow_queue_consumer_backlog", metricType: Gauge},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

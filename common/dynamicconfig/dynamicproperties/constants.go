@@ -1663,6 +1663,46 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// AsyncWorkflowQueueConsumerPageSize is the max number of messages fetched per
+	// poll of the async workflow queue on a history shard.
+	// KeyName: history.asyncWorkflowQueueConsumerPageSize
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueConsumerPageSize
+
+	// AsyncWorkflowConsumerDomainRPS is the per-domain, per-history-host rate limit
+	// for processing async workflow requests (frontend calls per second).
+	// KeyName: history.asyncWorkflowConsumerDomainRPS
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: DomainName
+	AsyncWorkflowConsumerDomainRPS
+
+	// AsyncWorkflowConsumerDomainWeight is the relative weight of a domain in the
+	// history host's async workflow task scheduler; higher weight means the domain's
+	// tasks are dispatched more frequently under contention.
+	// KeyName: history.asyncWorkflowConsumerDomainWeight
+	// Value type: Int
+	// Default value: 100
+	// Allowed filters: DomainName
+	AsyncWorkflowConsumerDomainWeight
+
+	// AsyncWorkflowTaskWorkerCount is the number of workers per history host
+	// executing async workflow requests against the frontend.
+	// KeyName: history.asyncWorkflowTaskWorkerCount
+	// Value type: Int
+	// Default value: 100
+	AsyncWorkflowTaskWorkerCount
+
+	// AsyncWorkflowTaskSchedulerBufferSize is the per-domain buffer size of the
+	// history host's async workflow task scheduler. Submits block once a domain's
+	// buffer is full, backpressuring that shard's queue poller.
+	// KeyName: history.asyncWorkflowTaskSchedulerBufferSize
+	// Value type: Int
+	// Default value: 200
+	AsyncWorkflowTaskSchedulerBufferSize
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -2421,6 +2461,14 @@ const (
 	// Value type: Bool
 	// Default value: false
 	AsyncWorkflowQueueGCEnabled
+
+	// AsyncWorkflowQueueConsumerEnabled enables the per-shard consumer that
+	// processes async workflow requests from the history-backed queue.
+	// KeyName: history.asyncWorkflowQueueConsumerEnabled
+	// Value type: Bool
+	// Default value: false
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueConsumerEnabled
 
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
@@ -3343,6 +3391,23 @@ const (
 	// Default value: 5m (5 * time.Minute)
 	// Allowed filters: ShardID
 	AsyncWorkflowQueueGCInterval
+
+	// AsyncWorkflowQueueConsumerPollInterval is the interval between polls of the
+	// async workflow queue on each history shard when the previous poll returned
+	// no messages.
+	// KeyName: history.asyncWorkflowQueueConsumerPollInterval
+	// Value type: Duration
+	// Default value: 1s (time.Second)
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueConsumerPollInterval
+
+	// AsyncWorkflowQueueConsumerCommitInterval is the interval between commits of
+	// the async workflow queue ack level on each history shard.
+	// KeyName: history.asyncWorkflowQueueConsumerCommitInterval
+	// Value type: Duration
+	// Default value: 5s (5 * time.Second)
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueConsumerCommitInterval
 
 	// OperationalConfigStorePollInterval controls how often the operational
 	// dynamic config store re-reads its snapshot from the primary database.
@@ -4596,6 +4661,34 @@ var IntKeys = map[IntKey]DynamicInt{
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
 	},
+	AsyncWorkflowQueueConsumerPageSize: {
+		KeyName:      "history.asyncWorkflowQueueConsumerPageSize",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueConsumerPageSize is the max number of messages fetched per poll of the async workflow queue on a history shard",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowConsumerDomainRPS: {
+		KeyName:      "history.asyncWorkflowConsumerDomainRPS",
+		Filters:      []Filter{DomainName},
+		Description:  "AsyncWorkflowConsumerDomainRPS is the per-domain, per-history-host rate limit for processing async workflow requests",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowConsumerDomainWeight: {
+		KeyName:      "history.asyncWorkflowConsumerDomainWeight",
+		Filters:      []Filter{DomainName},
+		Description:  "AsyncWorkflowConsumerDomainWeight is the relative weight of a domain in the history host's async workflow task scheduler",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowTaskWorkerCount: {
+		KeyName:      "history.asyncWorkflowTaskWorkerCount",
+		Description:  "AsyncWorkflowTaskWorkerCount is the number of workers per history host executing async workflow requests against the frontend",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowTaskSchedulerBufferSize: {
+		KeyName:      "history.asyncWorkflowTaskSchedulerBufferSize",
+		Description:  "AsyncWorkflowTaskSchedulerBufferSize is the per-domain buffer size of the history host's async workflow task scheduler",
+		DefaultValue: 200,
+	},
 }
 
 var BoolKeys = map[BoolKey]DynamicBool{
@@ -5260,6 +5353,12 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	AsyncWorkflowQueueGCEnabled: {
 		KeyName:      "history.asyncWorkflowQueueGCEnabled",
 		Description:  "AsyncWorkflowQueueGCEnabled enables the per-shard background GC of async workflow queue messages behind the committed ack level",
+		DefaultValue: false,
+	},
+	AsyncWorkflowQueueConsumerEnabled: {
+		KeyName:      "history.asyncWorkflowQueueConsumerEnabled",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueConsumerEnabled enables the per-shard consumer that processes async workflow requests from the history-backed queue",
 		DefaultValue: false,
 	},
 }
@@ -6064,6 +6163,18 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{ShardID},
 		Description:  "AsyncWorkflowQueueGCInterval is the interval between background GC sweeps of the async workflow queue on each history shard",
 		DefaultValue: time.Minute * 5,
+	},
+	AsyncWorkflowQueueConsumerPollInterval: {
+		KeyName:      "history.asyncWorkflowQueueConsumerPollInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueConsumerPollInterval is the interval between polls of the async workflow queue on each history shard when the previous poll returned no messages",
+		DefaultValue: time.Second,
+	},
+	AsyncWorkflowQueueConsumerCommitInterval: {
+		KeyName:      "history.asyncWorkflowQueueConsumerCommitInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueConsumerCommitInterval is the interval between commits of the async workflow queue ack level on each history shard",
+		DefaultValue: time.Second * 5,
 	},
 	OperationalConfigStorePollInterval: {
 		KeyName:      "system.operationalConfigStorePollInterval",

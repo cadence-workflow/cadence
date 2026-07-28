@@ -294,7 +294,14 @@ func TestNewConfig(t *testing.T) {
 		"HistoryTaskDLQProcessorEnabled":                       {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
 		"AsyncWorkflowQueueGCEnabled":                          {dynamicproperties.AsyncWorkflowQueueGCEnabled, true},
 		"AsyncWorkflowQueueGCInterval":                         {dynamicproperties.AsyncWorkflowQueueGCInterval, time.Second},
-		"AsyncWorkflowQueueGCQueueNames":                       {dynamicproperties.AsyncWorkflowQueueGCQueueNames, []interface{}{"queue-a"}},
+		"AsyncWorkflowQueueConsumerEnabled":                    {dynamicproperties.AsyncWorkflowQueueConsumerEnabled, true},
+		"AsyncWorkflowQueueConsumerPollInterval":               {dynamicproperties.AsyncWorkflowQueueConsumerPollInterval, time.Second},
+		"AsyncWorkflowQueueConsumerCommitInterval":             {dynamicproperties.AsyncWorkflowQueueConsumerCommitInterval, time.Second},
+		"AsyncWorkflowQueueConsumerPageSize":                   {dynamicproperties.AsyncWorkflowQueueConsumerPageSize, 42},
+		"AsyncWorkflowConsumerDomainRPS":                       {dynamicproperties.AsyncWorkflowConsumerDomainRPS, 42},
+		"AsyncWorkflowConsumerDomainWeight":                    {dynamicproperties.AsyncWorkflowConsumerDomainWeight, 42},
+		"AsyncWorkflowTaskWorkerCount":                         {dynamicproperties.AsyncWorkflowTaskWorkerCount, 42},
+		"AsyncWorkflowTaskSchedulerBufferSize":                 {dynamicproperties.AsyncWorkflowTaskSchedulerBufferSize, 42},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {

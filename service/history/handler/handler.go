@@ -48,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
+	"github.com/uber/cadence/service/history/asyncworkflowqueue"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine"
@@ -82,6 +83,7 @@ type (
 		rateLimiter              quotas.Limiter
 		replicationTaskFetchers  replication.TaskFetchers
 		queueTaskProcessor       task.Processor
+		asyncWFTaskScheduler     asyncworkflowqueue.TaskScheduler
 		failoverCoordinator      failover.Coordinator
 		workflowIDCache          workflowcache.WFCache
 		ratelimitAggregator      algorithm.RequestWeighted
@@ -181,6 +183,17 @@ func (h *handlerImpl) Start() {
 	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
 	h.queueTaskProcessor.Start()
 
+	h.asyncWFTaskScheduler, err = asyncworkflowqueue.NewTaskScheduler(
+		h.config,
+		h.GetLogger(),
+		h.GetMetricsClient(),
+		h.GetTimeSource(),
+	)
+	if err != nil {
+		h.GetLogger().Fatal("Creating async workflow task scheduler failed", tag.Error(err))
+	}
+	h.asyncWFTaskScheduler.Start()
+
 	h.queueFactories = []queue.Factory{
 		queuev2.NewTransferQueueFactory(
 			h.queueTaskProcessor,
@@ -224,6 +237,7 @@ func (h *handlerImpl) Stop() {
 	h.replicationTaskFetchers.Stop()
 	h.controller.Stop()
 	h.queueTaskProcessor.Stop()
+	h.asyncWFTaskScheduler.Stop()
 	h.historyEventNotifier.Stop()
 	h.failoverCoordinator.Stop()
 }
@@ -261,6 +275,7 @@ func (h *handlerImpl) CreateEngine(
 		h.GetMatchingRawClient(),
 		h.failoverCoordinator,
 		h.queueFactories,
+		h.asyncWFTaskScheduler,
 	)
 }
 

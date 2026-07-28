@@ -26,25 +26,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
-	"go.uber.org/yarpc"
-
-	"github.com/uber/cadence/.gen/go/shared"
 	"github.com/uber/cadence/.gen/go/sqlblobs"
 	"github.com/uber/cadence/client/frontend"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/backoff"
 	"github.com/uber/cadence/common/codec"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
-	"github.com/uber/cadence/common/types"
-	"github.com/uber/cadence/common/types/mapper/thrift"
 )
 
 const (
@@ -54,18 +47,17 @@ const (
 )
 
 type DefaultConsumer struct {
-	queueID         string
-	innerConsumer   messaging.Consumer
-	logger          log.Logger
-	scope           metrics.Scope
-	frontendClient  frontend.Client
-	ctx             context.Context
-	cancelFn        context.CancelFunc
-	wg              sync.WaitGroup
-	shutdownTimeout time.Duration
-	startWFTimeout  time.Duration
-	msgDecoder      codec.BinaryEncoder
-	concurrency     int
+	queueID          string
+	innerConsumer    messaging.Consumer
+	logger           log.Logger
+	scope            metrics.Scope
+	ctx              context.Context
+	cancelFn         context.CancelFunc
+	wg               sync.WaitGroup
+	shutdownTimeout  time.Duration
+	msgDecoder       codec.BinaryEncoder
+	requestProcessor *RequestProcessor
+	concurrency      int
 }
 
 type Option func(*DefaultConsumer)
@@ -85,18 +77,18 @@ func New(
 	options ...Option,
 ) *DefaultConsumer {
 	ctx, cancelFn := context.WithCancel(context.Background())
+	taggedLogger := logger.WithTags(tag.AsyncWFQueueID(queueID))
 	c := &DefaultConsumer{
-		queueID:         queueID,
-		innerConsumer:   innerConsumer,
-		logger:          logger.WithTags(tag.AsyncWFQueueID(queueID)),
-		scope:           metricsClient.Scope(metrics.AsyncWorkflowConsumerScope),
-		frontendClient:  frontendClient,
-		ctx:             ctx,
-		cancelFn:        cancelFn,
-		shutdownTimeout: defaultShutdownTimeout,
-		startWFTimeout:  defaultStartWFTimeout,
-		msgDecoder:      codec.NewThriftRWEncoder(),
-		concurrency:     defaultConcurrency,
+		queueID:          queueID,
+		innerConsumer:    innerConsumer,
+		logger:           taggedLogger,
+		scope:            metricsClient.Scope(metrics.AsyncWorkflowConsumerScope),
+		ctx:              ctx,
+		cancelFn:         cancelFn,
+		shutdownTimeout:  defaultShutdownTimeout,
+		msgDecoder:       codec.NewThriftRWEncoder(),
+		requestProcessor: NewRequestProcessor(frontendClient, defaultStartWFTimeout, taggedLogger),
+		concurrency:      defaultConcurrency,
 	}
 
 	for _, opt := range options {
@@ -173,7 +165,7 @@ func (c *DefaultConsumer) processMessage(msg messaging.Message) {
 		return
 	}
 
-	logTags, err := c.processRequest(logger, &request)
+	logTags, err := c.processRequest(&request)
 	if err != nil {
 		logger.Error("Failed to process message", append(logTags, tag.Error(err))...)
 		if nackErr := msg.Nack(); nackErr != nil {
@@ -189,135 +181,52 @@ func (c *DefaultConsumer) processMessage(msg messaging.Message) {
 	logger.Info("Processed message successfully")
 }
 
-func (c *DefaultConsumer) processRequest(logger log.Logger, request *sqlblobs.AsyncRequestMessage) ([]tag.Tag, error) {
+func (c *DefaultConsumer) processRequest(request *sqlblobs.AsyncRequestMessage) ([]tag.Tag, error) {
 	requestType := request.GetType().String()
 	scope := c.scope.Tagged(metrics.AsyncWFRequestTypeTag(requestType))
 	logTags := []tag.Tag{tag.AsyncWFRequestType(requestType)}
-	switch request.GetType() {
-	case sqlblobs.AsyncRequestTypeStartWorkflowExecutionAsyncRequest:
-		startWFReq, err := c.decodeStartWorkflowRequest(request.GetPayload(), request.GetEncoding())
-		if err != nil {
-			scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
-			return logTags, err
-		}
 
-		yarpcCallOpts := getYARPCOptions(request.GetHeader())
-		scope := scope.Tagged(metrics.DomainTag(startWFReq.GetDomain()))
-		logTags = append(logTags, tag.WorkflowDomainName(startWFReq.GetDomain()), tag.WorkflowID(startWFReq.GetWorkflowID()))
-
-		var resp *types.StartWorkflowExecutionResponse
-		op := func(ctx1 context.Context) error {
-			ctx, cancel := context.WithTimeout(ctx1, c.startWFTimeout)
-			defer cancel()
-			resp, err = c.frontendClient.StartWorkflowExecution(ctx, startWFReq, yarpcCallOpts...)
-
-			var startedError *types.WorkflowExecutionAlreadyStartedError
-			if errors.As(err, &startedError) {
-				logger.Info("Received WorkflowExecutionAlreadyStartedError, treating it as a success", tag.WorkflowID(startWFReq.GetWorkflowID()), tag.WorkflowRunID(startedError.RunID))
-				return nil
-			}
-			return err
-		}
-
-		if err := callFrontendWithRetries(c.ctx, op); err != nil {
-			scope.IncCounter(metrics.AsyncWorkflowFailureByFrontendCount)
-			return logTags, fmt.Errorf("start workflow execution failed after all attempts: %w", err)
-		}
-
-		logTags = append(logTags, tag.WorkflowRunID(resp.GetRunID()))
-		scope.IncCounter(metrics.AsyncWorkflowSuccessCount)
-	case sqlblobs.AsyncRequestTypeSignalWithStartWorkflowExecutionAsyncRequest:
-		startWFReq, err := c.decodeSignalWithStartWorkflowRequest(request.GetPayload(), request.GetEncoding())
-		if err != nil {
-			c.scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
-			return logTags, err
-		}
-
-		yarpcCallOpts := getYARPCOptions(request.GetHeader())
-		scope := c.scope.Tagged(metrics.DomainTag(startWFReq.GetDomain()))
-		logTags = append(logTags, tag.WorkflowDomainName(startWFReq.GetDomain()), tag.WorkflowID(startWFReq.GetWorkflowID()))
-		var resp *types.StartWorkflowExecutionResponse
-		op := func(ctx1 context.Context) error {
-			ctx, cancel := context.WithTimeout(ctx1, c.startWFTimeout)
-			defer cancel()
-			resp, err = c.frontendClient.SignalWithStartWorkflowExecution(ctx, startWFReq, yarpcCallOpts...)
-
-			var startedError *types.WorkflowExecutionAlreadyStartedError
-			if errors.As(err, &startedError) {
-				logger.Info("Received WorkflowExecutionAlreadyStartedError, treating it as a success", tag.WorkflowID(startWFReq.GetWorkflowID()), tag.WorkflowRunID(startedError.RunID))
-				return nil
-			}
-			return err
-		}
-
-		if err := callFrontendWithRetries(c.ctx, op); err != nil {
-			scope.IncCounter(metrics.AsyncWorkflowFailureByFrontendCount)
-			return logTags, fmt.Errorf("signal with start workflow execution failed after all attempts: %w", err)
-		}
-
-		scope.IncCounter(metrics.AsyncWorkflowSuccessCount)
-		logTags = append(logTags, tag.WorkflowRunID(resp.GetRunID()))
-	default:
-		c.scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
-		return logTags, &UnsupportedRequestType{Type: request.GetType()}
+	prepared, err := c.requestProcessor.Prepare(request)
+	if err != nil {
+		scope.IncCounter(metrics.AsyncWorkflowFailureCorruptMsgCount)
+		return logTags, err
 	}
 
+	scope = scope.Tagged(metrics.DomainTag(prepared.Domain))
+	logTags = append(logTags, tag.WorkflowDomainName(prepared.Domain), tag.WorkflowID(prepared.WorkflowID))
+
+	var runID string
+	op := func(ctx context.Context) error {
+		var err error
+		runID, err = prepared.Invoke(ctx)
+		return err
+	}
+
+	if err := callFrontendWithRetries(c.ctx, op); err != nil {
+		scope.IncCounter(metrics.AsyncWorkflowFailureByFrontendCount)
+		return logTags, fmt.Errorf("%s failed after all attempts: %w", requestType, err)
+	}
+
+	scope.IncCounter(metrics.AsyncWorkflowSuccessCount)
+	logTags = append(logTags, tag.WorkflowRunID(runID))
 	return logTags, nil
 }
 
 func callFrontendWithRetries(ctx context.Context, op func(ctx context.Context) error) error {
 	throttleRetry := backoff.NewThrottleRetry(
 		backoff.WithRetryPolicy(common.CreateFrontendServiceRetryPolicy()),
-		backoff.WithRetryableError(common.IsServiceTransientError),
+		backoff.WithRetryableError(isRetryableProcessingError),
 	)
 
 	return throttleRetry.Do(ctx, op)
 }
 
-func getYARPCOptions(header *shared.Header) []yarpc.CallOption {
-	if header == nil || header.GetFields() == nil {
-		return nil
+// isRetryableProcessingError gates retries of the frontend invocation: corrupt
+// messages are never retryable, everything else follows the standard transient
+// error classification.
+func isRetryableProcessingError(err error) bool {
+	if errors.Is(err, ErrCorruptMessage) {
+		return false
 	}
-
-	// sort the header fields to make the tests deterministic
-	fields := header.GetFields()
-	sortedKeys := make([]string, 0, len(fields))
-	for k := range fields {
-		sortedKeys = append(sortedKeys, k)
-	}
-	sort.Strings(sortedKeys)
-
-	var opts []yarpc.CallOption
-	for _, k := range sortedKeys {
-		opts = append(opts, yarpc.WithHeader(k, string(fields[k])))
-	}
-	return opts
-}
-
-func (c *DefaultConsumer) decodeStartWorkflowRequest(payload []byte, encoding string) (*types.StartWorkflowExecutionRequest, error) {
-	if encoding != string(constants.EncodingTypeThriftRW) {
-		return nil, &UnsupportedEncoding{EncodingType: encoding}
-	}
-
-	var thriftObj shared.StartWorkflowExecutionAsyncRequest
-	if err := c.msgDecoder.Decode(payload, &thriftObj); err != nil {
-		return nil, err
-	}
-
-	startRequest := thrift.ToStartWorkflowExecutionAsyncRequest(&thriftObj)
-	return startRequest.StartWorkflowExecutionRequest, nil
-}
-
-func (c *DefaultConsumer) decodeSignalWithStartWorkflowRequest(payload []byte, encoding string) (*types.SignalWithStartWorkflowExecutionRequest, error) {
-	if encoding != string(constants.EncodingTypeThriftRW) {
-		return nil, &UnsupportedEncoding{EncodingType: encoding}
-	}
-
-	var thriftObj shared.SignalWithStartWorkflowExecutionAsyncRequest
-	if err := c.msgDecoder.Decode(payload, &thriftObj); err != nil {
-		return nil, err
-	}
-
-	signalWithStartRequest := thrift.ToSignalWithStartWorkflowExecutionAsyncRequest(&thriftObj)
-	return signalWithStartRequest.SignalWithStartWorkflowExecutionRequest, nil
+	return common.IsServiceTransientError(err)
 }
