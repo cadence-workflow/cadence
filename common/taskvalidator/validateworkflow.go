@@ -64,6 +64,10 @@ type checkerImpl struct {
 // It requires a logger, metrics client, domain cache, persistence retryer,
 // and a stale checker implementation to function.
 func NewWfChecker(logger *zap.Logger, metrics metrics.Client, domainCache cache.DomainCache, executionManager persistence.ExecutionManager, historymanager persistence.HistoryManager, numShards int) (Checker, error) {
+	if numShards <= 0 {
+		return nil, errors.New("numShards must be greater than 0")
+	}
+
 	// Create the persistence retryer
 	retryPolicy := backoff.NewExponentialRetryPolicy(100 * time.Millisecond) // Adjust as needed
 	pr := persistence.NewPersistenceRetryer(executionManager, historymanager, retryPolicy)

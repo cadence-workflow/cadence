@@ -52,6 +52,41 @@ func (f *fakeStaleChecker) CheckAge(response *persistence.GetWorkflowExecutionRe
 	return f.stale, result
 }
 
+func TestNewWfChecker(t *testing.T) {
+	testCases := []struct {
+		name      string
+		numShards int
+		wantErr   string
+	}{
+		{"ValidNumShards", 4, ""},
+		{"ZeroNumShards", 0, "numShards must be greater than 0"},
+		{"NegativeNumShards", -1, "numShards must be greater than 0"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			mockLogger := zap.NewNop()
+			mockMetricsClient := metrics.NewNoopMetricsClient()
+			mockDomainCache := cache.NewMockDomainCache(mockCtrl)
+			mockExecutionManager := persistence.NewMockExecutionManager(mockCtrl)
+			mockHistoryManager := persistence.NewMockHistoryManager(mockCtrl)
+
+			checker, err := NewWfChecker(mockLogger, mockMetricsClient, mockDomainCache, mockExecutionManager, mockHistoryManager, tc.numShards)
+
+			if tc.wantErr != "" {
+				assert.EqualError(t, err, tc.wantErr)
+				assert.Nil(t, checker)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, checker)
+			}
+		})
+	}
+}
+
 func TestWorkflowCheckforValidation(t *testing.T) {
 	testCases := []struct {
 		name          string
