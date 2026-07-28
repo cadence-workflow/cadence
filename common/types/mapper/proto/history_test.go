@@ -795,12 +795,6 @@ func TestHistoryStartWorkflowExecutionRequestFuzz(t *testing.T) {
 
 // --- Async workflow message round-trip tests ---
 
-func TestHistoryAsyncWorkflowMessage(t *testing.T) {
-	for _, item := range []*types.AsyncWorkflowMessage{nil, {}, &testdata.HistoryAsyncWorkflowMessage} {
-		assert.Equal(t, item, ToHistoryAsyncWorkflowMessage(FromHistoryAsyncWorkflowMessage(item)))
-	}
-}
-
 func TestHistoryEnqueueAsyncWorkflowMessageRequest(t *testing.T) {
 	for _, item := range []*types.EnqueueAsyncWorkflowMessageRequest{nil, {}, &testdata.HistoryEnqueueAsyncWorkflowMessageRequest} {
 		assert.Equal(t, item, ToHistoryEnqueueAsyncWorkflowMessageRequest(FromHistoryEnqueueAsyncWorkflowMessageRequest(item)))
@@ -813,47 +807,7 @@ func TestHistoryEnqueueAsyncWorkflowMessageResponse(t *testing.T) {
 	}
 }
 
-func TestHistoryGetAsyncWorkflowMessagesRequest(t *testing.T) {
-	for _, item := range []*types.GetAsyncWorkflowMessagesRequest{nil, {}, &testdata.HistoryGetAsyncWorkflowMessagesRequest} {
-		assert.Equal(t, item, ToHistoryGetAsyncWorkflowMessagesRequest(FromHistoryGetAsyncWorkflowMessagesRequest(item)))
-	}
-}
-
-func TestHistoryGetAsyncWorkflowMessagesResponse(t *testing.T) {
-	for _, item := range []*types.GetAsyncWorkflowMessagesResponse{nil, {}, &testdata.HistoryGetAsyncWorkflowMessagesResponse} {
-		assert.Equal(t, item, ToHistoryGetAsyncWorkflowMessagesResponse(FromHistoryGetAsyncWorkflowMessagesResponse(item)))
-	}
-}
-
-func TestHistoryUpdateAsyncWorkflowAckLevelRequest(t *testing.T) {
-	for _, item := range []*types.UpdateAsyncWorkflowAckLevelRequest{nil, {}, &testdata.HistoryUpdateAsyncWorkflowAckLevelRequest} {
-		assert.Equal(t, item, ToHistoryUpdateAsyncWorkflowAckLevelRequest(FromHistoryUpdateAsyncWorkflowAckLevelRequest(item)))
-	}
-}
-
-func TestHistoryUpdateAsyncWorkflowAckLevelResponse(t *testing.T) {
-	for _, item := range []*types.UpdateAsyncWorkflowAckLevelResponse{nil, {}, &testdata.HistoryUpdateAsyncWorkflowAckLevelResponse} {
-		assert.Equal(t, item, ToHistoryUpdateAsyncWorkflowAckLevelResponse(FromHistoryUpdateAsyncWorkflowAckLevelResponse(item)))
-	}
-}
-
-func TestHistoryEnqueueAsyncWorkflowMessageToDLQRequest(t *testing.T) {
-	for _, item := range []*types.EnqueueAsyncWorkflowMessageToDLQRequest{nil, {}, &testdata.HistoryEnqueueAsyncWorkflowMessageToDLQRequest} {
-		assert.Equal(t, item, ToHistoryEnqueueAsyncWorkflowMessageToDLQRequest(FromHistoryEnqueueAsyncWorkflowMessageToDLQRequest(item)))
-	}
-}
-
-func TestHistoryEnqueueAsyncWorkflowMessageToDLQResponse(t *testing.T) {
-	for _, item := range []*types.EnqueueAsyncWorkflowMessageToDLQResponse{nil, {}, &testdata.HistoryEnqueueAsyncWorkflowMessageToDLQResponse} {
-		assert.Equal(t, item, ToHistoryEnqueueAsyncWorkflowMessageToDLQResponse(FromHistoryEnqueueAsyncWorkflowMessageToDLQResponse(item)))
-	}
-}
-
 // --- Async workflow message fuzz tests ---
-
-func TestHistoryAsyncWorkflowMessageFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryAsyncWorkflowMessage, ToHistoryAsyncWorkflowMessage)
-}
 
 func TestHistoryEnqueueAsyncWorkflowMessageRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageRequest, ToHistoryEnqueueAsyncWorkflowMessageRequest)
@@ -861,28 +815,4 @@ func TestHistoryEnqueueAsyncWorkflowMessageRequestFuzz(t *testing.T) {
 
 func TestHistoryEnqueueAsyncWorkflowMessageResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageResponse, ToHistoryEnqueueAsyncWorkflowMessageResponse)
-}
-
-func TestHistoryGetAsyncWorkflowMessagesRequestFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryGetAsyncWorkflowMessagesRequest, ToHistoryGetAsyncWorkflowMessagesRequest)
-}
-
-func TestHistoryGetAsyncWorkflowMessagesResponseFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryGetAsyncWorkflowMessagesResponse, ToHistoryGetAsyncWorkflowMessagesResponse)
-}
-
-func TestHistoryUpdateAsyncWorkflowAckLevelRequestFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryUpdateAsyncWorkflowAckLevelRequest, ToHistoryUpdateAsyncWorkflowAckLevelRequest)
-}
-
-func TestHistoryUpdateAsyncWorkflowAckLevelResponseFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryUpdateAsyncWorkflowAckLevelResponse, ToHistoryUpdateAsyncWorkflowAckLevelResponse)
-}
-
-func TestHistoryEnqueueAsyncWorkflowMessageToDLQRequestFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageToDLQRequest, ToHistoryEnqueueAsyncWorkflowMessageToDLQRequest)
-}
-
-func TestHistoryEnqueueAsyncWorkflowMessageToDLQResponseFuzz(t *testing.T) {
-	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageToDLQResponse, ToHistoryEnqueueAsyncWorkflowMessageToDLQResponse)
 }

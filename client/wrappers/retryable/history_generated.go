@@ -104,28 +104,6 @@ func (c *historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *ty
 	return resp, err
 }
 
-func (c *historyClient) EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageToDLQRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageToDLQResponse, err error) {
-	var resp *types.EnqueueAsyncWorkflowMessageToDLQResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.EnqueueAsyncWorkflowMessageToDLQ(ctx, ep1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
-}
-
-func (c *historyClient) GetAsyncWorkflowMessages(ctx context.Context, gp1 *types.GetAsyncWorkflowMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetAsyncWorkflowMessagesResponse, err error) {
-	var resp *types.GetAsyncWorkflowMessagesResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.GetAsyncWorkflowMessages(ctx, gp1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
-}
-
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	var resp *types.GetCrossClusterTasksResponse
 	op := func(ctx context.Context) error {
@@ -466,15 +444,4 @@ func (c *historyClient) TerminateWorkflowExecution(ctx context.Context, hp1 *typ
 		return c.client.TerminateWorkflowExecution(ctx, hp1, p1...)
 	}
 	return c.throttleRetry.Do(ctx, op)
-}
-
-func (c *historyClient) UpdateAsyncWorkflowAckLevel(ctx context.Context, up1 *types.UpdateAsyncWorkflowAckLevelRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateAsyncWorkflowAckLevelResponse, err error) {
-	var resp *types.UpdateAsyncWorkflowAckLevelResponse
-	op := func(ctx context.Context) error {
-		var err error
-		resp, err = c.client.UpdateAsyncWorkflowAckLevel(ctx, up1, p1...)
-		return err
-	}
-	err = c.throttleRetry.Do(ctx, op)
-	return resp, err
 }

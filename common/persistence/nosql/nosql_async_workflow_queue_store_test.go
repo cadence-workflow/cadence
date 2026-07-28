@@ -93,7 +93,7 @@ func TestAsyncWorkflowQueue_Enqueue(t *testing.T) {
 			td.mockDB.EXPECT().InsertIntoAsyncWorkflowQueue(ctx, gomock.Any()).DoAndReturn(
 				func(_ context.Context, row *nosqlplugin.AsyncWorkflowQueueMessageRow) error {
 					assert.Equal(t, tc.wantID, row.ID)
-						assert.Equal(t, testAsyncShardID, row.ShardID)
+					assert.Equal(t, testAsyncShardID, row.ShardID)
 					return nil
 				})
 

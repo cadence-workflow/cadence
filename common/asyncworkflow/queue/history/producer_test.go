@@ -87,7 +87,6 @@ func TestPublishHappyPath(t *testing.T) {
 
 	require.NotNil(t, captured)
 	assert.Equal(t, int32(expectedShard), captured.ShardID)
-	assert.Equal(t, queueName, captured.QueueName)
 	assert.Equal(t, wfID, captured.PartitionKey)
 	assert.Equal(t, string(constants.EncodingTypeThriftRW), captured.Encoding)
 

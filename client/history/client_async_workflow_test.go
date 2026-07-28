@@ -46,8 +46,7 @@ func TestClient_asyncWorkflowQueue(t *testing.T) {
 			name: "EnqueueAsyncWorkflowMessage success",
 			op: func(c Client) (any, error) {
 				return c.EnqueueAsyncWorkflowMessage(context.Background(), &types.EnqueueAsyncWorkflowMessageRequest{
-					ShardID:   123,
-					QueueName: "q1",
+					ShardID: 123,
 				})
 			},
 			mock: func(p *MockPeerResolver, c *MockClient) {
@@ -102,54 +101,6 @@ func TestClient_asyncWorkflowQueue(t *testing.T) {
 					Return(&types.EnqueueAsyncWorkflowMessageResponse{MessageID: 9}, nil).Times(1)
 			},
 			want: &types.EnqueueAsyncWorkflowMessageResponse{MessageID: 9},
-		},
-		{
-			name: "GetAsyncWorkflowMessages success",
-			op: func(c Client) (any, error) {
-				return c.GetAsyncWorkflowMessages(context.Background(), &types.GetAsyncWorkflowMessagesRequest{
-					ShardID:   123,
-					QueueName: "q1",
-				})
-			},
-			mock: func(p *MockPeerResolver, c *MockClient) {
-				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
-				c.EXPECT().GetAsyncWorkflowMessages(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
-					Return(&types.GetAsyncWorkflowMessagesResponse{
-						Messages: []*types.AsyncWorkflowMessage{{MessageID: 1}},
-					}, nil).Times(1)
-			},
-			want: &types.GetAsyncWorkflowMessagesResponse{
-				Messages: []*types.AsyncWorkflowMessage{{MessageID: 1}},
-			},
-		},
-		{
-			name: "UpdateAsyncWorkflowAckLevel success",
-			op: func(c Client) (any, error) {
-				return c.UpdateAsyncWorkflowAckLevel(context.Background(), &types.UpdateAsyncWorkflowAckLevelRequest{
-					ShardID:  123,
-					AckLevel: 5,
-				})
-			},
-			mock: func(p *MockPeerResolver, c *MockClient) {
-				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
-				c.EXPECT().UpdateAsyncWorkflowAckLevel(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
-					Return(&types.UpdateAsyncWorkflowAckLevelResponse{}, nil).Times(1)
-			},
-			want: &types.UpdateAsyncWorkflowAckLevelResponse{},
-		},
-		{
-			name: "EnqueueAsyncWorkflowMessageToDLQ success",
-			op: func(c Client) (any, error) {
-				return c.EnqueueAsyncWorkflowMessageToDLQ(context.Background(), &types.EnqueueAsyncWorkflowMessageToDLQRequest{
-					ShardID: 123,
-				})
-			},
-			mock: func(p *MockPeerResolver, c *MockClient) {
-				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
-				c.EXPECT().EnqueueAsyncWorkflowMessageToDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
-					Return(&types.EnqueueAsyncWorkflowMessageToDLQResponse{MessageID: 3}, nil).Times(1)
-			},
-			want: &types.EnqueueAsyncWorkflowMessageToDLQResponse{MessageID: 3},
 		},
 	}
 

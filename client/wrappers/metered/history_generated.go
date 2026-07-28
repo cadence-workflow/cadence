@@ -197,54 +197,6 @@ func (c *historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *ty
 	return ep2, err
 }
 
-func (c *historyClient) EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageToDLQRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageToDLQResponse, err error) {
-	retryCount := getRetryCountFromContext(ctx)
-
-	var scope metrics.Scope
-	if retryCount == -1 {
-		scope = c.metricsClient.Scope(metrics.HistoryClientEnqueueAsyncWorkflowMessageToDLQScope)
-	} else {
-		scope = c.metricsClient.Scope(metrics.HistoryClientEnqueueAsyncWorkflowMessageToDLQScope, metrics.IsRetryTag(retryCount > 0))
-	}
-
-	scope.IncCounter(metrics.CadenceClientRequests)
-
-	clientLatencyStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceClientLatency)
-	ep2, err = c.client.EnqueueAsyncWorkflowMessageToDLQ(ctx, ep1, p1...)
-	sw.Stop()
-	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
-
-	if err != nil {
-		scope.IncCounter(metrics.CadenceClientFailures)
-	}
-	return ep2, err
-}
-
-func (c *historyClient) GetAsyncWorkflowMessages(ctx context.Context, gp1 *types.GetAsyncWorkflowMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetAsyncWorkflowMessagesResponse, err error) {
-	retryCount := getRetryCountFromContext(ctx)
-
-	var scope metrics.Scope
-	if retryCount == -1 {
-		scope = c.metricsClient.Scope(metrics.HistoryClientGetAsyncWorkflowMessagesScope)
-	} else {
-		scope = c.metricsClient.Scope(metrics.HistoryClientGetAsyncWorkflowMessagesScope, metrics.IsRetryTag(retryCount > 0))
-	}
-
-	scope.IncCounter(metrics.CadenceClientRequests)
-
-	clientLatencyStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceClientLatency)
-	gp2, err = c.client.GetAsyncWorkflowMessages(ctx, gp1, p1...)
-	sw.Stop()
-	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
-
-	if err != nil {
-		scope.IncCounter(metrics.CadenceClientFailures)
-	}
-	return gp2, err
-}
-
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -1155,28 +1107,4 @@ func (c *historyClient) TerminateWorkflowExecution(ctx context.Context, hp1 *typ
 		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
-}
-
-func (c *historyClient) UpdateAsyncWorkflowAckLevel(ctx context.Context, up1 *types.UpdateAsyncWorkflowAckLevelRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateAsyncWorkflowAckLevelResponse, err error) {
-	retryCount := getRetryCountFromContext(ctx)
-
-	var scope metrics.Scope
-	if retryCount == -1 {
-		scope = c.metricsClient.Scope(metrics.HistoryClientUpdateAsyncWorkflowAckLevelScope)
-	} else {
-		scope = c.metricsClient.Scope(metrics.HistoryClientUpdateAsyncWorkflowAckLevelScope, metrics.IsRetryTag(retryCount > 0))
-	}
-
-	scope.IncCounter(metrics.CadenceClientRequests)
-
-	clientLatencyStart := time.Now()
-	sw := scope.StartTimer(metrics.CadenceClientLatency)
-	up2, err = c.client.UpdateAsyncWorkflowAckLevel(ctx, up1, p1...)
-	sw.Stop()
-	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
-
-	if err != nil {
-		scope.IncCounter(metrics.CadenceClientFailures)
-	}
-	return up2, err
 }

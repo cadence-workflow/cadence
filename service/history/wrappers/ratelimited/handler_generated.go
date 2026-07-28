@@ -93,14 +93,6 @@ func (h *historyHandler) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *t
 	return h.wrapped.EnqueueAsyncWorkflowMessage(ctx, ep1)
 }
 
-func (h *historyHandler) EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageToDLQRequest) (ep2 *types.EnqueueAsyncWorkflowMessageToDLQResponse, err error) {
-	return h.wrapped.EnqueueAsyncWorkflowMessageToDLQ(ctx, ep1)
-}
-
-func (h *historyHandler) GetAsyncWorkflowMessages(ctx context.Context, gp1 *types.GetAsyncWorkflowMessagesRequest) (gp2 *types.GetAsyncWorkflowMessagesResponse, err error) {
-	return h.wrapped.GetAsyncWorkflowMessages(ctx, gp1)
-}
-
 func (h *historyHandler) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	return h.wrapped.GetCrossClusterTasks(ctx, gp1)
 }
@@ -338,8 +330,4 @@ func (h *historyHandler) SyncShardStatus(ctx context.Context, sp1 *types.SyncSha
 
 func (h *historyHandler) TerminateWorkflowExecution(ctx context.Context, hp1 *types.HistoryTerminateWorkflowExecutionRequest) (err error) {
 	return h.wrapped.TerminateWorkflowExecution(ctx, hp1)
-}
-
-func (h *historyHandler) UpdateAsyncWorkflowAckLevel(ctx context.Context, up1 *types.UpdateAsyncWorkflowAckLevelRequest) (up2 *types.UpdateAsyncWorkflowAckLevelResponse, err error) {
-	return h.wrapped.UpdateAsyncWorkflowAckLevel(ctx, up1)
 }

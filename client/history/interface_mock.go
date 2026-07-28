@@ -182,46 +182,6 @@ func (mr *MockClientMockRecorder) EnqueueAsyncWorkflowMessage(arg0, arg1 any, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessage", reflect.TypeOf((*MockClient)(nil).EnqueueAsyncWorkflowMessage), varargs...)
 }
 
-// EnqueueAsyncWorkflowMessageToDLQ mocks base method.
-func (m *MockClient) EnqueueAsyncWorkflowMessageToDLQ(arg0 context.Context, arg1 *types.EnqueueAsyncWorkflowMessageToDLQRequest, arg2 ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "EnqueueAsyncWorkflowMessageToDLQ", varargs...)
-	ret0, _ := ret[0].(*types.EnqueueAsyncWorkflowMessageToDLQResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// EnqueueAsyncWorkflowMessageToDLQ indicates an expected call of EnqueueAsyncWorkflowMessageToDLQ.
-func (mr *MockClientMockRecorder) EnqueueAsyncWorkflowMessageToDLQ(arg0, arg1 any, arg2 ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessageToDLQ", reflect.TypeOf((*MockClient)(nil).EnqueueAsyncWorkflowMessageToDLQ), varargs...)
-}
-
-// GetAsyncWorkflowMessages mocks base method.
-func (m *MockClient) GetAsyncWorkflowMessages(arg0 context.Context, arg1 *types.GetAsyncWorkflowMessagesRequest, arg2 ...yarpc.CallOption) (*types.GetAsyncWorkflowMessagesResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "GetAsyncWorkflowMessages", varargs...)
-	ret0, _ := ret[0].(*types.GetAsyncWorkflowMessagesResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAsyncWorkflowMessages indicates an expected call of GetAsyncWorkflowMessages.
-func (mr *MockClientMockRecorder) GetAsyncWorkflowMessages(arg0, arg1 any, arg2 ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAsyncWorkflowMessages", reflect.TypeOf((*MockClient)(nil).GetAsyncWorkflowMessages), varargs...)
-}
-
 // GetCrossClusterTasks mocks base method.
 func (m *MockClient) GetCrossClusterTasks(arg0 context.Context, arg1 *types.GetCrossClusterTasksRequest, arg2 ...yarpc.CallOption) (*types.GetCrossClusterTasksResponse, error) {
 	m.ctrl.T.Helper()
@@ -961,24 +921,4 @@ func (mr *MockClientMockRecorder) TerminateWorkflowExecution(arg0, arg1 any, arg
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TerminateWorkflowExecution", reflect.TypeOf((*MockClient)(nil).TerminateWorkflowExecution), varargs...)
-}
-
-// UpdateAsyncWorkflowAckLevel mocks base method.
-func (m *MockClient) UpdateAsyncWorkflowAckLevel(arg0 context.Context, arg1 *types.UpdateAsyncWorkflowAckLevelRequest, arg2 ...yarpc.CallOption) (*types.UpdateAsyncWorkflowAckLevelResponse, error) {
-	m.ctrl.T.Helper()
-	varargs := []any{arg0, arg1}
-	for _, a := range arg2 {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "UpdateAsyncWorkflowAckLevel", varargs...)
-	ret0, _ := ret[0].(*types.UpdateAsyncWorkflowAckLevelResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateAsyncWorkflowAckLevel indicates an expected call of UpdateAsyncWorkflowAckLevel.
-func (mr *MockClientMockRecorder) UpdateAsyncWorkflowAckLevel(arg0, arg1 any, arg2 ...any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{arg0, arg1}, arg2...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAsyncWorkflowAckLevel", reflect.TypeOf((*MockClient)(nil).UpdateAsyncWorkflowAckLevel), varargs...)
 }

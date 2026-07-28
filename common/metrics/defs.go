@@ -430,12 +430,6 @@ const (
 	HistoryClientMergeDLQMessagesScope
 	// HistoryClientEnqueueAsyncWorkflowMessageScope tracks RPC calls to history service
 	HistoryClientEnqueueAsyncWorkflowMessageScope
-	// HistoryClientGetAsyncWorkflowMessagesScope tracks RPC calls to history service
-	HistoryClientGetAsyncWorkflowMessagesScope
-	// HistoryClientUpdateAsyncWorkflowAckLevelScope tracks RPC calls to history service
-	HistoryClientUpdateAsyncWorkflowAckLevelScope
-	// HistoryClientEnqueueAsyncWorkflowMessageToDLQScope tracks RPC calls to history service
-	HistoryClientEnqueueAsyncWorkflowMessageToDLQScope
 	// HistoryClientRefreshWorkflowTasksScope tracks RPC calls to history service
 	HistoryClientRefreshWorkflowTasksScope
 	// HistoryClientNotifyFailoverMarkersScope tracks RPC calls to history service
@@ -1269,12 +1263,6 @@ const (
 	HistoryMergeDLQMessagesScope
 	// HistoryEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage API calls received by service
 	HistoryEnqueueAsyncWorkflowMessageScope
-	// HistoryGetAsyncWorkflowMessagesScope tracks GetAsyncWorkflowMessages API calls received by service
-	HistoryGetAsyncWorkflowMessagesScope
-	// HistoryUpdateAsyncWorkflowAckLevelScope tracks UpdateAsyncWorkflowAckLevel API calls received by service
-	HistoryUpdateAsyncWorkflowAckLevelScope
-	// HistoryEnqueueAsyncWorkflowMessageToDLQScope tracks EnqueueAsyncWorkflowMessageToDLQ API calls received by service
-	HistoryEnqueueAsyncWorkflowMessageToDLQScope
 	// HistoryShardControllerScope is the scope used by shard controller
 	HistoryShardControllerScope
 	// HistoryReapplyEventsScope tracks ReapplyEvents API calls received by service
@@ -1733,9 +1721,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryClientPurgeDLQMessagesScope:                  {operation: "HistoryClientPurgeDLQMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientMergeDLQMessagesScope:                  {operation: "HistoryClientMergeDLQMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientEnqueueAsyncWorkflowMessageScope:       {operation: "HistoryClientEnqueueAsyncWorkflowMessage", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
-		HistoryClientGetAsyncWorkflowMessagesScope:          {operation: "HistoryClientGetAsyncWorkflowMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
-		HistoryClientUpdateAsyncWorkflowAckLevelScope:       {operation: "HistoryClientUpdateAsyncWorkflowAckLevel", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
-		HistoryClientEnqueueAsyncWorkflowMessageToDLQScope:  {operation: "HistoryClientEnqueueAsyncWorkflowMessageToDLQ", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientRefreshWorkflowTasksScope:              {operation: "HistoryClientRefreshWorkflowTasks", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientNotifyFailoverMarkersScope:             {operation: "HistoryClientNotifyFailoverMarkers", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientGetCrossClusterTasksScope:              {operation: "HistoryClientGetCrossClusterTasks", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
@@ -2151,9 +2136,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryPurgeDLQMessagesScope:                                    {operation: "PurgeDLQMessages"},
 		HistoryMergeDLQMessagesScope:                                    {operation: "MergeDLQMessages"},
 		HistoryEnqueueAsyncWorkflowMessageScope:                         {operation: "EnqueueAsyncWorkflowMessage"},
-		HistoryGetAsyncWorkflowMessagesScope:                            {operation: "GetAsyncWorkflowMessages"},
-		HistoryUpdateAsyncWorkflowAckLevelScope:                         {operation: "UpdateAsyncWorkflowAckLevel"},
-		HistoryEnqueueAsyncWorkflowMessageToDLQScope:                    {operation: "EnqueueAsyncWorkflowMessageToDLQ"},
 		HistoryShardControllerScope:                                     {operation: "ShardController"},
 		HistoryReapplyEventsScope:                                       {operation: "EventReapplication"},
 		HistoryRefreshWorkflowTasksScope:                                {operation: "RefreshWorkflowTasks"},

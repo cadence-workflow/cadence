@@ -88,7 +88,4 @@ type Handler interface {
 	GetFailoverInfo(context.Context, *types.GetFailoverInfoRequest) (*types.GetFailoverInfoResponse, error)
 	RatelimitUpdate(context.Context, *types.RatelimitUpdateRequest) (*types.RatelimitUpdateResponse, error)
 	EnqueueAsyncWorkflowMessage(context.Context, *types.EnqueueAsyncWorkflowMessageRequest) (*types.EnqueueAsyncWorkflowMessageResponse, error)
-	GetAsyncWorkflowMessages(context.Context, *types.GetAsyncWorkflowMessagesRequest) (*types.GetAsyncWorkflowMessagesResponse, error)
-	UpdateAsyncWorkflowAckLevel(context.Context, *types.UpdateAsyncWorkflowAckLevelRequest) (*types.UpdateAsyncWorkflowAckLevelResponse, error)
-	EnqueueAsyncWorkflowMessageToDLQ(context.Context, *types.EnqueueAsyncWorkflowMessageToDLQRequest) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error)
 }

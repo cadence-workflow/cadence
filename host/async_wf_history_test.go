@@ -25,9 +25,8 @@
 This is the single-region integration test for the history-backed async workflow
 queue. Unlike the kafka-backed variant (async_wf_test.go) it needs no external
 message broker: the frontend producer enqueues via the history
-EnqueueAsyncWorkflowMessage RPC and the worker's ConsumerManager pulls via
-GetAsyncWorkflowMessages, both persisting through the async_workflow_queue*
-Cassandra tables.
+EnqueueAsyncWorkflowMessage RPC, and the history service's per-shard consumer
+processes the messages from the async_workflow_queue* Cassandra tables.
 
 To run locally, run against the same docker cluster used by the kafka async test
 (the history queue only needs the Cassandra dependency, kafka is unused):
@@ -155,10 +154,10 @@ func (s *AsyncWFHistoryIntegrationSuite) enableHistoryAsyncQueue() {
 }
 
 // waitForWorkflowStart polls DescribeWorkflowExecution until the async-started
-// workflow appears (i.e. the worker's ConsumerManager pulled the message from the
-// history-backed queue and called frontend.StartWorkflowExecution) or the poll
-// budget is exhausted. There is no decider/poller, so we only assert the
-// execution was created, not that it made progress.
+// workflow appears (i.e. the history service's per-shard consumer processed the
+// message from the history-backed queue and called frontend.StartWorkflowExecution)
+// or the poll budget is exhausted. There is no decider/poller, so we only assert
+// the execution was created, not that it made progress.
 func (s *AsyncWFHistoryIntegrationSuite) waitForWorkflowStart(t *testing.T, wfID string) {
 	t.Helper()
 	for i := 0; i < 30; i++ {
@@ -190,9 +189,8 @@ func (s *AsyncWFHistoryIntegrationSuite) waitForWorkflowStart(t *testing.T, wfID
 
 // TestStartWorkflowExecutionAsync_History_SLOW verifies the end-to-end history-backed
 // async workflow path: the frontend enqueues the StartWorkflowExecution request
-// via the history EnqueueAsyncWorkflowMessage RPC, and the worker's
-// ConsumerManager pulls it via GetAsyncWorkflowMessages and actually starts the
-// workflow.
+// via the history EnqueueAsyncWorkflowMessage RPC, and the history service's
+// per-shard consumer processes it and actually starts the workflow.
 func (s *AsyncWFHistoryIntegrationSuite) TestStartWorkflowExecutionAsync_History_SLOW() {
 	s.enableHistoryAsyncQueue()
 
@@ -237,8 +235,8 @@ func (s *AsyncWFHistoryIntegrationSuite) TestStartWorkflowExecutionAsync_History
 
 // TestSignalWithStartWorkflowExecutionAsync_History_SLOW verifies the history-backed
 // async path for SignalWithStart: the frontend enqueues the
-// SignalWithStartWorkflowExecution request and the worker consumer pulls it and
-// starts (and signals) the workflow.
+// SignalWithStartWorkflowExecution request and the history service's per-shard
+// consumer processes it and starts (and signals) the workflow.
 func (s *AsyncWFHistoryIntegrationSuite) TestSignalWithStartWorkflowExecutionAsync_History_SLOW() {
 	s.enableHistoryAsyncQueue()
 
@@ -291,5 +289,4 @@ func (s *AsyncWFHistoryIntegrationSuite) TestSignalWithStartWorkflowExecutionAsy
 // async_workflow_queue table out-of-band (the frontend producer only ever writes
 // well-formed, decodable messages), which is brittle against the real cluster.
 // The DLQ / poison-message behavior is therefore covered by the consumer unit
-// tests (common/asyncworkflow/queue/consumer/*_test.go and
-// common/asyncworkflow/queue/history/consumer_test.go) rather than here.
+// tests under service/history/asyncworkflowqueue rather than here.

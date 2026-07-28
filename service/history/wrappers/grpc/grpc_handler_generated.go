@@ -55,16 +55,6 @@ func (g GRPCHandler) EnqueueAsyncWorkflowMessage(ctx context.Context, request *h
 	return proto.FromHistoryEnqueueAsyncWorkflowMessageResponse(response), proto.FromError(err)
 }
 
-func (g GRPCHandler) EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, request *historyv1.EnqueueAsyncWorkflowMessageToDLQRequest) (*historyv1.EnqueueAsyncWorkflowMessageToDLQResponse, error) {
-	response, err := g.h.EnqueueAsyncWorkflowMessageToDLQ(ctx, proto.ToHistoryEnqueueAsyncWorkflowMessageToDLQRequest(request))
-	return proto.FromHistoryEnqueueAsyncWorkflowMessageToDLQResponse(response), proto.FromError(err)
-}
-
-func (g GRPCHandler) GetAsyncWorkflowMessages(ctx context.Context, request *historyv1.GetAsyncWorkflowMessagesRequest) (*historyv1.GetAsyncWorkflowMessagesResponse, error) {
-	response, err := g.h.GetAsyncWorkflowMessages(ctx, proto.ToHistoryGetAsyncWorkflowMessagesRequest(request))
-	return proto.FromHistoryGetAsyncWorkflowMessagesResponse(response), proto.FromError(err)
-}
-
 func (g GRPCHandler) GetCrossClusterTasks(ctx context.Context, request *historyv1.GetCrossClusterTasksRequest) (*historyv1.GetCrossClusterTasksResponse, error) {
 	response, err := g.h.GetCrossClusterTasks(ctx, proto.ToHistoryGetCrossClusterTasksRequest(request))
 	return proto.FromHistoryGetCrossClusterTasksResponse(response), proto.FromError(err)
@@ -253,9 +243,4 @@ func (g GRPCHandler) SyncShardStatus(ctx context.Context, request *historyv1.Syn
 func (g GRPCHandler) TerminateWorkflowExecution(ctx context.Context, request *historyv1.TerminateWorkflowExecutionRequest) (*historyv1.TerminateWorkflowExecutionResponse, error) {
 	err := g.h.TerminateWorkflowExecution(ctx, proto.ToHistoryTerminateWorkflowExecutionRequest(request))
 	return &historyv1.TerminateWorkflowExecutionResponse{}, proto.FromError(err)
-}
-
-func (g GRPCHandler) UpdateAsyncWorkflowAckLevel(ctx context.Context, request *historyv1.UpdateAsyncWorkflowAckLevelRequest) (*historyv1.UpdateAsyncWorkflowAckLevelResponse, error) {
-	response, err := g.h.UpdateAsyncWorkflowAckLevel(ctx, proto.ToHistoryUpdateAsyncWorkflowAckLevelRequest(request))
-	return proto.FromHistoryUpdateAsyncWorkflowAckLevelResponse(response), proto.FromError(err)
 }
