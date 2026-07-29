@@ -50,7 +50,6 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/mocks"
 	"github.com/uber/cadence/common/persistence"
-	persistenceClient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/persistence/nosql"
 	persistencetests "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/persistence-tests/testcluster"
@@ -176,7 +175,7 @@ func NewCluster(t *testing.T, options *TestClusterConfig, logger log.Logger, par
 		MessagingClient:               messagingClient,
 		DomainManager:                 testBase.DomainManager,
 		HistoryV2Mgr:                  testBase.HistoryV2Mgr,
-		ExecutionMgrFactory:           testBase.PersistenceFactory,
+		ExecutionMgr:                  testBase.ExecutionManager,
 		DomainReplicationQueue:        domainReplicationQueue,
 		Logger:                        logger,
 		ZapLogger:                     testlogger.NewZap(t),
@@ -258,7 +257,7 @@ func NewPinotTestCluster(t *testing.T, options *TestClusterConfig, logger log.Lo
 		MessagingClient:               messagingClient,
 		DomainManager:                 testBase.DomainManager,
 		HistoryV2Mgr:                  testBase.HistoryV2Mgr,
-		ExecutionMgrFactory:           testBase.PersistenceFactory,
+		ExecutionMgr:                  testBase.ExecutionManager,
 		DomainReplicationQueue:        domainReplicationQueue,
 		Logger:                        logger,
 		ZapLogger:                     testlogger.NewZap(t),
@@ -488,7 +487,7 @@ func (tc *TestCluster) GetMatchingClients() []MatchingClient {
 	return result
 }
 
-// GetExecutionManagerFactory returns an execution manager factory from the test cluster
-func (tc *TestCluster) GetExecutionManagerFactory() persistenceClient.Factory {
-	return tc.host.GetExecutionManagerFactory()
+// GetExecutionManager returns the execution manager from the test cluster
+func (tc *TestCluster) GetExecutionManager() persistence.ExecutionManager {
+	return tc.host.GetExecutionManager()
 }

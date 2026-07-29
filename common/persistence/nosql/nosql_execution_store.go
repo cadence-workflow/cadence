@@ -885,15 +885,15 @@ func (d *nosqlExecutionStore) GetHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,
 ) (*persistence.GetHistoryTasksResponse, error) {
-	shardID, _, err := d.storeShardForRequest(request.ShardID, "GetHistoryTasks")
+	shardID, storeShard, err := d.storeShardForRequest(request.ShardID, "GetHistoryTasks")
 	if err != nil {
 		return nil, err
 	}
 	switch request.TaskCategory.Type() {
 	case persistence.HistoryTaskCategoryTypeImmediate:
-		return d.getImmediateHistoryTasks(ctx, request, shardID)
+		return d.getImmediateHistoryTasks(ctx, request, shardID, storeShard)
 	case persistence.HistoryTaskCategoryTypeScheduled:
-		return d.getScheduledHistoryTasks(ctx, request, shardID)
+		return d.getScheduledHistoryTasks(ctx, request, shardID, storeShard)
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -903,11 +903,8 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,
 	shardID int,
+	storeShard *nosqlStore,
 ) (*persistence.GetHistoryTasksResponse, error) {
-	storeShard, err := d.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return nil, err
-	}
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
 		tasks, nextPageToken, err := storeShard.db.SelectTransferTasksOrderByTaskID(ctx, shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
@@ -970,11 +967,8 @@ func (d *nosqlExecutionStore) getScheduledHistoryTasks(
 	ctx context.Context,
 	request *persistence.GetHistoryTasksRequest,
 	shardID int,
+	storeShard *nosqlStore,
 ) (*persistence.GetHistoryTasksResponse, error) {
-	storeShard, err := d.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return nil, err
-	}
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
 		timers, nextPageToken, err := storeShard.db.SelectTimerTasksOrderByVisibilityTime(ctx, shardID, request.PageSize, request.NextPageToken, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
@@ -1012,15 +1006,15 @@ func (d *nosqlExecutionStore) CompleteHistoryTask(
 	ctx context.Context,
 	request *persistence.CompleteHistoryTaskRequest,
 ) error {
-	shardID, _, err := d.storeShardForRequest(request.ShardID, "CompleteHistoryTask")
+	shardID, storeShard, err := d.storeShardForRequest(request.ShardID, "CompleteHistoryTask")
 	if err != nil {
 		return err
 	}
 	switch request.TaskCategory.Type() {
 	case persistence.HistoryTaskCategoryTypeScheduled:
-		return d.completeScheduledHistoryTask(ctx, request, shardID)
+		return d.completeScheduledHistoryTask(ctx, request, shardID, storeShard)
 	case persistence.HistoryTaskCategoryTypeImmediate:
-		return d.completeImmediateHistoryTask(ctx, request, shardID)
+		return d.completeImmediateHistoryTask(ctx, request, shardID, storeShard)
 	default:
 		return &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -1030,14 +1024,11 @@ func (d *nosqlExecutionStore) completeScheduledHistoryTask(
 	ctx context.Context,
 	request *persistence.CompleteHistoryTaskRequest,
 	shardID int,
+	storeShard *nosqlStore,
 ) error {
-	storeShard, err := d.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return err
-	}
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err = storeShard.db.DeleteTimerTask(ctx, shardID, request.TaskKeys)
+		err := storeShard.db.DeleteTimerTask(ctx, shardID, request.TaskKeys)
 		if err != nil {
 			return convertCommonErrors(storeShard.db, "CompleteScheduledHistoryTask", err)
 		}
@@ -1051,20 +1042,17 @@ func (d *nosqlExecutionStore) completeImmediateHistoryTask(
 	ctx context.Context,
 	request *persistence.CompleteHistoryTaskRequest,
 	shardID int,
+	storeShard *nosqlStore,
 ) error {
-	storeShard, err := d.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return err
-	}
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err = storeShard.db.DeleteTransferTask(ctx, shardID, request.TaskKeys)
+		err := storeShard.db.DeleteTransferTask(ctx, shardID, request.TaskKeys)
 		if err != nil {
 			return convertCommonErrors(storeShard.db, "CompleteImmediateHistoryTask", err)
 		}
 		return nil
 	case persistence.HistoryTaskCategoryIDReplication:
-		err = storeShard.db.DeleteReplicationTask(ctx, shardID, request.TaskKeys)
+		err := storeShard.db.DeleteReplicationTask(ctx, shardID, request.TaskKeys)
 		if err != nil {
 			return convertCommonErrors(storeShard.db, "CompleteImmediateHistoryTask", err)
 		}
@@ -1078,15 +1066,15 @@ func (d *nosqlExecutionStore) RangeCompleteHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
-	shardID, _, err := d.storeShardForRequest(request.ShardID, "RangeCompleteHistoryTask")
+	shardID, storeShard, err := d.storeShardForRequest(request.ShardID, "RangeCompleteHistoryTask")
 	if err != nil {
 		return nil, err
 	}
 	switch request.TaskCategory.Type() {
 	case persistence.HistoryTaskCategoryTypeScheduled:
-		return d.rangeCompleteScheduledHistoryTask(ctx, request, shardID)
+		return d.rangeCompleteScheduledHistoryTask(ctx, request, shardID, storeShard)
 	case persistence.HistoryTaskCategoryTypeImmediate:
-		return d.rangeCompleteImmediateHistoryTask(ctx, request, shardID)
+		return d.rangeCompleteImmediateHistoryTask(ctx, request, shardID, storeShard)
 	default:
 		return nil, &types.BadRequestError{Message: fmt.Sprintf("Unknown task category type: %v", request.TaskCategory.Type())}
 	}
@@ -1096,14 +1084,11 @@ func (d *nosqlExecutionStore) rangeCompleteScheduledHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,
 	shardID int,
+	storeShard *nosqlStore,
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
-	storeShard, err := d.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return nil, err
-	}
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTimer:
-		err = storeShard.db.RangeDeleteTimerTasks(ctx, shardID, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
+		err := storeShard.db.RangeDeleteTimerTasks(ctx, shardID, request.InclusiveMinTaskKey.GetScheduledTime(), request.ExclusiveMaxTaskKey.GetScheduledTime())
 		if err != nil {
 			return nil, convertCommonErrors(storeShard.db, "RangeCompleteTimerTask", err)
 		}
@@ -1117,19 +1102,16 @@ func (d *nosqlExecutionStore) rangeCompleteImmediateHistoryTask(
 	ctx context.Context,
 	request *persistence.RangeCompleteHistoryTaskRequest,
 	shardID int,
+	storeShard *nosqlStore,
 ) (*persistence.RangeCompleteHistoryTaskResponse, error) {
-	storeShard, err := d.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return nil, err
-	}
 	switch request.TaskCategory.ID() {
 	case persistence.HistoryTaskCategoryIDTransfer:
-		err = storeShard.db.RangeDeleteTransferTasks(ctx, shardID, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
+		err := storeShard.db.RangeDeleteTransferTasks(ctx, shardID, request.InclusiveMinTaskKey.GetTaskID(), request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(storeShard.db, "RangeCompleteTransferTask", err)
 		}
 	case persistence.HistoryTaskCategoryIDReplication:
-		err = storeShard.db.RangeDeleteReplicationTasks(ctx, shardID, request.ExclusiveMaxTaskKey.GetTaskID())
+		err := storeShard.db.RangeDeleteReplicationTasks(ctx, shardID, request.ExclusiveMaxTaskKey.GetTaskID())
 		if err != nil {
 			return nil, convertCommonErrors(storeShard.db, "RangeCompleteReplicationTask", err)
 		}

@@ -52,14 +52,12 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 				// Define flags
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 				// Use a StringSliceFlag to simulate multiple collection values
 				set.Var(cli.NewStringSlice("CollectionHistory", "CollectionDomain"), FlagInvariantCollection, "invariant collection flag")
 
 				// Set actual values for the flags
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(app, set, nil)
 			},
@@ -86,10 +84,8 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 				set := flag.NewFlagSet("test", 0)
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 				require.NoError(t, set.Set(FlagScanType, "unknown"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 				return cli.NewContext(app, set, nil)
 			},
 			inputFileData:  ``,
@@ -103,7 +99,6 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 				// Define FlagScanType and FlagInputFile
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 
 				// Simulate the collection slice with multiple collections (including an invalid one)
 				set.Var(cli.NewStringSlice("invalid_collection", "history"), FlagInvariantCollection, "invariant collection flag")
@@ -111,7 +106,6 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 				// Set actual values for the flags
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(app, set, nil)
 			},
@@ -126,12 +120,10 @@ func TestAdminDBClean_noFixExecution(t *testing.T) {
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInvariantCollection, "", "invariant collection flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, "input.json"))
 				require.NoError(t, set.Set(FlagInvariantCollection, "invalid_collection"))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(app, set, nil)
 			},
@@ -197,12 +189,10 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				set := flag.NewFlagSet("test", 0)
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 				set.Var(cli.NewStringSlice("CollectionHistory", "CollectionDomain"), FlagInvariantCollection, "invariant collection flag")
 
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, inputFilePath))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(td.app, set, nil)
 			},
@@ -233,12 +223,10 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				set := flag.NewFlagSet("test", 0)
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 				set.Var(cli.NewStringSlice("CollectionHistory", "CollectionDomain"), FlagInvariantCollection, "invariant collection flag")
 
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, inputFilePath))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(td.app, set, nil)
 			},
@@ -265,12 +253,10 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				set := flag.NewFlagSet("test", 0)
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 				set.Var(cli.NewStringSlice("CollectionHistory", "CollectionDomain"), FlagInvariantCollection, "invariant collection flag")
 
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, inputFilePath))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(td.app, set, nil)
 			},
@@ -287,12 +273,10 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				set := flag.NewFlagSet("test", 0)
 				set.String(FlagScanType, "", "scan type flag")
 				set.String(FlagInputFile, "", "Input file flag")
-				set.Int(FlagNumberOfShards, 0, "number of shards")
 				set.Var(cli.NewStringSlice("CollectionHistory", "CollectionDomain"), FlagInvariantCollection, "invariant collection flag")
 
 				require.NoError(t, set.Set(FlagScanType, "ConcreteExecutionType"))
 				require.NoError(t, set.Set(FlagInputFile, inputFilePath))
-				require.NoError(t, set.Set(FlagNumberOfShards, "4"))
 
 				return cli.NewContext(td.app, set, nil)
 			},

@@ -112,9 +112,7 @@ func (s *NDCIntegrationTestSuite) TestReplicationMessageDLQ() {
 		historyBatch,
 	)
 
-	execMgrFactory := s.active.GetExecutionManagerFactory()
-	executionManager, err := execMgrFactory.NewExecutionManager()
-	s.NoError(err)
+	executionManager := s.active.GetExecutionManager()
 
 	expectedDLQMsgs := map[int64]bool{}
 	for _, batch := range historyBatch {

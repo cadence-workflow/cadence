@@ -116,7 +116,6 @@ type Resource interface {
 	GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
 	GetExecutionManager() persistence.ExecutionManager
 	GetPersistenceBean() persistenceClient.Bean
-	GetNumShards() int
 
 	// GetHostName get host name
 	GetHostName() string
