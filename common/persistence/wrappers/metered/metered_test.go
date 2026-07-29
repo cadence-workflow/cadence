@@ -256,8 +256,6 @@ func persistenceWrapperTestCases() []struct {
 			prepareMock: func(t *testing.T, ctrl *gomock.Controller, newMetricsClient metrics.Client, newLogger log.Logger) (newManager any, mocked any) {
 				wrapped := persistence.NewMockExecutionManager(ctrl)
 
-				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
-
 				newObj := NewExecutionManager(wrapped, newMetricsClient, newLogger, &config.Persistence{EnablePersistenceLatencyHistogramMetrics: true},
 					dynamicproperties.GetBoolPropertyFn(false))
 
@@ -289,7 +287,6 @@ func nonEmptyRowCountTestCases() []struct {
 			name: "ExecutionManager.ListCurrentExecutions",
 			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
 				wrapped := persistence.NewMockExecutionManager(ctrl)
-				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 				wrapped.EXPECT().ListCurrentExecutions(gomock.Any(), gomock.Any()).Return(&persistence.ListCurrentExecutionsResponse{
 					Executions: []*persistence.CurrentWorkflowExecution{{}},
 				}, nil)
@@ -304,7 +301,6 @@ func nonEmptyRowCountTestCases() []struct {
 			name: "ExecutionManager.GetHistoryTasks",
 			invoke: func(t *testing.T, ctrl *gomock.Controller, metricsClient metrics.Client, logger log.Logger) {
 				wrapped := persistence.NewMockExecutionManager(ctrl)
-				wrapped.EXPECT().GetShardID().Return(0).AnyTimes()
 				wrapped.EXPECT().GetHistoryTasks(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksResponse{
 					Tasks: []persistence.Task{&persistence.ActivityTask{}},
 				}, nil)
