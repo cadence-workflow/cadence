@@ -336,3 +336,18 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminDBCleanCommand_HasNumberOfShardsFlag(t *testing.T) {
+	for _, cmd := range newDBCommands() {
+		if cmd.Name != "clean" {
+			continue
+		}
+		for _, f := range cmd.Flags {
+			if names := f.Names(); len(names) > 0 && names[0] == FlagNumberOfShards {
+				return
+			}
+		}
+		t.Fatalf("clean command is missing required flag %q; AdminDBClean requires it via getRequiredIntOption", FlagNumberOfShards)
+	}
+	t.Fatal("clean command not found in newDBCommands()")
+}
