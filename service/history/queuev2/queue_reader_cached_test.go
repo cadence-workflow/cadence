@@ -825,7 +825,7 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 	t2 := newTask(2, now.Add(20*time.Minute))
 	t3 := newTask(3, now.Add(30*time.Minute))
 	// tOtherOwner has a taskID in rangeID=1 (1<<20 at RangeSizeBits=20).
-	// The default mock GetRangeID()=0, so this task will be classified as OwnerChanged.
+	// The default mock GetRangeID()=0, so this task will be classified into NewRange.
 	tOtherOwner := newTask(1<<20, now.Add(40*time.Minute))
 
 	tests := []struct {
