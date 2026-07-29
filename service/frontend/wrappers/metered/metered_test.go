@@ -48,11 +48,10 @@ import (
 	"github.com/uber/cadence/service/frontend/config"
 )
 
-func TestCadenceMetricsLabelConsistency(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockHandler := api.NewMockHandler(ctrl)
-	mockDomainCache := cache.NewMockDomainCache(ctrl)
-
+// TestMetricsLabelConsistency emits domain, non-domain, and per-task-list
+// Cadence metrics through one Prometheus registry. Reusing a direct metric name
+// for a differently tagged rollup makes the reporter reject the registration.
+func TestMetricsLabelConsistency(t *testing.T) {
 	var registrationErrors []error
 	promCfg := &tallyp8s.Configuration{
 		OnError:   "none",
@@ -73,8 +72,28 @@ func TestCadenceMetricsLabelConsistency(t *testing.T) {
 		Separator:      tallyp8s.DefaultSeparator,
 	}, time.Second)
 
+	for _, migrationMode := range []metrics.HistogramMigrationMode{"timer", "histogram"} {
+		t.Run(string(migrationMode), func(t *testing.T) {
+			emitCadenceMetrics(t, rootScope, migrationMode)
+		})
+	}
+
+	// Force registration against the Prometheus registry before asserting.
+	require.NoError(t, closer.Close())
+
+	for _, regErr := range registrationErrors {
+		t.Logf("Prometheus registration error (label inconsistency): %v", regErr)
+	}
+	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
+}
+
+func emitCadenceMetrics(t *testing.T, rootScope tally.Scope, migrationMode metrics.HistogramMigrationMode) {
+	ctrl := gomock.NewController(t)
+	mockHandler := api.NewMockHandler(ctrl)
+	mockDomainCache := cache.NewMockDomainCache(ctrl)
+
 	metricsClient := metrics.NewClient(rootScope, metrics.Frontend, metrics.MigrationConfig{
-		Histogram: metrics.HistogramMigration{Default: "histogram"},
+		Histogram: metrics.HistogramMigration{Default: migrationMode},
 	})
 	handler := NewAPIHandler(mockHandler, testlogger.New(t), metricsClient, mockDomainCache, nil)
 	ctx := context.Background()
@@ -101,13 +120,47 @@ func TestCadenceMetricsLabelConsistency(t *testing.T) {
 		metricsClient,
 		metrics.FrontendPollForActivityTaskScope,
 	)
-	taskListScope.IncCounter(metrics.CadenceRequestsPerTaskList)
-	taskListScope.IncCounter(metrics.CadenceFailuresPerTaskList)
-	taskListScope.IncCounter(metrics.CadenceErrBadRequestPerTaskListCounter)
+	domainScope := metricsClient.Scope(metrics.FrontendDescribeWorkflowExecutionScope, metrics.DomainTag("test-domain"))
+	counterPairs := []struct {
+		direct      metrics.MetricIdx
+		perTaskList metrics.MetricIdx
+	}{
+		{metrics.CadenceRequests, metrics.CadenceRequestsPerTaskList},
+		{metrics.CadenceFailures, metrics.CadenceFailuresPerTaskList},
+		{metrics.CadenceErrBadRequestCounter, metrics.CadenceErrBadRequestPerTaskListCounter},
+		{metrics.CadenceErrDomainNotActiveCounter, metrics.CadenceErrDomainNotActivePerTaskListCounter},
+		{metrics.CadenceErrServiceBusyCounter, metrics.CadenceErrServiceBusyPerTaskListCounter},
+		{metrics.CadenceErrEntityNotExistsCounter, metrics.CadenceErrEntityNotExistsPerTaskListCounter},
+		{metrics.CadenceErrExecutionAlreadyStartedCounter, metrics.CadenceErrExecutionAlreadyStartedPerTaskListCounter},
+		{metrics.CadenceErrDomainAlreadyExistsCounter, metrics.CadenceErrDomainAlreadyExistsPerTaskListCounter},
+		{metrics.CadenceErrCancellationAlreadyRequestedCounter, metrics.CadenceErrCancellationAlreadyRequestedPerTaskListCounter},
+		{metrics.CadenceErrQueryFailedCounter, metrics.CadenceErrQueryFailedPerTaskListCounter},
+		{metrics.CadenceErrLimitExceededCounter, metrics.CadenceErrLimitExceededPerTaskListCounter},
+		{metrics.CadenceErrContextTimeoutCounter, metrics.CadenceErrContextTimeoutPerTaskListCounter},
+		{metrics.CadenceErrRetryTaskCounter, metrics.CadenceErrRetryTaskPerTaskListCounter},
+		{metrics.CadenceErrBadBinaryCounter, metrics.CadenceErrBadBinaryPerTaskListCounter},
+		{metrics.CadenceErrClientVersionNotSupportedCounter, metrics.CadenceErrClientVersionNotSupportedPerTaskListCounter},
+		{metrics.CadenceErrIncompleteHistoryCounter, metrics.CadenceErrIncompleteHistoryPerTaskListCounter},
+		{metrics.CadenceErrNonDeterministicCounter, metrics.CadenceErrNonDeterministicPerTaskListCounter},
+		{metrics.CadenceErrUnauthorizedCounter, metrics.CadenceErrUnauthorizedPerTaskListCounter},
+		{metrics.CadenceErrAuthorizeFailedCounter, metrics.CadenceErrAuthorizeFailedPerTaskListCounter},
+		{metrics.CadenceErrRemoteSyncMatchFailedCounter, metrics.CadenceErrRemoteSyncMatchFailedPerTaskListCounter},
+	}
+	for _, pair := range counterPairs {
+		domainScope.IncCounter(pair.direct)
+		taskListScope.IncCounter(pair.perTaskList)
+	}
+	for _, metric := range []metrics.MetricIdx{
+		metrics.CadenceErrStickyWorkerUnavailablePerTaskListCounter,
+		metrics.CadenceErrReadOnlyPartitionPerTaskListCounter,
+		metrics.CadenceErrTaskListNotOwnedByHostPerTaskListCounter,
+	} {
+		taskListScope.IncCounter(metric)
+	}
 
 	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 		Return(&types.DescribeWorkflowExecutionResponse{}, nil).Times(1)
-	_, err = handler.DescribeWorkflowExecution(ctx, describeRequest)
+	_, err := handler.DescribeWorkflowExecution(ctx, describeRequest)
 	require.NoError(t, err)
 
 	mockHandler.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
@@ -120,6 +173,10 @@ func TestCadenceMetricsLabelConsistency(t *testing.T) {
 	_, err = handler.DescribeWorkflowExecution(ctx, describeRequest)
 	require.Error(t, err)
 
+	mockHandler.EXPECT().RegisterDomain(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	err = handler.RegisterDomain(ctx, &types.RegisterDomainRequest{Name: "test-domain"})
+	require.NoError(t, err)
+
 	mockHandler.EXPECT().PollForActivityTask(gomock.Any(), gomock.Any()).
 		Return(&types.PollForActivityTaskResponse{}, nil).Times(1)
 	_, err = handler.PollForActivityTask(ctx, pollRequest)
@@ -129,11 +186,6 @@ func TestCadenceMetricsLabelConsistency(t *testing.T) {
 		Return(nil, &types.BadRequestError{Message: "bad request"}).Times(1)
 	_, err = handler.PollForActivityTask(ctx, pollRequest)
 	require.Error(t, err)
-
-	// Force registration against the Prometheus registry before asserting.
-	require.NoError(t, closer.Close())
-
-	assert.Empty(t, registrationErrors, "Prometheus registration errors must not be emitted")
 }
 
 func TestContextMetricsTags(t *testing.T) {
