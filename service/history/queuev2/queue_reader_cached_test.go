@@ -1156,14 +1156,14 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			},
 		},
 		{
-			// Cache task has nanosecond timestamp; DB task has the same time truncated to ms.
-			// They should compare as equal after truncation.
-			name: "timestamp sub-millisecond jitter: no mismatch",
+			// Task ID is present in both DB and cache; scheduled time is not compared,
+			// so a differing scheduled time is not flagged as a mismatch.
+			name: "task ID present in both but scheduled time differs: no mismatch",
 			snapshotResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute+500*time.Nanosecond))},
+				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
 			},
 			dbResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
+				Tasks: []persistence.Task{newTask(1, now.Add(11*time.Minute))},
 			},
 			wantResult: findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 1, DBTaskCount: 1},
 		},
@@ -1181,27 +1181,6 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(2 * time.Hour))},
 			},
 			wantResult: findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 2, DBTaskCount: 2},
-		},
-		{
-			name: "task ID present in both but scheduled time differs → IncorrectTimeTasks",
-			snapshotResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
-			},
-			dbResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(11*time.Minute))},
-			},
-			wantResult: findMismatchesInShadowResult{
-				IncorrectTimeTasks: []shadowTimeMismatch{
-					toShadowTimeMismatch(
-						newTask(1, now.Add(11*time.Minute)),
-						now.Add(11*time.Minute).Truncate(persistence.DBTimestampMinPrecision),
-						now.Add(10*time.Minute).Truncate(persistence.DBTimestampMinPrecision),
-					),
-				},
-				HasMismatches:  true,
-				CacheTaskCount: 1,
-				DBTaskCount:    1,
-			},
 		},
 		{
 			name:         "extra task in cache: different rangeID → owner changed, not a mismatch",

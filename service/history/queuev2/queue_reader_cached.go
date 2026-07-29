@@ -870,22 +870,6 @@ func capShadowMismatchSlice[T any](s []T) []T {
 	return s[:shadowMismatchLogLimit]
 }
 
-// shadowTimeMismatch records a task present in both DB and cache but with mismatched scheduled times.
-type shadowTimeMismatch struct {
-	shadowMismatchTaskInfo `json:",inline"`
-	DBTime                 time.Time `json:"dbTime"`
-	CacheTime              time.Time `json:"cacheTime"`
-}
-
-// toShadowTimeMismatch constructs a shadowTimeMismatch from a persistence.Task and its scheduled times in DB and cache.
-func toShadowTimeMismatch(t persistence.Task, dbTime, cacheTime time.Time) shadowTimeMismatch {
-	return shadowTimeMismatch{
-		shadowMismatchTaskInfo: toShadowMismatchTaskInfo(t),
-		DBTime:                 dbTime,
-		CacheTime:              cacheTime,
-	}
-}
-
 // shadowMismatchTaskInfo holds identifying information about a task mismatch for logging purposes.
 type shadowMismatchTaskInfo struct {
 	TaskKey persistence.HistoryTaskKey `json:"taskKey"`
@@ -904,8 +888,6 @@ func toShadowMismatchTaskInfo(t persistence.Task) shadowMismatchTaskInfo {
 type findMismatchesInShadowResult struct {
 	// MissedInCacheTasks contains tasks present in DB but absent from cache, created by the current rangeID.
 	MissedInCacheTasks []shadowMismatchTaskInfo `json:"missedInCacheTaskKeys,omitempty"`
-	// IncorrectTimeTasks contains tasks whose ID is present in both DB and cache but whose scheduled times differ.
-	IncorrectTimeTasks []shadowTimeMismatch `json:"incorrectTimeTaskKeys,omitempty"`
 	// ExtraInCacheTasks contains task keys present in cache but absent from the DB response, created by the current rangeID.
 	ExtraInCacheTasks []shadowMismatchTaskInfo `json:"extraInCacheTaskKeys,omitempty"`
 	// OwnerChangedTasks holds tasks absent from DB or cache whose taskID encodes a different rangeID
@@ -921,7 +903,7 @@ type findMismatchesInShadowResult struct {
 	CacheTaskCount int `json:"cacheTaskCount"`
 	// DBTaskCount is the number of tasks in the DB response
 	DBTaskCount int `json:"dbTaskCount"`
-	// HasMismatches is true when MissedInCacheTasks, IncorrectTimeTasks, or ExtraInCacheTasks is non-empty.
+	// HasMismatches is true when MissedInCacheTasks or ExtraInCacheTasks is non-empty.
 	HasMismatches bool `json:"-"`
 }
 
@@ -942,7 +924,6 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 
 	// Cap the number of mismatched task keys logged to avoid excessively large logs
 	result.MissedInCacheTasks = capShadowMismatchSlice(result.MissedInCacheTasks)
-	result.IncorrectTimeTasks = capShadowMismatchSlice(result.IncorrectTimeTasks)
 	result.ExtraInCacheTasks = capShadowMismatchSlice(result.ExtraInCacheTasks)
 	result.OwnerChangedTasks = capShadowMismatchSlice(result.OwnerChangedTasks)
 	result.OwnerChangedRangeIDs = capShadowMismatchSlice(result.OwnerChangedRangeIDs)
@@ -967,41 +948,30 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 	q.logger.Warn("shadow comparison mismatch", logTags...)
 }
 
-// getTruncatedScheduledTime returns the scheduled time of a task truncated to
-// DBTimestampMinPrecision (millisecond), matching Cassandra's storage precision.
-func getTruncatedScheduledTime(t persistence.Task) time.Time {
-	return t.GetTaskKey().GetScheduledTime().Truncate(persistence.DBTimestampMinPrecision)
-}
-
 // findMismatchesInShadow compares a cache snapshot response against the DB response.
 //
-// Task comparison uses taskID as the primary key and the scheduled time truncated to
-// millisecond precision (DBTimestampMinPrecision) as a secondary check. Truncation
-// avoids false positives from injected tasks whose nanosecond timestamps Cassandra
-// rounds to milliseconds on the round-trip.
-//
-// NextTaskKey is intentionally not compared: Cassandra commonly returns a non-empty
-// paging cursor even on the last page, which causes the DB reader to report
-// lastTask.Next() while the cache (which knows its window is exhausted) reports
-// exclusiveMaxTaskKey. Comparing these would produce false-positive mismatches under
-// normal production traffic without indicating any real divergence in task data.
+// Task comparison uses taskID as the primary key. NextTaskKey is intentionally
+// not compared: Cassandra commonly returns a non-empty paging cursor even on
+// the last page, which causes the DB reader to report lastTask.Next() while
+// the cache (which knows its window is exhausted) reports exclusiveMaxTaskKey.
+// Comparing these would produce false-positive mismatches under normal
+// production traffic without indicating any real divergence in task data.
 //
 // DB tasks absent from cache are partitioned into MissedInCacheTasks (same rangeID)
 // and OwnerChangedTasks (different rangeID). Cache tasks absent from DB are similarly
 // partitioned into ExtraInCacheTasks (same rangeID) and OwnerChangedTasks (different rangeID).
-// Only MissedInCacheTasks, IncorrectTimeTasks, and ExtraInCacheTasks contribute to HasMismatches.
-// Tasks present in both but with mismatched scheduled times are recorded in IncorrectTimeTasks.
+// Only MissedInCacheTasks and ExtraInCacheTasks contribute to HasMismatches.
 func (q *cachedQueueReader) findMismatchesInShadow(
 	cacheResp *GetTaskResponse,
 	dbResp *GetTaskResponse,
 ) findMismatchesInShadowResult {
-	cacheTaskKeys := make(map[int64]time.Time, len(cacheResp.Tasks))
+	cacheTaskKeys := make(map[int64]struct{}, len(cacheResp.Tasks))
 	for _, t := range cacheResp.Tasks {
-		cacheTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
+		cacheTaskKeys[t.GetTaskID()] = struct{}{}
 	}
-	dbTaskKeys := make(map[int64]time.Time, len(dbResp.Tasks))
+	dbTaskKeys := make(map[int64]struct{}, len(dbResp.Tasks))
 	for _, t := range dbResp.Tasks {
-		dbTaskKeys[t.GetTaskID()] = getTruncatedScheduledTime(t)
+		dbTaskKeys[t.GetTaskID()] = struct{}{}
 	}
 
 	var (
@@ -1011,14 +981,8 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 	)
 
 	for _, t := range dbResp.Tasks {
-		cacheTime, ok := cacheTaskKeys[t.GetTaskID()]
-		if ok {
-			if cacheTime.Equal(dbTaskKeys[t.GetTaskID()]) {
-				// Task is present in both DB and cache with matching scheduled time
-				continue
-			}
-
-			result.IncorrectTimeTasks = append(result.IncorrectTimeTasks, toShadowTimeMismatch(t, dbTaskKeys[t.GetTaskID()], cacheTime))
+		if _, ok := cacheTaskKeys[t.GetTaskID()]; ok {
+			// Task is present in both DB and cache
 			continue
 		}
 
@@ -1036,7 +1000,7 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 
 	for _, t := range cacheResp.Tasks {
 		if _, ok := dbTaskKeys[t.GetTaskID()]; ok {
-			// Task is present in DB (time mismatches are already captured from the DB loop above)
+			// Task is present in DB
 			continue
 		}
 
@@ -1052,7 +1016,7 @@ func (q *cachedQueueReader) findMismatchesInShadow(
 		rangeIDs[taskRangeID] = struct{}{}
 	}
 
-	result.HasMismatches = len(result.MissedInCacheTasks) > 0 || len(result.IncorrectTimeTasks) > 0 || len(result.ExtraInCacheTasks) > 0
+	result.HasMismatches = len(result.MissedInCacheTasks) > 0 || len(result.ExtraInCacheTasks) > 0
 	result.OwnerChangedRangeIDs = slices.Collect(maps.Keys(rangeIDs))
 	result.CurrentRangeID = currentRangeID
 	result.DBTaskCount = len(dbResp.Tasks)
