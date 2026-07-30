@@ -97,11 +97,12 @@ const (
 
 // Common tags for all services
 const (
-	OperationTagName      = "operation"
-	CadenceRoleTagName    = "cadence_role"
-	CadenceServiceTagName = "cadence_service"
-	StatsTypeTagName      = "stats_type"
-	CacheTypeTagName      = "cache_type"
+	OperationTagName           = "operation"
+	CadenceRoleTagName         = "cadence_role"
+	CadenceServiceTagName      = "cadence_service"
+	StatsTypeTagName           = "stats_type"
+	CacheTypeTagName           = "cache_type"
+	ShadowMismatchRangeTagName = "shadow_mismatch_range"
 )
 
 // Common tag values
