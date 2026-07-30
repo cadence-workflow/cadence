@@ -127,6 +127,10 @@ type Config struct {
 	// Emit signal related metrics with signal name tag. Be aware of cardinality.
 	EmitSignalNameMetricsTag dynamicproperties.BoolPropertyFnWithDomainFilter
 
+	// EnableScheduler controls whether the scheduler worker is enabled for a domain.
+	// CreateSchedule validates this flag so clients get a clear error instead of a broken schedule.
+	EnableScheduler dynamicproperties.BoolPropertyFnWithDomainFilter
+
 	// HostName for machine running the service
 	HostName string
 }
@@ -206,6 +210,7 @@ func NewConfig(dc *dynamicconfig.Collection, numHistoryShards int, isAdvancedVis
 		Lockdown:                                          dc.GetBoolPropertyFilteredByDomain(dynamicproperties.Lockdown),
 		EnableTasklistIsolation:                           dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableTasklistIsolation),
 		EnableDomainAuditLogging:                          dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
+		EnableScheduler:                                   dc.GetBoolPropertyFilteredByDomain(dynamicproperties.EnableScheduler),
 		DomainConfig: domain.Config{
 			MaxBadBinaryCount:           dc.GetIntPropertyFilteredByDomain(dynamicproperties.FrontendMaxBadBinaries),
 			MinRetentionDays:            dc.GetIntProperty(dynamicproperties.MinRetentionDays),
