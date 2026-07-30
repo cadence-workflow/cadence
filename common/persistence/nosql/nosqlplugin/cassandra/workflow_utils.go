@@ -1408,6 +1408,8 @@ func updateWorkflowExecution(
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
 
+	policyData, policyEncoding := fromDataBlobForCassandra(execution.ActiveClusterSelectionPolicy)
+
 	batch.Query(templateUpdateWorkflowExecutionWithVersionHistoriesQuery,
 		domainID,
 		workflowID,
@@ -1482,6 +1484,8 @@ func updateWorkflowExecution(
 		execution.LastWriteVersion,
 		execution.State,
 		timeStamp,
+		policyData,
+		policyEncoding,
 		shardID,
 		rowTypeExecution,
 		domainID,
@@ -1504,6 +1508,8 @@ func createWorkflowExecution(
 ) error {
 	execution.StartTimestamp = convertToCassandraTimestamp(execution.StartTimestamp)
 	execution.LastUpdatedTimestamp = convertToCassandraTimestamp(execution.LastUpdatedTimestamp)
+
+	policyData, policyEncoding := fromDataBlobForCassandra(execution.ActiveClusterSelectionPolicy)
 
 	batch.Query(templateCreateWorkflowExecutionWithVersionHistoriesQuery,
 		shardID,
@@ -1586,6 +1592,8 @@ func createWorkflowExecution(
 		execution.LastWriteVersion,
 		execution.State,
 		timeStamp,
+		policyData,
+		policyEncoding,
 	)
 	return nil
 }
@@ -1625,30 +1633,6 @@ func fromRequestRowType(rowType int) (persistence.WorkflowRequestType, error) {
 	default:
 		return persistence.WorkflowRequestType(0), fmt.Errorf("unknown request row type %v", rowType)
 	}
-}
-
-func insertWorkflowActiveClusterSelectionPolicyRow(
-	batch gocql.Batch,
-	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
-	timeStamp time.Time,
-) error {
-	if activeClusterSelectionPolicyRow == nil || activeClusterSelectionPolicyRow.Policy == nil {
-		return nil
-	}
-
-	batch.Query(templateInsertWorkflowActiveClusterSelectionPolicyRowQuery,
-		activeClusterSelectionPolicyRow.ShardID,
-		rowTypeWorkflowActiveClusterSelectionPolicy,
-		activeClusterSelectionPolicyRow.DomainID,
-		activeClusterSelectionPolicyRow.WorkflowID,
-		activeClusterSelectionPolicyRow.RunID,
-		defaultVisibilityTimestamp,
-		rowTypeWorkflowActiveClusterSelectionVersion,
-		timeStamp,
-		activeClusterSelectionPolicyRow.Policy.Data,
-		activeClusterSelectionPolicyRow.Policy.GetEncodingString(),
-	)
-	return nil
 }
 
 func insertOrUpsertWorkflowRequestRow(

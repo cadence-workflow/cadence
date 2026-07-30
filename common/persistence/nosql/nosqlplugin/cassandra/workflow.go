@@ -45,7 +45,6 @@ func (db *CDB) InsertWorkflowExecutionWithTasks(
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	execution *nosqlplugin.WorkflowExecutionRequest,
 	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
-	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	shardID := shardCondition.ShardID
@@ -55,11 +54,7 @@ func (db *CDB) InsertWorkflowExecutionWithTasks(
 
 	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
 
-	err := insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp)
-	if err != nil {
-		return err
-	}
-	err = insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
+	err := insertOrUpsertWorkflowRequestRow(batch, requests, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -126,7 +121,6 @@ func (db *CDB) UpdateWorkflowExecutionWithTasks(
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	mutatedExecution *nosqlplugin.WorkflowExecutionRequest,
 	insertedExecution *nosqlplugin.WorkflowExecutionRequest,
-	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	resetExecution *nosqlplugin.WorkflowExecutionRequest,
 	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,
@@ -172,12 +166,6 @@ func (db *CDB) UpdateWorkflowExecutionWithTasks(
 		if err != nil {
 			return err
 		}
-
-		err = insertWorkflowActiveClusterSelectionPolicyRow(batch, activeClusterSelectionPolicyRow, timeStamp)
-		if err != nil {
-			return err
-		}
-
 	}
 
 	if resetExecution != nil {
@@ -911,7 +899,43 @@ func (db *CDB) executeHistoryTaskBatchCAS(batch gocql.Batch, shardCondition nosq
 }
 
 func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*nosqlplugin.ActiveClusterSelectionPolicyRow, error) {
-	query := db.session.Query(templateGetActiveClusterSelectionPolicyQuery,
+	query := db.session.Query(templateGetActiveClusterSelectionPolicyFromExecutionQuery,
+		shardID,
+		rowTypeExecution,
+		domainID,
+		wfID,
+		rID,
+		defaultVisibilityTimestamp,
+		rowTypeExecutionTaskID,
+	).WithContext(ctx)
+
+	result := make(map[string]interface{})
+	if err := query.MapScan(result); err != nil {
+		if db.client.IsNotFoundError(err) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	policyData, _ := result["data"].([]byte)
+	policyEncoding, _ := result["data_encoding"].(string)
+
+	if policyData == nil {
+		return db.selectActiveClusterSelectionPolicyLegacy(ctx, shardID, domainID, wfID, rID)
+	}
+
+	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
+		ShardID:    shardID,
+		DomainID:   domainID,
+		WorkflowID: wfID,
+		RunID:      rID,
+		Policy:     persistence.NewDataBlob(policyData, constants.EncodingType(policyEncoding)),
+	}, nil
+}
+
+func (db *CDB) selectActiveClusterSelectionPolicyLegacy(ctx context.Context, shardID int, domainID, wfID, rID string) (*nosqlplugin.ActiveClusterSelectionPolicyRow, error) {
+	query := db.session.Query(templateGetActiveClusterSelectionPolicyFromExecutionLegacyQuery,
 		shardID,
 		rowTypeWorkflowActiveClusterSelectionPolicy,
 		domainID,
@@ -930,12 +954,18 @@ func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 		return nil, err
 	}
 
+	policyData, _ := result["data"].([]byte)
+	policyEncoding, _ := result["data_encoding"].(string)
+	if policyData == nil {
+		return nil, nil
+	}
+
 	return &nosqlplugin.ActiveClusterSelectionPolicyRow{
 		ShardID:    shardID,
 		DomainID:   domainID,
 		WorkflowID: wfID,
 		RunID:      rID,
-		Policy:     persistence.NewDataBlob(result["data"].([]byte), constants.EncodingType(result["data_encoding"].(string))),
+		Policy:     persistence.NewDataBlob(policyData, constants.EncodingType(policyEncoding)),
 	}, nil
 }
 

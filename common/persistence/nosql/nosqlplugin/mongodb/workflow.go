@@ -37,7 +37,6 @@ func (db *mdb) InsertWorkflowExecutionWithTasks(
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	execution *nosqlplugin.WorkflowExecutionRequest,
 	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
-	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	shardCondition *nosqlplugin.ShardCondition,
 ) error {
 	panic("TODO")
@@ -49,7 +48,6 @@ func (db *mdb) UpdateWorkflowExecutionWithTasks(
 	currentWorkflowRequest *nosqlplugin.CurrentWorkflowWriteRequest,
 	mutatedExecution *nosqlplugin.WorkflowExecutionRequest,
 	insertedExecution *nosqlplugin.WorkflowExecutionRequest,
-	activeClusterSelectionPolicyRow *nosqlplugin.ActiveClusterSelectionPolicyRow,
 	resetExecution *nosqlplugin.WorkflowExecutionRequest,
 	tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask,
 	shardCondition *nosqlplugin.ShardCondition,

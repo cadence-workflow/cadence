@@ -2622,7 +2622,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 					`init_interval: 0, backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, ` +
 					`non_retriable_errors: [], event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 0, expiration_seconds: 0, search_attributes: map[], ` +
 					`memo: map[], partition_config: map[], active_cluster_selection_policy: [], active_cluster_selection_policy_encoding: ` +
-					`}, next_event_id = 0 , version_histories = [] , version_histories_encoding =  , checksum = {version: 0, flavor: 0, value: [] }, workflow_last_write_version = 0 , workflow_state = 0 , last_updated_time = 2025-01-06T15:00:00Z ` +
+					`}, next_event_id = 0 , version_histories = [] , version_histories_encoding =  , checksum = {version: 0, flavor: 0, value: [] }, workflow_last_write_version = 0 , workflow_state = 0 , last_updated_time = 2025-01-06T15:00:00Z , data = {} , data_encoding = {} ` +
 					`WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 ` +
@@ -2695,7 +2695,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 				Checksums:                    &checksum.Checksum{},
 			},
 			wantQueries: []string{
-				`INSERT INTO executions (shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time) ` +
+				`INSERT INTO executions (shard_id, domain_id, workflow_id, run_id, type, execution, next_event_id, visibility_ts, task_id, version_histories, version_histories_encoding, checksum, workflow_last_write_version, workflow_state, created_time, data, data_encoding) ` +
 					`VALUES(1000, domain1, workflow1, runid1, 1, ` +
 					`{domain_id: domain1, workflow_id: workflow1, run_id: runid1, first_run_id: , parent_domain_id: , parent_workflow_id: , ` +
 					`parent_run_id: parentRunID1, initiated_id: 0, completion_event_batch_id: 0, completion_event: [], completion_event_data_encoding: , ` +
@@ -2709,7 +2709,9 @@ func TestCreateWorkflowExecution(t *testing.T) {
 					`backoff_coefficient: 0, max_interval: 0, expiration_time: 0001-01-01T00:00:00Z, max_attempts: 0, non_retriable_errors: [], ` +
 					`event_store_version: 2, branch_token: [], cron_schedule: , cron_overlap_policy: 1, expiration_seconds: 0, search_attributes: map[], memo: map[], partition_config: map[], ` +
 					`active_cluster_selection_policy: [116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 97 99 116 105 118 101 45 99 108 117 115 116 101 114 45 115 101 108 101 99 116 105 111 110 45 112 111 108 105 99 121 45 100 97 116 97], active_cluster_selection_policy_encoding: thriftrw` +
-					`}, 0, 946684800000, -10, [], , {version: 0, flavor: 0, value: [] }, 0, 0, 2025-01-06T15:00:00Z) IF NOT EXISTS `,
+					`}, 0, 946684800000, -10, [], , {version: 0, flavor: 0, value: [] }, 0, 0, 2025-01-06T15:00:00Z, ` +
+					`[116 104 114 105 102 116 45 101 110 99 111 100 101 100 45 97 99 116 105 118 101 45 99 108 117 115 116 101 114 45 115 101 108 101 99 116 105 111 110 45 112 111 108 105 99 121 45 100 97 116 97], thriftrw` +
+					`) IF NOT EXISTS `,
 			},
 		},
 	}
