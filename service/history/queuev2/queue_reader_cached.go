@@ -66,7 +66,7 @@ type CachedQueueReader interface {
 // populated from shard.Context
 type cachedQueueReaderOptions struct {
 	// Mode controls cache behavior: "enabled" uses cache, anything else (including "disabled") disables.
-	Mode dynamicproperties.StringPropertyFn
+	Mode dynamicproperties.StringPropertyFnWithShardIDFilter
 	// MaxSize is the maximum number of tasks the cache may hold at once.
 	// Insertions that would exceed this limit trigger time-based eviction first.
 	MaxSize dynamicproperties.IntPropertyFn
@@ -277,11 +277,13 @@ func (q *cachedQueueReader) nextPrefetchDelay() time.Duration {
 }
 
 // isEnabled returns true if the cache is fully enabled
-func (q *cachedQueueReader) isEnabled() bool { return q.options.Mode() == "enabled" }
+func (q *cachedQueueReader) isEnabled() bool {
+	return q.options.Mode(q.shard.GetShardID()) == "enabled"
+}
 
 // isShadow returns true when cache runs in shadow mode — results are compared
 // against the DB but the DB result is returned to the processor.
-func (q *cachedQueueReader) isShadow() bool { return q.options.Mode() == "shadow" }
+func (q *cachedQueueReader) isShadow() bool { return q.options.Mode(q.shard.GetShardID()) == "shadow" }
 
 // isCachedQueueReaderDisabled reports whether the given mode disables the cached queue reader.
 func isCachedQueueReaderDisabled(mode string) bool {
@@ -295,7 +297,7 @@ func isCachedQueueReaderDisabled(mode string) bool {
 
 // isDisabled returns true for the "disabled" mode and for any unrecognised value
 func (q *cachedQueueReader) isDisabled() bool {
-	return isCachedQueueReaderDisabled(q.options.Mode())
+	return isCachedQueueReaderDisabled(q.options.Mode(q.shard.GetShardID()))
 }
 
 // IsEmpty reports whether the cache queue reader is empty

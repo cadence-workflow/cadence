@@ -43,7 +43,7 @@ import (
 
 func testOptions(overrides ...func(*cachedQueueReaderOptions)) *cachedQueueReaderOptions {
 	opts := &cachedQueueReaderOptions{
-		Mode:                      dynamicproperties.GetStringPropertyFn("enabled"),
+		Mode:                      dynamicproperties.GetStringPropertyFnFilteredByShardID("enabled"),
 		MaxSize:                   dynamicproperties.GetIntPropertyFn(100),
 		MaxLookAheadWindow:        dynamicproperties.GetDurationPropertyFn(time.Hour),
 		PrefetchTriggerWindow:     dynamicproperties.GetDurationPropertyFn(5 * time.Minute),
@@ -77,6 +77,7 @@ func setupMocksForCachedQueueReader(
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
 	mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
+	mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
 	deps := &cachedQueueReaderMockDeps{
 		mockBase:  NewMockQueueReader(ctrl),
 		mockQueue: NewMockInMemQueue(ctrl),
@@ -150,7 +151,7 @@ func TestCachedQueueReader_Modes(t *testing.T) {
 		t.Run(tc.mode, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, _ := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			})
 			assert.Equal(t, tc.enabled, r.isEnabled(), "mode %q: isEnabled", tc.mode)
 			assert.Equal(t, tc.shadow, r.isShadow(), "mode %q: isShadow", tc.mode)
@@ -289,7 +290,7 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			name:  "disabled clears stale cache",
 			tasks: []persistence.Task{inside},
 			optsOverride: func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 			},
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Clear()
@@ -796,7 +797,7 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			})
 			base, queue := deps.mockBase, deps.mockQueue
 			setBounds(r, tc.lower, tc.upper)
@@ -1037,7 +1038,7 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("shadow")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("shadow")
 			})
 			setBounds(r, tc.lower, tc.upper)
 			tc.setupMocks(deps.mockBase, deps.mockQueue)
@@ -1390,7 +1391,7 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			})
 			base, queue := deps.mockBase, deps.mockQueue
 			setBounds(r, tc.initLower, tc.initUpper)
@@ -1449,7 +1450,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		{
 			name: "disabled: no-op when cache empty",
 			optsOverride: func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 			},
 			initLower:  persistence.MinimumHistoryTaskKey,
 			initUpper:  persistence.MinimumHistoryTaskKey,
@@ -1460,7 +1461,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		{
 			name: "disabled: clears stale cache when not empty",
 			optsOverride: func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 			},
 			initLower: someLower,
 			initUpper: someUpper,
@@ -1634,7 +1635,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ *GetTaskRequest) (*GetTaskResponse, error) {
-						r.options.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+						r.options.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 						return &GetTaskResponse{
 							Tasks:    []persistence.Task{t1, t2},
 							Progress: &GetTaskProgress{NextTaskKey: maxKey},
