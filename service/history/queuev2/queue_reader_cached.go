@@ -950,6 +950,7 @@ func (q *cachedQueueReader) reportShadowComparison(result findMismatchesInShadow
 	case !result.NewRange.isEmpty():
 		q.logger.Info("stale shard owner, no check for mismatches", logTags...)
 	case len(result.CurrentRange.Missed) > 0:
+		q.metrics.AddCounter(metrics.CachedQueueShadowMismatchCounter, int64(len(result.CurrentRange.Missed)))
 		q.logger.Warn("potential severe mismatch between db and cache states", logTags...)
 	case len(result.CurrentRange.Extra) > 0 || !result.PreviousRange.isEmpty():
 		q.logger.Info("potential non-critical mismatch between db and cache states", logTags...)

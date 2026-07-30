@@ -36,6 +36,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/metrics"
+	metricsmocks "github.com/uber/cadence/common/metrics/mocks"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/shard"
@@ -836,6 +837,10 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 		setupMocks func(base *MockQueueReader, queue *MockInMemQueue)
 		wantErr    bool
 		wantResp   *GetTaskResponse
+		// wantShadowMismatchCount, when non-zero, swaps the reader's metrics scope for a
+		// mock and asserts CachedQueueShadowMismatchCounter fires with this exact delta.
+		// Zero means the counter must not fire; the shared no-op scope is used instead.
+		wantShadowMismatchCount int
 	}{
 		{
 			// Cache is populated and DB returns the same tasks → returns DB result.
@@ -895,6 +900,7 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 					NextTaskKey: upper,
 				},
 			},
+			wantShadowMismatchCount: 1,
 		},
 		{
 			// Cache has an extra task not in DB (inject race) → ExtraInCache only; returns DB result.
@@ -1041,6 +1047,13 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			})
 			setBounds(r, tc.lower, tc.upper)
 			tc.setupMocks(deps.mockBase, deps.mockQueue)
+
+			if tc.wantShadowMismatchCount != 0 {
+				mockScope := metricsmocks.NewScope(t)
+				mockScope.EXPECT().IncCounter(metrics.CachedQueueHitsCounter).Once()
+				mockScope.EXPECT().AddCounter(metrics.CachedQueueShadowMismatchCounter, int64(tc.wantShadowMismatchCount)).Once()
+				r.metrics = mockScope
+			}
 
 			resp, err := r.GetTask(context.Background(), tc.req)
 
