@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/uber/ringpop-go"
 	"github.com/uber/ringpop-go/events"
@@ -46,14 +47,17 @@ import (
 type (
 	// Provider use ringpop to announce membership changes
 	Provider struct {
-		status      int32
-		service     string
-		ringpop     *ringpop.Ringpop
-		bootParams  *swim.BootstrapOptions
-		logger      log.Logger
-		portmap     membership.PortMap
-		mu          sync.RWMutex
-		subscribers map[string]func(membership.ChangedEvent)
+		status        int32
+		service       string
+		ringpop       *ringpop.Ringpop
+		bootParams    *swim.BootstrapOptions
+		logger        log.Logger
+		portmap       membership.PortMap
+		mu            sync.RWMutex
+		subscribers   map[string]func(membership.ChangedEvent)
+		stopCh        chan struct{}
+		shutdownWG    sync.WaitGroup
+		bootstrapped  int32
 	}
 )
 
@@ -120,6 +124,7 @@ func NewRingpopProvider(
 		portmap:     portMap,
 		ringpop:     rp,
 		subscribers: map[string]func(membership.ChangedEvent){},
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -133,11 +138,55 @@ func (r *Provider) Start() {
 		return
 	}
 
-	_, err := r.ringpop.Bootstrap(r.bootParams)
-	if err != nil {
-		r.logger.Fatal("unable to bootstrap ringpop", tag.Error(err))
+	r.shutdownWG.Add(1)
+	go r.bootstrapWithRetry()
+}
+
+func (r *Provider) bootstrapWithRetry() {
+	defer r.shutdownWG.Done()
+
+	maxRetries := 10
+	initialDelay := 1 * time.Second
+	maxDelay := 30 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		select {
+		case <-r.stopCh:
+			r.logger.Info("bootstrap cancelled due to shutdown")
+			return
+		default:
+		}
+
+		_, err := r.ringpop.Bootstrap(r.bootParams)
+		if err == nil {
+			r.logger.Info("ringpop bootstrap successful", tag.Attempt(int32(attempt+1)))
+			atomic.StoreInt32(&r.bootstrapped, 1)
+			r.postBootstrapSetup()
+			return
+		}
+
+		delay := initialDelay * time.Duration(1<<uint(attempt))
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		r.logger.Warn("ringpop bootstrap failed, retrying",
+			tag.Error(err),
+			tag.Attempt(int32(attempt+1)),
+			tag.Value(delay))
+
+		select {
+		case <-r.stopCh:
+			r.logger.Info("bootstrap cancelled during retry wait")
+			return
+		case <-time.After(delay):
+		}
 	}
 
+	r.logger.Fatal("unable to bootstrap ringpop after retries")
+}
+
+func (r *Provider) postBootstrapSetup() {
 	// Get updates from ringpop ring
 	r.ringpop.AddListener(r)
 
@@ -156,6 +205,13 @@ func (r *Provider) Start() {
 	if err = labels.Set(roleKey, r.service); err != nil {
 		r.logger.Fatal("unable to set ringpop role label", tag.Error(err))
 	}
+}
+
+func (r *Provider) isBootstrapped() error {
+	if atomic.LoadInt32(&r.bootstrapped) == 0 {
+		return fmt.Errorf("ringpop not bootstrapped yet")
+	}
+	return nil
 }
 
 // HandleEvent handles updates from ringpop
@@ -190,6 +246,10 @@ func (r *Provider) SelfEvict() error {
 
 // GetMembers returns all hosts with a specified role value
 func (r *Provider) GetMembers(service string) ([]membership.HostInfo, error) {
+	if err := r.isBootstrapped(); err != nil {
+		return nil, err
+	}
+
 	var res []membership.HostInfo
 
 	// filter member by service name, add port info to Hostinfo if they are present
@@ -250,6 +310,10 @@ func (r *Provider) GetMembers(service string) ([]membership.HostInfo, error) {
 
 // WhoAmI returns address of this instance
 func (r *Provider) WhoAmI() (membership.HostInfo, error) {
+	if err := r.isBootstrapped(); err != nil {
+		return membership.HostInfo{}, err
+	}
+
 	address, err := r.ringpop.WhoAmI()
 	if err != nil {
 		return membership.HostInfo{}, fmt.Errorf("ringpop doesn't know Who Am I: %w", err)
@@ -280,6 +344,9 @@ func (r *Provider) Stop() {
 	) {
 		return
 	}
+
+	close(r.stopCh)
+	r.shutdownWG.Wait()
 
 	r.ringpop.RemoveListener(r)
 	r.ringpop.Destroy()
