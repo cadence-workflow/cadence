@@ -163,6 +163,12 @@ func (wh *WorkflowHandler) CreateSchedule(
 	if domainName == "" {
 		return nil, validate.ErrDomainNotSet
 	}
+	if !wh.config.EnableScheduler(domainName) {
+		return nil, &types.BadRequestError{Message: fmt.Sprintf(
+			"Schedules are not enabled for domain %q. File an enablement request at go/cadence-schedules-onboard and post in #cadence-users.",
+			domainName,
+		)}
+	}
 	scheduleID := request.GetScheduleID()
 	if scheduleID == "" {
 		return nil, &types.BadRequestError{Message: "ScheduleID is not set on request."}
