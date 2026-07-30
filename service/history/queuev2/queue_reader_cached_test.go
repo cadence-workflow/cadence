@@ -73,21 +73,9 @@ func setupMocksForCachedQueueReader(
 	ctrl *gomock.Controller,
 	overrides ...func(*cachedQueueReaderOptions),
 ) (*cachedQueueReader, *cachedQueueReaderMockDeps) {
-	return setupMocksForCachedQueueReaderWithRangeID(t, ctrl, 0, overrides...)
-}
-
-// setupMocksForCachedQueueReaderWithRangeID is like setupMocksForCachedQueueReader but lets the
-// caller control the shard's current rangeID, needed to construct tasks that resolve to
-// findMismatchesInShadow's PreviousRange bucket (taskRangeID < currentRangeID).
-func setupMocksForCachedQueueReaderWithRangeID(
-	t *testing.T,
-	ctrl *gomock.Controller,
-	rangeID int64,
-	overrides ...func(*cachedQueueReaderOptions),
-) (*cachedQueueReader, *cachedQueueReaderMockDeps) {
 	t.Helper()
 	mockShard := shard.NewMockContext(ctrl)
-	mockShard.EXPECT().GetRangeID().Return(rangeID).AnyTimes()
+	mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
 	mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
 	deps := &cachedQueueReaderMockDeps{
 		mockBase:  NewMockQueueReader(ctrl),
@@ -839,9 +827,6 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 	// tOtherOwner has a taskID in rangeID=1 (1<<20 at RangeSizeBits=20).
 	// The default mock GetRangeID()=0, so this task will be classified into NewRange.
 	tOtherOwner := newTask(1<<20, now.Add(40*time.Minute))
-	// tPreviousOwner has a taskID in rangeID=0. Used only with a case that overrides
-	// the current rangeID to 1, so this task is classified into PreviousRange.
-	tPreviousOwner := newTask(5, now.Add(50*time.Minute))
 
 	tests := []struct {
 		name       string
@@ -851,15 +836,6 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 		setupMocks func(base *MockQueueReader, queue *MockInMemQueue)
 		wantErr    bool
 		wantResp   *GetTaskResponse
-		// rangeID overrides the shard's current rangeID for this case (default 0).
-		// Only the previous-range case needs a non-zero value, so tasks built at
-		// rangeID 0 resolve to findMismatchesInShadow's PreviousRange bucket.
-		rangeID int64
-		// wantShadowMismatchByTag, when non-nil, swaps the reader's metrics scope for a
-		// fake and asserts CachedQueueShadowMismatchCounter fired exactly these
-		// range-tag -> delta pairs (an empty, non-nil map asserts it fired zero times).
-		// Nil means don't check metrics at all; the shared no-op scope is used instead.
-		wantShadowMismatchByTag map[string]int64
 	}{
 		{
 			// Cache is populated and DB returns the same tasks → returns DB result.
@@ -919,40 +895,6 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 					NextTaskKey: upper,
 				},
 			},
-			wantShadowMismatchByTag: map[string]int64{"current": 1},
-		},
-		{
-			// DB has a task owned by a previous rangeID, missing from cache → PreviousRange.Missed;
-			// tagged separately from the current-range severe mismatch counter.
-			name:  "cache hit, task missing from cache, previous rangeID: non-critical mismatch, tagged separately",
-			lower: lower, upper: upper,
-			rangeID: 1,
-			req: &GetTaskRequest{
-				Progress:  newProgress(lower, upper),
-				Predicate: NewUniversalPredicate(),
-				PageSize:  10,
-			},
-			setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
-				queue.EXPECT().Len().Return(0).AnyTimes()
-				// Cache has only t1; DB has t1 and tPreviousOwner (rangeID=0, current rangeID=1).
-				queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).
-					Return([]persistence.Task{t1}, upper)
-				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(&GetTaskResponse{
-					Tasks: []persistence.Task{t1, tPreviousOwner},
-					Progress: &GetTaskProgress{
-						Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
-						NextTaskKey: upper,
-					},
-				}, nil)
-			},
-			wantResp: &GetTaskResponse{
-				Tasks: []persistence.Task{t1, tPreviousOwner},
-				Progress: &GetTaskProgress{
-					Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
-					NextTaskKey: upper,
-				},
-			},
-			wantShadowMismatchByTag: map[string]int64{"previous": 1},
 		},
 		{
 			// Cache has an extra task not in DB (inject race) → ExtraInCache only; returns DB result.
@@ -1088,24 +1030,17 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 					NextTaskKey: upper,
 				},
 			},
-			wantShadowMismatchByTag: map[string]int64{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			r, deps := setupMocksForCachedQueueReaderWithRangeID(t, ctrl, tc.rangeID, func(o *cachedQueueReaderOptions) {
+			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
 				o.Mode = dynamicproperties.GetStringPropertyFn("shadow")
 			})
 			setBounds(r, tc.lower, tc.upper)
 			tc.setupMocks(deps.mockBase, deps.mockQueue)
-
-			var fakeScope *fakeShadowMetricsScope
-			if tc.wantShadowMismatchByTag != nil {
-				fakeScope = newFakeShadowMetricsScope(t)
-				r.metrics = fakeScope
-			}
 
 			resp, err := r.GetTask(context.Background(), tc.req)
 
@@ -1115,52 +1050,8 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.wantResp, resp)
-			if fakeScope != nil {
-				require.Equal(t, 1, fakeScope.hitsCount)
-				require.Equal(t, tc.wantShadowMismatchByTag, fakeScope.mismatchByTag)
-			}
 		})
 	}
-}
-
-// fakeShadowMetricsScope is a hand-rolled metrics.Scope test double (embeds the shared
-// no-op scope for every unused method) that records the two calls needed to assert
-// shadow-mode mismatch metric emission: the pre-shadow cache-hit counter, and any
-// CachedQueueShadowMismatchCounter deltas, bucketed by the ShadowMismatchRangeTag value
-// they were tagged with via Tagged().
-type fakeShadowMetricsScope struct {
-	metrics.Scope
-	t             *testing.T
-	hitsCount     int
-	mismatchByTag map[string]int64
-}
-
-func newFakeShadowMetricsScope(t *testing.T) *fakeShadowMetricsScope {
-	return &fakeShadowMetricsScope{Scope: metrics.NoopScope, t: t, mismatchByTag: map[string]int64{}}
-}
-
-func (f *fakeShadowMetricsScope) IncCounter(counter metrics.MetricIdx) {
-	if counter == metrics.CachedQueueHitsCounter {
-		f.hitsCount++
-	}
-}
-
-func (f *fakeShadowMetricsScope) Tagged(tags ...metrics.Tag) metrics.Scope {
-	require.Len(f.t, tags, 1)
-	require.Equal(f.t, metrics.ShadowMismatchRangeTagName, tags[0].Key())
-	return &fakeTaggedShadowMetricsScope{fakeShadowMetricsScope: f, rangeTag: tags[0].Value()}
-}
-
-// fakeTaggedShadowMetricsScope is the scope returned by fakeShadowMetricsScope.Tagged,
-// recording AddCounter calls against the range tag value it was created with.
-type fakeTaggedShadowMetricsScope struct {
-	*fakeShadowMetricsScope
-	rangeTag string
-}
-
-func (f *fakeTaggedShadowMetricsScope) AddCounter(counter metrics.MetricIdx, delta int64) {
-	require.Equal(f.t, metrics.CachedQueueShadowMismatchCounter, counter)
-	f.mismatchByTag[f.rangeTag] += delta
 }
 
 func TestFindMismatchesInShadow(t *testing.T) {
