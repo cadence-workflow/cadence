@@ -40,14 +40,13 @@ const (
 func NewCollection(
 	client Client,
 	logger log.Logger,
-	filterOptions ...dynamicproperties.FilterOption,
+	opts ...dynamicproperties.CollectionFilterOption,
 ) *Collection {
-
 	return &Collection{
-		client:        client,
-		logger:        logger,
-		errCount:      -1,
-		filterOptions: filterOptions,
+		client:                  client,
+		logger:                  logger,
+		errCount:                -1,
+		CollectionFilterOptions: *dynamicproperties.NewCollectionFilterOptions(opts...),
 	}
 }
 
@@ -55,10 +54,10 @@ func NewCollection(
 // can be directly accessed by calling the function without propagating the client everywhere in
 // code
 type Collection struct {
-	client        Client
-	logger        log.Logger
-	errCount      int64
-	filterOptions []dynamicproperties.FilterOption
+	client   Client
+	logger   log.Logger
+	errCount int64
+	dynamicproperties.CollectionFilterOptions
 }
 
 func (c *Collection) logError(
@@ -570,7 +569,7 @@ func (c *Collection) toFilterMap(opts ...dynamicproperties.FilterOption) map[dyn
 	for _, opt := range opts {
 		opt(m)
 	}
-	for _, opt := range c.filterOptions {
+	for _, opt := range c.FilterOptions {
 		opt(m)
 	}
 	return m
