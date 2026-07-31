@@ -172,7 +172,7 @@ func TestRegression_ReserveCountsCorrectly(t *testing.T) {
 		ts := clock.NewMockedTimeSource()
 		wrapped := clock.NewRateLimiterWithTimeSource(ts, 1, 100)
 		l := NewFallbackLimiter(allowlimiter{})
-		l.Update(1)         // allows using primary, else it calls the fallback
+		l.Update(1, 1)      // allows using primary, else it calls the fallback
 		l.primary = wrapped // cheat, just swap it out
 
 		run(t, l, ts.Advance, func() UsageMetrics {

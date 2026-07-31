@@ -116,6 +116,9 @@ type ListPropertyFn func(opts ...FilterOption) []interface{}
 // StringPropertyWithRatelimitKeyFilter is a wrapper to get strings (currently global ratelimiter modes) per global ratelimit key
 type StringPropertyWithRatelimitKeyFilter func(globalRatelimitKey string) string
 
+// FloatPropertyWithRatelimitKeyFilter is a wrapper to get floats (currently global ratelimiter tuning values) per global ratelimit key
+type FloatPropertyWithRatelimitKeyFilter func(globalRatelimitKey string) float64
+
 func (f IntPropertyFn) AsFloat64(opts ...FilterOption) func() float64 {
 	return func() float64 { return float64(f(opts...)) }
 }
