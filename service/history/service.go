@@ -60,12 +60,15 @@ type Service struct {
 func NewService(
 	params *commonResource.Params,
 ) (resource.Resource, error) {
+	dc := dynamicconfig.NewCollection(
+		params.DynamicConfig,
+		params.Logger,
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+		dynamicproperties.ShardIDPercentageFilterOption(params.PersistenceConfig.NumHistoryShards),
+	)
+
 	serviceConfig := config.New(
-		dynamicconfig.NewCollection(
-			params.DynamicConfig,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
+		dc,
 		params.PersistenceConfig.NumHistoryShards,
 		params.RPCFactory.GetMaxMessageSize(),
 		params.PersistenceConfig.IsAdvancedVisibilityConfigExist(),

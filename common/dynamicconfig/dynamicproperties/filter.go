@@ -59,6 +59,8 @@ func ParseFilter(filterName string) Filter {
 		return RatelimitKey
 	case "namespace":
 		return Namespace
+	case "shardIDPercentage":
+		return ShardIDPercentage
 	default:
 		return UnknownFilter
 	}
@@ -76,6 +78,7 @@ var filters = []string{
 	"workflowType",
 	"ratelimitKey",
 	"namespace",
+	"shardIDPercentage",
 }
 
 const (
@@ -100,6 +103,8 @@ const (
 	RatelimitKey
 	// Namespace is the entity of independent shard distribution mechanism
 	Namespace
+	// ShardIDPercentage matches a percentage of shard IDs, for gradual rollouts
+	ShardIDPercentage
 
 	// LastFilterTypeForTest must be the last one in this const group for testing purpose
 	LastFilterTypeForTest
@@ -107,7 +112,8 @@ const (
 
 // Matcher lets a filter-map value define its own comparison against a constraint,
 // instead of match()/matchFilters()'s default equality check. Implement this on a
-// filter's value type when a constraint isn't a plain exact match.
+// filter's value type when a constraint isn't a plain exact match (e.g. a
+// percentage threshold, as ShardIDPercentageValue does).
 type Matcher interface {
 	Matches(constraint interface{}) bool
 }
@@ -188,6 +194,40 @@ func ShardIDFilter(shardID int) FilterOption {
 	}
 }
 
+// ShardIDPercentageFilter carries the actual shard id and the cluster's real shard
+// count, to be compared against a percentage threshold configured on the dynamic
+// config constraint. numberOfShards is required to interpret the percentage
+// correctly, since a shardIDPercentage constraint is relative to the real shard
+// count, not a fixed bucket space.
+func ShardIDPercentageFilter(shardID int, numberOfShards int) FilterOption {
+	return func(filterMap map[Filter]interface{}) {
+		filterMap[ShardIDPercentage] = ShardIDPercentageValue{ShardID: shardID, NumberOfShards: numberOfShards}
+	}
+}
+
+// ShardIDPercentageFilterOption records the cluster's real shard count at Collection
+// construction time, so ShardID-scoped getters can apply ShardIDPercentageFilter once
+// the shard id becomes known at call time.
+func ShardIDPercentageFilterOption(numberOfShards int) ShardIDFilterOption {
+	return func(shardID int) FilterOption {
+		return ShardIDPercentageFilter(shardID, numberOfShards)
+	}
+}
+
+// ShardIDPercentageValue bundles the actual shard id together with the cluster's
+// real shard count. Both are needed together to interpret a shardIDPercentage
+// constraint, since the percentage is relative to the real shard count.
+type ShardIDPercentageValue struct {
+	ShardID        int
+	NumberOfShards int
+}
+
+// Matches implements Matcher, so match()/matchFilters() dispatch shardIDPercentage
+// constraints here instead of comparing via equality.
+func (v ShardIDPercentageValue) Matches(constraint interface{}) bool {
+	return ShardIDPercentageMatches(v, constraint)
+}
+
 // ClusterNameFilter filters by cluster name
 func ClusterNameFilter(clusterName string) FilterOption {
 	return func(filterMap map[Filter]interface{}) {
@@ -213,6 +253,40 @@ func WorkflowTypeFilter(name string) FilterOption {
 func RatelimitKeyFilter(key string) FilterOption {
 	return func(filterMap map[Filter]interface{}) {
 		filterMap[RatelimitKey] = key
+	}
+}
+
+// ShardIDPercentageMatches returns true if shardIDValue (a ShardIDPercentageValue,
+// bundling the actual shard id and the cluster's real shard count) falls within the
+// given percentage (0.0-100.0) of shard ids. Deterministic and monotonic in
+// percentage: raising percentage only ever adds shard ids to the matched set.
+// An out-of-range percentage, a non-positive shard count, or a value of the wrong
+// type, results in no match.
+func ShardIDPercentageMatches(shardIDValue interface{}, percentageValue interface{}) bool {
+	v, ok := shardIDValue.(ShardIDPercentageValue)
+	if !ok || v.NumberOfShards <= 0 {
+		return false
+	}
+	percentage, ok := toFloat64(percentageValue)
+	if !ok || percentage < 0 || percentage > 100 {
+		return false
+	}
+	bucket := v.ShardID % v.NumberOfShards
+	return float64(bucket) < percentage/100*float64(v.NumberOfShards)
+}
+
+func toFloat64(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	default:
+		return 0, false
 	}
 }
 

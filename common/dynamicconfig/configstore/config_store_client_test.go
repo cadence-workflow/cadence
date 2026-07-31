@@ -563,9 +563,6 @@ func (s *configStoreClientSuite) TestValidateConfig_InvalidConfig() {
 	s.Error(err)
 }
 
-// testMatcherValue is a Matcher implementation used only to prove that
-// matchFilters() dispatches to Matches() for any filter-map value implementing
-// the interface, independent of which Filter key it's stored under.
 type testMatcherValue struct {
 	matches bool
 }
@@ -580,6 +577,44 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 		filters map[dynamicproperties.Filter]interface{}
 		matched bool
 	}{
+		{
+			// filter value implementing Matcher dispatches to Matches() instead of equality
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "domainName",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper("irrelevant"),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: true},
+			},
+			matched: true,
+		},
+		{
+			// same Matcher dispatch, but Matches() returns false
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "domainName",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper("irrelevant"),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: false},
+			},
+			matched: false,
+		},
 		{
 			v: &types.DynamicConfigValue{
 				Value:   nil,
@@ -695,40 +730,239 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 			matched: false,
 		},
 		{
-			// a filter-map value implementing Matcher is dispatched to Matches(),
-			// not compared via equality
+			// shardID 500 is within the first 60% bucket of a 1000-shard cluster
 			v: &types.DynamicConfigValue{
 				Value: nil,
 				Filters: []*types.DynamicConfigFilter{
 					{
-						Name: "domainName",
+						Name: "shardIDPercentage",
 						Value: &types.DataBlob{
 							EncodingType: types.EncodingTypeJSON.Ptr(),
-							Data:         jsonMarshalHelper("the constraint value"),
+							Data:         jsonMarshalHelper(60.0),
 						},
 					},
 				},
 			},
 			filters: map[dynamicproperties.Filter]interface{}{
-				dynamicproperties.DomainName: testMatcherValue{matches: true},
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 500, NumberOfShards: 1000},
 			},
 			matched: true,
 		},
 		{
+			// shardID 500 is outside the first 40% bucket of a 1000-shard cluster
 			v: &types.DynamicConfigValue{
 				Value: nil,
 				Filters: []*types.DynamicConfigFilter{
 					{
-						Name: "domainName",
+						Name: "shardIDPercentage",
 						Value: &types.DataBlob{
 							EncodingType: types.EncodingTypeJSON.Ptr(),
-							Data:         jsonMarshalHelper("the constraint value"),
+							Data:         jsonMarshalHelper(40.0),
 						},
 					},
 				},
 			},
 			filters: map[dynamicproperties.Filter]interface{}{
-				dynamicproperties.DomainName: testMatcherValue{matches: false},
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 500, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// 0% matches nothing, not even shard 0
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(0.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 0, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// 100% matches every shard
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(100.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 999, NumberOfShards: 1000},
+			},
+			matched: true,
+		},
+		{
+			// out-of-range percentage (>100) fails closed, never matches
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(150.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// out-of-range percentage (<0) fails closed, never matches
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(-5.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// shardIDPercentage composes with other filters via AND
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(60.0),
+						},
+					},
+					{
+						Name: "domainName",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper("samples-domain"),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 500, NumberOfShards: 1000},
+				dynamicproperties.DomainName:        "some other domain",
+			},
+			matched: false,
+		},
+		{
+			// raising the percentage from 10 to 11 only ever adds shard 105
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(11.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 105, NumberOfShards: 1000},
+			},
+			matched: true,
+		},
+		{
+			// bucketing is relative to the real shard count, not a fixed 1000: with 8 shards,
+			// shard 1 is 12.5%, which falls inside a 50% threshold
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(50.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 1, NumberOfShards: 8},
+			},
+			matched: true,
+		},
+		{
+			// with only 8 shards, shard 5 is 62.5%, which falls outside a 50% threshold
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(50.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 8},
+			},
+			matched: false,
+		},
+		{
+			// numberOfShards unset (zero value) fails closed
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(100.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 0},
+			},
+			matched: false,
+		},
+		{
+			// negative numberOfShards fails closed
+			v: &types.DynamicConfigValue{
+				Value: nil,
+				Filters: []*types.DynamicConfigFilter{
+					{
+						Name: "shardIDPercentage",
+						Value: &types.DataBlob{
+							EncodingType: types.EncodingTypeJSON.Ptr(),
+							Data:         jsonMarshalHelper(100.0),
+						},
+					},
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: -1},
 			},
 			matched: false,
 		},
@@ -737,6 +971,59 @@ func (s *configStoreClientSuite) TestMatchFilters() {
 	for index, tc := range testCases {
 		matched := matchFilters(tc.v, tc.filters)
 		s.Equal(tc.matched, matched, fmt.Sprintf("Test case %v failed", index))
+	}
+}
+
+// TestShardIDPercentageTiers verifies that multiple shardIDPercentage entries under the
+// same key, listed in ascending threshold order, behave as non-overlapping tiers: the
+// first entry whose threshold the shard is below wins, since getValueWithFilters returns
+// on the first match in entry order.
+func (s *configStoreClientSuite) TestShardIDPercentageTiers() {
+	key := dynamicproperties.TestGetIntPropertyFilteredByShardIDKey
+	client := &configStoreClient{logger: log.NewNoop()}
+	client.values.Store(cacheEntry{
+		dcEntries: map[string]*types.DynamicConfigEntry{
+			key.String(): {
+				Name: key.String(),
+				Values: []*types.DynamicConfigValue{
+					{ // [0%, 10%)
+						Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper(1)},
+						Filters: []*types.DynamicConfigFilter{
+							{Name: "shardIDPercentage", Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper(10.0)}},
+						},
+					},
+					{ // [10%, 20%)
+						Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper(2)},
+						Filters: []*types.DynamicConfigFilter{
+							{Name: "shardIDPercentage", Value: &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper(20.0)}},
+						},
+					},
+					{ // default: [20%, 100%)
+						Value:   &types.DataBlob{EncodingType: types.EncodingTypeJSON.Ptr(), Data: jsonMarshalHelper(3)},
+						Filters: nil,
+					},
+				},
+			},
+		},
+	})
+
+	tests := []struct {
+		shardID  int
+		expected int
+	}{
+		{shardID: 50, expected: 1},  // 5% -> first tier
+		{shardID: 99, expected: 1},  // 9.9% -> first tier
+		{shardID: 100, expected: 2}, // 10% -> second tier
+		{shardID: 199, expected: 2}, // 19.9% -> second tier
+		{shardID: 200, expected: 3}, // 20% -> default
+		{shardID: 999, expected: 3}, // 99.9% -> default
+	}
+	for _, tc := range tests {
+		v, err := client.GetIntValue(key, map[dynamicproperties.Filter]interface{}{
+			dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: tc.shardID, NumberOfShards: 1000},
+		})
+		s.NoError(err)
+		s.Equal(tc.expected, v, "shardID %d", tc.shardID)
 	}
 }
 
