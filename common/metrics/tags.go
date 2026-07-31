@@ -129,12 +129,6 @@ func CacheTypeTag(value string) Tag {
 	return metricWithUnknown(CacheTypeTagName, value)
 }
 
-// ShadowMismatchRangeTag returns a tag distinguishing which rangeID bucket ("current" or
-// "previous") a cached queue reader's shadow-mode mismatch count belongs to.
-func ShadowMismatchRangeTag(value string) Tag {
-	return metricWithUnknown(ShadowMismatchRangeTagName, value)
-}
-
 // WithCacheScopeLabels returns a scope tagged with the cache metric labels required for consistent Prometheus registration.
 func WithCacheScopeLabels(scope Scope, shardTag Tag, sourceClusterVal string, cacheTypeVal string) Scope {
 	return scope.Tagged(
@@ -391,6 +385,11 @@ func TaskCategoryTag(category string) Tag {
 // ReasonTag returns a new reason tag
 func ReasonTag(reason string) Tag {
 	return metricWithUnknown("reason", reason)
+}
+
+// Range returns a tag for a generic named range/bucket category.
+func Range(value string) Tag {
+	return metricWithUnknown("range", value)
 }
 
 // DecisionTag returns a new decision tag

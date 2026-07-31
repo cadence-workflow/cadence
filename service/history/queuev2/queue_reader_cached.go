@@ -971,11 +971,11 @@ func (q *cachedQueueReader) emitShadowMismatchMetrics(result findMismatchesInSha
 		return
 	}
 	if len(result.CurrentRange.Missed) > 0 {
-		q.metrics.Tagged(metrics.ShadowMismatchRangeTag("current")).
+		q.metrics.Tagged(metrics.Range("current")).
 			AddCounter(metrics.CachedQueueShadowMismatchCounter, int64(len(result.CurrentRange.Missed)))
 	}
 	if len(result.PreviousRange.Missed) > 0 {
-		q.metrics.Tagged(metrics.ShadowMismatchRangeTag("previous")).
+		q.metrics.Tagged(metrics.Range("previous")).
 			AddCounter(metrics.CachedQueueShadowMismatchCounter, int64(len(result.PreviousRange.Missed)))
 	}
 }
