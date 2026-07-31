@@ -76,7 +76,26 @@ func New(
 		return nil, err
 	}
 
-	discoveryProvider, err := newDiscoveryProvider(config, logger)
+	ch := channel.(*tcg.Channel)
+
+	// Create self host-port resolver function for DNS providers
+	selfHostPortFunc := func() (string, error) {
+		peerInfo := ch.PeerInfo()
+		if peerInfo.IsEphemeralHostPort() {
+			return "", fmt.Errorf("tchannel not listening yet")
+		}
+
+		if config.BroadcastAddress != "" {
+			_, port, err := net.SplitHostPort(peerInfo.HostPort)
+			if err != nil {
+				return "", fmt.Errorf("failed splitting tchannel's hostport %q, err: %w", peerInfo.HostPort, err)
+			}
+			return net.JoinHostPort(config.BroadcastAddress, port), nil
+		}
+		return peerInfo.HostPort, nil
+	}
+
+	discoveryProvider, err := newDiscoveryProvider(config, logger, selfHostPortFunc)
 	if err != nil {
 		return nil, fmt.Errorf("ringpop discovery provider: %w", err)
 	}
@@ -86,7 +105,6 @@ func New(
 		DiscoverProvider: discoveryProvider,
 	}
 
-	ch := channel.(*tcg.Channel)
 	opts := []ringpop.Option{ringpop.Channel(ch)}
 	if config.BroadcastAddress != "" {
 		broadcastIP := net.ParseIP(config.BroadcastAddress)

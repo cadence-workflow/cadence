@@ -22,15 +22,17 @@ type dnsHostResolver interface {
 }
 
 type dnsProvider struct {
-	UnresolvedHosts []string
-	Resolver        dnsHostResolver
-	Logger          log.Logger
+	UnresolvedHosts  []string
+	Resolver         dnsHostResolver
+	Logger           log.Logger
+	SelfHostPortFunc func() (string, error)
 }
 
 func newDNSProvider(
 	hosts []string,
 	resolver dnsHostResolver,
 	logger log.Logger,
+	selfHostPortFunc func() (string, error),
 ) *dnsProvider {
 
 	set := map[string]struct{}{}
@@ -43,9 +45,10 @@ func newDNSProvider(
 		keys = append(keys, key)
 	}
 	return &dnsProvider{
-		UnresolvedHosts: keys,
-		Resolver:        resolver,
-		Logger:          logger,
+		UnresolvedHosts:  keys,
+		Resolver:         resolver,
+		Logger:           logger,
+		SelfHostPortFunc: selfHostPortFunc,
 	}
 }
 
@@ -73,21 +76,32 @@ func (provider *dnsProvider) Hosts() ([]string, error) {
 		}
 	}
 	if len(results) == 0 {
-		return nil, errors.New("no hosts found, and bootstrap requires at least one")
+		if provider.SelfHostPortFunc != nil {
+			selfHostPort, err := provider.SelfHostPortFunc()
+			if err != nil {
+				return nil, errors.New("no hosts found via DNS and could not determine self address")
+			}
+			provider.Logger.Info("no hosts found via DNS, bootstrapping as first node with self address", tag.Address(selfHostPort))
+			results = append(results, selfHostPort)
+		} else {
+			return nil, errors.New("no hosts found, and bootstrap requires at least one")
+		}
 	}
 	return results, nil
 }
 
 type dnsSRVProvider struct {
-	UnresolvedHosts []string
-	Resolver        dnsHostResolver
-	Logger          log.Logger
+	UnresolvedHosts  []string
+	Resolver         dnsHostResolver
+	Logger           log.Logger
+	SelfHostPortFunc func() (string, error)
 }
 
 func newDNSSRVProvider(
 	hosts []string,
 	resolver dnsHostResolver,
 	logger log.Logger,
+	selfHostPortFunc func() (string, error),
 ) *dnsSRVProvider {
 
 	set := map[string]struct{}{}
@@ -101,9 +115,10 @@ func newDNSSRVProvider(
 	}
 
 	return &dnsSRVProvider{
-		UnresolvedHosts: keys,
-		Resolver:        resolver,
-		Logger:          logger,
+		UnresolvedHosts:  keys,
+		Resolver:         resolver,
+		Logger:           logger,
+		SelfHostPortFunc: selfHostPortFunc,
 	}
 }
 
@@ -146,7 +161,16 @@ func (provider *dnsSRVProvider) Hosts() ([]string, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, errors.New("no hosts found, and bootstrap requires at least one")
+		if provider.SelfHostPortFunc != nil {
+			selfHostPort, err := provider.SelfHostPortFunc()
+			if err != nil {
+				return nil, errors.New("no hosts found via DNS SRV and could not determine self address")
+			}
+			provider.Logger.Info("no hosts found via DNS SRV, bootstrapping as first node with self address", tag.Address(selfHostPort))
+			results = append(results, selfHostPort)
+		} else {
+			return nil, errors.New("no hosts found, and bootstrap requires at least one")
+		}
 	}
 	return results, nil
 }
@@ -154,6 +178,7 @@ func (provider *dnsSRVProvider) Hosts() ([]string, error) {
 func newDiscoveryProvider(
 	cfg *config.Config,
 	logger log.Logger,
+	selfHostPortFunc func() (string, error),
 ) (discovery.DiscoverProvider, error) {
 
 	if cfg.DiscoveryProvider != nil {
@@ -167,9 +192,9 @@ func newDiscoveryProvider(
 	case config.BootstrapModeFile:
 		return jsonfile.New(cfg.BootstrapFile), nil
 	case config.BootstrapModeDNS:
-		return newDNSProvider(cfg.BootstrapHosts, net.DefaultResolver, logger), nil
+		return newDNSProvider(cfg.BootstrapHosts, net.DefaultResolver, logger, selfHostPortFunc), nil
 	case config.BootstrapModeDNSSRV:
-		return newDNSSRVProvider(cfg.BootstrapHosts, net.DefaultResolver, logger), nil
+		return newDNSSRVProvider(cfg.BootstrapHosts, net.DefaultResolver, logger, selfHostPortFunc), nil
 	}
 	return nil, fmt.Errorf("unknown bootstrap mode %q", cfg.BootstrapMode)
 }

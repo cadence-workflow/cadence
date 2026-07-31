@@ -69,6 +69,7 @@ func TestDNSMode(t *testing.T) {
 			Hosts: map[string][]string{"example.net": []string{"10.0.0.0", "10.0.0.1"}},
 		},
 		logger,
+		nil,
 	)
 	cfg.DiscoveryProvider = provider
 	assert.ElementsMatch(
@@ -98,10 +99,11 @@ func TestDNSMode(t *testing.T) {
 		cfg.BootstrapHosts,
 		&mockResolver{Hosts: map[string][]string{}},
 		logger,
+		nil,
 	)
 	hostports, err = cfg.DiscoveryProvider.Hosts()
-	assert.Nil(t, hostports)
-	assert.NotNil(t, err, "error should be returned when no hosts")
+	assert.NotNil(t, err, "error should be returned when no hosts and no selfHostPortFunc")
+	assert.Empty(t, hostports)
 }
 
 func TestDNSSRVMode(t *testing.T) {
@@ -140,6 +142,7 @@ func TestDNSSRVMode(t *testing.T) {
 			},
 		},
 		logger,
+		nil,
 	)
 	cfg.DiscoveryProvider = provider
 	assert.ElementsMatch(
@@ -193,10 +196,11 @@ func TestDNSSRVMode(t *testing.T) {
 		cfg.BootstrapHosts,
 		&mockResolver{Hosts: map[string][]string{}},
 		logger,
+		nil,
 	)
 	hostports, err = cfg.DiscoveryProvider.Hosts()
-	assert.Nil(t, hostports)
-	assert.NotNil(t, err, "error should be returned when no hosts")
+	assert.NotNil(t, err, "error should be returned when no hosts and no selfHostPortFunc")
+	assert.Empty(t, hostports)
 }
 
 func getDNSConfig() string {
