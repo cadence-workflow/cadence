@@ -38,6 +38,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
@@ -61,10 +62,22 @@ func Module(serviceName string) fx.Option {
 			Name:     serviceName,
 			FullName: service.FullName(serviceName),
 		}),
+		fx.Decorate(decorateLoggerWithService),
 		fx.Provide(NewApp),
 		// empty invoke so fx won't drop the application from the dependencies.
 		fx.Invoke(func(a *App) {}),
 	)
+}
+
+type loggerDecoratorParams struct {
+	fx.In
+
+	Logger      log.Logger
+	ServiceName string `name:"service-full-name"`
+}
+
+func decorateLoggerWithService(p loggerDecoratorParams) log.Logger {
+	return p.Logger.WithTags(tag.Service(p.ServiceName))
 }
 
 type AppParams struct {

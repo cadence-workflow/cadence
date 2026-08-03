@@ -51,7 +51,6 @@ type Params struct {
 	Logger        log.Logger
 	MetricsClient metrics.Client
 	RootDir       string `name:"root-dir"`
-	ServiceName   string `name:"service-full-name"`
 
 	Lifecycle fx.Lifecycle
 }
@@ -128,7 +127,7 @@ func New(p Params) Result {
 	clusterGroupMetadata := p.Cfg.ClusterGroupMetadata
 	dc := dynamicconfig.NewCollection(
 		res,
-		p.Logger.WithTags(tag.Service(p.ServiceName)),
+		p.Logger,
 		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
@@ -136,7 +135,7 @@ func New(p Params) Result {
 	operationalConfigStore := createOperationalConfigStore(&p.Cfg.Persistence, dc, p.Logger, p.MetricsClient)
 	operationalDC := dynamicconfig.NewCollection(
 		operationalConfigStore,
-		p.Logger.WithTags(tag.Service(p.ServiceName)),
+		p.Logger,
 		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
