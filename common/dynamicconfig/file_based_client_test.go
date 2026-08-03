@@ -237,12 +237,40 @@ func (s *fileBasedClientSuite) TestValidateConfig_ShortPollInterval() {
 
 }
 
+type testMatcherValue struct {
+	matches bool
+}
+
+func (v testMatcherValue) Matches(constraint interface{}) bool {
+	return v.matches
+}
+
 func (s *fileBasedClientSuite) TestMatch() {
 	testCases := []struct {
 		v       *constrainedValue
 		filters map[dynamicproperties.Filter]interface{}
 		matched bool
 	}{
+		{
+			// filter value implementing Matcher dispatches to Matches() instead of equality
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"domainName": "irrelevant"},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: true},
+			},
+			matched: true,
+		},
+		{
+			// same Matcher dispatch, but Matches() returns false
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"domainName": "irrelevant"},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: false},
+			},
+			matched: false,
+		},
 		{
 			v: &constrainedValue{
 				Constraints: map[string]interface{}{},
@@ -305,11 +333,173 @@ func (s *fileBasedClientSuite) TestMatch() {
 			},
 			matched: false,
 		},
+		{
+			// shardID 500 is within the first 60% bucket of a 1000-shard cluster
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 60.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 500, NumberOfShards: 1000},
+			},
+			matched: true,
+		},
+		{
+			// shardID 500 is outside the first 40% bucket of a 1000-shard cluster
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 40.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 500, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// 0% matches nothing, not even shard 0
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 0.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 0, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// 100% matches every shard
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 100.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 999, NumberOfShards: 1000},
+			},
+			matched: true,
+		},
+		{
+			// out-of-range percentage (>100) fails closed, never matches
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 150.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// out-of-range percentage (<0) fails closed, never matches
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": -5.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 1000},
+			},
+			matched: false,
+		},
+		{
+			// shardIDPercentage composes with other filters via AND
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{
+					"shardIDPercentage": 60.0,
+					"domainName":        "samples-domain",
+				},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 500, NumberOfShards: 1000},
+				dynamicproperties.DomainName:        "some other domain",
+			},
+			matched: false,
+		},
+		{
+			// raising the percentage from 10 to 11 only ever adds shard 105, matching test above the monotonicity boundary
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 11.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 105, NumberOfShards: 1000},
+			},
+			matched: true,
+		},
+		{
+			// bucketing is relative to the real shard count, not a fixed 1000: with 8 shards,
+			// shard 1 is 12.5%, which falls inside a 50% threshold
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 50.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 1, NumberOfShards: 8},
+			},
+			matched: true,
+		},
+		{
+			// with only 8 shards, shard 5 is 62.5%, which falls outside a 50% threshold
+			// (the old fixed-1000 bucketing would have wrongly matched, since 5 % 1000 = 5 < 500)
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 50.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 8},
+			},
+			matched: false,
+		},
+		{
+			// numberOfShards unset (zero value) fails closed
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 100.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: 0},
+			},
+			matched: false,
+		},
+		{
+			// negative numberOfShards fails closed
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"shardIDPercentage": 100.0},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: 5, NumberOfShards: -1},
+			},
+			matched: false,
+		},
 	}
 
 	for index, tc := range testCases {
 		matched := match(tc.v, tc.filters)
 		s.Equal(tc.matched, matched, fmt.Sprintf("Test case %v failved", index))
+	}
+}
+
+// TestShardIDPercentageTiers verifies that multiple shardIDPercentage entries under the
+// same key, listed in ascending threshold order, behave as non-overlapping tiers: the
+// first entry whose threshold the shard is below wins, since getValueWithFilters returns
+// on the first match in list order.
+func (s *fileBasedClientSuite) TestShardIDPercentageTiers() {
+	client := &fileBasedClient{logger: log.NewNoop()}
+	key := dynamicproperties.TestGetIntPropertyFilteredByShardIDKey
+	err := client.storeValues(map[string][]*constrainedValue{
+		key.String(): {
+			{Value: 1, Constraints: map[string]interface{}{"shardIDPercentage": 10.0}}, // [0%, 10%)
+			{Value: 2, Constraints: map[string]interface{}{"shardIDPercentage": 20.0}}, // [10%, 20%)
+			{Value: 3, Constraints: map[string]interface{}{}},                          // default: [20%, 100%)
+		},
+	})
+	s.Require().NoError(err)
+
+	tests := []struct {
+		shardID  int
+		expected int
+	}{
+		{shardID: 50, expected: 1},  // 5% -> first tier
+		{shardID: 99, expected: 1},  // 9.9% -> first tier
+		{shardID: 100, expected: 2}, // 10% -> second tier (first tier's "< 10%" excludes it)
+		{shardID: 199, expected: 2}, // 19.9% -> second tier
+		{shardID: 200, expected: 3}, // 20% -> default, since neither tier's threshold covers it
+		{shardID: 999, expected: 3}, // 99.9% -> default
+	}
+	for _, tc := range tests {
+		v, err := client.GetIntValue(key, map[dynamicproperties.Filter]interface{}{
+			dynamicproperties.ShardIDPercentage: dynamicproperties.ShardIDPercentageValue{ShardID: tc.shardID, NumberOfShards: 1000},
+		})
+		s.NoError(err)
+		s.Equal(tc.expected, v, "shardID %d", tc.shardID)
 	}
 }
 

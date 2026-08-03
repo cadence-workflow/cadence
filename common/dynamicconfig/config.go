@@ -40,14 +40,13 @@ const (
 func NewCollection(
 	client Client,
 	logger log.Logger,
-	filterOptions ...dynamicproperties.FilterOption,
+	opts ...dynamicproperties.CollectionFilterOption,
 ) *Collection {
-
 	return &Collection{
-		client:        client,
-		logger:        logger,
-		errCount:      -1,
-		filterOptions: filterOptions,
+		client:                  client,
+		logger:                  logger,
+		errCount:                -1,
+		CollectionFilterOptions: *dynamicproperties.NewCollectionFilterOptions(opts...),
 	}
 }
 
@@ -55,10 +54,10 @@ func NewCollection(
 // can be directly accessed by calling the function without propagating the client everywhere in
 // code
 type Collection struct {
-	client        Client
-	logger        log.Logger
-	errCount      int64
-	filterOptions []dynamicproperties.FilterOption
+	client   Client
+	logger   log.Logger
+	errCount int64
+	dynamicproperties.CollectionFilterOptions
 }
 
 func (c *Collection) logError(
@@ -199,10 +198,23 @@ func (c *Collection) GetIntPropertyFilteredByDomainAndTaskList(key dynamicproper
 	}
 }
 
-// GetIntPropertyFilteredByShardID gets property with shardID as filter and asserts that it's an integer
+// shardIDFilters builds the filter options for a ShardID-scoped getter call: the
+// exact shard id, plus any Collection-construction-time ShardIDFilterOptions
+// (e.g. ShardIDPercentageFilterOption) resolved for this shard id.
+func (c *Collection) shardIDFilters(shardID int) []dynamicproperties.FilterOption {
+	opts := make([]dynamicproperties.FilterOption, 0, 1+len(c.ShardIDFilterOptions))
+	opts = append(opts, dynamicproperties.ShardIDFilter(shardID))
+	for _, sf := range c.ShardIDFilterOptions {
+		opts = append(opts, sf(shardID))
+	}
+	return opts
+}
+
+// GetIntPropertyFilteredByShardID gets property with shardID as filter and asserts that it's an integer.
+// The constraint may match either exactly (shardID) or by percentage (shardIDPercentage).
 func (c *Collection) GetIntPropertyFilteredByShardID(key dynamicproperties.IntKey) dynamicproperties.IntPropertyFnWithShardIDFilter {
 	return func(shardID int) int {
-		filters := c.toFilterMap(dynamicproperties.ShardIDFilter(shardID))
+		filters := c.toFilterMap(c.shardIDFilters(shardID)...)
 		val, err := c.client.GetIntValue(
 			key,
 			filters,
@@ -215,10 +227,11 @@ func (c *Collection) GetIntPropertyFilteredByShardID(key dynamicproperties.IntKe
 	}
 }
 
-// GetBoolPropertyFilteredByShardID gets property with shardID as filter and asserts that it's a bool
+// GetBoolPropertyFilteredByShardID gets property with shardID as filter and asserts that it's a bool.
+// The constraint may match either exactly (shardID) or by percentage (shardIDPercentage).
 func (c *Collection) GetBoolPropertyFilteredByShardID(key dynamicproperties.BoolKey) dynamicproperties.BoolPropertyFnWithShardIDFilter {
 	return func(shardID int) bool {
-		filters := c.toFilterMap(dynamicproperties.ShardIDFilter(shardID))
+		filters := c.toFilterMap(c.shardIDFilters(shardID)...)
 		val, err := c.client.GetBoolValue(
 			key,
 			filters,
@@ -247,10 +260,11 @@ func (c *Collection) GetFloat64Property(key dynamicproperties.FloatKey) dynamicp
 	}
 }
 
-// GetFloat64PropertyFilteredByShardID gets property with shardID filter and asserts that it's a float64
+// GetFloat64PropertyFilteredByShardID gets property with shardID filter and asserts that it's a float64.
+// The constraint may match either exactly (shardID) or by percentage (shardIDPercentage).
 func (c *Collection) GetFloat64PropertyFilteredByShardID(key dynamicproperties.FloatKey) dynamicproperties.FloatPropertyFnWithShardIDFilter {
 	return func(shardID int) float64 {
-		filters := c.toFilterMap(dynamicproperties.ShardIDFilter(shardID))
+		filters := c.toFilterMap(c.shardIDFilters(shardID)...)
 		val, err := c.client.GetFloatValue(
 			key,
 			filters,
@@ -351,10 +365,11 @@ func (c *Collection) GetDurationPropertyFilteredByTaskListInfo(key dynamicproper
 	}
 }
 
-// GetDurationPropertyFilteredByShardID gets property with shardID id as filter and asserts that it's a duration
+// GetDurationPropertyFilteredByShardID gets property with shardID id as filter and asserts that it's a duration.
+// The constraint may match either exactly (shardID) or by percentage (shardIDPercentage).
 func (c *Collection) GetDurationPropertyFilteredByShardID(key dynamicproperties.DurationKey) dynamicproperties.DurationPropertyFnWithShardIDFilter {
 	return func(shardID int) time.Duration {
-		filters := c.toFilterMap(dynamicproperties.ShardIDFilter(shardID))
+		filters := c.toFilterMap(c.shardIDFilters(shardID)...)
 		val, err := c.client.GetDurationValue(
 			key,
 			filters,
@@ -570,7 +585,7 @@ func (c *Collection) toFilterMap(opts ...dynamicproperties.FilterOption) map[dyn
 	for _, opt := range opts {
 		opt(m)
 	}
-	for _, opt := range c.filterOptions {
+	for _, opt := range c.FilterOptions {
 		opt(m)
 	}
 	return m
