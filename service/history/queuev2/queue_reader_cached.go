@@ -788,29 +788,25 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		},
 	}
 
-	if q.isShadow() {
-		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
-	}
-
-	// TODO: this periodic shadow sample check is temporary scaffolding for continuous
-	// regression detection while "enabled" mode is being rolled out. It gives operators
-	// an ongoing signal that the cache still agrees with the DB after promotion out of
-	// "shadow" mode. Remove once CachedQueueReader is enabled by default and "shadow"
-	// mode rollouts (and this periodic variant of it) are no longer needed.
-	if q.isEnabled() && q.dueForPeriodicShadowSample() {
-		q.logger.Info("shadow sample check", logTags...)
+	if q.isShadow() || q.isPeriodicShadowSample() {
 		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
 	}
 	return cacheResp, nil
 }
 
-// dueForPeriodicShadowSample reports whether this call should be diverted into a shadow
+// isPeriodicShadowSample reports whether this call should be diverted into a shadow
 // comparison as part of the periodic health check for "enabled" mode. Gated on elapsed
 // wall-clock time rather than a request counter, so the check cadence is independent of
 // request volume. CAS-guarded so concurrent callers racing on the same due window produce
 // at most one sample; the timestamp is advanced before the comparison runs, so the interval
 // is measured from attempt to attempt rather than success to success.
-func (q *cachedQueueReader) dueForPeriodicShadowSample() bool {
+//
+// TODO: this periodic shadow sample check is temporary scaffolding for continuous
+// regression detection while "enabled" mode is being rolled out. It gives operators
+// an ongoing signal that the cache still agrees with the DB after promotion out of
+// "shadow" mode. Remove once CachedQueueReader is enabled by default and "shadow"
+// mode rollouts (and this periodic variant of it) are no longer needed.
+func (q *cachedQueueReader) isPeriodicShadowSample() bool {
 	interval := q.options.ShadowSampleInterval()
 	if interval <= 0 {
 		return false
@@ -821,7 +817,11 @@ func (q *cachedQueueReader) dueForPeriodicShadowSample() bool {
 	if now-last < interval.Nanoseconds() {
 		return false
 	}
-	return q.lastShadowSampleUnixNano.CompareAndSwap(last, now)
+	if !q.lastShadowSampleUnixNano.CompareAndSwap(last, now) {
+		return false
+	}
+	q.logger.Info("shadow sample check")
+	return true
 }
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves
