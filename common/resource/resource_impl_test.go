@@ -185,6 +185,11 @@ func TestStartStop(t *testing.T) {
 		ArchiverProvider:           archiveProvider,
 		AsyncWorkflowQueueProvider: queue.NewMockProvider(ctrl),
 		OperationalConfigStore:     configstore.NewNopClient(),
+		OperationalDynamicConfig: dynamicconfig.NewCollection(
+			configstore.NewNopClient(),
+			logger,
+			dynamicproperties.ClusterNameFilter(clusterMetadata.GetCurrentClusterName()),
+		),
 	}
 
 	// bare minimum service config

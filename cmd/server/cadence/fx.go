@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/clock/clockfx"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicconfigfx"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/logfx"
@@ -69,29 +70,33 @@ func Module(serviceName string) fx.Option {
 type AppParams struct {
 	fx.In
 
-	Service           string `name:"service"`
-	AppContext        config.Context
-	Config            config.Config
-	Logger            log.Logger
-	ZapLogger         *zap.Logger
-	LifeCycle         fx.Lifecycle
-	DynamicConfig     dynamicconfig.Client
-	DynamicCollection *dynamicconfig.Collection
-	Scope             tally.Scope
-	MetricsClient     metrics.Client
+	Service                  string `name:"service"`
+	AppContext               config.Context
+	Config                   config.Config
+	Logger                   log.Logger
+	ZapLogger                *zap.Logger
+	LifeCycle                fx.Lifecycle
+	DynamicConfig            dynamicconfig.Client
+	DynamicCollection        *dynamicconfig.Collection
+	OperationalConfigStore   configstore.Client        `name:"operational-config-store"`
+	OperationalDynamicConfig *dynamicconfig.Collection `name:"operational-dynamic-config"`
+	Scope                    tally.Scope
+	MetricsClient            metrics.Client
 }
 
 // NewApp created a new Application from pre initalized config and logger.
 func NewApp(params AppParams) *App {
 	app := &App{
-		cfg:               params.Config,
-		logger:            params.Logger,
-		zapLogger:         params.ZapLogger,
-		service:           params.Service,
-		dynamicConfig:     params.DynamicConfig,
-		dynamicCollection: params.DynamicCollection,
-		scope:             params.Scope,
-		metricsClient:     params.MetricsClient,
+		cfg:                      params.Config,
+		logger:                   params.Logger,
+		zapLogger:                params.ZapLogger,
+		service:                  params.Service,
+		dynamicConfig:            params.DynamicConfig,
+		dynamicCollection:        params.DynamicCollection,
+		operationalConfigStore:   params.OperationalConfigStore,
+		operationalDynamicConfig: params.OperationalDynamicConfig,
+		scope:                    params.Scope,
+		metricsClient:            params.MetricsClient,
 	}
 
 	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
@@ -102,21 +107,23 @@ func NewApp(params AppParams) *App {
 // App is a fx application that registers itself into fx.Lifecycle and runs.
 // It is done implicitly, since it provides methods Start and Stop which are picked up by fx.
 type App struct {
-	cfg               config.Config
-	rootDir           string
-	logger            log.Logger
-	zapLogger         *zap.Logger
-	dynamicConfig     dynamicconfig.Client
-	dynamicCollection *dynamicconfig.Collection
-	scope             tally.Scope
-	metricsClient     metrics.Client
+	cfg                      config.Config
+	rootDir                  string
+	logger                   log.Logger
+	zapLogger                *zap.Logger
+	dynamicConfig            dynamicconfig.Client
+	dynamicCollection        *dynamicconfig.Collection
+	operationalConfigStore   configstore.Client
+	operationalDynamicConfig *dynamicconfig.Collection
+	scope                    tally.Scope
+	metricsClient            metrics.Client
 
 	daemon  common.Daemon
 	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.scope, a.metricsClient)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient)
 	a.daemon.Start()
 	return nil
 }
