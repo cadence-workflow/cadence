@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
@@ -356,6 +357,147 @@ func TestSearchAttributesChecker(t *testing.T) {
 				assert.ErrorContains(t, err, tt.errContains)
 			}
 			assert.Equal(t, tt.expectedOutput, td.consoleOutput())
+		})
+	}
+}
+
+func TestValidation(t *testing.T) {
+	testDomain := testDomainName
+	testNewDomain := testNewDomainName
+	testDomainUUID := uuid.New()
+	testNewDomainUUID := uuid.New()
+
+	tests := []struct {
+		name        string
+		testSetup   func(td *domainMigrationCliTestData) *cli.Context
+		errContains string
+		assertFunc  func(t *testing.T, err error)
+	}{
+		{
+			name: "all checkers succeed without panic",
+			testSetup: func(td *domainMigrationCliTestData) *cli.Context {
+				cliCtx := clitest.NewCLIContext(
+					t,
+					td.app,
+					clitest.StringArgument(FlagDomain, testDomain),
+					clitest.StringArgument(FlagDestinationDomain, testNewDomain),
+				)
+
+				td.mockFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(&types.DescribeDomainResponse{
+					DomainInfo:    &types.DomainInfo{OwnerEmail: testDomainOwner, UUID: testDomainUUID},
+					Configuration: &types.DomainConfiguration{WorkflowExecutionRetentionPeriodInDays: 30},
+				}, nil).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.CountWorkflowExecutionsResponse{
+					Count: 0,
+				}, nil).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().GetSearchAttributes(gomock.Any()).Return(&types.GetSearchAttributesResponse{
+					Keys: map[string]types.IndexedValueType{},
+				}, nil).AnyTimes()
+
+				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).Return(&types.GetDynamicConfigResponse{
+					Value: &types.DataBlob{
+						EncodingType: types.EncodingTypeThriftRW.Ptr(),
+						Data:         []byte("config-value"),
+					},
+				}, nil).AnyTimes()
+
+				return cliCtx
+			},
+			errContains: "",
+		},
+		{
+			name: "multiple checker errors are combined without panic",
+			testSetup: func(td *domainMigrationCliTestData) *cli.Context {
+				cliCtx := clitest.NewCLIContext(
+					t,
+					td.app,
+					clitest.StringArgument(FlagDomain, testDomain),
+					clitest.StringArgument(FlagDestinationDomain, testNewDomain),
+				)
+
+				td.mockFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(nil, assert.AnError).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().GetSearchAttributes(gomock.Any()).Return(&types.GetSearchAttributesResponse{
+					Keys: map[string]types.IndexedValueType{},
+				}, nil).AnyTimes()
+
+				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).Return(&types.GetDynamicConfigResponse{
+					Value: &types.DataBlob{
+						EncodingType: types.EncodingTypeThriftRW.Ptr(),
+						Data:         []byte("config-value"),
+					},
+				}, nil).AnyTimes()
+
+				return cliCtx
+			},
+			errContains: "Error in checkers",
+			assertFunc: func(t *testing.T, err error) {
+				errs := multierr.Errors(err)
+				assert.GreaterOrEqual(t, len(errs), 2, "expected multiple errors to be combined")
+			},
+		},
+		{
+			name: "multiple concurrent checkers complete without panic",
+			testSetup: func(td *domainMigrationCliTestData) *cli.Context {
+				cliCtx := clitest.NewCLIContext(
+					t,
+					td.app,
+					clitest.StringArgument(FlagDomain, testDomain),
+					clitest.StringArgument(FlagDestinationDomain, testNewDomain),
+				)
+
+				td.mockFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{Name: &testDomain}).Return(&types.DescribeDomainResponse{
+					DomainInfo:    &types.DomainInfo{OwnerEmail: testDomainOwner, UUID: testDomainUUID},
+					Configuration: &types.DomainConfiguration{WorkflowExecutionRetentionPeriodInDays: 30},
+				}, nil).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().DescribeDomain(gomock.Any(), &types.DescribeDomainRequest{Name: &testNewDomain}).Return(&types.DescribeDomainResponse{
+					DomainInfo:    &types.DomainInfo{OwnerEmail: testDomainOwner, UUID: testNewDomainUUID},
+					Configuration: &types.DomainConfiguration{WorkflowExecutionRetentionPeriodInDays: 30},
+				}, nil).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.CountWorkflowExecutionsResponse{
+					Count: 0,
+				}, nil).AnyTimes()
+
+				td.mockFrontendClient.EXPECT().GetSearchAttributes(gomock.Any()).Return(&types.GetSearchAttributesResponse{
+					Keys: map[string]types.IndexedValueType{},
+				}, nil).AnyTimes()
+
+				td.mockAdminClient.EXPECT().GetDynamicConfig(gomock.Any(), gomock.Any()).Return(&types.GetDynamicConfigResponse{
+					Value: &types.DataBlob{
+						EncodingType: types.EncodingTypeThriftRW.Ptr(),
+						Data:         []byte("config-value"),
+					},
+				}, nil).AnyTimes()
+
+				return cliCtx
+			},
+			errContains: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := newDomainMigrationCliTestData(t)
+			cliCtx := tt.testSetup(td)
+
+			assert.NotPanics(t, func() {
+				err := td.domainMigrationCLIImpl.Validation(cliCtx)
+
+				if tt.errContains == "" {
+					assert.NoError(t, err)
+				} else {
+					assert.ErrorContains(t, err, tt.errContains)
+				}
+				if tt.assertFunc != nil {
+					tt.assertFunc(t, err)
+				}
+			})
 		})
 	}
 }
