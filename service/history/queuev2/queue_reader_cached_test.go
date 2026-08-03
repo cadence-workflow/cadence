@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
@@ -1057,6 +1056,16 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 	}
 }
 
+// periodicShadowSampleStep describes one GetTask call within a
+// TestCachedQueueReader_GetTask_PeriodicShadowSample scenario.
+type periodicShadowSampleStep struct {
+	advance              time.Duration // clock advance applied before this call
+	setupMocks           func(base *MockQueueReader, queue *MockInMemQueue)
+	wantResp             *GetTaskResponse
+	wantSampleLogCount   int // cumulative "shadow sample check" log count after this call
+	wantMismatchLogCount int // cumulative "potential severe mismatch..." log count after this call
+}
+
 func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 	now := time.Now()
 	lower := newTimeKey(now)
@@ -1082,108 +1091,110 @@ func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
 			NextTaskKey: upper,
 		},
 	}
-
-	setup := func(t *testing.T, interval time.Duration) (*cachedQueueReader, *cachedQueueReaderMockDeps, *observer.ObservedLogs) {
-		ctrl := gomock.NewController(t)
-		mockShard := shard.NewMockContext(ctrl)
-		mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
-		mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
-		logger, obs := testlogger.NewObserved(t)
-		deps := &cachedQueueReaderMockDeps{
-			mockBase:  NewMockQueueReader(ctrl),
-			mockQueue: NewMockInMemQueue(ctrl),
-			mockShard: mockShard,
-			clock:     clock.NewMockedTimeSource(),
-		}
-		r := newCachedQueueReaderWithOptions(
-			deps.mockBase,
-			deps.mockQueue,
-			deps.mockShard,
-			deps.clock,
-			logger,
-			metrics.NoopScope,
-			testOptions(func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("enabled")
-				o.ShadowSampleInterval = dynamicproperties.GetDurationPropertyFn(interval)
-			}),
-		)
-		setBounds(r, lower, upper)
-		deps.mockQueue.EXPECT().Len().Return(0).AnyTimes()
-		return r, deps, obs
+	cacheHit := func(base *MockQueueReader, queue *MockInMemQueue) {
+		queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{t1}, upper)
+	}
+	sampledHit := func(base *MockQueueReader, queue *MockInMemQueue) {
+		cacheHit(base, queue)
+		base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
 	}
 
-	t.Run("first call after start samples immediately", func(t *testing.T) {
-		r, deps, obs := setup(t, 5*time.Minute)
-		deps.mockQueue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{t1}, upper)
-		deps.mockBase.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
+	tests := []struct {
+		name     string
+		interval time.Duration
+		steps    []periodicShadowSampleStep
+	}{
+		{
+			name:     "first call after start samples immediately",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+			},
+		},
+		{
+			name:     "second call within interval does not re-sample",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+				{setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 1},
+			},
+		},
+		{
+			name:     "call after interval elapses samples again",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+				{advance: 5 * time.Minute, setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 2},
+			},
+		},
+		{
+			name:     "interval <= 0 disables sampling",
+			interval: 0,
+			steps: []periodicShadowSampleStep{
+				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 0},
+				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 0},
+			},
+		},
+		{
+			name:     "sampled call surfaces a cache/DB mismatch and returns DB result",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{
+					// Cache is missing t1 (severe mismatch); DB has it.
+					setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+						queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return(nil, upper)
+						base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
+					},
+					wantResp:             dbResp,
+					wantSampleLogCount:   1,
+					wantMismatchLogCount: 1,
+				},
+			},
+		},
+	}
 
-		resp, err := r.GetTask(context.Background(), req)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockShard := shard.NewMockContext(ctrl)
+			mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
+			mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
+			mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
+			logger, obs := testlogger.NewObserved(t)
+			deps := &cachedQueueReaderMockDeps{
+				mockBase:  NewMockQueueReader(ctrl),
+				mockQueue: NewMockInMemQueue(ctrl),
+				mockShard: mockShard,
+				clock:     clock.NewMockedTimeSource(),
+			}
+			r := newCachedQueueReaderWithOptions(
+				deps.mockBase,
+				deps.mockQueue,
+				deps.mockShard,
+				deps.clock,
+				logger,
+				metrics.NoopScope,
+				testOptions(func(o *cachedQueueReaderOptions) {
+					o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("enabled")
+					o.ShadowSampleInterval = dynamicproperties.GetDurationPropertyFn(tc.interval)
+				}),
+			)
+			setBounds(r, lower, upper)
+			deps.mockQueue.EXPECT().Len().Return(0).AnyTimes()
 
-		require.NoError(t, err)
-		require.Equal(t, dbResp, resp)
-		assert.Equal(t, 1, obs.FilterMessage("shadow sample check").Len())
-	})
+			for i, step := range tc.steps {
+				deps.clock.Advance(step.advance)
+				step.setupMocks(deps.mockBase, deps.mockQueue)
 
-	t.Run("second call within interval does not re-sample", func(t *testing.T) {
-		r, deps, obs := setup(t, 5*time.Minute)
-		deps.mockQueue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{t1}, upper).Times(2)
-		deps.mockBase.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil).Times(1)
+				resp, err := r.GetTask(context.Background(), req)
 
-		_, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-
-		resp2, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-		require.Equal(t, cacheOnlyResp, resp2)
-		assert.Equal(t, 1, obs.FilterMessage("shadow sample check").Len())
-	})
-
-	t.Run("call after interval elapses samples again", func(t *testing.T) {
-		r, deps, obs := setup(t, 5*time.Minute)
-		deps.mockQueue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{t1}, upper).Times(2)
-		deps.mockBase.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil).Times(2)
-
-		_, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-
-		deps.clock.Advance(5 * time.Minute)
-
-		resp2, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-		require.Equal(t, dbResp, resp2)
-		assert.Equal(t, 2, obs.FilterMessage("shadow sample check").Len())
-	})
-
-	t.Run("interval <= 0 disables sampling", func(t *testing.T) {
-		r, deps, obs := setup(t, 0)
-		deps.mockQueue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{t1}, upper).Times(2)
-
-		deps.clock.Advance(time.Hour)
-		resp1, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-		require.Equal(t, cacheOnlyResp, resp1)
-
-		deps.clock.Advance(time.Hour)
-		resp2, err := r.GetTask(context.Background(), req)
-		require.NoError(t, err)
-		require.Equal(t, cacheOnlyResp, resp2)
-
-		assert.Equal(t, 0, obs.FilterMessage("shadow sample check").Len())
-	})
-
-	t.Run("sampled call surfaces a cache/DB mismatch and returns DB result", func(t *testing.T) {
-		r, deps, obs := setup(t, 5*time.Minute)
-		// Cache is missing t1 (severe mismatch); DB has it.
-		deps.mockQueue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return(nil, upper)
-		deps.mockBase.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
-
-		resp, err := r.GetTask(context.Background(), req)
-
-		require.NoError(t, err)
-		require.Equal(t, dbResp, resp)
-		assert.Equal(t, 1, obs.FilterMessage("shadow sample check").Len())
-		assert.Equal(t, 1, obs.FilterMessage("potential severe mismatch between db and cache states").Len())
-	})
+				require.NoErrorf(t, err, "step %d", i)
+				require.Equalf(t, step.wantResp, resp, "step %d", i)
+				assert.Equalf(t, step.wantSampleLogCount, obs.FilterMessage("shadow sample check").Len(), "step %d: sample log count", i)
+				assert.Equalf(t, step.wantMismatchLogCount, obs.FilterMessage("potential severe mismatch between db and cache states").Len(), "step %d: mismatch log count", i)
+			}
+		})
+	}
 }
 
 func TestFindMismatchesInShadow(t *testing.T) {
