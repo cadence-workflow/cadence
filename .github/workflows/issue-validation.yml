@@ -30,10 +30,10 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            const TYPE_LABELS = ["bug", "feature", "improvement", "refractoring"];
-            const BUG_LABEL = "bug";
-            const ENHANCEMENT_LABELS = ["feature", "improvement", "refractoring"];
-            const NEEDS_INFO_LABEL = "needs-info";
+            const TYPE_LABELS = ["kind/bug", "kind/feature", "kind/cleanup"];
+            const BUG_LABEL = "kind/bug";
+            const ENHANCEMENT_LABELS = ["kind/feature", "kind/cleanup"];
+            const NEEDS_INFO_LABEL = "triage/needs-info";
 
             const FALLBACK_BUG_REQUIRED = [
               "Description",
@@ -71,25 +71,25 @@ jobs:
             const detectIssueType = (body) => {
               if (!body) return null;
               const normalizedBody = body.toLowerCase();
-              
+
               // Check for bug template sections
-              if (normalizedBody.includes("steps to reproduce") || 
-                  normalizedBody.includes("expected behavior") || 
+              if (normalizedBody.includes("steps to reproduce") ||
+                  normalizedBody.includes("expected behavior") ||
                   normalizedBody.includes("actual behavior")) {
-                return "bug";
+                return "kind/bug";
               }
-              
+
               // Check for feature template sections
-              if (normalizedBody.includes("breaking change") || 
+              if (normalizedBody.includes("breaking change") ||
                   normalizedBody.includes("scope of the feature")) {
-                return "feature";
+                return "kind/feature";
               }
-              
+
               return null;
             };
 
             const detectedType = detectIssueType(issue.body);
-            
+
             // Auto-apply type label if missing but detected
             if (missingLabel && detectedType) {
               await github.rest.issues.addLabels({
@@ -213,8 +213,8 @@ jobs:
                   owner,
                   repo,
                   name: NEEDS_INFO_LABEL,
-                  color: "f9d0c4",
-                  description: "Needs additional information from the reporter",
+                  color: "d876e3",
+                  description: "Blocked pending more info from the reporter (repro, version, logs) before triage.",
                 });
               }
             };
@@ -276,7 +276,7 @@ jobs:
               const templateLines = [
                 "Issue templates:",
                 `- Bug report: https://github.com/${owner}/${repo}/issues/new?template=bug_report.md`,
-                `- Feature request (use for feature, improvement, refractoring): https://github.com/${owner}/${repo}/issues/new?template=feature_request.md`,
+                `- Feature request (use for features, improvements, or cleanup): https://github.com/${owner}/${repo}/issues/new?template=feature_request.md`,
               ].join("\n");
 
               const missingLabelLine = missingLabel
