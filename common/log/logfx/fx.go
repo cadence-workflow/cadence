@@ -44,7 +44,8 @@ var ModuleWithoutZap = fx.Options(
 type zapBuilderParams struct {
 	fx.In
 
-	Cfg config.Config
+	Cfg         config.Config
+	ServiceName string `name:"service-full-name"`
 }
 
 func zapBuilder(p zapBuilderParams) (*zap.Logger, error) {

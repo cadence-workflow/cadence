@@ -50,6 +50,7 @@ type Params struct {
 	Logger        log.Logger
 	MetricsClient metrics.Client
 	RootDir       string `name:"root-dir"`
+	ServiceName   string `name:"service-full-name"`
 
 	Lifecycle fx.Lifecycle
 }
@@ -124,7 +125,7 @@ func New(p Params) Result {
 	clusterGroupMetadata := p.Cfg.ClusterGroupMetadata
 	dc := dynamicconfig.NewCollection(
 		res,
-		p.Logger,
+		p.Logger.WithTags(tag.Service(p.ServiceName)),
 		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
 	)
 
