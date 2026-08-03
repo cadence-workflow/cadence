@@ -150,9 +150,10 @@ type cachedQueueReader struct {
 	lastRangeID int64
 
 	// lastShadowSampleUnixNano is the unix-nano timestamp of the last periodic shadow
-	// sample check performed while in "enabled" mode. CAS-guarded so concurrent GetTask
-	// calls racing on the same due window produce at most one sample. Zero value means
-	// no sample has been taken yet, so the first eligible call fires immediately.
+	// sample check performed while in "enabled" mode. When concurrent GetTask calls race
+	// on the same due window, only one of them wins the update, so at most one sample is
+	// taken per window. Zero value means no sample has been taken yet, so the first
+	// eligible call fires immediately.
 	lastShadowSampleUnixNano atomic.Int64
 }
 
@@ -797,9 +798,9 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 // isPeriodicShadowSample reports whether this call should be diverted into a shadow
 // comparison as part of the periodic health check for "enabled" mode. Gated on elapsed
 // wall-clock time rather than a request counter, so the check cadence is independent of
-// request volume. CAS-guarded so concurrent callers racing on the same due window produce
-// at most one sample; the timestamp is advanced before the comparison runs, so the interval
-// is measured from attempt to attempt rather than success to success.
+// request volume. When multiple callers race on the same due window, only one of them
+// wins and performs the sample; the timestamp is advanced before the comparison runs, so
+// the interval is measured from attempt to attempt rather than success to success.
 //
 // TODO: this periodic shadow sample check is temporary scaffolding for continuous
 // regression detection while "enabled" mode is being rolled out. It gives operators
