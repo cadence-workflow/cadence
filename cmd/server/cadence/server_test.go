@@ -110,7 +110,9 @@ func (s *ServerSuite) TestServerStartup() {
 		})
 
 	for _, svc := range services {
-		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), dynamicconfig.NewNopClient(), tally.NoopScope, metrics.NewNoopMetricsClient())
+		client := dynamicconfig.NewNopClient()
+		dc := dynamicconfig.NewNopCollection()
+		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, tally.NoopScope, metrics.NewNoopMetricsClient())
 		daemons = append(daemons, server)
 		server.Start()
 	}

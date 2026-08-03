@@ -80,6 +80,7 @@ type (
 		RPCConfig config.RPC
 
 		DynamicConfig              dynamicconfig.Client
+		DynamicCollection          *dynamicconfig.Collection
 		ClusterRedirectionPolicy   *config.ClusterRedirectionPolicy
 		PublicClient               workflowserviceclient.Interface
 		ArchivalMetadata           archiver.ArchivalMetadata

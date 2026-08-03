@@ -172,11 +172,7 @@ func New(
 
 	ensureGetAllIsolationGroupsFnIsSet(params)
 
-	dynamicCollection := dynamicconfig.NewCollection(
-		params.DynamicConfig,
-		logger,
-		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-	)
+	dynamicCollection := params.DynamicCollection
 	clientBean, err := client.NewClientBean(
 		client.NewRPCClientFactory(
 			params.RPCFactory,

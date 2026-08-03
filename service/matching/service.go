@@ -56,17 +56,15 @@ func NewService(
 	params *resource.Params,
 ) (resource.Resource, error) {
 
+	operationalDC := dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		params.Logger,
+		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
+	)
+
 	serviceConfig := config.NewConfig(
-		dynamicconfig.NewCollection(
-			params.DynamicConfig,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
-		dynamicconfig.NewCollection(
-			params.OperationalConfigStore,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
+		params.DynamicCollection,
+		operationalDC,
 		params.HostName,
 		params.RPCConfig,
 		params.GetIsolationGroups,
