@@ -387,6 +387,11 @@ func ReasonTag(reason string) Tag {
 	return metricWithUnknown("reason", reason)
 }
 
+// Range returns a tag for a generic named range/bucket category.
+func Range(value string) Tag {
+	return metricWithUnknown("range", value)
+}
+
 // DecisionTag returns a new decision tag
 func DecisionTag(decision string) Tag {
 	return metricWithUnknown("decision", decision)

@@ -63,8 +63,7 @@ func NewPersistenceRetryer(
 	return newPersistenceRetryer(execManager, historyManager, policy, nil)
 }
 
-// NewPersistenceRetryerWithShardID constructs a new Retryer that sets the shard ID
-// to be populated on each request if the request's ShardID is nil.
+// NewPersistenceRetryerWithShardID constructs a new Retryer that populates empty request shard IDs.
 func NewPersistenceRetryerWithShardID(
 	execManager ExecutionManager,
 	historyManager HistoryManager,
@@ -251,12 +250,14 @@ func (pr *persistenceRetryer) DeleteCurrentWorkflowExecution(
 	return pr.throttleRetry.Do(ctx, op)
 }
 
-// GetShardID return shard id
+// GetShardID returns the configured shard ID.
+// It panics if the retryer was constructed without an explicit shard ID
+// (via NewPersistenceRetryer instead of NewPersistenceRetryerWithShardID).
 func (pr *persistenceRetryer) GetShardID() int {
-	if pr.shardID != nil {
-		return *pr.shardID
+	if pr.shardID == nil {
+		panic("GetShardID called on a Retryer without a configured shard ID; use NewPersistenceRetryerWithShardID")
 	}
-	return pr.execManager.GetShardID()
+	return *pr.shardID
 }
 
 // GetHistoryTasks retries GetHistoryTasks

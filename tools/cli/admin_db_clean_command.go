@@ -133,7 +133,7 @@ func fixExecution(
 	execution *store.ScanOutputEntity,
 ) (invariant.ManagerFixResult, error) {
 	shardID := execution.Execution.(entity.Entity).GetShardID()
-	execManager, err := getDeps(c).initializeExecutionManager(c, shardID)
+	execManager, err := getDeps(c).initializeExecutionManager(c)
 	if err != nil {
 		return invariant.ManagerFixResult{}, err
 	}

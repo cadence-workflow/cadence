@@ -31,7 +31,6 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/client"
 	"github.com/uber/cadence/common/domain"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/quotas"
@@ -70,13 +69,8 @@ func NewService(
 ) (resource.Resource, error) {
 
 	isAdvancedVisExistInConfig := len(params.PersistenceConfig.AdvancedVisibilityStore) != 0
-	dc := dynamicconfig.NewCollection(
-		params.DynamicConfig,
-		params.Logger,
-		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-	)
 	serviceConfig := config.NewConfig(
-		dc,
+		params.DynamicCollection,
 		params.PersistenceConfig.NumHistoryShards,
 		isAdvancedVisExistInConfig,
 		params.HostName,

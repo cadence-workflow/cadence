@@ -80,6 +80,7 @@ type (
 		RPCConfig config.RPC
 
 		DynamicConfig              dynamicconfig.Client
+		DynamicCollection          *dynamicconfig.Collection
 		ClusterRedirectionPolicy   *config.ClusterRedirectionPolicy
 		PublicClient               workflowserviceclient.Interface
 		ArchivalMetadata           archiver.ArchivalMetadata
@@ -89,6 +90,7 @@ type (
 		IsolationGroupStore        configstore.Client       // This can be nil, the default config store will be created if so
 		IsolationGroupState        isolationgroup.State     // This can be nil, the default state store will be chosen if so
 		OperationalConfigStore     configstore.Client
+		OperationalDynamicConfig   *dynamicconfig.Collection
 		PinotConfig                *config.PinotVisibilityConfig
 		KafkaConfig                config.KafkaConfig
 		PinotClient                pinot.GenericClient

@@ -75,18 +75,18 @@ func (mr *MockManagerFactoryMockRecorder) initializeDomainManager(c any) *gomock
 }
 
 // initializeExecutionManager mocks base method.
-func (m *MockManagerFactory) initializeExecutionManager(c *cli.Context, shardID int) (persistence.ExecutionManager, error) {
+func (m *MockManagerFactory) initializeExecutionManager(c *cli.Context) (persistence.ExecutionManager, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "initializeExecutionManager", c, shardID)
+	ret := m.ctrl.Call(m, "initializeExecutionManager", c)
 	ret0, _ := ret[0].(persistence.ExecutionManager)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // initializeExecutionManager indicates an expected call of initializeExecutionManager.
-func (mr *MockManagerFactoryMockRecorder) initializeExecutionManager(c, shardID any) *gomock.Call {
+func (mr *MockManagerFactoryMockRecorder) initializeExecutionManager(c any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "initializeExecutionManager", reflect.TypeOf((*MockManagerFactory)(nil).initializeExecutionManager), c, shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "initializeExecutionManager", reflect.TypeOf((*MockManagerFactory)(nil).initializeExecutionManager), c)
 }
 
 // initializeHistoryManager mocks base method.

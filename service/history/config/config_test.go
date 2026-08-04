@@ -383,6 +383,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain")
 		case dynamicproperties.BoolPropertyFnWithShardIDFilter:
 			return fn(0)
+		case dynamicproperties.StringPropertyFnWithShardIDFilter:
+			return fn(0)
 		case func() []string:
 			return fn()
 		default:

@@ -143,14 +143,14 @@ func TestFactoryNewExecutionStore(t *testing.T) {
 	mockParser := serialization.NewMockParser(ctrl)
 	dc := &persistence.DynamicConfiguration{}
 	factory := NewFactory(cfg, clusterName, logger, mockParser, dc)
-	executionStore, err := factory.NewExecutionStore(0)
+	executionStore, err := factory.NewExecutionStore()
 	assert.Nil(t, executionStore)
 	assert.Error(t, err)
 	factory.Close()
 
 	cfg.PluginName = "shared"
 	factory = NewFactory(cfg, clusterName, logger, mockParser, dc)
-	executionStore, err = factory.NewExecutionStore(0)
+	executionStore, err = factory.NewExecutionStore()
 	assert.NotNil(t, executionStore)
 	assert.NoError(t, err)
 	factory.Close()

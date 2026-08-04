@@ -56,7 +56,7 @@ func TestNewDBLoadCloser(t *testing.T) {
 			},
 			mockSetup: func(td *cliTestData) {
 				mockExecManager := persistence.NewMockExecutionManager(gomock.NewController(t))
-				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), 1).Return(mockExecManager, nil).Times(1)
+				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).Return(mockExecManager, nil).Times(1)
 			},
 			expectedError: "",
 		},
@@ -79,7 +79,7 @@ func TestNewDBLoadCloser(t *testing.T) {
 				return cli.NewContext(td.app, set, nil)
 			},
 			mockSetup: func(td *cliTestData) {
-				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), 1).Return(nil, fmt.Errorf("failed to initialize execution store")).Times(1)
+				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).Return(nil, fmt.Errorf("failed to initialize execution store")).Times(1)
 			},
 			expectedError: "error in NewDBLoadCloser: failed to initialize execution store",
 		},
@@ -340,7 +340,7 @@ func TestAdminTimers(t *testing.T) {
 				mockExecManager := persistence.NewMockExecutionManager(ctrl)
 
 				td.mockManagerFactory.EXPECT().
-					initializeExecutionManager(gomock.Any(), gomock.Any()).
+					initializeExecutionManager(gomock.Any()).
 					Return(mockExecManager, nil).Times(1)
 
 				mockExecManager.EXPECT().
@@ -439,7 +439,7 @@ func TestAdminTimers(t *testing.T) {
 				mockExecManager.EXPECT().Close().Times(1)
 
 				td.mockManagerFactory.EXPECT().
-					initializeExecutionManager(gomock.Any(), gomock.Any()).
+					initializeExecutionManager(gomock.Any()).
 					Return(mockExecManager, nil).Times(1)
 			},
 			expectedError: "unknown bucket size",

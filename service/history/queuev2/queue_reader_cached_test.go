@@ -43,7 +43,7 @@ import (
 
 func testOptions(overrides ...func(*cachedQueueReaderOptions)) *cachedQueueReaderOptions {
 	opts := &cachedQueueReaderOptions{
-		Mode:                      dynamicproperties.GetStringPropertyFn("enabled"),
+		Mode:                      dynamicproperties.GetStringPropertyFnFilteredByShardID("enabled"),
 		MaxSize:                   dynamicproperties.GetIntPropertyFn(100),
 		MaxLookAheadWindow:        dynamicproperties.GetDurationPropertyFn(time.Hour),
 		PrefetchTriggerWindow:     dynamicproperties.GetDurationPropertyFn(5 * time.Minute),
@@ -77,6 +77,7 @@ func setupMocksForCachedQueueReader(
 	mockShard := shard.NewMockContext(ctrl)
 	mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
 	mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
+	mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
 	deps := &cachedQueueReaderMockDeps{
 		mockBase:  NewMockQueueReader(ctrl),
 		mockQueue: NewMockInMemQueue(ctrl),
@@ -150,7 +151,7 @@ func TestCachedQueueReader_Modes(t *testing.T) {
 		t.Run(tc.mode, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, _ := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			})
 			assert.Equal(t, tc.enabled, r.isEnabled(), "mode %q: isEnabled", tc.mode)
 			assert.Equal(t, tc.shadow, r.isShadow(), "mode %q: isShadow", tc.mode)
@@ -289,7 +290,7 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			name:  "disabled clears stale cache",
 			tasks: []persistence.Task{inside},
 			optsOverride: func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 			},
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Clear()
@@ -796,7 +797,7 @@ func TestCachedQueueReader_GetTask(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			})
 			base, queue := deps.mockBase, deps.mockQueue
 			setBounds(r, tc.lower, tc.upper)
@@ -825,7 +826,7 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 	t2 := newTask(2, now.Add(20*time.Minute))
 	t3 := newTask(3, now.Add(30*time.Minute))
 	// tOtherOwner has a taskID in rangeID=1 (1<<20 at RangeSizeBits=20).
-	// The default mock GetRangeID()=0, so this task will be classified as OwnerChanged.
+	// The default mock GetRangeID()=0, so this task will be classified into NewRange.
 	tOtherOwner := newTask(1<<20, now.Add(40*time.Minute))
 
 	tests := []struct {
@@ -1001,9 +1002,9 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// DB has a task created by a different shard owner (different rangeID) → classified as
-			// OwnerChanged, not a mismatch; DB result returned normally.
-			name:  "task missing from cache, different rangeID: owner changed, no mismatch warning",
+			// DB has a task from a newer rangeID (a different/new shard owner) → classified as
+			// NewRange, not a mismatch; DB result returned normally.
+			name:  "task missing from cache, newer rangeID: stale shard owner, no mismatch warning",
 			lower: lower, upper: upper,
 			req: &GetTaskRequest{
 				Progress:  newProgress(lower, upper),
@@ -1037,7 +1038,7 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("shadow")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("shadow")
 			})
 			setBounds(r, tc.lower, tc.upper)
 			tc.setupMocks(deps.mockBase, deps.mockQueue)
@@ -1059,10 +1060,14 @@ func TestFindMismatchesInShadow(t *testing.T) {
 	t1 := newTask(1, now.Add(10*time.Minute))
 	t2 := newTask(2, now.Add(20*time.Minute))
 	t3 := newTask(3, now.Add(30*time.Minute))
-	// Tasks with taskID in rangeID=1 range (1<<20 .. 2<<20-1) at RangeSizeBits=20.
-	// The default mock rangeID is 0, so these will be classified as OwnerChanged.
-	tOtherRange1 := newTask(1<<20, now.Add(10*time.Minute))
-	tOtherRange2 := newTask(2<<20, now.Add(20*time.Minute))
+	// Tasks with taskID in rangeID=1/2 (>= 1<<20 at RangeSizeBits=20) are newer than the
+	// default mock's currentRangeID=0: NewRange.
+	tNewRange1 := newTask(1<<20, now.Add(10*time.Minute))
+	tNewRange2 := newTask(2<<20, now.Add(20*time.Minute))
+	// A taskID of -1 encodes rangeID=-1 (arithmetic right shift preserves sign), older than
+	// the default mock's currentRangeID=0: PreviousRange. Synthetic, but exercises the bucket
+	// without needing to reconfigure the mocked shard's rangeID.
+	tPrevRange := newTask(-1, now.Add(10*time.Minute))
 
 	info := func(t persistence.Task) shadowMismatchTaskInfo { return toShadowMismatchTaskInfo(t) }
 
@@ -1076,96 +1081,135 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			name:         "no mismatches",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
-			wantResult:   findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 2, DBTaskCount: 2},
+			wantResult:   findMismatchesInShadowResult{CacheTaskCount: 2, DBTaskCount: 2},
 		},
 		{
 			name:         "empty on both sides",
 			snapshotResp: &GetTaskResponse{},
 			dbResp:       &GetTaskResponse{},
-			wantResult:   findMismatchesInShadowResult{HasMismatches: false},
+			wantResult:   findMismatchesInShadowResult{},
 		},
 		{
-			name:         "task missing from cache: same rangeID → real mismatch",
+			name:         "task missing from cache: current range",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
-				MissedInCacheTasks: []shadowMismatchTaskInfo{info(t2)},
-				HasMismatches:      true,
-				CacheTaskCount:     1,
-				DBTaskCount:        2,
+				CurrentRange:   TaskMismatches{Missed: []shadowMismatchTaskInfo{info(t2)}},
+				CacheTaskCount: 1,
+				DBTaskCount:    2,
 			},
 		},
 		{
-			name:         "task missing from cache: different rangeID → owner changed, not a mismatch",
+			name:         "task missing from cache: new range",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
-			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tNewRange1}},
 			wantResult: findMismatchesInShadowResult{
-				OwnerChangedTasks:    []shadowMismatchTaskInfo{info(tOtherRange1)},
-				OwnerChangedRangeIDs: []int64{1},
-				HasMismatches:        false,
-				CacheTaskCount:       1,
-				DBTaskCount:          2,
+				NewRange:       TaskMismatches{RangeIDs: []int64{1}, Missed: []shadowMismatchTaskInfo{info(tNewRange1)}},
+				CacheTaskCount: 1,
+				DBTaskCount:    2,
 			},
 		},
 		{
-			name:         "mixed: same-range missing (mismatch) and different-range missing (owner change)",
+			name:         "task missing from cache: previous range",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
-			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2, tOtherRange1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tPrevRange}},
 			wantResult: findMismatchesInShadowResult{
-				MissedInCacheTasks:   []shadowMismatchTaskInfo{info(t2)},
-				OwnerChangedTasks:    []shadowMismatchTaskInfo{info(tOtherRange1)},
-				OwnerChangedRangeIDs: []int64{1},
-				HasMismatches:        true,
-				CacheTaskCount:       1,
-				DBTaskCount:          3,
+				PreviousRange:  TaskMismatches{RangeIDs: []int64{-1}, Missed: []shadowMismatchTaskInfo{info(tPrevRange)}},
+				CacheTaskCount: 1,
+				DBTaskCount:    2,
 			},
 		},
 		{
-			name:         "all db tasks from different range: no mismatch, all owner changed",
+			name:         "mixed: current range missing and new range missing",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
-			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1, tOtherRange2}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2, tNewRange1}},
 			wantResult: findMismatchesInShadowResult{
-				OwnerChangedTasks:    []shadowMismatchTaskInfo{info(tOtherRange1), info(tOtherRange2)},
-				OwnerChangedRangeIDs: []int64{1, 2},
-				HasMismatches:        false,
-				CacheTaskCount:       1,
-				DBTaskCount:          3,
+				CurrentRange:   TaskMismatches{Missed: []shadowMismatchTaskInfo{info(t2)}},
+				NewRange:       TaskMismatches{RangeIDs: []int64{1}, Missed: []shadowMismatchTaskInfo{info(tNewRange1)}},
+				CacheTaskCount: 1,
+				DBTaskCount:    3,
 			},
 		},
 		{
-			name:         "extra task in cache",
+			name:         "mixed: current range missing and previous range missing",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2, tPrevRange}},
+			wantResult: findMismatchesInShadowResult{
+				CurrentRange:   TaskMismatches{Missed: []shadowMismatchTaskInfo{info(t2)}},
+				PreviousRange:  TaskMismatches{RangeIDs: []int64{-1}, Missed: []shadowMismatchTaskInfo{info(tPrevRange)}},
+				CacheTaskCount: 1,
+				DBTaskCount:    3,
+			},
+		},
+		{
+			name:         "all db tasks from newer ranges",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, tNewRange1, tNewRange2}},
+			wantResult: findMismatchesInShadowResult{
+				NewRange: TaskMismatches{
+					RangeIDs: []int64{1, 2},
+					Missed:   []shadowMismatchTaskInfo{info(tNewRange1), info(tNewRange2)},
+				},
+				CacheTaskCount: 1,
+				DBTaskCount:    3,
+			},
+		},
+		{
+			name:         "extra task in cache: current range",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t2, t3}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
-				ExtraInCacheTasks: []shadowMismatchTaskInfo{info(t3)},
-				HasMismatches:     true,
-				CacheTaskCount:    3,
-				DBTaskCount:       2,
+				CurrentRange:   TaskMismatches{Extra: []shadowMismatchTaskInfo{info(t3)}},
+				CacheTaskCount: 3,
+				DBTaskCount:    2,
 			},
 		},
 		{
-			name:         "missing and extra simultaneously",
+			// Simulates a prefetch that already loaded tasks from a just-renewed range into the
+			// cache before the shard's own view of its current rangeID caught up.
+			name:         "extra task in cache: new range (prefetch)",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, tNewRange1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			wantResult: findMismatchesInShadowResult{
+				NewRange:       TaskMismatches{RangeIDs: []int64{1}, Extra: []shadowMismatchTaskInfo{info(tNewRange1)}},
+				CacheTaskCount: 2,
+				DBTaskCount:    1,
+			},
+		},
+		{
+			name:         "extra task in cache: previous range",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, tPrevRange}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
+			wantResult: findMismatchesInShadowResult{
+				PreviousRange:  TaskMismatches{RangeIDs: []int64{-1}, Extra: []shadowMismatchTaskInfo{info(tPrevRange)}},
+				CacheTaskCount: 2,
+				DBTaskCount:    1,
+			},
+		},
+		{
+			name:         "missing and extra simultaneously: current range",
 			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t3}},
 			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1, t2}},
 			wantResult: findMismatchesInShadowResult{
-				MissedInCacheTasks: []shadowMismatchTaskInfo{info(t2)},
-				ExtraInCacheTasks:  []shadowMismatchTaskInfo{info(t3)},
-				HasMismatches:      true,
-				CacheTaskCount:     2,
-				DBTaskCount:        2,
+				CurrentRange: TaskMismatches{
+					Missed: []shadowMismatchTaskInfo{info(t2)},
+					Extra:  []shadowMismatchTaskInfo{info(t3)},
+				},
+				CacheTaskCount: 2,
+				DBTaskCount:    2,
 			},
 		},
 		{
-			// Cache task has nanosecond timestamp; DB task has the same time truncated to ms.
-			// They should compare as equal after truncation.
-			name: "timestamp sub-millisecond jitter: no mismatch",
+			// Task ID is present in both DB and cache; scheduled time is not compared,
+			// so a differing scheduled time is not flagged as a mismatch.
+			name: "task ID present in both but scheduled time differs: no mismatch",
 			snapshotResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute+500*time.Nanosecond))},
-			},
-			dbResp: &GetTaskResponse{
 				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
 			},
-			wantResult: findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 1, DBTaskCount: 1},
+			dbResp: &GetTaskResponse{
+				Tasks: []persistence.Task{newTask(1, now.Add(11*time.Minute))},
+			},
+			wantResult: findMismatchesInShadowResult{CacheTaskCount: 1, DBTaskCount: 1},
 		},
 		{
 			// NextTaskKey is not compared: Cassandra may return a non-empty cursor on the last page,
@@ -1180,52 +1224,17 @@ func TestFindMismatchesInShadow(t *testing.T) {
 				Tasks:    []persistence.Task{t1, t2},
 				Progress: &GetTaskProgress{NextTaskKey: newTimeKey(now.Add(2 * time.Hour))},
 			},
-			wantResult: findMismatchesInShadowResult{HasMismatches: false, CacheTaskCount: 2, DBTaskCount: 2},
+			wantResult: findMismatchesInShadowResult{CacheTaskCount: 2, DBTaskCount: 2},
 		},
 		{
-			name: "task ID present in both but scheduled time differs → IncorrectTimeTasks",
-			snapshotResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(10*time.Minute))},
-			},
-			dbResp: &GetTaskResponse{
-				Tasks: []persistence.Task{newTask(1, now.Add(11*time.Minute))},
-			},
+			name:         "extra task in cache: mixed current range and new range",
+			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t3, tNewRange1}},
+			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
 			wantResult: findMismatchesInShadowResult{
-				IncorrectTimeTasks: []shadowTimeMismatch{
-					toShadowTimeMismatch(
-						newTask(1, now.Add(11*time.Minute)),
-						now.Add(11*time.Minute).Truncate(persistence.DBTimestampMinPrecision),
-						now.Add(10*time.Minute).Truncate(persistence.DBTimestampMinPrecision),
-					),
-				},
-				HasMismatches:  true,
-				CacheTaskCount: 1,
+				CurrentRange:   TaskMismatches{Extra: []shadowMismatchTaskInfo{info(t3)}},
+				NewRange:       TaskMismatches{RangeIDs: []int64{1}, Extra: []shadowMismatchTaskInfo{info(tNewRange1)}},
+				CacheTaskCount: 3,
 				DBTaskCount:    1,
-			},
-		},
-		{
-			name:         "extra task in cache: different rangeID → owner changed, not a mismatch",
-			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, tOtherRange1}},
-			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
-			wantResult: findMismatchesInShadowResult{
-				OwnerChangedTasks:    []shadowMismatchTaskInfo{info(tOtherRange1)},
-				OwnerChangedRangeIDs: []int64{1},
-				HasMismatches:        false,
-				CacheTaskCount:       2,
-				DBTaskCount:          1,
-			},
-		},
-		{
-			name:         "extra task in cache: mixed same-range (mismatch) and different-range (owner change)",
-			snapshotResp: &GetTaskResponse{Tasks: []persistence.Task{t1, t3, tOtherRange1}},
-			dbResp:       &GetTaskResponse{Tasks: []persistence.Task{t1}},
-			wantResult: findMismatchesInShadowResult{
-				ExtraInCacheTasks:    []shadowMismatchTaskInfo{info(t3)},
-				OwnerChangedTasks:    []shadowMismatchTaskInfo{info(tOtherRange1)},
-				OwnerChangedRangeIDs: []int64{1},
-				HasMismatches:        true,
-				CacheTaskCount:       3,
-				DBTaskCount:          1,
 			},
 		},
 	}
@@ -1235,7 +1244,8 @@ func TestFindMismatchesInShadow(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, _ := setupMocksForCachedQueueReader(t, ctrl)
 			got := r.findMismatchesInShadow(tc.snapshotResp, tc.dbResp)
-			slices.Sort(got.OwnerChangedRangeIDs)
+			slices.Sort(got.NewRange.RangeIDs)
+			slices.Sort(got.PreviousRange.RangeIDs)
 			require.Equal(t, tc.wantResult, got)
 		})
 	}
@@ -1390,7 +1400,7 @@ func TestCachedQueueReader_LookAHead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			r, deps := setupMocksForCachedQueueReader(t, ctrl, func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			})
 			base, queue := deps.mockBase, deps.mockQueue
 			setBounds(r, tc.initLower, tc.initUpper)
@@ -1449,7 +1459,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		{
 			name: "disabled: no-op when cache empty",
 			optsOverride: func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 			},
 			initLower:  persistence.MinimumHistoryTaskKey,
 			initUpper:  persistence.MinimumHistoryTaskKey,
@@ -1460,7 +1470,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 		{
 			name: "disabled: clears stale cache when not empty",
 			optsOverride: func(o *cachedQueueReaderOptions) {
-				o.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+				o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 			},
 			initLower: someLower,
 			initUpper: someUpper,
@@ -1634,7 +1644,7 @@ func TestCachedQueueReader_Prefetch(t *testing.T) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 				base.EXPECT().GetTask(gomock.Any(), gomock.Any()).DoAndReturn(
 					func(_ context.Context, _ *GetTaskRequest) (*GetTaskResponse, error) {
-						r.options.Mode = dynamicproperties.GetStringPropertyFn("disabled")
+						r.options.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("disabled")
 						return &GetTaskResponse{
 							Tasks:    []persistence.Task{t1, t2},
 							Progress: &GetTaskProgress{NextTaskKey: maxKey},

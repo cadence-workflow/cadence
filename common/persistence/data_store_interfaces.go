@@ -118,7 +118,6 @@ type (
 	ExecutionStore interface {
 		Closeable
 		GetName() string
-		GetShardID() int
 		// The below three APIs are related to serialization/deserialization
 		GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error)
 		UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error
@@ -1157,7 +1156,7 @@ type (
 
 	// SelectWorkflowTimerTasksRequest is used to read the workflow_timer_tasks tracking column
 	SelectWorkflowTimerTasksRequest struct {
-		ShardID    int
+		ShardID    ShardID
 		DomainID   string
 		WorkflowID string
 		RunID      string

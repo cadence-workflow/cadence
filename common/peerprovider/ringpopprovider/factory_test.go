@@ -21,6 +21,14 @@ type mockResolver struct {
 func (resolver *mockResolver) LookupHost(ctx context.Context, host string) ([]string, error) {
 	addrs, ok := resolver.Hosts[host]
 	if !ok {
+		// Return a DNSError with IsNotFound to test that code path
+		if host == "notfound.example.net" {
+			return nil, &net.DNSError{
+				Err:        "no such host",
+				Name:       host,
+				IsNotFound: true,
+			}
+		}
 		return nil, fmt.Errorf("Host was not resolved: %s", host)
 	}
 	return addrs, nil
@@ -63,6 +71,7 @@ func TestDNSMode(t *testing.T) {
 		cfg.BootstrapHosts,
 	)
 
+	// Test deduplication of bootstrap hosts
 	provider := newDNSProvider(
 		cfg.BootstrapHosts,
 		&mockResolver{
@@ -70,7 +79,6 @@ func TestDNSMode(t *testing.T) {
 		},
 		logger,
 	)
-	cfg.DiscoveryProvider = provider
 	assert.ElementsMatch(
 		t,
 		[]string{
@@ -83,7 +91,15 @@ func TestDNSMode(t *testing.T) {
 		"duplicate entries should be removed",
 	)
 
-	hostports, err := cfg.DiscoveryProvider.Hosts()
+	// Test successful resolution with valid hosts
+	provider = newDNSProvider(
+		[]string{"example.net:1111", "example.net:1112"},
+		&mockResolver{
+			Hosts: map[string][]string{"example.net": []string{"10.0.0.0", "10.0.0.1"}},
+		},
+		logger,
+	)
+	hostports, err := provider.Hosts()
 	assert.Nil(t, err)
 	assert.ElementsMatch(
 		t,
@@ -94,14 +110,53 @@ func TestDNSMode(t *testing.T) {
 		hostports,
 	)
 
-	cfg.DiscoveryProvider = newDNSProvider(
-		cfg.BootstrapHosts,
+	// Test error when host has no port (SplitHostPort fails)
+	provider = newDNSProvider(
+		[]string{"badhostport"},
 		&mockResolver{Hosts: map[string][]string{}},
 		logger,
 	)
-	hostports, err = cfg.DiscoveryProvider.Hosts()
-	assert.Nil(t, hostports)
-	assert.NotNil(t, err, "error should be returned when no hosts")
+	_, err = provider.Hosts()
+	assert.NotNil(t, err, "should return error for malformed host:port")
+
+	// Test error when DNS resolution fails (not IsNotFound)
+	provider = newDNSProvider(
+		[]string{"unknown.example.net:1111"},
+		&mockResolver{Hosts: map[string][]string{}},
+		logger,
+	)
+	_, err = provider.Hosts()
+	assert.NotNil(t, err, "should return error when DNS resolution fails")
+
+	// Test DNS IsNotFound case - should continue and return empty
+	provider = newDNSProvider(
+		[]string{"notfound.example.net:1111"},
+		&mockResolver{Hosts: map[string][]string{}},
+		logger,
+	)
+	hostports, err = provider.Hosts()
+	assert.Nil(t, err, "should not return error for DNS not found")
+	assert.Empty(t, hostports, "should return empty list when DNS not found")
+
+	// Test DNS IsNotFound mixed with successful resolution
+	provider = newDNSProvider(
+		[]string{"notfound.example.net:1111", "example.net:1112"},
+		&mockResolver{Hosts: map[string][]string{"example.net": []string{"10.0.0.1"}}},
+		logger,
+	)
+	hostports, err = provider.Hosts()
+	assert.Nil(t, err)
+	assert.ElementsMatch(t, []string{"10.0.0.1:1112"}, hostports, "should skip not found and return resolved")
+
+	// Test empty result when DNS returns IsNotFound for all hosts
+	provider = newDNSProvider(
+		[]string{"example.net:1111"},
+		&mockResolver{Hosts: map[string][]string{"example.net": []string{}}},
+		logger,
+	)
+	hostports, err = provider.Hosts()
+	assert.Nil(t, err)
+	assert.Empty(t, hostports, "should return empty list when DNS returns empty")
 }
 
 func TestDNSSRVMode(t *testing.T) {
@@ -125,8 +180,34 @@ func TestDNSSRVMode(t *testing.T) {
 		cfg.BootstrapHosts,
 	)
 
+	// Test deduplication
 	provider := newDNSSRVProvider(
 		cfg.BootstrapHosts,
+		&mockResolver{
+			SRV: map[string][]net.SRV{
+				"service-a": []net.SRV{{Target: "az1-service-a.addr.example.net", Port: 7755}},
+			},
+			Hosts: map[string][]string{
+				"az1-service-a.addr.example.net": []string{"10.0.0.1"},
+			},
+		},
+		logger,
+	)
+	assert.ElementsMatch(
+		t,
+		[]string{
+			"service-a.example.net",
+			"service-b.example.net",
+			"unknown-duplicate.example.net",
+			"badhostport",
+		},
+		provider.UnresolvedHosts,
+		"duplicate entries should be removed",
+	)
+
+	// Test successful SRV resolution
+	provider = newDNSSRVProvider(
+		[]string{"service-a.example.net", "service-b.example.net"},
 		&mockResolver{
 			SRV: map[string][]net.SRV{
 				"service-a": []net.SRV{{Target: "az1-service-a.addr.example.net", Port: 7755}, {Target: "az2-service-a.addr.example.net", Port: 7566}},
@@ -141,41 +222,7 @@ func TestDNSSRVMode(t *testing.T) {
 		},
 		logger,
 	)
-	cfg.DiscoveryProvider = provider
-	assert.ElementsMatch(
-		t,
-		[]string{
-			"service-a.example.net",
-			"service-b.example.net",
-			"unknown-duplicate.example.net",
-			"badhostport",
-		},
-		provider.UnresolvedHosts,
-		"duplicate entries should be removed",
-	)
-
-	// Expect unknown-duplicate.example.net to not resolve
-	_, err = cfg.DiscoveryProvider.Hosts()
-	assert.NotNil(t, err)
-
-	// Remove known bad hosts from Unresolved list
-	provider.UnresolvedHosts = []string{
-		"service-a.example.net",
-		"service-b.example.net",
-		"badhostport",
-	}
-
-	// Expect badhostport to not seperate service name
-	_, err = cfg.DiscoveryProvider.Hosts()
-	assert.NotNil(t, err)
-
-	// Remove known bad hosts from Unresolved list
-	provider.UnresolvedHosts = []string{
-		"service-a.example.net",
-		"service-b.example.net",
-	}
-
-	hostports, err := cfg.DiscoveryProvider.Hosts()
+	hostports, err := provider.Hosts()
 	assert.Nil(t, err)
 	assert.ElementsMatch(
 		t,
@@ -186,17 +233,84 @@ func TestDNSSRVMode(t *testing.T) {
 			"10.0.3.1:7896",
 		},
 		hostports,
-		"duplicate entries should be removed",
 	)
 
-	cfg.DiscoveryProvider = newDNSProvider(
-		cfg.BootstrapHosts,
-		&mockResolver{Hosts: map[string][]string{}},
+	// Test error when SRV lookup fails
+	provider = newDNSSRVProvider(
+		[]string{"unknown-duplicate.example.net"},
+		&mockResolver{
+			SRV:   map[string][]net.SRV{},
+			Hosts: map[string][]string{},
+		},
 		logger,
 	)
-	hostports, err = cfg.DiscoveryProvider.Hosts()
-	assert.Nil(t, hostports)
-	assert.NotNil(t, err, "error should be returned when no hosts")
+	_, err = provider.Hosts()
+	assert.NotNil(t, err, "should return error when SRV lookup fails")
+
+	// Test error when hostname cannot be separated (less than 3 parts)
+	provider = newDNSSRVProvider(
+		[]string{"badhostport"},
+		&mockResolver{
+			SRV:   map[string][]net.SRV{},
+			Hosts: map[string][]string{},
+		},
+		logger,
+	)
+	_, err = provider.Hosts()
+	assert.NotNil(t, err, "should return error for malformed hostname")
+
+	// Test error when individual SRV target fails to resolve
+	provider = newDNSSRVProvider(
+		[]string{"service-a.example.net"},
+		&mockResolver{
+			SRV: map[string][]net.SRV{
+				"service-a": []net.SRV{
+					{Target: "bad.addr.example.net", Port: 7755},
+				},
+			},
+			Hosts: map[string][]string{},
+		},
+		logger,
+	)
+	_, err = provider.Hosts()
+	assert.NotNil(t, err, "should return error when SRV target fails to resolve")
+
+	// Test DNS IsNotFound for SRV target - should skip and continue
+	provider = newDNSSRVProvider(
+		[]string{"service-a.example.net"},
+		&mockResolver{
+			SRV: map[string][]net.SRV{
+				"service-a": []net.SRV{
+					{Target: "notfound.example.net", Port: 7755},
+					{Target: "good.addr.example.net", Port: 7756},
+				},
+			},
+			Hosts: map[string][]string{
+				"good.addr.example.net": []string{"10.0.0.1"},
+			},
+		},
+		logger,
+	)
+	hostports, err = provider.Hosts()
+	assert.Nil(t, err, "should skip not found SRV targets")
+	assert.ElementsMatch(t, []string{"10.0.0.1:7756"}, hostports, "should return resolved targets")
+
+	// Test all SRV targets are DNS not found - should return empty
+	provider = newDNSSRVProvider(
+		[]string{"service-a.example.net"},
+		&mockResolver{
+			SRV: map[string][]net.SRV{
+				"service-a": []net.SRV{
+					{Target: "notfound.example.net", Port: 7755},
+				},
+			},
+			Hosts: map[string][]string{},
+		},
+		logger,
+	)
+	hostports, err = provider.Hosts()
+	assert.Nil(t, err)
+	assert.Empty(t, hostports, "should return empty when all SRV targets not found")
 }
 
 func getDNSConfig() string {

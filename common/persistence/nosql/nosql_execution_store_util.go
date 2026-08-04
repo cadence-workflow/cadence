@@ -228,7 +228,7 @@ func (d *nosqlExecutionStore) prepareTimerTasksForWorkflowTxn(_, _, _ string, ti
 			return nil, err
 		}
 		var blob *persistence.DataBlob
-		if d.dc.EnableHistoryTaskDualWriteMode() {
+		if d.GetDefaultShard().dc.EnableHistoryTaskDualWriteMode() {
 			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTimer, task)
 			if err != nil {
 				return nil, err
@@ -292,7 +292,7 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 			NewRunBranchToken: newRunBranchToken,
 		}
 		var blob *persistence.DataBlob
-		if d.dc.EnableHistoryTaskDualWriteMode() {
+		if d.GetDefaultShard().dc.EnableHistoryTaskDualWriteMode() {
 			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryReplication, task)
 			if err != nil {
 				return nil, err
@@ -348,7 +348,7 @@ func (d *nosqlExecutionStore) prepareTransferTasksForWorkflowTxn(_, _, _ string,
 			return nil, err
 		}
 		var blob *persistence.DataBlob
-		if d.dc.EnableHistoryTaskDualWriteMode() {
+		if d.GetDefaultShard().dc.EnableHistoryTaskDualWriteMode() {
 			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryTransfer, task)
 			if err != nil {
 				return nil, err
@@ -489,7 +489,7 @@ func (d *nosqlExecutionStore) prepareCreateWorkflowExecutionTxn(
 
 	if executionInfo.StartTimestamp.IsZero() {
 		executionInfo.StartTimestamp = nowTimestamp
-		d.logger.Error("Workflow startTimestamp not set, fallback to now",
+		d.GetLogger().Error("Workflow startTimestamp not set, fallback to now",
 			tag.WorkflowDomainID(executionInfo.DomainID),
 			tag.WorkflowID(executionInfo.WorkflowID),
 			tag.WorkflowRunID(executionInfo.RunID),
@@ -581,11 +581,11 @@ func (d *nosqlExecutionStore) processUpdateWorkflowResult(err error, rangeID int
 			default:
 				// If ever runs into this branch, there is bug in the code either in here, or in the implementation of nosql plugin
 				err := fmt.Errorf("unexpected conditionFailureReason error")
-				d.logger.Error("A code bug exists in persistence layer, please investigate ASAP", tag.Error(err))
+				d.GetLogger().Error("A code bug exists in persistence layer, please investigate ASAP", tag.Error(err))
 				return err
 			}
 		}
-		return convertCommonErrors(d.db, "UpdateWorkflowExecution", err)
+		return convertCommonErrors(d.GetDefaultShard().db, "UpdateWorkflowExecution", err)
 	}
 
 	return nil

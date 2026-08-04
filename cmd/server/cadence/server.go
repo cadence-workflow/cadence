@@ -53,7 +53,6 @@ import (
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
-	csc "github.com/uber/cadence/common/dynamicconfig/configstore/config"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/elasticsearch"
 	"github.com/uber/cadence/common/isolationgroup/isolationgroupapi"
@@ -63,7 +62,6 @@ import (
 	"github.com/uber/cadence/common/messaging/kafka"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/peerprovider/ringpopprovider"
-	"github.com/uber/cadence/common/persistence"
 	pnt "github.com/uber/cadence/common/pinot"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/rpc"
@@ -80,30 +78,36 @@ import (
 
 type (
 	server struct {
-		name             string
-		cfg              config.Config
-		logger           log.Logger
-		zapLogger        *zap.Logger
-		doneC            chan struct{}
-		daemon           common.Daemon
-		dynamicCfgClient dynamicconfig.Client
-		scope            tally.Scope
-		metricsClient    metrics.Client
+		name                     string
+		cfg                      config.Config
+		logger                   log.Logger
+		zapLogger                *zap.Logger
+		doneC                    chan struct{}
+		daemon                   common.Daemon
+		dynamicCfgClient         dynamicconfig.Client
+		dynamicCollection        *dynamicconfig.Collection
+		operationalConfigStore   configstore.Client
+		operationalDynamicConfig *dynamicconfig.Collection
+		scope                    tally.Scope
+		metricsClient            metrics.Client
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
 	return &server{
-		cfg:              cfg,
-		name:             service,
-		doneC:            make(chan struct{}),
-		logger:           logger,
-		zapLogger:        zapLogger,
-		dynamicCfgClient: dynamicCfgClient,
-		scope:            scope,
-		metricsClient:    metricsClient,
+		cfg:                      cfg,
+		name:                     service,
+		doneC:                    make(chan struct{}),
+		logger:                   logger,
+		zapLogger:                zapLogger,
+		dynamicCfgClient:         dynamicCfgClient,
+		dynamicCollection:        dynamicCollection,
+		operationalConfigStore:   operationalConfigStore,
+		operationalDynamicConfig: operationalDynamicConfig,
+		scope:                    scope,
+		metricsClient:            metricsClient,
 	}
 }
 
@@ -148,32 +152,24 @@ func (s *server) startService() common.Daemon {
 		Logger:            s.logger.WithTags(tag.Service(service.FullName(s.name))),
 		PersistenceConfig: s.cfg.Persistence,
 		DynamicConfig:     s.dynamicCfgClient,
+		DynamicCollection: s.dynamicCollection,
 		RPCConfig:         svcCfg.RPC,
 	}
 
 	clusterGroupMetadata := s.cfg.ClusterGroupMetadata
-	dc := dynamicconfig.NewCollection(
-		params.DynamicConfig,
-		params.Logger,
-		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
-	)
 
 	params.MetricScope = s.scope
 	params.MetricsClient = s.metricsClient
 	params.ZapLogger = s.zapLogger
 
-	params.OperationalConfigStore = resolveOperationalConfigStore(&params, dc)
-	operationalDC := dynamicconfig.NewCollection(
-		params.OperationalConfigStore,
-		params.Logger,
-		dynamicproperties.ClusterNameFilter(clusterGroupMetadata.CurrentClusterName),
-	)
+	params.OperationalConfigStore = s.operationalConfigStore
+	params.OperationalDynamicConfig = s.operationalDynamicConfig
 	params.PercentageOnboarded = membership.NewPercentageOnboarded(
 		params.MetricsClient,
-		operationalDC.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
+		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)
 
-	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, dc, params.Logger, params.MetricsClient)
+	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, s.dynamicCollection, params.Logger, params.MetricsClient)
 	if err != nil {
 		s.logger.Fatal("error creating rpc factory params", tag.Error(err))
 	}
@@ -239,7 +235,7 @@ func (s *server) startService() common.Daemon {
 		params.HashRings[s] = membership.NewHashring(s, peerProvider, clock.NewRealTimeSource(), params.Logger, params.MetricsClient.Scope(metrics.HashringScope))
 	}
 
-	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, operationalDC, params.PercentageOnboarded, params.Logger)
+	wrappedRings := s.wrapHashRingsWithShardDistributor(params.HashRings, spectator, s.operationalDynamicConfig, params.PercentageOnboarded, params.Logger)
 
 	params.MembershipResolver, err = membership.NewResolver(
 		peerProvider,
@@ -255,16 +251,16 @@ func (s *server) startService() common.Daemon {
 
 	params.ClusterRedirectionPolicy = s.cfg.ClusterGroupMetadata.ClusterRedirectionPolicy
 
-	params.GetIsolationGroups = getFromDynamicConfig(params, dc)
+	params.GetIsolationGroups = getFromDynamicConfig(params, s.dynamicCollection)
 
 	params.ClusterMetadata = cluster.NewMetadata(
 		*clusterGroupMetadata,
-		dc.GetBoolPropertyFilteredByDomain(dynamicproperties.UseNewInitialFailoverVersion),
+		s.dynamicCollection.GetBoolPropertyFilteredByDomain(dynamicproperties.UseNewInitialFailoverVersion),
 		params.MetricsClient,
 		params.Logger,
 	)
 
-	advancedVisMode := dc.GetStringProperty(
+	advancedVisMode := s.dynamicCollection.GetStringProperty(
 		dynamicproperties.WriteVisibilityStoreName,
 	)()
 	isAdvancedVisEnabled := common.IsAdvancedVisibilityWritingEnabled(advancedVisMode, params.PersistenceConfig.IsAdvancedVisibilityConfigExist())
@@ -294,7 +290,7 @@ func (s *server) startService() common.Daemon {
 	}
 
 	params.ArchivalMetadata = archiver.NewArchivalMetadata(
-		dc,
+		s.dynamicCollection,
 		s.cfg.Archival.History.Status,
 		s.cfg.Archival.History.EnableRead,
 		s.cfg.Archival.Visibility.Status,
@@ -303,8 +299,8 @@ func (s *server) startService() common.Daemon {
 	)
 
 	params.ArchiverProvider = provider.NewArchiverProvider(s.cfg.Archival.History.Provider, s.cfg.Archival.Visibility.Provider)
-	params.PersistenceConfig.TransactionSizeLimit = dc.GetIntProperty(dynamicproperties.TransactionSizeLimit)
-	params.PersistenceConfig.ErrorInjectionRate = dc.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
+	params.PersistenceConfig.TransactionSizeLimit = s.dynamicCollection.GetIntProperty(dynamicproperties.TransactionSizeLimit)
+	params.PersistenceConfig.ErrorInjectionRate = s.dynamicCollection.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
 	params.BlobstoreClient, err = filestore.NewFilestoreClient(s.cfg.Blobstore.Filestore)
 	if err != nil {
@@ -506,23 +502,4 @@ func getFromDynamicConfig(params resource.Params, dc *dynamicconfig.Collection) 
 		}
 		return res
 	}
-}
-
-// resolveOperationalConfigStore returns the primary persistence-backed configstore.Client, or a no-op when persistence doesn't support one.
-func resolveOperationalConfigStore(params *resource.Params, dc *dynamicconfig.Collection) configstore.Client {
-	cscConfig := &csc.ClientConfig{
-		PollInterval:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStorePollInterval)(),
-		UpdateRetryAttempts: dc.GetIntProperty(dynamicproperties.OperationalConfigStoreUpdateRetryAttempts)(),
-		FetchTimeout:        dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreFetchTimeout)(),
-		UpdateTimeout:       dc.GetDurationProperty(dynamicproperties.OperationalConfigStoreUpdateTimeout)(),
-	}
-	client, err := configstore.NewConfigStoreClient(
-		cscConfig, &params.PersistenceConfig, params.Logger, params.MetricsClient,
-		persistence.OperationalDynamicConfig,
-	)
-	if err != nil {
-		params.Logger.Warn("not instantiating operational dynamic config store, this feature will not be enabled", tag.Error(err))
-		return configstore.NewNopClient()
-	}
-	return client
 }
