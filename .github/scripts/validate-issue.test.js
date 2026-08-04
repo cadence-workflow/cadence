@@ -98,8 +98,8 @@ describe("detectIssueType", () => {
   });
 });
 
-describe("evaluateIssue", () => {
-  const bugBody = [
+describe("evaluateIssue — deterministic guards", () => {
+  const completeBugBody = [
     "<!-- template: bug_report -->",
     "### Description",
     "Server crashes",
@@ -131,7 +131,7 @@ describe("evaluateIssue", () => {
     "",
   ].join("\n");
 
-  const featureBody = [
+  const completeFeatureBody = [
     "<!-- template: feature_request -->",
     "### Description",
     "Add rate limiting",
@@ -141,10 +141,10 @@ describe("evaluateIssue", () => {
     "Server only",
   ].join("\n");
 
-  it("complete bug: no needs-info, removes existing", () => {
+  it("complete template bug: no needs-info, removes existing", () => {
     const result = evaluateIssue({
       title: "Server crash",
-      body: bugBody,
+      body: completeBugBody,
       labels: [{ name: "kind/bug" }, { name: "triage/needs-info" }],
       authorAssociation: "NONE",
     });
@@ -155,7 +155,7 @@ describe("evaluateIssue", () => {
     assert.equal(result.deleteComment, true);
   });
 
-  it("incomplete bug: adds needs-info with missing sections", () => {
+  it("incomplete template bug: adds needs-info with missing sections", () => {
     const result = evaluateIssue({
       title: "Bug",
       body: incompleteBugBody,
@@ -165,12 +165,13 @@ describe("evaluateIssue", () => {
     assert.equal(result.addNeedsInfo, true);
     assert.ok(result.missingSections.length > 0);
     assert.ok(result.comment.includes("issue-template-check"));
+    assert.ok(result.comment.includes("Missing required sections"));
   });
 
-  it("complete feature: no needs-info", () => {
+  it("complete template feature: no needs-info", () => {
     const result = evaluateIssue({
       title: "Rate limiting",
-      body: featureBody,
+      body: completeFeatureBody,
       labels: [{ name: "kind/feature" }],
       authorAssociation: "NONE",
     });
@@ -178,41 +179,18 @@ describe("evaluateIssue", () => {
     assert.equal(result.missingSections.length, 0);
   });
 
-  it("free-form non-template: auto-detects type if keywords present", () => {
+  it("free-form (no template marker): NEVER adds needs-info", () => {
     const result = evaluateIssue({
       title: "Please add dark mode",
       body: "I would like dark mode support for the web UI",
       labels: [],
       authorAssociation: "NONE",
     });
-    assert.equal(result.addNeedsInfo, true);
-    assert.ok(result.comment.includes("Add one label from"));
-  });
-
-  it("no type detected and no label: requests label", () => {
-    const result = evaluateIssue({
-      title: "Something",
-      body: "A vague issue",
-      labels: [],
-      authorAssociation: "NONE",
-    });
-    assert.equal(result.typeToApply, null);
-    assert.equal(result.addNeedsInfo, true);
-    assert.ok(result.comment.includes("Add one label from"));
-  });
-
-  it("already has triage/* label: does not double-add needs-info", () => {
-    const result = evaluateIssue({
-      title: "Bug",
-      body: incompleteBugBody,
-      labels: [{ name: "kind/bug" }, { name: "triage/needs-info" }],
-      authorAssociation: "NONE",
-    });
     assert.equal(result.addNeedsInfo, false);
-    assert.ok(result.missingSections.length > 0);
+    assert.equal(result.comment, null);
   });
 
-  it("auto-applies type label when missing but detected from body", () => {
+  it("free-form with bug keywords: auto-detects type but no needs-info", () => {
     const result = evaluateIssue({
       title: "Crash on startup",
       body: "### Steps to Reproduce\n1. Start the server\n### Expected Behavior\nIt works\n### Actual Behavior\nCrash",
@@ -220,5 +198,100 @@ describe("evaluateIssue", () => {
       authorAssociation: "NONE",
     });
     assert.equal(result.typeToApply, "kind/bug");
+    assert.equal(result.addNeedsInfo, false);
+  });
+
+  it("template issue with existing triage/* label: skips needs-info", () => {
+    const result = evaluateIssue({
+      title: "Bug",
+      body: incompleteBugBody,
+      labels: [{ name: "kind/bug" }, { name: "triage/needs-decision" }],
+      authorAssociation: "NONE",
+    });
+    assert.equal(result.addNeedsInfo, false);
+    assert.equal(result.comment, null);
+  });
+
+  it("template issue from MEMBER author: skips needs-info", () => {
+    const result = evaluateIssue({
+      title: "Internal bug",
+      body: incompleteBugBody,
+      labels: [{ name: "kind/bug" }],
+      authorAssociation: "MEMBER",
+    });
+    assert.equal(result.addNeedsInfo, false);
+    assert.equal(result.comment, null);
+  });
+
+  it("template issue from OWNER author: skips needs-info", () => {
+    const result = evaluateIssue({
+      title: "Owner bug",
+      body: incompleteBugBody,
+      labels: [{ name: "kind/bug" }],
+      authorAssociation: "OWNER",
+    });
+    assert.equal(result.addNeedsInfo, false);
+  });
+
+  it("template issue from COLLABORATOR author: skips needs-info", () => {
+    const result = evaluateIssue({
+      title: "Collaborator bug",
+      body: incompleteBugBody,
+      labels: [{ name: "kind/bug" }],
+      authorAssociation: "COLLABORATOR",
+    });
+    assert.equal(result.addNeedsInfo, false);
+  });
+
+  it("issue with epic label: skips needs-info", () => {
+    const result = evaluateIssue({
+      title: "Epic tracker",
+      body: incompleteBugBody,
+      labels: [{ name: "kind/bug" }, { name: "epic" }],
+      authorAssociation: "NONE",
+    });
+    assert.equal(result.addNeedsInfo, false);
+  });
+
+  it("issue with roadmap label: skips needs-info", () => {
+    const result = evaluateIssue({
+      title: "Roadmap item",
+      body: incompleteBugBody,
+      labels: [{ name: "kind/bug" }, { name: "roadmap" }],
+      authorAssociation: "NONE",
+    });
+    assert.equal(result.addNeedsInfo, false);
+  });
+
+  it("template bug without kind/* label: auto-applies kind/bug from marker", () => {
+    const result = evaluateIssue({
+      title: "A bug",
+      body: completeBugBody,
+      labels: [],
+      authorAssociation: "NONE",
+    });
+    assert.equal(result.typeToApply, "kind/bug");
+  });
+
+  it("template feature without kind/* label: auto-applies kind/feature from marker", () => {
+    const result = evaluateIssue({
+      title: "A feature",
+      body: completeFeatureBody,
+      labels: [],
+      authorAssociation: "NONE",
+    });
+    assert.equal(result.typeToApply, "kind/feature");
+  });
+
+  it("non-template vague issue: no type, no needs-info", () => {
+    const result = evaluateIssue({
+      title: "Something",
+      body: "A vague issue",
+      labels: [],
+      authorAssociation: "NONE",
+    });
+    assert.equal(result.typeToApply, null);
+    assert.equal(result.addNeedsInfo, false);
+    assert.equal(result.comment, null);
   });
 });
