@@ -34,7 +34,7 @@ RUN CGO_ENABLED=0 make cadence-cassandra-tool cadence-sql-tool cadence cadence-s
 
 
 # Download dockerize
-FROM alpine:3.18 AS dockerize
+FROM alpine:3.24 AS dockerize
 
 # appears to require `docker buildx` or an explicit `--platform` at build time
 ARG TARGETARCH
@@ -50,7 +50,7 @@ RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSI
 
 
 # Alpine base image
-FROM alpine:3.18 AS alpine
+FROM alpine:3.24 AS alpine
 
 RUN apk add --update --no-cache ca-certificates tzdata bash curl
 
@@ -112,9 +112,11 @@ FROM cadence-server AS cadence-auto-setup
 
 USER root
 
-RUN apk add --update --no-cache ca-certificates py3-pip mysql-client
-RUN pip3 install setuptools wheel
-RUN pip3 install cassandra-driver==3.29.3 && pip3 install cqlsh==6.2.1 && cqlsh --version
+RUN apk add --update --no-cache ca-certificates py3-pip mysql-client \
+    gcc musl-dev python3-dev libev-dev
+RUN pip3 install --break-system-packages setuptools wheel
+RUN pip3 install --break-system-packages cqlsh==6.2.2 && \
+    cqlsh --version
 
 COPY --chown=cadence:cadence docker/start.sh /start.sh
 COPY --chown=cadence:cadence docker/domain /etc/cadence/domain

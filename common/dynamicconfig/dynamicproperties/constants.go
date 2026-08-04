@@ -110,7 +110,7 @@ func ListAllProductionKeys() []Key {
 	for i := TestGetFloat64PropertyKey + 1; i < LastFloatKey; i++ {
 		result = append(result, i)
 	}
-	for i := TestGetStringPropertyKey + 1; i < LastStringKey; i++ {
+	for i := TestGetStringPropertyFilteredByShardIDKey + 1; i < LastStringKey; i++ {
 		result = append(result, i)
 	}
 	for i := TestGetDurationPropertyFilteredByTaskListInfoKey + 1; i < LastDurationKey; i++ {
@@ -2614,6 +2614,7 @@ const (
 
 	// key for tests
 	TestGetStringPropertyKey
+	TestGetStringPropertyFilteredByShardIDKey
 
 	// key for common & admin
 
@@ -5407,6 +5408,12 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "testGetStringPropertyKey",
 		Description:  "",
 		DefaultValue: "",
+	},
+	TestGetStringPropertyFilteredByShardIDKey: {
+		KeyName:      "testGetStringPropertyFilteredByShardIDKey",
+		Description:  "",
+		DefaultValue: "",
+		Filters:      []Filter{ShardID},
 	},
 	WriteVisibilityStoreName: {
 		KeyName:      "system.writeVisibilityStoreName",

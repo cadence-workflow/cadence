@@ -53,12 +53,12 @@ const (
 )
 
 type managerImpl struct {
-	domainIDToDomainFn       DomainIDToDomainFn
-	metricsCl                metrics.Client
-	logger                   log.Logger
-	executionManagerProvider ExecutionManagerProvider
-	numShards                int
-	workflowPolicyCache      cache.Cache
+	domainIDToDomainFn  DomainIDToDomainFn
+	metricsCl           metrics.Client
+	logger              log.Logger
+	executionManager    persistence.ExecutionManager
+	numShards           int
+	workflowPolicyCache cache.Cache
 }
 
 type ManagerOption func(*managerImpl)
@@ -67,16 +67,16 @@ func NewManager(
 	domainIDToDomainFn DomainIDToDomainFn,
 	metricsCl metrics.Client,
 	logger log.Logger,
-	executionManagerProvider ExecutionManagerProvider,
+	executionManager persistence.ExecutionManager,
 	numShards int,
 	opts ...ManagerOption,
 ) (Manager, error) {
 	m := &managerImpl{
-		domainIDToDomainFn:       domainIDToDomainFn,
-		metricsCl:                metricsCl,
-		logger:                   logger.WithTags(tag.ComponentActiveClusterManager),
-		executionManagerProvider: executionManagerProvider,
-		numShards:                numShards,
+		domainIDToDomainFn: domainIDToDomainFn,
+		metricsCl:          metricsCl,
+		logger:             logger.WithTags(tag.ComponentActiveClusterManager),
+		executionManager:   executionManager,
+		numShards:          numShards,
 		workflowPolicyCache: cache.New(&cache.Options{
 			TTL:           workflowPolicyCacheTTL,
 			MaxCount:      workflowPolicyCacheMaxCount,
@@ -94,10 +94,7 @@ func NewManager(
 
 func (m *managerImpl) getClusterSelectionPolicy(ctx context.Context, domainID, wfID, rID string) (*types.ActiveClusterSelectionPolicy, error) {
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
-	if err != nil {
-		return nil, err
-	}
+	executionManager := m.executionManager
 	if rID == "" {
 		execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
 			ShardID:    common.Ptr(shardID),
@@ -299,10 +296,7 @@ func (m *managerImpl) GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx cont
 	}
 
 	shardID := common.WorkflowIDToHistoryShard(wfID, m.numShards)
-	executionManager, err := m.executionManagerProvider.GetExecutionManager(shardID)
-	if err != nil {
-		return nil, false, err
-	}
+	executionManager := m.executionManager
 	execution, err := executionManager.GetCurrentExecution(ctx, &persistence.GetCurrentExecutionRequest{
 		ShardID:    common.Ptr(shardID),
 		DomainID:   domainID,

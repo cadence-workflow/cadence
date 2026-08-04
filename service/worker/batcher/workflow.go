@@ -49,6 +49,10 @@ const (
 	// BatcherTaskListName is the tasklist name
 	BatcherTaskListName = "cadence-sys-batcher-tasklist"
 	// BatchWFTypeName is the workflow type
+	//
+	// Deprecated: superseded by BatchWFV2TypeName / BatchWorkflowV2. Kept registered
+	// only to serve in-flight v1 executions started before the switch to v2.
+	// TODO: remove once no v1 executions remain.
 	BatchWFTypeName   = "cadence-sys-batch-workflow"
 	batchActivityName = "cadence-sys-batch-activity"
 	// InfiniteDuration is a long duration(20 yrs) we used for infinite workflow running
@@ -106,6 +110,10 @@ func init() {
 }
 
 // BatchWorkflow is the workflow that runs a batch job of resetting workflows
+//
+// Deprecated: superseded by BatchWorkflowV2. Kept registered only to serve
+// in-flight v1 executions started before the switch to v2.
+// TODO: remove once no v1 executions remain.
 func BatchWorkflow(ctx workflow.Context, batchParams BatchParams) (HeartBeatDetails, error) {
 	batchParams = setDefaultParams(batchParams)
 	err := validateParams(batchParams)

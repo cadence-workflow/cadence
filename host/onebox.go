@@ -92,7 +92,7 @@ type Cadence interface {
 	GetHistoryClient() historyClient.Client
 	GetMatchingClient() matchingClient.Client
 	GetMatchingClients() []matchingClient.Client
-	GetExecutionManagerFactory() persistence.ExecutionManagerFactory
+	GetExecutionManager() persistence.ExecutionManager
 }
 
 type (
@@ -112,7 +112,7 @@ type (
 		messagingClient               messaging.Client
 		domainManager                 persistence.DomainManager
 		historyV2Mgr                  persistence.HistoryManager
-		executionMgrFactory           persistence.ExecutionManagerFactory
+		executionMgr                  persistence.ExecutionManager
 		domainReplicationQueue        domain.ReplicationQueue
 		shutdownCh                    chan struct{}
 		shutdownWG                    sync.WaitGroup
@@ -312,7 +312,7 @@ type (
 		MessagingClient               messaging.Client
 		DomainManager                 persistence.DomainManager
 		HistoryV2Mgr                  persistence.HistoryManager
-		ExecutionMgrFactory           persistence.ExecutionManagerFactory
+		ExecutionMgr                  persistence.ExecutionManager
 		DomainReplicationQueue        domain.ReplicationQueue
 		Logger                        log.Logger
 		ZapLogger                     *zap.Logger
@@ -351,7 +351,7 @@ func NewCadence(params *CadenceParams) Cadence {
 		messagingClient:               params.MessagingClient,
 		domainManager:                 params.DomainManager,
 		historyV2Mgr:                  params.HistoryV2Mgr,
-		executionMgrFactory:           params.ExecutionMgrFactory,
+		executionMgr:                  params.ExecutionMgr,
 		domainReplicationQueue:        params.DomainReplicationQueue,
 		shutdownCh:                    make(chan struct{}),
 		clusterNo:                     params.ClusterNo,
@@ -675,6 +675,7 @@ func (c *cadenceImpl) GetMatchingClients() []matchingClient.Client {
 
 func setOperationalDefaults(params *resource.Params) {
 	params.OperationalConfigStore = configstore.NewNopClient()
+	// OperationalDynamicConfig will be set after DynamicConfig is available
 	params.PercentageOnboarded = membership.StaticPercentageOnboarded(0)
 }
 
@@ -695,6 +696,16 @@ func (c *cadenceImpl) startFrontend(hosts map[string][]membership.HostInfo, star
 	params.ClusterMetadata = c.clusterMetadata
 	params.MessagingClient = c.messagingClient
 	params.DynamicConfig = newIntegrationConfigClient(c.dynamicClient, c.frontendDynCfgOverrides)
+	params.DynamicCollection = dynamicconfig.NewCollection(
+		params.DynamicConfig,
+		c.logger,
+		dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+	)
+	params.OperationalDynamicConfig = dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		c.logger,
+		dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+	)
 	params.ArchivalMetadata = c.archiverMetadata
 	params.ArchiverProvider = c.archiverProvider
 	params.ESConfig = c.esConfig
@@ -782,6 +793,16 @@ func (c *cadenceImpl) startHistory(hosts map[string][]membership.HostInfo, start
 		integrationClient := newIntegrationConfigClient(c.dynamicClient, c.historyDynCfgOverrides)
 		c.overrideHistoryDynamicConfig(integrationClient)
 		params.DynamicConfig = integrationClient
+		params.DynamicCollection = dynamicconfig.NewCollection(
+			params.DynamicConfig,
+			c.logger,
+			dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+		)
+		params.OperationalDynamicConfig = dynamicconfig.NewCollection(
+			params.OperationalConfigStore,
+			c.logger,
+			dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+		)
 		params.PublicClient = newPublicClient(params.RPCFactory.GetDispatcher())
 		params.ArchivalMetadata = c.archiverMetadata
 		params.ArchiverProvider = c.archiverProvider
@@ -869,6 +890,16 @@ func (c *cadenceImpl) startMatching(hosts map[string][]membership.HostInfo, star
 		params.MembershipResolver = newMembershipResolver(params.Name, hosts, hostport)
 		params.ClusterMetadata = c.clusterMetadata
 		params.DynamicConfig = newIntegrationConfigClient(c.dynamicClient, c.matchingDynCfgOverrides)
+		params.DynamicCollection = dynamicconfig.NewCollection(
+			params.DynamicConfig,
+			c.logger,
+			dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+		)
+		params.OperationalDynamicConfig = dynamicconfig.NewCollection(
+			params.OperationalConfigStore,
+			c.logger,
+			dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+		)
 		params.ArchivalMetadata = c.archiverMetadata
 		params.ArchiverProvider = c.archiverProvider
 		params.GetIsolationGroups = getFromDynamicConfig(params)
@@ -942,6 +973,16 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 	params.MembershipResolver = newMembershipResolver(params.Name, hosts, c.WorkerServiceHost())
 	params.ClusterMetadata = c.clusterMetadata
 	params.DynamicConfig = newIntegrationConfigClient(c.dynamicClient, c.workerDynCfgOverrides)
+	params.DynamicCollection = dynamicconfig.NewCollection(
+		params.DynamicConfig,
+		c.logger,
+		dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+	)
+	params.OperationalDynamicConfig = dynamicconfig.NewCollection(
+		params.OperationalConfigStore,
+		c.logger,
+		dynamicproperties.ClusterNameFilter(c.clusterMetadata.GetCurrentClusterName()),
+	)
 	params.ArchivalMetadata = c.archiverMetadata
 	params.ArchiverProvider = c.archiverProvider
 	params.GetIsolationGroups = getFromDynamicConfig(params)
@@ -1154,8 +1195,8 @@ func (c *cadenceImpl) createSystemDomain() error {
 	return nil
 }
 
-func (c *cadenceImpl) GetExecutionManagerFactory() persistence.ExecutionManagerFactory {
-	return c.executionMgrFactory
+func (c *cadenceImpl) GetExecutionManager() persistence.ExecutionManager {
+	return c.executionMgr
 }
 
 func (c *cadenceImpl) overrideHistoryDynamicConfig(client *dynamicClient) {
@@ -1210,10 +1251,13 @@ func newPProfInitializerImpl(logger log.Logger, port int) common.PProfInitialize
 func newPublicClient(dispatcher *yarpc.Dispatcher) cwsc.Interface {
 	config := dispatcher.ClientConfig(rpc.OutboundPublicClient)
 	return compatibility.NewThrift2ProtoAdapter(
-		apiv1.NewDomainAPIYARPCClient(config),
-		apiv1.NewWorkflowAPIYARPCClient(config),
-		apiv1.NewWorkerAPIYARPCClient(config),
-		apiv1.NewVisibilityAPIYARPCClient(config),
+		compatibility.AdapterClients{
+			Domain:     apiv1.NewDomainAPIYARPCClient(config),
+			Workflow:   apiv1.NewWorkflowAPIYARPCClient(config),
+			Worker:     apiv1.NewWorkerAPIYARPCClient(config),
+			Visibility: apiv1.NewVisibilityAPIYARPCClient(config),
+			Schedule:   apiv1.NewScheduleAPIYARPCClient(config),
+		},
 	)
 }
 

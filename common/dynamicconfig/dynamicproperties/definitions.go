@@ -89,6 +89,9 @@ type StringPropertyFnWithDomainFilter func(domain string) string
 // StringPropertyFnWithTaskListInfoFilters is a wrapper to get string property from dynamic config with domainID as filter
 type StringPropertyFnWithTaskListInfoFilters func(domain string, taskList string, taskType int) string
 
+// StringPropertyFnWithShardIDFilter is a wrapper to get string property from dynamic config with shardID as filter
+type StringPropertyFnWithShardIDFilter func(shardID int) string
+
 // BoolPropertyFnWithDomainFilter is a wrapper to get bool property from dynamic config with domain as filter
 type BoolPropertyFnWithDomainFilter func(domain string) bool
 

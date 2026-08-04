@@ -39,6 +39,7 @@ import (
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
+	"github.com/uber/cadence/common/dynamicconfig/configstore"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -110,7 +111,11 @@ func (s *ServerSuite) TestServerStartup() {
 		})
 
 	for _, svc := range services {
-		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), dynamicconfig.NewNopClient(), tally.NoopScope, metrics.NewNoopMetricsClient())
+		client := dynamicconfig.NewNopClient()
+		dc := dynamicconfig.NewNopCollection()
+		operationalConfigStore := configstore.NewNopClient()
+		operationalDC := dynamicconfig.NewNopCollection()
+		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient())
 		daemons = append(daemons, server)
 		server.Start()
 	}

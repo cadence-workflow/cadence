@@ -25,8 +25,6 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/dynamicconfig/quotas"
 	"github.com/uber/cadence/common/log/tag"
 	commonResource "github.com/uber/cadence/common/resource"
@@ -61,11 +59,7 @@ func NewService(
 	params *commonResource.Params,
 ) (resource.Resource, error) {
 	serviceConfig := config.New(
-		dynamicconfig.NewCollection(
-			params.DynamicConfig,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
+		params.DynamicCollection,
 		params.PersistenceConfig.NumHistoryShards,
 		params.RPCFactory.GetMaxMessageSize(),
 		params.PersistenceConfig.IsAdvancedVisibilityConfigExist(),

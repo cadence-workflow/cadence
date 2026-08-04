@@ -31,6 +31,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/checksum"
 	"github.com/uber/cadence/common/constants"
 	p "github.com/uber/cadence/common/persistence"
@@ -158,6 +159,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreation() {
 			Checksum:         csum,
 			VersionHistories: versionHistories,
 		},
+		ShardID:    common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:    s.ShardInfo.RangeID,
 		DomainName: domainName,
 	})
@@ -233,6 +235,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestWorkflowCreationWithVersionHistor
 	csum := s.newRandomChecksum()
 
 	_, err0 := s.ExecutionManager.CreateWorkflowExecution(ctx, &p.CreateWorkflowExecutionRequest{
+		ShardID: common.IntPtr(s.ShardInfo.ShardID),
 		RangeID: s.ShardInfo.RangeID,
 		NewWorkflowSnapshot: p.WorkflowSnapshot{
 			ExecutionInfo: &p.WorkflowExecutionInfo{
@@ -412,6 +415,7 @@ func (s *ExecutionManagerSuiteForEventsV2) TestContinueAsNew() {
 			ExecutionStats:   &p.ExecutionStats{},
 			VersionHistories: versionHistories,
 		},
+		ShardID:  common.IntPtr(s.ShardInfo.ShardID),
 		RangeID:  s.ShardInfo.RangeID,
 		Encoding: pickRandomEncoding(),
 	})

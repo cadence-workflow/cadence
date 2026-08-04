@@ -351,6 +351,9 @@ func (c *taskListManagerImpl) handleErr(err error) error {
 }
 
 func (c *taskListManagerImpl) TaskListPartitionConfig() *types.TaskListPartitionConfig {
+	if c.taskListKind != types.TaskListKindNormal {
+		return nil
+	}
 	c.partitionConfigLock.RLock()
 	defer c.partitionConfigLock.RUnlock()
 

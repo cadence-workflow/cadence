@@ -172,11 +172,7 @@ func New(
 
 	ensureGetAllIsolationGroupsFnIsSet(params)
 
-	dynamicCollection := dynamicconfig.NewCollection(
-		params.DynamicConfig,
-		logger,
-		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-	)
+	dynamicCollection := params.DynamicCollection
 	clientBean, err := client.NewClientBean(
 		client.NewRPCClientFactory(
 			params.RPCFactory,
@@ -243,7 +239,7 @@ func New(
 		domainCache.GetDomainByID,
 		params.MetricsClient,
 		logger,
-		persistenceBean,
+		persistenceBean.GetExecutionManager(),
 		numShards,
 	)
 	if err != nil {
@@ -322,11 +318,6 @@ func New(
 	}
 
 	isolationGroupStore := createConfigStoreOrDefault(params, dynamicCollection)
-	operationalDynamicConfig := dynamicconfig.NewCollection(
-		params.OperationalConfigStore,
-		logger,
-		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-	)
 
 	isolationGroupState, err := ensureIsolationGroupStateHandlerOrDefault(
 		params,
@@ -408,7 +399,7 @@ func New(
 		isolationGroups:           isolationGroupState,
 		isolationGroupConfigStore: isolationGroupStore, // can be nil where persistence is not available
 		operationalConfigStore:    params.OperationalConfigStore,
-		operationalDynamicConfig:  operationalDynamicConfig,
+		operationalDynamicConfig:  params.OperationalDynamicConfig,
 
 		asyncWorkflowQueueProvider: params.AsyncWorkflowQueueProvider,
 
@@ -670,10 +661,10 @@ func (h *Impl) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 	return h.persistenceBean.GetHistoryTaskDLQManager()
 }
 
-// GetExecutionManager return execution manager for given shard ID
-func (h *Impl) GetExecutionManager(shardID int) (persistence.ExecutionManager, error) {
+// GetExecutionManager return execution manager
+func (h *Impl) GetExecutionManager() persistence.ExecutionManager {
 
-	return h.persistenceBean.GetExecutionManager(shardID)
+	return h.persistenceBean.GetExecutionManager()
 }
 
 // GetPersistenceBean return persistence bean

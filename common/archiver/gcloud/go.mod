@@ -32,7 +32,7 @@ require (
 	github.com/uber/tchannel-go v1.34.4 // indirect
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/cadence v1.3.0 // indirect
+	go.uber.org/cadence v1.4.0-rc.3 // indirect
 	go.uber.org/config v1.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/thriftrw v1.34.0 // indirect
@@ -96,6 +96,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/uber-go/mapdecode v1.0.0 // indirect
+	github.com/uber/cadence-idl v0.0.0-20260701181909-ee96c0aebffa // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0 // indirect
