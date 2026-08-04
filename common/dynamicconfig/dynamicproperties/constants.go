@@ -5810,7 +5810,6 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.timerProcessorCachedQueueReaderShadowSampleInterval",
 		Description:  "TimerProcessorCachedQueueReaderShadowSampleInterval controls how often, at most, a GetTask call is diverted through the shadow comparison path while in enabled mode. <= 0 disables sampling.",
 		DefaultValue: time.Minute * 5,
-		Filters:      []Filter{ShardID},
 	},
 	TransferProcessorFailoverMaxStartJitterInterval: {
 		KeyName:      "history.transferProcessorFailoverMaxStartJitterInterval",
