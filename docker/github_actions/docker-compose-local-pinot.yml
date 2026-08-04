@@ -80,7 +80,7 @@ services:
           - zookeeper
 
   pinot-controller:
-    image: apachepinot/pinot:latest
+    image: apachepinot/pinot:1.4.0
     command: "StartController -zkAddress zookeeper:2181 -controllerPort 9001"
     container_name: pinot-controller
     restart: unless-stopped
@@ -95,7 +95,7 @@ services:
         aliases:
           - pinot-controller
   pinot-broker:
-    image: apachepinot/pinot:latest
+    image: apachepinot/pinot:1.4.0
     command: "StartBroker -zkAddress zookeeper:2181"
     restart: unless-stopped
     container_name: "pinot-broker"
@@ -110,7 +110,7 @@ services:
         aliases:
           - pinot-broker
   pinot-server:
-    image: apachepinot/pinot:latest
+    image: apachepinot/pinot:1.4.0
     command: "StartServer -zkAddress zookeeper:2181"
     restart: unless-stopped
     container_name: "pinot-server"
@@ -126,7 +126,7 @@ services:
           - pinot-server
 
   pinot-admin:
-    image: apachepinot/pinot:latest
+    image: apachepinot/pinot:1.4.0
     container_name: pinot-admin
     depends_on:
       - pinot-controller
