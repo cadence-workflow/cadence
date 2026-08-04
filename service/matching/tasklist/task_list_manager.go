@@ -339,8 +339,8 @@ func (c *taskListManagerImpl) Stop() {
 	c.logger.Info("Task list manager state changed", tag.LifeCycleStopped)
 }
 
-// watchForStop unloads the task list once one of its components reports an error that makes
-// the task list unusable, typically because another host has taken it over.
+// watchForStop unloads the task list when the reader or the writer reports a fatal error,
+// usually a lease lost to another host.
 func (c *taskListManagerImpl) watchForStop() {
 	select {
 	case <-c.taskReader.Fatal():
