@@ -425,10 +425,11 @@ func (h *Impl) Start() {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start PProf")
 	}
 
+	// TODO: move this to rpcfx
 	if err := h.rpcFactory.Start(h.membershipResolver); err != nil {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start RPC factory")
 	}
-
+	// TODO: move this to rpcfx
 	if err := h.dispatcher.Start(); err != nil {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start dispatcher")
 	}

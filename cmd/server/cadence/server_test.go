@@ -48,6 +48,7 @@ import (
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -115,7 +116,10 @@ func (s *ServerSuite) TestServerStartup() {
 		dc := dynamicconfig.NewNopCollection()
 		operationalConfigStore := configstore.NewNopClient()
 		operationalDC := dynamicconfig.NewNopCollection()
-		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient())
+		rpcParams, err := rpc.NewParams(service.FullName(svc), &cfg, dc, logger, metrics.NewNoopMetricsClient())
+		s.NoError(err)
+		rpcFactory := rpc.NewFactory(logger, rpcParams)
+		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory)
 		daemons = append(daemons, server)
 		server.Start()
 	}

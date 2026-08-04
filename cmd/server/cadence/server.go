@@ -90,12 +90,13 @@ type (
 		operationalDynamicConfig *dynamicconfig.Collection
 		scope                    tally.Scope
 		metricsClient            metrics.Client
+		rpcFactory               rpc.Factory
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory) common.Daemon {
 	return &server{
 		cfg:                      cfg,
 		name:                     service,
@@ -108,6 +109,7 @@ func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *
 		operationalDynamicConfig: operationalDynamicConfig,
 		scope:                    scope,
 		metricsClient:            metricsClient,
+		rpcFactory:               rpcFactory,
 	}
 }
 
@@ -169,21 +171,12 @@ func (s *server) startService() common.Daemon {
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)
 
-	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, s.dynamicCollection, params.Logger, params.MetricsClient)
-	if err != nil {
-		s.logger.Fatal("error creating rpc factory params", tag.Error(err))
-	}
-	rpcParams.OutboundsBuilder = rpc.CombineOutbounds(
-		rpcParams.OutboundsBuilder,
-		rpc.NewCrossDCOutbounds(clusterGroupMetadata.ClusterGroup, rpc.NewDNSPeerChooserFactory(s.cfg.PublicClient.RefreshInterval, params.Logger)),
-	)
-	rpcFactory := rpc.NewFactory(params.Logger, rpcParams)
-	params.RPCFactory = rpcFactory
+	params.RPCFactory = s.rpcFactory
 
 	peerProvider, err := ringpopprovider.New(
 		params.Name,
 		&s.cfg.Ringpop,
-		rpcFactory.GetTChannel(),
+		s.rpcFactory.GetTChannel(),
 		membership.PortMap{
 			membership.PortGRPC:     svcCfg.RPC.GRPCPort,
 			membership.PortTchannel: svcCfg.RPC.Port,
