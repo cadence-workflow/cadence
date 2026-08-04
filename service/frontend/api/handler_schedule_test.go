@@ -575,7 +575,8 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the close status stays CONTINUED_AS_NEW past the retry budget, the
-		// scheduler is stuck mid-transition; return CodeUnavailable so clients retry.
+		// scheduler is stuck rather than mid-transition: the server has already
+		// waited it out, so report the stuck state instead of a retry hint.
 		"scheduler mid-ContinueAsNew - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -589,9 +590,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				assert.True(t, yarpcerrors.IsStatus(err))
-				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
-				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "mid-ContinueAsNew")
 			},
 		},
 		// A freshly started scheduler run has not yet processed its first decision
@@ -775,7 +776,7 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the query stays rejected with CONTINUED_AS_NEW past the retry budget,
-		// return CodeUnavailable so the client retries.
+		// the scheduler is stuck; report the stuck state rather than a retry hint.
 		"scheduler ContinueAsNew between DWE and Query - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -796,9 +797,9 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				assert.True(t, yarpcerrors.IsStatus(err))
-				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
-				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "mid-ContinueAsNew")
 			},
 		},
 		"success": {

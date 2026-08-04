@@ -62,8 +62,10 @@ var (
 	// errSchedulerContinuedAsNew marks the transient window in which the scheduler
 	// workflow has closed its previous run for ContinueAsNew and the new run is not
 	// yet visible. Both the DescribeWorkflowExecution probe and the describe query
-	// return it; once the budget is exhausted normalizeScheduleError turns it into
-	// a CodeUnavailable response telling the client to retry.
+	// return it. A scheduler still in that state once the retry budget is spent is
+	// no longer plausibly mid-transition, so normalizeScheduleError reports it as an
+	// InternalServiceError naming the stuck state rather than asking the client to
+	// keep retrying a wait the server has already performed.
 	errSchedulerContinuedAsNew = errors.New("scheduler mid-ContinueAsNew")
 )
 
@@ -772,6 +774,14 @@ func (wh *WorkflowHandler) signalScheduleWorkflow(
 }
 
 func normalizeScheduleError(err error, scheduleID, domainName string) error {
+	if errors.Is(err, errSchedulerContinuedAsNew) {
+		return &types.InternalServiceError{
+			Message: fmt.Sprintf(
+				"schedule %q in domain %q is not queryable: scheduler workflow still mid-ContinueAsNew after %d attempts",
+				scheduleID, domainName, describeScheduleRetryAttempts,
+			),
+		}
+	}
 	var notFound *types.EntityNotExistsError
 	if errors.As(err, &notFound) {
 		return &types.EntityNotExistsError{
