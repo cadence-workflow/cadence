@@ -1491,7 +1491,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		workflowMutation.RewriteActivityMapTriggered = true
 		workflowMutation.DeleteActivityInfos = nil
 		e.activityMapDeleteCount = 0
-		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.ActivityMapRewriteCounter)
+		e.metricsClient.Scope(metrics.WorkflowContextScope, metrics.DomainTag(e.GetDomainEntry().GetInfo().Name), metrics.WorkflowTypeTag(e.executionInfo.WorkflowTypeName)).IncCounter(metrics.ActivityMapRewriteCounter)
 	}
 	timerRewriteThreshold := e.shard.GetExecutionManager().GetTimerMapDeleteRewriteThreshold()
 	if timerRewriteThreshold > 0 && e.timerMapDeleteCount >= timerRewriteThreshold {
@@ -1499,7 +1499,7 @@ func (e *mutableStateBuilder) CloseTransactionAsMutation(
 		workflowMutation.RewriteTimerMapTriggered = true
 		workflowMutation.DeleteTimerInfos = nil
 		e.timerMapDeleteCount = 0
-		e.metricsClient.IncCounter(metrics.WorkflowContextScope, metrics.TimerMapRewriteCounter)
+		e.metricsClient.Scope(metrics.WorkflowContextScope, metrics.DomainTag(e.GetDomainEntry().GetInfo().Name), metrics.WorkflowTypeTag(e.executionInfo.WorkflowTypeName)).IncCounter(metrics.TimerMapRewriteCounter)
 	}
 
 	e.checksum = checksum

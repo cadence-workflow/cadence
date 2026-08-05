@@ -1668,7 +1668,7 @@ const (
 	// Currently only implemented for Cassandra.
 	// KeyName: history.activityMapDeleteRewriteThreshold
 	// Value type: Int
-	// Default value: 100
+	// Default value: 0
 	ActivityMapDeleteRewriteThreshold
 
 	// TimerMapDeleteRewriteThreshold is the number of map key deletions before
@@ -1676,7 +1676,7 @@ const (
 	// Currently only implemented for Cassandra.
 	// KeyName: history.timerMapDeleteRewriteThreshold
 	// Value type: Int
-	// Default value: 100
+	// Default value: 0
 	TimerMapDeleteRewriteThreshold
 
 	// LastIntKey must be the last one in this const group
@@ -4600,12 +4600,12 @@ var IntKeys = map[IntKey]DynamicInt{
 	ActivityMapDeleteRewriteThreshold: {
 		KeyName:      "history.activityMapDeleteRewriteThreshold",
 		Description:  "Number of map key deletions before triggering a full map rewrite. Currently only implemented for Cassandra.",
-		DefaultValue: 100,
+		DefaultValue: 0,
 	},
 	TimerMapDeleteRewriteThreshold: {
 		KeyName:      "history.timerMapDeleteRewriteThreshold",
 		Description:  "Number of map key deletions before triggering a full map rewrite. Currently only implemented for Cassandra.",
-		DefaultValue: 100,
+		DefaultValue: 0,
 	},
 }
 
