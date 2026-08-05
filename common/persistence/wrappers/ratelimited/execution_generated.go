@@ -166,10 +166,6 @@ func (c *ratelimitedExecutionManager) GetReplicationTasksFromDLQ(ctx context.Con
 	return c.wrapped.GetReplicationTasksFromDLQ(ctx, request)
 }
 
-func (c *ratelimitedExecutionManager) GetShardID() (i1 int) {
-	return c.wrapped.GetShardID()
-}
-
 func (c *ratelimitedExecutionManager) GetTimerMapDeleteRewriteThreshold() (i1 int) {
 	return c.wrapped.GetTimerMapDeleteRewriteThreshold()
 }

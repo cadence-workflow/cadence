@@ -529,10 +529,6 @@ func (c *meteredExecutionManager) GetReplicationTasksFromDLQ(ctx context.Context
 	return
 }
 
-func (c *meteredExecutionManager) GetShardID() (i1 int) {
-	return c.wrapped.GetShardID()
-}
-
 func (c *meteredExecutionManager) GetTimerMapDeleteRewriteThreshold() (i1 int) {
 	return c.wrapped.GetTimerMapDeleteRewriteThreshold()
 }

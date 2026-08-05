@@ -681,20 +681,6 @@ func (mr *MockExecutionManagerMockRecorder) GetReplicationTasksFromDLQ(ctx, requ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicationTasksFromDLQ", reflect.TypeOf((*MockExecutionManager)(nil).GetReplicationTasksFromDLQ), ctx, request)
 }
 
-// GetShardID mocks base method.
-func (m *MockExecutionManager) GetShardID() int {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShardID")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// GetShardID indicates an expected call of GetShardID.
-func (mr *MockExecutionManagerMockRecorder) GetShardID() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardID", reflect.TypeOf((*MockExecutionManager)(nil).GetShardID))
-}
-
 // GetTimerMapDeleteRewriteThreshold mocks base method.
 func (m *MockExecutionManager) GetTimerMapDeleteRewriteThreshold() int {
 	m.ctrl.T.Helper()

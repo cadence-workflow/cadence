@@ -58,16 +58,14 @@ func newNoSQLExecutionStore(
 	}, nil
 }
 
-func (d *nosqlExecutionStore) GetShardID() int {
-	return d.shardID
-}
-
 func (d *nosqlExecutionStore) GetActivityMapDeleteRewriteThreshold() int {
-	return d.db.GetActivityMapDeleteRewriteThreshold()
+	s := d.GetDefaultShard()
+	return s.db.GetActivityMapDeleteRewriteThreshold()
 }
 
 func (d *nosqlExecutionStore) GetTimerMapDeleteRewriteThreshold() int {
-	return d.db.GetTimerMapDeleteRewriteThreshold()
+	s := d.GetDefaultShard()
+	return s.db.GetTimerMapDeleteRewriteThreshold()
 }
 
 func resolveRequestShardID(requestShardID *int, operation string, logger log.Logger) (int, error) {

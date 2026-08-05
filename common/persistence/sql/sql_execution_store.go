@@ -129,10 +129,6 @@ func (m *sqlExecutionStore) txExecuteShardLocked(
 	})
 }
 
-func (m *sqlExecutionStore) GetShardID() int {
-	return m.shardID
-}
-
 func (m *sqlExecutionStore) GetActivityMapDeleteRewriteThreshold() int {
 	return 0
 }

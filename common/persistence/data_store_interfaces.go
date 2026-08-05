@@ -118,7 +118,6 @@ type (
 	ExecutionStore interface {
 		Closeable
 		GetName() string
-		GetShardID() int
 		GetActivityMapDeleteRewriteThreshold() int
 		GetTimerMapDeleteRewriteThreshold() int
 		// The below three APIs are related to serialization/deserialization

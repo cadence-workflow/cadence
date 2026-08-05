@@ -68,10 +68,6 @@ func (m *executionManagerImpl) GetName() string {
 	return m.persistence.GetName()
 }
 
-func (m *executionManagerImpl) GetShardID() int {
-	return m.persistence.GetShardID()
-}
-
 func (m *executionManagerImpl) GetActivityMapDeleteRewriteThreshold() int {
 	return m.persistence.GetActivityMapDeleteRewriteThreshold()
 }
@@ -79,6 +75,7 @@ func (m *executionManagerImpl) GetActivityMapDeleteRewriteThreshold() int {
 func (m *executionManagerImpl) GetTimerMapDeleteRewriteThreshold() int {
 	return m.persistence.GetTimerMapDeleteRewriteThreshold()
 }
+
 // The below three APIs are related to serialization/deserialization
 
 func (m *executionManagerImpl) GetWorkflowExecution(

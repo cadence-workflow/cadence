@@ -275,10 +275,6 @@ func (c *injectorExecutionManager) GetReplicationTasksFromDLQ(ctx context.Contex
 	return
 }
 
-func (c *injectorExecutionManager) GetShardID() (i1 int) {
-	return c.wrapped.GetShardID()
-}
-
 func (c *injectorExecutionManager) GetTimerMapDeleteRewriteThreshold() (i1 int) {
 	return c.wrapped.GetTimerMapDeleteRewriteThreshold()
 }
