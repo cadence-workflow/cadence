@@ -33,7 +33,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (s *IntegrationSuite) TestContinueAsNewWorkflow() {
+func (s *IntegrationSuite) TestContinueAsNewWorkflow_SLOW() {
 	id := "integration-continue-as-new-workflow-test"
 	wt := "integration-continue-as-new-workflow-test-type"
 	tl := "integration-continue-as-new-workflow-test-tasklist"
