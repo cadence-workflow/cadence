@@ -1091,13 +1091,16 @@ func (c *cadenceImpl) startWorkerClientWorker(params *resource.Params, svc Servi
 	workerConfig := worker.NewConfig(params)
 	workerConfig.ArchiverConfig.ArchiverConcurrency = dynamicproperties.GetIntPropertyFn(10)
 	historyArchiverBootstrapContainer := &carchiver.HistoryBootstrapContainer{
-		HistoryV2Manager: c.historyV2Mgr,
-		Logger:           c.logger,
-		MetricsClient:    svc.GetMetricsClient(),
-		ClusterMetadata:  c.clusterMetadata,
-		DomainCache:      domainCache,
+		HistoryV2Manager:  c.historyV2Mgr,
+		Logger:            c.logger,
+		MetricsClient:     svc.GetMetricsClient(),
+		ClusterMetadata:   c.clusterMetadata,
+		DomainCache:       domainCache,
+		DynamicCollection: params.DynamicCollection,
 	}
-	err := c.archiverProvider.RegisterBootstrapContainer(service.Worker, historyArchiverBootstrapContainer, &carchiver.VisibilityBootstrapContainer{})
+	err := c.archiverProvider.RegisterBootstrapContainer(service.Worker, historyArchiverBootstrapContainer, &carchiver.VisibilityBootstrapContainer{
+		DynamicCollection: params.DynamicCollection,
+	})
 	if err != nil {
 		c.logger.Fatal("Failed to register archiver bootstrap container for worker service", tag.Error(err))
 	}

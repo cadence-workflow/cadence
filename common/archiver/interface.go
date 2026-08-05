@@ -25,6 +25,7 @@ import (
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/cluster"
+	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
@@ -62,11 +63,12 @@ type (
 
 	// HistoryBootstrapContainer contains components needed by all history Archiver implementations
 	HistoryBootstrapContainer struct {
-		HistoryV2Manager persistence.HistoryManager
-		Logger           log.Logger
-		MetricsClient    metrics.Client
-		ClusterMetadata  cluster.Metadata
-		DomainCache      cache.DomainCache
+		HistoryV2Manager  persistence.HistoryManager
+		Logger            log.Logger
+		MetricsClient     metrics.Client
+		ClusterMetadata   cluster.Metadata
+		DomainCache       cache.DomainCache
+		DynamicCollection *dynamicconfig.Collection
 	}
 
 	// HistoryArchiver is used to archive history and read archived history
@@ -78,10 +80,11 @@ type (
 
 	// VisibilityBootstrapContainer contains components needed by all visibility Archiver implementations
 	VisibilityBootstrapContainer struct {
-		Logger          log.Logger
-		MetricsClient   metrics.Client
-		ClusterMetadata cluster.Metadata
-		DomainCache     cache.DomainCache
+		Logger            log.Logger
+		MetricsClient     metrics.Client
+		ClusterMetadata   cluster.Metadata
+		DomainCache       cache.DomainCache
+		DynamicCollection *dynamicconfig.Collection
 	}
 
 	// ArchiveVisibilityRequest is request to Archive single workflow visibility record

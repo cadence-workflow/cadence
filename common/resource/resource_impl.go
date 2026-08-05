@@ -297,17 +297,19 @@ func New(
 	)
 
 	historyArchiverBootstrapContainer := &archiver.HistoryBootstrapContainer{
-		HistoryV2Manager: persistenceBean.GetHistoryManager(),
-		Logger:           logger,
-		MetricsClient:    params.MetricsClient,
-		ClusterMetadata:  params.ClusterMetadata,
-		DomainCache:      domainCache,
+		HistoryV2Manager:  persistenceBean.GetHistoryManager(),
+		Logger:            logger,
+		MetricsClient:     params.MetricsClient,
+		ClusterMetadata:   params.ClusterMetadata,
+		DomainCache:       domainCache,
+		DynamicCollection: dynamicCollection,
 	}
 	visibilityArchiverBootstrapContainer := &archiver.VisibilityBootstrapContainer{
-		Logger:          logger,
-		MetricsClient:   params.MetricsClient,
-		ClusterMetadata: params.ClusterMetadata,
-		DomainCache:     domainCache,
+		Logger:            logger,
+		MetricsClient:     params.MetricsClient,
+		ClusterMetadata:   params.ClusterMetadata,
+		DomainCache:       domainCache,
+		DynamicCollection: dynamicCollection,
 	}
 	if err := params.ArchiverProvider.RegisterBootstrapContainer(
 		serviceName,
