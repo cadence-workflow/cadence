@@ -31,6 +31,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/archiver"
+	"github.com/uber/cadence/common/archiver/archiverfx"
+	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock/clockfx"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -55,7 +58,8 @@ var _commonModule = fx.Options(
 	logfx.Module,
 	metricsfx.Module,
 	clockfx.Module,
-	rpcfx.Module)
+	rpcfx.Module,
+	archiverfx.Module)
 
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
@@ -99,6 +103,8 @@ type AppParams struct {
 	Scope                    tally.Scope
 	MetricsClient            metrics.Client
 	RPCFactory               rpc.Factory
+	ArchivalMetadata         archiver.ArchivalMetadata
+	ArchiverProvider         provider.ArchiverProvider
 }
 
 // NewApp created a new Application from pre initalized config and logger.
@@ -115,6 +121,8 @@ func NewApp(params AppParams) *App {
 		scope:                    params.Scope,
 		metricsClient:            params.MetricsClient,
 		rpcFactory:               params.RPCFactory,
+		archivalMetadata:         params.ArchivalMetadata,
+		archiverProvider:         params.ArchiverProvider,
 	}
 
 	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
@@ -136,13 +144,15 @@ type App struct {
 	scope                    tally.Scope
 	metricsClient            metrics.Client
 	rpcFactory               rpc.Factory
+	archivalMetadata         archiver.ArchivalMetadata
+	archiverProvider         provider.ArchiverProvider
 
 	daemon  common.Daemon
 	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory, a.archivalMetadata, a.archiverProvider)
 	a.daemon.Start()
 	return nil
 }

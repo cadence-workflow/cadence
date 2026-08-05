@@ -91,12 +91,14 @@ type (
 		scope                    tally.Scope
 		metricsClient            metrics.Client
 		rpcFactory               rpc.Factory
+		archivalMetadata         archiver.ArchivalMetadata
+		archiverProvider         provider.ArchiverProvider
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory, archivalMetadata archiver.ArchivalMetadata, archiverProvider provider.ArchiverProvider) common.Daemon {
 	return &server{
 		cfg:                      cfg,
 		name:                     service,
@@ -110,6 +112,8 @@ func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *
 		scope:                    scope,
 		metricsClient:            metricsClient,
 		rpcFactory:               rpcFactory,
+		archivalMetadata:         archivalMetadata,
+		archiverProvider:         archiverProvider,
 	}
 }
 
@@ -282,16 +286,8 @@ func (s *server) startService() common.Daemon {
 		params.PublicClient = workflowserviceclient.New(publicClientConfig)
 	}
 
-	params.ArchivalMetadata = archiver.NewArchivalMetadata(
-		s.dynamicCollection,
-		s.cfg.Archival.History.Status,
-		s.cfg.Archival.History.EnableRead,
-		s.cfg.Archival.Visibility.Status,
-		s.cfg.Archival.Visibility.EnableRead,
-		&s.cfg.DomainDefaults.Archival,
-	)
-
-	params.ArchiverProvider = provider.NewArchiverProvider(s.cfg.Archival.History.Provider, s.cfg.Archival.Visibility.Provider)
+	params.ArchivalMetadata = s.archivalMetadata
+	params.ArchiverProvider = s.archiverProvider
 	params.PersistenceConfig.TransactionSizeLimit = s.dynamicCollection.GetIntProperty(dynamicproperties.TransactionSizeLimit)
 	params.PersistenceConfig.ErrorInjectionRate = s.dynamicCollection.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization
