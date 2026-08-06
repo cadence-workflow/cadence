@@ -3715,7 +3715,7 @@ WaitForStickyTimeoutLoop:
 	s.Equal(2, failedDecisions, "Mismatched failed decision count")
 }
 
-func (s *IntegrationSuite) TestStickyTasklistResetThenTimeout() {
+func (s *IntegrationSuite) TestStickyTasklistResetThenTimeout_SLOW() {
 	id := "integration-reset-sticky-fire-schedule-to-start-timeout"
 	wt := "integration-reset-sticky-fire-schedule-to-start-timeout-type"
 	tl := "integration-reset-sticky-fire-schedule-to-start-timeout-tasklist"

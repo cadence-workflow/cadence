@@ -40,7 +40,7 @@ var errExec = errors.New("boom")
 
 func newTestDB(mockDriver sqldriver.Driver) *DB {
 	return &DB{
-		DB:          mysql.NewDBWithDriver(nil, mockDriver, 1, nil),
+		DB:          mysql.NewDB(mockDriver, 1, nil),
 		driver:      mockDriver,
 		numDBShards: 1,
 	}

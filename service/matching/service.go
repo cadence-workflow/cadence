@@ -27,8 +27,6 @@ import (
 	"github.com/cadence-workflow/shard-manager/service/sharddistributor/client/clientcommon"
 
 	"github.com/uber/cadence/common"
-	"github.com/uber/cadence/common/dynamicconfig"
-	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/resource"
 	"github.com/uber/cadence/common/service"
@@ -57,16 +55,8 @@ func NewService(
 ) (resource.Resource, error) {
 
 	serviceConfig := config.NewConfig(
-		dynamicconfig.NewCollection(
-			params.DynamicConfig,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
-		dynamicconfig.NewCollection(
-			params.OperationalConfigStore,
-			params.Logger,
-			dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-		),
+		params.DynamicCollection,
+		params.OperationalDynamicConfig,
 		params.HostName,
 		params.RPCConfig,
 		params.GetIsolationGroups,

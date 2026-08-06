@@ -128,8 +128,8 @@ func (m *domainAuditManagerImpl) CreateDomainAuditLog(
 		StateBefore:     stateBeforeBlob,
 		StateAfter:      stateAfterBlob,
 		OperationType:   request.OperationType,
-		CreatedTime:     request.CreatedTime,
-		LastUpdatedTime: request.CreatedTime,
+		CreatedTime:     request.CreatedTime.UTC(),
+		LastUpdatedTime: request.CreatedTime.UTC(),
 		Identity:        request.Identity,
 		IdentityType:    request.IdentityType,
 		Comment:         request.Comment,
@@ -143,11 +143,11 @@ func (m *domainAuditManagerImpl) GetDomainAuditLogs(
 ) (*GetDomainAuditLogsResponse, error) {
 	req := *request
 	if req.MinCreatedTime == nil {
-		start := time.Unix(0, 0)
+		start := time.Unix(0, 0).UTC()
 		req.MinCreatedTime = &start
 	}
 	if req.MaxCreatedTime == nil {
-		end := m.timeSrc.Now()
+		end := m.timeSrc.Now().UTC()
 		req.MaxCreatedTime = &end
 	}
 

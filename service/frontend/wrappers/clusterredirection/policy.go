@@ -127,6 +127,13 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlist = map[string]struct{}{
 	"RequestCancelWorkflowExecution":   {},
 	"TerminateWorkflowExecution":       {},
 	"ResetWorkflowExecution":           {},
+	// schedule write APIs — reads (DescribeSchedule, ListSchedules) are served locally on standby
+	"CreateSchedule":   {},
+	"DeleteSchedule":   {},
+	"UpdateSchedule":   {},
+	"PauseSchedule":    {},
+	"UnpauseSchedule":  {},
+	"BackfillSchedule": {},
 }
 
 // selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 contains a list of non-worker APIs which can be redirected.
@@ -146,6 +153,13 @@ var selectedAPIsForwardingRedirectionPolicyAPIAllowlistV2 = map[string]struct{}{
 	"RespondActivityTaskCompletedByID": {},
 	"RespondActivityTaskFailed":        {},
 	"RespondActivityTaskFailedByID":    {},
+	// schedule write APIs — reads (DescribeSchedule, ListSchedules) are served locally on standby
+	"CreateSchedule":   {},
+	"DeleteSchedule":   {},
+	"UpdateSchedule":   {},
+	"PauseSchedule":    {},
+	"UnpauseSchedule":  {},
+	"BackfillSchedule": {},
 }
 
 // allowedAPIsForDeprecatedDomains contains a list of APIs that are allowed to be called on deprecated domains

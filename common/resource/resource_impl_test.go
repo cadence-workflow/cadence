@@ -142,7 +142,7 @@ func TestStartStop(t *testing.T) {
 	persistenceClientBean.EXPECT().GetTaskManager().Return(taskMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetVisibilityManager().Return(visMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
-	persistenceClientBean.EXPECT().GetExecutionManager(gomock.Any()).Return(execMgr, nil).AnyTimes()
+	persistenceClientBean.EXPECT().GetExecutionManager().Return(execMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetDomainReplicationQueueManager().Return(domainReplMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetHistoryManager().Return(historyMgr).AnyTimes()
 	persistenceClientBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(ctrl)).AnyTimes()
@@ -172,14 +172,24 @@ func TestStartStop(t *testing.T) {
 		RPCFactory:         rpcFac,
 		MembershipResolver: memberRes,
 		DynamicConfig:      dc,
-		TimeSource:         clock.NewRealTimeSource(),
-		PProfInitializer:   pprof,
+		DynamicCollection: dynamicconfig.NewCollection(
+			dc,
+			logger,
+			dynamicproperties.ClusterNameFilter(clusterMetadata.GetCurrentClusterName()),
+		),
+		TimeSource:       clock.NewRealTimeSource(),
+		PProfInitializer: pprof,
 		NewPersistenceBeanFn: func(persistenceClient.Factory, *persistenceClient.Params, *service.Config) (persistenceClient.Bean, error) {
 			return persistenceClientBean, nil
 		},
 		ArchiverProvider:           archiveProvider,
 		AsyncWorkflowQueueProvider: queue.NewMockProvider(ctrl),
 		OperationalConfigStore:     configstore.NewNopClient(),
+		OperationalDynamicConfig: dynamicconfig.NewCollection(
+			configstore.NewNopClient(),
+			logger,
+			dynamicproperties.ClusterNameFilter(clusterMetadata.GetCurrentClusterName()),
+		),
 	}
 
 	// bare minimum service config
@@ -246,8 +256,7 @@ func TestStartStop(t *testing.T) {
 	assert.Equal(t, visMgr, i.GetVisibilityManager())
 	assert.Equal(t, shardMgr, i.GetShardManager())
 	assert.Equal(t, historyMgr, i.GetHistoryManager())
-	em, err := i.GetExecutionManager(3)
-	assert.NoError(t, err)
+	em := i.GetExecutionManager()
 	assert.Equal(t, execMgr, em)
 	assert.Equal(t, persistenceClientBean, i.GetPersistenceBean())
 	assert.Equal(t, hostName, i.GetHostName())

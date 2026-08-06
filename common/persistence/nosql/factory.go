@@ -21,8 +21,6 @@
 package nosql
 
 import (
-	"sync"
-
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
@@ -33,21 +31,13 @@ import (
 type (
 	// Factory vends datastore implementations backed by cassandra
 	Factory struct {
-		sync.RWMutex
-		cfg              config.ShardedNoSQL
-		clusterName      string
-		logger           log.Logger
-		metricsClient    metrics.Client
-		execStoreFactory *executionStoreFactory
-		dc               *persistence.DynamicConfiguration
-		parser           serialization.Parser
-		taskSerializer   serialization.TaskSerializer
-	}
-
-	executionStoreFactory struct {
-		logger            log.Logger
-		shardedNosqlStore shardedNosqlStore
-		taskSerializer    serialization.TaskSerializer
+		cfg            config.ShardedNoSQL
+		clusterName    string
+		logger         log.Logger
+		metricsClient  metrics.Client
+		dc             *persistence.DynamicConfiguration
+		parser         serialization.Parser
+		taskSerializer serialization.TaskSerializer
 	}
 )
 
@@ -95,13 +85,9 @@ func (f *Factory) NewHistoryDLQTaskStore() (persistence.HistoryDLQTaskStore, err
 	return newNoSQLHistoryDLQTaskStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
-// NewExecutionStore returns an ExecutionStore for a given shardID
-func (f *Factory) NewExecutionStore(shardID int) (persistence.ExecutionStore, error) {
-	factory, err := f.executionStoreFactory()
-	if err != nil {
-		return nil, err
-	}
-	return factory.new(shardID)
+// NewExecutionStore returns an ExecutionStore
+func (f *Factory) NewExecutionStore() (persistence.ExecutionStore, error) {
+	return newNoSQLExecutionStore(f.cfg, f.logger, f.metricsClient, f.taskSerializer, f.dc)
 }
 
 // NewVisibilityStore returns a visibility store
@@ -119,68 +105,6 @@ func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 	return NewNoSQLConfigStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
-// Close closes the factory
-func (f *Factory) Close() {
-	f.Lock()
-	defer f.Unlock()
-	if f.execStoreFactory != nil {
-		f.execStoreFactory.close()
-	}
-}
-
-func (f *Factory) executionStoreFactory() (*executionStoreFactory, error) {
-	f.RLock()
-	if f.execStoreFactory != nil {
-		f.RUnlock()
-		return f.execStoreFactory, nil
-	}
-	f.RUnlock()
-	f.Lock()
-	defer f.Unlock()
-	if f.execStoreFactory != nil {
-		return f.execStoreFactory, nil
-	}
-
-	factory, err := newExecutionStoreFactory(f.cfg, f.logger, f.metricsClient, f.taskSerializer, f.dc)
-	if err != nil {
-		return nil, err
-	}
-	f.execStoreFactory = factory
-	return f.execStoreFactory, nil
-}
-
-// newExecutionStoreFactory is used to create an instance of ExecutionStoreFactory implementation
-func newExecutionStoreFactory(
-	cfg config.ShardedNoSQL,
-	logger log.Logger,
-	metricsClient metrics.Client,
-	taskSerializer serialization.TaskSerializer,
-	dc *persistence.DynamicConfiguration,
-) (*executionStoreFactory, error) {
-	s, err := newShardedNosqlStore(cfg, logger, metricsClient, dc, true)
-	if err != nil {
-		return nil, err
-	}
-	return &executionStoreFactory{
-		taskSerializer:    taskSerializer,
-		logger:            logger,
-		shardedNosqlStore: s,
-	}, nil
-}
-
-func (f *executionStoreFactory) close() {
-	f.shardedNosqlStore.Close()
-}
-
-// new implements ExecutionStoreFactory interface
-func (f *executionStoreFactory) new(shardID int) (persistence.ExecutionStore, error) {
-	storeShard, err := f.shardedNosqlStore.GetStoreShardByHistoryShard(shardID)
-	if err != nil {
-		return nil, err
-	}
-	pmgr, err := NewExecutionStore(shardID, storeShard.db, f.logger, f.taskSerializer, storeShard.dc)
-	if err != nil {
-		return nil, err
-	}
-	return pmgr, nil
-}
+// Close closes the factory. Store Close methods own connection lifecycle
+// (matching HistoryStore), so this is intentionally a no-op.
+func (f *Factory) Close() {}

@@ -26,6 +26,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/config"
+	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
 )
 
 type CreateSingleDBConn func(cfg *config.SQL) (*sqlx.DB, error)
@@ -34,13 +35,13 @@ type CreateSingleDBConn func(cfg *config.SQL) (*sqlx.DB, error)
 // By default when UseMultipleDatabases == false, the returned object is to tied to a single
 // SQL database and the object can be used to perform CRUD operations on the tables in the database.
 // If UseMultipleDatabases == true then return connections to all the databases
-func CreateDBConnections(cfg *config.SQL, createConnFunc CreateSingleDBConn) ([]*sqlx.DB, error) {
+func CreateDBConnections(cfg *config.SQL, createConnFunc CreateSingleDBConn, closer CloseFunc) (Driver, error) {
 	if !cfg.UseMultipleDatabases {
 		xdb, err := createConnFunc(cfg)
 		if err != nil {
 			return nil, err
 		}
-		return []*sqlx.DB{xdb}, nil
+		return newSingletonSQLDriver(xdb, nil, closer), nil
 	}
 	if cfg.NumShards <= 1 || len(cfg.MultipleDatabasesConfig) != cfg.NumShards {
 		return nil, fmt.Errorf("invalid SQL config. NumShards should be > 1 and equal to the length of MultipleDatabasesConfig")
@@ -66,5 +67,5 @@ func CreateDBConnections(cfg *config.SQL, createConnFunc CreateSingleDBConn) ([]
 		}
 		xdbs[idx] = xdb
 	}
-	return xdbs, nil
+	return newShardedSQLDriver(xdbs, nil, sqlplugin.DbShardUndefined, closer), nil
 }

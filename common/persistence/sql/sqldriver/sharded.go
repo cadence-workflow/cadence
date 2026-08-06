@@ -38,16 +38,18 @@ type (
 		tx            *sqlx.Tx   // this is a reference of a started transaction
 		useTx         bool       // if tx is not nil, the methods from commonOfDbAndTx should use tx
 		currTxShardID int        // which shard is current tx started from
+		closer        CloseFunc
 	}
 )
 
 // newShardedSQLDriver returns a driver querying a group of SQL databases as sharded solution.
 // xdbs is the list of connections to the sql instances. The length of the list of the list is the totalNumShards
 // dbShardID is needed when tx is not nil. It means a started transaction in the shard.
-func newShardedSQLDriver(xdbs []*sqlx.DB, xtx *sqlx.Tx, dbShardID int) Driver {
+func newShardedSQLDriver(xdbs []*sqlx.DB, xtx *sqlx.Tx, dbShardID int, closer CloseFunc) Driver {
 	driver := &sharded{
-		dbs: xdbs,
-		tx:  xtx,
+		dbs:    xdbs,
+		tx:     xtx,
+		closer: closer,
 	}
 	if xtx != nil {
 		driver.useTx = true
@@ -131,17 +133,27 @@ func (s *sharded) GetForSchemaQuery(dbShardID int, dest interface{}, query strin
 	return fmt.Errorf("sharded SQL driver shouldn't be used to GetForSchemaQuery, there must be a bug")
 }
 
-func (s *sharded) BeginTxx(ctx context.Context, dbShardID int, opts *sql.TxOptions) (*sqlx.Tx, error) {
+func (s *sharded) BeginTransaction(ctx context.Context, dbShardID int, opts *sql.TxOptions) (Driver, error) {
 	if dbShardID == sqlplugin.DbShardUndefined || dbShardID == sqlplugin.DbAllShards {
-		return nil, fmt.Errorf("invalid dbShardID %v shouldn't be used to BeginTxx, there must be a bug", dbShardID)
+		return nil, fmt.Errorf("invalid dbShardID %v shouldn't be used to BeginTransaction, there must be a bug", dbShardID)
 	}
-	return s.dbs[dbShardID].BeginTxx(ctx, opts)
+	tx, err := s.dbs[dbShardID].BeginTxx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return newShardedSQLDriver(s.dbs, tx, dbShardID, s.closer), nil
 }
 
 func (s *sharded) Close() error {
 	var errs []error
 	for _, db := range s.dbs {
 		err := db.Close()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if s.closer != nil {
+		err := s.closer()
 		if err != nil {
 			errs = append(errs, err)
 		}

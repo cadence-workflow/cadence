@@ -26,12 +26,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
 //go:generate mockgen -package $GOPACKAGE -destination manager_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster Manager
-//go:generate mockgen -package $GOPACKAGE -destination execution_manager_provider_mock.go -self_package github.com/uber/cadence/common/activecluster github.com/uber/cadence/common/activecluster ExecutionManagerProvider
 
 // Manager is the interface for active cluster manager.
 // It is used to get active cluster info by cluster attribute or workflow.
@@ -52,10 +50,6 @@ type Manager interface {
 	// GetActiveClusterSelectionPolicyForCurrentWorkflow returns the active cluster selection policy for the current workflow
 	// if the workflow is NOT closed, returns policy and true, otherwise returns nil and false
 	GetActiveClusterSelectionPolicyForCurrentWorkflow(ctx context.Context, domainID, wfID string) (*types.ActiveClusterSelectionPolicy, bool, error)
-}
-
-type ExecutionManagerProvider interface {
-	GetExecutionManager(shardID int) (persistence.ExecutionManager, error)
 }
 
 type ClusterAttributeNotFoundError struct {

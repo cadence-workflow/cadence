@@ -65,12 +65,6 @@ func TestExecutionManager_ProxyStoreMethods(t *testing.T) {
 		prepareMocks func(*MockExecutionStore)
 	}{
 		{
-			method: "GetShardID",
-			prepareMocks: func(mockedStore *MockExecutionStore) {
-				mockedStore.EXPECT().GetShardID().Return(1).Times(1)
-			},
-		},
-		{
 			method: "GetName",
 			prepareMocks: func(mockedStore *MockExecutionStore) {
 				mockedStore.EXPECT().GetName().Return("test").Times(1)
@@ -2128,7 +2122,7 @@ func TestFetchWorkflowTimerTasksForCleanup_FiltersCorrectly(t *testing.T) {
 
 	shardID := 0
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
-		ShardID:    shardID,
+		ShardID:    common.Ptr(shardID),
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,
@@ -2162,7 +2156,7 @@ func TestFetchWorkflowTimerTasksForCleanup_EmptyMap(t *testing.T) {
 
 	shardID := 0
 	mockedStore.EXPECT().SelectWorkflowTimerTasks(gomock.Any(), &SelectWorkflowTimerTasksRequest{
-		ShardID:    shardID,
+		ShardID:    common.Ptr(shardID),
 		DomainID:   testDomainID,
 		WorkflowID: testWorkflowID,
 		RunID:      testRunID,

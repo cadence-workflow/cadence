@@ -177,15 +177,17 @@ func TestDescribeWorkflowExecution(t *testing.T) {
 				)
 				mockMutableState.EXPECT().GetDomainEntry().Return(domainEntry)
 
-				// This will trigger corruption check failure with different error
+				// This will trigger corruption check failure with different error.
+				// Non-start-event errors are returned directly without marking the
+				// workflow corrupted, so GetExecutionInfo() is not called here.
 				mockMutableState.EXPECT().GetStartEvent(gomock.Any()).Return(nil, &types.InternalServiceError{Message: "Database error"})
 
-				// Mock GetExecutionInfo() call for corruption marking
+				// NO corruption marking
 				mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
 					WorkflowID:       "test-wf",
 					RunID:            "test-run",
 					WorkflowTypeName: "test-type",
-				})
+				}).Times(0)
 			},
 			enableCorruptionCheck: true,
 			expectError:           true,

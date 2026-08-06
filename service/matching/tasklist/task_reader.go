@@ -87,14 +87,17 @@ type (
 		logger                   log.Logger
 		scope                    metrics.Scope
 		throttleRetry            *backoff.ThrottleRetry
-		handleErr                func(error) error
-		onFatalErr               func()
 		dispatchTask             func(context.Context, *InternalTask) error
 		getIsolationGroupForTask func(context.Context, *persistence.TaskInfo) (string, time.Duration)
 		rateLimit                func() rate.Limit
 
 		// stopWg is used to wait for all dispatchers to stop.
 		stopWg sync.WaitGroup
+
+		// fatalCh is closed when the reader hits an error that makes the whole task list
+		// unusable. The reader only reports it, the manager owns the teardown.
+		fatalCh   chan struct{}
+		fatalOnce sync.Once
 	}
 )
 
@@ -127,6 +130,7 @@ func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskRe
 		cancelCtx:      ctx,
 		cancelFunc:     cancel,
 		notifyC:        make(chan struct{}, 1),
+		fatalCh:        make(chan struct{}),
 		// we always dequeue the head of the buffer and try to dispatch it to a poller
 		// so allocate one less than desired target buffer size
 		taskBuffers:              taskBuffers,
@@ -135,8 +139,6 @@ func newTaskReader(tlMgr *taskListManagerImpl, isolationGroups []string) *taskRe
 		timeSource:               tlMgr.timeSource,
 		logger:                   tlMgr.logger,
 		scope:                    tlMgr.scope,
-		handleErr:                tlMgr.handleErr,
-		onFatalErr:               tlMgr.Stop,
 		dispatchTask:             tlMgr.DispatchTask,
 		getIsolationGroupForTask: tlMgr.getIsolationGroupForTask,
 		rateLimit:                tlMgr.limiter.Limit,
@@ -175,6 +177,16 @@ func (tr *taskReader) Stop() {
 		tr.taskGC.RunNow(tr.taskAckManager.GetAckLevel())
 		tr.stopWg.Wait()
 	}
+}
+
+// Fatal returns a channel that is closed when the reader hits an error that makes the whole
+// task list unusable, and it must be unloaded.
+func (tr *taskReader) Fatal() <-chan struct{} {
+	return tr.fatalCh
+}
+
+func (tr *taskReader) signalFatal() {
+	tr.fatalOnce.Do(func() { close(tr.fatalCh) })
 }
 
 func (tr *taskReader) Signal() {
@@ -260,7 +272,15 @@ getTasksPumpLoop:
 				if size, err := tr.db.GetTaskListSize(ackLevel); err == nil {
 					tr.scope.UpdateGauge(metrics.TaskCountPerTaskListGauge, float64(size))
 				}
-				if err := tr.handleErr(tr.persistAckLevel()); err != nil {
+				if err := tr.persistAckLevel(); err != nil {
+					var condErr *persistence.ConditionFailedError
+					if errors.As(err, &condErr) {
+						// The task list has been taken over by another host, so it has to be
+						// unloaded. Report it and stop reading, the manager does the teardown.
+						reportConditionFailed(tr.scope, tr.logger, err)
+						tr.signalFatal()
+						break getTasksPumpLoop
+					}
 					tr.logger.Error("Persistent store operation failure",
 						tag.StoreOperationUpdateTaskList,
 						tag.Error(err))
@@ -402,7 +422,7 @@ func (tr *taskReader) completeTask(task *persistence.TaskInfo, err error) {
 			// This should only happen in very extreme cases where persistence is completely down.
 			// We still can't lose the old task so we just unload the entire task list
 			tr.logger.Error("Failed to complete task", tag.Error(err))
-			tr.onFatalErr()
+			tr.signalFatal()
 			return
 		}
 		tr.Signal()
