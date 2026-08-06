@@ -83,10 +83,12 @@ const (
 	BatchTypeSignal = "signal"
 	// BatchTypeReplicate is batch type for replicating workflows
 	BatchTypeReplicate = "replicate"
+	// BatchTypeRefresh is batch type for refreshing workflow tasks.
+	BatchTypeRefresh = "refresh"
 )
 
 // AllBatchTypes is the batch types we supported
-var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate}
+var AllBatchTypes = []string{BatchTypeTerminate, BatchTypeCancel, BatchTypeSignal, BatchTypeReplicate, BatchTypeRefresh}
 
 var (
 	BatchActivityRetryPolicy = cadence.RetryPolicy{
@@ -321,6 +323,17 @@ func startTaskProcessor(
 							WorkflowID:    workflowID,
 							RunID:         runID,
 							RemoteCluster: batchParams.ReplicateParams.SourceCluster,
+						})
+					})
+			case BatchTypeRefresh:
+				err = processTask(ctx, limiter, task, batchParams, client, common.BoolPtr(false),
+					func(workflowID, runID string) error {
+						return client.RefreshWorkflowTasks(ctx, &types.RefreshWorkflowTasksRequest{
+							Domain: batchParams.DomainName,
+							Execution: &types.WorkflowExecution{
+								WorkflowID: workflowID,
+								RunID:      runID,
+							},
 						})
 					})
 			}

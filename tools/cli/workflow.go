@@ -366,7 +366,7 @@ func newWorkflowCommands() []*cli.Command {
 			Name:        "batch",
 			Usage:       "batch operation on a list of workflows from query.",
 			Subcommands: newBatchCommands(),
-			ArgsUsage: "\n\t To make a batch operation use wf batch start command and specify --batch_type to terminate/signal/cancel workflows.\n" +
+			ArgsUsage: "\n\t To make a batch operation use wf batch start command and specify --batch_type from: " + strings.Join(batcher.AllBatchTypes, ",") + ".\n" +
 				"\t ex: to batch terminate workflows run: cadence batch start --batch_type terminate --query <targeted_workflows_query>\n" +
 				"\t cadence wf batch terminate - is used to terminate a batch operation not workflows.\n" +
 				"\t To inspect the progress run: cadence wf batch desc --job_id <your_job_id>",

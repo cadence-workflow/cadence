@@ -20,6 +20,7 @@ COPY go.* ./
 COPY cmd/server/go.* ./cmd/server/
 COPY common/archiver/gcloud/go.* ./common/archiver/gcloud/
 COPY common/dynamicconfig/openfeatureprovider/unleash/go.* ./common/dynamicconfig/openfeatureprovider/unleash/
+COPY common/persistence/sql/sqlplugin/cloudsql-mysql/go.* ./common/persistence/sql/sqlplugin/cloudsql-mysql/
 # go.work means this downloads everything, not just the top module
 RUN go mod download
 

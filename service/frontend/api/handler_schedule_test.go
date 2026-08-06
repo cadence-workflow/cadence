@@ -575,7 +575,8 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the close status stays CONTINUED_AS_NEW past the retry budget, the
-		// scheduler is stuck mid-transition; return CodeUnavailable so clients retry.
+		// scheduler is stuck rather than mid-transition: the server has already
+		// waited it out, so report the stuck state instead of a retry hint.
 		"scheduler mid-ContinueAsNew - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -585,18 +586,19 @@ func TestDescribeSchedule(t *testing.T) {
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{CloseStatus: &canStatus},
 					}, nil).
-					Times(describeScheduleCANRetryAttempts)
+					Times(describeScheduleRetryAttempts)
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				assert.True(t, yarpcerrors.IsStatus(err))
-				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
-				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "mid-ContinueAsNew")
 			},
 		},
 		// A freshly started scheduler run has not yet processed its first decision
-		// task and cannot be queried. querySchedulerWorkflow retries until the run
-		// is ready; here it succeeds on the second attempt.
+		// task and cannot be queried. The describe pass is retried until the run is
+		// ready; here it succeeds on the second attempt. Each attempt re-runs the
+		// probe, hence two DescribeWorkflowExecution calls.
 		"scheduler not yet queryable - retried until ready": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -604,7 +606,8 @@ func TestDescribeSchedule(t *testing.T) {
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
-					}, nil)
+					}, nil).
+					Times(2)
 				gomock.InOrder(
 					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 						Return(nil, &types.QueryFailedError{Message: "workflow must handle at least one decision task before it can be queried"}),
@@ -625,10 +628,11 @@ func TestDescribeSchedule(t *testing.T) {
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
-					}, nil)
+					}, nil).
+					Times(describeScheduleRetryAttempts)
 				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					Return(nil, &types.QueryFailedError{Message: "workflow must handle at least one decision task before it can be queried"}).
-					Times(describeScheduleQueryRetryAttempts)
+					Times(describeScheduleRetryAttempts)
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
@@ -647,7 +651,8 @@ func TestDescribeSchedule(t *testing.T) {
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
-					}, nil)
+					}, nil).
+					Times(2)
 				gomock.InOrder(
 					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 						Return(nil, yarpcerrors.DeadlineExceededErrorf("query wait timed out")),
@@ -668,10 +673,11 @@ func TestDescribeSchedule(t *testing.T) {
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
-					}, nil)
+					}, nil).
+					Times(describeScheduleRetryAttempts)
 				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					Return(nil, yarpcerrors.DeadlineExceededErrorf("query wait timed out")).
-					Times(describeScheduleQueryRetryAttempts)
+					Times(describeScheduleRetryAttempts)
 			},
 			wantErr: true,
 		},
@@ -685,7 +691,8 @@ func TestDescribeSchedule(t *testing.T) {
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
-					}, nil)
+					}, nil).
+					Times(2)
 				gomock.InOrder(
 					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 						Return(nil, context.DeadlineExceeded),
@@ -741,29 +748,58 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 		},
 		// If the scheduler does ContinueAsNew between the DWE probe and the query,
-		// the query is rejected with CONTINUED_AS_NEW. Return CodeUnavailable so
-		// the client retries — the new run will be queryable momentarily.
-		"scheduler ContinueAsNew between DWE and Query - return Unavailable": {
+		// the query is rejected with CONTINUED_AS_NEW. The whole pass is retried, so
+		// the second query is preceded by a fresh probe of the new run.
+		"scheduler ContinueAsNew between DWE and Query - retried until queryable": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
 				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
 				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
 					Return(&types.DescribeWorkflowExecutionResponse{
 						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
-					}, nil)
+					}, nil).
+					Times(2)
+				closeStatus := types.WorkflowExecutionCloseStatusContinuedAsNew
+				gomock.InOrder(
+					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+						Return(&types.HistoryQueryWorkflowResponse{
+							Response: &types.QueryWorkflowResponse{
+								QueryRejected: &types.QueryRejected{CloseStatus: &closeStatus},
+							},
+						}, nil),
+					f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
+						Return(&types.HistoryQueryWorkflowResponse{
+							Response: &types.QueryWorkflowResponse{QueryResult: descBytes},
+						}, nil),
+				)
+			},
+			wantErr: false,
+		},
+		// If the query stays rejected with CONTINUED_AS_NEW past the retry budget,
+		// the scheduler is stuck; report the stuck state rather than a retry hint.
+		"scheduler ContinueAsNew between DWE and Query - retry budget exhausted": {
+			request: validRequest,
+			mockFn: func(f *scheduleTestFixture) {
+				f.domainCache.EXPECT().GetDomainID(testDomain).Return(testDomainID, nil).AnyTimes()
+				f.historyClient.EXPECT().DescribeWorkflowExecution(gomock.Any(), gomock.Any()).
+					Return(&types.DescribeWorkflowExecutionResponse{
+						WorkflowExecutionInfo: &types.WorkflowExecutionInfo{},
+					}, nil).
+					Times(describeScheduleRetryAttempts)
 				closeStatus := types.WorkflowExecutionCloseStatusContinuedAsNew
 				f.historyClient.EXPECT().QueryWorkflow(gomock.Any(), gomock.Any()).
 					Return(&types.HistoryQueryWorkflowResponse{
 						Response: &types.QueryWorkflowResponse{
 							QueryRejected: &types.QueryRejected{CloseStatus: &closeStatus},
 						},
-					}, nil)
+					}, nil).
+					Times(describeScheduleRetryAttempts)
 			},
 			wantErr: true,
 			checkErr: func(t *testing.T, err error) {
-				assert.True(t, yarpcerrors.IsStatus(err))
-				assert.Equal(t, yarpcerrors.CodeUnavailable, yarpcerrors.FromError(err).Code())
-				assert.Contains(t, yarpcerrors.FromError(err).Message(), "mid-ContinueAsNew")
+				var internalErr *types.InternalServiceError
+				assert.ErrorAs(t, err, &internalErr)
+				assert.Contains(t, internalErr.Message, "mid-ContinueAsNew")
 			},
 		},
 		"success": {

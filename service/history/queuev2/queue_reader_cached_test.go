@@ -51,6 +51,7 @@ func testOptions(overrides ...func(*cachedQueueReaderOptions)) *cachedQueueReade
 		TimeEvictionWindow:        dynamicproperties.GetDurationPropertyFn(time.Minute),
 		MinPrefetchInterval:       dynamicproperties.GetDurationPropertyFn(100 * time.Millisecond),
 		PrefetchJitterCoefficient: dynamicproperties.GetFloatPropertyFn(0),
+		ShadowSampleInterval:      dynamicproperties.GetDurationPropertyFn(0),
 	}
 	for _, o := range overrides {
 		if o == nil {
@@ -1051,6 +1052,147 @@ func TestCachedQueueReader_GetTask_Shadow(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.wantResp, resp)
+		})
+	}
+}
+
+// periodicShadowSampleStep describes one GetTask call within a
+// TestCachedQueueReader_GetTask_PeriodicShadowSample scenario.
+type periodicShadowSampleStep struct {
+	advance              time.Duration // clock advance applied before this call
+	setupMocks           func(base *MockQueueReader, queue *MockInMemQueue)
+	wantResp             *GetTaskResponse
+	wantSampleLogCount   int // cumulative "shadow sample check" log count after this call
+	wantMismatchLogCount int // cumulative "potential severe mismatch..." log count after this call
+}
+
+func TestCachedQueueReader_GetTask_PeriodicShadowSample(t *testing.T) {
+	now := time.Now()
+	lower := newTimeKey(now)
+	upper := newTimeKey(now.Add(time.Hour))
+	t1 := newTask(1, now.Add(10*time.Minute))
+
+	req := &GetTaskRequest{
+		Progress:  newProgress(lower, upper),
+		Predicate: NewUniversalPredicate(),
+		PageSize:  10,
+	}
+	cacheOnlyResp := &GetTaskResponse{
+		Tasks: []persistence.Task{t1},
+		Progress: &GetTaskProgress{
+			Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+			NextTaskKey: upper,
+		},
+	}
+	dbResp := &GetTaskResponse{
+		Tasks: []persistence.Task{t1},
+		Progress: &GetTaskProgress{
+			Range:       Range{InclusiveMinTaskKey: upper, ExclusiveMaxTaskKey: upper},
+			NextTaskKey: upper,
+		},
+	}
+	cacheHit := func(base *MockQueueReader, queue *MockInMemQueue) {
+		queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return([]persistence.Task{t1}, upper)
+	}
+	sampledHit := func(base *MockQueueReader, queue *MockInMemQueue) {
+		cacheHit(base, queue)
+		base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
+	}
+
+	tests := []struct {
+		name     string
+		interval time.Duration
+		steps    []periodicShadowSampleStep
+	}{
+		{
+			name:     "first call after start samples immediately",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+			},
+		},
+		{
+			name:     "second call within interval does not re-sample",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+				{setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 1},
+			},
+		},
+		{
+			name:     "call after interval elapses samples again",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 1},
+				{advance: 5 * time.Minute, setupMocks: sampledHit, wantResp: dbResp, wantSampleLogCount: 2},
+			},
+		},
+		{
+			name:     "interval <= 0 disables sampling",
+			interval: 0,
+			steps: []periodicShadowSampleStep{
+				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 0},
+				{advance: time.Hour, setupMocks: cacheHit, wantResp: cacheOnlyResp, wantSampleLogCount: 0},
+			},
+		},
+		{
+			name:     "sampled call surfaces a cache/DB mismatch and returns DB result",
+			interval: 5 * time.Minute,
+			steps: []periodicShadowSampleStep{
+				{
+					// Cache is missing t1 (severe mismatch); DB has it.
+					setupMocks: func(base *MockQueueReader, queue *MockInMemQueue) {
+						queue.EXPECT().GetTasks(lower, upper, gomock.Any(), 10).Return(nil, upper)
+						base.EXPECT().GetTask(gomock.Any(), gomock.Any()).Return(dbResp, nil)
+					},
+					wantResp:             dbResp,
+					wantSampleLogCount:   1,
+					wantMismatchLogCount: 1,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockShard := shard.NewMockContext(ctrl)
+			mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
+			mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
+			mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
+			logger, obs := testlogger.NewObserved(t)
+			deps := &cachedQueueReaderMockDeps{
+				mockBase:  NewMockQueueReader(ctrl),
+				mockQueue: NewMockInMemQueue(ctrl),
+				mockShard: mockShard,
+				clock:     clock.NewMockedTimeSource(),
+			}
+			r := newCachedQueueReaderWithOptions(
+				deps.mockBase,
+				deps.mockQueue,
+				deps.mockShard,
+				deps.clock,
+				logger,
+				metrics.NoopScope,
+				testOptions(func(o *cachedQueueReaderOptions) {
+					o.Mode = dynamicproperties.GetStringPropertyFnFilteredByShardID("enabled")
+					o.ShadowSampleInterval = dynamicproperties.GetDurationPropertyFn(tc.interval)
+				}),
+			)
+			setBounds(r, lower, upper)
+			deps.mockQueue.EXPECT().Len().Return(0).AnyTimes()
+
+			for i, step := range tc.steps {
+				deps.clock.Advance(step.advance)
+				step.setupMocks(deps.mockBase, deps.mockQueue)
+
+				resp, err := r.GetTask(context.Background(), req)
+
+				require.NoErrorf(t, err, "step %d", i)
+				require.Equalf(t, step.wantResp, resp, "step %d", i)
+				assert.Equalf(t, step.wantSampleLogCount, obs.FilterMessage("shadow sample check").Len(), "step %d: sample log count", i)
+				assert.Equalf(t, step.wantMismatchLogCount, obs.FilterMessage("potential severe mismatch between db and cache states").Len(), "step %d: mismatch log count", i)
+			}
 		})
 	}
 }

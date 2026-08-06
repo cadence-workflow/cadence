@@ -25,24 +25,27 @@ import (
 	"database/sql"
 
 	"github.com/jmoiron/sqlx"
+	"go.uber.org/multierr"
 )
 
 type (
 	// singleton is the driver querying a single SQL database, which is the default driver
 	singleton struct {
-		db    *sqlx.DB // this is for starting a transaction, or executing any non transaction query
-		tx    *sqlx.Tx // this is a reference of a started transaction
-		useTx bool     // if tx is not nil, the methods from commonOfDbAndTx should use tx
+		db     *sqlx.DB // this is for starting a transaction, or executing any non transaction query
+		tx     *sqlx.Tx // this is a reference of a started transaction
+		useTx  bool     // if tx is not nil, the methods from commonOfDbAndTx should use tx
+		closer CloseFunc
 	}
 )
 
 // newSingletonSQLDriver returns a driver querying a single SQL database, which is the default driver
 // typically dbShardID is needed when tx is not nil, because it means a started transaction in a shard.
 // But this singleton doesn't have sharding so omitting it.
-func newSingletonSQLDriver(xdb *sqlx.DB, xtx *sqlx.Tx, _ int) Driver {
+func newSingletonSQLDriver(xdb *sqlx.DB, xtx *sqlx.Tx, closer CloseFunc) Driver {
 	driver := &singleton{
-		db: xdb,
-		tx: xtx,
+		db:     xdb,
+		tx:     xtx,
+		closer: closer,
 	}
 	if xtx != nil {
 		driver.useTx = true
@@ -94,12 +97,30 @@ func (s *singleton) GetForSchemaQuery(_ int, dest interface{}, query string, arg
 	return s.db.Get(dest, query, args...)
 }
 
-func (s *singleton) BeginTxx(ctx context.Context, _ int, opts *sql.TxOptions) (*sqlx.Tx, error) {
-	return s.db.BeginTxx(ctx, opts)
+func (s *singleton) BeginTransaction(ctx context.Context, _ int, opts *sql.TxOptions) (Driver, error) {
+	tx, err := s.db.BeginTxx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	return newSingletonSQLDriver(s.db, tx, s.closer), nil
 }
 
 func (s *singleton) Close() error {
-	return s.db.Close()
+	var errs []error
+	err := s.db.Close()
+	if err != nil {
+		errs = append(errs, err)
+	}
+	if s.closer != nil {
+		err = s.closer()
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
 
 // below are transactional methods only

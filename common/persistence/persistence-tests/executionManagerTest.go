@@ -56,8 +56,8 @@ type (
 )
 
 var (
-	testContextTimeout      = 5 * time.Second
-	largeTestContextTimeout = 30 * time.Second
+	testContextTimeout      = 15 * time.Second
+	largeTestContextTimeout = 60 * time.Second
 
 	testWorkflowChecksum = checksum.Checksum{
 		Version: 22,

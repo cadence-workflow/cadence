@@ -90,12 +90,15 @@ type (
 		operationalDynamicConfig *dynamicconfig.Collection
 		scope                    tally.Scope
 		metricsClient            metrics.Client
+		rpcFactory               rpc.Factory
+		archivalMetadata         archiver.ArchivalMetadata
+		archiverProvider         provider.ArchiverProvider
 	}
 )
 
 // newServer returns a new instance of a daemon
 // that represents a cadence service
-func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client) common.Daemon {
+func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *zap.Logger, dynamicCfgClient dynamicconfig.Client, dynamicCollection *dynamicconfig.Collection, operationalConfigStore configstore.Client, operationalDynamicConfig *dynamicconfig.Collection, scope tally.Scope, metricsClient metrics.Client, rpcFactory rpc.Factory, archivalMetadata archiver.ArchivalMetadata, archiverProvider provider.ArchiverProvider) common.Daemon {
 	return &server{
 		cfg:                      cfg,
 		name:                     service,
@@ -108,6 +111,9 @@ func newServer(service string, cfg config.Config, logger log.Logger, zapLogger *
 		operationalDynamicConfig: operationalDynamicConfig,
 		scope:                    scope,
 		metricsClient:            metricsClient,
+		rpcFactory:               rpcFactory,
+		archivalMetadata:         archivalMetadata,
+		archiverProvider:         archiverProvider,
 	}
 }
 
@@ -169,21 +175,12 @@ func (s *server) startService() common.Daemon {
 		s.operationalDynamicConfig.GetIntProperty(dynamicproperties.MatchingPercentageOnboardedToShardManager),
 	)
 
-	rpcParams, err := rpc.NewParams(params.Name, &s.cfg, s.dynamicCollection, params.Logger, params.MetricsClient)
-	if err != nil {
-		s.logger.Fatal("error creating rpc factory params", tag.Error(err))
-	}
-	rpcParams.OutboundsBuilder = rpc.CombineOutbounds(
-		rpcParams.OutboundsBuilder,
-		rpc.NewCrossDCOutbounds(clusterGroupMetadata.ClusterGroup, rpc.NewDNSPeerChooserFactory(s.cfg.PublicClient.RefreshInterval, params.Logger)),
-	)
-	rpcFactory := rpc.NewFactory(params.Logger, rpcParams)
-	params.RPCFactory = rpcFactory
+	params.RPCFactory = s.rpcFactory
 
 	peerProvider, err := ringpopprovider.New(
 		params.Name,
 		&s.cfg.Ringpop,
-		rpcFactory.GetTChannel(),
+		s.rpcFactory.GetTChannel(),
 		membership.PortMap{
 			membership.PortGRPC:     svcCfg.RPC.GRPCPort,
 			membership.PortTchannel: svcCfg.RPC.Port,
@@ -289,16 +286,8 @@ func (s *server) startService() common.Daemon {
 		params.PublicClient = workflowserviceclient.New(publicClientConfig)
 	}
 
-	params.ArchivalMetadata = archiver.NewArchivalMetadata(
-		s.dynamicCollection,
-		s.cfg.Archival.History.Status,
-		s.cfg.Archival.History.EnableRead,
-		s.cfg.Archival.Visibility.Status,
-		s.cfg.Archival.Visibility.EnableRead,
-		&s.cfg.DomainDefaults.Archival,
-	)
-
-	params.ArchiverProvider = provider.NewArchiverProvider(s.cfg.Archival.History.Provider, s.cfg.Archival.Visibility.Provider)
+	params.ArchivalMetadata = s.archivalMetadata
+	params.ArchiverProvider = s.archiverProvider
 	params.PersistenceConfig.TransactionSizeLimit = s.dynamicCollection.GetIntProperty(dynamicproperties.TransactionSizeLimit)
 	params.PersistenceConfig.ErrorInjectionRate = s.dynamicCollection.GetFloat64Property(dynamicproperties.PersistenceErrorInjectionRate)
 	params.AuthorizationConfig = s.cfg.Authorization

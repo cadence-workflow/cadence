@@ -3053,6 +3053,16 @@ const (
 	// Default value: 1s (1*time.Second)
 	// Allowed filters: N/A
 	TimerProcessorCacheMinPrefetchInterval
+	// TimerProcessorCachedQueueReaderShadowSampleInterval controls how often, at most once per this
+	// interval, a GetTask call is diverted through the shadow comparison path while
+	// TimerProcessorCachedQueueReaderMode is "enabled". This provides continuous regression
+	// detection for the cache in enabled mode, independent of request volume. A value <= 0
+	// disables sampling.
+	// KeyName: history.timerProcessorCachedQueueReaderShadowSampleInterval
+	// Value type: Duration
+	// Default value: 5m (5*time.Minute)
+	// Allowed filters: ShardID
+	TimerProcessorCachedQueueReaderShadowSampleInterval
 	// TransferProcessorFailoverMaxStartJitterInterval is the max jitter interval for starting transfer
 	// failover queue processing. The actual jitter interval used will be a random duration between
 	// 0 and the max interval so that timer failover queue across different shards won't start at
@@ -5796,6 +5806,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "TimerProcessorCacheMinPrefetchInterval is the minimum time between consecutive prefetch attempts",
 		DefaultValue: time.Second,
 	},
+	TimerProcessorCachedQueueReaderShadowSampleInterval: {
+		KeyName:      "history.timerProcessorCachedQueueReaderShadowSampleInterval",
+		Description:  "TimerProcessorCachedQueueReaderShadowSampleInterval controls how often, at most, a GetTask call is diverted through the shadow comparison path while in enabled mode. <= 0 disables sampling.",
+		DefaultValue: time.Minute * 5,
+	},
 	TransferProcessorFailoverMaxStartJitterInterval: {
 		KeyName:      "history.transferProcessorFailoverMaxStartJitterInterval",
 		Description:  "TransferProcessorFailoverMaxStartJitterInterval is the max jitter interval for starting transfer failover queue processing. The actual jitter interval used will be a random duration between 0 and the max interval so that timer failover queue across different shards won't start at the same time",
@@ -6144,6 +6159,10 @@ var ListKeys = map[ListKey]DynamicList{
 			map[string]interface{}{ // config imports dynamicconfig, sadly
 				"Add":   true,
 				"Match": "",
+			},
+			map[string]interface{}{ // config imports dynamicconfig, sadly
+				"Add":   false,
+				"Match": "^grpc-.*",
 			},
 		},
 	},

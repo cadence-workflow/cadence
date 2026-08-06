@@ -31,6 +31,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/archiver"
+	"github.com/uber/cadence/common/archiver/archiverfx"
+	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/clock/clockfx"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
@@ -42,6 +45,8 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/metrics/metricsfx"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
+	"github.com/uber/cadence/common/rpc"
+	"github.com/uber/cadence/common/rpc/rpcfx"
 	"github.com/uber/cadence/common/service"
 	"github.com/uber/cadence/tools/cassandra"
 	"github.com/uber/cadence/tools/sql"
@@ -52,7 +57,9 @@ var _commonModule = fx.Options(
 	dynamicconfigfx.Module,
 	logfx.Module,
 	metricsfx.Module,
-	clockfx.Module)
+	clockfx.Module,
+	rpcfx.Module,
+	archiverfx.Module)
 
 // Module provides a cadence server initialization with root components.
 // AppParams allows to provide optional/overrides for implementation specific dependencies.
@@ -95,6 +102,9 @@ type AppParams struct {
 	OperationalDynamicConfig *dynamicconfig.Collection `name:"operational-dynamic-config"`
 	Scope                    tally.Scope
 	MetricsClient            metrics.Client
+	RPCFactory               rpc.Factory
+	ArchivalMetadata         archiver.ArchivalMetadata
+	ArchiverProvider         provider.ArchiverProvider
 }
 
 // NewApp created a new Application from pre initalized config and logger.
@@ -110,6 +120,9 @@ func NewApp(params AppParams) *App {
 		operationalDynamicConfig: params.OperationalDynamicConfig,
 		scope:                    params.Scope,
 		metricsClient:            params.MetricsClient,
+		rpcFactory:               params.RPCFactory,
+		archivalMetadata:         params.ArchivalMetadata,
+		archiverProvider:         params.ArchiverProvider,
 	}
 
 	params.LifeCycle.Append(fx.StartHook(app.verifySchema))
@@ -130,13 +143,16 @@ type App struct {
 	operationalDynamicConfig *dynamicconfig.Collection
 	scope                    tally.Scope
 	metricsClient            metrics.Client
+	rpcFactory               rpc.Factory
+	archivalMetadata         archiver.ArchivalMetadata
+	archiverProvider         provider.ArchiverProvider
 
 	daemon  common.Daemon
 	service string
 }
 
 func (a *App) Start(_ context.Context) error {
-	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient)
+	a.daemon = newServer(a.service, a.cfg, a.logger, a.zapLogger, a.dynamicConfig, a.dynamicCollection, a.operationalConfigStore, a.operationalDynamicConfig, a.scope, a.metricsClient, a.rpcFactory, a.archivalMetadata, a.archiverProvider)
 	a.daemon.Start()
 	return nil
 }
