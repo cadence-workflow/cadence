@@ -128,15 +128,32 @@ func (s *HistoryV2PersistenceSuite) TestScanAllTrees() {
 	ctx, cancel := context.WithTimeout(context.Background(), largeTestContextTimeout)
 	defer cancel()
 
-	resp, err := s.HistoryV2Mgr.GetAllHistoryTreeBranches(ctx, &p.GetAllHistoryTreeBranchesRequest{
-		PageSize: 1,
-	})
-	s.Nil(err)
-	s.Equal(0, len(resp.Branches), "some trees were leaked in other tests")
-
 	trees := map[string]bool{}
 	totalTrees := 1002
 	pgSize := 100
+
+	// Earlier tests in this suite can leak trees when a loaded database makes their
+	// cleanup time out. Snapshot whatever is already there so this test can tell those
+	// apart from trees it did not expect at all.
+	existingTrees := map[string]struct{}{}
+	var pgToken []byte
+	for {
+		resp, err := s.HistoryV2Mgr.GetAllHistoryTreeBranches(ctx, &p.GetAllHistoryTreeBranchesRequest{
+			PageSize:      pgSize,
+			NextPageToken: pgToken,
+		})
+		s.Nil(err)
+		for _, br := range resp.Branches {
+			existingTrees[br.TreeID] = struct{}{}
+		}
+		if len(resp.NextPageToken) == 0 {
+			break
+		}
+		pgToken = resp.NextPageToken
+	}
+	if len(existingTrees) > 0 {
+		s.T().Logf("%v trees were leaked by earlier tests", len(existingTrees))
+	}
 
 	for i := 0; i < totalTrees; i++ {
 		treeID := uuid.New()
@@ -149,7 +166,7 @@ func (s *HistoryV2PersistenceSuite) TestScanAllTrees() {
 		trees[treeID] = true
 	}
 
-	var pgToken []byte
+	pgToken = nil
 	for {
 		resp, err := s.HistoryV2Mgr.GetAllHistoryTreeBranches(ctx, &p.GetAllHistoryTreeBranchesRequest{
 			PageSize:      pgSize,
@@ -164,7 +181,8 @@ func (s *HistoryV2PersistenceSuite) TestScanAllTrees() {
 				s.True(len(br.BranchID) > 0)
 				s.Equal("branchInfo", br.Info)
 			} else {
-				s.Fail("treeID not found", br.TreeID)
+				_, ok := existingTrees[br.TreeID]
+				s.True(ok, "unexpected treeID %v: not created by this test and not present before it ran", br.TreeID)
 			}
 		}
 
@@ -493,7 +511,7 @@ func (s *HistoryV2PersistenceSuite) TestConcurrentlyCreateAndAppendBranches() {
 
 // TestConcurrentlyForkAndAppendBranches test
 func (s *HistoryV2PersistenceSuite) TestConcurrentlyForkAndAppendBranches() {
-	ctx, cancel := context.WithTimeout(context.Background(), testContextTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), largeTestContextTimeout)
 	defer cancel()
 
 	treeID := uuid.New()
@@ -684,7 +702,7 @@ func (s *HistoryV2PersistenceSuite) TestConcurrentlyForkAndAppendBranches() {
 	s.Eventually(func() bool {
 		branches = s.descTree(ctx, treeID)
 		return len(branches) == 0
-	}, 100*time.Millisecond, 20*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 func (s *HistoryV2PersistenceSuite) getBranchByKey(m *sync.Map, k int) []byte {

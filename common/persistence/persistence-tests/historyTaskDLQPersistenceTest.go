@@ -60,7 +60,7 @@ func (s *HistoryTaskDLQPersistenceSuite) SetupTest() {
 	s.Assertions = require.New(s.T())
 
 	var err error
-	s.dlqManager, err = s.ExecutionMgrFactory.NewHistoryTaskDLQManager()
+	s.dlqManager, err = s.PersistenceFactory.NewHistoryTaskDLQManager()
 	s.NoError(err)
 }
 

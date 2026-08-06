@@ -23,7 +23,6 @@ package sql
 import (
 	"fmt"
 	"log"
-	"net"
 
 	"github.com/urfave/cli/v2"
 
@@ -195,7 +194,11 @@ func parseConnectConfig(cli *cli.Context) (*config.SQL, error) {
 
 	host := cli.String(schema.CLIOptEndpoint)
 	port := cli.Int(schema.CLIOptPort)
-	cfg.ConnectAddr = fmt.Sprintf("%s:%v", host, port)
+	if port > 0 {
+		cfg.ConnectAddr = fmt.Sprintf("%s:%v", host, port)
+	} else {
+		cfg.ConnectAddr = host
+	}
 	cfg.User = cli.String(schema.CLIOptUser)
 	cfg.Password = cli.String(schema.CLIOptPassword)
 	cfg.DatabaseName = cli.String(schema.CLIOptDatabase)
@@ -223,11 +226,7 @@ func parseConnectConfig(cli *cli.Context) (*config.SQL, error) {
 
 // ValidateConnectConfig validates params
 func ValidateConnectConfig(cfg *config.SQL) error {
-	host, _, err := net.SplitHostPort(cfg.ConnectAddr)
-	if err != nil {
-		return schema.NewConfigError("invalid host and port " + cfg.ConnectAddr)
-	}
-	if len(host) == 0 {
+	if cfg.ConnectAddr == "" {
 		return schema.NewConfigError("missing sql endpoint argument " + flag(schema.CLIOptEndpoint))
 	}
 	if cfg.DatabaseName == "" {

@@ -145,6 +145,7 @@ func TestNewConfig(t *testing.T) {
 		"TimerProcessorCachePrefetchTriggerWindow":             {dynamicproperties.TimerProcessorCachePrefetchTriggerWindow, time.Second},
 		"TimerProcessorCacheTimeEvictionWindow":                {dynamicproperties.TimerProcessorCacheTimeEvictionWindow, time.Second},
 		"TimerProcessorCacheMinPrefetchInterval":               {dynamicproperties.TimerProcessorCacheMinPrefetchInterval, time.Second},
+		"TimerProcessorCachedQueueReaderShadowSampleInterval":  {dynamicproperties.TimerProcessorCachedQueueReaderShadowSampleInterval, time.Second},
 		"TransferTaskBatchSize":                                {dynamicproperties.TransferTaskBatchSize, 47},
 		"TransferTaskDeleteBatchSize":                          {dynamicproperties.TransferTaskDeleteBatchSize, 48},
 		"TransferProcessorCompleteTransferFailureRetryCount":   {dynamicproperties.TransferProcessorCompleteTransferFailureRetryCount, 49},
@@ -382,6 +383,8 @@ func getValue(f *reflect.Value) interface{} {
 		case dynamicproperties.MapPropertyFnWithDomainFilter:
 			return fn("domain")
 		case dynamicproperties.BoolPropertyFnWithShardIDFilter:
+			return fn(0)
+		case dynamicproperties.StringPropertyFnWithShardIDFilter:
 			return fn(0)
 		case func() []string:
 			return fn()

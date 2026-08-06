@@ -25,7 +25,6 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
@@ -36,7 +35,6 @@ type (
 	db struct {
 		converter   DataConverter
 		driver      sqldriver.Driver
-		originalDBs []*sqlx.DB
 		numDBShards int
 	}
 )
@@ -82,28 +80,21 @@ func (pdb *db) IsThrottlingError(err error) bool {
 // newDB returns an instance of DB, which is a logical
 // connection to the underlying postgres database
 // dbShardID is needed when tx is not nil
-func newDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int) (*db, error) {
-	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
-	if err != nil {
-		return nil, err
-	}
-
-	db := &db{
+func newDB(driver sqldriver.Driver, numDBShards int) *db {
+	return &db{
 		converter:   &converter{},
-		originalDBs: xdbs, // this is kept because newDB will be called again when starting a transaction
 		driver:      driver,
 		numDBShards: numDBShards,
 	}
-	return db, nil
 }
 
 // BeginTx starts a new transaction and returns a reference to the Tx object
 func (pdb *db) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	xtx, err := pdb.driver.BeginTxx(ctx, dbShardID, nil)
+	driver, err := pdb.driver.BeginTransaction(ctx, dbShardID, nil)
 	if err != nil {
 		return nil, err
 	}
-	return newDB(pdb.originalDBs, xtx, dbShardID, pdb.numDBShards)
+	return newDB(driver, pdb.numDBShards), nil
 }
 
 // Commit commits a previously started transaction

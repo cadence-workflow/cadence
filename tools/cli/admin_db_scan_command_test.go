@@ -33,7 +33,6 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/mock/gomock"
 
-	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/tools/cli/clitest"
 )
@@ -130,7 +129,7 @@ func TestAdminDBScanErrorCases(t *testing.T) {
 			name: "execution manager initialization error",
 			testSetup: func(td *cliTestData) *cli.Context {
 				td.mockManagerFactory.EXPECT().
-					initializeExecutionManager(gomock.Any(), gomock.Any()).
+					initializeExecutionManager(gomock.Any()).
 					Return(nil, assert.AnError)
 
 				return clitest.NewCLIContext(t, td.app,
@@ -145,11 +144,10 @@ func TestAdminDBScanErrorCases(t *testing.T) {
 		{
 			name: "historyV2 manager initialization error",
 			testSetup: func(td *cliTestData) *cli.Context {
-				shardID1 := common.WorkflowIDToHistoryShard("test-workflow-id1", 16384)
 				mockExecutionManager := persistence.NewMockExecutionManager(td.ctrl)
 				mockExecutionManager.EXPECT().Close()
 				td.mockManagerFactory.EXPECT().
-					initializeExecutionManager(gomock.Any(), shardID1).
+					initializeExecutionManager(gomock.Any()).
 					Return(mockExecutionManager, nil)
 
 				td.mockManagerFactory.EXPECT().
@@ -168,11 +166,10 @@ func TestAdminDBScanErrorCases(t *testing.T) {
 		{
 			name: "failed to fetch execution",
 			testSetup: func(td *cliTestData) *cli.Context {
-				shardID1 := common.WorkflowIDToHistoryShard("test-workflow-id1", 16384)
 				mockExecutionManager := persistence.NewMockExecutionManager(td.ctrl)
 				mockExecutionManager.EXPECT().Close()
 				td.mockManagerFactory.EXPECT().
-					initializeExecutionManager(gomock.Any(), shardID1).
+					initializeExecutionManager(gomock.Any()).
 					Return(mockExecutionManager, nil)
 
 				mockHistoryManager := persistence.NewMockHistoryManager(td.ctrl)
@@ -278,11 +275,10 @@ var expectedAdminDBScanOutput = strings.Join(strings.Fields(`
 ), "")
 
 func expectWorkFlow(td *cliTestData, workflowID string) {
-	shardID1 := common.WorkflowIDToHistoryShard(workflowID, 16384)
 	mockExecutionManager := persistence.NewMockExecutionManager(td.ctrl)
 	mockExecutionManager.EXPECT().Close().Times(1)
 	td.mockManagerFactory.EXPECT().
-		initializeExecutionManager(gomock.Any(), shardID1).
+		initializeExecutionManager(gomock.Any()).
 		Return(mockExecutionManager, nil).
 		Times(1)
 
@@ -336,6 +332,7 @@ func expectShard(td *cliTestData, shardID int) {
 	// Return 2 executions in the first call and a page token
 	mockExecutionManager.EXPECT().ListConcreteExecutions(gomock.Any(),
 		&persistence.ListConcreteExecutionsRequest{
+			ShardID:   &shardID,
 			PageSize:  1000,
 			PageToken: nil,
 		},
@@ -351,6 +348,7 @@ func expectShard(td *cliTestData, shardID int) {
 	// Return 1 execution in the second call and no page token
 	mockExecutionManager.EXPECT().ListConcreteExecutions(gomock.Any(),
 		&persistence.ListConcreteExecutionsRequest{
+			ShardID:   &shardID,
 			PageSize:  1000,
 			PageToken: []byte("some-next-page-token"),
 		},
@@ -362,7 +360,7 @@ func expectShard(td *cliTestData, shardID int) {
 			PageToken: nil,
 		}, nil).Times(1)
 
-	td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), shardID).
+	td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).
 		Return(mockExecutionManager, nil).Times(1)
 }
 

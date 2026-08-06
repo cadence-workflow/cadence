@@ -32,6 +32,7 @@ import (
 	_ "github.com/uber/cadence/common/dynamicconfig/openfeatureprovider/unleash"            // needed to load the optional unleash openfeature provider plugin
 	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"              // needed to load cassandra plugin
 	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public" // needed to load the default gocql client
+	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/cloudsql-mysql"             // needed to load cloudsql-mysql plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/mysql"                      // needed to load mysql plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/postgres"                   // needed to load postgres plugin
 	_ "github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"                     // needed to load sqlite plugin

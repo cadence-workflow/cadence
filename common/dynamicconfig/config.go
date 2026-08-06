@@ -399,6 +399,22 @@ func (c *Collection) GetStringProperty(key dynamicproperties.StringKey) dynamicp
 	}
 }
 
+// GetStringPropertyFilteredByShardID gets property with shardID as filter and asserts that it's a string
+func (c *Collection) GetStringPropertyFilteredByShardID(key dynamicproperties.StringKey) dynamicproperties.StringPropertyFnWithShardIDFilter {
+	return func(shardID int) string {
+		filters := c.toFilterMap(dynamicproperties.ShardIDFilter(shardID))
+		val, err := c.client.GetStringValue(
+			key,
+			filters,
+		)
+		if err != nil {
+			c.logError(key, filters, err)
+			return key.DefaultString()
+		}
+		return val
+	}
+}
+
 // GetMapProperty gets property and asserts that it's a map
 func (c *Collection) GetMapProperty(key dynamicproperties.MapKey) dynamicproperties.MapPropertyFn {
 	return func(opts ...dynamicproperties.FilterOption) map[string]interface{} {

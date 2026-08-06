@@ -32,7 +32,6 @@ import (
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/domain"
-	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -128,11 +127,7 @@ func NewService(params *resource.Params) (resource.Resource, error) {
 
 // NewConfig builds the new Config for cadence-worker service
 func NewConfig(params *resource.Params) *Config {
-	dc := dynamicconfig.NewCollection(
-		params.DynamicConfig,
-		params.Logger,
-		dynamicproperties.ClusterNameFilter(params.ClusterMetadata.GetCurrentClusterName()),
-	)
+	dc := params.DynamicCollection
 	config := &Config{
 		AdminOperationToken: dc.GetStringProperty(dynamicproperties.AdminOperationToken),
 		ArchiverConfig: &archiver.Config{

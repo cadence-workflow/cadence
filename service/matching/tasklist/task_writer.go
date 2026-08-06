@@ -25,9 +25,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/uber/cadence/common/backoff"
+	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
@@ -68,8 +70,11 @@ type (
 		scope          metrics.Scope
 		stopCh         chan struct{} // shutdown signal for all routines in this class
 		throttleRetry  *backoff.ThrottleRetry
-		handleErr      func(error) error
-		onFatalErr     func()
+
+		// fatalCh is closed when the writer hits an error that makes the whole task list
+		// unusable. The writer only reports it, the manager owns the teardown.
+		fatalCh   chan struct{}
+		fatalOnce sync.Once
 	}
 )
 
@@ -83,11 +88,10 @@ func newTaskWriter(tlMgr *taskListManagerImpl) *taskWriter {
 		taskListID:     tlMgr.taskListID,
 		taskAckManager: tlMgr.taskAckManager,
 		stopCh:         make(chan struct{}),
+		fatalCh:        make(chan struct{}),
 		appendCh:       make(chan *writeTaskRequest, tlMgr.config.OutstandingTaskAppendsThreshold()),
 		logger:         tlMgr.logger,
 		scope:          tlMgr.scope,
-		handleErr:      tlMgr.handleErr,
-		onFatalErr:     tlMgr.Stop,
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
@@ -119,6 +123,29 @@ func (w *taskWriter) Stop() {
 
 func (w *taskWriter) isStopped() bool {
 	return atomic.LoadInt64(&w.stopped) == 1
+}
+
+// Fatal returns a channel that is closed when the writer hits an error that makes the whole
+// task list unusable, and it must be unloaded.
+func (w *taskWriter) Fatal() <-chan struct{} {
+	return w.fatalCh
+}
+
+func (w *taskWriter) signalFatal() {
+	w.fatalOnce.Do(func() { close(w.fatalCh) })
+}
+
+// handleErr reports a lost task list lease and translates the error for sticky task lists.
+func (w *taskWriter) handleErr(err error) error {
+	var e *persistence.ConditionFailedError
+	if errors.As(err, &e) {
+		reportConditionFailed(w.scope, w.logger, err)
+		w.signalFatal()
+		if types.TaskListKind(w.db.taskListKind) == types.TaskListKindSticky {
+			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
+		}
+	}
+	return err
 }
 
 func (w *taskWriter) appendTask(ctx context.Context, taskInfo *persistence.TaskInfo) (*persistence.CreateTasksResponse, error) {
@@ -202,7 +229,10 @@ func (w *taskWriter) renewLeaseWithRetry() (taskListState, error) {
 	err := w.throttleRetry.Do(context.Background(), op)
 	if err != nil {
 		w.scope.IncCounter(metrics.LeaseFailurePerTaskListCounter)
-		w.onFatalErr()
+		// Without a lease, no task can be written, so reject pending, and future writes right
+		// away instead of waiting for the manager to unload the task list.
+		w.Stop()
+		w.signalFatal()
 		return newState, err
 	}
 	return newState, nil
@@ -230,6 +260,10 @@ writerLoop:
 					w.logger.Error("error allocating task ids",
 						tag.Error(err),
 					)
+					if w.isStopped() {
+						// the task list is going away, tell the caller to retry elsewhere
+						err = errShutdown
+					}
 					w.sendWriteResponse(reqs, err, nil)
 					continue writerLoop
 				}

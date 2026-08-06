@@ -36,7 +36,7 @@ func TestTimerQueueFactory_CreateQueuev2(t *testing.T) {
 
 			cfg := config.NewForTest()
 			if tc.mode != "" {
-				cfg.TimerProcessorCachedQueueReaderMode = dynamicproperties.GetStringPropertyFn(tc.mode)
+				cfg.TimerProcessorCachedQueueReaderMode = dynamicproperties.GetStringPropertyFnFilteredByShardID(tc.mode)
 			}
 
 			mockShard := shard.NewTestContext(t, ctrl, &persistence.ShardInfo{
