@@ -226,6 +226,16 @@ func (s *cliAppSuite) TestDomainDelete() {
 	s.Nil(err)
 }
 
+func (s *cliAppSuite) TestDomainDelete_LowercaseYes() {
+	resp := describeDomainResponseServer
+	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(resp, nil)
+	s.serverFrontendClient.EXPECT().DeleteDomain(gomock.Any(), gomock.Any()).Return(nil)
+
+	defer s.mockStdinInput("yes")()
+	err := s.app.Run([]string{"", "--do", domainName, "domain", "delete", "--st", "test-token"})
+	s.Nil(err)
+}
+
 func (s *cliAppSuite) TestDomainDelete_DomainNotExist() {
 	s.serverFrontendClient.EXPECT().DescribeDomain(gomock.Any(), gomock.Any()).Return(nil, &types.EntityNotExistsError{})
 	s.Error(s.app.Run([]string{"", "--do", domainName, "domain", "delete", "--st", "test-token"}))
