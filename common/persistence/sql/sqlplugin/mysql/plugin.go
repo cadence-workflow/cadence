@@ -78,13 +78,11 @@ func (p *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
 }
 
 func (p *plugin) createDB(cfg *config.SQL) (*DB, error) {
-	conns, err := sqldriver.CreateDBConnections(cfg, func(cfg *config.SQL) (*sqlx.DB, error) {
-		return p.createSingleDBConn(cfg)
-	})
+	driver, err := sqldriver.CreateDBConnections(cfg, p.createSingleDBConn, sqldriver.NoopClose)
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards, newConverter())
+	return NewDB(driver, cfg.NumShards, NewConverter()), nil
 }
 
 func (p *plugin) createSingleDBConn(cfg *config.SQL) (*sqlx.DB, error) {

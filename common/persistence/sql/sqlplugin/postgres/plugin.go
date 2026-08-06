@@ -54,24 +54,20 @@ func init() {
 
 // CreateDB initialize the db object
 func (d *plugin) CreateDB(cfg *config.SQL) (sqlplugin.DB, error) {
-	conns, err := sqldriver.CreateDBConnections(cfg, func(cfg *config.SQL) (*sqlx.DB, error) {
-		return d.createSingleDBConn(cfg)
-	})
+	driver, err := sqldriver.CreateDBConnections(cfg, d.createSingleDBConn, sqldriver.NoopClose)
 	if err != nil {
 		return nil, err
 	}
-	return newDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+	return newDB(driver, cfg.NumShards), nil
 }
 
 // CreateAdminDB initialize the adminDB object
 func (d *plugin) CreateAdminDB(cfg *config.SQL) (sqlplugin.AdminDB, error) {
-	conns, err := sqldriver.CreateDBConnections(cfg, func(cfg *config.SQL) (*sqlx.DB, error) {
-		return d.createSingleDBConn(cfg)
-	})
+	driver, err := sqldriver.CreateDBConnections(cfg, d.createSingleDBConn, sqldriver.NoopClose)
 	if err != nil {
 		return nil, err
 	}
-	return newDB(conns, nil, sqlplugin.DbShardUndefined, cfg.NumShards)
+	return newDB(driver, cfg.NumShards), nil
 }
 
 // CreateDBConnection creates a returns a reference to a logical connection to the

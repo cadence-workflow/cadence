@@ -43,48 +43,49 @@ import (
 
 func TestResolveShardID(t *testing.T) {
 	tests := []struct {
-		name           string
-		reqID          *int
-		storeID        int
-		expectedShard  int
-		expectedReason string
+		name          string
+		reqID         *int
+		expectedShard int
+		expectedErr   bool
 	}{
-		{name: "nil request shard id is reported as missing", reqID: nil, storeID: 5, expectedShard: 5, expectedReason: "missing"},
-		{name: "matching request shard id has no reason", reqID: common.IntPtr(5), storeID: 5, expectedShard: 5, expectedReason: ""},
-		{name: "differing request shard id falls back to store and is reported as mismatch", reqID: common.IntPtr(9), storeID: 5, expectedShard: 5, expectedReason: "mismatch"},
+		{name: "nil request shard id returns error", reqID: nil, expectedShard: 0, expectedErr: true},
+		{name: "valid request shard id is returned", reqID: common.IntPtr(5), expectedShard: 5, expectedErr: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			shard, reason := resolveShardID(tc.reqID, tc.storeID)
+			shard, err := resolveShardID(tc.reqID)
 			assert.Equal(t, tc.expectedShard, shard)
-			assert.Equal(t, tc.expectedReason, reason)
+			if tc.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
 
-func TestEffectiveShardID_logsOncePerOperationWhenRequestShardIDInconsistent(t *testing.T) {
+func TestEffectiveShardID_logsWarnForMissingShardID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockLogger := log.NewMockLogger(ctrl)
 	mockLogger.EXPECT().
-		Warn("execution store request inconsistent with store shard ID; using store shard ID", gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(1)
-	mockLogger.EXPECT().
-		Warn("execution store request inconsistent with store shard ID; using store shard ID", gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(1)
+		Warn("execution persistence request missing shard ID", gomock.Any(), gomock.Any()).
+		Times(2)
 
 	store := &sqlExecutionStore{
-		shardID: 123,
 		sqlStore: sqlStore{
 			logger: mockLogger,
 		},
 	}
 
-	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
-	assert.Equal(t, 123, store.effectiveShardID(nil, "GetWorkflowExecution"))
-	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(999), "UpdateWorkflowExecution"))
-	assert.Equal(t, 123, store.effectiveShardID(common.IntPtr(123), "DeleteWorkflowExecution"))
+	_, err1 := store.effectiveShardID(nil, "GetWorkflowExecution")
+	assert.Error(t, err1)
+	_, err2 := store.effectiveShardID(nil, "GetWorkflowExecution")
+	assert.Error(t, err2)
+	shard, err3 := store.effectiveShardID(common.IntPtr(123), "DeleteWorkflowExecution")
+	assert.NoError(t, err3)
+	assert.Equal(t, 123, shard)
 }
 
 func TestDeleteCurrentWorkflowExecution(t *testing.T) {
@@ -98,6 +99,7 @@ func TestDeleteCurrentWorkflowExecution(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.DeleteCurrentWorkflowExecutionRequest{
+				ShardID:    common.IntPtr(int(shardID)),
 				DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
 				WorkflowID: "aaaa",
 				RunID:      "fd65967f-777d-45de-8dee-be49dfda6716",
@@ -115,6 +117,7 @@ func TestDeleteCurrentWorkflowExecution(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.DeleteCurrentWorkflowExecutionRequest{
+				ShardID:    common.IntPtr(int(shardID)),
 				DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
 				WorkflowID: "aaaa",
 				RunID:      "fd65967f-777d-45de-8dee-be49dfda6716",
@@ -139,7 +142,7 @@ func TestDeleteCurrentWorkflowExecution(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -166,6 +169,7 @@ func TestGetCurrentExecution(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.GetCurrentExecutionRequest{
+				ShardID:    common.IntPtr(int(shardID)),
 				DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
 				WorkflowID: "aaaa",
 			},
@@ -197,6 +201,7 @@ func TestGetCurrentExecution(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.GetCurrentExecutionRequest{
+				ShardID:    common.IntPtr(int(shardID)),
 				DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
 				WorkflowID: "aaaa",
 			},
@@ -219,7 +224,7 @@ func TestGetCurrentExecution(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -247,6 +252,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 				NextPageToken:     serializePageToken(100),
 				MaxReadLevel:      199,
@@ -310,6 +316,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 		{
 			name: "Error case - failed to load from database",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 				NextPageToken:     serializePageToken(100),
 				MaxReadLevel:      199,
@@ -333,6 +340,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 		{
 			name: "Error case - failed to decode data",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 				NextPageToken:     serializePageToken(100),
 				MaxReadLevel:      199,
@@ -369,7 +377,7 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -397,6 +405,7 @@ func TestGetReplicationDLQSize(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.GetReplicationDLQSizeRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB) {
@@ -413,6 +422,7 @@ func TestGetReplicationDLQSize(t *testing.T) {
 		{
 			name: "Success case - no row",
 			req: &persistence.GetReplicationDLQSizeRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB) {
@@ -429,6 +439,7 @@ func TestGetReplicationDLQSize(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.GetReplicationDLQSizeRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 			},
 			mockSetup: func(mockDB *sqlplugin.MockDB) {
@@ -449,7 +460,7 @@ func TestGetReplicationDLQSize(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -476,6 +487,7 @@ func TestDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.DeleteReplicationTaskFromDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				TaskID:            123,
 				SourceClusterName: "source",
 			},
@@ -493,6 +505,7 @@ func TestDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.DeleteReplicationTaskFromDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				TaskID:            123,
 				SourceClusterName: "source",
 			},
@@ -517,7 +530,7 @@ func TestDeleteReplicationTaskFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -544,6 +557,7 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.RangeDeleteReplicationTaskFromDLQRequest{
+				ShardID:              common.IntPtr(shardID),
 				InclusiveBeginTaskID: 123,
 				ExclusiveEndTaskID:   345,
 				PageSize:             10,
@@ -568,6 +582,7 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 		{
 			name: "Error case",
 			req: &persistence.RangeDeleteReplicationTaskFromDLQRequest{
+				ShardID:              common.IntPtr(shardID),
 				InclusiveBeginTaskID: 123,
 				ExclusiveEndTaskID:   345,
 				PageSize:             10,
@@ -596,7 +611,7 @@ func TestRangeDeleteReplicationTaskFromDLQ(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB)
@@ -623,6 +638,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.InternalPutReplicationTaskToDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 				TaskInfo: &persistence.InternalReplicationTaskInfo{
 					DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
@@ -668,6 +684,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 		{
 			name: "Error case - failed to encode data",
 			req: &persistence.InternalPutReplicationTaskToDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 				TaskInfo: &persistence.InternalReplicationTaskInfo{
 					DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
@@ -692,6 +709,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 		{
 			name: "Error case - failed to insert into database",
 			req: &persistence.InternalPutReplicationTaskToDLQRequest{
+				ShardID:           common.IntPtr(shardID),
 				SourceClusterName: "source",
 				TaskInfo: &persistence.InternalReplicationTaskInfo{
 					DomainID:          "abdcea69-61d5-44c3-9d55-afe23505a542",
@@ -726,7 +744,7 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockParser := serialization.NewMockParser(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), mockParser, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, mockParser, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockParser)
@@ -752,6 +770,7 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.DeleteWorkflowExecutionRequest{
+				ShardID:    common.IntPtr(int(shardID)),
 				DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
 				WorkflowID: "wid",
 				RunID:      "bbdcea69-61d5-44c3-9d55-afe23505a542",
@@ -814,6 +833,7 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 		{
 			name: "Error case - failed to delete from executions",
 			req: &persistence.DeleteWorkflowExecutionRequest{
+				ShardID:    common.IntPtr(int(shardID)),
 				DomainID:   "abdcea69-61d5-44c3-9d55-afe23505a542",
 				WorkflowID: "wid",
 				RunID:      "bbdcea69-61d5-44c3-9d55-afe23505a542",
@@ -841,7 +861,7 @@ func TestDeleteWorkflowExecution(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockTx := sqlplugin.NewMockTx(ctrl)
-			store, err := NewSQLExecutionStore(mockDB, nil, int(shardID), nil, nil, nil)
+			store, err := NewSQLExecutionStore(mockDB, nil, nil, nil, nil)
 			require.NoError(t, err, "failed to create execution store")
 
 			tc.mockSetup(mockDB, mockTx)
@@ -913,7 +933,6 @@ func TestTxExecuteShardLocked(t *testing.T) {
 			tt.mockSetup(mockDB, mockTx)
 
 			s := &sqlExecutionStore{
-				shardID: 0,
 				sqlStore: sqlStore{
 					db:     mockDB,
 					logger: testlogger.New(t),
@@ -940,6 +959,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode brand new",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeBrandNew,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -960,6 +980,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode workflow ID reuse",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeWorkflowIDReuse,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -982,6 +1003,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode zombie",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeZombie,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1006,6 +1028,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode state validation failed",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeZombie,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1019,6 +1042,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - lockCurrentExecutionIfExists failed",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeBrandNew,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1033,6 +1057,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode brand new",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeBrandNew,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1064,6 +1089,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode workflow ID reuse, version mismatch",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeWorkflowIDReuse,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1086,6 +1112,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode workflow ID reuse, state mismatch",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeWorkflowIDReuse,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1107,6 +1134,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode workflow ID reuse, run ID mismatch",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeWorkflowIDReuse,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1129,6 +1157,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode zombie, run ID match",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeZombie,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1145,6 +1174,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - unknown mode",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowMode(100),
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1156,6 +1186,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - createOrUpdateCurrentExecution failed",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeBrandNew,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1173,6 +1204,7 @@ func TestCreateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - applyWorkflowSnapshotTxAsNew failed",
 			req: &persistence.InternalCreateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.CreateWorkflowModeBrandNew,
 				NewWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1198,7 +1230,6 @@ func TestCreateWorkflowExecution(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 			s := &sqlExecutionStore{
-				shardID: 0,
 				sqlStore: sqlStore{
 					db:     mockDB,
 					logger: testlogger.New(t),
@@ -1239,6 +1270,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode ignore current",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeIgnoreCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1253,6 +1285,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode bypass current",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeBypassCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1272,6 +1305,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode update current, new workflow",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1299,6 +1333,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode update current, no new workflow",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1318,6 +1353,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode state validation failed",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1331,6 +1367,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - assertNotCurrentExecution failed",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeBypassCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1347,6 +1384,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - domain ID mismatch",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1371,6 +1409,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - assertRunIDAndUpdateCurrentExecution failed",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1387,6 +1426,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - applyWorkflowMutationTxFn failed",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1406,6 +1446,7 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - applyWorkflowSnapshotTxAsNew failed",
 			req: &persistence.InternalUpdateWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.UpdateWorkflowModeUpdateCurrent,
 				UpdateWorkflowMutation: persistence.InternalWorkflowMutation{
@@ -1437,7 +1478,6 @@ func TestUpdateWorkflowExecution(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 			s := &sqlExecutionStore{
-				shardID: 0,
 				sqlStore: sqlStore{
 					db:     mockDB,
 					logger: testlogger.New(t),
@@ -1479,6 +1519,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode bypass current",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1498,6 +1539,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode update current, current workflow exists",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1533,6 +1575,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Success - mode update current, no current workflow",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1560,6 +1603,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - mode state validation failed",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1573,6 +1617,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - assertNotCurrentExecution failed",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1589,6 +1634,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - assertRunIDAndUpdateCurrentExecution failed",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1615,6 +1661,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - applyWorkflowResetSnapshotTx failed",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeBypassCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1634,6 +1681,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - applyWorkflowMutationTxFn failed",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1666,6 +1714,7 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - applyWorkflowSnapshotTxAsNew failed",
 			req: &persistence.InternalConflictResolveWorkflowExecutionRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Mode:    persistence.ConflictResolveWorkflowModeUpdateCurrent,
 				ResetWorkflowSnapshot: persistence.InternalWorkflowSnapshot{
@@ -1706,7 +1755,6 @@ func TestConflictResolveWorkflowExecution(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			mockDB.EXPECT().GetTotalNumDBShards().Return(1)
 			s := &sqlExecutionStore{
-				shardID: 0,
 				sqlStore: sqlStore{
 					db:     mockDB,
 					logger: testlogger.New(t),
@@ -1744,6 +1792,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.CreateFailoverMarkersRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Markers: []*persistence.FailoverMarkerTask{
 					{
@@ -1777,6 +1826,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		{
 			name: "Error - ReplicationTaskInfoToBlob failed",
 			req: &persistence.CreateFailoverMarkersRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Markers: []*persistence.FailoverMarkerTask{
 					{
@@ -1797,6 +1847,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		{
 			name: "Error - InsertIntoReplicationTasks failed",
 			req: &persistence.CreateFailoverMarkersRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Markers: []*persistence.FailoverMarkerTask{
 					{
@@ -1829,6 +1880,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		{
 			name: "Error - row affected error",
 			req: &persistence.CreateFailoverMarkersRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Markers: []*persistence.FailoverMarkerTask{
 					{
@@ -1862,6 +1914,7 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 		{
 			name: "Error - row affected number mismatch",
 			req: &persistence.CreateFailoverMarkersRequest{
+				ShardID: common.IntPtr(0),
 				RangeID: 1,
 				Markers: []*persistence.FailoverMarkerTask{
 					{
@@ -1903,7 +1956,6 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 			parser := serialization.NewMockParser(ctrl)
 			tc.mockSetup(tx, parser)
 			s := &sqlExecutionStore{
-				shardID: 0,
 				sqlStore: sqlStore{
 					db:     db,
 					logger: testlogger.New(t),
@@ -1936,6 +1988,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Success case",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2335,6 +2388,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - Shard owner changed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2392,6 +2446,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - failed to get shard",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2430,6 +2485,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromExecutions no row",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2454,6 +2510,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromExecutions failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2476,6 +2533,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromActivityInfoMaps failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2497,6 +2555,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromTimerInfoMaps failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2518,6 +2577,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromChildExecutionInfoMaps failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2539,6 +2599,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromRequestCancelInfoMaps failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2560,6 +2621,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromSignalInfoMaps failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2581,6 +2643,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromSignalsRequestedSets failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2602,6 +2665,7 @@ func TestGetWorkflowExecution(t *testing.T) {
 		{
 			name: "Error - SelectFromBufferedEvents failed",
 			req: &persistence.InternalGetWorkflowExecutionRequest{
+				ShardID:  common.IntPtr(0),
 				DomainID: "ff9c8a3f-0e4f-4d3e-a4d2-6f5f8f3f7d9d",
 				Execution: types.WorkflowExecution{
 					WorkflowID: "test-workflow-id",
@@ -2629,7 +2693,6 @@ func TestGetWorkflowExecution(t *testing.T) {
 			parser := serialization.NewMockParser(ctrl)
 			tc.mockSetup(db, parser)
 			s := &sqlExecutionStore{
-				shardID: 0,
 				sqlStore: sqlStore{
 					db:     db,
 					logger: testlogger.New(t),
@@ -2664,6 +2727,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - scheduled timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
 				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
 				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
@@ -2682,6 +2746,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - immediate transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2700,6 +2765,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - immediate replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100), // this is ignored by replication task
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2717,6 +2783,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "unknown task category error",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategory{},
 			},
 			setupMock:     func(mockDB *sqlplugin.MockDB) {},
@@ -2725,6 +2792,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "database error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
 				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
 				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
@@ -2744,6 +2812,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "database error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2763,6 +2832,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "database error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2781,6 +2851,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "sql result error on timer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
 				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0), 0),
 				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute), 0),
@@ -2800,6 +2871,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "sql result error on transfer task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2819,6 +2891,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 		{
 			name: "sql result error on replication task",
 			request: &persistence.RangeCompleteHistoryTaskRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2842,7 +2915,7 @@ func TestRangeCompleteHistoryTask(t *testing.T) {
 			defer controller.Finish()
 
 			mockDB := sqlplugin.NewMockDB(controller)
-			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}}
 
 			tc.setupMock(mockDB)
 
@@ -2872,6 +2945,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "success - get immediate transfer tasks",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTransfer,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -2910,6 +2984,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "success - get scheduled timer tasks",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryTimer,
 				InclusiveMinTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).UTC(), 0),
 				ExclusiveMaxTaskKey: persistence.NewHistoryTaskKey(time.Unix(0, 0).Add(time.Minute).UTC(), 0),
@@ -2971,6 +3046,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "success - get immediate replication tasks",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:             common.IntPtr(shardID),
 				TaskCategory:        persistence.HistoryTaskCategoryReplication,
 				InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
 				ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
@@ -3011,6 +3087,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "database error on transfer task retrieval",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
 				PageSize:     10,
 			},
@@ -3023,6 +3100,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "database error on replication task retrieval",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
 				PageSize:     10,
 			},
@@ -3035,6 +3113,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "database error on timer task retrieval",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
 				PageSize:     10,
 			},
@@ -3047,6 +3126,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 		{
 			name: "unknown task category error",
 			request: &persistence.GetHistoryTasksRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategory{},
 			},
 			setupMock:     func(mockDB *sqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {},
@@ -3061,7 +3141,7 @@ func TestGetHistoryTasks_SQL(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(controller)
 			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
-			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID, taskSerializer: mockTaskSerializer}
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, taskSerializer: mockTaskSerializer}
 
 			tc.setupMock(mockDB, mockTaskSerializer)
 
@@ -3090,6 +3170,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - complete scheduled timer task",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
 				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
@@ -3108,6 +3189,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - complete immediate transfer task",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
 				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
@@ -3125,6 +3207,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - complete immediate replication task",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
 				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
@@ -3142,6 +3225,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "success - multi-key timer batch",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
 				TaskKeys: []persistence.HistoryTaskKey{
 					persistence.NewHistoryTaskKey(time.Unix(10, 10), 1),
@@ -3168,6 +3252,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "unknown task category type",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategory{},
 			},
 			setupMock: func(mockDB *sqlplugin.MockDB, mockTx *sqlplugin.MockTx) {
@@ -3181,6 +3266,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "delete timer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTimer,
 				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewHistoryTaskKey(time.Unix(10, 10), 1)},
 			},
@@ -3200,6 +3286,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "delete transfer task error",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryTransfer,
 				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(2)},
 			},
@@ -3218,6 +3305,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 		{
 			name: "delete replication task error",
 			request: &persistence.CompleteHistoryTaskRequest{
+				ShardID:      common.IntPtr(shardID),
 				TaskCategory: persistence.HistoryTaskCategoryReplication,
 				TaskKeys:     []persistence.HistoryTaskKey{persistence.NewImmediateTaskKey(3)},
 			},
@@ -3242,7 +3330,7 @@ func TestCompleteHistoryTask(t *testing.T) {
 
 			mockDB := sqlplugin.NewMockDB(controller)
 			mockTx := sqlplugin.NewMockTx(controller)
-			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB, logger: testlogger.New(t)}, shardID: shardID}
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB, logger: testlogger.New(t)}}
 
 			tc.setupMock(mockDB, mockTx)
 
@@ -3317,8 +3405,9 @@ func TestGetActiveClusterSelectionPolicy(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			tc.mockSetup(mockDB)
 
-			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}}
 			got, err := store.GetActiveClusterSelectionPolicy(context.Background(), &persistence.GetActiveClusterSelectionPolicyRequest{
+				ShardID:    common.IntPtr(shardID),
 				DomainID:   domainID,
 				WorkflowID: workflowID,
 				RunID:      runID,
@@ -3378,8 +3467,9 @@ func TestDeleteActiveClusterSelectionPolicy(t *testing.T) {
 			mockDB := sqlplugin.NewMockDB(ctrl)
 			tc.mockSetup(mockDB)
 
-			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}, shardID: shardID}
+			store := &sqlExecutionStore{sqlStore: sqlStore{db: mockDB}}
 			err := store.DeleteActiveClusterSelectionPolicy(context.Background(), &persistence.DeleteActiveClusterSelectionPolicyRequest{
+				ShardID:    common.IntPtr(shardID),
 				DomainID:   domainID,
 				WorkflowID: workflowID,
 				RunID:      runID,

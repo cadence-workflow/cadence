@@ -24,7 +24,6 @@ package client
 
 import (
 	"errors"
-	"math/rand"
 	"testing"
 
 	"github.com/IBM/sarama/mocks"
@@ -98,14 +97,11 @@ func TestFactoryMethods(t *testing.T) {
 		check(t, fact.NewDomainManager)
 	})
 	t.Run("NewExecutionManager", func(t *testing.T) {
-		// cannot control the persistence.NewExecutionManagerImpl call, so we must prevent calls to it.
-		// currently the only call is the metrics wrapper calling GetShardID(), so just don't use the metrics wrapper.
 		fact := makeFactoryWithMetrics(t, false)
 		ds := mockDatastore(t, fact, storeTypeExecution)
 
-		shard := rand.Int()
-		ds.EXPECT().NewExecutionStore(shard).Return(nil, nil).MinTimes(1)
-		em, err := fact.NewExecutionManager(shard)
+		ds.EXPECT().NewExecutionStore().Return(nil, nil).MinTimes(1)
+		em, err := fact.NewExecutionManager()
 		assert.NoError(t, err)
 		assert.NotNil(t, em)
 	})

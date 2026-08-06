@@ -181,10 +181,7 @@ func getDefaultDAO(
 	}
 	res := sc.resource
 	cache := res.GetDomainCache()
-	execManager, err := res.GetExecutionManager(shardID)
-	if err != nil {
-		return nil, nil, err
-	}
+	execManager := res.GetExecutionManager()
 	pr := persistence.NewPersistenceRetryerWithShardID(execManager, res.GetHistoryManager(), c.CreatePersistenceRetryPolicy(), shardID)
 	return pr, cache, nil
 }

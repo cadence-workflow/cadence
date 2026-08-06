@@ -27,7 +27,6 @@ import (
 
 	"github.com/VividCortex/mysqlerr"
 	"github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 
 	"github.com/uber/cadence/common/persistence/sql/sqldriver"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin"
@@ -37,7 +36,6 @@ type (
 	DB struct {
 		converter   DataConverter
 		driver      sqldriver.Driver
-		originalDBs []*sqlx.DB
 		numDBShards int
 	}
 )
@@ -45,27 +43,9 @@ type (
 // NewDB returns an instance of DB, which is a logical
 // connection to the underlying mysql database
 // dbShardID is needed when tx is not nil
-func NewDB(xdbs []*sqlx.DB, tx *sqlx.Tx, dbShardID int, numDBShards int, converter DataConverter) (*DB, error) {
-	driver, err := sqldriver.NewDriver(xdbs, tx, dbShardID)
-	if err != nil {
-		return nil, err
-	}
-
-	db := &DB{
-		converter:   converter,
-		originalDBs: xdbs, // this is kept because NewDB will be called again when starting a transaction
-		driver:      driver,
-		numDBShards: numDBShards,
-	}
-
-	return db, nil
-}
-
-// NewDBWithDriver returns an instance of DB with the given driver
-func NewDBWithDriver(originalDBs []*sqlx.DB, driver sqldriver.Driver, numDBShards int, converter DataConverter) *DB {
+func NewDB(driver sqldriver.Driver, numDBShards int, converter DataConverter) *DB {
 	return &DB{
 		converter:   converter,
-		originalDBs: originalDBs,
 		driver:      driver,
 		numDBShards: numDBShards,
 	}
@@ -124,11 +104,12 @@ func (mdb *DB) IsThrottlingError(err error) bool {
 
 // BeginTx starts a new transaction and returns a reference to the Tx object
 func (mdb *DB) BeginTx(ctx context.Context, dbShardID int) (sqlplugin.Tx, error) {
-	xtx, err := mdb.driver.BeginTxx(ctx, dbShardID, nil)
+	driver, err := mdb.driver.BeginTransaction(ctx, dbShardID, nil)
 	if err != nil {
 		return nil, err
 	}
-	return NewDB(mdb.originalDBs, xtx, dbShardID, mdb.numDBShards, mdb.converter)
+
+	return NewDB(driver, mdb.numDBShards, mdb.converter), nil
 }
 
 // Commit commits a previously started transaction

@@ -139,30 +139,31 @@ type Config struct {
 	QueueProcessorEnableGracefulSyncShutdown           dynamicproperties.BoolPropertyFn
 
 	// TimerQueueProcessor settings
-	TimerTaskBatchSize                                dynamicproperties.IntPropertyFn
-	TimerTaskDeleteBatchSize                          dynamicproperties.IntPropertyFn
-	TimerProcessorGetFailureRetryCount                dynamicproperties.IntPropertyFn
-	TimerProcessorCompleteTimerFailureRetryCount      dynamicproperties.IntPropertyFn
-	TimerProcessorUpdateAckInterval                   dynamicproperties.DurationPropertyFn
-	TimerProcessorUpdateAckIntervalJitterCoefficient  dynamicproperties.FloatPropertyFn
-	TimerProcessorCompleteTimerInterval               dynamicproperties.DurationPropertyFn
-	TimerProcessorFailoverMaxStartJitterInterval      dynamicproperties.DurationPropertyFn
-	TimerProcessorFailoverMaxPollRPS                  dynamicproperties.IntPropertyFn
-	TimerProcessorMaxPollRPS                          dynamicproperties.IntPropertyFn
-	TimerProcessorMaxPollInterval                     dynamicproperties.DurationPropertyFn
-	TimerProcessorMaxPollIntervalJitterCoefficient    dynamicproperties.FloatPropertyFn
-	TimerProcessorSplitQueueInterval                  dynamicproperties.DurationPropertyFn
-	TimerProcessorSplitQueueIntervalJitterCoefficient dynamicproperties.FloatPropertyFn
-	TimerProcessorMaxRedispatchQueueSize              dynamicproperties.IntPropertyFn
-	TimerProcessorMaxTimeShift                        dynamicproperties.DurationPropertyFn
-	TimerProcessorHistoryArchivalSizeLimit            dynamicproperties.IntPropertyFn
-	TimerProcessorArchivalTimeLimit                   dynamicproperties.DurationPropertyFn
-	DisableTimerFailoverQueue                         dynamicproperties.BoolPropertyFn
-	TimerProcessorCachedQueueReaderMode               dynamicproperties.StringPropertyFn
-	TimerProcessorCacheMaxSize                        dynamicproperties.IntPropertyFn
-	TimerProcessorCachePrefetchTriggerWindow          dynamicproperties.DurationPropertyFn
-	TimerProcessorCacheTimeEvictionWindow             dynamicproperties.DurationPropertyFn
-	TimerProcessorCacheMinPrefetchInterval            dynamicproperties.DurationPropertyFn
+	TimerTaskBatchSize                                  dynamicproperties.IntPropertyFn
+	TimerTaskDeleteBatchSize                            dynamicproperties.IntPropertyFn
+	TimerProcessorGetFailureRetryCount                  dynamicproperties.IntPropertyFn
+	TimerProcessorCompleteTimerFailureRetryCount        dynamicproperties.IntPropertyFn
+	TimerProcessorUpdateAckInterval                     dynamicproperties.DurationPropertyFn
+	TimerProcessorUpdateAckIntervalJitterCoefficient    dynamicproperties.FloatPropertyFn
+	TimerProcessorCompleteTimerInterval                 dynamicproperties.DurationPropertyFn
+	TimerProcessorFailoverMaxStartJitterInterval        dynamicproperties.DurationPropertyFn
+	TimerProcessorFailoverMaxPollRPS                    dynamicproperties.IntPropertyFn
+	TimerProcessorMaxPollRPS                            dynamicproperties.IntPropertyFn
+	TimerProcessorMaxPollInterval                       dynamicproperties.DurationPropertyFn
+	TimerProcessorMaxPollIntervalJitterCoefficient      dynamicproperties.FloatPropertyFn
+	TimerProcessorSplitQueueInterval                    dynamicproperties.DurationPropertyFn
+	TimerProcessorSplitQueueIntervalJitterCoefficient   dynamicproperties.FloatPropertyFn
+	TimerProcessorMaxRedispatchQueueSize                dynamicproperties.IntPropertyFn
+	TimerProcessorMaxTimeShift                          dynamicproperties.DurationPropertyFn
+	TimerProcessorHistoryArchivalSizeLimit              dynamicproperties.IntPropertyFn
+	TimerProcessorArchivalTimeLimit                     dynamicproperties.DurationPropertyFn
+	DisableTimerFailoverQueue                           dynamicproperties.BoolPropertyFn
+	TimerProcessorCachedQueueReaderMode                 dynamicproperties.StringPropertyFnWithShardIDFilter
+	TimerProcessorCacheMaxSize                          dynamicproperties.IntPropertyFn
+	TimerProcessorCachePrefetchTriggerWindow            dynamicproperties.DurationPropertyFn
+	TimerProcessorCacheTimeEvictionWindow               dynamicproperties.DurationPropertyFn
+	TimerProcessorCacheMinPrefetchInterval              dynamicproperties.DurationPropertyFn
+	TimerProcessorCachedQueueReaderShadowSampleInterval dynamicproperties.DurationPropertyFn
 
 	// TransferQueueProcessor settings
 	TransferTaskBatchSize                                dynamicproperties.IntPropertyFn
@@ -477,11 +478,12 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		TimerProcessorHistoryArchivalSizeLimit:               dc.GetIntProperty(dynamicproperties.TimerProcessorHistoryArchivalSizeLimit),
 		TimerProcessorArchivalTimeLimit:                      dc.GetDurationProperty(dynamicproperties.TimerProcessorArchivalTimeLimit),
 		DisableTimerFailoverQueue:                            dc.GetBoolProperty(dynamicproperties.DisableTimerFailoverQueue),
-		TimerProcessorCachedQueueReaderMode:                  dc.GetStringProperty(dynamicproperties.TimerProcessorCachedQueueReaderMode),
+		TimerProcessorCachedQueueReaderMode:                  dc.GetStringPropertyFilteredByShardID(dynamicproperties.TimerProcessorCachedQueueReaderMode),
 		TimerProcessorCacheMaxSize:                           dc.GetIntProperty(dynamicproperties.TimerProcessorCacheMaxSize),
 		TimerProcessorCachePrefetchTriggerWindow:             dc.GetDurationProperty(dynamicproperties.TimerProcessorCachePrefetchTriggerWindow),
 		TimerProcessorCacheTimeEvictionWindow:                dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheTimeEvictionWindow),
 		TimerProcessorCacheMinPrefetchInterval:               dc.GetDurationProperty(dynamicproperties.TimerProcessorCacheMinPrefetchInterval),
+		TimerProcessorCachedQueueReaderShadowSampleInterval:  dc.GetDurationProperty(dynamicproperties.TimerProcessorCachedQueueReaderShadowSampleInterval),
 		TransferTaskBatchSize:                                dc.GetIntProperty(dynamicproperties.TransferTaskBatchSize),
 		TransferTaskDeleteBatchSize:                          dc.GetIntProperty(dynamicproperties.TransferTaskDeleteBatchSize),
 		TransferProcessorFailoverMaxStartJitterInterval:      dc.GetDurationProperty(dynamicproperties.TransferProcessorFailoverMaxStartJitterInterval),

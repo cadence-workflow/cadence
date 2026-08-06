@@ -19,6 +19,7 @@ use (
 	./cmd/server
 	./common/archiver/gcloud
 	./common/dynamicconfig/openfeatureprovider/unleash
+	./common/persistence/sql/sqlplugin/cloudsql-mysql
 
 // DO NOT include, tools dependencies are intentionally separate.
 // ./internal/tools

@@ -159,6 +159,12 @@ func NewParams(serviceName string, config *config.Config, dc *dynamicconfig.Coll
 		))
 	}
 
+	if config.ClusterGroupMetadata != nil {
+		outboundsBuilders = append(outboundsBuilders,
+			NewCrossDCOutbounds(config.ClusterGroupMetadata.ClusterGroup, NewDNSPeerChooserFactory(config.PublicClient.RefreshInterval, logger)),
+		)
+	}
+
 	return Params{
 		ServiceName:      serviceName,
 		HTTP:             http,

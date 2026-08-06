@@ -142,9 +142,11 @@ func newDomainCommands() []*cli.Command {
 				if err != nil {
 					return err
 				}
-				// exit on error already handled in the command
-				// TODO best practice is to return error if validation fails
-				err = NewDomainMigrationCommand(c).Validation(c)
+				migrationCmd, err := NewDomainMigrationCommand(c)
+				if err != nil {
+					return commoncli.Problem("Failed to initialize migration command: ", err)
+				}
+				err = migrationCmd.Validation(c)
 				if err != nil {
 					return commoncli.Problem("Failed validation: ", err)
 				}

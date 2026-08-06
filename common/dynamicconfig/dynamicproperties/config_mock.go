@@ -116,6 +116,11 @@ func GetStringPropertyFnFilteredByDomain(value string) func(domain string) strin
 	return func(domain string) string { return value }
 }
 
+// GetStringPropertyFnFilteredByShardID returns value as StringPropertyFnWithShardIDFilter
+func GetStringPropertyFnFilteredByShardID(value string) func(shardID int) string {
+	return func(shardID int) string { return value }
+}
+
 // GetMapPropertyFn returns value as MapPropertyFn
 func GetMapPropertyFn(value map[string]interface{}) func(opts ...FilterOption) map[string]interface{} {
 	return func(...FilterOption) map[string]interface{} { return value }

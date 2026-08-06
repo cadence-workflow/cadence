@@ -43,7 +43,7 @@ func init() {
 const (
 	// TODO: to get rid of them:
 	//  after batch job has an API, we should use the API: https://github.com/uber/cadence/issues/2225
-	sysBatchWFTypeName        = "cadence-sys-batch-workflow"
+	sysBatchWFTypeName        = "cadence-sys-batch-workflow-v2"
 	systemBatcherTaskListName = "cadence-sys-batcher-tasklist"
 
 	// there are two level, so totally 5*5 + 5 == 30 descendants

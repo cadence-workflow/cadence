@@ -47,6 +47,7 @@ go test -race -run TestFoo ./path/to/pkg/...  # run a specific test
   - Never use IDL code (`.gen/go/` or `.gen/proto/`) directly in service logic.
   - Map to `common/types` or `common/persistence` types via mappers in `common/types/mapper/`.
   - Files in `.gen/` are generated from IDL — do not edit manually.
+  - Never use yarpcerrors directly in handler logic; instead, create an new Error type in IDL and map to internal ones under common/type/errors.go.
 
 ## Pull Request Guidelines
 
@@ -83,7 +84,7 @@ Here's what's in each top-level directory in this repository:
 * **simulation/** : Black-box simulation tests that spin up a local Docker cluster and validate complex multi-component scenarios
 * **tools/** : CLI tools for Cadence workflows and also schema updates for persistence
 
-## Generic Rules 
+## Generic Rules
 
 See the `.agents/` directory for:
 - `go-style.md` - Go formatting and style (Uber style guide)

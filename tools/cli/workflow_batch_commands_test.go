@@ -67,6 +67,26 @@ func TestStartBatchJob(t *testing.T) {
 			expectedOutput: "batch job is started",
 		},
 		{
+			name: "Valid Start Refresh Batch Job",
+			setup: func(mockClient *frontend.MockClient) {
+				mockClient.EXPECT().CountWorkflowExecutions(gomock.Any(), gomock.Any()).Return(&types.CountWorkflowExecutionsResponse{
+					Count: 100,
+				}, nil)
+				mockClient.EXPECT().StartWorkflowExecution(gomock.Any(), gomock.Any()).Return(&types.StartWorkflowExecutionResponse{
+					RunID: "run-id-example",
+				}, nil)
+			},
+			flags: map[string]interface{}{
+				FlagDomain:    "test-domain",
+				FlagListQuery: "workflowType='batch'",
+				FlagReason:    "Testing batch refresh job",
+				FlagBatchType: batcher.BatchTypeRefresh,
+				FlagYes:       true,
+			},
+			expectedError:  "",
+			expectedOutput: "batch job is started",
+		},
+		{
 			name:  "Missing Domain",
 			setup: func(mockClient *frontend.MockClient) {},
 			flags: map[string]interface{}{
@@ -128,7 +148,7 @@ func TestStartBatchJob(t *testing.T) {
 				FlagReason:    "Testing batch job",
 				FlagBatchType: "invalidBatchType",
 			},
-			expectedError: "batchType is not valid, supported:terminate,cancel,signal,replicate",
+			expectedError: "batchType is not valid, supported:terminate,cancel,signal,replicate,refresh",
 		},
 		{
 			name: "Count Workflow Executions Failure",
@@ -520,9 +540,6 @@ func TestListBatchJobs(t *testing.T) {
 }
 
 func TestValidateBatchType(t *testing.T) {
-	// Mock batch types for testing
-	batcher.AllBatchTypes = []string{"signal", "replicate", "terminate"}
-
 	tests := []struct {
 		name      string
 		batchType string
@@ -536,6 +553,11 @@ func TestValidateBatchType(t *testing.T) {
 		{
 			name:      "Valid batch type - replicate",
 			batchType: "replicate",
+			expected:  true,
+		},
+		{
+			name:      "Valid batch type - refresh",
+			batchType: batcher.BatchTypeRefresh,
 			expected:  true,
 		},
 		{

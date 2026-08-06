@@ -56,15 +56,22 @@ func (provider *dnsProvider) Hosts() ([]string, error) {
 		host, port, err := net.SplitHostPort(hostPort)
 		if err != nil {
 			provider.Logger.Warn("could not split host and port", tag.Address(hostPort), tag.Error(err))
-			continue
+			return nil, err
 		}
 
 		resolved, exists := resolvedHosts[host]
 		if !exists {
 			resolved, err = provider.Resolver.LookupHost(context.Background(), host)
 			if err != nil {
+				var dnsErr *net.DNSError
+				if errors.As(err, &dnsErr) {
+					// If no host found, do not fail the bootstrap process, just bootstrap as single-node cluster
+					if dnsErr.IsNotFound {
+						continue
+					}
+				}
 				provider.Logger.Warn("could not resolve host", tag.Address(host), tag.Error(err))
-				continue
+				return nil, err
 			}
 			resolvedHosts[host] = resolved
 		}
@@ -73,7 +80,7 @@ func (provider *dnsProvider) Hosts() ([]string, error) {
 		}
 	}
 	if len(results) == 0 {
-		return nil, errors.New("no hosts found, and bootstrap requires at least one")
+		provider.Logger.Info("no hosts found via DNS, will bootstrap as single-node cluster")
 	}
 	return results, nil
 }
@@ -131,8 +138,15 @@ func (provider *dnsSRVProvider) Hosts() ([]string, error) {
 				addrs, err := provider.Resolver.LookupHost(context.Background(), s.Target)
 
 				if err != nil {
-					provider.Logger.Warn("could not resolve srv dns host", tag.Address(s.Target), tag.Error(err))
-					continue
+					var dnsErr *net.DNSError
+					if errors.As(err, &dnsErr) {
+						// If no host found, do not fail the bootstrap process, just bootstrap as single-node cluster
+						if dnsErr.IsNotFound {
+							continue
+						}
+					}
+					provider.Logger.Warn("could not resolve host", tag.Address(s.Target), tag.Error(err))
+					return nil, err
 				}
 				for _, a := range addrs {
 					targets = append(targets, net.JoinHostPort(a, fmt.Sprintf("%d", s.Port)))
@@ -146,7 +160,7 @@ func (provider *dnsSRVProvider) Hosts() ([]string, error) {
 	}
 
 	if len(results) == 0 {
-		return nil, errors.New("no hosts found, and bootstrap requires at least one")
+		provider.Logger.Info("no hosts found via DNS SRV, will bootstrap as single-node cluster")
 	}
 	return results, nil
 }
