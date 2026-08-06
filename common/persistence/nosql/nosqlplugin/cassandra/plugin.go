@@ -126,41 +126,45 @@ func toGoCqlConfig(cfg *config.NoSQL) (gocql.ClusterConfig, error) {
 		return gocql.ClusterConfig{}, err
 	}
 
-	hostSelection, err := toHostSelectionPolicy(cfg.HostSelectionPolicy)
+	hostSelectionPolicyFactory, err := toHostSelectionPolicyFactory(cfg.HostSelectionPolicy)
 	if err != nil {
 		return gocql.ClusterConfig{}, err
 	}
 
 	return gocql.ClusterConfig{
-		Hosts:                 cfg.Hosts,
-		Port:                  cfg.Port,
-		User:                  cfg.User,
-		Password:              cfg.Password,
-		AllowedAuthenticators: cfg.AllowedAuthenticators,
-		Keyspace:              cfg.Keyspace,
-		Region:                cfg.Region,
-		Datacenter:            cfg.Datacenter,
-		MaxConns:              cfg.MaxConns,
-		TLS:                   cfg.TLS,
-		ProtoVersion:          cfg.ProtoVersion,
-		Consistency:           consistency,
-		SerialConsistency:     serialConsistency,
-		Timeout:               cfg.Timeout,
-		ConnectTimeout:        cfg.ConnectTimeout,
-		HostSelectionPolicy:   hostSelection,
+		Hosts:                      cfg.Hosts,
+		Port:                       cfg.Port,
+		User:                       cfg.User,
+		Password:                   cfg.Password,
+		AllowedAuthenticators:      cfg.AllowedAuthenticators,
+		Keyspace:                   cfg.Keyspace,
+		Region:                     cfg.Region,
+		Datacenter:                 cfg.Datacenter,
+		MaxConns:                   cfg.MaxConns,
+		TLS:                        cfg.TLS,
+		ProtoVersion:               cfg.ProtoVersion,
+		Consistency:                consistency,
+		SerialConsistency:          serialConsistency,
+		Timeout:                    cfg.Timeout,
+		ConnectTimeout:             cfg.ConnectTimeout,
+		HostSelectionPolicyFactory: hostSelectionPolicyFactory,
 	}, nil
 }
 
-func toHostSelectionPolicy(policy string) (gogocql.HostSelectionPolicy, error) {
+func toHostSelectionPolicyFactory(policy string) (func() gogocql.HostSelectionPolicy, error) {
 	switch policy {
 	case "", "tokenaware,roundrobin":
-		return gogocql.TokenAwareHostPolicy(gogocql.RoundRobinHostPolicy()), nil
+		return func() gogocql.HostSelectionPolicy {
+			return gogocql.TokenAwareHostPolicy(gogocql.RoundRobinHostPolicy())
+		}, nil
 	case "hostpool-epsilon-greedy":
-		return gogocql.HostPoolHostPolicy(
-			hostpool.NewEpsilonGreedy(nil, 0, &hostpool.LinearEpsilonValueCalculator{}),
-		), nil
+		return func() gogocql.HostSelectionPolicy {
+			return gogocql.HostPoolHostPolicy(
+				hostpool.NewEpsilonGreedy(nil, 0, &hostpool.LinearEpsilonValueCalculator{}),
+			)
+		}, nil
 	case "roundrobin":
-		return gogocql.RoundRobinHostPolicy(), nil
+		return gogocql.RoundRobinHostPolicy, nil
 	default:
 		return nil, fmt.Errorf("unknown gocql host selection policy: %q", policy)
 	}
