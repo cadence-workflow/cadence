@@ -105,10 +105,14 @@ func (h *{{$decorator}}) {{$method.Declaration}} {
 
 	{{$method.ResultsNames}} = h.handler.{{$method.Call}}
 	if err != nil {
+		{{- $errorScope := "scope"}}
+		{{- if has $method.Name $taskListAPIs}}
+		{{- $errorScope = "scopePerDomain"}}
+		{{- end}}
 		{{- if eq (len $method.Results) 1}}
-		return h.handleErr(err, scope, logger)
+		return h.handleErr(err, {{$errorScope}}, logger)
 		{{- else}}
-		return nil, h.handleErr(err, scope, logger)
+		return nil, h.handleErr(err, {{$errorScope}}, logger)
 		{{- end}}
 	}
 	return {{$method.ResultsNames}}
