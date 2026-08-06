@@ -797,6 +797,27 @@ func (v *ReplicationTask) GetCreationTime() (o int64) {
 	return
 }
 
+// GetWorkflowIdentifiers returns the (domainID, workflowID, runID) carried by the
+// task's type-specific attributes. workflowID and runID are empty for tasks that
+// do not target a specific execution (e.g. FailoverMarker). Returns three empty
+// strings if no attributes are populated.
+func (v *ReplicationTask) GetWorkflowIdentifiers() (domainID, workflowID, runID string) {
+	if v == nil {
+		return
+	}
+	switch {
+	case v.SyncActivityTaskAttributes != nil:
+		attr := v.SyncActivityTaskAttributes
+		return attr.GetDomainID(), attr.GetWorkflowID(), attr.GetRunID()
+	case v.HistoryTaskV2Attributes != nil:
+		attr := v.HistoryTaskV2Attributes
+		return attr.GetDomainID(), attr.GetWorkflowID(), attr.GetRunID()
+	case v.FailoverMarkerAttributes != nil:
+		return v.FailoverMarkerAttributes.GetDomainID(), "", ""
+	}
+	return
+}
+
 // ByteSize returns the approximate memory used in bytes
 func (v *ReplicationTask) ByteSize() uint64 {
 	if v == nil {
