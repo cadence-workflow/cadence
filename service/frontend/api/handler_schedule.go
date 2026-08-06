@@ -46,17 +46,44 @@ const (
 	schedulerWorkflowDecisionTimeout  = 10 * time.Second
 	defaultListSchedulesPageSize      = 10
 
-	// describeScheduleCANRetryAttempts bounds the DWE probe in describeSchedulerExecution,
-	// which retries while CloseStatus=CONTINUED_AS_NEW to ride out the executionCache
-	// invalidation window. describeScheduleQueryRetryAttempts bounds the query retry in
-	// querySchedulerWorkflow, which retries until the new run's first decision task is done.
-	// Both states typically resolve within milliseconds but can take a few seconds in loaded
-	// environments. Separate counts keep the combined DescribeSchedule worst case (~8s) within
-	// the typical 10s service SLA.
-	describeScheduleCANRetryAttempts   = 5
-	describeScheduleQueryRetryAttempts = 5
-	describeScheduleCANRetryInterval   = 1 * time.Second
+	// describeScheduleRetryAttempts bounds describeSchedulerWorkflow, which retries the
+	// DescribeWorkflowExecution probe and the describe query together as one pass. The
+	// transient states it rides out — CloseStatus=CONTINUED_AS_NEW during the
+	// executionCache invalidation window, a query rejected with CONTINUED_AS_NEW, and a
+	// run whose first decision task has not completed — typically resolve within
+	// milliseconds but can take a few seconds in loaded environments. A single budget
+	// keeps the DescribeSchedule worst case (~4s of backoff plus per-attempt RPC time)
+	// within the typical 10s service SLA regardless of which step is slow to settle.
+	describeScheduleRetryAttempts = 5
+	describeScheduleRetryInterval = 1 * time.Second
 )
+
+var (
+	// errSchedulerContinuedAsNew marks the transient window in which the scheduler
+	// workflow has closed its previous run for ContinueAsNew and the new run is not
+	// yet visible. Both the DescribeWorkflowExecution probe and the describe query
+	// return it. A scheduler still in that state once the retry budget is spent is
+	// no longer plausibly mid-transition, so normalizeScheduleError reports it as an
+	// InternalServiceError naming the stuck state rather than asking the client to
+	// keep retrying a wait the server has already performed.
+	errSchedulerContinuedAsNew = errors.New("scheduler mid-ContinueAsNew")
+)
+
+// newDescribeScheduleRetryPolicy returns a fixed-interval policy allowing at most
+// describeScheduleRetryAttempts calls of the operation. RetryPolicy counts retries
+// rather than attempts, hence the -1.
+func newDescribeScheduleRetryPolicy() backoff.RetryPolicy {
+	policy := backoff.NewExponentialRetryPolicy(describeScheduleRetryInterval)
+	policy.SetBackoffCoefficient(1)
+	policy.SetMaximumInterval(describeScheduleRetryInterval)
+	policy.SetExpirationInterval(backoff.NoInterval)
+	policy.SetMaximumAttempts(describeScheduleRetryAttempts - 1)
+	return policy
+}
+
+func isContinuedAsNew(closeStatus *types.WorkflowExecutionCloseStatus) bool {
+	return closeStatus != nil && *closeStatus == types.WorkflowExecutionCloseStatusContinuedAsNew
+}
 
 func scheduleWorkflowID(scheduleID string) string {
 	return scheduleWorkflowIDPrefix + scheduleID
@@ -274,69 +301,20 @@ func (wh *WorkflowHandler) DescribeSchedule(
 		return nil, err
 	}
 
-	// Probe the scheduler workflow's current execution status before querying.
-	//
-	// Schedulers ContinueAsNew on every UpdateSchedule and periodically to bound
-	// history. During the executionCache invalidation window on the history host,
-	// getMutableState can briefly resolve wfID-without-runID to the just-closed
-	// old run and expose CloseStatus=CONTINUED_AS_NEW for an otherwise healthy
-	// schedule. The DWE probe — retried while the close status is CONTINUED_AS_NEW —
-	// distinguishes that transient race from a genuinely closed scheduler
-	// (FAILED, TERMINATED, TIMED_OUT, COMPLETED, CANCELED), which must not be
-	// reported as ACTIVE.
-	//
-	// QueryWorkflow keeps QueryRejectConditionNotCompletedCleanly as a safety net
-	// for the small window where the scheduler closes between the two RPCs.
-	info, err := wh.describeSchedulerExecution(ctx, domainID, domainName, scheduleID, execution)
-	if err != nil {
-		return nil, err
-	}
-	if info.CloseStatus != nil {
-		if *info.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
-			return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName)
-		}
-		return nil, &types.InternalServiceError{
-			Message: fmt.Sprintf(
-				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
-				scheduleID, domainName, info.CloseStatus.String(),
-			),
-		}
+	var desc *scheduler.ScheduleDescription
+	op := func(ctx context.Context) error {
+		var err error
+		desc, err = wh.describeSchedulerWorkflowOnce(ctx, domainID, domainName, scheduleID, execution)
+		return err
 	}
 
-	queryResp, err := wh.querySchedulerWorkflow(ctx, domainName, scheduleID, execution)
-	if err != nil {
-		return nil, err
-	}
-
-	if queryResp == nil {
-		return nil, &types.InternalServiceError{Message: "nil query response from scheduler workflow"}
-	}
-
-	if queryResp.QueryRejected != nil {
-		closeStatus := "unknown"
-		if queryResp.QueryRejected.CloseStatus != nil {
-			closeStatus = queryResp.QueryRejected.CloseStatus.String()
-			if *queryResp.QueryRejected.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
-				return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName)
-			}
-		}
-		return nil, &types.InternalServiceError{
-			Message: fmt.Sprintf(
-				"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
-				scheduleID, domainName, closeStatus,
-			),
-		}
-	}
-
-	if queryResp.GetQueryResult() == nil {
-		return nil, &types.InternalServiceError{Message: "empty query result from scheduler workflow"}
-	}
-
-	var desc scheduler.ScheduleDescription
-	if err := json.Unmarshal(queryResp.GetQueryResult(), &desc); err != nil {
-		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to deserialize scheduler describe response: %v", err)}
+	throttleRetry := backoff.NewThrottleRetry(
+		backoff.WithRetryPolicy(newDescribeScheduleRetryPolicy()),
+		backoff.WithRetryableError(isRetryableDescribeScheduleError(ctx)),
+		backoff.WithClock(wh.GetTimeSource()),
+	)
+	if err := throttleRetry.Do(ctx, op); err != nil {
+		return nil, normalizeScheduleError(err, scheduleID, domainName)
 	}
 
 	return &types.DescribeScheduleResponse{
@@ -796,6 +774,14 @@ func (wh *WorkflowHandler) signalScheduleWorkflow(
 }
 
 func normalizeScheduleError(err error, scheduleID, domainName string) error {
+	if errors.Is(err, errSchedulerContinuedAsNew) {
+		return &types.InternalServiceError{
+			Message: fmt.Sprintf(
+				"schedule %q in domain %q is not queryable: scheduler workflow still mid-ContinueAsNew after %d attempts",
+				scheduleID, domainName, describeScheduleRetryAttempts,
+			),
+		}
+	}
 	var notFound *types.EntityNotExistsError
 	if errors.As(err, &notFound) {
 		return &types.EntityNotExistsError{
@@ -805,89 +791,137 @@ func normalizeScheduleError(err error, scheduleID, domainName string) error {
 	return err
 }
 
+// describeSchedulerWorkflowOnce performs a single probe-then-query pass.
+//
+// Schedulers ContinueAsNew on every UpdateSchedule and periodically to bound
+// history. During the executionCache invalidation window on the history host,
+// getMutableState can briefly resolve wfID-without-runID to the just-closed old
+// run and expose CloseStatus=CONTINUED_AS_NEW for an otherwise healthy schedule.
+// The probe distinguishes that transient race from a genuinely closed scheduler
+// (FAILED, TERMINATED, TIMED_OUT, COMPLETED, CANCELED), which must not be
+// reported as ACTIVE and is returned as a non-retryable error.
+//
+// The query keeps QueryRejectConditionNotCompletedCleanly as a safety net for the
+// window where the scheduler closes between the two RPCs.
+func (wh *WorkflowHandler) describeSchedulerWorkflowOnce(
+	ctx context.Context,
+	domainID, domainName, scheduleID string,
+	execution *types.WorkflowExecution,
+) (*scheduler.ScheduleDescription, error) {
+	info, err := wh.describeSchedulerExecution(ctx, domainID, domainName, execution)
+	if err != nil {
+		return nil, err
+	}
+	if info.CloseStatus != nil {
+		return nil, scheduleNotOperationalError(scheduleID, domainName, info.CloseStatus.String())
+	}
+
+	queryResp, err := wh.querySchedulerWorkflow(ctx, domainName, execution)
+	if err != nil {
+		return nil, err
+	}
+	if queryResp == nil {
+		return nil, &types.InternalServiceError{Message: "nil query response from scheduler workflow"}
+	}
+	if queryResp.QueryRejected != nil {
+		closeStatus := "unknown"
+		if queryResp.QueryRejected.CloseStatus != nil {
+			closeStatus = queryResp.QueryRejected.CloseStatus.String()
+		}
+		return nil, scheduleNotOperationalError(scheduleID, domainName, closeStatus)
+	}
+	if queryResp.GetQueryResult() == nil {
+		return nil, &types.InternalServiceError{Message: "empty query result from scheduler workflow"}
+	}
+
+	var desc scheduler.ScheduleDescription
+	if err := json.Unmarshal(queryResp.GetQueryResult(), &desc); err != nil {
+		return nil, &types.InternalServiceError{Message: fmt.Sprintf("failed to deserialize scheduler describe response: %v", err)}
+	}
+	return &desc, nil
+}
+
+func scheduleNotOperationalError(scheduleID, domainName, closeStatus string) error {
+	return &types.InternalServiceError{
+		Message: fmt.Sprintf(
+			"schedule %q in domain %q is not operational: scheduler workflow ended with status %s",
+			scheduleID, domainName, closeStatus,
+		),
+	}
+}
+
 // describeSchedulerExecution returns the latest run's WorkflowExecutionInfo for
-// the scheduler workflow, retrying briefly while CloseStatus is CONTINUED_AS_NEW
-// to ride out the executionCache invalidation window after a ContinueAsNew
-// transition. If the close status is still CONTINUED_AS_NEW after the retry
-// budget the last response is returned; the caller treats that as "not
-// operational" so an operator can investigate a scheduler stuck mid-transition.
+// the scheduler workflow, reporting errSchedulerContinuedAsNew while the close
+// status is CONTINUED_AS_NEW so the caller can retry the whole pass.
 //
 // Calls the history client directly so this internal probe does not emit
 // FrontendDescribeWorkflowExecution metrics.
 func (wh *WorkflowHandler) describeSchedulerExecution(
 	ctx context.Context,
-	domainID, domainName, scheduleID string,
+	domainID, domainName string,
 	execution *types.WorkflowExecution,
 ) (*types.WorkflowExecutionInfo, error) {
-	req := &types.HistoryDescribeWorkflowExecutionRequest{
+	resp, err := wh.GetHistoryClient().DescribeWorkflowExecution(ctx, &types.HistoryDescribeWorkflowExecutionRequest{
 		DomainUUID: domainID,
 		Request: &types.DescribeWorkflowExecutionRequest{
 			Domain:    domainName,
 			Execution: execution,
 		},
+	})
+	if err != nil {
+		return nil, err
 	}
-	var lastInfo *types.WorkflowExecutionInfo
-	for attempt := 0; attempt < describeScheduleCANRetryAttempts; attempt++ {
-		resp, err := wh.GetHistoryClient().DescribeWorkflowExecution(ctx, req)
-		if err != nil {
-			return nil, normalizeScheduleError(err, scheduleID, domainName)
-		}
-		info := resp.GetWorkflowExecutionInfo()
-		if info == nil {
-			return nil, &types.InternalServiceError{Message: "nil workflow execution info from scheduler workflow"}
-		}
-		lastInfo = info
-		if info.CloseStatus == nil || *info.CloseStatus != types.WorkflowExecutionCloseStatusContinuedAsNew {
-			return info, nil
-		}
-		if attempt == describeScheduleCANRetryAttempts-1 {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(describeScheduleCANRetryInterval):
-		}
+	info := resp.GetWorkflowExecutionInfo()
+	if info == nil {
+		return nil, &types.InternalServiceError{Message: "nil workflow execution info from scheduler workflow"}
 	}
-	return lastInfo, nil
+	if isContinuedAsNew(info.CloseStatus) {
+		return nil, errSchedulerContinuedAsNew
+	}
+	return info, nil
 }
 
 // querySchedulerWorkflow issues a QueryWorkflow call for the scheduler's
-// describe query, retrying on transient errors until the workflow is queryable.
+// describe query.
 func (wh *WorkflowHandler) querySchedulerWorkflow(
 	ctx context.Context,
-	domainName, scheduleID string,
+	domainName string,
 	execution *types.WorkflowExecution,
 ) (*types.QueryWorkflowResponse, error) {
 	rejectCondition := types.QueryRejectConditionNotCompletedCleanly
-	req := &types.QueryWorkflowRequest{
+	resp, err := wh.QueryWorkflow(ctx, &types.QueryWorkflowRequest{
 		Domain:               domainName,
 		Execution:            execution,
 		Query:                &types.WorkflowQuery{QueryType: scheduler.QueryTypeDescribe},
 		QueryRejectCondition: &rejectCondition,
+	})
+	if err != nil {
+		return nil, err
 	}
-	var lastErr error
-	for attempt := 0; attempt < describeScheduleQueryRetryAttempts; attempt++ {
-		resp, err := wh.QueryWorkflow(ctx, req)
-		if err == nil {
-			return resp, nil
+	// A rejected query is a successful RPC, so the ContinueAsNew race has to be
+	// turned into an error to be retried.
+	if rejected := resp.GetQueryRejected(); rejected != nil && isContinuedAsNew(rejected.CloseStatus) {
+		return nil, errSchedulerContinuedAsNew
+	}
+	return resp, nil
+}
+
+// isRetryableDescribeScheduleError reports the transient conditions a describe
+// pass rides out: the scheduler being mid-ContinueAsNew, a run whose first
+// decision task has not completed yet, and history's internal query wait timing
+// out while the caller's own deadline is still live. Everything else — including
+// a genuinely closed scheduler — fails the pass immediately.
+func isRetryableDescribeScheduleError(ctx context.Context) backoff.IsRetryable {
+	return func(err error) bool {
+		if errors.Is(err, errSchedulerContinuedAsNew) {
+			return true
 		}
 		var qfe *types.QueryFailedError
-		decisionTaskPending := errors.As(err, &qfe) && strings.Contains(qfe.Message, "decision task")
-		queryTimeout := (errors.Is(err, context.DeadlineExceeded) ||
-			yarpcerrors.IsStatus(err) && yarpcerrors.FromError(err).Code() == yarpcerrors.CodeDeadlineExceeded) &&
-			ctx.Err() == nil
-		if !decisionTaskPending && !queryTimeout {
-			return nil, normalizeScheduleError(err, scheduleID, domainName)
+		if errors.As(err, &qfe) && strings.Contains(qfe.Message, "decision task") {
+			return true
 		}
-		lastErr = err
-		if attempt < describeScheduleQueryRetryAttempts-1 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(describeScheduleCANRetryInterval):
-			}
-		}
+		queryTimeout := errors.Is(err, context.DeadlineExceeded) ||
+			yarpcerrors.IsStatus(err) && yarpcerrors.FromError(err).Code() == yarpcerrors.CodeDeadlineExceeded
+		return queryTimeout && ctx.Err() == nil
 	}
-	return nil, normalizeScheduleError(lastErr, scheduleID, domainName)
 }

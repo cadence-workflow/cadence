@@ -90,7 +90,7 @@ func (s *domainDeprecationWorkflowTestSuite) TearDownTest() {
 func (s *domainDeprecationWorkflowTestSuite) TestWorkflow_Success() {
 	s.workflowEnv.OnActivity(disableArchivalActivity, mock.Anything, defaultParams).Return(nil)
 	s.workflowEnv.OnActivity(deprecateDomainActivity, mock.Anything, defaultParams).Return(nil)
-	s.workflowEnv.OnWorkflow(batcher.BatchWorkflow, mock.Anything, mock.Anything).Return(
+	s.workflowEnv.OnWorkflow(batcher.BatchWorkflowV2, mock.Anything, mock.Anything).Return(
 		batcher.HeartBeatDetails{
 			SuccessCount: 10,
 			ErrorCount:   0,
@@ -125,7 +125,7 @@ func (s *domainDeprecationWorkflowTestSuite) TestWorkflow_BatchTerminate_ChildWo
 	mockErr := errors.New("batch workflow failed")
 	s.workflowEnv.OnActivity(disableArchivalActivity, mock.Anything, defaultParams).Return(nil)
 	s.workflowEnv.OnActivity(deprecateDomainActivity, mock.Anything, defaultParams).Return(nil)
-	s.workflowEnv.OnWorkflow(batcher.BatchWorkflow, mock.Anything, mock.Anything).Return(
+	s.workflowEnv.OnWorkflow(batcher.BatchWorkflowV2, mock.Anything, mock.Anything).Return(
 		batcher.HeartBeatDetails{}, mockErr)
 
 	s.workflowEnv.ExecuteWorkflow(DomainDeprecationWorkflowTypeName, defaultParams)
@@ -138,7 +138,7 @@ func (s *domainDeprecationWorkflowTestSuite) TestWorkflow_CheckOpenWorkflows_Err
 	mockErr := errors.New("error")
 	s.workflowEnv.OnActivity(disableArchivalActivity, mock.Anything, defaultParams).Return(nil)
 	s.workflowEnv.OnActivity(deprecateDomainActivity, mock.Anything, defaultParams).Return(nil)
-	s.workflowEnv.OnWorkflow(batcher.BatchWorkflow, mock.Anything, mock.Anything).Return(
+	s.workflowEnv.OnWorkflow(batcher.BatchWorkflowV2, mock.Anything, mock.Anything).Return(
 		batcher.HeartBeatDetails{
 			SuccessCount: 10,
 			ErrorCount:   0,

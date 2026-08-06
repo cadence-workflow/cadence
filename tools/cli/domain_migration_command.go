@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
+	"go.uber.org/multierr"
 
 	"github.com/uber/cadence/client/admin"
 	"github.com/uber/cadence/client/frontend"
@@ -116,22 +117,22 @@ type DomainMigrationCommand interface {
 	DynamicConfigCheck(c *cli.Context) (DomainMigrationRow, error)
 }
 
-func (d *domainMigrationCLIImpl) NewDomainMigrationCLIImpl(c *cli.Context) (*domainMigrationCLIImpl, error) {
+func NewDomainMigrationCommand(c *cli.Context) (DomainMigrationCommand, error) {
 	fc, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create frontend client: %w", err)
 	}
 	fcm, err := getDeps(c).ServerFrontendClientForMigration(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create destination frontend client: %w", err)
 	}
 	ac, err := getDeps(c).ServerAdminClient(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create admin client: %w", err)
 	}
 	acm, err := getDeps(c).ServerAdminClientForMigration(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create destination admin client: %w", err)
 	}
 	return &domainMigrationCLIImpl{
 		frontendClient:         fc,
@@ -139,11 +140,6 @@ func (d *domainMigrationCLIImpl) NewDomainMigrationCLIImpl(c *cli.Context) (*dom
 		frontendAdminClient:    ac,
 		destinationAdminClient: acm,
 	}, nil
-}
-
-// Export a function to create an instance of the domainMigrationCLIImpl.
-func NewDomainMigrationCommand(c *cli.Context) DomainMigrationCommand {
-	return &domainMigrationCLIImpl{}
 }
 
 type domainMigrationCLIImpl struct {
@@ -159,12 +155,13 @@ func (d *domainMigrationCLIImpl) Validation(c *cli.Context) error {
 		d.SearchAttributesChecker,
 	}
 	wg := &sync.WaitGroup{}
-	errCh := make(chan error, len(checkers)) // Channel to capture errors
+	errCh := make(chan error, len(checkers))
 	results := make([]DomainMigrationRow, len(checkers))
-	var err error
 	for i := range checkers {
+		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+			var err error
 			results[i], err = checkers[i](c)
 			if err != nil {
 				errCh <- fmt.Errorf("Error in checkers: %w", err)
@@ -176,10 +173,14 @@ func (d *domainMigrationCLIImpl) Validation(c *cli.Context) error {
 
 	wg.Wait()
 	close(errCh)
+	var errs error
 	for err := range errCh {
 		if err != nil {
-			return err
+			errs = multierr.Append(errs, err)
 		}
+	}
+	if errs != nil {
+		return errs
 	}
 
 	renderOpts := RenderOptions{

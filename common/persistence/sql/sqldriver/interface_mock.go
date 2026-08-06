@@ -14,7 +14,6 @@ import (
 	sql "database/sql"
 	reflect "reflect"
 
-	sqlx "github.com/jmoiron/sqlx"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,19 +41,19 @@ func (m *MockDriver) EXPECT() *MockDriverMockRecorder {
 	return m.recorder
 }
 
-// BeginTxx mocks base method.
-func (m *MockDriver) BeginTxx(ctx context.Context, dbShardID int, opts *sql.TxOptions) (*sqlx.Tx, error) {
+// BeginTransaction mocks base method.
+func (m *MockDriver) BeginTransaction(ctx context.Context, dbShardID int, opts *sql.TxOptions) (Driver, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BeginTxx", ctx, dbShardID, opts)
-	ret0, _ := ret[0].(*sqlx.Tx)
+	ret := m.ctrl.Call(m, "BeginTransaction", ctx, dbShardID, opts)
+	ret0, _ := ret[0].(Driver)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// BeginTxx indicates an expected call of BeginTxx.
-func (mr *MockDriverMockRecorder) BeginTxx(ctx, dbShardID, opts any) *gomock.Call {
+// BeginTransaction indicates an expected call of BeginTransaction.
+func (mr *MockDriverMockRecorder) BeginTransaction(ctx, dbShardID, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginTxx", reflect.TypeOf((*MockDriver)(nil).BeginTxx), ctx, dbShardID, opts)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginTransaction", reflect.TypeOf((*MockDriver)(nil).BeginTransaction), ctx, dbShardID, opts)
 }
 
 // Close mocks base method.

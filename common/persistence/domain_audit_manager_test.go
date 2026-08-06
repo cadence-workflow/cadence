@@ -58,7 +58,7 @@ func setUpMocksForDomainAuditManager(t *testing.T) (*domainAuditManagerImpl, *Mo
 
 func TestGetDomainAuditLogs(t *testing.T) {
 	ctx := context.Background()
-	epoch := time.Unix(0, 0)
+	epoch := time.Unix(0, 0).UTC()
 	minTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	fixedTime := time.Date(2024, 6, 30, 23, 59, 59, 0, time.UTC)
 

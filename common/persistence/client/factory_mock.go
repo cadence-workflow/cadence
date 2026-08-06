@@ -115,18 +115,18 @@ func (mr *MockFactoryMockRecorder) NewDomainReplicationQueueManager() *gomock.Ca
 }
 
 // NewExecutionManager mocks base method.
-func (m *MockFactory) NewExecutionManager(shardID int) (persistence.ExecutionManager, error) {
+func (m *MockFactory) NewExecutionManager() (persistence.ExecutionManager, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewExecutionManager", shardID)
+	ret := m.ctrl.Call(m, "NewExecutionManager")
 	ret0, _ := ret[0].(persistence.ExecutionManager)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // NewExecutionManager indicates an expected call of NewExecutionManager.
-func (mr *MockFactoryMockRecorder) NewExecutionManager(shardID any) *gomock.Call {
+func (mr *MockFactoryMockRecorder) NewExecutionManager() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionManager", reflect.TypeOf((*MockFactory)(nil).NewExecutionManager), shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionManager", reflect.TypeOf((*MockFactory)(nil).NewExecutionManager))
 }
 
 // NewHistoryManager mocks base method.
@@ -286,18 +286,18 @@ func (mr *MockDataStoreFactoryMockRecorder) NewDomainStore() *gomock.Call {
 }
 
 // NewExecutionStore mocks base method.
-func (m *MockDataStoreFactory) NewExecutionStore(shardID int) (persistence.ExecutionStore, error) {
+func (m *MockDataStoreFactory) NewExecutionStore() (persistence.ExecutionStore, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewExecutionStore", shardID)
+	ret := m.ctrl.Call(m, "NewExecutionStore")
 	ret0, _ := ret[0].(persistence.ExecutionStore)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // NewExecutionStore indicates an expected call of NewExecutionStore.
-func (mr *MockDataStoreFactoryMockRecorder) NewExecutionStore(shardID any) *gomock.Call {
+func (mr *MockDataStoreFactoryMockRecorder) NewExecutionStore() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewExecutionStore), shardID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewExecutionStore", reflect.TypeOf((*MockDataStoreFactory)(nil).NewExecutionStore))
 }
 
 // NewHistoryDLQTaskStore mocks base method.

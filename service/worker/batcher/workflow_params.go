@@ -50,6 +50,8 @@ func validateParams(params BatchParams) error {
 	case BatchTypeCancel:
 		fallthrough
 	case BatchTypeTerminate:
+		fallthrough
+	case BatchTypeRefresh:
 		return nil
 	default:
 		return fmt.Errorf("not supported batch type: %v", params.BatchType)

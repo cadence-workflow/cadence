@@ -207,7 +207,7 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 
 				mockInvariantManager.EXPECT().RunFixes(gomock.Any(), gomock.Any()).Return(invariant.ManagerFixResult{}).Times(1)
 
-				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), gomock.Any()).Return(mockExecManager, nil).Times(1)
+				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).Return(mockExecManager, nil).Times(1)
 				td.mockManagerFactory.EXPECT().initializeHistoryManager(gomock.Any()).Return(mockHistoryManager, nil).Times(1)
 				td.mockManagerFactory.EXPECT().initializeInvariantManager(gomock.Any()).Return(mockInvariantManager, nil).Times(1)
 
@@ -238,7 +238,7 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				mockExecManager.EXPECT().Close().Times(1)
 				mockHistoryManager.EXPECT().Close().Times(1)
 
-				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), gomock.Any()).Return(mockExecManager, nil).Times(1)
+				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).Return(mockExecManager, nil).Times(1)
 				td.mockManagerFactory.EXPECT().initializeHistoryManager(gomock.Any()).Return(mockHistoryManager, nil).Times(1)
 				td.mockManagerFactory.EXPECT().initializeInvariantManager(gomock.Any()).Return(nil, fmt.Errorf("init invariant manager error")).Times(1)
 
@@ -261,7 +261,7 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				return cli.NewContext(td.app, set, nil)
 			},
 			mockSetup: func(td *cliTestData) {
-				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("init execution manager error")).Times(1)
+				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).Return(nil, fmt.Errorf("init execution manager error")).Times(1)
 			},
 			inputFileData:  `{"Execution": {"ShardID": 1}, "Result": {}}`,
 			expectedOutput: ``,
@@ -285,7 +285,7 @@ func TestAdminDBClean_inFixExecution(t *testing.T) {
 				mockExecManager := persistence.NewMockExecutionManager(ctrl)
 				mockExecManager.EXPECT().Close().Times(1)
 
-				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any(), gomock.Any()).Return(mockExecManager, nil).Times(1)
+				td.mockManagerFactory.EXPECT().initializeExecutionManager(gomock.Any()).Return(mockExecManager, nil).Times(1)
 				td.mockManagerFactory.EXPECT().initializeHistoryManager(gomock.Any()).Return(nil, fmt.Errorf("init history manager error")).Times(1)
 			},
 			inputFileData:  `{"Execution": {"ShardID": 1}, "Result": {}}`,

@@ -32,6 +32,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
@@ -439,28 +440,25 @@ func requireCallbackInvocation(t *testing.T, msg string) func() {
 	}
 }
 
-func TestGetTasksPumpHandleErrStopNoDeadlock(t *testing.T) {
+func TestGetTasksPumpConditionFailedUnloadsTaskList(t *testing.T) {
+	// IgnoreCurrent because other tests in this package start task lists without stopping them
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	controller := gomock.NewController(t)
 	c := defaultConfig()
 	c.UpdateAckInterval = dynamicproperties.GetDurationPropertyFnFilteredByTaskListInfo(10 * time.Millisecond)
 
 	tlm := createTestTaskListManagerWithConfig(t, testlogger.New(t), controller, c, clock.NewRealTimeSource())
+	require.NoError(t, tlm.Start(context.Background()))
 
-	err := tlm.taskWriter.Start()
-	require.NoError(t, err)
-
-	// Force ConditionFailedError on the next persistAckLevel -> handleErr -> Stop() path
+	// Force a ConditionFailedError on the next persistAckLevel by taking the lease away
 	tm := tlm.db.store.(*TestTaskManager)
 	tm.SetRangeID(tlm.taskListID, 999)
 
-	tlm.taskReader.Start()
-
+	// Nothing stops the task list here, the manager unloads itself once the reader reports
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&tlm.stopped) == 1
 	}, 5*time.Second, 10*time.Millisecond)
-
-	// Wait for the async go c.Stop() to fully complete
-	tlm.Stop()
 }
 
 func TestTaskReaderBatchSizeValidation(t *testing.T) {

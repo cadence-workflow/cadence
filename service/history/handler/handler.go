@@ -765,10 +765,7 @@ func (h *handlerImpl) RemoveTask(
 	ctx context.Context,
 	request *types.RemoveTaskRequest,
 ) (retError error) {
-	executionMgr, err := h.GetExecutionManager(int(request.GetShardID()))
-	if err != nil {
-		return err
-	}
+	executionMgr := h.GetExecutionManager()
 
 	switch taskType := commonconstants.TaskType(request.GetType()); taskType {
 	case commonconstants.TaskTypeTransfer:
