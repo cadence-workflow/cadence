@@ -76,6 +76,7 @@ func newScheduleTestFixture(t *testing.T) *scheduleTestFixture {
 		10, false, "hostname", mockResource.Logger,
 	)
 	config.EmitSignalNameMetricsTag = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
+	config.EnableScheduler = dynamicproperties.GetBoolPropertyFnFilteredByDomain(true)
 
 	handler := NewWorkflowHandler(mockResource, config, versionChecker, nil)
 
@@ -123,6 +124,13 @@ func TestCreateSchedule(t *testing.T) {
 		"empty domain": {
 			request: &types.CreateScheduleRequest{},
 			mockFn:  func(f *scheduleTestFixture) {},
+			wantErr: true,
+		},
+		"scheduler not enabled for domain": {
+			request: &types.CreateScheduleRequest{Domain: testDomain, ScheduleID: "s1"},
+			mockFn: func(f *scheduleTestFixture) {
+				f.handler.config.EnableScheduler = dynamicproperties.GetBoolPropertyFnFilteredByDomain(false)
+			},
 			wantErr: true,
 		},
 		"empty schedule ID": {
