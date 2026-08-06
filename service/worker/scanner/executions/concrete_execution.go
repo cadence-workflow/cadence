@@ -120,7 +120,7 @@ func concreteExecutionScannerManager(
 	collections := ParseCollections(params.ScannerConfig)
 
 	var ivs []invariant.Invariant
-	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop()) {
+	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop(), 0) {
 		ivs = append(ivs, fn(pr, domainCache))
 	}
 
@@ -160,7 +160,7 @@ func concreteExecutionFixerManager(_ context.Context, pr persistence.Retryer, pa
 	}
 
 	var ivs []invariant.Invariant
-	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop()) {
+	for _, fn := range ConcreteExecutionType.ToInvariants(collections, zap.NewNop(), 0) {
 		ivs = append(ivs, fn(pr, domainCache))
 	}
 	return invariant.NewInvariantManager(ivs)
