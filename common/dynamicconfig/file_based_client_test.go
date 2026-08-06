@@ -237,6 +237,17 @@ func (s *fileBasedClientSuite) TestValidateConfig_ShortPollInterval() {
 
 }
 
+// testMatcherValue is a Matcher implementation used only to prove that match()
+// dispatches to Matches() for any filter-map value implementing the interface,
+// independent of which Filter key it's stored under.
+type testMatcherValue struct {
+	matches bool
+}
+
+func (v testMatcherValue) Matches(constraint interface{}) bool {
+	return v.matches
+}
+
 func (s *fileBasedClientSuite) TestMatch() {
 	testCases := []struct {
 		v       *constrainedValue
@@ -302,6 +313,26 @@ func (s *fileBasedClientSuite) TestMatch() {
 			},
 			filters: map[dynamicproperties.Filter]interface{}{
 				dynamicproperties.TaskListName: "sample-task-list",
+			},
+			matched: false,
+		},
+		{
+			// a filter-map value implementing Matcher is dispatched to Matches(),
+			// not compared via equality
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"domainName": "the constraint value"},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: true},
+			},
+			matched: true,
+		},
+		{
+			v: &constrainedValue{
+				Constraints: map[string]interface{}{"domainName": "the constraint value"},
+			},
+			filters: map[dynamicproperties.Filter]interface{}{
+				dynamicproperties.DomainName: testMatcherValue{matches: false},
 			},
 			matched: false,
 		},
