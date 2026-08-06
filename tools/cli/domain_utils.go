@@ -248,7 +248,7 @@ var (
 		&cli.BoolFlag{
 			Name:    FlagPrintJSON,
 			Aliases: []string{"pjson"},
-			Usage:   "Print in raw JSON format",
+			Usage:   "Print the raw server response in JSON format (DEPRECATED: use --format json)",
 		},
 		getFormatFlag(),
 	}

@@ -659,7 +659,7 @@ VisibilityArchivalURI: {{.}}{{end}}
 {{table .}}{{end}}
 {{with .FailoverInfo}}Graceful failover info:
 {{table .}}{{end}}
-{{if .IsActiveActiveDomain}}To see active clusters by cluster attribute use --print-json.
+{{if .IsActiveActiveDomain}}ActiveClustersByClusterAttribute: {{.ClusterAttributeCount}} cluster attribute(s), omitted here as the list can be very large. To see them use --format json.
 {{end}}`
 
 // DescribeDomain updates a domain
@@ -693,11 +693,12 @@ func (d *domainCLIImpl) DescribeDomain(c *cli.Context) error {
 	}
 
 	if printJSON {
+		fmt.Fprintln(os.Stderr, "Warning: --print_json is deprecated, use --format json instead. Note their output shapes differ: --format json prints the CLI view of the domain, --print_json prints the raw server response.")
 		output, err := json.Marshal(resp)
 		if err != nil {
 			return commoncli.Problem("Failed to encode domain response into JSON.", err)
 		}
-		fmt.Println(string(output))
+		fmt.Fprintln(getDeps(c).Output(), string(output))
 		return nil
 	}
 
@@ -752,6 +753,23 @@ type DomainRow struct {
 	FailoverInfo             *FailoverInfoRow
 	LongRunningWorkFlowNum   *int
 	IsActiveActiveDomain     bool
+	// ActiveClusters can be very large for active-active domains, so it is only
+	// included in --format json output, not in the default template or tables.
+	ActiveClusters *types.ActiveClusters
+}
+
+// ClusterAttributeCount returns the total number of cluster attributes across
+// all attribute scopes. Used by templateDomain; being a method, it is excluded
+// from --format json output.
+func (d DomainRow) ClusterAttributeCount() int {
+	if d.ActiveClusters == nil {
+		return 0
+	}
+	count := 0
+	for _, scope := range d.ActiveClusters.AttributeScopes {
+		count += len(scope.ClusterAttributes)
+	}
+	return count
 }
 
 type DomainMigrationRow struct {
@@ -796,6 +814,7 @@ func newDomainRow(domain *types.DescribeDomainResponse) DomainRow {
 		BadBinaries:              newBadBinaryRows(domain.Configuration.BadBinaries),
 		FailoverInfo:             newFailoverInfoRow(domain.FailoverInfo),
 		IsActiveActiveDomain:     domain.ReplicationConfiguration.IsActiveActive(),
+		ActiveClusters:           domain.ReplicationConfiguration.GetActiveClusters(),
 	}
 }
 
