@@ -23,5 +23,6 @@
 - Stanislav Bychkov (https://github.com/ribaraka)
 - Tim Chan (https://github.com/macrotim)
 - Tim Li (https://github.com/timl3136)
+- Vladimir Gavrilenko (https://github.com/vladimir-gavrilenko)
 - Vsevolod Kaloshin (https://github.com/arzonus)
 - Yawei Zhang (https://github.com/YaweiZhang-930)
