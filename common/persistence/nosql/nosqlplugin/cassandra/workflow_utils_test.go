@@ -2384,6 +2384,60 @@ func TestCreateWorkflowExecutionWithMergeMaps(t *testing.T) {
 			// - 1 for signal requested IDs
 			wantQueries: 7,
 		},
+		{
+			desc:       "sentinel flags have no effect on create (no deletes)",
+			shardID:    1000,
+			domainID:   "domain1",
+			workflowID: "workflow1",
+			execution: &nosqlplugin.WorkflowExecutionRequest{
+				EventBufferWriteMode: nosqlplugin.EventBufferWriteModeNone,
+				MapsWriteMode:        nosqlplugin.WorkflowExecutionMapsWriteModeCreate,
+				InternalWorkflowExecutionInfo: persistence.InternalWorkflowExecutionInfo{
+					CompletionEvent: &persistence.DataBlob{},
+					AutoResetPoints: &persistence.DataBlob{},
+				},
+				VersionHistories: &persistence.DataBlob{},
+				Checksums:        &checksum.Checksum{},
+				ActivityInfos: map[int64]*persistence.InternalActivityInfo{
+					1: {
+						Version: 1,
+						ScheduledEvent: &persistence.DataBlob{
+							Encoding: constants.EncodingTypeThriftRW,
+							Data:     []byte("thrift-encoded-scheduled-event-data"),
+						},
+						ScheduledTime: ts.UTC(),
+						ScheduleID:    1,
+						StartedID:     2,
+						StartedEvent: &persistence.DataBlob{
+							Encoding: constants.EncodingTypeThriftRW,
+							Data:     []byte("thrift-encoded-started-event-data"),
+						},
+						ActivityID:             "activity1",
+						ScheduleToStartTimeout: 1 * time.Minute,
+						ScheduleToCloseTimeout: 2 * time.Minute,
+						StartToCloseTimeout:    3 * time.Minute,
+						HeartbeatTimeout:       1 * time.Minute,
+						Attempt:                3,
+						MaximumAttempts:        5,
+						TaskList:               "tasklist1",
+						HasRetryPolicy:         true,
+						LastFailureReason:      "retry reason",
+					},
+				},
+				TimerInfos: map[string]*persistence.TimerInfo{
+					"timer1": {
+						Version:    1,
+						TimerID:    "timer1",
+						StartedID:  2,
+						ExpiryTime: ts,
+						TaskStatus: 1,
+					},
+				},
+			},
+			useActivitySentinel: true,
+			useTimerSentinel:    true,
+			wantQueries:         3,
+		},
 	}
 
 	for _, tc := range tests {
