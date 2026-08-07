@@ -236,7 +236,7 @@ var (
 		},
 		&cli.BoolFlag{
 			Name:  FlagForce,
-			Usage: "Deprecate domain regardless of domain history.",
+			Usage: "Skip all safety checks and force domain deprecation. Use with caution.",
 		},
 	}
 

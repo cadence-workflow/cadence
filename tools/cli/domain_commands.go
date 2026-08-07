@@ -458,6 +458,7 @@ func (d *domainCLIImpl) DeprecateDomain(c *cli.Context) error {
 	params := domaindeprecation.DomainDeprecationParams{
 		DomainName:    domainName,
 		SecurityToken: securityToken,
+		Force:         c.Bool(FlagForce),
 	}
 	input, err := json.Marshal(params)
 	if err != nil {
