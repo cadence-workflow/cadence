@@ -29,18 +29,22 @@ import (
 )
 
 const (
+	schemaVersionTableName       = "schema_version"
+	schemaUpdateHistoryTableName = "schema_update_history"
+	hasTableQuery                = `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`
+
 	readSchemaVersionQuery = `SELECT curr_version from schema_version where db_name=?`
 
 	writeSchemaVersionQuery = `REPLACE into schema_version(db_name, creation_time, curr_version, min_compatible_version) VALUES (?,?,?,?)`
 
 	writeSchemaUpdateHistoryQuery = `INSERT into schema_update_history(year, month, update_time, old_version, new_version, manifest_md5, description) VALUES(?,?,?,?,?,?,?)`
 
-	createSchemaVersionTableQuery = `CREATE TABLE schema_version(db_name VARCHAR(255) not null PRIMARY KEY, ` +
+	createSchemaVersionTableQuery = `CREATE TABLE IF NOT EXISTS schema_version(db_name VARCHAR(255) not null PRIMARY KEY, ` +
 		`creation_time DATETIME(6), ` +
 		`curr_version VARCHAR(64), ` +
 		`min_compatible_version VARCHAR(64));`
 
-	createSchemaUpdateHistoryTableQuery = `CREATE TABLE schema_update_history(` +
+	createSchemaUpdateHistoryTableQuery = `CREATE TABLE IF NOT EXISTS schema_update_history(` +
 		`year int not null, ` +
 		`month int not null, ` +
 		`update_time DATETIME(6) not null, ` +
@@ -53,12 +57,38 @@ const (
 	// NOTE we have to use %v because somehow mysql doesn't work with ? here
 	createDatabaseQuery = "CREATE database %v CHARACTER SET UTF8"
 
-	dropDatabaseQuery = "Drop database %v"
+	hasDatabaseQuery = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?"
+
+	dropDatabaseQuery = "DROP DATABASE IF EXISTS %v"
 
 	listTablesQuery = "SHOW TABLES FROM %v"
 
 	dropTableQuery = "DROP TABLE %v"
 )
+
+// HasSchemaVersionTables checks if schema metadata tables exist.
+func (mdb *DB) HasSchemaVersionTables() (bool, error) {
+	hasVersionTable, err := mdb.hasTable(schemaVersionTableName)
+	if err != nil || !hasVersionTable {
+		return false, err
+	}
+
+	hasHistoryTable, err := mdb.hasTable(schemaUpdateHistoryTableName)
+	if err != nil || !hasHistoryTable {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (mdb *DB) hasTable(name string) (bool, error) {
+	var count int
+	err := mdb.driver.GetForSchemaQuery(sqlplugin.DbShardUndefined, &count, hasTableQuery, name)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
 
 // CreateSchemaVersionTables sets up the schema version tables
 func (mdb *DB) CreateSchemaVersionTables() error {
@@ -87,7 +117,6 @@ func (mdb *DB) WriteSchemaUpdateLog(oldVersion string, newVersion string, manife
 }
 
 // ExecSchemaOperationQuery executes a sql statement for schema ONLY. DO NOT use it in other cases, otherwise it will not work for multiple SQL database.
-// For Sharded SQL, it will execute the statement for all shards
 func (mdb *DB) ExecSchemaOperationQuery(ctx context.Context, stmt string, args ...interface{}) error {
 	_, err := mdb.driver.ExecDDL(ctx, sqlplugin.DbShardUndefined, stmt, args...)
 	return err
@@ -122,6 +151,15 @@ func (mdb *DB) DropAllTables(database string) error {
 // CreateDatabase creates a database if it doesn't exist
 func (mdb *DB) CreateDatabase(name string) error {
 	return mdb.ExecSchemaOperationQuery(context.Background(), fmt.Sprintf(createDatabaseQuery, name))
+}
+
+func (mdb *DB) DatabaseExists(name string) (bool, error) {
+	var count int
+	err := mdb.driver.GetForSchemaQuery(sqlplugin.DbShardUndefined, &count, hasDatabaseQuery, name)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // DropDatabase drops a database

@@ -94,9 +94,8 @@ func TestPinotIntegrationSuite(t *testing.T) {
 
 	s := new(PinotIntegrationSuite)
 	params := IntegrationBaseParams{
-		DefaultTestCluster:    testCluster,
-		VisibilityTestCluster: testCluster,
-		TestClusterConfig:     clusterConfig,
+		PersistenceConfig: testCluster,
+		TestClusterConfig: clusterConfig,
 	}
 	s.IntegrationBase = NewIntegrationBase(params)
 	suite.Run(t, s)
@@ -118,10 +117,9 @@ func (s *PinotIntegrationSuite) SetupSuite() {
 		HistoryNodeDeleteBatchSize:               dynamicproperties.GetIntPropertyFn(1000),
 	}
 	params := pt.TestBaseParams{
-		DefaultTestCluster:    s.DefaultTestCluster,
-		VisibilityTestCluster: s.VisibilityTestCluster,
-		ClusterMetadata:       clusterMetadata,
-		DynamicConfiguration:  dc,
+		PersistenceConfig:    s.PersistenceConfig,
+		ClusterMetadata:      clusterMetadata,
+		DynamicConfiguration: dc,
 	}
 	cluster, err := NewPinotTestCluster(s.T(), s.TestClusterConfig, s.Logger, params)
 	s.Require().NoError(err)

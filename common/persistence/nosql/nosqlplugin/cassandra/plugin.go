@@ -34,6 +34,7 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql"
 	"github.com/uber/cadence/environment"
+	"github.com/uber/cadence/schema/cassandra"
 )
 
 const (
@@ -56,8 +57,7 @@ func (p *plugin) CreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.
 	return p.doCreateDB(cfg, logger, dc)
 }
 
-// CreateAdminDB initialize the AdminDB object
-func (p *plugin) CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (nosqlplugin.AdminDB, error) {
+func (p *plugin) SetupDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SetupDB, error) {
 	// the keyspace is not created yet, so use empty and let the Cassandra connect
 	keyspace := cfg.Keyspace
 	cfg.Keyspace = ""
@@ -67,6 +67,33 @@ func (p *plugin) CreateAdminDB(cfg *config.NoSQL, logger log.Logger, dc *persist
 	}()
 
 	return p.doCreateDB(cfg, logger, dc)
+}
+
+func (p *plugin) SchemaDB(dbType persistence.DBType, cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (persistence.SchemaDB, error) {
+	schema, err := getSchema(dbType)
+	if err != nil {
+		return nil, err
+	}
+
+	cdb, err := p.doCreateDB(cfg, logger, dc)
+	if err != nil {
+		return nil, err
+	}
+	return &schemaDB{
+		CDB:    cdb,
+		latest: schema,
+	}, nil
+}
+
+func getSchema(dbType persistence.DBType) (persistence.Schema, error) {
+	switch dbType {
+	case persistence.DBTypeDefault:
+		return cassandra.DefaultSchema, nil
+	case persistence.DBTypeVisibility:
+		return cassandra.VisibilitySchema, nil
+	default:
+		return nil, fmt.Errorf("unknown db type: %v", dbType)
+	}
 }
 
 func (p *plugin) doCreateDB(cfg *config.NoSQL, logger log.Logger, dc *persistence.DynamicConfiguration) (*CDB, error) {

@@ -1,0 +1,9 @@
+{
+  "CurrVersion": "0.2",
+  "MinCompatibleVersion": "0.2",
+  "Description": "cool new feature",
+  "SchemaUpdateCqlFiles": [
+    "domain_metadata.sql",
+    "insert.sql"
+  ]
+}

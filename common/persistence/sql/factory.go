@@ -158,6 +158,28 @@ func (f *Factory) NewConfigStore() (p.ConfigStore, error) {
 	return NewSQLConfigStore(conn, f.logger, f.parser)
 }
 
+func (f *Factory) NewAdminDBs(dbType p.DBType) ([]p.AdminDB, error) {
+	plugin, ok := supportedPlugins[f.cfg.PluginName]
+	if !ok {
+		return nil, fmt.Errorf("plugin not supported: %s", f.cfg.PluginName)
+	}
+	schema, err := plugin.GetSchema(dbType)
+	if err != nil {
+		return nil, err
+	}
+	var result []p.AdminDB
+	dbs := f.cfg.SplitMultipleDatabases()
+	for _, db := range dbs {
+		result = append(result, &sqlAdmin{
+			logger: f.logger,
+			plugin: plugin,
+			schema: schema,
+			cfg:    db,
+		})
+	}
+	return result, nil
+}
+
 // Close closes the factory
 func (f *Factory) Close() {
 	f.dbConn.forceClose()
