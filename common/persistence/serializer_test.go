@@ -287,7 +287,6 @@ func TestSerializers(t *testing.T) {
 	}
 
 	for _, tc := range runnableTests {
-		tc := tc
 		t.Run(fmt.Sprintf("%s with encoding:%s,payload:%s", tc.name, tc.encoding, tc.payloadName), func(t *testing.T) {
 			t.Parallel()
 
