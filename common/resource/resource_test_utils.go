@@ -161,6 +161,8 @@ func NewTest(
 	shardMgr := &mocks.ShardManager{}
 	historyMgr := &mocks.HistoryV2Manager{}
 	executionMgr := &mocks.ExecutionManager{}
+	executionMgr.On("GetActivityMapDeleteRewriteThreshold").Return(0).Maybe()
+	executionMgr.On("GetTimerMapDeleteRewriteThreshold").Return(0).Maybe()
 	domainReplicationQueue := domain.NewMockReplicationQueue(controller)
 	domainReplicationQueue.EXPECT().Start().AnyTimes()
 	domainReplicationQueue.EXPECT().Stop().AnyTimes()

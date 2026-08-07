@@ -1663,6 +1663,22 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// ActivityMapDeleteRewriteThreshold is the number of map key deletions before
+	// triggering a full map rewrite. A value of 0 disables the optimization.
+	// Currently only implemented for Cassandra.
+	// KeyName: history.activityMapDeleteRewriteThreshold
+	// Value type: Int
+	// Default value: 0
+	ActivityMapDeleteRewriteThreshold
+
+	// TimerMapDeleteRewriteThreshold is the number of map key deletions before
+	// triggering a full map rewrite. A value of 0 disables the optimization.
+	// Currently only implemented for Cassandra.
+	// KeyName: history.timerMapDeleteRewriteThreshold
+	// Value type: Int
+	// Default value: 0
+	TimerMapDeleteRewriteThreshold
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -4591,6 +4607,16 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	ActivityMapDeleteRewriteThreshold: {
+		KeyName:      "history.activityMapDeleteRewriteThreshold",
+		Description:  "Number of map key deletions before triggering a full map rewrite. Currently only implemented for Cassandra.",
+		DefaultValue: 0,
+	},
+	TimerMapDeleteRewriteThreshold: {
+		KeyName:      "history.timerMapDeleteRewriteThreshold",
+		Description:  "Number of map key deletions before triggering a full map rewrite. Currently only implemented for Cassandra.",
+		DefaultValue: 0,
 	},
 }
 

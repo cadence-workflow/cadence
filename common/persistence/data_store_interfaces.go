@@ -118,6 +118,8 @@ type (
 	ExecutionStore interface {
 		Closeable
 		GetName() string
+		GetActivityMapDeleteRewriteThreshold() int
+		GetTimerMapDeleteRewriteThreshold() int
 		// The below three APIs are related to serialization/deserialization
 		GetWorkflowExecution(ctx context.Context, request *InternalGetWorkflowExecutionRequest) (*InternalGetWorkflowExecutionResponse, error)
 		UpdateWorkflowExecution(ctx context.Context, request *InternalUpdateWorkflowExecutionRequest) error
@@ -459,6 +461,9 @@ type (
 		// ChecksumData is used by All SQL storage
 		Checksum     checksum.Checksum
 		ChecksumData *DataBlob
+
+		ActivityMapDeleteCount int
+		TimerMapDeleteCount    int
 	}
 
 	// InternalActivityInfo details  for Persistence Interface
@@ -565,21 +570,25 @@ type (
 		StartVersion     int64
 		LastWriteVersion int64
 
-		UpsertActivityInfos       []*InternalActivityInfo
-		DeleteActivityInfos       []int64
-		UpsertTimerInfos          []*TimerInfo
-		DeleteTimerInfos          []string
-		WorkflowTimerTasks        []HistoryTaskKey
-		UpsertChildExecutionInfos []*InternalChildExecutionInfo
-		DeleteChildExecutionInfos []int64
-		UpsertRequestCancelInfos  []*RequestCancelInfo
-		DeleteRequestCancelInfos  []int64
-		UpsertSignalInfos         []*SignalInfo
-		DeleteSignalInfos         []int64
-		UpsertSignalRequestedIDs  []string
-		DeleteSignalRequestedIDs  []string
-		NewBufferedEvents         *DataBlob
-		ClearBufferedEvents       bool
+		UpsertActivityInfos         []*InternalActivityInfo
+		DeleteActivityInfos         []int64
+		RewriteActivityInfos        []*InternalActivityInfo
+		RewriteActivityMapTriggered bool // triggers full activity_map rewrite, even if RewriteActivityInfos is empty
+		UpsertTimerInfos            []*TimerInfo
+		DeleteTimerInfos            []string
+		RewriteTimerInfos           []*TimerInfo
+		RewriteTimerMapTriggered    bool // triggers full timer_map rewrite, even if RewriteTimerInfos is empty
+		WorkflowTimerTasks          []HistoryTaskKey
+		UpsertChildExecutionInfos   []*InternalChildExecutionInfo
+		DeleteChildExecutionInfos   []int64
+		UpsertRequestCancelInfos    []*RequestCancelInfo
+		DeleteRequestCancelInfos    []int64
+		UpsertSignalInfos           []*SignalInfo
+		DeleteSignalInfos           []int64
+		UpsertSignalRequestedIDs    []string
+		DeleteSignalRequestedIDs    []string
+		NewBufferedEvents           *DataBlob
+		ClearBufferedEvents         bool
 
 		TasksByCategory map[HistoryTaskCategory][]Task
 

@@ -121,6 +121,20 @@ func (db *CDB) executeWithConsistencyAll(q gocql.Query) error {
 	return q.Exec()
 }
 
+func (db *CDB) GetActivityMapDeleteRewriteThreshold() int {
+	if db.dc != nil && db.dc.ActivityMapDeleteRewriteThreshold != nil {
+		return db.dc.ActivityMapDeleteRewriteThreshold()
+	}
+	return 0
+}
+
+func (db *CDB) GetTimerMapDeleteRewriteThreshold() int {
+	if db.dc != nil && db.dc.TimerMapDeleteRewriteThreshold != nil {
+		return db.dc.TimerMapDeleteRewriteThreshold()
+	}
+	return 0
+}
+
 func (db *CDB) executeBatchWithConsistencyAll(b gocql.Batch) error {
 	if db.dc != nil && db.dc.EnableCassandraAllConsistencyLevelDelete() {
 		if err := db.session.ExecuteBatch(b.Consistency(cassandraAllConslevel)); err != nil {

@@ -68,7 +68,7 @@ func (db *CDB) InsertWorkflowExecutionWithTasks(
 		return err
 	}
 
-	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, timeStamp)
+	err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, execution, db.GetActivityMapDeleteRewriteThreshold() > 0, db.GetTimerMapDeleteRewriteThreshold() > 0, timeStamp)
 	if err != nil {
 		return err
 	}
@@ -161,14 +161,14 @@ func (db *CDB) UpdateWorkflowExecutionWithTasks(
 	}
 
 	if mutatedExecution != nil {
-		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, timeStamp)
+		err = updateWorkflowExecutionAndEventBufferWithMergeAndDeleteMaps(batch, shardID, domainID, workflowID, mutatedExecution, db.GetActivityMapDeleteRewriteThreshold() > 0, db.GetTimerMapDeleteRewriteThreshold() > 0, timeStamp)
 		if err != nil {
 			return err
 		}
 	}
 
 	if insertedExecution != nil {
-		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, timeStamp)
+		err = createWorkflowExecutionWithMergeMaps(batch, shardID, domainID, workflowID, insertedExecution, db.GetActivityMapDeleteRewriteThreshold() > 0, db.GetTimerMapDeleteRewriteThreshold() > 0, timeStamp)
 		if err != nil {
 			return err
 		}
@@ -222,20 +222,32 @@ func (db *CDB) SelectWorkflowExecution(ctx context.Context, shardID int, domainI
 	state.ReplicationState = replicationState
 
 	activityInfos := make(map[int64]*persistence.InternalActivityInfo)
+	activityDeleteCount := 0
 	aMap := result["activity_map"].(map[int64]map[string]interface{})
 	for key, value := range aMap {
 		info := parseActivityInfo(domainID, value)
+		if info.ScheduleID == 0 {
+			activityDeleteCount++
+			continue
+		}
 		activityInfos[key] = info
 	}
 	state.ActivityInfos = activityInfos
+	state.ActivityMapDeleteCount = activityDeleteCount
 
 	timerInfos := make(map[string]*persistence.TimerInfo)
+	timerDeleteCount := 0
 	tMap := result["timer_map"].(map[string]map[string]interface{})
 	for key, value := range tMap {
 		info := parseTimerInfo(value)
+		if info.TimerID == "" {
+			timerDeleteCount++
+			continue
+		}
 		timerInfos[key] = info
 	}
 	state.TimerInfos = timerInfos
+	state.TimerMapDeleteCount = timerDeleteCount
 
 	childExecutionInfos := make(map[int64]*persistence.InternalChildExecutionInfo)
 	cMap := result["child_executions_map"].(map[int64]map[string]interface{})

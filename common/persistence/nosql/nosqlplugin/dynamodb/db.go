@@ -76,3 +76,7 @@ func (db *ddb) IsDBUnavailableError(err error) bool {
 func (db *ddb) IsConditionFailedError(err error) bool {
 	return err == errConditionFailed
 }
+
+func (db *ddb) GetActivityMapDeleteRewriteThreshold() int { return 0 }
+
+func (db *ddb) GetTimerMapDeleteRewriteThreshold() int { return 0 }

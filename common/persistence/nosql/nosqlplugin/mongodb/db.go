@@ -47,3 +47,7 @@ func (db *mdb) Close() {
 func (db *mdb) PluginName() string {
 	return PluginName
 }
+
+func (db *mdb) GetActivityMapDeleteRewriteThreshold() int { return 0 }
+
+func (db *mdb) GetTimerMapDeleteRewriteThreshold() int { return 0 }
