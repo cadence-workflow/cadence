@@ -21,6 +21,7 @@
 package membership
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"sort"
@@ -54,7 +55,7 @@ const (
 
 // PeerProvider is used to retrieve membership information from provider
 type PeerProvider interface {
-	common.Daemon
+	common.DaemonV2
 
 	GetMembers(service string) ([]HostInfo, error)
 	WhoAmI() (HostInfo, error)
@@ -154,7 +155,9 @@ func (r *Ring) Stop() {
 	r.logger.Info("Stopping hashring", tag.ComponentHashring)
 	defer r.logger.Info("Stopped hashring", tag.ComponentHashring)
 
-	r.peerProvider.Stop()
+	if err := r.peerProvider.Stop(context.Background()); err != nil {
+		r.logger.Error("failed to stop peer provider", tag.Error(err))
+	}
 	r.value.Store(emptyHashring())
 
 	r.subscribers.Lock()
