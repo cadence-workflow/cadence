@@ -148,7 +148,7 @@ func newHashringTestData(t *testing.T) *hashringTestData {
 
 // starts hashring' background work and verifies all the goroutines closed at the end
 func (td *hashringTestData) startHashRing() {
-	td.mockPeerProvider.EXPECT().Stop()
+	td.mockPeerProvider.EXPECT().Stop(gomock.Any()).Return(nil)
 
 	td.t.Cleanup(func() {
 		td.hashRing.Stop()
@@ -425,7 +425,7 @@ func TestErrorIsPropagatedWhenProviderFails(t *testing.T) {
 func TestStopWillStopProvider(t *testing.T) {
 	td := newHashringTestData(t)
 
-	td.mockPeerProvider.EXPECT().Stop().Times(1)
+	td.mockPeerProvider.EXPECT().Stop(gomock.Any()).Times(1).Return(nil)
 
 	td.hashRing.status = common.DaemonStatusStarted
 	td.hashRing.Stop()
