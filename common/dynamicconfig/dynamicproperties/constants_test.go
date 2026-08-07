@@ -364,6 +364,10 @@ func (s *constantSuite) TestListKey() {
 					"Add":   true,
 					"Match": "",
 				},
+				map[string]interface{}{
+					"Add":   false,
+					"Match": "^grpc-.*",
+				},
 			},
 		},
 	}

@@ -117,22 +117,22 @@ type DomainMigrationCommand interface {
 	DynamicConfigCheck(c *cli.Context) (DomainMigrationRow, error)
 }
 
-func (d *domainMigrationCLIImpl) NewDomainMigrationCLIImpl(c *cli.Context) (*domainMigrationCLIImpl, error) {
+func NewDomainMigrationCommand(c *cli.Context) (DomainMigrationCommand, error) {
 	fc, err := getDeps(c).ServerFrontendClient(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create frontend client: %w", err)
 	}
 	fcm, err := getDeps(c).ServerFrontendClientForMigration(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create destination frontend client: %w", err)
 	}
 	ac, err := getDeps(c).ServerAdminClient(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create admin client: %w", err)
 	}
 	acm, err := getDeps(c).ServerAdminClientForMigration(c)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create destination admin client: %w", err)
 	}
 	return &domainMigrationCLIImpl{
 		frontendClient:         fc,
@@ -140,11 +140,6 @@ func (d *domainMigrationCLIImpl) NewDomainMigrationCLIImpl(c *cli.Context) (*dom
 		frontendAdminClient:    ac,
 		destinationAdminClient: acm,
 	}, nil
-}
-
-// Export a function to create an instance of the domainMigrationCLIImpl.
-func NewDomainMigrationCommand(c *cli.Context) DomainMigrationCommand {
-	return &domainMigrationCLIImpl{}
 }
 
 type domainMigrationCLIImpl struct {

@@ -89,6 +89,10 @@ type cachedQueueReaderOptions struct {
 	// PrefetchJitterCoefficient is passed to backoff.JitDuration when computing
 	// the next prefetch delay. Must be in [0, 1]. Zero disables jitter.
 	PrefetchJitterCoefficient dynamicproperties.FloatPropertyFn
+	// ShadowSampleInterval controls how often, at most, a GetTask call in "enabled" mode
+	// is diverted through the shadow comparison path for continuous regression detection.
+	// <= 0 disables sampling.
+	ShadowSampleInterval dynamicproperties.DurationPropertyFn
 }
 
 type cachedQueueReader struct {
@@ -144,6 +148,13 @@ type cachedQueueReader struct {
 	// A change means the shard was re-acquired and the cache may be stale.
 	// Protected by mu.
 	lastRangeID int64
+
+	// lastShadowSampleUnixNano is the unix-nano timestamp of the last periodic shadow
+	// sample check performed while in "enabled" mode. When concurrent GetTask calls race
+	// on the same due window, only one of them wins the update, so at most one sample is
+	// taken per window. Zero value means no sample has been taken yet, so the first
+	// eligible call fires immediately.
+	lastShadowSampleUnixNano atomic.Int64
 }
 
 func newCachedQueueReader(
@@ -169,6 +180,7 @@ func newCachedQueueReader(
 			TimeEvictionWindow:        config.TimerProcessorCacheTimeEvictionWindow,
 			MinPrefetchInterval:       config.TimerProcessorCacheMinPrefetchInterval,
 			PrefetchJitterCoefficient: config.TimerProcessorMaxPollIntervalJitterCoefficient,
+			ShadowSampleInterval:      config.TimerProcessorCachedQueueReaderShadowSampleInterval,
 		},
 	)
 }
@@ -777,10 +789,40 @@ func (q *cachedQueueReader) GetTask(ctx context.Context, req *GetTaskRequest) (*
 		},
 	}
 
-	if q.isShadow() {
+	if q.isShadow() || q.isPeriodicShadowSample() {
 		return q.getTaskInShadow(ctx, req, cacheResp, logTags)
 	}
 	return cacheResp, nil
+}
+
+// isPeriodicShadowSample reports whether this call should be diverted into a shadow
+// comparison as part of the periodic health check for "enabled" mode. Gated on elapsed
+// wall-clock time rather than a request counter, so the check cadence is independent of
+// request volume. When multiple callers race on the same due window, only one of them
+// wins and performs the sample; the timestamp is advanced before the comparison runs, so
+// the interval is measured from attempt to attempt rather than success to success.
+//
+// TODO: this periodic shadow sample check is temporary scaffolding for continuous
+// regression detection while "enabled" mode is being rolled out. It gives operators
+// an ongoing signal that the cache still agrees with the DB after promotion out of
+// "shadow" mode. Remove once CachedQueueReader is enabled by default and "shadow"
+// mode rollouts (and this periodic variant of it) are no longer needed.
+func (q *cachedQueueReader) isPeriodicShadowSample() bool {
+	interval := q.options.ShadowSampleInterval()
+	if interval <= 0 {
+		return false
+	}
+
+	now := q.clock.Now().UnixNano()
+	last := q.lastShadowSampleUnixNano.Load()
+	if now-last < interval.Nanoseconds() {
+		return false
+	}
+	if !q.lastShadowSampleUnixNano.CompareAndSwap(last, now) {
+		return false
+	}
+	q.logger.Info("shadow sample check")
+	return true
 }
 
 // LookAHead returns the next task at or after req.InclusiveMinTaskKey. Serves

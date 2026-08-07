@@ -375,7 +375,7 @@ func initializeAdminDomainHandler(c *cli.Context) (domain.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
 	}
-	archivalprovider, err := initializeArchivalProvider(configuration, clusterMetadata, metricsClient, logger)
+	archivalprovider, err := initializeArchivalProvider(configuration, clusterMetadata, metricsClient, logger, dynamicConfig)
 	if err != nil {
 		return nil, fmt.Errorf("Error in init admin domain handler: %w", err)
 	}
@@ -472,6 +472,7 @@ func initializeArchivalProvider(
 	clusterMetadata cluster.Metadata,
 	metricsClient metrics.Client,
 	logger log.Logger,
+	dynamicConfig *dynamicconfig.Collection,
 ) (provider.ArchiverProvider, error) {
 
 	archiverProvider := provider.NewArchiverProvider(
@@ -480,17 +481,19 @@ func initializeArchivalProvider(
 	)
 
 	historyArchiverBootstrapContainer := &archiver.HistoryBootstrapContainer{
-		HistoryV2Manager: nil, // not used
-		Logger:           logger,
-		MetricsClient:    metricsClient,
-		ClusterMetadata:  clusterMetadata,
-		DomainCache:      nil, // not used
+		HistoryV2Manager:  nil, // not used
+		Logger:            logger,
+		MetricsClient:     metricsClient,
+		ClusterMetadata:   clusterMetadata,
+		DomainCache:       nil, // not used
+		DynamicCollection: dynamicConfig,
 	}
 	visibilityArchiverBootstrapContainer := &archiver.VisibilityBootstrapContainer{
-		Logger:          logger,
-		MetricsClient:   metricsClient,
-		ClusterMetadata: clusterMetadata,
-		DomainCache:     nil, // not used
+		Logger:            logger,
+		MetricsClient:     metricsClient,
+		ClusterMetadata:   clusterMetadata,
+		DomainCache:       nil, // not used
+		DynamicCollection: dynamicConfig,
 	}
 
 	err := archiverProvider.RegisterBootstrapContainer(

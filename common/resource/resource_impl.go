@@ -297,17 +297,19 @@ func New(
 	)
 
 	historyArchiverBootstrapContainer := &archiver.HistoryBootstrapContainer{
-		HistoryV2Manager: persistenceBean.GetHistoryManager(),
-		Logger:           logger,
-		MetricsClient:    params.MetricsClient,
-		ClusterMetadata:  params.ClusterMetadata,
-		DomainCache:      domainCache,
+		HistoryV2Manager:  persistenceBean.GetHistoryManager(),
+		Logger:            logger,
+		MetricsClient:     params.MetricsClient,
+		ClusterMetadata:   params.ClusterMetadata,
+		DomainCache:       domainCache,
+		DynamicCollection: dynamicCollection,
 	}
 	visibilityArchiverBootstrapContainer := &archiver.VisibilityBootstrapContainer{
-		Logger:          logger,
-		MetricsClient:   params.MetricsClient,
-		ClusterMetadata: params.ClusterMetadata,
-		DomainCache:     domainCache,
+		Logger:            logger,
+		MetricsClient:     params.MetricsClient,
+		ClusterMetadata:   params.ClusterMetadata,
+		DomainCache:       domainCache,
+		DynamicCollection: dynamicCollection,
 	}
 	if err := params.ArchiverProvider.RegisterBootstrapContainer(
 		serviceName,
@@ -425,10 +427,11 @@ func (h *Impl) Start() {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start PProf")
 	}
 
+	// TODO: move this to rpcfx
 	if err := h.rpcFactory.Start(h.membershipResolver); err != nil {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start RPC factory")
 	}
-
+	// TODO: move this to rpcfx
 	if err := h.dispatcher.Start(); err != nil {
 		h.logger.WithTags(tag.Error(err)).Fatal("fail to start dispatcher")
 	}

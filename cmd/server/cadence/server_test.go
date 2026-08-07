@@ -37,6 +37,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/archiver"
+	"github.com/uber/cadence/common/archiver/provider"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/dynamicconfig"
 	"github.com/uber/cadence/common/dynamicconfig/configstore"
@@ -48,6 +50,7 @@ import (
 	pt "github.com/uber/cadence/common/persistence/persistence-tests"
 	"github.com/uber/cadence/common/persistence/sql/sqlplugin/sqlite"
 	"github.com/uber/cadence/common/resource"
+	"github.com/uber/cadence/common/rpc"
 	"github.com/uber/cadence/common/service"
 )
 
@@ -115,7 +118,19 @@ func (s *ServerSuite) TestServerStartup() {
 		dc := dynamicconfig.NewNopCollection()
 		operationalConfigStore := configstore.NewNopClient()
 		operationalDC := dynamicconfig.NewNopCollection()
-		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient())
+		rpcParams, err := rpc.NewParams(service.FullName(svc), &cfg, dc, logger, metrics.NewNoopMetricsClient())
+		s.NoError(err)
+		rpcFactory := rpc.NewFactory(logger, rpcParams)
+		archivalMetadata := archiver.NewArchivalMetadata(
+			dc,
+			cfg.Archival.History.Status,
+			cfg.Archival.History.EnableRead,
+			cfg.Archival.Visibility.Status,
+			cfg.Archival.Visibility.EnableRead,
+			&cfg.DomainDefaults.Archival,
+		)
+		archiverProvider := provider.NewArchiverProvider(cfg.Archival.History.Provider, cfg.Archival.Visibility.Provider)
+		server := newServer(svc, cfg, logger, testlogger.NewZap(s.T()), client, dc, operationalConfigStore, operationalDC, tally.NoopScope, metrics.NewNoopMetricsClient(), rpcFactory, archivalMetadata, archiverProvider)
 		daemons = append(daemons, server)
 		server.Start()
 	}

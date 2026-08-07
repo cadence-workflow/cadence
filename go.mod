@@ -16,7 +16,7 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
 	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.15.0
-	github.com/go-sql-driver/mysql v1.7.1
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/gocql/gocql v0.0.0-20211015133455-b225f9b53fa1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -36,7 +36,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/otiai10/copy v1.1.1
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
-	github.com/sirupsen/logrus v1.9.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/startreedata/pinot-client-go v0.2.0 // latest release supports pinot v0.12.0 which is also internal version
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally v3.5.8+incompatible
@@ -59,7 +59,7 @@ require (
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/time v0.7.0
+	golang.org/x/time v0.12.0
 	golang.org/x/tools v0.39.0
 	gonum.org/v1/gonum v0.16.0
 	google.golang.org/grpc v1.79.3
@@ -81,8 +81,10 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/marusama/semaphore/v2 v2.5.0 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
@@ -132,10 +134,10 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.12.1 // indirect
+	github.com/prometheus/client_golang v1.21.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.34.0 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/common v0.63.0 // indirect
+	github.com/prometheus/procfs v0.16.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect

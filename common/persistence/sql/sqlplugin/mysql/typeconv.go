@@ -31,7 +31,7 @@ type DataConverter interface {
 
 type converter struct{}
 
-func newConverter() *converter {
+func NewConverter() DataConverter {
 	return &converter{}
 }
 

@@ -42,7 +42,6 @@ import (
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
-	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/isolationgroup"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -141,6 +140,7 @@ type (
 		stopWG        sync.WaitGroup
 		stopped       int32
 		stoppedLock   sync.RWMutex
+		shutdownCh    chan struct{} // closed on Stop to release the watchForStop goroutine
 		registry      TaskListRegistry
 		throttleRetry *backoff.ThrottleRetry
 
@@ -201,6 +201,7 @@ func NewManager(p ManagerParams) (Manager, error) {
 		scope:           scope,
 		timeSource:      p.TimeSource,
 		registry:        p.Registry,
+		shutdownCh:      make(chan struct{}),
 		throttleRetry: backoff.NewThrottleRetry(
 			backoff.WithRetryPolicy(persistenceOperationRetryPolicy),
 			backoff.WithRetryableError(persistence.IsTransientError),
@@ -302,6 +303,7 @@ func (c *taskListManagerImpl) Start(ctx context.Context) error {
 			}()
 		}
 	}
+	go c.watchForStop()
 	c.liveness.Start()
 	c.taskReader.Start()
 	c.qpsTracker.Start()
@@ -319,6 +321,8 @@ func (c *taskListManagerImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&c.stopped, 0, 1) {
 		return
 	}
+	// unblocks watchForStop, which must not outlive the manager
+	close(c.shutdownCh)
 
 	// Notify parent registry to unregister this manager
 	c.registry.Unregister(c)
@@ -335,19 +339,24 @@ func (c *taskListManagerImpl) Stop() {
 	c.logger.Info("Task list manager state changed", tag.LifeCycleStopped)
 }
 
-func (c *taskListManagerImpl) handleErr(err error) error {
-	var e *persistence.ConditionFailedError
-	if errors.As(err, &e) {
-		// This indicates the task list may have moved to another host.
-		c.scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
-		c.logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
-		go c.Stop()
-		if c.taskListKind == types.TaskListKindSticky {
-			// TODO: we don't see this error in our logs, we might be able to remove this error
-			err = &types.InternalServiceError{Message: constants.StickyTaskConditionFailedErrorMsg}
-		}
+// watchForStop unloads the task list when the reader or the writer reports a fatal error,
+// usually a lease lost to another host.
+func (c *taskListManagerImpl) watchForStop() {
+	select {
+	case <-c.taskReader.Fatal():
+	case <-c.taskWriter.Fatal():
+	case <-c.shutdownCh:
+		// the task list is already being stopped by its owner, nothing to do
+		return
 	}
-	return err
+	c.Stop()
+}
+
+// reportConditionFailed emits the metric and log for a ConditionFailedError, which indicates
+// the task list may have moved to another host and must therefore be unloaded
+func reportConditionFailed(scope metrics.Scope, logger log.Logger, err error) {
+	scope.IncCounter(metrics.ConditionFailedErrorPerTaskListCounter)
+	logger.Info("Stopping task list due to persistence condition failure.", tag.Error(err))
 }
 
 func (c *taskListManagerImpl) TaskListPartitionConfig() *types.TaskListPartitionConfig {
