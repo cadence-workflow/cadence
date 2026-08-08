@@ -103,21 +103,21 @@ type (
 
 	// ClusterConfig is the config for cassandra connection
 	ClusterConfig struct {
-		Hosts                 string
-		Port                  int
-		User                  string
-		Password              string
-		AllowedAuthenticators []string
-		Keyspace              string
-		Region                string
-		Datacenter            string
-		MaxConns              int
-		TLS                   *config.TLS
-		ProtoVersion          int
-		Consistency           Consistency
-		SerialConsistency     SerialConsistency
-		Timeout               time.Duration
-		ConnectTimeout        time.Duration
-		HostSelectionPolicy   gocql.HostSelectionPolicy
+		Hosts                      string
+		Port                       int
+		User                       string
+		Password                   string
+		AllowedAuthenticators      []string
+		Keyspace                   string
+		Region                     string
+		Datacenter                 string
+		MaxConns                   int
+		TLS                        *config.TLS
+		ProtoVersion               int
+		Consistency                Consistency
+		SerialConsistency          SerialConsistency
+		Timeout                    time.Duration
+		ConnectTimeout             time.Duration
+		HostSelectionPolicyFactory func() gocql.HostSelectionPolicy
 	}
 )
