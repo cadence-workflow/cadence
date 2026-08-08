@@ -28,6 +28,8 @@ jobs:
           - budget_manager
           - clusterredirection
           - default
+          # TODO(c-warren): Enable after History DLQ has been completed
+          - dlq
 
     steps:
       - name: Checkout

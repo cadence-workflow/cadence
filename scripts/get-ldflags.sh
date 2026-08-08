@@ -12,8 +12,8 @@ if [ "$MODE" != "LDFLAG" ] && [ "$MODE" != "ECHO" ]; then
     exit 1
 fi
 
-GIT_REVISION=$(git log -1 --format=%cI-%h) # use commit date time and hash: e.g. 2021-07-27 19:36:53 -0700-40c5f1896, doc: https://git-scm.com/docs/pretty-formats
-GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+GIT_REVISION=$(git log -1 --format=%cI-%h 2>/dev/null || echo unknown) # use commit date time and hash: e.g. 2021-07-27 19:36:53 -0700-40c5f1896, doc: https://git-scm.com/docs/pretty-formats
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 BUILD_DATE=$(date '+%F-%T') # outputs something in this format 2017-08-21-18:58:45
 BUILD_TS_UNIX=$(date '+%s') # second since epoch
 BASE_PACKAGE=github.com/uber/cadence/common/metrics

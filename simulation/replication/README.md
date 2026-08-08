@@ -17,6 +17,11 @@ There are also sanity checks for the request routing layer.
 # Active-active test
 ./simulation/replication/run.sh --scenario activeactive
 
+# History-task DLQ fill + drain-via-failover test
+# (asserts the standby cluster's history-task DLQ fills while a domain is active elsewhere,
+#  then drains to zero after failover makes that cluster active and re-injection runs)
+./simulation/replication/run.sh --scenario dlq
+
 # With custom dockerfile
 ./simulation/replication/run.sh --scenario default --dockerfile-suffix .local
 
