@@ -109,6 +109,7 @@ func (w *domainDeprecator) Start() error {
 	}
 	newWorker := worker.New(w.svcClient, constants.SystemLocalDomainName, DomainDeprecationTaskListName, workerOpts)
 	newWorker.RegisterWorkflowWithOptions(w.DomainDeprecationWorkflow, workflow.RegisterOptions{Name: DomainDeprecationWorkflowTypeName})
+	newWorker.RegisterActivityWithOptions(w.CheckActivePollersActivity, activity.RegisterOptions{Name: checkActivePollersActivity, EnableAutoHeartbeat: true})
 	newWorker.RegisterActivityWithOptions(w.DisableArchivalActivity, activity.RegisterOptions{Name: disableArchivalActivity, EnableAutoHeartbeat: true})
 	newWorker.RegisterActivityWithOptions(w.CheckOpenWorkflowsActivity, activity.RegisterOptions{Name: checkOpenWorkflowsActivity, EnableAutoHeartbeat: true})
 	newWorker.RegisterActivityWithOptions(w.DeprecateDomainActivity, activity.RegisterOptions{Name: deprecateDomainActivity, EnableAutoHeartbeat: true})

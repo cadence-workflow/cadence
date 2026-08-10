@@ -21,6 +21,7 @@
 package flag
 
 import (
+	"bytes"
 	"os"
 	"reflect"
 	"testing"
@@ -170,4 +171,19 @@ func TestRepeatedStringFlag_FreshSlicePerRun_NoCrossRunAccumulation(t *testing.T
 	}
 	require.NoError(t, app2.Run([]string{"run", "--entry", "second=run"}))
 	assert.Equal(t, []string{"second=run"}, got, "cross-run accumulation must not occur")
+}
+
+func TestRepeatedStringFlag_AppearsInHelpOutput(t *testing.T) {
+	var help bytes.Buffer
+	app := &cli.App{
+		Writer: &help,
+		Flags: []cli.Flag{
+			&RepeatedStringFlag{Name: "entry", Usage: "a repeatable entry"},
+		},
+		Action: func(*cli.Context) error { return nil },
+	}
+
+	require.NoError(t, app.Run([]string{"run", "--help"}))
+	assert.Contains(t, help.String(), "--entry")
+	assert.Contains(t, help.String(), "a repeatable entry")
 }
