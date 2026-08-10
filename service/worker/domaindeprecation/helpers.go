@@ -31,6 +31,8 @@ const (
 	ErrAccessDeniedNonRetryable = "AccessDeniedError"
 	// ErrWorkflowAlreadyCompletedNonRetryable is error that indicates workflow execution already completed
 	ErrWorkflowAlreadyCompletedNonRetryable = "WorkflowExecutionAlreadyCompletedError"
+	// ErrActivePollersNonRetryable indicates the domain has active pollers and cannot be deprecated without force
+	ErrActivePollersNonRetryable = "domain has active pollers"
 
 	// DefaultRPS is the default RPS
 	DefaultRPS = 50
