@@ -2990,6 +2990,8 @@ const (
 	CachedQueueMissesCounter
 	CachedQueueSizeHistogram
 	CachedQueueShadowMismatchCounter
+	CachedQueueInjectAttemptCounter
+	CachedQueueDroppedFutureTimerTasksDurationHistogram
 
 	TaskRequestsPerTaskList
 	TaskLatencyPerTaskListHistogram
@@ -3973,6 +3975,8 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CachedQueueMissesCounter:                                      {metricName: "cached_queue_misses", metricType: Counter},
 		CachedQueueSizeHistogram:                                      {metricName: "cached_queue_size", metricType: Histogram, buckets: TaskCountBuckets},
 		CachedQueueShadowMismatchCounter:                              {metricName: "cached_queue_shadow_mismatch", metricType: Counter},
+		CachedQueueInjectAttemptCounter:                               {metricName: "cached_queue_inject_attempt", metricType: Counter},
+		CachedQueueDroppedFutureTimerTasksDurationHistogram:           {metricName: "cached_queue_dropped_future_timer_tasks_duration_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 	},
 	Matching: {
 		PollSuccessPerTaskListCounter:                                    {metricName: "poll_success_per_tl", metricRollupName: "poll_success"},
