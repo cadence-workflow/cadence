@@ -10,6 +10,7 @@
 package membership
 
 import (
+	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -69,27 +70,31 @@ func (mr *MockPeerProviderMockRecorder) SelfEvict() *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockPeerProvider) Start() {
+func (m *MockPeerProvider) Start(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Start", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockPeerProviderMockRecorder) Start() *gomock.Call {
+func (mr *MockPeerProviderMockRecorder) Start(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockPeerProvider)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockPeerProvider)(nil).Start), arg0)
 }
 
 // Stop mocks base method.
-func (m *MockPeerProvider) Stop() {
+func (m *MockPeerProvider) Stop(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+	ret := m.ctrl.Call(m, "Stop", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockPeerProviderMockRecorder) Stop() *gomock.Call {
+func (mr *MockPeerProviderMockRecorder) Stop(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockPeerProvider)(nil).Stop))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockPeerProvider)(nil).Stop), arg0)
 }
 
 // Subscribe mocks base method.

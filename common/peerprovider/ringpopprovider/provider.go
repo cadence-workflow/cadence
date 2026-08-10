@@ -23,6 +23,7 @@
 package ringpopprovider
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -124,18 +125,26 @@ func NewRingpopProvider(
 }
 
 // Start starts ringpop
-func (r *Provider) Start() {
+func (r *Provider) Start(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(
 		&r.status,
 		common.DaemonStatusInitialized,
 		common.DaemonStatusStarted,
 	) {
-		return
+		return nil
 	}
 
-	_, err := r.ringpop.Bootstrap(r.bootParams)
+	var err error
+	defer func() {
+		if err != nil {
+			r.ringpop.RemoveListener(r)
+			atomic.StoreInt32(&r.status, common.DaemonStatusInitialized)
+		}
+	}()
+
+	_, err = r.ringpop.Bootstrap(r.bootParams)
 	if err != nil {
-		r.logger.Fatal("unable to bootstrap ringpop", tag.Error(err))
+		return fmt.Errorf("bootstrap ringpop: %w", err)
 	}
 
 	// Get updates from ringpop ring
@@ -143,19 +152,21 @@ func (r *Provider) Start() {
 
 	labels, err := r.ringpop.Labels()
 	if err != nil {
-		r.logger.Fatal("unable to get ring pop labels", tag.Error(err))
+		return fmt.Errorf("get ringpop labels: %w", err)
 	}
 
 	// set port labels
 	for name, port := range r.portmap {
 		if err = labels.Set(name, strconv.Itoa(int(port))); err != nil {
-			r.logger.Fatal("unable to set port label", tag.Error(err))
+			return fmt.Errorf("set port label %s: %w", name, err)
 		}
 	}
 
 	if err = labels.Set(roleKey, r.service); err != nil {
-		r.logger.Fatal("unable to set ringpop role label", tag.Error(err))
+		return fmt.Errorf("set role label: %w", err)
 	}
+
+	return nil
 }
 
 // HandleEvent handles updates from ringpop
@@ -272,17 +283,18 @@ func (r *Provider) WhoAmI() (membership.HostInfo, error) {
 }
 
 // Stop stops ringpop
-func (r *Provider) Stop() {
+func (r *Provider) Stop(ctx context.Context) error {
 	if !atomic.CompareAndSwapInt32(
 		&r.status,
 		common.DaemonStatusStarted,
 		common.DaemonStatusStopped,
 	) {
-		return
+		return nil
 	}
 
 	r.ringpop.RemoveListener(r)
 	r.ringpop.Destroy()
+	return nil
 }
 
 // Subscribe allows to be subscribed for ring changes

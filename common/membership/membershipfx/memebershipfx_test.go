@@ -42,13 +42,13 @@ func TestFxStartStop(t *testing.T) {
 	app := fxtest.New(t, fx.Provide(func() appParams {
 		ctrl := gomock.NewController(t)
 		provider := membership.NewMockPeerProvider(ctrl)
-		provider.EXPECT().Start()
-		provider.EXPECT().Stop()
+		provider.EXPECT().Start(gomock.Any()).Return(nil)
+		provider.EXPECT().Stop(gomock.Any()).Return(nil)
 		for _, s := range service.ListWithRing {
 			provider.EXPECT().Subscribe(s, gomock.Any()).Return(nil)
 			provider.EXPECT().GetMembers(s).Return([]membership.HostInfo{}, nil)
 			// this is also called by every ring, but could be called multiple times.
-			provider.EXPECT().Stop()
+			provider.EXPECT().Stop(gomock.Any()).Return(nil)
 		}
 		factory := rpc.NewMockFactory(ctrl)
 		factory.EXPECT().Start(gomock.Any()).Return(nil)

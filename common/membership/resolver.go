@@ -24,6 +24,7 @@
 package membership
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -128,7 +129,9 @@ func (rpo *MultiringResolver) Start() {
 	rpo.logger.Info("Starting membership resolver", tag.ComponentMembershipResolver)
 	defer rpo.logger.Info("Started membership resolver", tag.ComponentMembershipResolver)
 
-	rpo.provider.Start()
+	if err := rpo.provider.Start(context.Background()); err != nil {
+		rpo.logger.Fatal("failed to start peer provider", tag.Error(err))
+	}
 
 	rpo.mu.Lock()
 	defer rpo.mu.Unlock()
@@ -156,7 +159,9 @@ func (rpo *MultiringResolver) Stop() {
 		ring.Stop()
 	}
 
-	rpo.provider.Stop()
+	if err := rpo.provider.Stop(context.Background()); err != nil {
+		rpo.logger.Error("failed to stop peer provider", tag.Error(err))
+	}
 }
 
 // WhoAmI asks to provide current instance address
