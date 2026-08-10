@@ -43,7 +43,7 @@ func TestSubscribeIsCalledOnPeerProvider(t *testing.T) {
 	assert.NoError(t, err)
 
 	// After membership is started, we expect start, subscribe and GetMembers on PeerProvider
-	pp.EXPECT().Start().Times(1)
+	pp.EXPECT().Start(gomock.Any()).Times(1).Return(nil)
 	pp.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Times(len(testServices))
 	pp.EXPECT().GetMembers(gomock.Any()).Times(len(testServices))
 
@@ -123,7 +123,7 @@ func TestCallsAreForwardedToProvider(t *testing.T) {
 
 	mockedPeer.EXPECT().WhoAmI().Times(1)
 	mockedPeer.EXPECT().SelfEvict().Times(1)
-	mockedPeer.EXPECT().Stop().Times(1)
+	mockedPeer.EXPECT().Stop(gomock.Any()).Times(1).Return(nil)
 
 	a.status = common.DaemonStatusStarted
 	a.WhoAmI()

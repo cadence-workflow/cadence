@@ -23,6 +23,7 @@
 package ringpopprovider
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -98,9 +99,15 @@ func TestRingpopProvider(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			p.Start()
+			if err := p.Start(context.Background()); err != nil {
+				t.Errorf("Failed to start provider: %v", err)
+			}
 		}()
-		t.Cleanup(p.Stop)
+		t.Cleanup(func() {
+			if err := p.Stop(context.Background()); err != nil {
+				t.Errorf("Failed to stop provider: %v", err)
+			}
+		})
 	}
 
 	t.Logf("Waiting for %d ringpop providers to start", len(matchingChs)+len(irrelevantChs))
