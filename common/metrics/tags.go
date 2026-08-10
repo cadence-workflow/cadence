@@ -392,6 +392,11 @@ func Range(value string) Tag {
 	return metricWithUnknown("range", value)
 }
 
+// StatusTag returns a new status tag.
+func StatusTag(value string) Tag {
+	return metricWithUnknown("status", value)
+}
+
 // DecisionTag returns a new decision tag
 func DecisionTag(decision string) Tag {
 	return metricWithUnknown("decision", decision)

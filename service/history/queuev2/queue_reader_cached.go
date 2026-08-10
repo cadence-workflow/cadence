@@ -659,6 +659,15 @@ func (q *cachedQueueReader) UpdateReadLevel(readLevel persistence.HistoryTaskKey
 	q.advanceInclusiveLowerBound(readLevel)
 }
 
+// inject status values reported via metrics.CachedQueueInjectAttemptCounter,
+// one per outcome branch of Inject.
+const (
+	injectStatusInjected     = "injected"
+	injectStatusBuffered     = "buffered"
+	injectStatusDroppedBelow = "dropped_below"
+	injectStatusDroppedUpper = "dropped_upper"
+)
+
 // Inject adds tasks that have just been persisted into the in-memory cache.
 // Tasks within the current cache window are inserted immediately. Tasks that
 // fall in [exclusiveUpperBound, prefetchTargetUpper) while a prefetch is
@@ -675,6 +684,9 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
+	now := q.clock.Now()
+	var injected, buffered, droppedBelow, droppedUpper int64
+
 	var covered []persistence.Task
 	for _, t := range tasks {
 		if t.GetTaskID() == 0 {
@@ -682,17 +694,18 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 			continue
 		}
 		if q.isTaskCovered(t.GetTaskKey()) {
+			injected++
 			if q.logger.DebugOn() {
 				q.logger.Debug("injecting task",
 					tag.Dynamic("taskKey", t.GetTaskKey()),
 					tag.Dynamic("cacheState", q.getState()),
 				)
 			}
-
 			covered = append(covered, t)
 			continue
 		}
 		if q.isToBufferTask(t.GetTaskKey()) {
+			buffered++
 			if q.logger.DebugOn() {
 				q.logger.Debug("buffering task",
 					tag.Dynamic("taskKey", t.GetTaskKey()),
@@ -707,6 +720,7 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 		// as the processor should only be persisting tasks near the current upper bound
 		// but log just in case to help debug any unexpected ordering issues
 		if t.GetTaskKey().Less(q.inclusiveLowerBound) {
+			droppedBelow++
 			q.logger.Warn("task key is below the lower bound, dropping task",
 				tag.Dynamic("taskKey", t.GetTaskKey()),
 				tag.Dynamic("cacheState", q.getState()),
@@ -714,6 +728,17 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 			continue
 		}
 
+		// Task key is at or beyond the cache's exclusive upper bound (the prefetch
+		// frontier) and outside the in-flight prefetch buffer window, so the cache
+		// does not cover it and it is dropped. Record how far ahead of now it is
+		// scheduled: the frontier normally sits near now+lookahead, so this typically
+		// measures how far into the future the dropped task was scheduled, which helps
+		// tune the look-ahead window.
+		droppedUpper++
+		q.metrics.ExponentialHistogram(
+			metrics.CachedQueueDroppedFutureTimerTasksDurationHistogram,
+			t.GetTaskKey().GetScheduledTime().Sub(now),
+		)
 		if q.logger.DebugOn() {
 			q.logger.Debug("task key is beyond the upper/target prefetch bound, dropping task",
 				tag.Dynamic("taskKey", t.GetTaskKey()),
@@ -722,7 +747,21 @@ func (q *cachedQueueReader) Inject(tasks []persistence.Task) {
 		}
 	}
 
+	q.emitInjectStatusCount(injectStatusInjected, injected)
+	q.emitInjectStatusCount(injectStatusBuffered, buffered)
+	q.emitInjectStatusCount(injectStatusDroppedBelow, droppedBelow)
+	q.emitInjectStatusCount(injectStatusDroppedUpper, droppedUpper)
+
 	q.putTasks(covered)
+}
+
+// emitInjectStatusCount records the number of injected tasks that took the given
+// outcome path, tagged by status. Zero counts are skipped to avoid emitting empty series.
+func (q *cachedQueueReader) emitInjectStatusCount(status string, count int64) {
+	if count == 0 {
+		return
+	}
+	q.metrics.Tagged(metrics.StatusTag(status)).AddCounter(metrics.CachedQueueInjectAttemptCounter, count)
 }
 
 // GetTask serves tasks from the cache when the starting key is covered.

@@ -30,6 +30,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/clock"
@@ -63,10 +64,11 @@ func testOptions(overrides ...func(*cachedQueueReaderOptions)) *cachedQueueReade
 }
 
 type cachedQueueReaderMockDeps struct {
-	mockBase  *MockQueueReader
-	mockQueue *MockInMemQueue
-	mockShard *shard.MockContext
-	clock     clock.MockedTimeSource
+	mockBase     *MockQueueReader
+	mockQueue    *MockInMemQueue
+	mockShard    *shard.MockContext
+	clock        clock.MockedTimeSource
+	metricsScope tally.TestScope
 }
 
 func setupMocksForCachedQueueReader(
@@ -79,11 +81,13 @@ func setupMocksForCachedQueueReader(
 	mockShard.EXPECT().GetRangeID().Return(int64(0)).AnyTimes()
 	mockShard.EXPECT().GetConfig().Return(&config.Config{RangeSizeBits: 20}).AnyTimes()
 	mockShard.EXPECT().GetShardID().Return(0).AnyTimes()
+	metricsScope := tally.NewTestScope("", nil)
 	deps := &cachedQueueReaderMockDeps{
-		mockBase:  NewMockQueueReader(ctrl),
-		mockQueue: NewMockInMemQueue(ctrl),
-		mockShard: mockShard,
-		clock:     clock.NewMockedTimeSource(),
+		mockBase:     NewMockQueueReader(ctrl),
+		mockQueue:    NewMockInMemQueue(ctrl),
+		mockShard:    mockShard,
+		clock:        clock.NewMockedTimeSource(),
+		metricsScope: metricsScope,
 	}
 
 	r := newCachedQueueReaderWithOptions(
@@ -92,7 +96,7 @@ func setupMocksForCachedQueueReader(
 		deps.mockShard,
 		deps.clock,
 		testlogger.New(t),
-		metrics.NoopScope,
+		metrics.NewClient(metricsScope, metrics.History, metrics.MigrationConfig{}).Scope(metrics.TimerQueueProcessorV2Scope),
 		testOptions(overrides...),
 	)
 
@@ -279,13 +283,18 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 	trimKey := inside.GetTaskKey().Next()
 
 	tests := []struct {
-		name               string
-		tasks              []persistence.Task
-		initPrefetchTarget persistence.HistoryTaskKey
-		optsOverride       func(*cachedQueueReaderOptions)
-		setupMocks         func(queue *MockInMemQueue)
-		wantUpper          persistence.HistoryTaskKey
-		wantBufferLen      int
+		name                string
+		tasks               []persistence.Task
+		initPrefetchTarget  persistence.HistoryTaskKey
+		optsOverride        func(*cachedQueueReaderOptions)
+		setupMocks          func(queue *MockInMemQueue)
+		wantUpper           persistence.HistoryTaskKey
+		wantBufferLen       int
+		wantInjected        int64
+		wantBuffered        int64
+		wantDroppedBelow    int64
+		wantDroppedUpper    int64
+		wantFutureHistogram bool
 	}{
 		{
 			name:  "disabled clears stale cache",
@@ -307,7 +316,8 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{inside})
 				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
 			},
-			wantUpper: upper,
+			wantUpper:    upper,
+			wantInjected: 1,
 		},
 		{
 			name:  "task before lower skipped",
@@ -315,7 +325,8 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 			},
-			wantUpper: upper,
+			wantUpper:        upper,
+			wantDroppedBelow: 1,
 		},
 		{
 			name:  "task at upper bound (exclusive) skipped",
@@ -323,7 +334,9 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 			},
-			wantUpper: upper,
+			wantUpper:           upper,
+			wantDroppedUpper:    1,
+			wantFutureHistogram: true,
 		},
 		{
 			name:  "mixed: only inside accepted",
@@ -333,7 +346,11 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{inside})
 				queue.EXPECT().RTrimBySize(100).Return(persistence.MinimumHistoryTaskKey, false)
 			},
-			wantUpper: upper,
+			wantUpper:           upper,
+			wantInjected:        1,
+			wantDroppedBelow:    1,
+			wantDroppedUpper:    1,
+			wantFutureHistogram: true,
 		},
 		{
 			// putTasks short-circuits on empty slice, so no queue calls expected.
@@ -354,7 +371,8 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 				queue.EXPECT().PutTasks([]persistence.Task{inside})
 				queue.EXPECT().RTrimBySize(1).Return(trimKey, true)
 			},
-			wantUpper: trimKey,
+			wantUpper:    trimKey,
+			wantInjected: 1,
 		},
 		{
 			name:               "task in [upper, prefetchTarget) buffered when prefetch in-flight",
@@ -365,6 +383,7 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			},
 			wantUpper:     upper,
 			wantBufferLen: 1,
+			wantBuffered:  1,
 		},
 		{
 			name:               "task beyond prefetchTarget dropped even when prefetch in-flight",
@@ -373,8 +392,10 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			setupMocks: func(queue *MockInMemQueue) {
 				queue.EXPECT().Len().Return(0).AnyTimes()
 			},
-			wantUpper:     upper,
-			wantBufferLen: 0,
+			wantUpper:           upper,
+			wantBufferLen:       0,
+			wantDroppedUpper:    1,
+			wantFutureHistogram: true,
 		},
 		{
 			name:               "task with ID=0 not buffered even when prefetch in-flight",
@@ -406,8 +427,42 @@ func TestCachedQueueReader_Inject(t *testing.T) {
 			r.mu.RUnlock()
 			assert.True(t, gotUpper.Equal(tc.wantUpper), "upper: got %v want %v", gotUpper, tc.wantUpper)
 			assert.Equal(t, tc.wantBufferLen, gotBufferLen, "buffer length")
+
+			snapshot := deps.metricsScope.Snapshot()
+			assert.Equal(t, tc.wantInjected, injectCounterValue(snapshot, injectStatusInjected), "injected count")
+			assert.Equal(t, tc.wantBuffered, injectCounterValue(snapshot, injectStatusBuffered), "buffered count")
+			assert.Equal(t, tc.wantDroppedBelow, injectCounterValue(snapshot, injectStatusDroppedBelow), "dropped_below count")
+			assert.Equal(t, tc.wantDroppedUpper, injectCounterValue(snapshot, injectStatusDroppedUpper), "dropped_upper count")
+			assert.Equal(t, tc.wantFutureHistogram, hasFutureDurationHistogram(snapshot), "future duration histogram recorded")
 		})
 	}
+}
+
+// injectCounterValue sums the cached_queue_inject_attempt counter samples tagged with the given status.
+func injectCounterValue(snapshot tally.Snapshot, status string) int64 {
+	var total int64
+	for _, c := range snapshot.Counters() {
+		if c.Name() == "cached_queue_inject_attempt" && c.Tags()["status"] == status {
+			total += c.Value()
+		}
+	}
+	return total
+}
+
+// hasFutureDurationHistogram reports whether the cached_queue_dropped_future_timer_tasks_duration_ns
+// histogram recorded at least one sample.
+func hasFutureDurationHistogram(snapshot tally.Snapshot) bool {
+	for _, h := range snapshot.Histograms() {
+		if h.Name() != "cached_queue_dropped_future_timer_tasks_duration_ns" {
+			continue
+		}
+		for _, count := range h.Durations() {
+			if count > 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestCachedQueueReader_Clear(t *testing.T) {
